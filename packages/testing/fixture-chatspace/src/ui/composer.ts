@@ -33,7 +33,7 @@
 // listener on the composer root; the Templates panel carries
 // `data-dismissible-open` while open.
 //
-// Files (1.46.0, as ChatSpace 0.233.0's composer): the composer root is a drop
+// Files (1.47.0, as ChatSpace 0.233.0's composer): the composer root is a drop
 // zone like ChatSpace's (VueUse useDropZone) — a drag whose items hold a file
 // is taken, and on the drop the PAGE's own listener reads `files` (so a
 // DataTransfer an extension builds in its isolated world reaches it empty, as
@@ -162,7 +162,7 @@ const OfComposer = defineComponent({
       }, NOTICE_MS);
     };
 
-    // ── files: the drop zone, the uploads, the draft's media (1.46.0) ──
+    // ── files: the drop zone, the uploads, the draft's media (1.47.0) ──
     const canUpload = computed(() => (cache.getQueryData<string[]>(keys.userPermissions()) ?? []).some((permission) => UPLOAD_PERMISSIONS.includes(permission)));
     const uploading = ref<UploadingFile[]>([]);
     /** Drags with a file over the root (in minus out): ChatSpace's drop overlay shows while there is one. */

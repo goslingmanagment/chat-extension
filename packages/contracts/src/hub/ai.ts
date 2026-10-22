@@ -303,7 +303,7 @@ export const HubStreamRequestSchema = z
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),
     // 1.15.0 (R20 P4b3), the hub's own rules of the site operations (its handler; else 400, or 409 for our narrow
     // token on a page without the switch): the notes fill is a Fansly page's, the fan named apart from the group; the
-    // voice script (1.46.0: both platforms) always names its fan — on OnlyFans the chat itself — and is spoken from a
+    // voice script (1.47.0: both platforms) always names its fan — on OnlyFans the chat itself — and is spoken from a
     // draft that is not blank; the notes fill needs the labels it fills.
     z.refine((r) => !FANSLY_HUB_FEATURES.includes(r.feature) || (r.body.platform === 'fansly' && typeof r.body.fanRef === 'string'), {
       message: 'a Fansly feature: its page and fan',

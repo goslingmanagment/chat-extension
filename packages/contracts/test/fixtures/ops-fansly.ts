@@ -1,7 +1,7 @@
 // Fixtures of Fansly's own operations (1.15.0, R20 P4b3; ops-fansly.ts): the
 // start of «Заполнить из чата», its results, the questionnaire's labels, and
 // the hub bodies and requests it and the voice script become — valid and
-// invalid (the voice script is every site's since 1.46.0, voice.ts; its start
+// invalid (the voice script is every site's since 1.47.0, voice.ts; its start
 // is no Fansly operation any more). Synthetic Fansly ids (FANSLY_IDS): the
 // conversation is the group, the fan named apart.
 
@@ -164,7 +164,7 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: NOTE_LABELS.map(() => '') }, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound(), noteValues: noteLabelsAtTheBound().map(() => '') }, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] }, capabilities: ['context-v1'] },
-    // 1.46.0: the voice script of an OnlyFans page — the chat is the fan.
+    // 1.47.0: the voice script of an OnlyFans page — the chat is the fan.
     { feature: 'voice-script', body: { ...voiceScriptBody, platform: 'onlyfans', conversationRef: FANSLY_IDS.fan }, capabilities: [] },
   ],
   invalid: [

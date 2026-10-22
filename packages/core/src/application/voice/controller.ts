@@ -1,4 +1,4 @@
-// The voice studio's controller (1.46.0; contracts voice.ts, vm/voice.ts):
+// The voice studio's controller (1.47.0; contracts voice.ts, vm/voice.ts):
 // the open chat's voice as one view — its script, its takes, the next step —
 // and the person's clicks. The same on both sites: what differs is the
 // site's handover of the file (HostPort.attachFile) and the chat's ids.

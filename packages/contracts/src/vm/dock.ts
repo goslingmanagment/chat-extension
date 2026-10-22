@@ -52,7 +52,7 @@ export interface DockActionVM {
   readonly reason: ReasonVM | null;
   /** Printed on the button only when enabled and the strip is ≥ 690 px wide (ui-design §3.3). */
   readonly hotkey: HotkeyLabel | null;
-  /** The «Recap готов» dot (UI-010); moves to «Ещё» on a narrow strip. 1.46.0: «Войс готов» — a take got ready while the studio was closed. */
+  /** The «Recap готов» dot (UI-010); moves to «Ещё» on a narrow strip. 1.47.0: «Войс готов» — a take got ready while the studio was closed. */
   readonly badge: 'recap-ready' | 'voice-ready' | null;
 }
 
@@ -169,7 +169,7 @@ export interface DockVM {
   readonly focusPart?: { readonly opId: Uuid; readonly part: number } | null;
   /** Recap or Review open in the sheet; their content is the `recap.*` / `review` views (ui-design §9.1 п. 3). */
   readonly analysis: 'recap' | 'review' | null;
-  /** 1.46.0: the voice studio is the sheet; its content is the `voice` view. Absent or false — not shown. */
+  /** 1.47.0: the voice studio is the sheet; its content is the `voice` view. Absent or false — not shown. */
   readonly voice?: boolean;
   /** A refused start in place of a result (CG-OP-TAB-LIMIT with «Идут сейчас», CG-OP-CHAT-BUSY). */
   readonly refusal: RefusalVM | null;

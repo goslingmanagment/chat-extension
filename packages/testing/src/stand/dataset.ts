@@ -45,7 +45,7 @@ export interface StandMessage {
   isOpened?: boolean;
   /** OnlyFans' `isNew`: on the model's message, false once the fan has seen it; absent — true, as a fresh message. */
   isNew?: boolean;
-  /** 1.46.0: a voice note the model's message carries (an audio the page uploaded): its medium's id and seconds. */
+  /** 1.47.0: a voice note the model's message carries (an audio the page uploaded): its medium's id and seconds. */
   readonly audio?: { readonly id: string; readonly duration: number };
 }
 

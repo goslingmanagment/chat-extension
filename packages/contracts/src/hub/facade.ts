@@ -180,12 +180,12 @@ export interface HubFacade {
    */
   sendAttributions(request: SendAttributionsRequest): Promise<SendAttributionsResult>;
   /**
-   * 1.46.0: the paid voicing of a script (`voiceNoteCreate`): idempotent per `clientRequestId` at the hub, never
+   * 1.47.0: the paid voicing of a script (`voiceNoteCreate`): idempotent per `clientRequestId` at the hub, never
    * repeated by the facade — the caller wrote the take before it asked. Needs the page's `voice` and `voice-notes-v1`.
    */
   voiceNoteCreate(request: VoiceNoteCreateRequest): Promise<VoiceNoteView>;
-  /** 1.46.0: a voice note's state; a read, never a render. */
+  /** 1.47.0: a voice note's state; a read, never a render. */
   voiceNoteStatus(ref: VoiceNoteRef): Promise<VoiceNoteView>;
-  /** 1.46.0: a voice note's MP3 as the hub serves it (`fetchVoiceNoteAudio`); the caller checks its sha256 and length. */
+  /** 1.47.0: a voice note's MP3 as the hub serves it (`fetchVoiceNoteAudio`); the caller checks its sha256 and length. */
   voiceNoteAudio(ref: VoiceNoteRef): Promise<ArrayBuffer>;
 }

@@ -108,7 +108,7 @@ export const MEDIA_IDS = 100;
 export const MEDIA_PRICE_MIN = 300;
 export const MEDIA_PRICE_MAX = 20_000;
 export const MEDIA_TYPES = ['photo', 'video', 'gif', 'audio'] as const;
-/** contracts ATTACH_LIMITS (1.46.0): the file of an attach, and how long MAIN looks for the composer's word on it. */
+/** contracts ATTACH_LIMITS (1.47.0): the file of an attach, and how long MAIN looks for the composer's word on it. */
 export const ATTACH_MAX_BYTES = 2 * 1024 * 1024;
 export const ATTACH_WATCH_MS = 60_000;
 export const ATTACH_WATCH_MAX_MS = 180_000;

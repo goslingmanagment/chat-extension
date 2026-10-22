@@ -301,7 +301,7 @@ export interface StandControl {
   /** The role's permissions, and whether the user owns the organisation (owners send even with of_block_message_sending). */
   setPermissions(permissions: readonly string[], owner?: boolean): Promise<void>;
   /**
-   * 1.46.0: the composer's uploads of dropped files from now on — how long one takes, and whether it fails (the uploading
+   * 1.47.0: the composer's uploads of dropped files from now on — how long one takes, and whether it fails (the uploading
    * tile goes, nothing in its place). Uploads need the role's «Media uploader» (`om_view_media_uploader` or
    * `om_upload_media_hub`, see setPermissions).
    */

@@ -277,7 +277,7 @@ export const COVERAGE_CHECK_LIMITS = { windowMax: 60, deletedMax: 60 } as const;
 export const NOTE_FILL_LIMITS = { fieldsMax: 30, labelMaxChars: 60, valueMaxChars: 2000 } as const;
 
 /**
- * 1.46.0: a file of ours into ChatSpace's composer (`attachFile`, HostPort.attachFile). `maxBytes` — the file (the voice
+ * 1.47.0: a file of ours into ChatSpace's composer (`attachFile`, HostPort.attachFile). `maxBytes` — the file (the voice
  * note's MP3: the hub's own cap, VOICE_LIMITS.audioMaxBytes); `watchMs` — how long MAIN looks for the composer's word on
  * it after the drop; `watchMaxMs` — the longest, while the site's upload of it is still on view; `bridgeMs` — the
  * isolated side's deadline for MAIN's answer.

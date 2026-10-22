@@ -1,4 +1,4 @@
-// Voice (1.46.0) on either site: a draft in the field, the Voice chip writes its script, «Озвучить» renders a take
+// Voice (1.47.0) on either site: a draft in the field, the Voice chip writes its script, «Озвучить» renders a take
 // (the fake hub's MP3), «Ещё вариант» a second one, then «Прикрепить» hands the chosen take to the site's field — on
 // ChatSpace by a drop on the composer, on Fansly through its own upload window, whose «Upload» the person presses.
 

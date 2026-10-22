@@ -42,7 +42,7 @@ export const HUB_ROUTE_PATHS = {
   clientAudienceNew: '/api/v1/client/pages/:pageLabel/audience-new',
   clientAiUsageDaily: '/api/v1/client/pages/:pageLabel/ai-usage',
   clientSendAttributions: '/api/v1/client/pages/:pageLabel/send-attributions',
-  // 1.46.0: the voice-notes lane (`:id` is the note's integer id).
+  // 1.47.0: the voice-notes lane (`:id` is the note's integer id).
   voiceNoteCreate: '/api/v1/pages/:pageLabel/voice-notes',
   voiceNoteStatus: '/api/v1/pages/:pageLabel/voice-notes/:id',
   voiceNoteAudio: '/api/v1/pages/:pageLabel/voice-notes/:id/audio',

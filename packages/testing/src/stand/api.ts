@@ -28,7 +28,7 @@ const AUDIO_FILE = /\.(?:mp3|ogg|wav)$/i;
 const fields = (value: unknown): Record<string, unknown> => (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {});
 
 /**
- * 1.46.0: the voice note a send takes along — the first audio among its `platformMetadata.mediaFiles`, the descriptors
+ * 1.47.0: the voice note a send takes along — the first audio among its `platformMetadata.mediaFiles`, the descriptors
  * of the page's uploads (the stand's upload puts the length into `extra`); undefined — none.
  */
 function voiceOf(body: Record<string, unknown>, state: StandState): StandMessage['audio'] {

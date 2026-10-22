@@ -1,6 +1,6 @@
 // `__omComposerBridge` on the translator slot (metadata.ts «composer-bridge»),
 // and the composer's draft in localStorage (metadata.ts «draft»): its text
-// (TipTap JSON) and, since 1.46.0, the media the person uploaded into it.
+// (TipTap JSON) and, since 1.47.0, the media the person uploaded into it.
 // The bridge is set by a directive on the slot, like ChatSpace's: on mount and
 // on EVERY update of the composer that renders the slot, with a NEW object each
 // time, holding the editor component's surface (editor-handle.ts). So the

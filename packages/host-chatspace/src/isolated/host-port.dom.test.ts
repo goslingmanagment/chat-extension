@@ -311,7 +311,7 @@ describe('navigation (§6.5, §6.9)', () => {
   });
 });
 
-describe('a file of ours into the composer (1.46.0)', () => {
+describe('a file of ours into the composer (1.47.0)', () => {
   const NAME = `${uuid(31)}.mp3`;
   const KEY = `chat-space:draft:of:${ACC}:${FAN}`;
   const attachIntent = (host: ChatSpaceHostPort, expected: Partial<HostIdentity> = {}): AttachIntent => ({

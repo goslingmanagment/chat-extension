@@ -142,7 +142,7 @@ const SPECS = {
   'CG-SEND-UNCERTAIN': { kind: 'send', severity: 'error', recovery: 'open-chat', retry: 'never', telemetry: 'count+sample' },
   /** 1.30.0 (X53): the picked media cannot go yet — the price, a message of free previews only, the release forms. */
   'CG-SEND-MEDIA': { kind: 'send', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
-  // ── voice notes (1.46.0, both sites; the hub's voice-notes lane, HF-4). Until 1.46.0 Fansly's own codes, unused. ──
+  // ── voice notes (1.47.0, both sites; the hub's voice-notes lane, HF-4). Until 1.47.0 Fansly's own codes, unused. ──
   'CG-VOICE-OFF': { kind: 'voice', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-VOICE-NOT-ALLOWED': { kind: 'voice', severity: 'info', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },
   'CG-VOICE-NO-PROFILE': { kind: 'voice', severity: 'warn', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },

@@ -1,5 +1,5 @@
 // R20 P12a: Fansly's own operation driver, in its own chunk — «Заполнить из
-// чата» (`notes-fill`). The voice script is every site's since 1.46.0
+// чата» (`notes-fill`). The voice script is every site's since 1.47.0
 // (services/voice/script-driver.ts); the background's core adds it to each
 // site's operations.
 import { HubStreamRequestSchema, hasCapability, type HubStreamRequest } from '@cg/contracts/hub';

@@ -265,7 +265,7 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    */
   act('ShowAnalysis', { view: z.enum(ANALYSIS_VIEWS), mode: z.enum(ANALYSIS_MODES) }),
 
-  // ── voice notes (1.46.0) ──
+  // ── voice notes (1.47.0) ──
   /**
    * The Voice chip (`open: true`) and the studio's «Скрыть» (`false`): the chat's studio in the dock's sheet. Opened
    * with nothing written yet and a draft in the field, it writes the script at once (free of characters).

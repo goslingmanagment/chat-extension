@@ -36,7 +36,7 @@ export interface ViewMap {
   readonly options: OptionsVM;
   readonly 'debug-prompt': DebugPromptVM;
   readonly journal: JournalVM;
-  /** 1.46.0: the voice studio of the open chat (the dock's sheet of the Voice chip). */
+  /** 1.47.0: the voice studio of the open chat (the dock's sheet of the Voice chip). */
   readonly voice: VoiceVM;
 }
 

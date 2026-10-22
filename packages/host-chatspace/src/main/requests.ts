@@ -78,7 +78,7 @@ const insertKeys = shape({
     shape({ kind: is('open'), documentEpoch: isToken, routeEpoch: count, composerInstanceId: isToken, draftRevision: count, draftDigest: isDigest })(value) ||
     shape({ kind: is('deferred'), documentEpoch: isToken })(value),
   mode: is('replace', 'append'),
-  // Empty only in an open replace (Voice's «Убрать текст», 1.46.0): checked with the refinements below.
+  // Empty only in an open replace (Voice's «Убрать текст», 1.47.0): checked with the refinements below.
   text: (value) => typeof value === 'string' && value.length <= MAX_STRING,
   confirmationId: orNull(isUuid),
   createdAt: count,
@@ -239,6 +239,6 @@ export const PAYLOAD: Record<string, Check> = {
     shape({ of: is('items'), acc: isId, folder: (folder) => folder === 'all' || isId(folder), offset: int(0, 100_000) })(value) ||
     shape({ of: is('states'), ...accFan, ids: (ids) => isIds(ids) && (ids as unknown[]).length > 0 })(value) ||
     shape({ of: is('tags'), acc: isId, ids: (ids) => isIds(ids) && (ids as unknown[]).length > 0 && (ids as unknown[]).every(isMediaId) })(value),
-  // 1.46.0: a file of ours dropped on the open chat's composer (attach.ts).
+  // 1.47.0: a file of ours dropped on the open chat's composer (attach.ts).
   attachFile: isAttach,
 };

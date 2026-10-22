@@ -1,4 +1,4 @@
-// The voice script (every site's since 1.46.0) and Fansly's «Заполнить из
+// The voice script (every site's since 1.47.0) and Fansly's «Заполнить из
 // чата» through the one scheduler → the real fake hub, whose body validator
 // is the vendored SDK and whose gates repeat HF-4а/б.
 import { describe, expect, it } from 'vitest';

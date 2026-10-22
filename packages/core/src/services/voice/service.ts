@@ -1,4 +1,4 @@
-// The voice notes of the background (1.46.0; contracts voice.ts): one
+// The voice notes of the background (1.47.0; contracts voice.ts): one
 // session per chat — its draft, its script and the takes of it — kept in
 // storage.local, so a reload, a closed tab or a restarted browser keeps what
 // the person paid for; the script through the shared scheduler; the paid

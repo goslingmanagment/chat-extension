@@ -1,6 +1,6 @@
 // TEST builds, loopback only: this probe exercises Fansly's own site operation
 // («Заполнить из чата») and Reply beside it through the shared admission. The
-// voice script is every site's since 1.46.0 (`voice.script`, the studio).
+// voice script is every site's since 1.47.0 (`voice.script`, the studio).
 import { freshTextAdmitted } from '@cg/core/domain/features';
 import { createPageContext } from '@cg/core/application/boards';
 import { withFanslyOpText } from '@cg/core/application/hosts/fansly/ai';

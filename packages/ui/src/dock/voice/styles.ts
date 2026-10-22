@@ -1,4 +1,4 @@
-// Styles of the voice studio (1.46.0), adopted when its chunk loads. The
+// Styles of the voice studio (1.47.0), adopted when its chunk loads. The
 // script is a draft card — the dashed terracotta edge and the warm fill of
 // every AI text that has not gone anywhere, in the serif — and grows with its
 // text; the presets are the kit's segment. A take is a quiet row: ▶, its

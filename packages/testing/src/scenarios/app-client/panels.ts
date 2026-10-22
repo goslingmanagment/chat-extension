@@ -246,7 +246,7 @@ export function fanPanel(ctx: ScenarioCtx, view: VmView, patch: Partial<FanPanel
   };
 }
 
-// ── Voice (1.46.0) ──
+// ── Voice (1.47.0) ──
 
 /** The fake hub's synthetic voice script (fake-hub/ai.ts): what its takes speak (fake-hub/voice-audio.ts). */
 const VOICE_SCRIPT = '[warmly] Hey you, it is lovely to hear from you.';

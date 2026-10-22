@@ -122,13 +122,13 @@ export const MainSendRequestSchema = z
 export type MainSendRequest = z.infer<typeof MainSendRequestSchema>;
 
 /**
- * 1.46.0: the name of a file of ours as the page reads it — a random UUID and `.mp3`, as ChatSpace names the voice notes
+ * 1.47.0: the name of a file of ours as the page reads it — a random UUID and `.mp3`, as ChatSpace names the voice notes
  * it records; never one that names the extension (decision X22).
  */
 export const ATTACH_FILE_NAME_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.mp3$/i;
 
 /**
- * 1.46.0: AttachIntent as MAIN receives it (HostPort.attachFile): no action token (§14) — the intent's one-time id, the
+ * 1.47.0: AttachIntent as MAIN receives it (HostPort.attachFile): no action token (§14) — the intent's one-time id, the
  * identity of the chat, document and composer it is for, and the file. The bytes cross as an ArrayBuffer (a structured
  * clone on the port): MAIN builds the File of the drop from them in the page's own world.
  */
@@ -256,7 +256,7 @@ export const TO_MAIN = {
    */
   chatReadState: { payload: z.strictObject({ ...AccFan, username: z.string().check(z.minLength(1), z.maxLength(CHAT_READ_LIMITS.usernameMax)) }), data: ChatReadAnswerSchema, write: false, timeout: 'network' },
   /**
-   * 1.46.0: a file of ours into the open chat's composer (AttachWire, HostPort.attachFile): MAIN drops it on the
+   * 1.47.0: a file of ours into the open chat's composer (AttachWire, HostPort.attachFile): MAIN drops it on the
    * composer frame root, once, in the step of its checks, and answers when the composer showed what became of it — at
    * the latest after ATTACH_LIMITS.watchMs, or watchMaxMs while the site's upload of it is on view. Its deadline is
    * ATTACH_LIMITS.bridgeMs.

@@ -22,7 +22,7 @@ export const FEATURES_COMMON = {
   recap: { kind: 'ai', chip: { group: 'analysis', priority: 20, icon: 'dossier' }, hotkey: 'recap' },
   coach: { kind: 'ai', chip: { group: 'analysis', priority: 30, icon: 'bulb' }, hotkey: 'coach' },
   /**
-   * 1.46.0: Voice — the draft spoken in the model's voice (the hub's voice-notes lane): a free script, paid takes, the
+   * 1.47.0: Voice — the draft spoken in the model's voice (the hub's voice-notes lane): a free script, paid takes, the
    * MP3 into the chat's field. Its studio is the dock's sheet; a tool of the draft, beside Fix.
    */
   voice: { kind: 'panel', chip: { group: 'draft', priority: 20, icon: 'mic' } },

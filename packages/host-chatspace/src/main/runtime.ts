@@ -9,7 +9,7 @@
 // - Writes (D-07): the guarded insert through ChatSpace's composer bridge and
 //   router.push on a human action (the isolated side redeemed the token).
 //   The third write, the X8 queue call, is the tap script's (send-port.ts).
-//   The fourth (1.46.0), on a human action too: one drop of a file of ours
+//   The fourth (1.47.0), on a human action too: one drop of a file of ours
 //   on the open chat's composer frame, which ChatSpace uploads its own way
 //   (attach.ts).
 // - The tap script (chatspace-ws), when the background registered it, hands
@@ -302,7 +302,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     return composer && composer.id === expected.composerInstanceId ? composer : null;
   };
 
-  /** 1.46.0: a file of ours into the open chat's composer, by a drop on its frame (attach.ts). */
+  /** 1.47.0: a file of ours into the open chat's composer, by a drop on its frame (attach.ts). */
   const attacher = createAttach({
     win,
     now,

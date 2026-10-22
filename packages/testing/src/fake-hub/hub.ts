@@ -17,7 +17,7 @@
 // capture (HF-9) for a generation and a read, the transcript of a Fansly
 // generation read by its group, and the answer to the window check (HF-8в).
 //
-// 1.46.0: the voice-notes lane on both sites (voice.ts) has a path of its own
+// 1.47.0: the voice-notes lane on both sites (voice.ts) has a path of its own
 // (handleVoice): the hub's own schemas are required there, a narrow token
 // alone is asked for the page's `voice`, and its audio answers raw bytes.
 

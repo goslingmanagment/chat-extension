@@ -202,7 +202,7 @@ function Analysis({ loader, which, debugPart }: { readonly loader: PartLoader<An
   return <View which={which} place="sheet" debugPart={debugPart} />;
 }
 
-/** The voice studio in the sheet (1.46.0); its chunk loads on the first open. */
+/** The voice studio in the sheet (1.47.0); its chunk loads on the first open. */
 function Voice({ loader, onHide }: { readonly loader: PartLoader<VoiceProps>; readonly onHide: () => void }): JSX.Element {
   const i18n = useI18n();
   const part = useLazyPart(loader);

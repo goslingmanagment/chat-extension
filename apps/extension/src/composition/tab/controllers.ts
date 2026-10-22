@@ -77,7 +77,7 @@ export interface TabWorld {
   readonly gate: GestureGate;
   readonly logger: Logger;
   readonly drafts: DraftStore | null;
-  /** 1.46.0: «Скачать MP3» of a voice take — a Blob saved inside our own closed root. */
+  /** 1.47.0: «Скачать MP3» of a voice take — a Blob saved inside our own closed root. */
   readonly files: AiChunk.FileSaver;
 }
 

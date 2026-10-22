@@ -24,7 +24,7 @@
 // `fansly.followers.*` — «Новые» by the background's pass (Б17,
 // FS-NEW-*) and its greeting send (`fansly.followers.send`, send-fansly.ts);
 // `fansly.notes.*` — the fan's native notes (FS-NOTE-*);
-// (voice notes are on both sites since 1.46.0: the shared `voice.*` of
+// (voice notes are on both sites since 1.47.0: the shared `voice.*` of
 // tab-messages.ts);
 // `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.relay.*` — «Fansly
 // через вкладку» (FS-NET-4, port `cg-relay`); `fansly.settings.*` and

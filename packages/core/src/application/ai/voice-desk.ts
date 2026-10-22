@@ -1,4 +1,4 @@
-// What the tab holds of voice notes (1.46.0; contracts voice.ts): the open
+// What the tab holds of voice notes (1.47.0; contracts voice.ts): the open
 // chat's session as the background keeps it (`voice.read`, then its
 // `voice.changed` events), the text of a script being written (its
 // `op.update` batches), the checked MP3 of a ready take once the studio asks

@@ -253,7 +253,7 @@ export function createDockController(ws: AiWorkspace): DockController {
   }
 
   /**
-   * 1.46.0: the Voice chip — only where the page has voice notes (its `voice` and the hub's lane: a voice profile, the
+   * 1.47.0: the Voice chip — only where the page has voice notes (its `voice` and the hub's lane: a voice profile, the
    * provider, the allowlist); elsewhere no chip at all, as the old Fansly extension hid its 🎙. A take that renders or a
    * script being written makes it busy; a take that got ready while the studio was closed puts its dot on it.
    */

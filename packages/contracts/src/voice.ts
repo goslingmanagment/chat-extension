@@ -1,4 +1,4 @@
-// Voice notes on both sites (1.46.0; the hub's voice-notes lane, HF-4): a
+// Voice notes on both sites (1.47.0; the hub's voice-notes lane, HF-4): a
 // script spoken from the chat's draft, its paid voicings («варианты») and
 // the MP3 the person hands to the site's own composer. One vocabulary for
 // ChatSpace (OnlyFans) and Fansly: the studio, its controller and the

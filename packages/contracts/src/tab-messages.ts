@@ -528,7 +528,7 @@ export const TAB_REQUESTS = {
     hosts: CHATSPACE,
   },
 
-  // ── voice notes (1.46.0; voice.ts) ──
+  // ── voice notes (1.47.0; voice.ts) ──
   /** The chat's voice session as the background keeps it; null — none. The page must be one of the tab's bindings. */
   'voice.read': {
     req: z.strictObject({ pageId: HubIntIdSchema, conversationRef: NativeIdSchema }),
@@ -804,7 +804,7 @@ export const TAB_EVENTS = {
   },
   /** The terminal view of an operation. */
   'op.done': { payload: z.strictObject({ view: OpViewSchema }), to: ANY },
-  /** 1.46.0: a chat's voice session changed (a script written, a take's state, an edit of another tab); null — it went. */
+  /** 1.47.0: a chat's voice session changed (a script written, a take's state, an edit of another tab); null — it went. */
   'voice.changed': { payload: z.strictObject({ chat: ChatRefSchema, conversationRef: NativeIdSchema, session: z.nullable(VoiceSessionSchema) }), to: TAB },
   'send.state': { payload: z.strictObject({ view: SendAttemptViewSchema }), to: ANY },
   /** 1.11.0 (decision X25): the X8 fuse tripped or was reset; tabs reconfigure their host adapter by it. */

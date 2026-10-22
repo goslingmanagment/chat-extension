@@ -29,7 +29,7 @@
 //   fixed outcome of BRIDGE_WRITE_FAILURES and is never retried.
 // - An `applied` insert is checked once more against the target chat's own
 //   draft key (NEW-06): a disagreement makes it `uncertain`, never a retry.
-// - 1.46.0: `attachFile` hands the voice note's MP3 to MAIN, which drops it on
+// - 1.47.0: `attachFile` hands the voice note's MP3 to MAIN, which drops it on
 //   the open chat's composer for ChatSpace's own upload (main/attach.ts). The
 //   draft key says beforehand whether the composer can take it (an audio, a
 //   GIF, 40 media: `busy`) and afterwards whether our file is in the draft:
@@ -147,7 +147,7 @@ export interface ChatSpaceHostPort extends HostPort {
   configure(config: ChatSpaceLiveConfig): Promise<ChatSpaceContractReport>;
   /** ChatSpace's report has ChatSpace's shape (contracts 1.15.0: the report is parsed by its site). */
   probe(): ChatSpaceContractReport;
-  /** 1.46.0: ChatSpace's port always has it; whether the page takes a file now, `fileAttach` says. */
+  /** 1.47.0: ChatSpace's port always has it; whether the page takes a file now, `fileAttach` says. */
   attachFile(intent: AttachIntent): Promise<AttachReceipt>;
 }
 
@@ -610,7 +610,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     return rejected(error.failure === 'not-ready' ? 'CG-HOST-NOT-READY' : 'CG-INSERT-FAILED');
   };
 
-  // ── a file into the composer (1.46.0, voice notes) ──
+  // ── a file into the composer (1.47.0, voice notes) ──
 
   /** An attach of ours is on its way (one at a time; MAIN keeps the same rule). */
   let attaching = false;
@@ -924,7 +924,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     },
 
     /**
-     * 1.46.0: the voice note's MP3 into the open chat's composer. Refused before the token is spent: another chat,
+     * 1.47.0: the voice note's MP3 into the open chat's composer. Refused before the token is spent: another chat,
      * document or composer than the intent's (`identity`), the capability off (`anchor-missing`), the draft key showing
      * an audio, a GIF or 40 media — or an attach of ours still on its way (`busy`). Then the token, then MAIN, once: an
      * answer lost on the way is `unknown`, never a second drop.

@@ -1,6 +1,6 @@
 // Fansly's own operations (1.15.0, R20 P4b3; docs/project-unite/architecture.md
 // §1.6, §8.8, §11.1): «Заполнить из чата», as the shared scheduler runs it
-// (the voice script is every site's since 1.46.0: voice.ts) — through its admission (one operation per chat across
+// (the voice script is every site's since 1.47.0: voice.ts) — through its admission (one operation per chat across
 // the extension and three per tab, together with Reply and the rest), its
 // timeouts, cancel, spend, dedup and kept result. The shared code knows them
 // as types (`SiteOpId`, `SiteStartOp`, `SiteOpResult`); what checks and drives

@@ -465,7 +465,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const results = createResultsStore<AnyOpView>({ session, log: serviceLog, readView: async (value) => {
     const common = OpViewSchema.safeParse(value);
     if (common.success) return common.data;
-    // 1.46.0: the voice script is every site's, its view the core's own.
+    // 1.47.0: the voice script is every site's, its view the core's own.
     const voiceView = readVoiceOpView(value);
     if (voiceView !== null) return voiceView;
     const target = TargetSchema.safeParse((value as { target?: unknown } | null)?.target);
@@ -572,7 +572,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     log: coreLog,
   });
 
-  // 1.46.0: voice notes — the sessions of the chats and their paid takes; the voice script runs in the scheduler below.
+  // 1.47.0: voice notes — the sessions of the chats and their paid takes; the voice script runs in the scheduler below.
   const voice = createBackgroundVoice({
     hub,
     store: local,
@@ -606,7 +606,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // the Review frame, Recap blocks, Coach drafts).
     drivers: AI_FEATURE_DRIVERS,
     // A site's own operations come with its running module (Fansly's «Заполнить из чата»); the voice script is every
-    // site's (1.46.0), so a site without a module of operations still has it.
+    // site's (1.47.0), so a site without a module of operations still has it.
     siteOps: async (host) => {
       if (!(await moduleUnderSameSignIn(host))) return null;
       return voice.withVoice(host, hostModules.running(host)?.operations ?? null);
@@ -1381,7 +1381,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('feed.read', data['feed.read']);
   rpc.handle('fan.card', data['fan.card']);
   rpc.handle('fan.dossier', data['fan.dossier']);
-  // 1.46.0: voice notes, both sites.
+  // 1.47.0: voice notes, both sites.
   rpc.handle('voice.read', voice.handlers['voice.read']);
   rpc.handle('voice.script', voice.handlers['voice.script']);
   rpc.handle('voice.edit', voice.handlers['voice.edit']);

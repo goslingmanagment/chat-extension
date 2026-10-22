@@ -44,7 +44,7 @@ const FEATURES = {
   'fresh-text': { base: { flags: ['freshText'], hostCapabilities: [], clientNeeds: CLIENT_FLAG_REQUIREMENTS.freshText }, actions: {}, surfaces: ['dock'], source: 'page' },
   review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
   recap: { base: { flags: ['recap'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded', 'fan-panel'], source: 'hub' },
-  // 1.46.0: the page's `voice` (the hub weighs its lane: the switch, the provider, the allowlist and a voice profile);
+  // 1.47.0: the page's `voice` (the hub weighs its lane: the switch, the provider, the allowlist and a voice profile);
   // the MP3 goes into ChatSpace's composer by a drop on it, its own upload (HostPort.attachFile).
   voice: { base: { flags: ['voice'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: { flags: ['insertion'], hostCapabilities: ['fileAttach'] } }, surfaces: ['dock'], source: 'hub' },
   // `preview`: the hub's archive feed of the chat, which Coach reads for its history.

@@ -1,4 +1,4 @@
-// The voice studio (1.46.0): the dock's sheet of the Voice chip on both
+// The voice studio (1.47.0): the dock's sheet of the Voice chip on both
 // sites. One view of the open chat — its script, its takes, what the person
 // can do next — built by the voice controller over the background's session
 // (voice.ts). The studio plays a take's audio itself (the bytes are in the

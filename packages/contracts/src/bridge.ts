@@ -183,7 +183,7 @@ export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 
 /**
  * The only writes (D-07): guarded insert, navigation, the X8 queue call and
- * (1.46.0) the drop of a file of ours on the composer. MAIN deduplicates them
+ * (1.47.0) the drop of a file of ours on the composer. MAIN deduplicates them
  * by request id: a repeated id returns the first result and does not execute
  * again.
  */

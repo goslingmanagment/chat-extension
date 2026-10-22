@@ -1,4 +1,4 @@
-// The voice studio's player (1.46.0): a take's MP3 decoded once into an
+// The voice studio's player (1.47.0): a take's MP3 decoded once into an
 // AudioBuffer — its true length, and the peaks its waveform is drawn from —
 // and played through Web Audio. No <audio> and no object URL: a page's media
 // policy has no say over a buffer we play ourselves (ChatSpace, fansly.com),

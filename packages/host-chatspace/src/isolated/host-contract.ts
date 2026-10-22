@@ -66,7 +66,7 @@ export const SEND_PATH = /(?:^|\/)api\/v0\/accounts\/(\d+)\/chats\/(\d+)\/messag
 /** The role permission that takes the Send button away (§6.7.4 п. 8). */
 export const PERMISSION_NO_SEND = 'of_block_message_sending';
 /**
- * 1.46.0: the role permissions of ChatSpace's «Media uploader» — either one lets the person put a file into the
+ * 1.47.0: the role permissions of ChatSpace's «Media uploader» — either one lets the person put a file into the
  * composer (its drop zone, its upload); without them a drop is silently ignored. MAIN reads them before it drops a file
  * of ours (main/attach.ts).
  */
@@ -77,7 +77,7 @@ export const GUARD_CODE = 'MESSAGE_GUARD_VIOLATION';
 /**
  * `localStorage['chat-space:draft:of:{acc}:{fan}']` = `{ body: { json: <Tiptap JSON>, gif, media, … }, updatedAt }`
  * (§6.1); `media` — null or `{ medias: [{ id, type, uploadDescriptor?: { name, … }, … }], … }`, a file the person
- * uploaded carrying the descriptor of its upload (1.46.0, an attach of ours is read there).
+ * uploaded carrying the descriptor of its upload (1.47.0, an attach of ours is read there).
  */
 export const DRAFT_KEY_PREFIX = 'chat-space:draft:of:';
 export const draftKey = (hostAccountId: string, platformFanId: string): string => `${DRAFT_KEY_PREFIX}${hostAccountId}:${platformFanId}`;
@@ -183,6 +183,6 @@ export const HOST_MEMBERS = {
   translator: ['getAccountSettings', 'autoTranslate'],
   socketFrames: ['account_id', 'is_from_fan', 'chatId', 'isFromQueue', 'isTip', 'sentAt'],
   guard: ['topic_matches'],
-  // 1.46.0: what the isolated side reads of the draft key's media after an attach of ours (draft-store.ts).
+  // 1.47.0: what the isolated side reads of the draft key's media after an attach of ours (draft-store.ts).
   draftMedia: ['medias', 'uploadDescriptor'],
 } as const;

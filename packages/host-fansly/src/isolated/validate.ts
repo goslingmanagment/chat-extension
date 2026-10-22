@@ -65,7 +65,7 @@ type Fields<K extends string> = Partial<Record<K, unknown>>;
 export const isInsertIntent = (value: unknown): boolean => InsertIntentSchema.safeParse(value).success;
 export const isNavigationIntent = (value: unknown): boolean => NavigationIntentSchema.safeParse(value).success;
 /**
- * `AttachIntent` (contracts host.ts, 1.46.0) is an interface, its bytes no wire's: its ids and identity by their
+ * `AttachIntent` (contracts host.ts, 1.47.0) is an interface, its bytes no wire's: its ids and identity by their
  * schemas, its file an MP3 with a name and something in it.
  */
 export const isAttachIntent = (value: unknown): boolean => {

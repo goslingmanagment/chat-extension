@@ -64,7 +64,7 @@ export const HUB_ROUTES = {
   /** 1.21.0 (X48): who sent each outgoing message. No owner switch: the hub takes a send that happened on the page grant alone. */
   clientSendAttributions: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['send-attribution-v1'], narrowToken: true },
   /**
-   * 1.46.0: the voice notes (the hub's voice-notes lane, HF-4б), on both sites: the paid create (idempotent per
+   * 1.47.0: the voice notes (the hub's voice-notes lane, HF-4б), on both sites: the paid create (idempotent per
    * `clientRequestId`, never repeated by itself), its status, its MP3 (`fetchVoiceNoteAudio` of the SDK, raw bytes).
    */
   voiceNoteCreate: { method: 'POST', routeClass: 'page', since: 'sdk', flag: 'voice', capabilities: ['voice-notes-v1'], narrowToken: true },

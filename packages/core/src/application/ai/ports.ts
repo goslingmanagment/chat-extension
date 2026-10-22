@@ -62,7 +62,7 @@ export interface JournalSink {
   write(entry: Omit<LogRecord, 'ts' | 'seq'>): void;
 }
 
-/** 1.46.0: a file saved by the person's click («Скачать MP3»), through a Blob inside our own closed root. */
+/** 1.47.0: a file saved by the person's click («Скачать MP3»), through a Blob inside our own closed root. */
 export interface FileSaver {
   /** false — the browser did not take it. */
   save(file: { readonly name: string; readonly mime: string; readonly bytes: ArrayBuffer }): boolean;
@@ -98,7 +98,7 @@ export interface AiPorts {
   readonly toasts?: ToastSink;
   readonly journal?: JournalSink;
   readonly overlays?: OverlaySwitch;
-  /** 1.46.0: «Скачать MP3» of a voice take. Absent — no download here. */
+  /** 1.47.0: «Скачать MP3» of a voice take. Absent — no download here. */
   readonly files?: FileSaver;
   /** This build's version (the manifest's): below the bootstrap's `minVersion` the dock says so before a click. Absent — only the hub's own word (`client_outdated`) is read. */
   readonly extensionVersion?: string;

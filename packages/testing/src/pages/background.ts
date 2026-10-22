@@ -428,7 +428,7 @@ export class FakePageBackground implements PageRpc {
         return { ok: true, payload: { accepted: (payload as TabRequestPayload<'log.write'>).records.length, dropped: 0 } };
       case 'persona.set':
         return { ok: true, payload: { revision: state.revision } };
-      // What the pages of R16 never ask: requests of the ChatSpace tab, the boards and (1.46.0) a chat tab's voice studio
+      // What the pages of R16 never ask: requests of the ChatSpace tab, the boards and (1.47.0) a chat tab's voice studio
       // (the sender check refuses most before this).
       case 'fan.card':
       case 'fan.dossier':

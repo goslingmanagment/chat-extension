@@ -1,4 +1,4 @@
-// Voice notes in the background (1.46.0): the core's voice service over the
+// Voice notes in the background (1.47.0): the core's voice service over the
 // hub facade, storage.local, the scheduler and the tabs — and the voice
 // script as an operation of EVERY site's slice: the scheduler takes a site's
 // own drivers from its running module (Fansly's «Заполнить из чата») and the

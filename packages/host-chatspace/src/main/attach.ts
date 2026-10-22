@@ -1,4 +1,4 @@
-// A file of ours into the open chat's composer (1.46.0, voice notes; contracts TO_MAIN.attachFile,
+// A file of ours into the open chat's composer (1.47.0, voice notes; contracts TO_MAIN.attachFile,
 // HostPort.attachFile): MAIN's fourth write (D-07, §6.10). ChatSpace keeps no file input in its DOM — «Attach media»
 // opens a detached one — but the root of its composer frame is a drop zone (VueUse `useDropZone`): a drop whose items
 // hold a file gives the page its `files`, and the page uploads them its own way (its vault upload, then a medium of the

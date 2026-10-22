@@ -29,7 +29,7 @@ export const ACCENT_USES = [
   'archive-lag',
   /** «Recap готов» on Recap or «Ещё» (final-1b). */
   'recap-ready',
-  /** 1.46.0: «Войс готов» on Voice — a take got ready while its studio was closed. */
+  /** 1.47.0: «Войс готов» on Voice — a take got ready while its studio was closed. */
   'voice-ready',
 ] as const;
 export type AccentUse = (typeof ACCENT_USES)[number];

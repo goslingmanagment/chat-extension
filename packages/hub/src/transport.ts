@@ -68,7 +68,7 @@ export class HubWire {
   }
 
   /**
-   * 1.46.0: a voice note's MP3 — the SDK's own `fetchVoiceNoteAudio` (the route answers bytes, not JSON). Taken only as
+   * 1.47.0: a voice note's MP3 — the SDK's own `fetchVoiceNoteAudio` (the route answers bytes, not JSON). Taken only as
    * `audio/mpeg` and within the hub's own cap, declared and read; anything else is a contract failure, never handed on.
    */
   async audio(call: WireCall & { readonly token: string }, pageLabel: string, id: number): Promise<WireResult> {

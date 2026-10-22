@@ -103,7 +103,7 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     theme: dom.themeClass === 'ok' ? ON : degraded('themeClass'),
     previewSend: off('site'),
     receipt: off('site'),
-    // 1.46.0: the voice note's MP3 through the field's own input and Fansly's upload modal (§7.10, P12c).
+    // 1.47.0: the voice note's MP3 through the field's own input and Fansly's upload modal (§7.10, P12c).
     fileAttach: main ?? field ?? (gone(dom.fileInput) ? broken('fileInput') : gone(dom.attachments) ? broken('attachments') : observed),
   };
   const own: Record<FanslyCapability, CapabilityState> = {

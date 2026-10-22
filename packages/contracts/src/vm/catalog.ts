@@ -152,7 +152,7 @@ export const UNAVAILABLE_REASONS = {
   'draft-empty': { key: 'preview.draft.sendEmpty', code: null },
   /** «Отправить» of a preview's draft field for the chat that is open: its own composer is the place. */
   'chat-open': { key: 'send.reason.activeChat', code: 'CG-SEND-ACTIVE-CHAT' },
-  // 1.46.0: the voice studio's buttons.
+  // 1.47.0: the voice studio's buttons.
   /** A preset or «Озвучить» while the script is still being written. */
   'voice-writing': { key: 'voice.reason.writing', code: null },
   /** «Озвучить» with no script to voice. */

@@ -1,6 +1,6 @@
 // Parts of the dock that stay out of its first chunk (architecture.md §10.1,
 // §11: ≤ 45 KiB with Preact): Recap and Review with the Markdown renderer,
-// the voice studio (1.46.0) and the debug footer nobody sees outside debug
+// the voice studio (1.47.0) and the debug footer nobody sees outside debug
 // mode. Each is a component
 // with its own stylesheet behind a loader (the defaults are in lazy.ts); this
 // module is what both sides share — the part's shape and the hook that shows
@@ -36,7 +36,7 @@ export interface DebugProps {
   readonly running: boolean;
 }
 
-/** 1.46.0: the voice studio in the sheet. */
+/** 1.47.0: the voice studio in the sheet. */
 export interface VoiceProps {
   /** «Скрыть» and Esc: the sheet's own (it gives the focus back to the composer). */
   readonly onHide: () => void;

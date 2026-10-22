@@ -1,4 +1,4 @@
-// The voice notes of the background (1.46.0; services/voice/service.ts): the
+// The voice notes of the background (1.47.0; services/voice/service.ts): the
 // paid take is written before the hub is asked and never asked again by
 // itself; «Проверить» asks again with the same id; a refusal the hub said
 // spent nothing; the state is read until it settles; the MP3 is checked

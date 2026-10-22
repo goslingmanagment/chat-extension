@@ -86,7 +86,7 @@ export type FanslyNetworkAnchor = (typeof FANSLY_NETWORK_ANCHORS)[number];
  * `freshness` — the generation snapshot (HostPort.freshness); `follows` — new subscribers from the socket (`3/2`) for
  * the sound; `headerSlot` — «Регистрация» and «Заметки» in the chat header; `vault` — a file into the open vault
  * album; `relay` — «Fansly через вкладку». A file into the composer (the voice note) is the shared `fileAttach`
- * since 1.46.0.
+ * since 1.47.0.
  */
 export const FANSLY_CAPABILITIES = ['freshness', 'follows', 'headerSlot', 'vault', 'relay'] as const;
 export const FanslyCapabilitySchema = z.enum(FANSLY_CAPABILITIES);
@@ -257,7 +257,7 @@ export interface FanslyFile {
 /**
  * How a file reached the page's input (§7.10, §7.11, S6 Q7): a DataTransfer of the isolated world, or the page world's
  * copy through `wrappedJSObject` + `cloneInto`. client_health counts which one worked. The voice note's MP3 takes the
- * same two paths into the composer: the shared `HostPort.attachFile` (1.46.0).
+ * same two paths into the composer: the shared `HostPort.attachFile` (1.47.0).
  */
 export const FANSLY_HANDOFF_PATHS = ['data-transfer', 'clone-into'] as const;
 export type FanslyHandoffPath = (typeof FANSLY_HANDOFF_PATHS)[number];

@@ -99,7 +99,7 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(F.cgFanslyEntry('CG-VAULT-UNCERTAIN').recovery).toBe('none');
   });
 
-  it('voice notes are every site’s (1.46.0): a tab of either site asks, a page never; the paid step and the attach keep their rules', () => {
+  it('voice notes are every site’s (1.47.0): a tab of either site asks, a page never; the paid step and the attach keep their rules', () => {
     for (const type of ['voice.read', 'voice.script', 'voice.edit', 'voice.take', 'voice.check', 'voice.audio', 'voice.attached', 'voice.discard'] as const) {
       expect(C.mayRequest(type, 'tab', null, 'chatspace'), type).toBe(true);
       expect(C.mayRequest(type, 'tab', null, 'fansly-web'), type).toBe(true);

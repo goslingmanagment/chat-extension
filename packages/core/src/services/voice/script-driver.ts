@@ -1,4 +1,4 @@
-// The voice script as the shared scheduler runs it (1.46.0): an operation of
+// The voice script as the shared scheduler runs it (1.47.0): an operation of
 // every site's slice (`voice-script`), admitted like Reply — one per chat,
 // three per tab, its timeouts, cancel and kept result — and streamed from the
 // hub's `voice-script` feature. One driver for ChatSpace and Fansly: the

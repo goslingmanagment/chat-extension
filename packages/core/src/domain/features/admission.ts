@@ -149,7 +149,7 @@ export function dockChips(
   handle: TargetHandle | null,
   keyOf: (action: HotkeyActionId | CatalogActionId) => HotkeyLabel | null,
   /**
-   * 1.46.0: the panels of the dock (Voice) as their controller decided them — the state and what a click asks for; a
+   * 1.47.0: the panels of the dock (Voice) as their controller decided them — the state and what a click asks for; a
    * panel the page cannot have now is not here, and has no chip.
    */
   panels: Readonly<Record<string, DockActionVM & { readonly action: UiAction | null }>> = {},

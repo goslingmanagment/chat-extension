@@ -1,4 +1,4 @@
-// Fixtures of the voice notes (1.46.0; voice.ts): the script's start on both
+// Fixtures of the voice notes (1.47.0; voice.ts): the script's start on both
 // sites, a session with its takes, the hub's view of a note, a checked MP3.
 // Synthetic ids of samples.ts: on ChatSpace the chat is the fan, on Fansly the
 // group named apart.

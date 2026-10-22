@@ -653,7 +653,7 @@ describe('MAIN runtime — our read of the open chat from the API (X54)', () => 
   });
 });
 
-describe('MAIN runtime — a file of ours into the composer (1.46.0)', () => {
+describe('MAIN runtime — a file of ours into the composer (1.47.0)', () => {
   /** happy-dom's DragEvent drops `dataTransfer` from its init: here a drop carries it as the browser's does. */
   class DropEvent extends Event {
     readonly dataTransfer: DataTransfer | null;

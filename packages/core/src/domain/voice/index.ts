@@ -1,4 +1,4 @@
-// Voice notes, the pure rules (1.46.0; contracts voice.ts): what the hub will
+// Voice notes, the pure rules (1.47.0; contracts voice.ts): what the hub will
 // take as a script, how a take reads the hub's view of its note, what an MP3
 // looks like, how long a script sounds. No clock, no storage, no hub.
 //

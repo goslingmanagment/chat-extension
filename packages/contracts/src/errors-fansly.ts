@@ -2,7 +2,7 @@
 // §1.6, §12; docs/architecture.md Appendix A «Коды Fansly»): session, API and
 // relay (`CG-FAN-*`), «Заметки» (`CG-NOTE-*`), vault (`CG-VAULT-*`) and
 // Fansly's «Новые» (`CG-FNEW-*`). Voice notes (`CG-VOICE-*`) are on both sites
-// since 1.46.0: the shared registry's.
+// since 1.47.0: the shared registry's.
 //
 // A registry of the site's own, beside the shared one (errors.ts,
 // errors/registry.ts), with the same rules: `CG-<AREA>-<NAME>`, readable

@@ -101,14 +101,14 @@ const PATHS = {
       <path d="M2 13.2c.5-2.4 2.2-3.8 4.4-3.8s3.9 1.4 4.4 3.8M12.6 4.8v4.4M10.4 7h4.4" />
     </>
   ),
-  /** Voice (1.46.0): a microphone on its stand. */
+  /** Voice (1.47.0): a microphone on its stand. */
   mic: (
     <>
       <rect x="5.7" y="1.9" width="4.6" height="7.6" rx="2.3" />
       <path d="M3.4 7.6a4.6 4.6 0 0 0 9.2 0M8 12.2v2.1M5.9 14.3h4.2" />
     </>
   ),
-  /** A take that plays (1.46.0): «Пауза». */
+  /** A take that plays (1.47.0): «Пауза». */
   pause: <path d="M5.6 4.2v7.6M10.4 4.2v7.6" />,
   /** «Скачать лог» (2026-10-21): an arrow down into a tray. */
   download: (

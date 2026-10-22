@@ -45,7 +45,7 @@ export type Sheet =
   | { readonly kind: 'draft'; readonly opId: string }
   | { readonly kind: 'recap' }
   | { readonly kind: 'review' }
-  /** 1.46.0: the voice studio of the chat (the Voice chip). */
+  /** 1.47.0: the voice studio of the chat (the Voice chip). */
   | { readonly kind: 'voice' }
   | { readonly kind: 'refusal'; readonly refusal: RefusalState };
 
@@ -243,7 +243,7 @@ export class AiWorkspace {
   readonly ops: OpStore;
   readonly inserts: InsertService;
   readonly recaps: RecapBook;
-  /** 1.46.0: the voice notes of the chats this tab shows (the Voice chip and its studio). */
+  /** 1.47.0: the voice notes of the chats this tab shows (the Voice chip and its studio). */
   readonly voice: VoiceDesk;
 
   private readonly chats = new Map<ChatKey, ChatUi>();

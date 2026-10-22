@@ -3,7 +3,7 @@
 // updatedAt }`, written by a Vue watcher a microtask after each edit; an
 // empty draft removes the key. The isolated side reads it — same origin, no
 // request — to verify an insert against the target's own key (NEW-06), to
-// learn whether the key still exists (§6.2 anchor `draftKey`), and (1.46.0)
+// learn whether the key still exists (§6.2 anchor `draftKey`), and (1.47.0)
 // to see the draft's media before and after an attach of ours: its audio,
 // its GIF, its count, and the upload of our file by its name.
 //

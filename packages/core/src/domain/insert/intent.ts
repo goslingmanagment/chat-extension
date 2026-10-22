@@ -85,7 +85,7 @@ export function buildOpenInsert(input: OpenInsertInput): IntentResult<InsertInte
   const identity = input.draft.identity;
   if (!sameChat(identity.chat, input.target)) return { ok: false, code: 'CG-INSERT-CHAT-CHANGED' };
   if (identity.composerInstanceId === null) return { ok: false, code: 'CG-HOST-COMPOSER-MISSING' };
-  // An empty text only replaces (Voice's «Убрать текст», 1.46.0): nothing else writes nothing.
+  // An empty text only replaces (Voice's «Убрать текст», 1.47.0): nothing else writes nothing.
   if ((input.text.length === 0 && input.mode !== 'replace') || input.text.length > BRIDGE_LIMITS.maxStringLength) return { ok: false, code: 'CG-INSERT-FAILED' };
   const intent: InsertIntent = {
     intentId: input.intentId,

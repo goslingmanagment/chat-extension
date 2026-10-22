@@ -893,7 +893,7 @@ export class ChatExtensionHub implements HubFacade {
     return (await this.client('clientFanClaimStatus', { pageLabel, fanRef }, pageLabel)) as ClaimState;
   }
 
-  // ── voice notes (1.46.0, both sites) ─────────────────────────────────────
+  // ── voice notes (1.47.0, both sites) ─────────────────────────────────────
 
   /**
    * The paid voicing of a script. One attempt: an answer that does not come is the caller's to read (its take is then

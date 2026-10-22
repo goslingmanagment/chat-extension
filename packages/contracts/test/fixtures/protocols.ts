@@ -338,7 +338,7 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ ...pageFan, action: 'claim' }, { ...pageFan, action: 'renew' }], invalid: [{ ...pageFan, action: 'dispatch' }] },
     res: dto(H.claimState, { ...H.claimState, lease: { ...H.claimState.lease, state: 'mine' } }),
   },
-  // 1.46.0: voice notes, both sites.
+  // 1.47.0: voice notes, both sites.
   'voice.read': {
     req: { valid: [{ pageId: 11, conversationRef: IDS.fan }, { pageId: 13, conversationRef: FANSLY_IDS.group }], invalid: [{ pageId: 11 }, { pageId: 0, conversationRef: IDS.fan }] },
     res: { valid: [{ session: voiceSession }, { session: fanslyVoiceSession }, { session: null }], invalid: [{ session: { ...voiceSession, takes: null } }, {}] },
@@ -801,7 +801,7 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
       invalid: [{ ok: true, last: { messageId: IDS.msg2, direction: 'creator', sentAt: ISO, read: true, readAt: null } }, { ok: false, failure: 'not-open', status: null }, { ok: true }],
     },
   },
-  // 1.46.0: a file of ours dropped on the open chat's composer; MAIN answers what the composer showed of it.
+  // 1.47.0: a file of ours dropped on the open chat's composer; MAIN answers what the composer showed of it.
   attachFile: {
     payload: {
       valid: [attachWire],

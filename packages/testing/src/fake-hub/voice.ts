@@ -14,7 +14,7 @@
 // is read off the clock whenever it is asked for: nothing runs in the
 // background.
 //
-// The extension's own routes since 1.46.0 (contracts hub/routes.ts); the hub
+// The extension's own routes since 1.47.0 (contracts hub/routes.ts); the hub
 // keeps them SDK-only (`voiceNoteAudio` answers bytes: `fetchVoiceNoteAudio`).
 
 import { createHash } from 'node:crypto';

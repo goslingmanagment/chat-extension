@@ -73,7 +73,7 @@ export const HOST_CAPABILITIES = [
   'previewSend',
   'receipt',
   /**
-   * 1.46.0: a file of ours into the open chat's composer, the way the site takes one (HostPort.attachFile) — the
+   * 1.47.0: a file of ours into the open chat's composer, the way the site takes one (HostPort.attachFile) — the
    * voice note's MP3. ChatSpace: a drop on the composer, its own upload; Fansly: its file input and upload modal.
    */
   'fileAttach',
@@ -316,7 +316,7 @@ const insertShape = {
   expected: InsertExpectationSchema,
   mode: z.enum(['replace', 'append']),
   /**
-   * Plain text; ChatSpace's bridge escapes it. Empty only in an open replace (1.46.0): Voice's «Убрать текст» takes the
+   * Plain text; ChatSpace's bridge escapes it. Empty only in an open replace (1.47.0): Voice's «Убрать текст» takes the
    * draft out of the field after the person attached its voice.
    */
   text: z.string().check(z.maxLength(BRIDGE_LIMITS.maxStringLength)),
@@ -370,7 +370,7 @@ export const InsertReceiptSchema = z.discriminatedUnion('state', [
 ]);
 export type InsertReceipt = z.infer<typeof InsertReceiptSchema>;
 
-// ── A file into the composer (1.46.0, voice notes) ─────────────────────────
+// ── A file into the composer (1.47.0, voice notes) ─────────────────────────
 
 /** A file of ours for the composer: the bytes and the two fields a page reads. Contracts carry no DOM types. */
 export interface AttachFile {
@@ -987,7 +987,7 @@ export interface HostPort {
   /** An `open` intent; its cause is redeemed first (§14). */
   insert(intent: InsertIntent): Promise<InsertReceipt>;
   /**
-   * 1.46.0: the voice note's MP3 into the open chat's composer, the site's own way (`AttachIntent`); its cause is
+   * 1.47.0: the voice note's MP3 into the open chat's composer, the site's own way (`AttachIntent`); its cause is
    * redeemed first (§14). Resolves when the site shows the file in the composer, or when its outcome cannot be seen
    * any more. Absent — the host cannot (`fileAttach` reads off).
    */

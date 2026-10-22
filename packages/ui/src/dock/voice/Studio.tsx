@@ -1,4 +1,4 @@
-// The voice studio (1.46.0): the dock's sheet of the Voice chip, on both
+// The voice studio (1.47.0): the dock's sheet of the Voice chip, on both
 // sites. The script on the left — the presets, the editor (a draft card: the
 // AI's text that has not gone anywhere), the tags, the count — and the takes
 // on the right, each with its own player and waveform; one column on a narrow

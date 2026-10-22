@@ -363,7 +363,7 @@ export const UI_TEXT_KEYS = [
   'popup.alert.reloadShort', 'popup.alert.reloadTitleOne', 'popup.alert.reloadTitleMany', 'popup.alert.reloadBody',
   // 2026-10-21: «Скачать лог» (the popup and the dock)
   'log.download', 'log.downloadHint', 'log.downloaded', 'log.downloadFailed',
-  // 1.46.0: Voice — the chip, its studio in the dock's sheet, its takes and their handover into the chat's field.
+  // 1.47.0: Voice — the chip, its studio in the dock's sheet, its takes and their handover into the chat's field.
   'dock.action.voice', 'dock.hint.voice', 'dock.badge.voiceReady',
   'voice.label', 'voice.forFan', 'voice.hide', 'voice.empty.title', 'voice.empty.body', 'voice.empty.write', 'voice.source',
   'voice.tone.label', 'voice.tone.calm', 'voice.tone.warm', 'voice.tone.playful', 'voice.hint.tone.calm', 'voice.hint.tone.warm',

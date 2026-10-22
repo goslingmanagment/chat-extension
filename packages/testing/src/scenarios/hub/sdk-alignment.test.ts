@@ -96,7 +96,7 @@ export type SdkResponsesFitOurDtos = [
   Assignable<KernelOperationResponse<'clientFanClaim'>, ClaimState>,
   Assignable<KernelOperationResponse<'clientFanClaimStatus'>, ClaimState>,
   Assignable<KernelOperationResponse<'clientAudienceNew'>, AudienceNewPage>,
-  // 1.46.0: the voice notes (hub HF-4б; both sites since hub #757). The audio route answers bytes, not a DTO.
+  // 1.47.0: the voice notes (hub HF-4б; both sites since hub #757). The audio route answers bytes, not a DTO.
   Assignable<KernelOperationResponse<'voiceNoteCreate'>, VoiceNoteView>,
   Assignable<KernelOperationResponse<'voiceNoteStatus'>, VoiceNoteView>,
 ];
