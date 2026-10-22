@@ -81,6 +81,8 @@ export const UI_TEXT_KEYS = [
   'dock.option.splitTooltip', 'dock.option.splitLocked', 'dock.option.splitUnavailable', 'dock.option.splitNotMessage', 'dock.persona.tooltip',
   'dock.persona.notSignedIn', 'dock.paletteHint.tooltip', 'dock.quota.low', 'dock.quota.lowShort', 'dock.quota.zero', 'dock.quota.zeroTooltip',
   'dock.status.chatLoading', 'dock.status.pageOff', 'dock.helpRemoved', 'dock.fixRunning',
+  // 2026-10-22: the copy-only line of the page's `insertion` switch; the persona picker of the «Нет персоны» banner.
+  'dock.status.insertOff', 'dock.status.insertOffBody', 'dock.persona.menu',
   // 1.13.0 (decision X28): one sentence under a control's name in its hover hint — what the button does, in the chatter's own language.
   'dock.hint.reply', 'dock.hint.replyAs', 'dock.hint.fix', 'dock.hint.hi', 'dock.hint.ping', 'dock.hint.review', 'dock.hint.recap', 'dock.hint.coach',
   'dock.hint.tone.casual', 'dock.hint.tone.flirty', 'dock.hint.tone.upsell', 'dock.hint.tone.spicy', 'dock.hint.toneOff', 'dock.hint.split',
@@ -93,6 +95,8 @@ export const UI_TEXT_KEYS = [
   // 2026-10-22: «✨ Дополнить из чата» of «Заметки» (Fansly): the stage of its answer.
   'result.stage.fillForm', 'result.stale.title',
   'result.stale.body', 'result.keys.part',
+  // 2026-10-22: Split was asked and one message came (the old Fansly extension's note).
+  'result.splitOne.title', 'result.splitOne.body',
   'result.keys.variant', 'result.keys.insert', 'result.keys.copy', 'result.keys.collapse', 'result.keys.hideTooltip',
   'result.expand', 'result.collapse', 'result.announce.stage', 'result.announce.canRetry',
   'part.aria', 'part.ariaSent', 'part.insert', 'part.insertTooltip', 'part.insertAgain', 'part.copyN', 'part.edit', 'part.editTooltip', 'part.revert', 'part.editAria', 'part.inserted', 'part.variant',

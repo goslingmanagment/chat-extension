@@ -205,7 +205,10 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
 
   // ── Esc: the top of ours first (HK-029) ──
   if (id === 'close') {
-    const ours = context.overlays.length > 0 || context.dockSheet;
+    // Esc in the message field (or another field of the site) is the page's: it never hides the dock's sheet — the old
+    // Fansly extension's rule (2026-10-22). A window of ours on top still closes first.
+    const sheet = context.dockSheet && context.focus !== 'composer' && context.focus !== 'field';
+    const ours = context.overlays.length > 0 || sheet;
     // Focus inside our UI: its own Esc first (a menu, a confirmation, a search); only then the window.
     if (inOurs(context.focus)) return { act: 'isolate', otherwise: ours && !verdict.repeat ? command('global') : null };
     return ours ? run('global') : PASS;

@@ -180,6 +180,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('ExpandResult', { operationId: UuidSchema, expanded: z.boolean() }),
   /** The one-off tone of the next Reply in this target; «Без тона» = null (AI-005, AI-008). */
   act('SetTone', { targetHandle: HandleSchema, tone: z.nullable(ToneSchema) }),
+  /**
+   * Split of the dock's next Reply and Fix (2026-10-22, as the old Fansly extension): for this tab's session only, never
+   * stored. A new tab starts from the settings' «Split по умолчанию» (`generation.split`, SetPreference).
+   */
+  act('SetSplit', { split: z.boolean() }),
   act('InsertPart', { operationId: UuidSchema, variant, part }),
   /** Fix: the click is the consent for the revision Fix was made from (Б2). */
   act('ReplaceMyDraft', { operationId: UuidSchema, part }),

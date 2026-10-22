@@ -1,7 +1,8 @@
 // The head of a result sheet (ui-design §4.2): the gutter (a spinner while
-// streaming), the function's name, then meta, and on the right «Ещё раз» and
-// × «Скрыть»; their keys are in their hints, not
-// printed in the head (X57). Narrow rules are CSS: meta hides at 600 px,
+// streaming), the function's name and whom it is for («Reply — @fan», as the
+// old Fansly extension's head), then meta with the cost line last, and on the
+// right «Ещё раз», ↗ «Развернуть» and × «Скрыть»; their keys are in their
+// hints, not printed in the head (X57). Narrow rules are CSS: meta hides at 420 px,
 // «Ещё раз» becomes ↻ below 360 px so that the draft label always fits whole
 // (§3.3, §9.5 п. 4); below 360 px the buttons of a Recap or Review head take a
 // second line.
@@ -10,10 +11,12 @@ import { type ComponentChildren, type JSX } from 'preact';
 
 import { type HotkeyLabel, type UiAction } from '@cg/contracts/vm';
 
-import { Button, hotkeyText, useDispatch, useI18n, useKit } from '../kit';
+import { Button, hotkeyText, useDispatch, useI18n, useKit, useTooltip } from '../kit';
 
 export interface HeadProps {
   readonly title: string;
+  /** Whom the answer is for: «Reply — @fan»; null or absent — not known, the title alone. */
+  readonly fan?: string | null;
   /** The 35 px gutter: a spinner while a generation runs, empty otherwise. */
   readonly gutter?: ComponentChildren;
   /** After the title: a score, the stage line, a segment, meta, the draft label. */
@@ -28,11 +31,25 @@ export interface HeadProps {
   readonly tools?: boolean;
 }
 
-export function Head({ title, gutter, children, acts, tools = false }: HeadProps): JSX.Element {
+/** « — @fan» after the title: cut with «…» where the head is short, the whole name in its hint. */
+function FanName({ name }: { readonly name: string }): JSX.Element {
+  const tip = useTooltip(name);
+  return (
+    <>
+      <span class="cg-head__fan" {...tip.props}>
+        — {name}
+      </span>
+      {tip.description}
+    </>
+  );
+}
+
+export function Head({ title, fan, gutter, children, acts, tools = false }: HeadProps): JSX.Element {
   return (
     <header class={tools ? 'cg-head cg-head--tools' : 'cg-head'}>
       <span class="cg-gut">{gutter}</span>
       <span class="cg-head__title">{title}</span>
+      {fan === null || fan === undefined || fan === '' ? null : <FanName name={fan} />}
       {children}
       <span class="cg-head__sp" />
       <span class="cg-head__acts">{acts}</span>
@@ -40,7 +57,20 @@ export function Head({ title, gutter, children, acts, tools = false }: HeadProps
   );
 }
 
-export function Meta({ texts }: { readonly texts: readonly string[] }): JSX.Element {
+/** What the answer cost, the last quiet word of the head; in/write/read/out in its hint (the old head's spend line). */
+function Usage({ usage }: { readonly usage: { readonly line: string; readonly detail: string } }): JSX.Element {
+  const tip = useTooltip(usage.detail);
+  return (
+    <>
+      <span class="cg-head__meta cg-head__usage cg-num" {...tip.props}>
+        {usage.line}
+      </span>
+      {tip.description}
+    </>
+  );
+}
+
+export function Meta({ texts, usage = null }: { readonly texts: readonly string[]; readonly usage?: { readonly line: string; readonly detail: string } | null }): JSX.Element {
   return (
     <>
       {texts.map((text, index) => (
@@ -48,8 +78,16 @@ export function Meta({ texts }: { readonly texts: readonly string[] }): JSX.Elem
           {text}
         </span>
       ))}
+      {usage === null ? null : <Usage usage={usage} />}
     </>
   );
+}
+
+/** ↗ «Развернуть» (UI-014): the result in its window, without the sheet's height limit — on every result, as the old head had it. */
+export function ExpandButton({ opId }: { readonly opId: string }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  return <Button label={i18n.t('result.expand')} icon="expand" iconOnly variant="quiet" class="cg-expand" onClick={() => void dispatch({ type: 'ExpandResult', operationId: opId, expanded: true })} />;
 }
 
 export interface AgainButtonProps {

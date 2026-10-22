@@ -10,6 +10,7 @@
 import { DEFAULT_SETTINGS, STORAGE_KEYS, type SettingsV1 } from '@cg/contracts';
 import { browser } from '@wdio/globals';
 
+import { createWorld } from '../../fixture-fansly/src/data';
 import { fanslyPageFlags } from '../../src/fake-hub/config';
 import type { FakeHubControlClient } from '../../src/fake-hub/control-client';
 import type { NeighborConfig } from '../../src/fake-fansly/neighbor/protocol';
@@ -46,8 +47,26 @@ export interface FanslyShift {
   rpc<T = unknown>(type: string, payload?: unknown): Promise<{ readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: { readonly code: string; readonly detail?: string } }>;
 }
 
+/**
+ * The hub's archive of the stand's chats is what the stand's page shows, by the page's own ids (2026-10-22): the window
+ * check over a stand chat then finds its messages, and a result is marked only where a spec makes the archive lag
+ * (`archiveConversation` again). The stand's world is deterministic (fixture-fansly).
+ */
+async function seedStandArchive(hub: FakeHubControlClient, path: string): Promise<void> {
+  const world = createWorld();
+  const opened = /\/messages\/(\d+)/.exec(path)?.[1];
+  const groups = new Set([WORLD.fansly.chats.a.group, WORLD.fansly.chats.b.group, ...(opened === undefined ? [] : [opened])]);
+  for (const id of groups) {
+    const group = world.byId.get(id);
+    if (group === undefined) continue;
+    const messages = group.history.map((message) => ({ id: message.id, sender: message.senderId === group.fan.id ? ('fan' as const) : ('model' as const) }));
+    await hub.command({ op: 'archiveConversation', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: id, messages });
+  }
+}
+
 export async function startFanslyShift(hub: FakeHubControlClient, options: FanslyShiftOptions): Promise<FanslyShift> {
   if (options.world !== false) await hub.command({ op: 'config', patch: fanslyPageFlags() });
+  if (options.world !== false) await seedStandArchive(hub, options.path);
   await installTestBuild();
   await browser.url(testBuildPage(QUIET_PAGE));
   const settings: SettingsV1 = {

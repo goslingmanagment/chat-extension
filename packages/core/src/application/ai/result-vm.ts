@@ -10,6 +10,7 @@ import { chatKeyOf, type PartRef } from '@cg/contracts/ids';
 import { type OpResult } from '@cg/contracts/ops';
 import { type ConfirmVM, type FixVM, type Msg, type PartVM, type ReasonVM, type ResultVM, type UiAction, type VariantVM } from '@cg/contracts/vm';
 
+import { usageHead } from '../../domain/debug';
 import { TONE_LABEL_KEYS, isDraftFeature, policyOf } from '../../domain/features';
 import { isTerminalOpState } from '../../domain/ops';
 import { isUnparsedResult, streamPreview } from '../../domain/output';
@@ -203,5 +204,7 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
     expanded,
     // The sheet is the opened result (ui-design §4.12): its footer is there in debug mode, window or not.
     debug: debugVm(view, { enabled: debugOn, opened: true, now, i18n }),
+    // The old Fansly extension's cost line, the last quiet word of the head (2026-10-22).
+    usage: view.state === 'done' ? usageHead(view.usage) : null,
   };
 }

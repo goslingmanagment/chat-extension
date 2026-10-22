@@ -32,6 +32,8 @@ import { dockIs } from '../support/shift';
 const A = WORLD.fansly.chats.a;
 const PAGE_LABEL = WORLD.pages.fansly.pageLabel;
 const MISS = 'Ответ мог не учесть последние сообщения чата.';
+/** The chat's archive before the hub caught up: none of the page's ids (a Fansly shift gives the hub the page's own). */
+const LAGGING = ['000', '001', '002'].map((n, index) => ({ id: `${A.group}${n}`, sender: index % 2 === 0 ? ('fan' as const) : ('model' as const) }));
 
 interface WindowCheck {
   readonly window: readonly { readonly id: string; readonly dir: 'fan' | 'model' }[];
@@ -98,6 +100,8 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     await hub().command({ op: 'config', patch: { aiChunkDelayMs: 0, limits: { deepMax: 5000 } } });
     // «Тема: как на сайте»: the dock follows Fansly's own theme (the default is the light paper).
     shift = await startFanslyShift(hub(), { path: `/messages/${A.group}`, settings: { ui: { theme: 'host' } }, viewport: { width: 1440, height: 900 } });
+    // The shift gives the hub the page's own messages; here the hub lags behind them.
+    await hub().command({ op: 'archiveConversation', pageLabel: PAGE_LABEL, conversationRef: A.group, messages: LAGGING });
     await dockIs((d) => d.status === 'ready' && d.actions['review'] === true && d.target?.endsWith(`:${A.fan}`) === true, 'the dock of the Fansly chat, ready', 20_000);
   });
 

@@ -121,7 +121,8 @@ export const TOKEN_VALUES: Readonly<Record<ThemeTokenName, TokenValue>> = {
   '--cg-ink': both(family('neutral-900'), family('neutral-200')),
   '--cg-ink-2': both(family('neutral-700'), family('neutral-300')),
   '--cg-ink-muted': both(family('neutral-500'), family('neutral-400')),
-  '--cg-ink-faint': both(family('neutral-400'), family('neutral-600')),
+  // Dark: between the family's 500 and 400 (2026-10-22) — a dimmed chip's word stands at 3.3 : 1 on the card, not 2.2.
+  '--cg-ink-faint': both(family('neutral-400'), 'rgb(120 116 106)'),
   // ── rules ──
   '--cg-rule': both(family('neutral-100'), family('neutral-850')),
   '--cg-rule-2': both(family('neutral-200'), family('neutral-750')),
@@ -315,6 +316,11 @@ export const LARGE_TEXT: Readonly<Partial<Record<ThemeTokenName, string>>> = {
   '--cg-text-kbd': '11px',
 };
 export const LARGE_TEXT_SCOPE = `.${ROOT_CLASS}[${TEXT_SIZE_ATTRIBUTE}="large"]`;
+/**
+ * The base type scale as declarations — the values «Крупнее» moves — for a part of a root that keeps the base size
+ * whatever the setting (2026-10-22: the dock's bar and a result's head; only the AI text, parts and cards grow).
+ */
+export const BASE_TEXT_DECLARATIONS = (Object.keys(LARGE_TEXT) as ThemeTokenName[]).map((name) => `${name}: ${tokenValue(name, 'light')};`).join(' ');
 /** The root's own line goes with its larger text; a component's fixed line keeps its box. */
 const LARGE_TEXT_CSS = `${LARGE_TEXT_SCOPE} { ${Object.entries(LARGE_TEXT)
   .map(([name, value]) => `${name}: ${value};`)

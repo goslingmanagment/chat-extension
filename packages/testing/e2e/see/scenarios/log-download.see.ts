@@ -1,5 +1,6 @@
 // log-download: Hi stays on in a long chat (no message limit); Ping goes off in a short chat (fewer than ten messages,
-// ping-few), Ping is pressed by a click and by its key, then «Скачать лог» in the dock and in the popup.
+// ping-few), Ping is pressed by a click and by its key, then «Скачать лог» in the popup (the dock has no such button since
+// 2026-10-22: the owner's word).
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -32,23 +33,13 @@ scenario(
     await s.shot('ping-key-refused');
     await s.openChat(s.ids.fans.a1);
     await s.ready();
-    // «Скачать лог» at the bar's right end.
-    const button = await s.h.ours('dock', '.cg-log');
-    await button.moveTo();
-    await s.wait(700);
-    await s.shot('log-button');
-    await s.press(/^Скачать лог/);
-    await s.browser.waitUntil(() => files().filter((name) => name.endsWith('.txt')).length >= 1 && files().filter((name) => name.endsWith('.json')).length >= 1, { timeout: 30_000, timeoutMsg: 'the dock saved the log files' });
-    await s.wait(800);
-    await s.shot('log-saved');
     // The popup's «Скачать лог».
     await s.toPages();
     await openPopup();
     await waitForPopup((state) => state.view === 'ready', 'the popup of a signed-in person');
     await s.shot('popup');
-    const before = files().length;
     await press('Скачать лог');
-    await s.browser.waitUntil(() => files().length >= before + 2, { timeout: 30_000, timeoutMsg: 'the popup saved the log files' });
+    await s.browser.waitUntil(() => files().filter((name) => name.endsWith('.txt')).length >= 1 && files().filter((name) => name.endsWith('.json')).length >= 1, { timeout: 30_000, timeoutMsg: 'the popup saved the log files' });
     await s.shot('popup-saved');
     await s.toChat();
     const txt = files().filter((name) => name.endsWith('.txt'));

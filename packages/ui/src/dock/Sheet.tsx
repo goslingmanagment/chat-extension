@@ -7,7 +7,7 @@
 
 import { type ReadonlySignal } from '@preact/signals';
 import { type JSX } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { type CgErrorView } from '@cg/contracts/errors';
 import { type ActionButtonVM, type DockVM, type RefusalVM, type RunningOpVM, type UiAction } from '@cg/contracts/vm';
@@ -26,7 +26,7 @@ import {
   useNowFn,
   windowOf,
 } from '../kit';
-import { Head, HideButton, Meta } from './Head';
+import { ExpandButton, Head, HideButton, Meta } from './Head';
 import { type AnalysisProps, type DebugProps, type DockParts, type PartLoader, useLazyPart } from './lazy-part';
 import { featureKey, isRunning, msgOf, toneOf, withBody } from './model';
 import { ResultContent } from './Result';
@@ -45,6 +45,8 @@ interface BannerModel {
   readonly dot: 'danger' | 'ring';
   readonly action: ActionButtonVM | null;
   readonly copyCode: boolean;
+  /** «Нет персоны»: the personas to pick right here (2026-10-22, the old Fansly extension's banner); the settings stay one click away. */
+  readonly personas?: { readonly choices: NonNullable<DockVM['personaChoices']>; readonly settings: UiAction | null };
 }
 
 /** The status banner of a dock (ui-design §4.10): which text, which dot, which one button. */
@@ -62,8 +64,11 @@ function bannerOf(vm: DockVM, t: (key: 'cg.hubUnavailable.banner' | 'cg.hostCont
       return { error, dot: 'ring', action: remedy === null ? null : button('cg.authRequired.action', remedy), copyCode: false };
     case 'no-binding':
       return { error, dot: 'ring', action: null, copyCode: true };
-    case 'no-persona':
+    case 'no-persona': {
+      const choices = vm.personaChoices ?? [];
+      if (choices.length > 0) return { error, dot: 'ring', action: null, copyCode: false, personas: { choices, settings: remedy } };
       return { error, dot: 'ring', action: remedy === null ? null : button('cg.personaUnassigned.action', remedy), copyCode: false };
+    }
     case 'host-degraded':
       // The page never named the account or the fan of the open chat (audit 2026-10-20 №15): a reload is the remedy.
       if (UNIDENTIFIED_CODES.has(error.code)) return { error, dot: 'ring', action: button('common.reloadTab', { type: 'ReloadTab' }), copyCode: false };
@@ -91,10 +96,40 @@ function bannerOf(vm: DockVM, t: (key: 'cg.hubUnavailable.banner' | 'cg.hostCont
   }
 }
 
+/**
+ * The persona for the open chat's page, chosen in the banner itself (the old extension's «Choose a personality» and
+ * its save): a native list — its drop-down is the browser's, never cut by the sheet — and «Сохранить», which writes
+ * the settings page's own choice. «Настройки» opens the page's row there.
+ */
+function PersonaPicker({ choices, settings }: NonNullable<BannerModel['personas']>): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const [key, setKey] = useState('');
+  const chosen = choices.find((choice) => choice.key === key) ?? null;
+  const label = i18n.t('dock.persona.menu');
+  return (
+    <span class="cg-pick">
+      <select class="cg-pick__list" aria-label={label} value={key} onChange={(event) => setKey(event.currentTarget.value)}>
+        <option value="" disabled>
+          {label}
+        </option>
+        {choices.map((choice) => (
+          <option key={choice.key} value={choice.key}>
+            {choice.label}
+          </option>
+        ))}
+      </select>
+      <Button label={i18n.t('common.save')} variant="line" reason={chosen === null ? label : null} onClick={() => (chosen === null ? undefined : void dispatch(chosen.choose))} />
+      {settings === null ? null : <Button label={i18n.t('common.settings')} variant="quiet" onClick={() => void dispatch(settings)} />}
+    </span>
+  );
+}
+
 function Banner({ model }: { readonly model: BannerModel }): JSX.Element {
   return (
     <StatusBanner error={model.error} dot={model.dot} action={model.action}>
       {model.copyCode ? <CopyCodeButton code={model.error.code} /> : null}
+      {model.personas === undefined ? null : <PersonaPicker {...model.personas} />}
     </StatusBanner>
   );
 }
@@ -141,7 +176,7 @@ function RefusalContent({ refusal, onHide }: { readonly refusal: RefusalVM; read
   const i18n = useI18n();
   return (
     <>
-      <Head title={i18n.t(featureKey(refusal.feature))} acts={<HideButton onClick={onHide} />}>
+      <Head title={i18n.t(featureKey(refusal.feature))} fan={refusal.targetName ?? null} acts={<HideButton onClick={onHide} />}>
         <Meta texts={[i18n.t('result.meta.notStarted')]} />
       </Head>
       <div class="cg-body">
@@ -238,12 +273,15 @@ export function Sheet({ vm, view, parts, refusalHidden, onHideRefusal }: SheetPr
         streamText={streamText}
         debugPart={parts.debug}
         close={hideResult === null ? null : <HideButton onClick={() => close(hideResult)} />}
+        expand={result.state === 'done' ? <ExpandButton opId={result.opId} /> : null}
         onFirstPaint={() => deps.marks.painted('firstChunkPaintMs', result.opId)}
         focusPart={vm.focusPart?.opId === result.opId ? vm.focusPart.part : null}
       />
     );
   }
-  const banner = bannerOf(vm, (key) => i18n.t(key));
+  // The page's `insertion` switch is off: the reason for the missing «Вставить», over a result whose parts it concerns.
+  const insertOff = vm.insertOff ?? null;
+  const banner = bannerOf(vm, (key) => i18n.t(key)) ?? (insertOff !== null && showsResult && result.state === 'done' ? { error: insertOff, dot: 'ring', action: null, copyCode: false } : null);
   if (content === null && banner === null) return null;
 
   /** «Скрыть» and Esc: collapse, then focus goes back to the composer (ui-design §6.3). */

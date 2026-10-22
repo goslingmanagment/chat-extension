@@ -36,6 +36,7 @@ export {
   SPEND_DAYS_KEPT,
   formatCostLine,
   formatMicroUsd,
+  usageHead,
   usageOf,
   type CostLineFacts,
   type SpendReport,

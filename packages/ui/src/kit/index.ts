@@ -7,6 +7,7 @@
 
 // ── theme, styles, layers ──
 export {
+  BASE_TEXT_DECLARATIONS,
   BASE_TOKENS_CSS,
   DARK_SCOPE,
   FAMILY_TRIPLETS,

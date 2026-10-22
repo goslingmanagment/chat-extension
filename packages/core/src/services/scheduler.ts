@@ -16,8 +16,8 @@ import { generationDebug } from '../domain/debug/op-debug';
 // `interrupted` and never POSTed again. Results live 30 minutes. A tab that
 // re-attaches to a running operation (reload, palette «Перейти», a mirror's
 // gap) gets the text so far in the view and the batches start again at seq 1
-// for it (mirrorFromView). Usage goes to the log always (no text), to the
-// screen only in debug mode (§8.4).
+// for it (mirrorFromView). Usage goes to the log always (no text), and its
+// numbers ride on the view for the result's cost line (§8.4; 2026-10-22).
 //
 // A Coach turn with auto-recap is one composite slot (§7, AI-096): one start
 // (`StartOp.coach.autoRecap`), one token, one admission. The recap runs as an
@@ -772,8 +772,13 @@ export class OpScheduler {
         break;
       case 'usage': {
         this.stage(run, 'usage', now);
-        // §8.4, DB-018, DB-022: the spend goes to the log always (numbers only), to the screen only in debug mode.
+        // §8.4, DB-018, DB-022: the spend goes to the log always (numbers only). Since 2026-10-22 the result's head shows
+        // it too, as the old Fansly extension did whatever the debug mode: the view carries the numbers, never a text.
         const usage = effect.usage;
+        run.view = {
+          ...run.view,
+          usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, cacheReadTokens: usage.cacheReadTokens, cacheWriteTokens: usage.cacheWriteTokens, costMicroUsd: usage.costMicroUsd },
+        };
         this.log.write({
           level: 'info',
           scope: 'bg.ops.usage',

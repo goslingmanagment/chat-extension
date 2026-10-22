@@ -93,14 +93,14 @@ export const isRunning = (state: ResultVM['state']): boolean => state === 'admit
 
 /**
  * Header meta as printed (ui-design §4.2): the controller's lines, with the
- * tone by its catalog name («тон: Flirt», never the id), «для Tomasz» in front
- * for Hi, and «3 варианта» + «по 2 части» as one phrase.
+ * tone by its catalog name («тон: Flirt», never the id), and «3 варианта» +
+ * «по 2 части» as one phrase. Whom the answer is for is the title's
+ * («Hi — Tomasz», 2026-10-22), not a meta word.
  */
-export function metaTexts(i18n: I18n, result: Pick<ResultVM, 'meta' | 'toneUsed' | 'feature' | 'targetName'>): string[] {
+export function metaTexts(i18n: I18n, result: Pick<ResultVM, 'meta' | 'toneUsed'>): string[] {
   const texts: string[] = [];
-  const has = (key: I18nKey): boolean => result.meta.some((line) => line.key === key);
-  if (result.feature === 'hi' && result.targetName !== null && !has('result.meta.forFan')) texts.push(i18n.t('result.meta.forFan', { name: result.targetName }));
   result.meta.forEach((line, index) => {
+    if (line.key === 'result.meta.forFan') return;
     const text =
       line.key === 'result.meta.tone' && result.toneUsed !== null ? i18n.t('result.meta.tone', { tone: i18n.t(`dock.tone.${result.toneUsed}`) }) : i18n.text(line);
     // «3 варианта» and «по 2 части» read as one phrase.

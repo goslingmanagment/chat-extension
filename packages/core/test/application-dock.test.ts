@@ -976,6 +976,50 @@ describe('dock: a board’s result goes on in the dock of the chat «Откры�
   });
 });
 
+describe('dock: «Ещё раз» and the options chosen after the answer (2026-10-22)', () => {
+  it('[AI-007] «Ещё раз» goes with the tone and the Split chosen after the answer — else the original’s tone; Split lasts for the tab and is never stored', async () => {
+    const h = await start();
+    const handle = h.dock().targetHandle;
+    if (handle === null) throw new Error('no open chat');
+    const starts = (): { tone: unknown; split: boolean }[] => h.bg.callsOf('op.start') as { tone: unknown; split: boolean }[];
+    expect(await h.dispatch({ type: 'SetTone', targetHandle: handle, tone: 'casual' })).toMatchObject({ ok: true });
+    const first = await reply(h, 'hey you');
+    expect(starts()[0]).toMatchObject({ tone: 'casual', split: false });
+
+    // After the answer: another tone, and Split on — «Ещё раз» takes both, as the old extension did.
+    expect(await h.dispatch({ type: 'SetTone', targetHandle: handle, tone: 'flirty' })).toMatchObject({ ok: true });
+    expect(await h.dispatch({ type: 'SetSplit', split: true })).toMatchObject({ ok: true });
+    expect(h.dock().options.split).toBe(true);
+    h.script(h.streamOf('fast-reply', ['one [NEXT] two']));
+    expect(await h.dispatch({ type: 'Regenerate', operationId: first })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(starts()[1]).toMatchObject({ tone: 'flirty', split: true });
+
+    // Nothing chosen since: the original's tone again, and the tab's Split still on.
+    const second = result(h).opId;
+    h.script(h.streamOf('fast-reply', ['three [NEXT] four']));
+    expect(await h.dispatch({ type: 'Regenerate', operationId: second })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.finish();
+    expect(starts()[2]).toMatchObject({ tone: 'flirty', split: true });
+    // The tab's Split is its own: nothing of it was written to the settings.
+    expect((h.bg.callsOf('settings.patch') as { patch: { generation?: unknown } }[]).filter((call) => call.patch.generation !== undefined)).toEqual([]);
+  });
+
+  it('a generation that runs is not hidden: HideResult changes nothing until it ends (its answer would show nowhere)', async () => {
+    const h = await start();
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fast-reply'), afterMs: 100 }, delta('hey ', 200), doneStep] });
+    const receipt = await h.generate('reply');
+    if (!receipt.ok || receipt.opId === undefined) throw new Error('not started');
+    const opId = receipt.opId;
+    expect(await h.dispatch({ type: 'HideResult', operationId: opId })).toMatchObject({ ok: true, outcome: 'noop' });
+    expect(h.dock().result?.opId).toBe(opId);
+    await h.finish();
+    expect(h.dock().result).toMatchObject({ opId, state: 'done' });
+    expect(await h.dispatch({ type: 'HideResult', operationId: opId })).toMatchObject({ ok: true });
+    expect(h.dock().result).toBeNull();
+  });
+});
+
 describe('the focus handed to the next part (decision X44, ui-design §6.3)', () => {
   it('[UI-023] ⌘E → Enter → Enter → Enter → Enter: a two-part Reply offers part 1 over the empty composer, part 2 once the first was sent — and nothing inserts by itself', async () => {
     const h = await start();

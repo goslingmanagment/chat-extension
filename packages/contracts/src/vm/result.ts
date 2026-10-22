@@ -344,11 +344,18 @@ export interface ResultVM {
   readonly cachedAt: number | null;
   readonly expanded: boolean;
   readonly debug: ResultDebugVM | null;
+  /**
+   * 2026-10-22 (as the old Fansly extension's head): what the generation cost — «$0.002500 · 2.3k usage», and in its
+   * hint «in 1.2k · write 0 · read 900 · out 210». Technical, not translated. Absent or null — the hub sent no usage.
+   */
+  readonly usage?: { readonly line: string; readonly detail: string } | null;
 }
 
 /** A refused start (fourth generation in the tab, the chat busy in another tab): no operation exists (ui-design §4.9). */
 export interface RefusalVM {
   readonly feature: FeatureId;
+  /** 2026-10-22: the fan of the chat the start was for — «Reply — @fan» in the card's head; absent or null — not known. */
+  readonly targetName?: string | null;
   readonly error: CgErrorView;
   readonly running: readonly RunningOpVM[];
   /**
