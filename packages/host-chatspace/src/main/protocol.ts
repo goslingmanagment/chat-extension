@@ -55,6 +55,8 @@ export const API_ACCOUNTS_PATH = '/api/v0/accounts';
 export const SEND_PATH = /(?:^|\/)api\/v0\/accounts\/(\d+)\/chats\/(\d+)\/messages$/;
 /** The role permission that takes the Send button away (§6.7.4 п. 8). */
 export const PERMISSION_NO_SEND = 'of_block_message_sending';
+/** The role permissions of ChatSpace's «Media uploader»: either one lets a file into the composer (attach.ts). */
+export const PERMISSIONS_UPLOAD: readonly string[] = ['om_view_media_uploader', 'om_upload_media_hub'];
 /** Server code of a Message Guard refusal (§6.7.4 п. 16). */
 export const GUARD_CODE = 'MESSAGE_GUARD_VIOLATION';
 /** Queue entry statuses and error kinds the receipt observer reads (§6.7.6). */
@@ -106,6 +108,10 @@ export const MEDIA_IDS = 100;
 export const MEDIA_PRICE_MIN = 300;
 export const MEDIA_PRICE_MAX = 20_000;
 export const MEDIA_TYPES = ['photo', 'video', 'gif', 'audio'] as const;
+/** contracts ATTACH_LIMITS (1.46.0): the file of an attach, and how long MAIN looks for the composer's word on it. */
+export const ATTACH_MAX_BYTES = 2 * 1024 * 1024;
+export const ATTACH_WATCH_MS = 60_000;
+export const ATTACH_WATCH_MAX_MS = 180_000;
 
 /** CG codes MAIN answers with (contracts CG_CODES). */
 export const CG_CHAT_CHANGED = 'CG-INSERT-CHAT-CHANGED';

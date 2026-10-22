@@ -1,6 +1,7 @@
 // MAIN's hand-written request checks (MAIN cannot import the contracts' schemas): a navigation's deferred insert
-// may only aim at the chat the navigation opens.
+// may only aim at the chat the navigation opens; an attach of ours takes what the contract takes.
 
+import { BRIDGE_REQUEST_FIXTURES } from '@cg/contracts/fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { PAYLOAD } from './requests';
@@ -24,5 +25,11 @@ describe('[EX-008] MAIN request checks', () => {
     expect(PAYLOAD['navigate']?.(navigate('2002', then('2003')))).toBe(false);
     expect(PAYLOAD['navigate']?.(navigate('2002', then('2002', '1009')))).toBe(false);
     expect(PAYLOAD['navigate']?.(navigate(null, then('2002')))).toBe(false);
+  });
+
+  it('an attach of ours: the name the page reads, the MP3 itself within the cap, no token — as the contract fixtures say', () => {
+    const { valid, invalid } = BRIDGE_REQUEST_FIXTURES.attachFile.payload;
+    for (const payload of valid) expect(PAYLOAD['attachFile']?.(payload)).toBe(true);
+    for (const [index, payload] of invalid.entries()) expect(PAYLOAD['attachFile']?.(payload), `invalid #${index}`).toBe(false);
   });
 });

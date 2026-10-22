@@ -8,8 +8,9 @@
 // schema of its own type.
 
 import { BridgeEventEnvelopeSchema, BridgeResponseSchema, checkBridgeFrame, type BridgeError, type BridgeRejectReason, type FromMainType, type ToMainType } from '@cg/contracts/bridge';
-import { FROM_MAIN, TO_MAIN, type FromMainPayload, type ToMainData } from '@cg/contracts/bridge-messages';
+import { AttachWireSchema, FROM_MAIN, TO_MAIN, type FromMainPayload, type ToMainData } from '@cg/contracts/bridge-messages';
 import { InsertIntentSchema, NavigationIntentSchema } from '@cg/contracts/host';
+import { HumanCauseSchema } from '@cg/contracts/ids';
 import { DispatchTicketSchema, PreviewSendRequestSchema } from '@cg/contracts/send';
 
 export type CheckedFrame =
@@ -56,3 +57,9 @@ export const isInsertIntent = (value: unknown): boolean => InsertIntentSchema.sa
 export const isNavigationIntent = (value: unknown): boolean => NavigationIntentSchema.safeParse(value).success;
 export const isPreviewSendRequest = (value: unknown): boolean => PreviewSendRequestSchema.safeParse(value).success;
 export const isDispatchTicket = (value: unknown): boolean => DispatchTicketSchema.safeParse(value).success;
+/** 1.46.0: an AttachIntent — what MAIN gets of it (AttachWireSchema: the name the page reads, the MP3 within the cap) and the person's cause. */
+export const isAttachIntent = (value: unknown): boolean => {
+  if (typeof value !== 'object' || value === null) return false;
+  const { cause, ...wire } = value as { readonly cause?: unknown };
+  return HumanCauseSchema.safeParse(cause).success && AttachWireSchema.safeParse(wire).success;
+};

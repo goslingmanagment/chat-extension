@@ -2,12 +2,13 @@
 // against the contracts: snapshots and events in, receipts out.
 
 import type { ToMainType } from '@cg/contracts/bridge';
-import type { ComposerState, HostEvent, HostTheme, InsertIntent, MountPoints, NavigationIntent } from '@cg/contracts/host';
+import type { AttachIntent, ComposerState, HostEvent, HostIdentity, HostTheme, InsertIntent, MountPoints, NavigationIntent } from '@cg/contracts/host';
 import { InsertReceiptSchema, NavigationReceiptSchema } from '@cg/contracts/host';
+import { ATTACH_LIMITS } from '@cg/contracts/limits';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
-import { createChatSpaceHostPort, type HostDiagnostic } from './host-port';
+import { createChatSpaceHostPort, HostContractError, type ChatSpaceHostPort, type HostDiagnostic } from './host-port';
 import { loadValidation } from './validation';
 import type { MountManager } from './mount';
 import type { ThemeReader } from './theme';
@@ -306,5 +307,106 @@ describe('navigation (§6.5, §6.9)', () => {
     aborted.abort();
     expect(await early.host.navigate(nav({ thenInsert: thenInsert as never }), { signal: aborted.signal })).toEqual({ state: 'navigated', routeEpoch: 6, insert: { state: 'rejected', code: 'CG-INSERT-CANCELED' } });
     expect(early.bridge.calls.find((call) => call.t === 'navigate')?.payload['intent']).not.toHaveProperty('thenInsert');
+  });
+});
+
+describe('a file of ours into the composer (1.46.0)', () => {
+  const NAME = `${uuid(31)}.mp3`;
+  const KEY = `chat-space:draft:of:${ACC}:${FAN}`;
+  const attachIntent = (host: ChatSpaceHostPort, expected: Partial<HostIdentity> = {}): AttachIntent => ({
+    intentId: uuid(30),
+    expected: { ...(host.identity() as HostIdentity), ...expected },
+    cause: { kind: 'click', actionToken: TOKEN },
+    file: { name: NAME, type: 'audio/mpeg', bytes: new ArrayBuffer(32) },
+  });
+  /** The chat's draft key as ChatSpace writes it, with its media (`uploadDescriptor` — the person's upload of a file). */
+  const stored = (medias: readonly Record<string, unknown>[], gif: unknown = null) =>
+    JSON.stringify({ body: { json: null, gif, media: medias.length > 0 ? { medias, price: null, lockedText: false } : null, taggedCreators: [] }, updatedAt: 1 });
+  const uploaded = (name = NAME) => ({ id: 'p1', type: 'audio', isFree: true, uploadDescriptor: { processId: 'p1', host: 'h', name, extra: null } });
+
+  it('spends the click’s token first, hands MAIN the file without it, and keeps an outcome the draft key shows', async () => {
+    const drafts = storage();
+    const order: number[] = [];
+    let redeemedAtMain: () => number = () => -1;
+    const { host, bridge, redeemed } = await port(
+      {
+        attachFile: () => {
+          order.push(redeemedAtMain());
+          drafts.entries[KEY] = stored([uploaded()]);
+          return { state: 'attached', ms: 900 };
+        },
+      },
+      { drafts },
+    );
+    redeemedAtMain = () => redeemed.length;
+    const intent = attachIntent(host);
+    expect(await host.attachFile(intent)).toEqual({ state: 'attached', ms: 900 });
+    expect(order).toEqual([1]);
+    expect(redeemed).toEqual([`insert:${intent.intentId}:${TOKEN}`]);
+    const sent = bridge.calls.filter((call) => call.t === 'attachFile');
+    expect(sent.map((call) => [call.payload, call.timeoutMs])).toEqual([[{ intentId: intent.intentId, expected: intent.expected, file: intent.file }, ATTACH_LIMITS.bridgeMs]]);
+    expect(JSON.stringify(bridge.calls)).not.toContain(TOKEN);
+    // A broken intent is a programming error: a name that is not the page's own kind.
+    await expect(host.attachFile({ ...intent, file: { ...intent.file, name: 'voice.mp3' } })).rejects.toThrow(HostContractError);
+  });
+
+  it('the draft key decides MAIN’s word: our file there is attached, MAIN’s attached without it is unknown, a silent key leaves it', async () => {
+    const drafts = storage();
+    let main: unknown = null;
+    let after: string | null = null;
+    const { host, diagnostics } = await port(
+      {
+        attachFile: () => {
+          if (after === null) delete drafts.entries[KEY];
+          else drafts.entries[KEY] = after;
+          return main;
+        },
+      },
+      { drafts },
+    );
+    // MAIN lost sight of the upload; the draft holds our file by its name — or, the vault holding that audio already, a medium it did not have.
+    main = { state: 'unknown' };
+    after = stored([uploaded()]);
+    expect(await host.attachFile(attachIntent(host))).toMatchObject({ state: 'attached' });
+    main = { state: 'not-attached', reason: 'site-refused' };
+    after = stored([{ id: '880001', type: 'audio', isFree: true }]);
+    delete drafts.entries[KEY];
+    expect(await host.attachFile(attachIntent(host))).toMatchObject({ state: 'attached' });
+    // Another person's upload is not ours: MAIN's word stands — and MAIN's attached against it is unknown.
+    after = stored([uploaded(`${uuid(99)}.mp3`)]);
+    delete drafts.entries[KEY];
+    expect(await host.attachFile(attachIntent(host))).toEqual({ state: 'not-attached', reason: 'site-refused' });
+    main = { state: 'attached', ms: 5 };
+    delete drafts.entries[KEY];
+    expect(await host.attachFile(attachIntent(host))).toEqual({ state: 'unknown' });
+    expect(diagnostics).toContainEqual({ event: 'attach-key-disagrees', code: 'CG-VOICE-ATTACH-UNKNOWN' });
+    // No key at all says nothing: MAIN's word.
+    after = null;
+    delete drafts.entries[KEY];
+    expect(await host.attachFile(attachIntent(host))).toEqual({ state: 'attached', ms: 5 });
+  });
+
+  it('refused before the token is spent: another composer, a draft holding an audio or a GIF; a refused token or a refusal before execution reaches nothing; a lost answer is unknown, asked once', async () => {
+    const drafts = storage();
+    const { host, bridge, redeemed } = await port({ attachFile: () => ({ state: 'attached', ms: 1 }) }, { drafts });
+    expect(await host.attachFile(attachIntent(host, { composerInstanceId: 'c9' }))).toEqual({ state: 'refused', reason: 'identity' });
+    expect(await host.attachFile(attachIntent(host, { routeEpoch: 3 }))).toEqual({ state: 'refused', reason: 'identity' });
+    expect(await host.attachFile(attachIntent(host, { chat: chat(OTHER) }))).toEqual({ state: 'refused', reason: 'identity' });
+    drafts.entries[KEY] = stored([{ id: '7', type: 'audio', isFree: true }]);
+    expect(await host.attachFile(attachIntent(host))).toEqual({ state: 'refused', reason: 'busy' });
+    drafts.entries[KEY] = stored([], { id: 'gif-1' });
+    expect(await host.attachFile(attachIntent(host))).toEqual({ state: 'refused', reason: 'busy' });
+    expect(redeemed).toEqual([]);
+    expect(bridge.calls.some((call) => call.t === 'attachFile')).toBe(false);
+
+    const refused = await port({ attachFile: () => ({ state: 'attached', ms: 1 }) }, { redeem: false });
+    expect(await refused.host.attachFile(attachIntent(refused.host))).toEqual({ state: 'refused', reason: 'cause' });
+    expect(refused.bridge.calls.some((call) => call.t === 'attachFile')).toBe(false);
+
+    const old = await port({ attachFile: () => Promise.reject(new BridgeCallError('unknown-request', 'attachFile')) });
+    expect(await old.host.attachFile(attachIntent(old.host))).toEqual({ state: 'refused', reason: 'anchor-missing' });
+    const lost = await port({ attachFile: () => Promise.reject(new BridgeCallError('timeout', 'attachFile')) });
+    expect(await lost.host.attachFile(attachIntent(lost.host))).toEqual({ state: 'unknown' });
+    expect(lost.bridge.calls.filter((call) => call.t === 'attachFile')).toHaveLength(1);
   });
 });

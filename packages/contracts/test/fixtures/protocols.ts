@@ -598,6 +598,7 @@ const openChatPage = {
   cursor: '9002',
 } as const;
 const draftWire = { composerInstanceId: 'composer1', revision: 4, plainText: 'my draft', provenance: 'human-or-unknown', digest: DIGEST } as const;
+const attachWire = { intentId: uuid(11), expected: hostIdentity, file: { name: `${uuid(12)}.mp3`, type: 'audio/mpeg', bytes: new ArrayBuffer(16) } } as const;
 
 export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeRequestFixtures } = {
   probe: { payload: empty, data: { valid: [probe], invalid: [{ ...probe, v: 2 }] } },
@@ -747,6 +748,26 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
         { ok: false, failure: 'http', status: 429 },
       ],
       invalid: [{ ok: true, last: { messageId: IDS.msg2, direction: 'creator', sentAt: ISO, read: true, readAt: null } }, { ok: false, failure: 'not-open', status: null }, { ok: true }],
+    },
+  },
+  // 1.46.0: a file of ours dropped on the open chat's composer; MAIN answers what the composer showed of it.
+  attachFile: {
+    payload: {
+      valid: [attachWire],
+      invalid: [
+        // MAIN gets no token; the page reads the name, which never names the extension.
+        { ...attachWire, cause: { kind: 'click', actionToken: ACTION_TOKEN } },
+        { ...attachWire, file: { ...attachWire.file, name: 'chatgoose-voice.mp3' } },
+        { ...attachWire, file: { ...attachWire.file, type: 'audio/wav' } },
+        // The bytes themselves, never an empty file or a copy of their shape.
+        { ...attachWire, file: { ...attachWire.file, bytes: new ArrayBuffer(0) } },
+        { ...attachWire, file: { ...attachWire.file, bytes: new Uint8Array(16) } },
+      ],
+    },
+    data: {
+      valid: [{ state: 'attached', ms: 2400 }, { state: 'refused', reason: 'permission' }, { state: 'not-attached', reason: 'site-refused' }, { state: 'unknown' }],
+      // ChatSpace's upload has no window the person closes; a refusal is one of the vocabulary's.
+      invalid: [{ state: 'not-attached', reason: 'dismissed' }, { state: 'refused', reason: 'gif' }, { state: 'attached' }, { state: 'unknown', reason: 'timeout' }],
     },
   },
 };
