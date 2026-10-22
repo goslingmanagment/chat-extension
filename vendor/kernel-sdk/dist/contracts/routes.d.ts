@@ -12323,6 +12323,10 @@ export declare const creatorStatsContentResponseSchema: z.ZodObject<{
         toDay: z.ZodString;
         days: z.ZodNumber;
     }, z.core.$strip>;
+    walk: z.ZodObject<{
+        visited: z.ZodNumber;
+        queued: z.ZodNumber;
+    }, z.core.$strip>;
     media: z.ZodArray<z.ZodObject<{
         mediaOfferId: z.ZodString;
         mediaType: z.ZodNullable<z.ZodNumber>;
@@ -18013,6 +18017,10 @@ declare const baseRouteSchemas: {
                     fromDay: z.ZodString;
                     toDay: z.ZodString;
                     days: z.ZodNumber;
+                }, z.core.$strip>;
+                walk: z.ZodObject<{
+                    visited: z.ZodNumber;
+                    queued: z.ZodNumber;
                 }, z.core.$strip>;
                 media: z.ZodArray<z.ZodObject<{
                     mediaOfferId: z.ZodString;
