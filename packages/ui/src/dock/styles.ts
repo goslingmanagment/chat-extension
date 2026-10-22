@@ -56,13 +56,12 @@ const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1
 /**
  * The steps of a narrow bar, in px of the bar's own width whatever the text size (2026-10-22: in the root's text they
  * folded at ~703 px under «Крупнее», on every Fansly composer), each a few px above the width its row needs (measured
- * on both sites' stands, 2026-10-23, the bar without Review): below `TIGHT_BELOW` the words' chips and the capsule
- * close up, below `VOICE_ICON_BELOW` Voice is its 🎙, below `ICONS_BELOW` Recap and Coach are their icons, below
- * `SEAMS_BELOW` the seams go, below `MORE_BELOW` the four icons go into «Ещё». Above `ICONS_BELOW` the bar shows every
- * word but Voice's; nothing scrolls above `SEAMS_BELOW`.
+ * on both sites' stands, 2026-10-23, the bar without Review, Voice its 🎙): below `TIGHT_BELOW` the words' chips and
+ * the capsule close up, below `ICONS_BELOW` Recap and Coach are their icons, below `SEAMS_BELOW` the seams go, below
+ * `MORE_BELOW` the four icons go into «Ещё». Above `ICONS_BELOW` the bar shows every word; nothing scrolls above
+ * `SEAMS_BELOW`.
  */
-export const TIGHT_BELOW = 634;
-export const VOICE_ICON_BELOW = 576;
+export const TIGHT_BELOW = 614;
 export const ICONS_BELOW = 556;
 export const SEAMS_BELOW = 512;
 export const MORE_BELOW = 420;
@@ -97,10 +96,10 @@ ${/* What is left of a low quota: a count on the bar's frame over Reply's corner
 .cg-strip__opts > * { flex: none; }
 .cg-strip__opts > .cg-status-word { flex: 0 1 auto; min-width: 0; }
 .cg-act--ico > .cg-ico { display: none; width: 14px; height: 14px; }
-${/* Spenders and «Новые» are their icons at every width, on both sites (X64): the word is in the hint and in the name. */ ''}
-.cg-strip .cg-slot--boards .cg-act--ico { width: 30px; padding: 0; }
-.cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
-.cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
+${/* Spenders and «Новые» are their icons at every width, on both sites (X64): the word is in the hint and in the name. Voice too (the owner, 2026-10-23: «войс лучше иконкой»), the old Fansly extension's 🎙. */ ''}
+.cg-strip .cg-slot--voice .cg-act--ico, .cg-strip .cg-slot--boards .cg-act--ico { width: 30px; padding: 0; }
+.cg-slot--voice .cg-act--ico > .cg-ico, .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
+.cg-slot--voice .cg-act--ico > .cg-act__t, .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 .cg-act.is-busy > .cg-ico { opacity: 0.35; }
 .cg-slot--more { display: none; }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
@@ -237,18 +236,12 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
 @container cg (max-width: ${TIGHT_BELOW - 1}px) {
   .cg-strip__opts { padding-left: 4px; }
   .cg-strip .cg-div { margin: 0 2px; }
-  ${/* The words' chips 6 px in (2026-10-23): every word, Voice's too, still fits a ~580 px composer; an icon's chip keeps its own width. */ ''}
+  ${/* The words' chips 6 px in (2026-10-23): every word still fits a ~560 px composer; an icon's chip keeps its own width. */ ''}
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 6px; }
-  .cg-strip .cg-slot--boards .cg-act--ico { padding: 0; }
+  .cg-strip .cg-slot--voice .cg-act--ico, .cg-strip .cg-slot--boards .cg-act--ico { padding: 0; }
   ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
   .cg-tones .cg-opt { width: 22px; }
   .cg-tones__track { gap: 2px; }
-}
-@container cg (max-width: ${VOICE_ICON_BELOW - 1}px) {
-  ${/* 1.47.0: Voice, the chip after Ping, is its 🎙 here — the other words fit a little longer; its name stays in its hint. */ ''}
-  .cg-strip .cg-slot--voice .cg-act--ico { width: 28px; padding: 0; }
-  .cg-slot--voice .cg-act--ico > .cg-ico { display: block; }
-  .cg-slot--voice .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
 @container cg (max-width: ${ICONS_BELOW - 1}px) {
   ${/* Recap and Coach too: below here their words no longer fit the bar. */ ''}
