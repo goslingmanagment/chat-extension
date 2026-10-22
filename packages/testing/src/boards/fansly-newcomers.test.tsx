@@ -97,7 +97,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     );
     ui = await mountBoardSettled('fansly-newcomers', { ...base, views: [entry({ of: 'newcomers' }, { ...vm, rows })] });
     const leo = ui.$$('.cg-nw__row')[1] as HTMLElement;
-    expect([leo.querySelector('.cg-nw__st')?.getAttribute('data-cg-code'), textOf(leo.querySelector('.cg-nw__st'))]).toEqual(['CG-FNEW-HISTORY', 'Не вышло: Проверка изменилась']);
+    expect([leo.querySelector('.cg-nw__st')?.getAttribute('data-cg-code'), textOf(leo.querySelector('.cg-nw__st'))]).toEqual(['CG-FNEW-HISTORY', 'Не вышло: Переписка изменилась']);
     const alex = ui.$$('.cg-nw__row').find((row) => row.getAttribute('data-cg-key') === handle(8)) as HTMLElement;
     const off = alex.querySelector('.cg-fnw__rsend') as HTMLElement;
     expect(off.getAttribute('aria-disabled')).toBe('true');

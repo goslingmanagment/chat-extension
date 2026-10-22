@@ -54,7 +54,7 @@ import {
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
-import { aiFeatureExistsOn, aiFeatureFlag, livePpvRefusal, pingActiveRefusal, pingFewRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
+import { aiFeatureExistsOn, aiFeatureFlag, livePpvRefusal, pingFewRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
@@ -1010,10 +1010,7 @@ export class FakeHub {
       const liveIds = request.capabilities.includes('context-v1') && featureVerdict(s.config, page, 'freshText').available ? (body.liveTextContext?.items ?? []).map((item) => item.platformMessageId) : [];
       const few = pingFewRefusal(new Set([...served.window.map((item) => item.messageRef), ...liveIds]).size);
       if (few !== null) return refusal(few);
-      // The hub's segment reads its transcript: the archive the reader serves and, under context-v1, the page's texts.
-      const live = request.capabilities.includes('context-v1') ? (body.liveTextContext?.items ?? []).filter((item) => item.direction === 'fan' && item.text.trim() !== '').map((item) => Date.parse(item.occurredAt)) : [];
-      const active = pingActiveRefusal({ platform: page.platform, fanTextTimes: [...s.data.fanTextTimes(page, transcript, window.limit), ...live], now: this.clock.now() });
-      if (active !== null) return refusal(active);
+      // An active fan refuses no Ping on either platform (the owner, 2026-10-22; hub `gate_ping_active` gone).
     }
     if (feature === 'fan-notes-fill' && served.window.length === 0) return refusal('gate_min_messages');
     if (s.config.quotaRequestsToday === 0) {

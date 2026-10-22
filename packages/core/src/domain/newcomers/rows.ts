@@ -1,10 +1,12 @@
 // Rows of «Новые» (architecture.md §8.5, §6.7.9, hub H-7c; NF-005…NF-007,
 // NF-014, NF-015): who subscribed or came back in the window, and where the
-// greeting stands. Three things are kept apart, as the hub keeps them: the
-// fact «greeted» (for ever; the desktop's outbox confirms it too), the lease
-// of whoever works on the greeting now, and the custody of a sent part. A
-// row never looks greeted without that fact, and a part whose outcome is
-// unknown stops the row until an owner resolves it in the hub.
+// greeting stands. Two things are kept apart, as the hub keeps them: the
+// fact «greeted» (for ever; the desktop's outbox confirms it too) and the
+// custody of a sent part. A row never looks greeted without that fact. No
+// lease is shown (2026-10-22, «правь все»: nobody takes one any more, and a
+// colleague's send in flight is a quiet note, never a hold), and a part whose
+// outcome is unknown says so and stops nothing: the person looks at the chat
+// and may send again.
 
 import { type AudienceNewItem, type ClaimState, type ClaimSummary } from '@cg/contracts/hub';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
@@ -43,18 +45,6 @@ function subscriptionOf(status: AudienceNewItem['status']): NewcomerRow['subscri
   else if (status.isSubscriber === false && known !== 'active') state = 'expired';
   else if (status.isSubscriber === null && known !== null) state = known;
   return { state, asOf: status.asOf, endsAt: status.endsAt };
-}
-
-/**
- * X8 condition 9 for «Новые» (§6.7.4): an explicit current status WITH its
- * data time. «Active» without a data time, or with an end that has passed,
- * is not a confirmed subscription — expired or unknown data refuse the send.
- */
-export function subscriptionCurrent(subscription: NewcomerRow['subscription'], now: number): boolean {
-  if (subscription.state !== 'active' || subscription.asOf === null || Number.isNaN(Date.parse(subscription.asOf))) return false;
-  if (subscription.endsAt === null) return true;
-  const ends = Date.parse(subscription.endsAt);
-  return !Number.isNaN(ends) && ends > now;
 }
 
 const clean = (text: string | null): string | null => {
@@ -97,12 +87,8 @@ export function threadRevision(row: Pick<NewcomerRow, 'thread'>): string {
   return row.thread === null ? 'none' : `${row.thread.storedMessages}|${row.thread.lastMessageAt ?? ''}`;
 }
 
-/** What this tab itself knows about a fan's greeting: its lease and the parts it sent. */
+/** What this tab itself knows about a fan's greeting: the parts it sent. */
 export interface LocalGreeting {
-  /** This tab holds a live lease of the fan. */
-  readonly leaseMine: boolean;
-  /** The lease was lost to a colleague or to this person elsewhere, as the last claim answer said. */
-  readonly heldBy: 'you-elsewhere' | 'someone-else' | null;
   /**
    * Parts of the group this tab is sending: confirmed, total, the first part
    * with an unknown outcome (0-based), and whether a part is on its way now.
@@ -116,7 +102,7 @@ export interface LocalGreeting {
   } | null;
 }
 
-export const NO_LOCAL_GREETING: LocalGreeting = { leaseMine: false, heldBy: null, progress: null };
+export const NO_LOCAL_GREETING: LocalGreeting = { progress: null };
 
 /** Part numbers of the hub's own answer for a group (`ClaimState.group`), when a claim call brought one. */
 export function progressOfClaim(state: ClaimState | null): LocalGreeting['progress'] {
@@ -128,12 +114,16 @@ export function progressOfClaim(state: ClaimState | null): LocalGreeting['progre
 }
 
 /**
- * The «Приветствие» column. In order: a part whose outcome is unknown stops
- * the row; parts on their way show the progress; every part confirmed (or
- * the hub's fact alone) is «поздоровались»; then the lease — mine, mine in
- * another tab, a colleague's. A colleague's unresolved send holds the fan as
- * their lease does. Incoming archive history is a conversation without a ChatGoose greeting receipt; outgoing
- * messages alone may be automated and do not establish that fact.
+ * The «Приветствие» column. In order: a part whose outcome is unknown says so
+ * (it holds nothing, 2026-10-20 audit, row 2); parts on their way show the
+ * progress; every part confirmed (or the hub's fact alone) is «поздоровались»;
+ * a fan who wrote is a dialogue; a send of somebody else's still in its
+ * ticket is a quiet «отправляется другим чаттером». No lease is a status any
+ * more (2026-10-22): a colleague's lease an older client takes, and a send of
+ * theirs past its ticket, hold nothing here — the hub refuses at the send what
+ * it must. Incoming archive history is a conversation without a ChatGoose
+ * greeting receipt; outgoing messages alone may be automated and do not
+ * establish that fact.
  */
 export function greetingStatus(claim: ClaimSummary, local: LocalGreeting = NO_LOCAL_GREETING, greetedAt: IsoTimestamp | null = null, fanWrote = false): GreetingStatusVM {
   const progress = local.progress;
@@ -145,23 +135,17 @@ export function greetingStatus(claim: ClaimSummary, local: LocalGreeting = NO_LO
   if (claim.greeting === 'confirmed') return { s: 'greeted', at: greetedAt };
   // An incoming message is direct evidence of a started conversation, even without a ChatGoose send receipt.
   // Outgoing messages alone prove nothing: the archive may contain only an automatic welcome or a mass message.
-  // An unresolved send still takes priority, so its recovery never disappears behind the history status.
-  if (fanWrote && claim.custody !== 'dispatching' && claim.custody !== 'uncertain-held') return { s: 'replied' };
-  if (local.leaseMine) return { s: 'claim-mine' };
-  if (local.heldBy !== null) return { s: local.heldBy === 'you-elsewhere' ? 'claim-elsewhere' : 'claim-other' };
-  if (claim.lease === 'owned') return { s: 'claim-mine' };
-  if (claim.lease === 'held') return { s: claim.heldBy === 'you-elsewhere' ? 'claim-elsewhere' : 'claim-other' };
-  // No live lease, yet a part is on its way or unresolved: somebody's send holds the fan.
-  if (claim.custody === 'dispatching' || claim.custody === 'uncertain-held') return { s: 'claim-other' };
+  if (fanWrote) return { s: 'replied' };
+  // Somebody's part is on its way to the fan right now (the hub's `dispatching`, inside its ticket): a note, not a hold.
+  if (claim.custody === 'dispatching') return { s: 'sending-other' };
   return { s: 'none' };
 }
 
 /** Which statuses a filter button shows (NF-006). */
 export const FILTER_STATUSES: Readonly<Record<GreetingFilter, readonly GreetingStatusVM['s'][]>> = {
-  any: ['none', 'claim-mine', 'claim-other', 'claim-elsewhere', 'sending', 'stopped', 'greeted', 'replied'],
+  any: ['none', 'sending-other', 'sending', 'stopped', 'greeted', 'replied'],
   none: ['none'],
-  claimed: ['claim-mine', 'claim-other', 'claim-elsewhere'],
-  sending: ['sending'],
+  sending: ['sending', 'sending-other'],
   stopped: ['stopped'],
   greeted: ['greeted'],
   replied: ['replied'],
@@ -188,14 +172,15 @@ export function matchesSearch(row: NewcomerRow, query: string): boolean {
 export type HiBlock = 'greeted' | 'sending';
 
 /**
- * §6.7.9: after the first confirmed part the fan counts as greeted — the
- * owner may still send the rest of that group, but another generation would
- * be a second greeting, so Hi is off from then on. While the first part is
- * still on its way Hi waits for it. A colleague's lease and an unknown
- * outcome hold nothing (2026-10-20 audit, rows 2 and 11): the hub claims the
- * fan at the send and refuses one somebody greeted. A fan who already wrote
- * is no block either (2026-10-21 restrictions, item 14): the person sees the
- * thread and decides. Hi has no message limit (the owner, 2026-10-21).
+ * §6.7.9, owner X5: after the first confirmed part the fan counts as greeted —
+ * the owner may still send the rest of that group, but another generation
+ * would be a second greeting, so Hi is off from then on («Уже поздоровались —
+ * дальше Reply»). While the first part is still on its way Hi waits for it. A
+ * colleague's send, a lease and an unknown outcome hold nothing (2026-10-20
+ * audit, rows 2 and 11; 2026-10-22): the hub claims the fan at the send and
+ * refuses one somebody greeted. A fan who already wrote is no block either
+ * (2026-10-21 restrictions, item 14): the person sees the thread and decides.
+ * Hi has no message limit (the owner, 2026-10-21).
  */
 export function hiBlock(status: GreetingStatusVM): HiBlock | null {
   switch (status.s) {
@@ -206,10 +191,8 @@ export function hiBlock(status: GreetingStatusVM): HiBlock | null {
     case 'stopped':
       return status.sent > 0 ? 'greeted' : null;
     case 'replied':
-    case 'claim-other':
-    case 'claim-elsewhere':
+    case 'sending-other':
     case 'none':
-    case 'claim-mine':
       return null;
   }
 }

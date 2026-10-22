@@ -300,7 +300,7 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     await expect(view).resolves.toMatchObject({ state: 'sent', proof: 'echo' });
   });
 
-  it('[NF-022] [RB-007] `200 {success:false}` is uncertain: never repeated, the fan held — the next click asks nothing', async () => {
+  it('[NF-022] [RB-007] `200 {success:false}` is uncertain: never repeated by itself; the person\'s own click goes («как раньше») — the hub holds it inside the old ticket, past it one new POST', async () => {
     const w = world();
     const view = w.send.send(click());
     await settle();
@@ -310,11 +310,32 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     expect(w.journal()).toMatchObject([{ state: 'uncertain', cause: 'rejected-200' }]);
     // No report: the custody turns uncertain-held at the hub when its ticket runs out.
     expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
-    const again = await w.send.send(click(uuid(2)));
-    expect(again).toMatchObject({ state: 'refused', proof: 'before-dispatch', code: 'CG-SEND-UNCERTAIN' });
+    // Nothing repeats by itself.
+    w.clock.advance(60_000);
+    await settle();
     expect(w.routes).toHaveLength(1);
     expect(w.routes[0]?.starts).toBe(1);
-    expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
+    // The person's click while the old ticket runs: the hub holds the fan — nothing reaches Fansly, and the unknown
+    // outcome is the fan's state again.
+    w.hub.onDispatch(() => Promise.reject(hubError({ kind: 'http', status: 409, error: 'custody_held', reason: null, retryAfterMs: null })));
+    expect(await w.send.send(click(uuid(2)))).toMatchObject({ state: 'refused', proof: 'before-dispatch', code: 'CG-SEND-UNCERTAIN' });
+    expect(w.routes[1]?.starts).toBe(0);
+    expect(await w.send.status(PAGE, FAN)).toMatchObject({ attemptId: uuid(1), state: 'uncertain' });
+    // Past the ticket the hub sets the old custody aside: the person's click is one new attempt and one new POST; the
+    // old attempt stays unknown, never sent again.
+    w.hub.onDispatch((op) => Promise.resolve(claimState({ custody: { attemptId: (op.body as { attemptId: string }).attemptId, state: 'dispatching', ticket: 'tkt-2', ticketExpiresAt: iso(SERVER + 10_000) } })));
+    const again = w.send.send(click(uuid(3)));
+    await settle();
+    expect(w.routes[2]?.starts).toBe(1);
+    w.routes[2]?.answer.resolve(receipt('830000000000000002'));
+    w.send.echo([{ id: '830000000000000002', conversationRef: GROUP, fromFan: false }]);
+    await expect(again).resolves.toMatchObject({ attemptId: uuid(3) });
+    await settle();
+    expect(w.send.view(uuid(3))).toMatchObject({ state: 'sent', proof: 'echo' });
+    expect(w.send.view(uuid(1))).toMatchObject({ state: 'uncertain' });
+    expect(await w.send.status(PAGE, FAN)).toMatchObject({ attemptId: uuid(3), state: 'sent' });
+    expect(w.routes[0]?.starts).toBe(1);
+    expect(w.hub.actions().filter((action) => action === 'dispatch')).toHaveLength(3);
   });
 
   it('[NF-022] the lost answer of the POST is uncertain (network; through the tab — relay) and never repeated', async () => {
@@ -332,7 +353,7 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
       w.clock.advance(60_000);
       await settle();
       expect(w.journal()).toMatchObject([{ state: 'uncertain', cause }]);
-      expect(await w.send.send(click(uuid(2)))).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+      // Never asked again by itself: one route, one start, nothing more of the hub.
       expect(w.routes).toHaveLength(1);
       expect(w.routes[0]?.starts).toBe(1);
       expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
@@ -355,7 +376,9 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
       await restored.send.observeRequest({ clientRequestId: uuid(0x900), phase: 'completed', statusCode: 200 });
       expect(restored.journal()).toMatchObject([{ state: 'uncertain', requestId: uuid(0x900), browserResend: true }]);
       restored.clock.advance(60_000);
-      expect(await restored.send.send(click(uuid(2)))).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+      await settle();
+      // The restored attempt is the fan's state again; nothing of it is sent again.
+      expect(await restored.send.status(PAGE, FAN)).toMatchObject({ attemptId: uuid(1), state: 'uncertain' });
       expect(w.routes[0]?.starts).toBe(1);
       expect(restored.routes).toHaveLength(0);
       expect(w.hub.actions()).toEqual(['claim', 'dispatch', 'release']);
@@ -505,8 +528,9 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     lost.routes[0]?.answer.reject(new TypeError('NetworkError when attempting to fetch resource.'));
     await expect(pending).resolves.toMatchObject({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' });
     lost.on = true;
-    // The fan stays held: a new click of the same fan routes nothing.
-    expect(await lost.send.send(click(uuid(2)))).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+    // Never repeated by itself, also once Fansly is on again.
+    lost.clock.advance(60_000);
+    await settle();
     expect(lost.routes).toHaveLength(1);
     expect(lost.routes[0]?.starts).toBe(1);
   });
@@ -568,13 +592,15 @@ describe('[host:fansly] the greeting send with the hub custody (R20 P9d, archite
     expect(w.send.view(uuid(3))).toMatchObject({ state: 'receipted' });
     expect(w.hub.calls.map((call) => [call.body.action, (call.body as { attemptId?: string }).attemptId])).toEqual([['failed', uuid(1)]]);
     expect(w.routes).toHaveLength(0);
-    // The uncertain fan is held: a new click asks nothing of Fansly.
-    expect(await w.send.send(click(uuid(4), { fanRef: '920000000000000002' }))).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
+    // A new click of the uncertain fan is the person's own and goes on; refused here by its own check (the tab is on
+    // another fan), it gives the fan back to the unknown outcome — which is never sent again.
+    expect(await w.send.send(click(uuid(4), { fanRef: '920000000000000002' }))).toMatchObject({ state: 'refused', code: 'CG-CONTEXT-CHANGED' });
+    expect(await w.send.status(PAGE, '920000000000000002')).toMatchObject({ attemptId: uuid(2), state: 'uncertain' });
     w.send.echo([{ id: '830000000000000003', conversationRef: GROUP, fromFan: false }]);
     await settle();
     expect(w.send.view(uuid(3))).toMatchObject({ state: 'sent', proof: 'echo', platformMessageId: '830000000000000003' });
     expect(w.hub.calls.at(-1)?.body).toMatchObject({ action: 'sent', attemptId: uuid(3), platformMessageId: '830000000000000003' });
-    expect(w.routes).toHaveLength(0);
+    expect(w.routes.map((route) => route.starts)).toEqual([0]);
   });
 
   it('[NF-035] the journal\'s first write failing: no custody asked, no request', async () => {

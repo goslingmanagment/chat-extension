@@ -129,6 +129,8 @@ export interface PreviewResultInput {
   readonly regenerate: { readonly allowed: boolean; readonly reason: ReasonVM | null };
   /** The person's own text from the draft field: no generation behind it (audit 2026-10-20, row 1). */
   readonly own?: boolean;
+  /** A Fix whose draft changed since: a note, never a hold (2026-10-22) — the person sends it or makes it again. */
+  readonly draftMoved?: boolean;
 }
 
 function partVM(input: PreviewResultInput, opId: string, variant: number | null, index: number, text: string, count: number, firstOpen: number): PartVM {
@@ -190,6 +192,7 @@ export function previewResult(input: PreviewResultInput): ResultVM {
   const meta: Msg[] = [];
   if (input.toneUsed !== null) meta.push(msg('result.meta.tone', { tone: i18n.t(TONE_KEYS[input.toneUsed]) }));
   if (input.feature === 'fix' && input.fixSource !== null) meta.push(msg('result.meta.byYourDraft'));
+  if (input.draftMoved === true) meta.push(msg('result.meta.draftChanged'));
 
   if (result !== undefined && result.kind === 'parts') {
     parts = partList(input, opId, null, result.parts);

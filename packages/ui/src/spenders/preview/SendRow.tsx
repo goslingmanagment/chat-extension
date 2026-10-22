@@ -240,15 +240,8 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
   // The queue has not reached this part: it waits for an earlier one (§6.7.9).
   if (order !== null && waitsForEarlierPart(part)) {
     return (
-      <div class="cg-pvs" data-cg-send={order.kind === 'held' ? 'held-group' : 'after'}>
-        {order.kind === 'held' ? (
-          <State strong={false}>
-            <Dot kind="ring" />
-            {i18n.t('send.heldGroup', { n: order.part })}
-          </State>
-        ) : (
-          <State strong={false}>{i18n.t('send.after', { n: order.part })}</State>
-        )}
+      <div class="cg-pvs" data-cg-send="after">
+        <State strong={false}>{i18n.t('send.after', { n: order.part })}</State>
         <CopyIcon part={part} />
       </div>
     );

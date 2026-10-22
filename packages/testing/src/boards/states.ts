@@ -51,7 +51,7 @@ import {
 } from '../scenarios/app-client';
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
 import { BOARD_FANS, GREETING_PARTS, HUBERT, NEWCOMER_FANS, REPLY_PARTS, boardHandle, boardShelves, boardStats, hubertFeed, manyFans, newcomerHandle, newcomerRows, paletteChat, type BoardFan } from './data';
-import { fanslyBatchReady, fanslyBatchSending, fanslyConnecting, fanslyExcluded, fanslyGreeted, fanslyGreeting, fanslyGreetingRefused, fanslyListFailed, fanslyPaused, fanslyQueue, fanslyScanning } from './fansly-newcomers';
+import { fanslyBatchReady, fanslyBatchSending, fanslyConnecting, fanslyExcluded, fanslyGreeted, fanslyGreeting, fanslyGreetingChanged, fanslyGreetingRefused, fanslyGreetingUncertain, fanslyListFailed, fanslyPaused, fanslyQueue, fanslyScanning } from './fansly-newcomers';
 
 const OP = { reply: uuid(701), hi: uuid(702) };
 const SENT_AT = iso(NOW + MIN);
@@ -91,8 +91,8 @@ export function sendResult(ctx: ScenarioCtx, opId: string, feature: 'reply' | 'h
   const sent = states.filter((state) => state.s === 'sent').length;
   const started = states.some((state) => state.s !== 'available' && state.s !== 'unavailable' && state.s !== 'held-stale');
   const inWork = states.some((state) => state.s === 'queued' || state.s === 'sending' || state.s === 'accepted');
-  const uncertain = states.findIndex((state) => state.s === 'uncertain');
-  const blocked = uncertain >= 0 ? reason('part-uncertain', { n: uncertain + 1 }) : inWork ? reason('parts-sending') : null;
+  // An unknown outcome holds nothing (2026-10-20 audit, row 2): only a part on its way keeps «Ещё раз» off.
+  const blocked = inWork ? reason('parts-sending') : null;
   // «Отправка после части N»: N is the part right before (ui-design §4.13).
   const parts = sendParts(opId, texts, states).map((part) => (part.sendOrder?.kind === 'after' ? { ...part, sendOrder: { kind: 'after' as const, part: part.index } } : part));
   return result(ctx, {
@@ -197,14 +197,15 @@ function everySendState(ctx: ScenarioCtx): ResultVM {
 // ── «Новые» ──
 
 function newcomersState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c' | 'd' | 'e'): ScenarioViewEntry[] {
-  const greeting = variant === 'a' ? ({ s: 'claim-mine' } as const) : variant === 'b' ? ({ s: 'sending', sent: 1, total: 3 } as const) : variant === 'd' ? ({ s: 'stopped', sent: 1, total: 3, part: 2 } as const) : ({ s: 'none' } as const);
+  const greeting = variant === 'b' ? ({ s: 'sending', sent: 1, total: 3 } as const) : variant === 'd' ? ({ s: 'stopped', sent: 1, total: 3, part: 2 } as const) : ({ s: 'none' } as const);
   const selected = variant === 'c' ? 'leo' : 'tomasz';
   const rows = newcomerRows(ctx, selected, greeting);
   const list = newcomers(ctx, views.ready(), rows, { hint: msg('newcomers.hint', { window: ctx.lang === 'ru' ? '48 часов' : '48 hours' }), footer: { count: rows.length, stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'complete' } } });
   const who = NEWCOMER_FANS[selected];
   const handle = newcomerHandle(who.key);
-  const hi = (enabled: boolean, active: boolean): DockActionVM => ({ enabled, busy: false, active, reason: enabled ? null : reason('claim-busy'), hotkey: enabled ? hotkey(ctx, 'hi') : null, badge: null });
-  const base = preview(ctx, 'newcomers', views.ready(), { barPatch: { hi: hi(variant !== 'c', variant !== 'c') } });
+  // A colleague's send in flight holds no Hi (2026-10-22): Hi stays on for every variant.
+  const hi = (enabled: boolean, active: boolean): DockActionVM => ({ enabled, busy: false, active, reason: null, hotkey: enabled ? hotkey(ctx, 'hi') : null, badge: null });
+  const base = preview(ctx, 'newcomers', views.ready(), { barPatch: { hi: hi(true, variant !== 'c') } });
   const card: PreviewVM = {
     ...base,
     handle,
@@ -242,8 +243,8 @@ function newcomersState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c' | 'd' | 'e'):
         loadingOlder: false,
         olderError: null,
       },
-      claim: { s: 'other', error: cgError(ctx, 'CG-CLAIM-BUSY') },
-      greeting: { s: 'claim-other' },
+      claim: { s: 'none' },
+      greeting: { s: 'sending-other' },
     };
     return [entry({ of: 'newcomers' }, list), entry({ of: 'preview', from: 'newcomers' }, leo)];
   }
@@ -254,7 +255,7 @@ function newcomersState(ctx: ScenarioCtx, variant: 'a' | 'b' | 'c' | 'd' | 'e'):
     unread: started ? 'read-after-send' : 'kept',
     greeting,
     claim: variant === 'd' ? { s: 'held-uncertain', part: 2, error: cgError(ctx, 'CG-SEND-UNCERTAIN') } : { s: 'none' },
-    stoppedNote: variant === 'd' ? msg('newcomers.stopped', { n: 2 }) : null,
+    stoppedNote: null,
   });
   return [entry({ of: 'newcomers' }, list), entry({ of: 'preview', from: 'newcomers' }, withHi)];
 }
@@ -452,7 +453,7 @@ export const BOARD_STATES: readonly BoardState[] = [
   state('11a', '«Отправить» available: Reply of three parts, a draft', 'spenders', (ctx) => spendersState(ctx, [AVAILABLE, AVAILABLE, AVAILABLE])),
   state('11b', 'Part 1 sent, part 2 is being sent, part 3 waits', 'spenders', (ctx) => spendersState(ctx, [SENT, { s: 'sending' }, AVAILABLE])),
   state('11c', 'Part 2 accepted by ChatSpace, waiting for the echo', 'spenders', (ctx) => spendersState(ctx, [SENT, { s: 'accepted' }, AVAILABLE])),
-  state('11d', 'Part 2 uncertain: the rest is held', 'spenders', (ctx) => spendersState(ctx, [SENT, UNCERTAIN, AVAILABLE])),
+  state('11d', 'Part 2 not confirmed: «Открыть чат», «Отправить ещё раз»; the rest is free', 'spenders', (ctx) => spendersState(ctx, [SENT, UNCERTAIN, AVAILABLE])),
   state('11e', 'Part 1 rejected, no retry', 'spenders', (ctx) => spendersState(ctx, [{ s: 'rejected', code: 'CG-SEND-REJECTED', detail: 'OnlyFans didn’t accept this action', canRetry: false }, AVAILABLE, AVAILABLE])),
   state('11f', '«Отправить» unavailable (CG-SEND-HOST)', 'spenders', (ctx) => spendersState(ctx, [{ s: 'unavailable', code: 'CG-SEND-HOST', reason: msg('send.reason.host') }, AVAILABLE, AVAILABLE])),
   state('11g', 'The fan wrote after the answer: the send is held', 'spenders', (ctx) => spendersState(ctx, [SENT, { s: 'held-stale', at: SENT_AT }, AVAILABLE], { fanWroteNew: true })),
@@ -466,8 +467,8 @@ export const BOARD_STATES: readonly BoardState[] = [
   // 13 — «Новые»
   state('13a', 'Hi ready: one variant, three parts', 'newcomers', (ctx) => newcomersState(ctx, 'a')),
   state('13b', 'Sent 1 of 3, part 2 in ChatSpace’s queue', 'newcomers', (ctx) => newcomersState(ctx, 'b')),
-  state('13c', 'A colleague holds the fan: Hi is off', 'newcomers', (ctx) => newcomersState(ctx, 'c')),
-  state('13d', 'Stopped on an unknown outcome', 'newcomers', (ctx) => newcomersState(ctx, 'd')),
+  state('13c', 'A colleague’s part is on its way: a quiet note, Hi stays on', 'newcomers', (ctx) => newcomersState(ctx, 'c')),
+  state('13d', 'An unknown outcome: said, holding nothing', 'newcomers', (ctx) => newcomersState(ctx, 'd')),
   state('13e', 'An existing conversation without a ChatGoose greeting receipt', 'newcomers', (ctx) => newcomersState(ctx, 'e')),
   // 13 f–j — «Новые» on Fansly (R20 P10a): the background's pass, Fansly's own window
   fansly('13f', 'Fansly: the queue runs, the card of the first fan to write to', fanslyQueue),
@@ -481,6 +482,8 @@ export const BOARD_STATES: readonly BoardState[] = [
   fansly('13n', 'Fansly: the person’s greeting refused — the history changed after the review (R20 P10c)', fanslyGreetingRefused),
   fansly('13o', 'Fansly: the batch’s drafts ready to read in the list, each with its own «Отправить» (X59)', fanslyBatchReady),
   fansly('13p', 'Fansly: sending one by one from the list — one sent, the next going out (X59)', fanslyBatchSending),
+  fansly('13q', 'Fansly: the greeting’s outcome unknown — «Открыть в Fansly», «Отправить ещё раз» (2026-10-22)', fanslyGreetingUncertain),
+  fansly('13r', 'Fansly: the conversation changed after the AI draft — a note, «Отправить» on (2026-10-22)', fanslyGreetingChanged),
   // 14 — the fan panel
   state('14a', 'Fan panel: the fan', 'fan-panel', (ctx) => fanPanelState(ctx, 'a')),
   state('14b', 'Fan panel: Recap', 'fan-panel', (ctx) => fanPanelState(ctx, 'b')),

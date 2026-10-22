@@ -5,20 +5,13 @@
 //   short certificate and its continuous observation since), its count of personal messages repeated at the top, and
 //   the fan's avatar the page loaded (FX-018) — ids and an address, never a text. Hi has no message limit (the owner,
 //   2026-10-21): no pre-check of Hi, and no proof is needed — the hub refuses no Hi for its count.
-// - Ping's pre-check: a fan who wrote a text within five days is active, and the hub refuses Ping for them
-//   (`gate_ping_active`, its `analyzePingSegment`: the newest fan message with a text). The page knows it only from
-//   the texts the start may carry (D-14); without them the hub decides alone. The tab's clock is not the hub's: a
-//   text in the window's last ten minutes is left to the hub too. Ping under ten messages is the shared gate's
-//   (domain/features/gates.ts).
+// - Ping has no pre-check here (the owner, 2026-10-22, as D29 lifted it on OnlyFans): a fan who wrote within five days
+//   is the chatter's to judge, and the hub no longer refuses Ping for it (`gate_ping_active`). Ping under ten messages
+//   is the shared gate's (domain/features/gates.ts).
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import type { FeatureId } from '@cg/contracts/features';
 import type { AiGateReason, AiStartFields } from '@cg/contracts/ops';
-
-/** The hub's PING_ACTIVE_WINDOW_MS: a fan text this recent blocks Ping on Fansly. */
-export const PING_ACTIVE_MS = 5 * 24 * 60 * 60 * 1000;
-/** How far the tab's clock may stand from the hub's before the pre-check would refuse what the hub serves. */
-export const PING_CLOCK_SLACK_MS = 10 * 60 * 1000;
 
 /** Hi's own fields of a start from its snapshot: the start proof with its count, the fan's avatar; none for another feature. */
 export function hiFieldsOf(snapshot: FanslySnapshot): Pick<AiStartFields, 'startProof' | 'personalMessageCount' | 'fanAvatarUrl'> {
@@ -30,15 +23,7 @@ export function hiFieldsOf(snapshot: FanslySnapshot): Pick<AiStartFields, 'start
   };
 }
 
-/** The fan wrote a text within the active window, by the snapshot's own texts; false — not known from the page. */
-function fanActive(snapshot: FanslySnapshot, now: number): boolean {
-  const since = now - PING_ACTIVE_MS + PING_CLOCK_SLACK_MS;
-  return (snapshot.tail ?? []).some((message) => message.direction === 'fan' && message.text.trim() !== '' && Date.parse(message.sentAt) >= since);
-}
-
-/** Fansly's pre-check of Ping (`AiHostPolicy.preflight`): only on what the snapshot proves; null — the hub decides. */
-export function hiPingGate(feature: FeatureId, snapshot: FanslySnapshot | null, now: number): AiGateReason | null {
-  if (snapshot === null) return null;
-  if (feature === 'ping') return fanActive(snapshot, now) ? 'ping-gate' : null;
+/** Fansly's pre-check (`AiHostPolicy.preflight`): none — Hi has no message limit, and Ping is the chatter's call (2026-10-22). */
+export function hiPingGate(_feature: FeatureId, _snapshot: FanslySnapshot | null, _now: number): AiGateReason | null {
   return null;
 }

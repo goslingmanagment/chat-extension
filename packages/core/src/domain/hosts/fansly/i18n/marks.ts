@@ -3,7 +3,8 @@
 // as «**Фан написал новое** после генерации. Ответ его не учитывает.» is written. Only Fansly's verdict gives these
 // reasons, so only its tab's catalog carries them (apps/extension/lazy/fansly/i18n-*.ts): the keys are the contract's
 // (`ResultMarkKey`), never the shared catalog's, and no ChatSpace bundle carries the words. Each says what the chatter
-// can do about it: the mark has «Ещё раз» beside it; inserting stays allowed.
+// can do about it: the mark has «Ещё раз» beside it; inserting stays allowed. `unverified` is drawn nowhere since
+// 2026-10-22 (verdict.ts `shownMark`): its words stay only because the contract's key set names them.
 
 import type { Locale } from '@cg/contracts/i18n/keys';
 import type { ResultMarkKey } from '@cg/contracts/vm';

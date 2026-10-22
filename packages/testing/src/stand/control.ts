@@ -199,6 +199,7 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     if (typeof body['owner'] === 'boolean') state.owner = body['owner'];
     if (typeof body['holdMimic'] === 'boolean') state.holdMimic(body['holdMimic']);
     if (typeof body['holdFans'] === 'boolean') state.holdFans(body['holdFans']);
+    if (typeof body['failReleaseForms'] === 'boolean') state.failReleaseForms = body['failReleaseForms'];
     if (typeof body['mimic'] === 'object' && body['mimic'] !== null) state.mimic = body['mimic'] as MimicState;
     if (Array.isArray(body['fans'])) {
       for (const item of body['fans'] as unknown[]) {

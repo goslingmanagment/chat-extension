@@ -9,12 +9,14 @@
 //   characters, until sent or cleared, at most 7 days), merged draft by draft with what the tabs wrote; read without a text, written with one. The
 //   background holds the revision, so the final check compares the click's with the one now.
 // - `send` — one click (FS-NEW-3): one open action per pass and fan (NF-023: a second click while one runs is
-//   CG-SEND-BUSY); the three admissions (FS-NEW-6): the person's own text and an edited AI result need a history the
-//   pass read to its start and the revision the person reviewed; an unchanged AI result needs THIS generation's
-//   result and the revision it was made on. Its freshness verdict stays a warning (X69), without requiring an edit.
-//   Then the fan's history is read again (NF-036) — a changed one refuses CG-FNEW-HISTORY
-//   («Проверка изменилась — подтвердите черновик», NF-018) — and the send goes: the lease, the route, the journal, the
-//   custody, the durable intent, the final check, ONE `POST /message`. Every refusal names its code (NF-024).
+//   CG-SEND-BUSY); the three admissions (FS-NEW-6): every text goes on the history revision the card shows (as the old
+//   window sent, 2026-10-22); an unchanged AI result goes as THIS generation when the background can vouch for it, and
+//   otherwise as the person's own text — never a refusal for it. Its freshness verdict stays a warning (X69). Then the
+//   fan's history is read again (NF-036) — one that changed between the click and the send refuses CG-FNEW-HISTORY,
+//   the race the old window checked too — and the send goes: the lease, the route, the journal, the custody, the
+//   durable intent, the final check, ONE `POST /message`. A greeting that went is never sent again (X5); one whose
+//   outcome is unknown holds nothing: the person's own new click goes (never a retry of ours). Every refusal names its
+//   code (NF-024).
 // - `sent` — the person sent the card's text with Fansly's own button after «Открыть и вставить» (FS-NEW-3): the hub's
 //   `registerNativeSend`, owed until it answers (./send.ts `native`); the fan is greeted for everyone.
 // A greeting that went (a receipt, the echo, a registration) makes the row «Уже писали» and clears the draft.
@@ -141,9 +143,13 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
     let generation: GreetingDraftGeneration | undefined;
     if (payload.generation !== undefined) {
       const op = deps.generation(payload.generation.opId);
-      if (op === null || op.text === null || op.fanRef !== payload.fanRef || op.conversationRef !== row.view.groupId || op.text.trim() !== payload.text.trim()) return { ok: false, error: { code: 'CG-SEND-FRESHNESS' } };
-      // The tab supplies the link, never the verdict: keep THIS operation's evidence with its text.
-      generation = { ...payload.generation, generationRef: op.generationRef, text: op.text.trim(), mark: op.mark ?? (op.fresh ? null : 'unverified') };
+      // The tab supplies the link, never the verdict: keep THIS operation's evidence with its text. A link the
+      // background cannot vouch for (the operation is gone, another text) is no refusal (2026-10-22): the text is
+      // written as it is, and it goes as the person's own.
+      const text = op?.text?.trim() ?? null;
+      if (op !== null && text !== null && op.fanRef === payload.fanRef && op.conversationRef === row.view.groupId && text === payload.text.trim()) {
+        generation = { ...payload.generation, generationRef: op.generationRef, text, mark: op.mark ?? (op.fresh ? null : 'unverified') };
+      }
     }
     // The revision of the history the person looked at when they wrote it (NF-018).
     const historyRevision = row.view.historyRevision;
@@ -194,27 +200,28 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       const page = await deps.page(request.hostAccountId, tab);
       if (!page.ok) return fail(page.code);
       const prior = await deps.send.status(page.page, request.fanRef);
+      // X5: a greeting that went is never sent again.
       if (prior?.state === 'sent' || prior?.state === 'receipted') return fail('CG-SEND-PART');
-      if (prior?.state === 'uncertain') return fail('CG-SEND-UNCERTAIN');
-      if (prior !== null && prior.state !== 'refused') return fail('CG-SEND-BUSY');
+      // One under way holds the fan; an unknown outcome does not («как раньше»): this is the person's own new click.
+      if (prior !== null && prior.state !== 'refused' && prior.state !== 'uncertain') return fail('CG-SEND-BUSY');
       const held = await loaded();
       const key = keyOf(page.page.pageId, request.fanRef);
       const saved = key === null ? undefined : findDraft(held, key, deps.now())?.generation;
-      if (saved !== undefined && saved.text.trim() === request.text) {
-        // A reopened or older tab cannot relabel the unchanged AI draft as its own text.
-        if (request.admission.kind !== 'ai' || request.opId !== saved.opId || request.admission.generationRef !== saved.generationRef) return fail('CG-SEND-FRESHNESS');
-        if (request.historyRevision !== saved.historyRevision) return fail('CG-FNEW-HISTORY');
-      }
+      // FS-NEW-6, X69: an unchanged AI text goes as THIS generation when it is one the background can vouch for (its
+      // operation, else the draft's saved generation); a text it cannot vouch for goes as the person's own (2026-10-22) —
+      // what they see in the field is what goes, to the fan of the card. Freshness marks remain advisory.
+      const ownText = (): FanslyGreetingRequest => {
+        const { opId: _opId, ...rest } = request;
+        return { ...rest, admission: { kind: 'own' } };
+      };
+      let admitted: FanslyGreetingRequest = request;
       if (request.admission.kind === 'ai') {
-        // FS-NEW-6, X69: keep THIS generation's attribution and text; freshness marks remain advisory.
         const generation = request.opId === undefined ? null : deps.generation(request.opId);
-        if (generation === null) {
-          // The operations list may have been pruned/restarted; its saved generation still proves the text.
-          if (saved === undefined || saved.opId !== request.opId || saved.generationRef !== request.admission.generationRef || saved.text !== request.text) return fail('CG-SEND-FRESHNESS');
-        } else {
-          if (generation.generationRef !== request.admission.generationRef || generation.fanRef !== request.fanRef || generation.conversationRef !== request.groupId) return fail('CG-SEND-FRESHNESS');
-          if (generation.text?.trim() !== request.text) return fail('CG-DRAFT-CHANGED');
-        }
+        const vouched =
+          generation === null
+            ? saved !== undefined && saved.opId === request.opId && saved.generationRef === request.admission.generationRef && saved.text === request.text
+            : generation.generationRef === request.admission.generationRef && generation.fanRef === request.fanRef && generation.conversationRef === request.groupId && generation.text?.trim() === request.text;
+        if (!vouched) admitted = ownText();
       }
       if (revisionNow(page.page.pageId, request.fanRef) !== request.draftRevision) return fail('CG-DRAFT-CHANGED');
       // NF-036: the history read again before the custody; another revision than the one reviewed refuses (NF-018).
@@ -222,7 +229,7 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       if (!again.ok) return fail(again.code, again.retryAt);
       if (again.historyRevision !== request.historyRevision) return fail('CG-FNEW-HISTORY');
       started.set(request.attemptId, { creator: row.creator, fanRef: request.fanRef, pageId: page.page.pageId });
-      const view: FanslySendView = await deps.send.send({ request, tabSessionId: tab, page: page.page });
+      const view: FanslySendView = await deps.send.send({ request: admitted, tabSessionId: tab, page: page.page });
       if (view.state === 'receipted' || view.state === 'sent') went(row.creator, request.fanRef, page.page.pageId);
       if (view.state === 'refused' || view.state === 'sent') started.delete(request.attemptId);
       return { ok: true, attempt: view };

@@ -31,9 +31,13 @@
 // journaled; the echo 5/1 with that id from any tab of the creator (the tab's
 // socket facts, `fansly.sound.batch`), or the next pass's history with it, →
 // `sent`; an echo that came before the receipt is remembered for it. A proven
-// refusal → `refused`; everything else after the intent → `uncertain`, which
-// holds the fan here and at the hub until a proof (a late echo of a kept
-// receipt, the hub's resolve) — never a timer. Every end owes the custody what
+// refusal → `refused`; everything else after the intent → `uncertain`. It is
+// never repeated by us; it stays uncertain until a proof (a late echo of a
+// kept receipt, the hub's resolve) — never a timer. It holds the fan for no
+// one's click though («как раньше», the owner 2026-10-20, on Fansly since
+// 2026-10-22): the person's own new click takes the fan's lock over; the hub
+// sets the old custody aside once its ticket passed (and refuses inside it),
+// and a new attempt that never reached Fansly gives the lock back. Every end owes the custody what
 // FANSLY_CUSTODY_REPORTS says, repeated with the same attemptId until the hub
 // answers (also after a restart: `reportPending`).
 //
@@ -301,6 +305,8 @@ interface Attempt {
   renew: TimerHandle | null;
   /** Someone waits for the echo of the receipt. */
   readonly echoed: Array<() => void>;
+  /** The uncertain attempt this person's new click took the fan's lock from; it gets it back if this one is refused. */
+  over?: string;
 }
 
 export interface FanslySend {
@@ -371,7 +377,12 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
     }
     if (next.state === 'uncertain') deps.countUncertain?.();
     if (!isFanslySendOpen(next.state)) {
-      if (locks.get(attempt.lockKey) === attempt.attemptId) locks.delete(attempt.lockKey);
+      if (locks.get(attempt.lockKey) === attempt.attemptId) {
+        locks.delete(attempt.lockKey);
+        // A new click that never reached Fansly: the unknown outcome it stood in for is the fan's state again.
+        const over = attempt.over === undefined ? undefined : attempts.get(attempt.over);
+        if (next.state === 'refused' && over !== undefined && over.outcome.state === 'uncertain') locks.set(attempt.lockKey, over.attemptId);
+      }
       stopRenew(attempt);
       for (const wake of attempt.echoed.splice(0)) wake();
     }
@@ -671,14 +682,17 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
     // FS-PERM-5: switched off or its rights taken back — no new attempt; the hub hears nothing of it.
     if (!on()) return stop('CG-FAN-OFF');
 
-    // The fan lock: one open attempt per hub, page and fan (an uncertain one holds it until a proof).
+    // The fan lock: one open attempt per hub, page and fan. An uncertain one is asked of the hub first (a resolve may
+    // have ended it); still unknown, it gives way to this click of the person's — it is never repeated itself.
     const holderId = locks.get(lockKey);
     if (holderId !== undefined) {
       const holder = attempts.get(holderId);
       if (holder?.outcome.state === 'uncertain') await liftUncertain(holder, page.pageLabel);
       const still = locks.get(lockKey);
-      if (still !== undefined) return stop(attempts.get(still)?.outcome.state === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY');
+      const unsure = still === undefined ? undefined : attempts.get(still);
+      if (still !== undefined && unsure?.outcome.state !== 'uncertain') return stop('CG-SEND-BUSY');
       if (holder?.outcome.state === 'sent') return stop('CG-SEND-PART');
+      if (unsure !== undefined) attempt.over = unsure.attemptId;
     }
     locks.set(lockKey, attempt.attemptId);
 

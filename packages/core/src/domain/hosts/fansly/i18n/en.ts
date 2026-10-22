@@ -70,8 +70,8 @@ export const FANSLY_CG_EN: CgFanslyCatalog = {
   'cg.fnewAccount.body': 'The check stopped: the tab is under another account now. Start it again.',
   'cg.fnewDmClosed.title': 'This fan cannot be messaged',
   'cg.fnewDmClosed.body': 'Fansly does not allow it: paid messages or the fan’s restrictions. Nothing was generated or sent.',
-  'cg.fnewHistory.title': 'The check changed',
-  'cg.fnewHistory.body': 'The conversation changed after the check. Look at it and confirm the draft.',
+  'cg.fnewHistory.title': 'The conversation changed',
+  'cg.fnewHistory.body': 'A new message came in while sending. Look at it and press «Send» again.',
   'cg.fnewUnverified.title': 'The history is not checked',
   'cg.fnewUnverified.body': 'Your own text goes only after the whole conversation is checked. Wait for it or check this fan now.',
 };

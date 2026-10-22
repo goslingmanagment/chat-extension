@@ -39,10 +39,7 @@ export const SEND_REASON_KEYS = {
   'CG-SEND-OFF': 'send.reason.off',
   'CG-SEND-HOST': 'send.reason.host',
   'CG-SEND-RECEIPT': 'send.reason.receipt',
-  /** 1.11.0: the X8 fuse (decision X25) turned the preview send off in this browser. */
-  'CG-SEND-FUSE': 'send.reason.fuse',
   'CG-SEND-ACTIVE-CHAT': 'send.reason.activeChat',
-  'CG-SEND-HISTORY': 'send.reason.history',
   'CG-SEND-PERMISSION': 'send.reason.permission',
   'CG-SEND-FAN': 'send.reason.fan',
   'CG-SEND-MIMIC': 'send.reason.mimic',
@@ -54,7 +51,6 @@ export const SEND_REASON_KEYS = {
   'CG-SEND-GUARD': 'send.reason.guard',
   'CG-CONTEXT-CHANGED': 'send.reason.contextChanged',
   'CG-CLAIM-BUSY': 'send.reason.claimBusy',
-  'CG-CLAIM-EXPIRED': 'send.reason.claimExpired',
   /** The hub's `preview_send_rate_limited` (6 per minute): off until its deadline. */
   'CG-HUB-RATE-LIMIT': 'send.reason.rateLimit',
   /** The hub's `custody_held`: another send to this fan is unresolved (the desktop's included). */
@@ -111,11 +107,10 @@ export type PreviewSendState =
   | { readonly s: 'uncertain'; readonly attemptId: Uuid };
 
 /**
- * Holds only the background can see end: the hub's rate-limit deadline, a
- * greeting lease taken again. MAIN's preflight knows neither, so the row stays
- * off until the controller drops the attempt.
+ * Holds only the background can see end: the hub's rate-limit deadline. MAIN's preflight does not know it, so the row
+ * stays off until the controller drops the attempt.
  */
-const HOLDS_THE_BACKGROUND_CLEARS: readonly CgCode[] = ['CG-HUB-RATE-LIMIT', 'CG-CLAIM-EXPIRED'];
+const HOLDS_THE_BACKGROUND_CLEARS: readonly CgCode[] = ['CG-HUB-RATE-LIMIT'];
 
 function fromPreflight(preflight: PreviewSendPreflight): PreviewSendState {
   if (preflight.ok) return preflight.warn === 'CG-SEND-STALE' ? { s: 'held-stale' } : preflight.warn === 'CG-SEND-FRESHNESS' ? { s: 'unverified' } : { s: 'available' };
@@ -134,9 +129,8 @@ function fromPreflight(preflight: PreviewSendPreflight): PreviewSendState {
  * - `rejected` (proven native refusal) → rejected without retry;
  * - `notEnqueued` (the queue's null, CG-SEND-QUEUE) → rejected with «Отправить ещё раз»;
  * - `held`: CG-SEND-STALE → held-stale; a code another click cannot lift
- *   (SEND_HOLD_CODES_WITHOUT_RETRY), the hub's rate limit or an expired lease →
- *   unavailable with it (the controller drops the attempt once the deadline
- *   passes or the lease is taken again);
+ *   (SEND_HOLD_CODES_WITHOUT_RETRY) or the hub's rate limit → unavailable with
+ *   it (the controller drops the attempt once the deadline passes);
  *   any other §6.7.4 condition → the current preflight decides (the condition
  *   may have cleared); anything else — a transport failure of `dispatch`, an
  *   expired ticket (CG-TIMEOUT) — nothing reached ChatSpace → rejected with retry.
@@ -186,11 +180,10 @@ export const PREVIEW_SEND_STATES = [
 ] as const satisfies readonly PreviewSendView['s'][];
 
 /**
- * Parts that the queue has not reached (§6.7.9): «Отправка после части N»
- * behind the first unsent one, «Удержано, пока неясен исход части N» behind
- * an uncertain one. The controller computes it; the UI does not reorder.
+ * Parts behind one on its way (§6.7.9): «Отправка после части N». An unknown outcome holds nothing behind it
+ * (2026-10-20 audit, row 2). The controller computes it; the UI does not reorder.
  */
-export type SendOrderVM = { readonly kind: 'after'; readonly part: number } | { readonly kind: 'held'; readonly part: number };
+export type SendOrderVM = { readonly kind: 'after'; readonly part: number };
 
 /** «Открыть и вставить» of one part (§6.5): waiting shows a spinner word; cancel and timeout end in a toast. */
 export type OpenInsertVM =

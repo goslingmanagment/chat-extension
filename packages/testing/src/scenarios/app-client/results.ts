@@ -141,12 +141,11 @@ export const meta = {
 /** Send rows of a preview result, one PreviewSendView per part. */
 export function sendParts(opId: string, texts: readonly string[], states: readonly PreviewSendView[]): PartVM[] {
   const firstOpen = states.findIndex((s) => s.s === 'available' || s.s === 'unavailable' || s.s === 'held-stale' || s.s === 'rejected');
-  const uncertain = states.findIndex((s) => s.s === 'uncertain');
   const inWork = states.findIndex((s) => s.s === 'queued' || s.s === 'sending' || s.s === 'accepted');
   return texts.map((text, index) => {
     const send = states[index] ?? { s: 'available' };
-    const blockedBy = uncertain >= 0 && index > uncertain ? { kind: 'held' as const, part: uncertain + 1 } : null;
-    const behind = blockedBy ?? (inWork >= 0 && index > inWork ? { kind: 'after' as const, part: inWork + 1 } : firstOpen >= 0 && index > firstOpen && send.s === 'available' ? { kind: 'after' as const, part: firstOpen + 1 } : null);
+    // An unknown outcome holds nothing behind it (2026-10-20 audit, row 2): only a part on its way does.
+    const behind = inWork >= 0 && index > inWork ? { kind: 'after' as const, part: inWork + 1 } : firstOpen >= 0 && index > firstOpen && send.s === 'available' ? { kind: 'after' as const, part: firstOpen + 1 } : null;
     return part(index, text, {
       opId,
       numbered: texts.length > 1,

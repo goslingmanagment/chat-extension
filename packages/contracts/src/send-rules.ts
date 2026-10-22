@@ -85,10 +85,8 @@ export const PREVIEW_SEND_CONDITION_CODES = [
   'CG-CONTEXT-CHANGED',
   'CG-SEND-OFF',
   'CG-SEND-RECEIPT',
-  'CG-SEND-FUSE',
   'CG-SEND-PERMISSION',
   'CG-SEND-ACTIVE-CHAT',
-  'CG-SEND-HISTORY',
   'CG-SEND-FAN',
   'CG-SEND-MIMIC',
   'CG-SEND-TRANSLATOR',
@@ -96,7 +94,6 @@ export const PREVIEW_SEND_CONDITION_CODES = [
   'CG-SEND-STALE',
   'CG-SEND-FRESHNESS',
   'CG-CLAIM-BUSY',
-  'CG-CLAIM-EXPIRED',
   'CG-SEND-HOST',
 ] as const satisfies readonly CgCode[];
 export type PreviewSendConditionCode = (typeof PREVIEW_SEND_CONDITION_CODES)[number];

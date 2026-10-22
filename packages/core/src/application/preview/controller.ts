@@ -11,10 +11,11 @@
 // itself; an unknown outcome offers only «Открыть чат для проверки».
 //
 // What holds a send holds the FAN, not one result (§6.7.8, §6.7.9): while a
-// part to the fan is on its way or its outcome is unknown, no feature
-// generates for the fan, «Ещё раз» is off and no part is offered for
-// «Открыть и вставить» — whichever result is on the card, and after a tab
-// reload too (the background's journal is read back with `send.list`).
+// part to the fan is on its way, no feature generates for the fan, «Ещё раз»
+// is off and no part is offered for «Открыть и вставить» — whichever result
+// is on the card, and after a tab reload too (the background's journal is
+// read back with `send.list`). An unknown outcome holds nothing (2026-10-20
+// audit, row 2): the person checks the chat and may send again by a click.
 //
 // «Открыть и вставить» closes the board and opens the fan's chat. From then
 // on the rest of the result is worked with in that chat's dock (§6.5): the
@@ -125,7 +126,7 @@ interface OpTrack {
   readonly startedAt: number;
   /** The freshness checkpoint of the Generate click; null — MAIN gave none: the result can be inserted, never sent. */
   readonly checkpoint: FreshnessCheckpoint | null;
-  /** Revision of the local draft at Generate; a Fix result is void once the draft moves on. */
+  /** Revision of the local draft at Generate; a Fix whose draft moved on says so, and its send keeps the new draft. */
   readonly previewRevision: number;
   readonly fixSource: string | null;
   toneUsed: Tone | null;
@@ -189,6 +190,8 @@ interface PendingInsert {
   readonly key: string;
   readonly abort: AbortFlag;
   timer: number | null;
+  /** The person's words go in (an edited part, their own text), not the AI's: no dock takes them over. */
+  readonly own: boolean;
 }
 
 /** The part of AbortSignal HostPort.navigate uses (contracts carry no DOM types). */
@@ -1085,7 +1088,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const route = host.current().route;
     if (route.chat !== null && chatKeyOf(route.chat) === chatKeyOf(track.target.chat)) return refusal('CG-SEND-ACTIVE-CHAT');
     // No subscription check of ours (2026-10-20 audit, row 16): OnlyFans refuses a fan who left, and MAIN refuses what the page knows forbids.
-    if (track.feature === 'fix' && draftRevision(track) !== track.previewRevision) return refusal('CG-SEND-PART');
+    // A Fix whose draft moved on since is still the person's to send (2026-10-22): the result says so (`draftMoved`).
     // The send path lives in the tap script (the receipt observer, §6.7.6), and the tap is the page's own switch: the
     // adapter keeps one tap for the whole tab (on while any page has it), so a page whose `wsTap` is off sends nothing.
     if (!pageFlag(ctx, 'wsTap')) return refusal('CG-SEND-OFF');
@@ -1230,8 +1233,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return {
       ...(deps.previewSend === false && row.s !== 'sent' ? {} : { send: row }),
       order,
-      // «Открыть и вставить» puts the AI's text into the chat (the background's copy of it): not beside the person's own words.
-      openInsert: edit !== undefined || track.manual !== null ? { s: 'hidden' } : openInsertRow({ row, waitingUntil: track.openInsert?.key === key ? track.openInsert.until : null, blocked: openInsertBlock(track, v, sends) }),
+      // «Открыть и вставить» puts the part as the card shows it into the chat: the person's edit, or their own text, goes as it is (2026-10-22).
+      openInsert: edit !== undefined && edit.text.trim() === '' ? { s: 'hidden' } : openInsertRow({ row, waitingUntil: track.openInsert?.key === key ? track.openInsert.until : null, blocked: openInsertBlock(track, v, sends) }),
       editable: deps.previewSend !== false && track.manual === null && order === null && (row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'unverified' || (row.s === 'rejected' && row.canRetry)),
       ...(edit === undefined ? {} : { edit: edit.text }),
     };
@@ -1349,7 +1352,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // NF-012, decision X47: a draft lives until it is sent or cleared. The greeting draft has done its work once a
     // part is confirmed; the draft a Fix was made from — once every part of that Fix is (earlier, the parts still to go
     // would lose the revision they answer).
-    if (view.state === 'sentObserved' && (track.source === 'newcomers' || (track.feature === 'fix' && fixSent(track, view.attemptId)))) {
+    // A draft the person changed after the Fix is their new text: it stays.
+    if (view.state === 'sentObserved' && (track.source === 'newcomers' || (track.feature === 'fix' && draftRevision(track) === track.previewRevision && fixSent(track, view.attemptId)))) {
       const key = ownerKey(track.source, track.pageId, track.fanRef);
       if (key !== null && findDraft(drafts, key, clock.now()) !== null) {
         drafts = removeDraft(drafts, key, clock.now());
@@ -1535,6 +1539,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
             sendStarted,
             regenerate: regenerateRule(shown),
             own: shown.manual !== null,
+            draftMoved: shown.feature === 'fix' && draftRevision(shown) !== shown.previewRevision,
           });
     // The fan's sends over every result made for the fan, not only the one on the card.
     const sends = fanSends(state.pageId, state.fanRef, shown?.opId ?? null);
@@ -1942,11 +1947,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     pending.track.openInsert = null;
     touchDesk(pending.track);
     changedFor(pending.track.handle);
+    // The person's own words met a text already in the chat's field: nothing was written, and no dock asks about them
+    // (it knows the AI's text only) — the toast says so; the part stays on the card for another click.
+    if (outcome.kind === 'needs-confirm' && pending.own) {
+      deps.notifier?.notify('CG-INSERT-FAILED', `preview:${pending.track.handle}`);
+      return refused('OpenAndInsertPart', localError('CG-INSERT-FAILED', i18n));
+    }
     if (outcome.kind === 'inserted' || outcome.kind === 'needs-confirm') {
       // §6.5: the chat is open — the rest of the result, and the question about the person's own text, are its dock's.
       const { track } = pending;
       const hand = deps.handover ?? null;
-      if (hand !== null) {
+      // The person's own text from the draft field is no operation the background knows: the dock has nothing to take.
+      if (hand !== null && track.manual === null) {
         if (track.personaDefinitionId !== null) docked.add(track.opId);
         hand({ opId: track.opId, chat: track.target.chat, personaDefinitionId: track.personaDefinitionId, split: track.splitRequested, part: outcome.insert.part, outcome: outcome.kind });
       }
@@ -1972,8 +1984,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   async function openAndInsert(type: UiActionType, track: OpTrack, variant: number, index: number): Promise<ActionReceipt> {
-    const text = partsOfResult(track.mirror.done?.result, variant)?.[index];
-    if (text === undefined) return refused(type, localError('CG-INSERT-FAILED', i18n));
+    // The part as the card shows it: the person's edit goes instead of the AI's text (2026-10-22, as «Отправить» does).
+    const edited = track.edits.get(partKey(variant, index))?.text;
+    const own = edited !== undefined || track.manual !== null;
+    const text = edited ?? partsOfResult(track.mirror.done?.result, variant)?.[index];
+    if (text === undefined || text.trim() === '') return refused(type, localError('CG-INSERT-FAILED', i18n));
     // The click puts a text into the fan's chat: the fan's sends are asked of the journal first (another tab may hold the fan, §6.7.8).
     const journal = await sendsNow(track.pageId, track.fanRef);
     if (journal !== null || tracks.get(track.opId) !== track) return refused(type, localError(journal ?? 'CG-CONTEXT-CHANGED', i18n));
@@ -2009,7 +2024,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       finishInsert(displaced);
     }
     const abort = new AbortFlag();
-    const pending: PendingInsert = { navigationId: navigation.intent.intentId, track, key: partKey(variant, index), abort, timer: null };
+    const pending: PendingInsert = { navigationId: navigation.intent.intentId, track, key: partKey(variant, index), abort, timer: null, own };
     pendingInsert = pending;
     pending.timer = clock.setTimer(timeoutMs + DEFERRED_GRACE_MS, () => {
       if (pendingInsert !== pending) return;
@@ -2030,7 +2045,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (receipt.insert === null || receipt.insert.state === 'rejected') manualInserts.delete(insert.intent.intentId);
     if (receipt.state === 'navigated') closeForNavigation();
     const applied = receipt.insert;
-    if (applied !== null) void rpc.request('op.reportInsert', { opId: track.opId, part, receipt: applied });
+    // `inserted` is reported of the AI's own words only (as `copied` is).
+    if (applied !== null && !own) void rpc.request('op.reportInsert', { opId: track.opId, part, receipt: applied });
     return finishInsert(slot.settle(navigation.intent.intentId, receipt)) ?? refused(type, localError('CG-INSERT-CANCELED', i18n));
   }
 
@@ -2082,9 +2098,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const route = host.current().route;
     if (binding !== null && route.chat !== null && chatKeyOf(route.chat) === chatKeyOf({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef })) return reason('chat-open');
     if (state.source === 'newcomers' && deps.greeting !== null) {
-      // The fan's lease and greeting hold the person's own greeting as they hold Hi; «это уже диалог» is the AI's rule only.
+      // A part on its way holds the person's own greeting as it holds Hi; «уже поздоровались» is the AI's rule only (the hub
+      // admits the rest of the owner's own group and refuses a second greeting itself).
       const blocked = deps.greeting.hiBlocked(state.fanRef);
-      if (blocked !== null && blocked.id !== 'hi-gate') return blocked;
+      if (blocked !== null && blocked.id !== 'hi-greeted') return blocked;
     }
     return null;
   }

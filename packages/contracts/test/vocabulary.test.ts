@@ -109,7 +109,7 @@ describe('«Отправить» row (previewSendStateOf)', () => {
 
   it('maps the attempt machine onto the row (ui-design §4.13)', () => {
     expect(C.previewSendStateOf(null, ok)).toEqual({ s: 'available' });
-    expect(C.previewSendStateOf(null, { ok: false, code: 'CG-SEND-HISTORY' })).toEqual({ s: 'unavailable', code: 'CG-SEND-HISTORY' });
+    expect(C.previewSendStateOf(null, { ok: false, code: 'CG-SEND-FAN' })).toEqual({ s: 'unavailable', code: 'CG-SEND-FAN' });
     expect(C.previewSendStateOf(null, { ok: false, code: 'CG-SEND-STALE' })).toEqual({ s: 'held-stale' });
     expect(C.previewSendStateOf(attempt('preparing'), ok).s).toBe('queued');
     expect(C.previewSendStateOf(attempt('nativeEnqueued'), ok).s).toBe('sending');
@@ -126,7 +126,8 @@ describe('«Отправить» row (previewSendStateOf)', () => {
     expect(C.previewSendStateOf(attempt('held', 'CG-SEND-UNCERTAIN'), ok)).toEqual({ s: 'unavailable', code: 'CG-SEND-UNCERTAIN' });
     expect(C.previewSendStateOf(attempt('held', 'CG-CLAIM-BUSY'), ok)).toEqual({ s: 'unavailable', code: 'CG-CLAIM-BUSY' });
     expect(C.previewSendStateOf(attempt('held', 'CG-HUB-RATE-LIMIT'), ok)).toEqual({ s: 'unavailable', code: 'CG-HUB-RATE-LIMIT' });
-    expect(C.previewSendStateOf(attempt('held', 'CG-CLAIM-EXPIRED'), ok)).toEqual({ s: 'unavailable', code: 'CG-CLAIM-EXPIRED' });
+    // No lease is named any more (2026-10-22): an expired one is no condition of the row, only a failed dispatch.
+    expect(C.previewSendStateOf(attempt('held', 'CG-CLAIM-EXPIRED'), ok).s).toBe('rejected');
     expect(C.previewSendStateOf(attempt('held', 'CG-SEND-BUSY'), ok)).toEqual({ s: 'available' });
     expect(C.previewSendStateOf(attempt('held', 'CG-SEND-BUSY'), { ok: false, code: 'CG-SEND-MIMIC' })).toEqual({ s: 'unavailable', code: 'CG-SEND-MIMIC' });
     expect(C.previewSendStateOf(attempt('held', 'CG-NETWORK'), ok)).toEqual({ s: 'rejected', code: 'CG-NETWORK', canRetry: true });

@@ -2,7 +2,7 @@
 // Fansly's lazy chunk `ai-fansly`, the windows its proof is cut by, the proof of a snapshot, the verdict on a result.
 
 export { createFanslyAi, type FanslyAiDeps, type FanslyStartProof } from './policy';
-export { PING_ACTIVE_MS, PING_CLOCK_SLACK_MS, hiFieldsOf, hiPingGate } from './hi-ping';
+export { hiFieldsOf, hiPingGate } from './hi-ping';
 export { checkWindowOf, startProofOf } from './proof';
 export { withFanslyOpText } from './site-text';
 export { freshForSend, freshnessVerdict, fingerprintOf, verdictMark, type FreshnessVerdict, type ProofFingerprint } from './verdict';

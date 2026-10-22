@@ -10,7 +10,6 @@ import {
   type I18nKey,
   type SpendersFilter,
   TONES,
-  type ClaimVM,
   type DataStamp,
   type DockActionVM,
   type FeedItemVM,
@@ -263,8 +262,7 @@ export function newcomerRow(ctx: ScenarioCtx, fan: FanFixture, kind: NewcomerRow
 const FILTER_STATES: Record<GreetingFilter, readonly GreetingStatusVM['s'][]> = {
   any: GREETING_STATUSES,
   none: ['none'],
-  claimed: ['claim-mine', 'claim-other', 'claim-elsewhere'],
-  sending: ['sending'],
+  sending: ['sending', 'sending-other'],
   stopped: ['stopped'],
   greeted: ['greeted'],
   replied: ['replied'],
@@ -297,17 +295,10 @@ export function newcomers(ctx: ScenarioCtx, view: VmView, rows: readonly Newcome
 }
 
 export const defaultNewcomerRows = (ctx: ScenarioCtx): NewcomerRowVM[] => [
-  newcomerRow(ctx, FANS.tomasz, 'new', 14, { s: 'claim-mine' }, { selected: true }),
-  newcomerRow(ctx, FANS.leo, 'renewed', 41, { s: 'claim-other' }),
+  newcomerRow(ctx, FANS.tomasz, 'new', 14, { s: 'none' }, { selected: true }),
+  newcomerRow(ctx, FANS.leo, 'renewed', 41, { s: 'sending-other' }),
   newcomerRow(ctx, FANS.jake, 'returning', 180, { s: 'none' }),
   newcomerRow(ctx, FANS.marco, 'new', 600, { s: 'greeted', at: iso(ctx.now - 9 * HOUR) }),
 ];
-
-export const claimMine = (ctx: ScenarioCtx, fan: FanFixture): ClaimVM => ({
-  s: 'mine',
-  until: ctx.now + 110_000,
-  renew: button('newcomers.claim.renew', { type: 'RenewClaim', targetHandle: handles.newcomers(fan) }),
-  release: button('newcomers.claim.release', { type: 'ReleaseClaim', targetHandle: handles.newcomers(fan) }),
-});
 
 export const loadingView = (ctx: ScenarioCtx) => views.loading(ctx.now - 300);

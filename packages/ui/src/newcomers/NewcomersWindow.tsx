@@ -21,7 +21,7 @@ import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
 import { type I18nKey } from '@cg/contracts/errors';
 import { type GreetingStatusVM, type I18n, type NewcomerRowVM, type PreviewVM, type UiAction } from '@cg/contracts/vm';
 
-import { Boundary, Dot, Icon, SearchBox, Spinner, ViewState, VirtualList, focusQuietly, isComposing, useDispatch, useHints, useI18n, useKit, useMinuteClock, useNowFn, useTooltip, useView } from '../kit';
+import { Boundary, Dot, Icon, SearchBox, Spinner, ViewState, VirtualList, focusQuietly, isComposing, useDispatch, useI18n, useKit, useMinuteClock, useNowFn, useView } from '../kit';
 import { generateAction } from '../spenders/preview/MiniStrip';
 import { Preview } from '../spenders/preview/Preview';
 import { rowKeyOf, useCardFollow } from '../spenders/rowFocus';
@@ -45,8 +45,8 @@ import {
   type RowParts,
 } from './frame';
 
-/** A fan who can be greeted now: nobody has greeted or holds them, or the lease is ours. */
-const ACTIONABLE: readonly GreetingStatusVM['s'][] = ['none', 'claim-mine'];
+/** A fan who can be greeted now: nobody has greeted them and nothing of theirs is on its way. */
+const ACTIONABLE: readonly GreetingStatusVM['s'][] = ['none'];
 
 /** The row the window opens on (X55): the first fan who can be greeted now, else the first row. */
 export function firstActionable(rows: readonly NewcomerRowVM[]): NewcomerRowVM | null {
@@ -77,19 +77,6 @@ function openCard(handle: string): UiAction {
 
 const CLOSE_CARD: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } };
 
-/** A colleague holds the fan: the lease in words, without a name or a countdown (ui-design §12 п. 5). */
-function ClaimOther(): JSX.Element {
-  const i18n = useI18n();
-  const hints = useHints();
-  const tip = useTooltip(hints ? i18n.t('newcomers.status.claimOtherTooltip') : null);
-  return (
-    <span class="cg-nw__st is-2" {...tip.props}>
-      {i18n.t('newcomers.status.claimOther')}
-      {tip.description}
-    </span>
-  );
-}
-
 /**
  * The row's status line (ui-design §4.17): how the greeting goes when it goes, the batch's step while it runs, else
  * the greeting's state — terracotta where the person can greet now, as on Fansly.
@@ -107,10 +94,11 @@ function GreetingStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
         </span>
       );
     case 'stopped':
+      // An unknown outcome holds nothing (2026-10-20 audit, row 2): the person checks the chat and may send again.
       return (
-        <span class="cg-nw__st is-2 cg-num">
+        <span class="cg-nw__st is-2">
           <Dot kind="ink" />
-          {i18n.t('newcomers.status.stopped', { sent: status.sent, total: status.total })}
+          {i18n.t('newcomers.status.stopped')}
         </span>
       );
     case 'greeted':
@@ -124,12 +112,11 @@ function GreetingStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
       // A row to work with, as «Ждёт ответа» on Fansly (X59): terracotta, and the batch's step while it runs.
       if (batch !== 'generating' && batch !== 'queued' && batch !== 'failed') return <span class="cg-nw__st is-act">{i18n.t('newcomers.status.replied')}</span>;
       break;
-    case 'claim-other':
-      return <ClaimOther />;
-    case 'claim-elsewhere':
-      return <span class="cg-nw__st is-2">{i18n.t('newcomers.status.claimElsewhere')}</span>;
+    case 'sending-other':
+      // A colleague's part is on its way (a few seconds): a quiet note — Hi stays on, the hub decides at the send.
+      if (batch !== 'generating' && batch !== 'queued' && batch !== 'failed') return <span class="cg-nw__st">{i18n.t('newcomers.status.sendingOther')}</span>;
+      break;
     case 'none':
-    case 'claim-mine':
       break;
   }
   if (batch === 'generating' || batch === 'queued') {
@@ -150,7 +137,7 @@ function GreetingStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
       </span>
     );
   }
-  return <span class="cg-nw__st is-act">{i18n.t(status.s === 'claim-mine' ? 'newcomers.status.claimMine' : 'newcomers.status.none')}</span>;
+  return <span class="cg-nw__st is-act">{i18n.t('newcomers.status.none')}</span>;
 }
 
 /** What the rows of ChatSpace's list say: «@handle · новый, подписка 14 мин назад», the greeting, a saved draft. */

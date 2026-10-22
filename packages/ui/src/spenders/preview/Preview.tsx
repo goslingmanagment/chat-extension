@@ -150,9 +150,8 @@ function OwnLease({ claim }: { readonly claim: Extract<ClaimVM, { s: 'mine' }> }
 }
 
 /**
- * Why Hi is off for this fan, under the strip (ui-design §4.17): a colleague
- * holds the lease — no name and no countdown (§12 п. 5) —, it is held in
- * another tab, it expired, the row changed, or a part's outcome is unknown.
+ * What the card says of the greeting under the strip (ui-design §4.17): a refusal the hub gave a send, the row
+ * changed, or a part's outcome is unknown — said, holding nothing (2026-10-20 audit, row 2).
  */
 function LeaseNote({ claim, hasResult, stoppedNote }: { readonly claim: ClaimVM; readonly hasResult: boolean; readonly stoppedNote: Msg | null }): JSX.Element | null {
   const i18n = useI18n();
@@ -160,12 +159,6 @@ function LeaseNote({ claim, hasResult, stoppedNote }: { readonly claim: ClaimVM;
     case 'none':
     case 'mine':
       return null;
-    case 'elsewhere':
-      return (
-        <div class="cg-pv__claimnote" data-cg-claim="elsewhere">
-          {i18n.text(claim.note)}
-        </div>
-      );
     case 'other':
     case 'expired':
     case 'row-changed':
@@ -175,11 +168,9 @@ function LeaseNote({ claim, hasResult, stoppedNote }: { readonly claim: ClaimVM;
         </div>
       );
     case 'held-uncertain': {
-      // With the result on screen the uncertain part and the note under the parts say it already.
+      // With the result on screen the uncertain part says it already, with «Открыть чат» and «Отправить ещё раз».
       if (hasResult) return null;
-      // Without it the card says what the note would: we wait for a team lead or the owner. The registry's
-      // body of CG-SEND-UNCERTAIN advises to insert the part by hand; a preview never gives that advice
-      // (ui-design §4.13, §9.5 п. 5; architecture §6.7.8: no «в архиве нет — значит не ушло»).
+      // Without it the card says what the part would: open the chat; if the message is not there, send again.
       const body = i18n.text(stoppedNote ?? { key: 'newcomers.stopped', params: { n: claim.part } });
       return (
         <div data-cg-claim="held-uncertain">

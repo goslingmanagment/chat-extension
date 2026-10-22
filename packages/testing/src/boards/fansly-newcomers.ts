@@ -299,6 +299,27 @@ export function fanslyGreetingRefused(ctx: ScenarioCtx): ScenarioViewEntry[] {
   return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'done', selected: 8, card }))];
 }
 
+/**
+ * `q` — 2026-10-22, «как раньше»: the greeting's outcome is unknown — said, with «Открыть в Fansly ↗»; «Отправить ещё
+ * раз» is the person's own click (never ours), and Generate stays on.
+ */
+export function fanslyGreetingUncertain(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  const tomasz = follower(1);
+  const welcome = message(ctx, 1, 13, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true);
+  const greeting = greetingOf({ text: 'Hey Tomasz! So happy you’re here 💕', ai: true, canSend: true, canInsert: true, state: { s: 'uncertain', failure: { code: 'CG-SEND-UNCERTAIN', retryAt: null } } });
+  const card = { ...cardOf(ctx, tomasz, { history: history('ready', [welcome]) }), greeting };
+  return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'done', selected: 1, card }))];
+}
+
+/** `r` — 2026-10-22: the conversation changed after the AI draft — a note, «Отправить» stays on (the old window sent on the card's revision). */
+export function fanslyGreetingChanged(ctx: ScenarioCtx): ScenarioViewEntry[] {
+  const alex = follower(8);
+  const chat = [message(ctx, 40, 11 * 60 - 5, false, 'Thanks for following, babe 💋 Check my free posts and say hi anytime!', true), message(ctx, 41, 4, true, 'hi! love your page')];
+  const greeting = greetingOf({ text: 'Hi Alex, welcome! Boston, right? 😊', ai: true, stale: true, canSend: true, canInsert: true });
+  const card = { ...cardOf(ctx, alex, { history: history('ready', chat) }), greeting };
+  return [entry({ of: 'newcomers' }, fanslyNewcomersVM(ctx, { stage: 'done', selected: 8, card }))];
+}
+
 /** `e` — the first page is on its way: the stage of the fast part, nothing to show yet. */
 export function fanslyConnecting(ctx: ScenarioCtx): ScenarioViewEntry[] {
   const vm = fanslyNewcomersVM(ctx, { stage: 'scanning', phase: 'followers', selected: null, card: null, followers: [] });

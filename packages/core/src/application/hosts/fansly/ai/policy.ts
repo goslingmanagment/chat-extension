@@ -30,11 +30,10 @@
 // - Hi and Ping (R20 P8c, ./hi-ping.ts): a Hi start carries the snapshot's
 //   proof of the conversation's start when the tab has one, its count and the
 //   fan's avatar (FX-018); Hi has no message limit (2026-10-21), so nothing
-//   is read for a proof the tab lacks. The pre-check, asked again with the
-//   start's snapshot before the token, refuses Ping only for a fan the page's
-//   own texts show active (five days); Ping under ten messages is the shared
-//   gate's (domain/features/gates.ts). Everything else is the hub's to decide
-//   (`gate_ping_active`, `gate_min_messages`).
+//   is read for a proof the tab lacks. No pre-check refuses Ping for an active
+//   fan any more (2026-10-22, as D29 on OnlyFans); Ping under ten messages is
+//   the shared gate's (domain/features/gates.ts). Everything else is the hub's
+//   to decide (`gate_min_messages`).
 // - The deep window (R20 P8c; FS-AI-1, §12): the person's Recap depth above
 //   3000 from Fansly's `settings.ext`, asked of the background by a start of
 //   the deep window only (`windows`); the shared planner caps it by the hub's
@@ -57,7 +56,7 @@ import { type AiPolicy } from '../../../ai/ports';
 import { hiFieldsOf, hiPingGate } from './hi-ping';
 import { checkWindowOf, startProofOf } from './proof';
 import { resultChecks } from './result-checks';
-import { fingerprintOf, verdictMark, type ProofFingerprint } from './verdict';
+import { fingerprintOf, shownMark, type ProofFingerprint } from './verdict';
 
 export interface FanslyAiDeps {
   readonly now: () => number;
@@ -108,8 +107,8 @@ export function createFanslyAi(deps: FanslyAiDeps): AiPolicy<FanslyStartProof, P
     proof: (host, ask) => gather(host, ask, deps),
     fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof, ...hiFieldsOf(gathered.snapshot), ...(gathered.livePpv === undefined ? {} : { livePpv: gathered.livePpv }) }),
     fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),
-    verdict: (view, fingerprint) => verdictMark(view, checks.current(view, fingerprint)),
-    unverifiedAnalysisMark: { reason: 'unverified', at: null },
+    // No «Свежесть не проверена» on a result or an analysis copy (2026-10-22): a real miss stays (`shownMark`).
+    verdict: (view, fingerprint) => shownMark(view, checks.current(view, fingerprint)),
     windows: () => deps.windows?.() ?? Promise.resolve(null),
   };
 }
