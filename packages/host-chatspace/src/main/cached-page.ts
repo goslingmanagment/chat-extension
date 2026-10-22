@@ -6,8 +6,9 @@
 // OnlyMonster's media proxy (`mediaItems[].imageUrl`). Our API read (om-api.ts)
 // takes its time — seconds on a chat with much media —, so a start that cannot
 // wait for it takes this page instead (live-verified 2026-10-22 on the owner's
-// test chat: the cache carries these fields; a purchase after ChatSpace loaded
-// the chat is not in it).
+// test chat: the cache carries these fields). A purchase made while the page
+// is open is in it too: ChatSpace (0.233.0) marks that message `isOpened` in
+// this cache when its socket says `account_fan_ppv_purchased`.
 
 import { count, idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 

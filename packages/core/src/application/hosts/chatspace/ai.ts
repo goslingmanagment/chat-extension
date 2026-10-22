@@ -14,10 +14,11 @@
 //   the API's page it is page memory's, as before. The shared plan trims it
 //   and it goes to the hub as `fresh`. From the same page, when the hub takes
 //   it (X54, `live-ppv-v1`) and for the draft features, the PPV state: the
-//   model's paid messages, their price and whether the fan bought them — what
-//   page memory holds stale, a purchase updating no loaded message. The click
-//   waits for the API at most LIVE_PPV_LIMITS.waitMs and starts without it
-//   after; a failed read is no page, and the hub keeps its own marks;
+//   model's paid messages, their price and whether the fan bought them. The
+//   click waits for the API at most LIVE_PPV_LIMITS.waitMs; late or failed, it
+//   takes the chat as ChatSpace has it loaded (`startPage`) — the PPV state as
+//   the page holds it, which ChatSpace keeps current from its socket's
+//   purchases; with neither, the hub keeps its own marks;
 // - the pre-check — none of its own: Hi has no message limit (the owner,
 //   2026-10-21), Ping is never blocked for an active fan (AI-036); Ping under
 //   ten messages is the shared gate's (domain/features/gates.ts);
@@ -119,7 +120,7 @@ export async function readOpenPage(host: HostPort, chat: ChatRef, limit: number,
 
 /**
  * The open chat's newest page for a start: our API read, waited for at most `waitMs`; when it is late or fails, the
- * page as ChatSpace has it loaded (no request) — the PPV state as the page loaded it, the photos and the text. Our API
+ * page as ChatSpace has it loaded (no request) — the PPV state as the page holds it, the photos and the text. Our API
  * read takes seconds on a chat with much media (live, 2026-10-22: 7-25 s), so without the page's copy a start mostly
  * carried no PPV state and no photo at all.
  */

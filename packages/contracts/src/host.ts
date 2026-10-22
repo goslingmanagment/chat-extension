@@ -897,7 +897,8 @@ export interface HostPort {
   openChatMessages?(chat: ChatRef, options: OpenChatReadOptions): Promise<OpenChatRead>;
   /**
    * The open chat's newest `limit` messages (1…OPEN_CHAT_LIMITS.pageMax) as the page itself has them loaded, in the shape
-   * of `openChatMessages`' page, without a request: the PPV state as the page loaded it (a later purchase is not in it).
+   * of `openChatMessages`' page, without a request: the PPV state as the page holds it (ChatSpace marks a purchase its
+   * socket reports).
    * null — another chat than the open one, nothing loaded, or no answer. Absent on a host that keeps no such copy.
    */
   cachedChatMessages?(chat: ChatRef, limit: number): Promise<OpenChatPage | null>;
