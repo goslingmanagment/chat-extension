@@ -1177,14 +1177,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // tab lifecycle
   /**
    * 1.20.0 (decision X47): the fans' names the tabs already told — the open chats' first, then the operations' — for
-   * the popup and «Идут сейчас». Memory alone; nobody signed in — none.
+   * the popup and «Идут сейчас», with the @handle an open chat's tab knows (2026-10-22). Memory alone; nobody signed
+   * in — none.
    */
-  function fanLabels(): { readonly chatKey: ChatKey; readonly label: string }[] {
+  function fanLabels(): { readonly chatKey: ChatKey; readonly label: string; readonly username?: string }[] {
     if ((hubInstance?.session() ?? null) === null) return [];
-    const fans = new Map<string, string>();
-    for (const tab of presence.tabs()) if (tab.chatKey !== null && tab.fanLabel !== null && !fans.has(tab.chatKey)) fans.set(tab.chatKey, tab.fanLabel);
-    for (const entry of scheduler.fanLabels(FAN_LABELS_MAX)) if (!fans.has(entry.chatKey)) fans.set(entry.chatKey, entry.label);
-    return [...fans].slice(0, FAN_LABELS_MAX).map(([chatKey, label]) => ({ chatKey: chatKey as ChatKey, label }));
+    const fans = new Map<string, { readonly label: string; readonly username?: string }>();
+    for (const tab of presence.tabs()) if (tab.chatKey !== null && tab.fanLabel !== null && !fans.has(tab.chatKey)) fans.set(tab.chatKey, { label: tab.fanLabel, ...(tab.fanUsername === null ? {} : { username: tab.fanUsername }) });
+    for (const entry of scheduler.fanLabels(FAN_LABELS_MAX)) if (!fans.has(entry.chatKey)) fans.set(entry.chatKey, { label: entry.label });
+    return [...fans].slice(0, FAN_LABELS_MAX).map(([chatKey, fan]) => ({ chatKey: chatKey as ChatKey, ...fan }));
   }
   const fanLabelsSignature = (): string => JSON.stringify(fanLabels());
 

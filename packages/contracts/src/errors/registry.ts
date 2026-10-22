@@ -105,6 +105,9 @@ const SPECS = {
   // Audit 2026-10-20 №15: a conversation is open, but the page has not named its account, or its fan, for a while.
   'CG-HOST-ACCOUNT-UNKNOWN': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
   'CG-HOST-CHAT-UNKNOWN': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
+  // 2026-10-22 (the old Fansly board's «not found»): a board's fan whose chat the board did not know, and the site's
+  // inbox search found none — a miss of the search, not proof that no chat exists.
+  'CG-HOST-CHAT-NOT-FOUND': { kind: 'host', severity: 'info', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
   'CG-RUNTIME-RELOADED': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
   'CG-INSERT-CHAT-CHANGED': { kind: 'insert', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
   'CG-INSERT-FAILED': { kind: 'insert', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count+sample' },

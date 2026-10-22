@@ -7,7 +7,8 @@
 // decision X47) only what that one lacks: the hub's money by kind, the churn
 // risk, the hub's profile by its sections, Recap. With no chat open it says «Выберите чат». It does
 // not hold focus; Esc inside closes it. Avatars are initials: no remote
-// images. A missing source is «—», never a guess.
+// images. What no source knows is not drawn — no row of «—» or «нет данных»
+// (2026-10-22, the old Fansly panel) — and a known zero stays; never a guess.
 
 import { type JSX } from 'preact';
 
@@ -44,13 +45,14 @@ function presence(i18n: I18n, fan: NonNullable<FanPanelVM['fan']>): string | nul
   return handle === null ? i18n.t('fanPanel.lastSeen', { age: { age: fan.lastSeenAt } }) : i18n.t('fanPanel.sub', { handle, age: { age: fan.lastSeenAt } });
 }
 
-function subscribedText(i18n: I18n, subscription: NonNullable<FanPanelVM['subscription']>): string {
+/** «3 мес., с 12 мая»; null — neither is known. */
+function subscribedText(i18n: I18n, subscription: NonNullable<FanPanelVM['subscription']>): string | null {
   const { months, since } = subscription;
   const date = since === null ? null : i18n.formatTime(since, 'date');
   if (months !== null && date !== null) return i18n.t('fanPanel.subscribedValue', { months, date });
   if (months !== null) return i18n.t('fanPanel.subscribedMonths', { months });
   if (date !== null) return i18n.t('fanPanel.subscribedSince', { date });
-  return unknown(i18n);
+  return null;
 }
 
 function Kv({ label, value }: { readonly label: string; readonly value: string }): JSX.Element {
@@ -65,58 +67,63 @@ function Kv({ label, value }: { readonly label: string; readonly value: string }
 function FanTab({ vm }: { readonly vm: FanPanelVM }): JSX.Element {
   const i18n = useI18n();
   const { spent, subscription, host } = vm;
-  const mark = unknown(i18n);
   const kinds = (spent?.byKind ?? []).filter((entry) => entry.mills !== 0);
   const lean = vm.besideHostPanel === true;
+  // Beside the site's own panel (X47) its subscription rows are there: only the churn risk is ours.
+  const subscribed = lean || subscription === null ? null : subscribedText(i18n, subscription);
+  const autoRenew = lean || subscription === null || subscription.autoRenew === null ? null : i18n.t(subscription.autoRenew ? 'fanPanel.autoRenew.on' : 'fanPanel.autoRenew.off');
+  const churn = subscription === null || subscription.churnRisk === null ? null : i18n.t(CHURN_KEYS[subscription.churnRisk]);
+  const buyingPower = host === null || host.buyingPower === null ? null : host.buyingPower;
+  const scores = host?.scores ?? [];
+  const facts = vm.registration !== undefined || subscribed !== null || autoRenew !== null || churn !== null || buyingPower !== null || scores.length > 0;
   return (
     <>
-      <div class="cg-fp__sec">
-        <div class="cg-fp__cap">{i18n.t('fanPanel.spent')}</div>
-        {/* A known zero of money is not drawn (ui-design §1 п. 6): «трат нет» under the caption, and no rows of
-            kinds that brought nothing. Unknown stays «—». */}
-        {spent !== null && spent.total === 0 ? (
-          <div class="cg-fp__none">{i18n.t('fanPanel.spentNone')}</div>
-        ) : (
-          <div class="cg-fp__hero">
-            <Money mills={spent?.total ?? null} class="cg-fp__big" />
-            {spent !== null && spent.period30 !== null && spent.period30 > 0 ? <span class="cg-fp__in cg-money cg-num">{i18n.t('fanPanel.spentIn', { moneyIn: { money: spent.period30, sign: 'plus' } })}</span> : null}
-          </div>
-        )}
-        {kinds.length === 0 ? null : (
-          <dl class="cg-fp__kv">
-            {kinds.map((entry) => (
-              <Kv key={entry.kind} label={i18n.t(KIND_KEYS[entry.kind])} value={i18n.formatMoneyMills(entry.mills)} />
-            ))}
+      {/* The money as the hub knows it; unknown — no section: «Потратил всего —» said nothing (2026-10-22). */}
+      {spent === null ? (
+        vm.view.s === 'loading' ? <ViewState view={vm.view} /> : null
+      ) : (
+        <div class="cg-fp__sec">
+          <div class="cg-fp__cap">{i18n.t('fanPanel.spent')}</div>
+          {/* A known zero of money is not drawn (ui-design §1 п. 6): «трат нет» under the caption, and no rows of
+              kinds that brought nothing. */}
+          {spent.total === 0 ? (
+            <div class="cg-fp__none">{i18n.t('fanPanel.spentNone')}</div>
+          ) : (
+            <div class="cg-fp__hero">
+              <Money mills={spent.total} class="cg-fp__big" />
+              {spent.period30 !== null && spent.period30 > 0 ? <span class="cg-fp__in cg-money cg-num">{i18n.t('fanPanel.spentIn', { moneyIn: { money: spent.period30, sign: 'plus' } })}</span> : null}
+            </div>
+          )}
+          {kinds.length === 0 ? null : (
+            <dl class="cg-fp__kv">
+              {kinds.map((entry) => (
+                <Kv key={entry.kind} label={i18n.t(KIND_KEYS[entry.kind])} value={i18n.formatMoneyMills(entry.mills)} />
+              ))}
+            </dl>
+          )}
+        </div>
+      )}
+      {!facts ? null : (
+        <div class="cg-fp__sec">
+          <div class="cg-fp__cap">{i18n.t('fanPanel.subscription')}</div>
+          <dl class="cg-fp__kv cg-fp__kv--flush">
+            {/* Fansly's account date (R20 P11a, FS-REG-4), when the site's adapter knows it: a fact of the fan's
+                account, so it stands with the subscription's dates, before them, not above the money. */}
+            {vm.registration === undefined ? null : (
+              <>
+                <dt>{vm.registration.label}</dt>
+                <dd class="cg-num" data-registration-date={vm.registration.at}>{i18n.formatTime(vm.registration.at, 'date')}</dd>
+              </>
+            )}
+            {subscribed === null ? null : <Kv label={i18n.t('fanPanel.subscribedLabel')} value={subscribed} />}
+            {autoRenew === null ? null : <Kv label={i18n.t('fanPanel.autoRenew')} value={autoRenew} />}
+            {churn === null ? null : <Kv label={i18n.t('fanPanel.churn')} value={churn} />}
+            {/* ChatSpace's own estimates, only when it already holds them (D-29): shown as it names them. */}
+            {buyingPower === null ? null : <Kv label={i18n.t('fanPanel.buyingPower')} value={buyingPower} />}
+            {scores.map((score) => <Kv key={score.label} label={score.label} value={score.value} />)}
           </dl>
-        )}
-      </div>
-      <div class="cg-fp__sec">
-        <div class="cg-fp__cap">{i18n.t('fanPanel.subscription')}</div>
-        <dl class="cg-fp__kv cg-fp__kv--flush">
-          {/* Fansly's account date (R20 P11a, FS-REG-4), when the site's adapter knows it: a fact of the fan's
-              account, so it stands with the subscription's dates, before them, not above the money. */}
-          {vm.registration === undefined ? null : (
-            <>
-              <dt>{vm.registration.label}</dt>
-              <dd class="cg-num" data-registration-date={vm.registration.at}>{i18n.formatTime(vm.registration.at, 'date')}</dd>
-            </>
-          )}
-          {/* Beside the site's own panel (X47) its subscription rows are there: only the churn risk is ours. */}
-          {lean ? null : (
-            <>
-              <Kv label={i18n.t('fanPanel.subscribedLabel')} value={subscription === null ? mark : subscribedText(i18n, subscription)} />
-              <Kv
-                label={i18n.t('fanPanel.autoRenew')}
-                value={subscription === null || subscription.autoRenew === null ? mark : i18n.t(subscription.autoRenew ? 'fanPanel.autoRenew.on' : 'fanPanel.autoRenew.off')}
-              />
-            </>
-          )}
-          <Kv label={i18n.t('fanPanel.churn')} value={subscription === null || subscription.churnRisk === null ? i18n.t('fanPanel.churn.unknown') : i18n.t(CHURN_KEYS[subscription.churnRisk])} />
-          {/* ChatSpace's own estimates, only when it already holds them (D-29): shown as it names them. */}
-          {host === null || host.buyingPower === null ? null : <Kv label={i18n.t('fanPanel.buyingPower')} value={host.buyingPower} />}
-          {host === null ? null : host.scores.map((score) => <Kv key={score.label} label={score.label} value={score.value} />)}
-        </dl>
-      </div>
+        </div>
+      )}
       {vm.bio === null || vm.bio === '' ? null : vm.bioBlocks !== undefined && vm.bioBlocks.length > 0 ? (
         // The hub's profile by its sections, as Recap shows a full one (X47): «Досье», «Психологический портрет»…
         vm.bioBlocks.map((block, index) => (

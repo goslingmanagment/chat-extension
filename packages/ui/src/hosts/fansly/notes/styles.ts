@@ -44,9 +44,13 @@ ${p}__head { display: flex; flex-direction: column; gap: 4px; padding: 10px 8px 
 ${p}__row { display: flex; align-items: center; gap: 2px; min-width: 0; }
 ${p}__who { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; }
 ${p}__name { flex: 0 1 auto; min-width: 60px; max-width: 100%; height: 26px; margin: 0 0 0 -6px; padding: 0 6px; box-sizing: border-box; border: 0; border-radius: var(--cg-r-sm); background: transparent; color: var(--cg-ink-strong); font: inherit; font-size: var(--cg-text-md); font-weight: 600; text-overflow: ellipsis; }
+${p}__namebox { flex: 0 1 auto; display: inline-grid; grid-template-columns: minmax(0, max-content); min-width: 60px; max-width: 100%; margin: 0 0 0 -6px; }
+${p}__namebox > ${p}__name { grid-area: 1 / 1; width: 100%; min-width: 0; margin: 0; }
+${p}__namebox::after { content: attr(data-value) '\\00a0'; grid-area: 1 / 1; visibility: hidden; white-space: pre; overflow: hidden; padding: 0 6px; font-size: var(--cg-text-md); font-weight: 600; }
 ${p}__name:hover { background: var(--cg-hover); }
 ${p}__name:focus { outline: none; background: var(--cg-input-bg); box-shadow: inset 0 0 0 1px var(--cg-input-border); }
 ${p}__name::placeholder { color: var(--cg-ink-faint); font-weight: 500; }
+${p}__name[data-notes-fan-name]::placeholder { color: var(--cg-ink-2); font-weight: 600; opacity: 1; }
 ${p}__handle { flex: none; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
 ${p}__hint { margin: 0; color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 15px; }
 ${p}__hint[data-status='error'], ${p}__hint[data-status='unconfirmed'], ${p}__hint[data-status='too-long'] { color: var(--cg-ink-strong); font-weight: 500; }
@@ -125,6 +129,8 @@ ${p}__strip-acts { display: flex; gap: 2px; flex: none; }
 }
 ${p}__problem-code { color: var(--cg-ink-muted); font-weight: 400; }
 ${p}__fill { display: flex; align-items: baseline; gap: 6px; margin: 0; color: var(--cg-clay-ink); font-size: var(--cg-text-sm); line-height: 17px; overflow-wrap: anywhere; }
+${p}__stage { align-items: center; gap: 2px; min-width: 0; }
+${p}__stage .cg-stages { flex: 0 1 auto; }
 ${p}__fill.is-failed { color: var(--cg-ink-strong); }
 ${p}__fill-act { color: var(--cg-clay-ink); }
 

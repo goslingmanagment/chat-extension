@@ -37,6 +37,12 @@ export interface SpenderRowVM {
   /** «Последнее сообщение» column (≥ 860 px); «Мы: » before ours. */
   readonly lastMessage: { readonly fromUs: boolean; readonly text: string } | null;
   readonly selected: boolean;
+  /**
+   * The fan's chat where a chat has an id of its own and the board does not know it yet (the old Fansly board's chip):
+   * `find` — «найти чат», opening it searches the site's inbox; `finding` — «ищу чат…»; `missing` — «чат не найден».
+   * Absent — the chat is known, or it is the fan (OnlyFans).
+   */
+  readonly chat?: 'find' | 'finding' | 'missing';
   /** 1.32.0: the row in a batch (`SetBatchPick`, `GenerateBatch`); absent — the board has no batch. */
   readonly batch?: BatchRowVM;
 }

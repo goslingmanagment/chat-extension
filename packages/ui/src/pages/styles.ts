@@ -210,6 +210,7 @@ ${/* The facts: one paper-white card, a line each — the word on the left, the 
 .pg-popup__fact dd > small.pg-popup__by { flex-basis: auto; }
 .pg-popup__fact--note { display: block; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); text-align: right; }
 .pg-popup__nil { color: var(--cg-ink-muted); }
+.pg-popup__handle { font-weight: 400; color: var(--cg-ink-muted); }
 .pg-popup__copy { font: inherit; color: inherit; border-radius: 4px; }
 .pg-popup__copy:hover { color: var(--cg-ink-strong); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 0.22em; }
 ${/* What opens inside the site's tab, in one row; the one black button of the popup is the stage's remedy (X61). */ ''}

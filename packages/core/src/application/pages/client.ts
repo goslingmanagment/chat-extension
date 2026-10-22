@@ -206,6 +206,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let reloadingHost = false;
   let aiTodayMicroUsd: number | null = null;
   let fanLabels: ReadonlyMap<string, string> = new Map();
+  let fanUsernames: ReadonlyMap<string, string> = new Map();
   let localSpend: PagesModel['localSpend'] = null;
   let advanced: PagesModel['advanced'] = null;
   /** The debug extras of the options page were asked for since debug was last turned on (or the person signed in). */
@@ -355,6 +356,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       reloadingHost,
       aiTodayMicroUsd,
       fanLabels,
+      fanUsernames,
       localSpend,
       advanced,
       prompts,
@@ -473,6 +475,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       newcomers = null;
       aiTodayMicroUsd = null;
       fanLabels = new Map();
+      fanUsernames = new Map();
       if (next !== null) sessionEnd = null;
       // The prompt and the journals of the previous sign-in are not this one's either (§9.3).
       if (!first) dropDebug();
@@ -640,6 +643,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     const answer = await ask('fans.labels', {});
     if (disposed || generation !== sessionGeneration || readSeq.get('fan-labels') !== seq || !answer.ok) return;
     fanLabels = new Map(answer.payload.fans.map((fan) => [fan.chatKey, fan.label]));
+    fanUsernames = new Map(answer.payload.fans.flatMap((fan) => (fan.username === undefined ? [] : [[fan.chatKey, fan.username] as const])));
     emit();
   }
 

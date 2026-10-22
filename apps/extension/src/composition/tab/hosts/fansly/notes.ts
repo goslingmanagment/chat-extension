@@ -11,7 +11,11 @@
 // - «✨ Заполнить из чата» (R20 P11c, FS-NOTE-6): where the page's `notesFill` is on, the site operation `notes-fill` of
 //   the open chat through the shared admission (`fansly.ops.start`, a click's token): the group as the conversation,
 //   the fan apart, the questionnaire's labels only; the background's driver sets the depth (HF-6). Each press is a
-//   fresh read of the chat (`force`); its end comes as `fansly.ops.done`, or with the read right after the admission.
+//   fresh read of the chat (`force`); its end comes as `fansly.ops.done`, or with the read right after the admission;
+//   its stage on the way — the background's `op.update` of it — is the panel's stage line.
+// - The page's switch is read from the hub's context, and its last answer holds while the context is read again or the
+//   background is out of reach (2026-10-22): the button, ⌘⇧K and an open panel stay — the old extension needed only
+//   the chat and the session. A context that says no (no sign-in, no binding, the switch off) takes them away.
 
 import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
 import type { SiteOpView } from '@cg/contracts/ops';
@@ -19,7 +23,7 @@ import { chatKeyOf } from '@cg/contracts/ids';
 import type { NotesClient } from '@cg/contracts/notes-fansly';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { MountSurfaceKind } from '@cg/contracts/vm';
-import { createPageContext } from '@cg/core/application/boards';
+import { createPageContext, failureClass, type PageContextState } from '@cg/core/application/boards';
 import { notesActionFacts, notesAvailability } from '@cg/core/application/hosts/fansly/journal';
 import { createNotesController, type NotesPort } from '@cg/core/application/hosts/fansly/notes';
 import { withFanslyOpText } from '@cg/core/application/hosts/fansly/ai';
@@ -45,10 +49,22 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
   const { host, rpc, win } = env;
   const context = createPageContext({ rpc, host });
   const measure = notesMeasure(win.document, env.mounts.dock.host);
+  /** The switch as the context last answered it, for the identity (epoch) it answered under. */
+  let admitted: { readonly epoch: number; readonly on: boolean } | null = null;
+  /** A context being read again, or a background out of reach: what it said before still stands for the same identity. */
+  const unsettled = (ctx: PageContextState): boolean => ctx.phase === 'loading' || (ctx.phase === 'blocked' && ctx.blocker !== null && failureClass(ctx.blocker.code) === 'offline');
   const allowed = (): boolean => {
     const ctx = context.current();
     const report = host.probe();
-    return ctx.phase === 'ready' && admittedOn(env.features, 'notes', null, ctx.bootstrap, ctx.page, { ...report.capabilities, ...report.extensions['fansly-web'].capabilities }).usable;
+    const capabilities = { ...report.capabilities, ...report.extensions['fansly-web'].capabilities };
+    if (ctx.phase === 'ready') {
+      admitted = { epoch: ctx.epoch, on: admittedOn(env.features, 'notes', null, ctx.bootstrap, ctx.page, capabilities).usable };
+      return admitted.on;
+    }
+    if (!unsettled(ctx) || admitted === null || admitted.epoch !== ctx.epoch || !admitted.on) return false;
+    // Out of reach with the identity kept: the switch as last read (the context keeps that bootstrap), the page's own
+    // capabilities as they are now.
+    return ctx.bootstrap === null || ctx.page === null || admittedOn(env.features, 'notes', null, ctx.bootstrap, ctx.page, capabilities).usable;
   };
   const fillAllowed = (): boolean => {
     const ctx = context.current();
@@ -232,6 +248,7 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       const view = (payload as { readonly view?: SiteOpView } | null)?.view;
       if (view !== undefined) controller.fillDone(view);
     }),
+    rpc.onEvent('op.update', (update) => controller.fillPhase(update.opId, update.phase)),
     env.keys.handle('notes', () => {
       env.journal?.action('notes', 'notes.toggle', { input: 'key' });
       controller.toggle();

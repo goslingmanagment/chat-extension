@@ -2,8 +2,13 @@
 // «Хоткеи», §10.2 CheatsheetVM; ui-design §4.21, §10; HK-032, HK-034, ST-120,
 // ST-121): groups and rows straight from the ActionCatalog, so a key printed
 // here is the key the dispatcher takes. A combination the browser keeps is
-// printed with its fallback or not at all, with the note «браузер оставляет
-// это сочетание себе»; ⌘⇧H says «пока убран»; «Отправить» says it has no key.
+// printed with its fallback and the note «браузер оставляет это сочетание
+// себе»; a row with no key that works — the browser keeps it with no
+// fallback, the action is removed, «Отправить» has none by design — is not
+// drawn (2026-10-22: the old Fansly sheet listed only keys that work, each
+// with its one-line description).
+// A row of an AI action says what it does in one line, as the old sheet did
+// («Ping — вернуть молчащего фана»).
 // A row of a feature the site does not have (the feature manifest's `absent`,
 // R20 §1.4) is not drawn — its key stays reserved, the dispatcher's business —
 // and a group left without rows is not drawn either.
@@ -27,11 +32,26 @@ function rowKey(label: HotkeyLabel | null): { readonly hotkey: HotkeyLabel | nul
   return { hotkey: null, reserved: true };
 }
 
-function row(catalog: ActionCatalog, id: CatalogActionId, label?: I18nKey): RowVM {
+/** The sheet's own words of a row: the action and what it does («Reply — ответ фану»); absent — the catalog's label. */
+const SHEET_LABELS: Readonly<Partial<Record<CatalogActionId, I18nKey>>> = {
+  reply: 'cheatsheet.row.reply',
+  fix: 'cheatsheet.row.fix',
+  hi: 'cheatsheet.row.hi',
+  ping: 'cheatsheet.row.ping',
+  review: 'cheatsheet.row.review',
+  recap: 'cheatsheet.row.recap',
+  coach: 'cheatsheet.row.coach',
+  spenders: 'cheatsheet.row.spendersBoard',
+  newcomers: 'cheatsheet.row.newcomers',
+  split: 'cheatsheet.row.splitSeries',
+};
+
+/** A row with the key that works, or null — none does (no key, the browser keeps it with no fallback, the action is removed). */
+function row(catalog: ActionCatalog, id: CatalogActionId): RowVM | null {
   const entry = catalog.entry(id);
   const { hotkey, reserved } = rowKey(entry.hotkey);
-  const note: Msg | null = entry.status === 'removed' ? msg('dock.helpRemoved') : reserved ? msg('dock.reason.hotkeyReserved') : null;
-  return { label: msg(label ?? entry.label), hotkey, note };
+  if (hotkey === null || entry.status === 'removed') return null;
+  return { label: msg(SHEET_LABELS[id] ?? entry.label), hotkey, note: reserved ? msg('dock.reason.hotkeyReserved') : null };
 }
 
 const ESC: HotkeyLabel = { display: 'Esc', aria: 'Escape', delivery: 'delivered', fallback: null };
@@ -66,7 +86,7 @@ export function rowPresent(id: CatalogActionId, features: FeatureSlice | undefin
 /** `features` — the site's slice of the manifest; without it (the settings page, which speaks for every site) every row is drawn. */
 export function cheatsheetGroups(catalog: ActionCatalog, features?: FeatureSlice): readonly Group[] {
   const there = (id: CatalogActionId): boolean => rowPresent(id, features);
-  const rows = (...ids: CatalogActionId[]): RowVM[] => ids.filter(there).map((id) => row(catalog, id));
+  const rows = (...ids: CatalogActionId[]): RowVM[] => ids.filter(there).flatMap((id) => row(catalog, id) ?? []);
   const groups: Group[] = [
     {
       id: 'ai',
@@ -92,11 +112,8 @@ export function cheatsheetGroups(catalog: ActionCatalog, features?: FeatureSlice
     {
       id: 'preview',
       title: msg('preview.label'),
-      rows: [
-        ...rows('reply', 'fix', 'hi', 'ping', 'open-and-insert'),
-        // «Отправить» has no key by design: fan mail leaves only on a press of the button.
-        ...(there('send') ? [{ label: msg(catalog.entry('send').label), hotkey: null, note: msg('cheatsheet.row.sendNote') }] : []),
-      ],
+      // «Отправить» has no key by design (fan mail leaves only on a press of the button): the sheet's note says so.
+      rows: rows('reply', 'fix', 'hi', 'ping', 'open-and-insert'),
     },
   ];
   return groups.filter((group) => group.rows.length > 0);

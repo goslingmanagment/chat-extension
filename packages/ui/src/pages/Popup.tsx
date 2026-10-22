@@ -188,6 +188,26 @@ function Stage({ vm, siteOnly = false }: { readonly vm: PopupVM; readonly siteOn
   );
 }
 
+type PopupChat = NonNullable<PopupVM['chat']>;
+
+/** The number a click on the open dialog copies: the conversation where it has its own (Fansly's group), else the fan. */
+function chatIdOf(chat: PopupChat): string {
+  return chat.copyIds.conversationRef ?? chat.copyIds.fanId ?? chat.copyIds.hostAccountId;
+}
+
+/** «Скопировать номер чата 8100… · фан 9200… · Fansly 7000…»: every id of the dialog, said once, in the name's tooltip. */
+function chatIdsTooltip(i18n: ReturnType<typeof useI18n>, chat: PopupChat): string {
+  const { conversationRef, fanId, creatorId, hostAccountId } = chat.copyIds;
+  return [
+    i18n.t('popup.copyChatId', { id: chatIdOf(chat) }),
+    conversationRef !== undefined && fanId !== undefined ? i18n.t('popup.fanId', { id: fanId }) : null,
+    chat.hostAccountLabel,
+    creatorId !== null && creatorId !== hostAccountId ? creatorId : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
+}
+
 /** The open dialog, the quota and who is signed in: one line each, the word on the left, the value on the right. */
 function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
   const i18n = useI18n();
@@ -207,30 +227,12 @@ function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
           </dd>
         ) : (
           <dd>
-            <b>
-              {vm.chat.copyIds.fanId === undefined ? (
-                vm.chat.fanName
-              ) : (
-                // 1.20.0 (X47): a fan named by the tab keeps the id in the tooltip of the name, and a click copies it.
-                <CopyValue text={vm.chat.fanName} value={vm.chat.copyIds.fanId} tooltip={vm.chat.copyIds.conversationRef === undefined ? i18n.t('popup.fanId', { id: vm.chat.copyIds.fanId }) : i18n.t('common.copy')} />
-              )}
-              {vm.chat.fanUsername === null ? null : ` @${vm.chat.fanUsername.replace(/^@/, '')}`}
+            {/* 2026-10-22 (the old popup): the fan's name and @handle; the ids live in the name's tooltip, and a click on
+                the name copies the chat's own number — what support asks for. */}
+            <b class="pg-popup__who">
+              <CopyValue text={vm.chat.fanName} value={chatIdOf(vm.chat)} tooltip={chatIdsTooltip(i18n, vm.chat)} />
+              {vm.chat.fanUsername === null ? null : <span class="pg-popup__handle">{` @${vm.chat.fanUsername.replace(/^@/, '')}`}</span>}
             </b>
-            <small>
-              {vm.chat.copyIds.conversationRef === undefined ? null : (
-                <>
-                  <CopyValue text={`groupId ${vm.chat.copyIds.conversationRef}`} value={vm.chat.copyIds.conversationRef} tooltip={i18n.t('common.copy')} />
-                  {' · '}
-                </>
-              )}
-              <CopyValue text={vm.chat.hostAccountLabel} value={vm.chat.copyIds.hostAccountId} tooltip={i18n.t('popup.copyAccountId')} />
-              {vm.chat.copyIds.creatorId === null ? null : (
-                <>
-                  {' · '}
-                  <CopyValue text={vm.chat.copyIds.creatorId} value={vm.chat.copyIds.creatorId} tooltip={i18n.t('popup.copyCreatorId')} />
-                </>
-              )}
-            </small>
           </dd>
         )}
       </div>

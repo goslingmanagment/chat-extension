@@ -6,6 +6,7 @@
 import type { CgAnyErrorWire } from './errors-fansly';
 import type { FanslyNotesView } from './settings-ext';
 import type { FanslyNote } from './tab-messages-fansly';
+import type { PhaseVM } from './vm/result';
 
 /** Where the side panel stands: in the free column right of the chat, or over the chat's right edge (px, viewport). */
 export interface NotesPlace {
@@ -95,6 +96,11 @@ export interface NotesFillVM {
   /** 1.28.0 (X43; the Fansly extension 2.11.0, decision 164): the fields the hub named that found no place — no line
    * of their own under 30 and no «Другое» to join: «Не хватило места в анкете: …». Absent — none. */
   readonly unplaced?: readonly string[];
+  /**
+   * 2026-10-22 (the Fansly extension's «Читаю переписку…», then «Заполняю анкету…»): a running fill's stage and its
+   * m:ss timer, the kit's StageLine. Absent — not running.
+   */
+  readonly phase?: PhaseVM;
 }
 
 export interface NotesEditorVM {

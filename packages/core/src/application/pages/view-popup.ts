@@ -187,10 +187,10 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
         ? null
         : {
             fanName: fanLabel ?? model.t.text('popup.fanId', { id: chat.platformFanId }),
-            fanUsername: null,
+            fanUsername: model.fanUsernames.get(chatKeyOf(chat)) ?? null,
             hostAccountLabel: model.t.text('popup.dialogAccount', { ...model.env.platformPhrases(HOST_PLATFORM[chat.host])?.[model.locale], id: chat.hostAccountId }),
-            // A named fan's id is copied from the name (and its tooltip says it); without a name the id is the text itself.
-            copyIds: { ...(chat.conversationRef === undefined ? (fanLabel === undefined ? {} : { fanId: chat.platformFanId }) : { conversationRef: chat.conversationRef, fanId: chat.platformFanId }), hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },
+            // 2026-10-22 (the old popup): the name and the @handle on the line; the ids in its tooltip, a click copies the chat's.
+            copyIds: { ...(chat.conversationRef === undefined ? {} : { conversationRef: chat.conversationRef }), fanId: chat.platformFanId, hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },
           },
     quota: bound === null ? null : { remaining: quota?.remainingRequestsToday ?? null, resetsAt: quota?.resetsAt ?? null, low: quota !== null && quota.remainingRequestsToday !== null && quota.remainingRequestsToday <= QUOTA_LOW },
     // Money of AI only in debug (Б4, PU-016); the hub's own number for this person and page.

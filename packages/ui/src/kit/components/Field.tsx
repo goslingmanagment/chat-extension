@@ -156,6 +156,10 @@ export interface SearchBoxProps {
   readonly debounceMs?: number;
   readonly inputRef?: Ref<HTMLInputElement>;
   readonly class?: string;
+  /** Enter, after the query is sent: a list opens its top match (the old Fansly board). */
+  readonly onEnter?: (query: string) => void;
+  /** ↓ / ↑ in the field, with the query typed: the list takes the keys from here (1 — down, -1 — up); true — taken. */
+  readonly onArrow?: (direction: 1 | -1, query: string) => boolean;
 }
 
 export function SearchBox(props: SearchBoxProps): JSX.Element {
@@ -209,6 +213,10 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
           if (event.key === 'Enter') {
             event.preventDefault();
             send(event.currentTarget.value);
+            if (!event.repeat) props.onEnter?.(event.currentTarget.value);
+          } else if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey && props.onArrow !== undefined) {
+            send(event.currentTarget.value);
+            if (props.onArrow(event.key === 'ArrowDown' ? 1 : -1, event.currentTarget.value)) event.preventDefault();
           } else if (event.key === 'Escape' && event.currentTarget.value !== '') {
             // Esc clears the search first; only an empty search lets Esc close the preview or the window.
             event.preventDefault();

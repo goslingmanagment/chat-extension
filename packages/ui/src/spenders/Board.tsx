@@ -51,6 +51,11 @@ const MAIN_FILTER: SpendersFilter = 'all';
 const SAME_AS_WAITING: SpendersFilter = 'fan-wrote';
 /** Ask for the next page this many rows before the end of the loaded list. */
 const LOAD_MORE_MARGIN = 20;
+/**
+ * A click's preview waits this long before the list scrolls it into view: the row stays under the pointer for the
+ * second click of a double click (it opens the chat), and nothing of the preview slides under it instead.
+ */
+const DOUBLE_CLICK_MS = 450;
 
 type FilterVM = SpendersBoardVM['filters'][number];
 type TierVM = NonNullable<SpendersBoardVM['tiers']>[number];
@@ -73,8 +78,38 @@ function openPreview(handle: string): UiAction {
   return { type: 'OpenPreview', targetHandle: handle };
 }
 
-function openChat(handle: string): UiAction {
+export function openChat(handle: string): UiAction {
   return { type: 'Navigate', to: { kind: 'chat', targetHandle: handle } };
+}
+
+/** The first fan the list shows, top to bottom: what Enter in the search opens (the old Fansly board's top match). */
+export function firstFan(board: SpendersBoardVM): SpenderRowVM | null {
+  for (const shelf of board.shelves) {
+    const row = shelf.rows[0];
+    if (row !== undefined) return row;
+  }
+  return null;
+}
+
+const CHAT_STATE_KEYS: Readonly<Record<NonNullable<SpenderRowVM['chat']>, { readonly label: I18nKey; readonly hint: I18nKey | null }>> = {
+  find: { label: 'spenders.chat.find', hint: 'spenders.chat.findHint' },
+  finding: { label: 'spenders.chat.finding', hint: null },
+  missing: { label: 'spenders.chat.missing', hint: 'spenders.chat.missingHint' },
+};
+
+/** «найти чат» → «ищу чат…» → «чат не найден» of a fan whose chat the board does not know yet (the old Fansly board). */
+function ChatState({ state }: { readonly state: NonNullable<SpenderRowVM['chat']> }): JSX.Element {
+  const i18n = useI18n();
+  const keys = CHAT_STATE_KEYS[state];
+  const tip = useTooltip(keys.hint === null ? null : i18n.t(keys.hint));
+  return (
+    <>
+      <span class="cg-bd__chat" data-cg-chat={state} {...tip.props} {...(state === 'finding' ? { role: 'status' } : {})}>
+        {i18n.t(keys.label)}
+      </span>
+      {tip.description}
+    </>
+  );
 }
 
 /** A tier's header, as the old extension drew it: «🐳 Whale  $600+ … 42»; a bucket of other bounds — its bounds. */
@@ -107,10 +142,12 @@ interface FanRowProps {
   readonly rowIndex: number;
   readonly active: boolean;
   readonly onPick: (key: string) => void;
+  /** A click on the row (not the keyboard's focus): the list holds its scroll for a second click. */
+  readonly onPress: () => void;
 }
 
 /** A fan as the old extension drew one: the initials, the name over the @handle, the lifetime over «+$N». */
-function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPick }: FanRowProps): JSX.Element {
+function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPick, onPress }: FanRowProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   // Who wrote when — both ages — is the tooltip of the fan's name (SP-017); the row itself only says who waits.
@@ -131,9 +168,12 @@ function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPic
       data-cg-item={index}
       data-cg-key={itemKey}
       data-cg-fan={row.handle}
-      onClick={() => {
+      onClick={(event) => {
         onPick(itemKey);
-        void dispatch(openPreview(row.handle));
+        onPress();
+        // X66: a click opens the preview; a double click opens the chat, as the old Fansly board's click did. The second
+        // click of the pair is itself a click — the person's own, which the chat's opening needs.
+        void dispatch(event.detail >= 2 ? openChat(row.handle) : openPreview(row.handle));
       }}
       onFocus={() => onPick(itemKey)}
     >
@@ -148,6 +188,7 @@ function FanRow({ row, period, expanded, itemKey, index, rowIndex, active, onPic
           {row.isNew ? <span class="cg-bd__new">{i18n.t('spenders.tag.new')}</span> : null}
           {row.deleted ? <span class="cg-bd__tag">{i18n.t('spenders.tag.deleted')}</span> : null}
           {row.waiting && row.fanWroteAt !== null ? <span class="cg-bd__wait">{i18n.t('spenders.wait.fan', { age: { age: row.fanWroteAt } })}</span> : null}
+          {row.chat === undefined ? null : <ChatState state={row.chat} />}
         </span>
         {row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
         {ages.description}
@@ -292,10 +333,24 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
   // person's own scrolling moves nothing here.
   const unfoldedAt = unfold ? items.findIndex((item) => item.kind === 'preview') : -1;
   const unfoldedKey = unfoldedAt < 0 ? null : (items[unfoldedAt]?.key ?? null);
+  const pressedAt = useRef(-Infinity);
+  const onPress = useCallback((): void => {
+    pressedAt.current = Date.now();
+  }, []);
   useLayoutEffect(() => {
-    if (unfoldedAt < 0) return;
-    listRef.current?.scrollToIndex(unfoldedAt - 1);
-    listRef.current?.scrollToIndex(unfoldedAt);
+    if (unfoldedAt < 0) return undefined;
+    const reveal = (): void => {
+      listRef.current?.scrollToIndex(unfoldedAt - 1);
+      listRef.current?.scrollToIndex(unfoldedAt);
+    };
+    // A click's preview: the row stays where the pointer is until a second click could have come (a double click).
+    const wait = DOUBLE_CLICK_MS - (Date.now() - pressedAt.current);
+    if (wait <= 0) {
+      reveal();
+      return undefined;
+    }
+    const timer = setTimeout(reveal, wait);
+    return () => clearTimeout(timer);
   }, [unfoldedKey, unfoldedAt, previewHeight, listRef]);
 
   const move = (from: number, to: number): void => {
@@ -401,7 +456,10 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
     : board.footer.total === null
       ? i18n.plural('spenders.footerNoTotal', board.footer.loaded, { coverage })
       : i18n.plural('spenders.footer', board.footer.total, { loaded: board.footer.loaded, coverage });
-  const footerText = shown === null || !narrowed ? loaded : `${loaded}${i18n.t('spenders.footerShown', { n: shown })}`;
+  const shownText = shown === null || !narrowed ? '' : i18n.t('spenders.footerShown', { n: shown });
+  // A cut list says it once: «Показаны первые 1000 из 1240…» stands in for «1000 из 1240 фанов» (the header has the count).
+  const cutText = cut === null ? null : cut.total === null ? i18n.t('spenders.truncatedNoTotal', { shown: cut.shown }) : i18n.t('spenders.truncated', { shown: cut.shown, total: cut.total });
+  const footerText = cutText === null ? `${loaded}${shownText}` : shownText === '' ? cutText : `${cutText} ${shownText.replace(/^[\s.]+/, '')}`;
   const hasRows = items.length > 0;
   const fallback = board.waitingFallback ?? null;
   const showList = hasRows && board.view.s !== 'error' && board.view.s !== 'forbidden' && board.view.s !== 'empty';
@@ -441,7 +499,7 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
                 case 'shelf':
                   return <ShelfRow shelf={item.shelf} rowIndex={rowIndex} />;
                 case 'fan':
-                  return <FanRow row={item.row} period={board.period} expanded={unfold && item.row.selected} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} />;
+                  return <FanRow row={item.row} period={board.period} expanded={unfold && item.row.selected} itemKey={item.key} index={index} rowIndex={rowIndex} active={index === current} onPick={setActiveKey} onPress={onPress} />;
                 case 'preview':
                   // Out of the rows' keys (no data-cg-key): what is typed in the preview is never a key of the list.
                   return (
@@ -465,14 +523,9 @@ export function Board({ board, boardRef, unfolded = null }: BoardProps): JSX.Ele
           )}
         </div>
       )}
-      {cut === null ? null : (
-        <div class="cg-sp__line" role="status">
-          {cut.total === null ? i18n.t('spenders.truncatedNoTotal', { shown: cut.shown }) : i18n.t('spenders.truncated', { shown: cut.shown, total: cut.total })}
-        </div>
-      )}
-      {/* SP-021: what is loaded and shown — only when something is missing or a search narrows the list (X65). */}
-      {whole && !narrowed ? null : (
-        <div class="cg-sp__foot">
+      {/* SP-021: what is loaded and shown — only when something is missing or a search narrows the list (X65); one line. */}
+      {whole && !narrowed && cutText === null ? null : (
+        <div class="cg-sp__foot" {...(cutText === null ? {} : { role: 'status' })}>
           <span>{footerText}</span>
           {showList && narrowed && board.reset !== null ? <ActionButton vm={board.reset} variant="plain" size="sm" /> : null}
         </div>
@@ -531,6 +584,11 @@ export const BOARD_CSS = `
   color: var(--cg-clay-ink); font-size: var(--cg-text-xs); line-height: 16px; white-space: nowrap;
 }
 .cg-bd__tag { flex: none; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-bd__chat {
+  flex: none; padding: 0 7px; border-radius: var(--cg-r-pill); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-muted);
+  font-size: var(--cg-text-xs); line-height: 16px; white-space: nowrap;
+}
+.cg-bd__chat[data-cg-chat="missing"] { color: var(--cg-ink-2); background: var(--cg-sunk); }
 .cg-bd__row.is-deleted .cg-bd__name { color: var(--cg-ink-muted); font-weight: 400; }
 .cg-bd__handle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-muted); }
 .cg-bd__sums { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-family: var(--cg-mono); white-space: nowrap; }

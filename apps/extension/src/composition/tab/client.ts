@@ -18,6 +18,7 @@ import type { CgCode, CgErrorWire, I18nKey } from '@cg/contracts/errors';
 import type { SendAttemptView } from '@cg/contracts/send';
 import { VIEW_NAMES, type ActionReceipt, type AppClient, type UiAction, type ViewName } from '@cg/contracts/vm';
 import type { AppRouter, SurfaceController } from '@cg/core/application';
+import { parseFanHandle } from '@cg/core/application/boards';
 import type { TabRpcClient } from '@cg/platform';
 
 import type { ActionKind, TabActionTokens } from './action-gate';
@@ -88,12 +89,17 @@ export function createTabClient(deps: TabClientDeps): AppClient {
  * - «Отправить» refused before any attempt began (the fan is held by a send of another tab, the journal did
  *   not answer, the result belongs to another sign-in): the button only unlocks, so the reason is said here.
  *   A refusal of an attempt that did begin is the part's own row.
+ * - «Открыть чат» of a fan of a board — the row's Enter, O, a double click, the preview's button — refused: the
+ *   board's switch is off on the page, the chat was not found, the site's router said no. Before this the click
+ *   waited and nothing happened (the old Fansly board said «not found» on the row; the row says it too now).
+ *   A click that a newer one replaced, or a board whose identity changed under it (CG-CONTEXT-CHANGED), says nothing.
  * «Открыть и вставить» into a chat whose field holds the person's own text is not said here any more: the
  * question stands in that chat's dock (§6.5 п. 4), and the composition says a toast only when the dock could
  * not take it (`handoverToast`).
  */
 export function boardReceiptToast(action: UiAction, receipt: ActionReceipt): { readonly code: CgCode; readonly scope: string; readonly title: I18nKey | null } | null {
   if ((action.type === 'SendPart' || action.type === 'SendDraft') && !receipt.ok) return { code: receipt.code, scope: 'board.send', title: null };
+  if (action.type === 'Navigate' && action.to.kind === 'chat' && !receipt.ok && receipt.code !== 'CG-CONTEXT-CHANGED' && parseFanHandle(action.to.targetHandle) !== null) return { code: receipt.code, scope: 'board.open', title: null };
   return null;
 }
 
