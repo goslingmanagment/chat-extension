@@ -11,7 +11,7 @@ import { type ComponentChildren, type JSX } from 'preact';
 
 import { type HotkeyLabel, type UiAction } from '@cg/contracts/vm';
 
-import { Button, hotkeyText, useDispatch, useI18n, useKit, useTooltip } from '../kit';
+import { Button, Checkbox, hotkeyText, useDispatch, useI18n, useKit, useMinuteClock, useNowFn, useTooltip } from '../kit';
 
 export interface HeadProps {
   readonly title: string;
@@ -70,7 +70,7 @@ function Usage({ usage }: { readonly usage: { readonly line: string; readonly de
   );
 }
 
-export function Meta({ texts, usage = null }: { readonly texts: readonly string[]; readonly usage?: { readonly line: string; readonly detail: string } | null }): JSX.Element {
+export function Meta({ texts, usage = null, children }: { readonly texts: readonly string[]; readonly usage?: { readonly line: string; readonly detail: string } | null; readonly children?: ComponentChildren }): JSX.Element {
   return (
     <>
       {texts.map((text, index) => (
@@ -78,8 +78,35 @@ export function Meta({ texts, usage = null }: { readonly texts: readonly string[
           {text}
         </span>
       ))}
+      {/* Between the words and the cost: «☑ с Recap» (RecapTick). */}
+      {children}
       {usage === null ? null : <Usage usage={usage} />}
     </>
+  );
+}
+
+/**
+ * «☑ с Recap · 3 д назад» in a Reply's or a Ping's head (1.48.0): what the answer stood on, as a tick. Pressing it flips
+ * the chat's «с Recap» (`SetRecap`, Coach's «Учитывать Recap» too) and asks again, so the head keeps saying what the
+ * answer on screen read; the next answers of the chat follow the tick.
+ */
+export function RecapTick({ opId, recap, reason }: { readonly opId: string; readonly recap: { readonly on: boolean; readonly at: string | null }; readonly reason: string | null }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const now = useNowFn();
+  useMinuteClock();
+  const label = recap.on && recap.at !== null ? i18n.t('result.meta.recap', { age: i18n.formatAge(recap.at, now()) }) : i18n.t('recap.tick');
+  return (
+    <span class="cg-head__recap">
+      <Checkbox
+        label={label}
+        checked={recap.on}
+        semantics="toggle"
+        reason={reason}
+        tooltip={i18n.t(recap.on ? 'result.recap.onHint' : 'result.recap.offHint')}
+        onChange={(on) => void dispatch({ type: 'SetRecap', on, again: opId })}
+      />
+    </span>
   );
 }
 

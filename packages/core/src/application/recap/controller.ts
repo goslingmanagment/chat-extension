@@ -254,6 +254,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       blocks: copy?.blocks?.map((block) => (block.heading === '' ? block : { heading: recapHeadingText(block.heading, (key) => i18n.t(key)), markdown: block.markdown })) ?? null,
       generatedAt: copy?.revision ?? null,
       saved: saveVm(copy),
+      ...(chat === null || ws.recapOn(chat.key) ? {} : { unread: true }),
       stamp: { asOf: point?.at ?? null, coverage: copy?.coverage.level ?? 'unknown', served: copy?.coverage.served ?? null },
       archiveLag: lag,
       refreshFailed: failure === null || copy === null ? null : { error: errorVm(failure, i18n), retry: { type: 'RefreshRecap', length } },
@@ -328,6 +329,8 @@ export function createRecapController(ws: AiWorkspace): RecapController {
         ui.length = length;
         ui.opId = result.opId;
         if (panel) ui.window = ui.holds = false;
+        // A Recap is built to be read: «с Recap» is ticked again.
+        ws.setRecapOn(chat.key, true);
         ws.setSheet(chat.key, { kind: 'recap' });
         return done(type, 'started', { opId: result.opId });
       case 'refused':

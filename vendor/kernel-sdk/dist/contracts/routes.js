@@ -620,7 +620,7 @@ export const voiceNoteCreateBodySchema = z.object({
     sourceGenerationRef: z.string().min(1).max(200),
     script: z.string().min(1).max(8000),
 });
-// chat-extension R20 HF-4б: what the three voice-note routes say of the chat
+// chat-extension R20 HF-4б: what the voice-note routes say of the chat
 // extension's narrow device token (client-token-scopes.ts).
 const NARROW_TOKEN_VOICE_NOTE = "A narrow chat-extension device token reaches this route behind its page's `voice` flag, "
     + "checked first on every call like every flagged client route: 409 client_feature_disabled "
@@ -652,6 +652,18 @@ export const voiceNoteStatusSchema = z.object({
     audioBytesLen: z.number().int().nullable(),
     createdAt: isoTimestamp,
     errorCode: z.string().optional(),
+});
+// A page's voice-note limits right now (the chat extension's voice studio):
+// the live script cap the render validates against, the page's daily
+// character ceiling, what a render could still reserve today (the smaller
+// headroom of the page's counter and the account-global one, reserved but
+// unsettled characters counted, never below zero) and the next UTC midnight,
+// where the day's counters end.
+export const voiceNoteAllowanceSchema = z.object({
+    scriptMaxChars: z.number().int().min(1),
+    dailyChars: z.number().int().min(0),
+    remainingChars: z.number().int().min(0),
+    resetsAt: isoTimestamp,
 });
 const pageMetricSchema = z.object({
     value: z.number().int().nullable(),
@@ -1702,8 +1714,10 @@ export const aiGatewayStreamFrameSchema = z.discriminatedUnion("type", [
         provider: z.enum(["anthropic", "openrouter"]),
         providerResponseId: z.string().nullable(),
         personaDefinitionId: z.string().min(16).max(100).optional(),
-        // Feature-lane-only provenance for coach-chat. It is optional because the
-        // raw gateway and every other feature share this existing meta frame.
+        // Feature-lane-only provenance: for coach-chat the Recaps its prompt
+        // kept; for a feature that read the stored dossier (fast-reply, ping) the
+        // dossier — the latest saved full Recap — as `full` (null: the fan has
+        // none). Optional: the raw gateway and the other features never set it.
         attachedRecaps: aiFeatureAttachedRecapsSchema.optional(),
         // The server-substituted coach preset question follows the same optionality
         // rule: the raw gateway and every other feature never set it.
@@ -2294,6 +2308,12 @@ export const aiFeatureStreamBodySchema = z.object({
     // chatterQuestion field is absent or whitespace-only.
     preset: z.literal("situation").optional(),
     summaryMode: z.literal("short").optional(),
+    // chat-extension: the chatter unticked «с Recap» for this chat. The
+    // generation reads neither the fan dossier (Reply, Ping, …) nor Coach's
+    // attached recaps, and the meta frame's `attachedRecaps` says none. Accepted
+    // on every feature (a feature that reads no recap ignores it), from a client
+    // that saw `recap-off-v1` in the bootstrap.
+    recap: z.literal("off").optional(),
     // hi-greeting only: how many greeting variants the unified
     // template asks for. The chat Hi button sends 3, the New Followers queue
     // sends 1. Absent means 3, or 1 under the deprecated alias below.
@@ -2362,8 +2382,8 @@ export const aiFeatureStreamBodySchema = z.object({
     // it is ignored.
     livePpvContext: aiLivePpvContextSchema.optional(),
     // chat-extension live images (above). Accepted on fast-reply, improve-draft
-    // and coach-chat, never beside clientContext: anything else is a 400 with a
-    // machine reason. Used while the owner's `aiLiveImagesEnabled` is on;
+    // and coach-chat, beside clientContext only on a Fansly page (the released
+    // Fansly extension): anything else is a 400 with a machine reason. Used while the owner's `aiLiveImagesEnabled` is on;
     // switched off, they are ignored.
     liveImages: aiLiveImagesSchema.optional(),
     // Client-loaded context for platforms whose kernel archive is
@@ -5173,6 +5193,8 @@ export const creatorStatsContentResponseSchema = z.object({
         durationMs: z.number().int().nullable(),
         postId: z.string().nullable(),
         postedAt: isoTimestamp.nullable(),
+        /** When the model deleted the media; Fansly still serves its days. */
+        deletedAt: isoTimestamp.nullable(),
         caption: z.string().nullable(),
         views: creatorStatsCount,
         forYouViews: creatorStatsCount,
@@ -6502,6 +6524,32 @@ const baseRouteSchemas = {
             404: errorResponseSchema,
             409: errorResponseSchema,
             410: errorResponseSchema,
+        },
+    },
+    voiceNoteAllowance: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["voice"],
+        summary: "Read a page's voice-note limits and what is left of today's characters",
+        description: "Free and read-only: writes no row, reserves no characters, calls no provider. "
+            + "`scriptMaxChars` is the live cap the render validates a script against; "
+            + "`dailyChars` the page's daily character ceiling; `remainingChars` what a render "
+            + "could still reserve right now, the smaller of the page's and the account-global "
+            + "headroom for the current UTC day (characters reserved by a render not yet settled "
+            + "count as spent), never below zero; `resetsAt` the next UTC midnight, where the "
+            + "day's counters end. A hint: `POST …/voice-notes` stays the authoritative "
+            + "admission. The voice-notes lane refuses as it does the render, in the same order "
+            + "and with the same codes: 403 voice_disabled (the switch), 503 "
+            + "voice_provider_unavailable (no synthesis provider), 403 voice_not_allowlisted, "
+            + "409 voice_no_profile. The retrieval incident switch does not apply. "
+            + NARROW_TOKEN_VOICE_NOTE,
+        params: pageParamsSchema,
+        response: {
+            200: voiceNoteAllowanceSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+            503: errorResponseSchema,
         },
     },
     models: {

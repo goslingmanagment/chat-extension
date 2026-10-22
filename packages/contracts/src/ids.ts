@@ -69,6 +69,9 @@ export const LIVE_PPV_CAPABILITY: Readonly<Record<Platform, 'live-ppv-v1' | 'liv
 /** The bootstrap capability under which the hub takes the fan's newest photos as images (`liveImages`). */
 export const LIVE_IMAGES_CAPABILITY = 'live-images-v1';
 
+/** 1.48.0: the bootstrap capability under which the hub takes `recap: 'off'` — «с Recap» unticked for the chat. */
+export const RECAP_OFF_CAPABILITY = 'recap-off-v1';
+
 /**
  * 1.15.0 (R20 P9d): the page's switches the hub admits a greeting's custody `dispatch` under, by platform (hub HF-3,
  * admission by platform, purpose and action). OnlyFans' greeting leaves through the preview's queue (X8): `previewSend`

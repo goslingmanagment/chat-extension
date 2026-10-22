@@ -166,6 +166,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * that lists it.
    */
   'live-images-v1',
+  /**
+   * 1.48.0: the AI stream takes `recap: 'off'` — the generation reads neither the fan's dossier nor Coach's Recaps, and
+   * its meta frame says none went in. A hub without it refuses the field (400), so «с Recap» shows only for a hub that
+   * lists it.
+   */
+  'recap-off-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

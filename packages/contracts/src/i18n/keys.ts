@@ -211,7 +211,8 @@ export const UI_TEXT_KEYS = [
   'coach.draftOne', 'coach.attached', 'coach.attachHint', 'coach.canceled',
   'coach.draft.calm', 'coach.draft.flirt', 'coach.recapStep.full', 'coach.recapStep.short', 'coach.recapRunning',
   // 2026-10-22: what Coach stands on, said in its topbar and under every answer; what a Reply or a Ping stood on.
-  'coach.recap.uses', 'coach.recap.usesBoth', 'coach.recap.usesShort', 'coach.recap.noneSome', 'coach.recap.ahead', 'coach.recap.aheadShort',
+  'coach.recap.use', 'coach.recap.age', 'coach.recap.ageBoth', 'coach.recap.ageShort', 'coach.turn.recapOff', 'result.meta.recapOff',
+  'recap.tick', 'recap.tick.onHint', 'recap.tick.offHint', 'recap.usedBy.off', 'result.recap.onHint', 'result.recap.offHint', 'coach.recap.noneSome', 'coach.recap.ahead', 'coach.recap.aheadShort',
   'coach.recap.aheadRefresh', 'coach.recap.building', 'coach.recap.build', 'coach.recap.refresh', 'coach.recap.buildFull',
   'coach.turn.recap', 'coach.turn.recapBoth', 'coach.turn.recapShort', 'coach.turn.noRecap', 'result.meta.recap',
   'recap.usedBy.full', 'recap.usedBy.short', 'recap.picker.explain', 'coach.newDialog.confirm', 'coach.newDialog.keep',

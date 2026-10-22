@@ -120,6 +120,10 @@ ${/* ── the sheet: what opens above the bar. «На подложке» — a
 ${/* «Reply — @fan» (the old head, 2026-10-22): the name gives way with «…», never to the meta rule. */ ''}
 .cg-head__fan { flex: 0 1 auto; min-width: 3em; margin-left: -4px; font-weight: 700; color: var(--cg-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-head__meta { flex: 0 3 auto; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+${/* «☑ с Recap · 3 д назад»: the meta's words as a tick that asks again the other way (1.48.0). */ ''}
+.cg-head__recap { flex: none; display: inline-flex; }
+.cg-head__recap .cg-check { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; }
+.cg-head__recap .cg-check[aria-pressed="true"] { color: var(--cg-ink-2); }
 ${/* What the answer cost, the head's last quiet word, as the old head printed it; in/write/read/out in its hint. */ ''}
 .cg-head__usage { font-family: var(--cg-mono); font-size: var(--cg-text-xs); letter-spacing: 0; cursor: default; }
 .cg-head__sp { flex: 1; min-width: 0; order: 1; }
@@ -262,7 +266,7 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
 }
 @container cg (max-width: 420px) {
   .cg-head { gap: 6px; padding-left: 10px; }
-  .cg-head__meta { display: none; }
+  .cg-head__meta, .cg-head__recap { display: none; }
 ${STALE_ROW_NARROW_CSS}
 }
 @container cg (max-width: 359px) {

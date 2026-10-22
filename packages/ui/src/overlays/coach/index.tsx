@@ -4,12 +4,13 @@
 // the 320 px side panel of §9.1 (б)). AI-080…AI-100.
 // The session of the open chat from `CoachVM`, laid out as the old window:
 // the head (the micro-caps «Coach» over the fan's name; «Новый диалог» and ×),
-// the topbar (what Coach reads: the fan's Recap in words — «Coach учитывает
-// Recap · 3 д назад» or «Recap нет — Coach видит только последние 100
-// сообщений» — with its one build button on the left, the archive's time and
-// its refresh on the right), the conversation (questions in terracotta bubbles on
-// the right, answers in bubbles on the left — each says «с Recap · …» or «без
-// Recap», what the hub put into it — drafts under them split into
+// the topbar (what Coach reads: the fan's Recap — «☑ Учитывать Recap · 3 д
+// назад», the tick the dock's «с Recap» shares, or «Recap нет — Coach видит
+// только последние 100 сообщений» — with its one build button on the left, the
+// archive's time and its refresh on the right), the conversation (questions in
+// terracotta bubbles on the right, answers in bubbles on the left — each says
+// «с Recap · …», «без Recap» or «без Recap — выключен», what the hub put into
+// it — drafts under them split into
 // parts with Insert one at a time, as in the dock), the follow-up chips under
 // the latest answer, the empty state (the ready questions that ask at once and
 // the three headings of questions that fill the field), and the composer
@@ -212,8 +213,9 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
 }
 
 /**
- * What Coach stands on (AI-095), said in words before anything is asked: «Coach учитывает Recap · 3 д назад» — the
- * Recaps the hub attaches to every question, unfolding into their texts — or «Recap нет — Coach видит только последние
+ * What Coach stands on (AI-095), said before anything is asked: «☑ Учитывать Recap · 3 д назад» — the Recaps the hub
+ * attaches to every question, unfolding into their texts; the tick is the dock's «с Recap» of the chat, and unticked
+ * the next question goes without them — or «Recap нет — Coach видит только последние
  * 100 сообщений»; one button by it builds or refreshes the full Recap (the one Reply and Ping use too), as the dock's
  * Recap sheet builds it. While one is built: «Собираю Recap — обычно около полутора минут».
  */
@@ -264,16 +266,31 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
   }
   const said =
     full !== null && short !== null
-      ? i18n.t('coach.recap.usesBoth', { full: age(full.generatedAt), short: age(short.generatedAt) })
+      ? i18n.t('coach.recap.ageBoth', { full: age(full.generatedAt), short: age(short.generatedAt) })
       : full !== null
-        ? i18n.t('coach.recap.uses', { age: age(full.generatedAt) })
-        : i18n.t('coach.recap.usesShort', { age: age(short?.generatedAt ?? '') });
+        ? i18n.t('coach.recap.age', { age: age(full.generatedAt) })
+        : i18n.t('coach.recap.ageShort', { age: age(short?.generatedAt ?? '') });
+  // «Учитывать Recap»: the dock's «с Recap» of this chat. Unticked, the next question goes without it; the answer says so.
+  const on = vm.recapOn ?? null;
   return (
-    <span class="cg-co__recap">
+    <span class={`cg-co__recap${on === false ? ' is-off' : ''}`}>
+      {on === null ? (
+        <span class="cg-co__recap-name">
+          <Icon name="dossier" size={14} />
+          <span>Recap</span>
+        </span>
+      ) : (
+        <Checkbox
+          label={i18n.t('coach.recap.use')}
+          checked={on}
+          semantics="toggle"
+          tooltip={i18n.t(on ? 'recap.tick.onHint' : 'recap.tick.offHint')}
+          onChange={(next) => void dispatch({ type: 'SetRecap', on: next })}
+        />
+      )}
       <details>
         <summary>
-          <Icon name="dossier" size={14} />
-          <span>{said}</span>
+          <span>· {said}</span>
           {vm.autoRecapNext === null ? null : <span class="cg-co__recap-ahead">{i18n.t('coach.recap.aheadRefresh')}</span>}
           <Icon name="chevronDown" size={14} class="cg-co__recap-chev" />
         </summary>
@@ -305,7 +322,7 @@ function RecapUsed({ used }: { readonly used: CoachTurnVM['recapsUsed'] }): JSX.
         ? i18n.t('coach.turn.recap', { age: age(used.full) })
         : used.short !== null
           ? i18n.t('coach.turn.recapShort', { age: age(used.short) })
-          : i18n.t('coach.turn.noRecap');
+          : i18n.t(used.off === true ? 'coach.turn.recapOff' : 'coach.turn.noRecap');
   return (
     <span class={`cg-co__used${used.full === null && used.short === null ? ' is-none' : ''}`}>
       <Icon name="dossier" size={12} />
@@ -640,6 +657,9 @@ ${/* ── topbar: the Recap Coach stands on at the left with its one button; t
 .cg-co__recap summary:hover > span:first-of-type { text-decoration-style: solid; text-decoration-color: currentColor; }
 .cg-co__recap .cg-ico { flex: none; color: var(--cg-ink-muted); }
 .cg-co__recap.is-none { color: var(--cg-ink-muted); }
+.cg-co__recap > .cg-check { flex: none; font-weight: 500; }
+.cg-co__recap-name { display: inline-flex; align-items: center; gap: 6px; flex: none; font-weight: 500; }
+.cg-co__recap.is-off summary, .cg-co__recap.is-off .cg-co__recap-chev { color: var(--cg-ink-muted); }
 .cg-co__recap-ahead { font-weight: 400; color: var(--cg-clay-ink); }
 .cg-co__recap-btn { flex: none; }
 .cg-co__used { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); }

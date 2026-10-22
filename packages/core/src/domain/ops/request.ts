@@ -30,7 +30,7 @@
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
-import { HI_BY_START_PROOF, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY } from '@cg/contracts/ids';
+import { HI_BY_START_PROOF, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, RECAP_OFF_CAPABILITY } from '@cg/contracts/ids';
 import {
   HUB_FEATURE_MAP,
   HubStreamRequestSchema,
@@ -171,6 +171,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   if (tail !== undefined && ctx.freshText && (liveNeed === undefined || hasCapability(ctx.bootstrap.capabilities, liveNeed))) body.liveTextContext = liveTextOf(tail);
   if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, LIVE_PPV_CAPABILITY[body.platform])) body.livePpvContext = start.livePpv;
   if (start.liveImages !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, LIVE_IMAGES_CAPABILITY)) body.liveImages = [...start.liveImages];
+  if (start.recap === 'off' && hasCapability(ctx.bootstrap.capabilities, RECAP_OFF_CAPABILITY)) body.recap = 'off';
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };
   const parsed = HubStreamRequestSchema.safeParse(request);

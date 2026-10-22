@@ -117,6 +117,8 @@ export interface StartPlanInput {
   readonly splitWanted?: boolean | undefined;
   /** AI-096: the recap a Coach turn builds first — the same start, one admission (§7 «один составной слот»). */
   readonly autoRecap?: 'short' | 'full' | undefined;
+  /** «с Recap» unticked in the chat, to a hub that can leave the Recap out (`StartOp.recap`); a Recap build ignores it. */
+  readonly recapOff?: boolean | undefined;
 }
 
 export type StartPlan = { readonly ok: true; readonly start: StartOp } | { readonly ok: false; readonly code: CgCode };
@@ -167,6 +169,7 @@ export function planStart(input: StartPlanInput): StartPlan {
   if (input.checkpoint !== undefined && (surface === 'preview' || surface === 'newcomers')) start.checkpoint = input.checkpoint;
   if (input.regenerateOf !== undefined) start.regenerateOf = input.regenerateOf;
   if (input.force === true || input.regenerateOf !== undefined) start.force = true;
+  if (input.recapOff === true && feature !== 'recap' && feature !== 'recap-short') start.recap = 'off';
 
   const parsed = StartOpSchema.safeParse(start);
   return parsed.success ? { ok: true, start: parsed.data } : refuse('CG-UI-FAILED');

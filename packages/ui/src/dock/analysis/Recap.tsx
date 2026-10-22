@@ -94,7 +94,9 @@ function RecapFacts({ recap }: { readonly recap: RecapViewVM }): JSX.Element {
       )}
       {covers === null ? null : <Fact>{covers}</Fact>}
       {/* Who reads this Recap: the full one goes to Reply and Ping too once the hub holds it as the fan's dossier. */}
-      {recap.generatedAt === null || recap.saved.s === 'failed' ? null : <Fact>{i18n.t(recap.length === 'full' ? 'recap.usedBy.full' : 'recap.usedBy.short')}</Fact>}
+      {recap.generatedAt === null || recap.saved.s === 'failed' ? null : (
+        <Fact>{i18n.t(recap.unread === true ? 'recap.usedBy.off' : recap.length === 'full' ? 'recap.usedBy.full' : 'recap.usedBy.short')}</Fact>
+      )}
       <SavedFact saved={recap.saved} />
       <RefreshFailedFact failed={recap.refreshFailed} />
       {/* The chat went on after the Recap: said in its words, «Обновить» right by it. */}

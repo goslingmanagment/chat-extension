@@ -17,7 +17,7 @@ import type { AdmissionAction } from '@cg/contracts/features/types';
 import { type ChatWindow, type HostSnapshot, type LiveTextTail, type RouteState } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
-import { CHAT_IS_FAN, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
+import { CHAT_IS_FAN, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, RECAP_OFF_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
@@ -75,6 +75,8 @@ interface ChatUi {
   sheet: Sheet | null;
   /** The hub page of the chat when its sheet was set; null — not known then. */
   pageId: number | null;
+  /** «с Recap» unticked: Reply, Ping and Coach of this chat read no Recap of the fan, until a tick, a build or a reload. */
+  recapOff: boolean;
 }
 
 export interface OpenChat {
@@ -683,7 +685,7 @@ export class AiWorkspace {
   private ui(key: ChatKey): ChatUi {
     let ui = this.chats.get(key);
     if (ui === undefined) {
-      ui = { tone: null, sheet: null, pageId: null };
+      ui = { tone: null, sheet: null, pageId: null, recapOff: false };
       this.chats.set(key, ui);
       // A sheet left open in a chat visited long ago is not kept for ever: the oldest go.
       while (this.chats.size > CHAT_UI_MAX) {
@@ -715,6 +717,20 @@ export class AiWorkspace {
 
   setSplit(split: boolean): void {
     this.splitChoice = split;
+    this.bump();
+  }
+
+  /**
+   * «с Recap» of a chat (the dock's bar and Coach's topbar tick it alike): Reply, Ping and Coach read the fan's Recap
+   * unless it is unticked. For the tab's session, as Split; a Recap built in the chat ticks it again.
+   */
+  recapOn(key: ChatKey): boolean {
+    return this.chats.get(key)?.recapOff !== true;
+  }
+
+  setRecapOn(key: ChatKey, on: boolean): void {
+    if (this.recapOn(key) === on) return;
+    this.ui(key).recapOff = !on;
     this.bump();
   }
 
@@ -872,6 +888,8 @@ export class AiWorkspace {
       regenerateOf: original?.view.opId,
       // Split as the bar shows it now, for «Ещё раз» too: a Split switched after the answer is the one the person wants.
       splitWanted: this.split(),
+      // «с Recap» likewise, to a hub that can leave the Recap out.
+      recapOff: !this.recapOn(chat.key) && bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY),
       // A used-up or stale answer of this chat is not what a new click asks for: the click makes a new one, never the
       // cached one again (2026-10-22, with the sheet that leaves on the chat switch).
       force: request.force === true || (original === undefined && this.spentIn(chat.key, feature)),

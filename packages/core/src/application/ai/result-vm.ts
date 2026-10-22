@@ -6,7 +6,7 @@
 // only on a finished result (§7).
 
 import { type FeatureId, type Tone } from '@cg/contracts/features';
-import { chatKeyOf, type PartRef } from '@cg/contracts/ids';
+import { RECAP_OFF_CAPABILITY, chatKeyOf, type PartRef } from '@cg/contracts/ids';
 import { type OpResult } from '@cg/contracts/ops';
 import { type ConfirmVM, type FixVM, type Msg, type PartVM, type ReasonVM, type ResultVM, type UiAction, type VariantVM } from '@cg/contracts/vm';
 
@@ -105,9 +105,11 @@ function metaOf(ws: AiWorkspace, record: OpRecord, result: OpResult | undefined,
     if (longest > 1) meta.push(msg('result.meta.partsEach', { n: longest }));
   }
   // What the answer stood on, as the hub says it (a Reply's or a Ping's dossier — the latest saved full Recap):
-  // «с Recap · 3 д назад». Nothing when the fan has none or the hub did not say: most chats have no Recap.
+  // «с Recap · 3 д назад». Nothing when the fan has none or the hub did not say: most chats have no Recap. «с Recap»
+  // unticked says so: «Recap выключен».
   const recap = view.recapsUsed?.full ?? null;
   if (recap !== null) meta.push(msg('result.meta.recap', { age: { age: recap } }));
+  else if (view.recapsUsed?.off === true) meta.push(msg('result.meta.recapOff'));
   return meta;
 }
 
@@ -157,7 +159,14 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
   const board = ws.isBoardResult(view.opId);
   const fix = board ? null : fixVm(ws, record);
   const sent = sentProgress(ws, view.opId, result);
-  const meta = metaOf(ws, record, result, unparsed, view.toneUsed);
+  // «с Recap» in the head (1.48.0): the dock's own answer in the open chat, to a hub that can leave the Recap out, that
+  // stood on a Recap or went without one because the tick is off. Its words then leave the meta.
+  const used = view.recapsUsed;
+  const recap =
+    !board && sameChat && used !== undefined && (used.full !== null || used.off === true) && situation.ready?.bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY) === true
+      ? { on: used.off !== true, at: used.full }
+      : null;
+  const meta = metaOf(ws, record, result, unparsed, view.toneUsed).filter((item) => recap === null || (item.key !== 'result.meta.recap' && item.key !== 'result.meta.recapOff'));
   const wire = view.state === 'failed' ? view.error : view.state === 'interrupted' ? (view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : undefined;
 
   // «Повторить» waits for its deadline (the hub's quota refusal carries it). On a page nothing of ours runs on
@@ -210,5 +219,6 @@ export function resultVm(ws: AiWorkspace, record: OpRecord, options: ResultVmOpt
     debug: debugVm(view, { enabled: debugOn, opened: true, now, i18n }),
     // The old Fansly extension's cost line, the last quiet word of the head (2026-10-22).
     usage: view.state === 'done' ? usageHead(view.usage) : null,
+    recap,
   };
 }

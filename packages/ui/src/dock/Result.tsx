@@ -17,7 +17,7 @@ import { type DockVM, type ResultMarkKey, type ResultVM } from '@cg/contracts/vm
 import { Button, Caret, Dot, ErrorCard, Spinner, StageLine, useDispatch, useI18n, useKit } from '../kit';
 import { RetryAnnouncer, spokenReady, useReadyAnnouncement, useStageAnnouncements } from './announce';
 import { FixBody } from './Fix';
-import { AgainButton, CancelButton, Head, Meta } from './Head';
+import { AgainButton, CancelButton, Head, Meta, RecapTick } from './Head';
 import { DebugSlot, type DebugProps, type PartLoader } from './lazy-part';
 import { actionOf, featureKey, isRunning, metaTexts, toneOf } from './model';
 import { Parts, Variants } from './Parts';
@@ -171,7 +171,9 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
         {/* No «черновик · не отправлено» and no keys footer (2026-10-20): the answer is the sheet's; its keys are in
             the hints and the cheatsheet, as the old client had them. The cost line is the head's last word, as the
             old head's was. */}
-        <Meta texts={meta} usage={result.usage ?? null} />
+        <Meta texts={meta} usage={result.usage ?? null}>
+          {result.recap === undefined || result.recap === null ? null : <RecapTick opId={result.opId} recap={result.recap} reason={againReason} />}
+        </Meta>
       </Head>
       <div class="cg-body">
         {result.stale === null ? null : <StaleRow mark={result.stale} onAgain={board ? null : again} reason={againReason} />}

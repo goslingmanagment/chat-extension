@@ -587,6 +587,16 @@ export function createDockController(ws: AiWorkspace): DockController {
       ws.setSplit(action.split);
       return Promise.resolve(done(action.type));
     },
+    SetRecap(action, cause) {
+      const chat = ws.situation().chat;
+      if (chat === null) return Promise.resolve(done(action.type, 'noop'));
+      const record = action.again === undefined ? null : own(action.again);
+      // The head's tick asks its answer again with the new tick, as «Ещё раз» would, under the same click.
+      if (record !== null && (chat.key !== chatKeyOf(record.view.target.chat) || !isTerminalOpState(record.view.state))) return Promise.resolve(done(action.type, 'noop'));
+      ws.setRecapOn(chat.key, action.on);
+      if (record === null) return Promise.resolve(done(action.type));
+      return generate({ type: 'Generate', targetHandle: chat.handle, feature: record.view.feature, options: {} }, cause, record).then((receipt) => ({ ...receipt, type: action.type }));
+    },
     ChoosePersona(action) {
       const situation = ws.situation();
       // Only the open chat's page, from the dock's «Нет персоны»; the settings page handles its own.

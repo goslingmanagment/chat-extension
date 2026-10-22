@@ -342,6 +342,13 @@ export interface ResultVM {
    * hint «in 1.2k · write 0 · read 900 · out 210». Technical, not translated. Absent or null — the hub sent no usage.
    */
   readonly usage?: { readonly line: string; readonly detail: string } | null;
+  /**
+   * 1.48.0: «с Recap» in the head — what the answer stood on, as a tick: on — the fan's Recap made `at` went in; off —
+   * «с Recap» is unticked in this chat and none did. Pressing it flips the chat's tick (`SetRecap`, as Coach's
+   * «Учитывать Recap») and asks again. Absent or null — no tick: the answer read no Recap, it is not the dock's own, or
+   * the hub cannot leave the Recap out; the head then says it in words, if at all.
+   */
+  readonly recap?: { readonly on: boolean; readonly at: IsoTimestamp | null } | null;
 }
 
 /** A refused start (fourth generation in the tab, the chat busy in another tab): no operation exists (ui-design §4.9). */
