@@ -76,6 +76,12 @@ export interface FanslyCall extends FanslyAddressParts {
   readonly account: string;
   /** A write's body (JSON). */
   readonly body?: unknown;
+  /**
+   * `tab` — through the relay frame of the session's tab even while «Fansly через вкладку» is off (transport.ts
+   * `FanslyRouteRequest.tab`): an answer whose CDN addresses the tab itself must load (they are signed for the line
+   * that read them, and the tab rides its container's proxy). Absent — the person's switch decides.
+   */
+  readonly via?: 'tab';
   readonly signal?: AbortSignal;
 }
 
@@ -211,7 +217,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     // The route after the pacer's turn, before anything is handed to the custody: a frame raised now serves the request at once.
     let route: FanslyRoute;
     try {
-      route = await transport.route({ legacyId: template.legacyId, canonicalId: template.canonicalId, ...(call.signal === undefined ? {} : { signal: call.signal }) });
+      route = await transport.route({ legacyId: template.legacyId, canonicalId: template.canonicalId, ...(call.via === 'tab' ? { tab: true } : {}), ...(call.signal === undefined ? {} : { signal: call.signal }) });
     } catch (error) {
       pass.release();
       throw notSent(error instanceof FanslyRouteUnavailable && error.reason === 'aborted' ? 'aborted' : 'tab');

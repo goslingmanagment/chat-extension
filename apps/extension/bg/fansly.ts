@@ -288,7 +288,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return ok({ state: kit.ops.siteView(opId, 'fansly-web') === null ? null : kit.ops.cancel(opId) });
       }
       case 'fansly.ppv.read':
-        return ok(await readOpenChatPpv(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.ppv.read'>, sender));
+        return ok(await readOpenChatPpv(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.ppv.read'>, sender, viaTab() === true));
       case 'fansly.preview.readState':
         return ok(await readPreviewState(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.preview.readState'>, sender));
       case 'fansly.registration.read':

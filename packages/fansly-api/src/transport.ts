@@ -103,6 +103,11 @@ export interface FanslyRouteRequest {
   /** The session the request carries: the template's legacy id, and its canonical one when known. */
   readonly legacyId: string;
   readonly canonicalId: string | null;
+  /**
+   * Through the session's tab whatever the person's switch says (a read whose CDN addresses the tab must load: they
+   * are signed for the reader's line). No frame — unavailable, as with the switch on; the direct route never stands in.
+   */
+  readonly tab?: boolean;
   readonly signal?: AbortSignal;
 }
 
@@ -329,14 +334,16 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
   }
 
   return {
-    async route({ legacyId, canonicalId, signal }) {
-      let mode = ports.viaTab();
-      if (mode === null && ports.settled !== undefined) {
-        await ports.settled().catch(() => undefined);
-        mode = ports.viaTab();
+    async route({ legacyId, canonicalId, tab, signal }) {
+      if (tab !== true) {
+        let mode = ports.viaTab();
+        if (mode === null && ports.settled !== undefined) {
+          await ports.settled().catch(() => undefined);
+          mode = ports.viaTab();
+        }
+        if (mode === false) return direct;
+        if (mode === null) throw new FanslyRouteUnavailable('settings');
       }
-      if (mode === false) return direct;
-      if (mode === null) throw new FanslyRouteUnavailable('settings');
       if (signal?.aborted === true) throw new FanslyRouteUnavailable('aborted');
       const candidates = ports.tabs().filter((tab) => ports.sessionOfTab(tab.tabId) === legacyId);
       // A tab whose frame is up already (the newest such), else the newest tab of the session.
