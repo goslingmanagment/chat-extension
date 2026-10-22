@@ -219,13 +219,16 @@ interface FanRowProps {
   readonly copy?: boolean;
 }
 
-/** The row's last message, «Мы: » before ours (SP-016); none — «нет переписки». */
-function LastMessage({ last }: { readonly last: SpenderRowVM['lastMessage'] }): JSX.Element {
+/**
+ * The row's last message, «Мы: » before ours (SP-016). No text but an age on either side — the chat exists and its
+ * text is not read yet: an empty cell. Neither — «нет переписки».
+ */
+function LastMessage({ last, talked }: { readonly last: SpenderRowVM['lastMessage']; readonly talked: boolean }): JSX.Element {
   const i18n = useI18n();
   if (last === null) {
     return (
       <span role="cell" class="cg-bd__last is-none">
-        {i18n.t('spenders.noChat')}
+        {talked ? null : i18n.t('spenders.noChat')}
       </span>
     );
   }
@@ -286,7 +289,7 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
         <span class="cg-bd__name">{row.name}</span>
         {row.deleted ? <span class="cg-bd__handle">{i18n.t('spenders.tag.deleted')}</span> : row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
       </span>
-      <LastMessage last={row.lastMessage} />
+      <LastMessage last={row.lastMessage} talked={row.weWroteAt !== null || row.fanWroteAt !== null} />
       <span role="cell" class="cg-bd__wait cg-num">
         {row.waiting && row.fanWroteAt !== null ? <AgeText at={row.fanWroteAt} /> : null}
       </span>
