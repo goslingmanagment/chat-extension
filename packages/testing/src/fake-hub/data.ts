@@ -798,8 +798,11 @@ export class DataModel {
     return events;
   }
 
-  /** `fanWrote` — the fan already wrote a message (one stored message of the fan's). */
-  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false): string {
+  /**
+   * `fanWrote` — the fan already wrote a message (one stored message of the fan's); `handSent` — a person greeted the
+   * fan by hand in the site's composer (a send attribution of that moment).
+   */
+  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false, handSent = false): string {
     const events = this.audienceOf(page);
     const eventRef = `evt-${page.pageId}-${2000 + events.length}`;
     const { claim: _claim, ...seed } = SCENARIO_DATA.audienceItem(0);
@@ -818,6 +821,10 @@ export class DataModel {
         thread: fanWrote ? { lastMessageAt: iso(now), lastFanMessageAt: iso(now), lastModelMessageAt: null, storedMessageCount: 1, coverage: 'complete', backfillComplete: true } : null,
       },
     });
+    if (handSent) {
+      const platformMessageId = String(9_000_000 + this.attributions.size);
+      this.attributions.set(`${page.pageLabel}|${platformMessageId}`, { pageLabel: page.pageLabel, userId: 0, source: 'chatspace-extension', platformMessageId, fanRef, observedAt: iso(now), priced: false, withMedia: false });
+    }
     return eventRef;
   }
 
@@ -847,9 +854,17 @@ export class DataModel {
       coverage: { state: 'complete', deliveryFrontier: iso(now - 90_000), lastAudienceSweepAt: iso(now - HOUR_MS), reasons: [] },
       unknownCount: 0,
       welcomeTemplate: { ref: 'welcome-1', observedAt: iso(this.base - DAY_MS), enabled: true, hasText: true, hasMedia: false, priceMills: null },
-      items: slice.map((event) => ({ ...event.item, claim: claim(event.item.fanRef) })),
+      items: slice.map((event) => ({ ...event.item, lastPersonalSendAt: this.personalSendAt(page, event.item), claim: claim(event.item.fanRef) })),
       nextCursor: last !== undefined && start + slice.length < inWindow.length ? this.cursors.sign('an1', { p: page.pageLabel, h: query.windowHours, s: snapshotAt, k: last.item.eventRef }) : null,
     });
+  }
+
+  /** As the hub: the newest send by hand to the fan (a send attribution) at or after the row's subscription. */
+  private personalSendAt(page: FakePage, item: Pick<AudienceNewItem, 'fanRef' | 'subscribedAt'>): string | null {
+    const sends = [...this.attributions.values()]
+      .filter((row) => row.pageLabel === page.pageLabel && row.fanRef === item.fanRef && Date.parse(row.observedAt) >= Date.parse(item.subscribedAt))
+      .map((row) => Date.parse(row.observedAt));
+    return sends.length === 0 ? null : iso(Math.max(...sends));
   }
 
   // ── recaps and dossiers (H-13, H-5) ──

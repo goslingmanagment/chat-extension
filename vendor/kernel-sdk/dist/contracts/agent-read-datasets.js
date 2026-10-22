@@ -994,6 +994,285 @@ export const AGENT_DATASETS = {
         defaultSort: { field: "stream", dir: "asc", nullsLast: false },
         stableKey: ["pageId", "stream"],
     },
+    // ── Fansly creator statistics of 2026-10 (0292), account plane ─────────────
+    // `/account/stats/series` and `/account/stats/summary`, typed as served by
+    // `creator-stats.account` (hourly) and `creator-stats.history` (to the
+    // account's creation). Fansly sends a row only for a bucket with activity:
+    // no row inside a window the coverage (`capture_coverage`, plane
+    // `creator_stats_account`) shows read is a zero. `source` is the surface
+    // code as served (0 For You, 1 Timeline, 2 Suggestions, 3 Search, 4 Other);
+    // `sourceLabel` names it.
+    creator_stats_views: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", granularity: "string", bucketStart: "timestamp", source: "int", sourceLabel: "string",
+            views: "int", impressions: "int", uniqueViewers: "int", videoViews: "int", completedViews: "int", watchMs: "int",
+            /** The sum of each view's watched share in hundredths of a percent:
+             *  divided by `videoViews` and by 100 it is the average percent. */
+            watchPctSum: "string",
+            replays: "int", imageViews: "int", imageImpressions: "int", uniqueImageViewers: "int", imageWatchMs: "int",
+            capturedAt: "timestamp",
+        },
+        defaultSort: { field: "bucketStart", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsViewsKey"],
+    },
+    creator_stats_profile: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", granularity: "string", bucketStart: "timestamp", source: "int", sourceLabel: "string",
+            profileVisits: "int", uniqueVisitors: "int", profileWatchMs: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "bucketStart", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsProfileKey"],
+    },
+    creator_stats_follows: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: { platform: "string", granularity: "string", bucketStart: "timestamp", follows: "int", unfollows: "int", capturedAt: "timestamp" },
+        defaultSort: { field: "bucketStart", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsFollowsKey"],
+    },
+    creator_stats_subscriptions: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", granularity: "string", bucketStart: "timestamp", tierId: "string", tierName: "string",
+            subscriptionsNew: "int", subscriptionsRenewed: "int", subscriptionsExpired: "int", subscriptionsCancelled: "int",
+            subscriptionsMovedIn: "int", subscriptionsMovedOut: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "bucketStart", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsSubscriptionsKey"],
+    },
+    /** Fansly's own revenue per hour, UTC day or month and product type (the
+     *  2026-10 statistics). Not the ledger: `transactions` is what Hub recorded
+     *  arriving. Refunds per bucket as Fansly counts them. */
+    creator_stats_revenue: {
+        moneyBearing: true, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", granularity: "string", bucketStart: "timestamp", productType: "int", productLabel: "string",
+            transactions: "int", grossMills: "mills", netMills: "mills", refunds: "int", refundedGrossMills: "mills",
+            refundedNetMills: "mills", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "bucketStart", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsRevenueKey"],
+    },
+    /** Follower and subscriber count at each UTC day; a tier's row carries its
+     *  `tierId` and only `subscriberCount`, the account's row no tier. */
+    creator_stats_levels: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", day: "date", tierId: "string", tierName: "string", followerCount: "int", subscriberCount: "int",
+            capturedAt: "timestamp",
+        },
+        defaultSort: { field: "day", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsLevelsKey"],
+    },
+    /** Comments and post likes a UTC day (`source` -1) and media likes per surface. */
+    creator_stats_engagement: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: { platform: "string", day: "date", metric: "string", source: "int", value: "int", capturedAt: "timestamp" },
+        defaultSort: { field: "day", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsEngagementKey"],
+    },
+    /** Every `{ value, previous }` of one summary window as served (uniques and
+     *  paying fans are not additive over days). Money metrics (`*Mills`) are in
+     *  `valueMills` / `previousMills`, everything else in `value` / `previous`
+     *  as decimal text; a flag is 1 or 0. */
+    creator_stats_windows: {
+        moneyBearing: true, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", afterDay: "date", beforeDay: "date", scope: "string", ref: "string", metric: "string",
+            value: "string", previous: "string", valueMills: "mills", previousMills: "mills", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "beforeDay", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsWindowKey"],
+    },
+    // ── Fansly creator statistics of 2026-10 (0294), audience plane ────────────
+    // `/account/stats/geo`, `/tags`, `/media/benchmarks`, `/media/shown` and
+    // `/activehours`, typed as served by `creator-stats.audience` (6-hourly),
+    // `creator-stats.audience-daily`, `creator-stats.media-shown` (hourly) and
+    // `creator-stats.audience-history`. A window route answers for its whole
+    // window: `afterDay` … `beforeDay` (both included, `windowDays` long) is the
+    // window Fansly served — one day for the steady geo, a calendar month for
+    // the geo history, 30 days for steady tags, 400 for the tags history — and
+    // windows of different lengths are not to be added up together. A window
+    // that ends on the day it was read (`capturedAt`) is partial. The coverage
+    // is `capture_coverage`, plane `creator_stats_audience`.
+    /** Views and profile visits per viewer country, surface and window. A
+     *  side the country is not among is null (zero, unless the answer was cut at
+     *  its 200-row limit: coverage `reasonCode` `rows_at_limit`). `country` is
+     *  the upper-case ISO code; '' is Fansly's "Unknown". */
+    creator_stats_geo: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", afterDay: "date", beforeDay: "date", windowDays: "int", source: "int", sourceLabel: "string",
+            country: "string", views: "int", imageViews: "int", videoViews: "int", watchMs: "int",
+            /** The per-view watched share summed, in hundredths of a percent. */
+            watchPctSum: "string",
+            /** As Fansly computed them: 0–100, and ms. */
+            avgWatchPercent: "string", avgWatchMs: "string",
+            profileVisits: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "beforeDay", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsGeoKey"],
+    },
+    /** A tag's totals over one window and surface. `kind` 1 = the tags viewers
+     *  browsed by, 2 = the tags of posts. `liftPoints` (percentage points over
+     *  the page's other viewers) is served only for windows up to 120 days
+     *  (`liftAvailable`), and null inside one when there is no one to compare. */
+    creator_stats_tags: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", afterDay: "date", beforeDay: "date", windowDays: "int", source: "int", sourceLabel: "string",
+            kind: "int", tagId: "string", tag: "string", views: "int", imageViews: "int", videoViews: "int", watchMs: "int",
+            imageWatchMs: "int", completedViews: "int", watchPctSum: "string", liftPoints: "string", liftVideoViews: "int",
+            liftAvailable: "bool", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "beforeDay", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsTagsKey"],
+    },
+    /** A tag's views per UTC day and surface; no row inside a covered window is a zero. */
+    creator_stats_tag_series: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", day: "date", source: "int", sourceLabel: "string", kind: "int", tagId: "string", tag: "string",
+            views: "int", imageViews: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "day", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsTagSeriesKey"],
+    },
+    /** The creator's own video averages per length bucket over the last 30
+     *  settled days, per surface and day it was read (not a platform
+     *  percentile). `maxMs` 0 is the open last bucket. */
+    creator_stats_benchmarks: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", afterDay: "date", beforeDay: "date", windowDays: "int", source: "int", sourceLabel: "string",
+            lengthBucket: "int", minMs: "int", maxMs: "int", mediaCount: "int", views: "int", videoViews: "int", watchMs: "int",
+            completedViews: "int", watchPctSum: "string", avgWatchPercent: "string",
+            /** 0–1. */
+            completionRate: "string",
+            avgWatchMs: "string", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "beforeDay", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsBenchmarksKey"],
+    },
+    /** The number of different videos a surface put in front of someone over
+     *  `hours` hours whose last hour starts at `endHour` (one hour per row from
+     *  the hourly poll), and over the equally long span before. Distinct counts:
+     *  hours do not add up to a day. */
+    creator_stats_media_shown: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", endHour: "timestamp", hours: "int", source: "int", sourceLabel: "string",
+            mediaShown: "int", previousMediaShown: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "endHour", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsMediaShownKey"],
+    },
+    /** Views per UTC weekday (0 = Sunday) and UTC hour over the last 90
+     *  settled days, per surface and day it was read; shift to a time zone at
+     *  read time. */
+    creator_stats_active_hours: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", afterDay: "date", beforeDay: "date", windowDays: "int", source: "int", sourceLabel: "string",
+            weekday: "int", hour: "int", views: "int", imageViews: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "beforeDay", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsActiveHoursKey"],
+    },
+    // ── Fansly creator statistics of 2026-10 (0293), media plane ───────────────
+    // `/account/stats/media` per media offer (`creator-stats.media`, a walk by
+    // the post's age) and `/account/stats/media/top` (`creator-stats.media-top`,
+    // every 3 h). A row exists only for a bucket with activity: no row inside a
+    // window the walk read is a zero. `source` is the surface code as served
+    // (0 For You, 1 Timeline, 2 Suggestions, 3 Search, 4 Other); `sourceLabel`
+    // names it. `watchPctSum` is the sum of each view's watched share in
+    // hundredths of a percent (÷ `videoViews` ÷ 100 = the average percent).
+    /** Views and watch time of one media of an offer per surface and UTC day.
+     *  `uniqueViewers` is per day: summing it over days double-counts. */
+    creator_stats_media_daily: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", mediaOfferId: "string", mediaId: "string", mediaType: "int", source: "int", sourceLabel: "string",
+            day: "date", views: "int", impressions: "int", uniqueViewers: "int", videoViews: "int", completedViews: "int",
+            watchMs: "int", watchPctSum: "string", replays: "int", durationMs: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "day", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsMediaDailyKey"],
+    },
+    /** The same per hour (Fansly keeps about two days of a media's hours). */
+    creator_stats_media_hourly: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", mediaOfferId: "string", mediaId: "string", mediaType: "int", source: "int", sourceLabel: "string",
+            hourStart: "timestamp", views: "int", impressions: "int", videoViews: "int", completedViews: "int", watchMs: "int",
+            watchPctSum: "string", replays: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "hourStart", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsMediaHourlyKey"],
+    },
+    /** A media's all-time figures on one surface as Fansly served them on
+     *  `capturedDay` (they move: one row per day read). `retention` is the
+     *  retention curve, each point `"<percent of the video>:<share still
+     *  watching, 0–1>"`; empty for an image. */
+    creator_stats_media_totals: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", mediaOfferId: "string", mediaId: "string", mediaType: "int", source: "int", sourceLabel: "string",
+            capturedDay: "date", views: "int", impressions: "int", videoViews: "int", completedViews: "int", watchMs: "int",
+            watchPctSum: "string", replays: "int", durationMs: "int", retention: "string_array", retentionSampleSize: "int",
+            capturedAt: "timestamp",
+        },
+        defaultSort: { field: "capturedDay", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsMediaTotalsKey"],
+    },
+    /** The views a viewer tag (`tagKind` 1; 2 = a tag of the post) brought a
+     *  media over one read window (`afterDay` … `beforeDay`, both included). */
+    creator_stats_media_tags: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", mediaOfferId: "string", mediaId: "string", mediaType: "int", source: "int", sourceLabel: "string",
+            tagId: "string", tag: "string", tagKind: "int", afterDay: "date", beforeDay: "date", views: "int", videoViews: "int",
+            completedViews: "int", watchMs: "int", watchPctSum: "string", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "beforeDay", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsMediaTagKey"],
+    },
+    /** A tag's views of an offer a UTC day, per surface. */
+    creator_stats_media_tag_series: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", mediaOfferId: "string", source: "int", sourceLabel: "string", tagId: "string", tag: "string",
+            tagKind: "int", day: "date", views: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "day", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsMediaTagSeriesKey"],
+    },
+    /** An offer's likes and unlikes per surface and UTC day. */
+    creator_stats_media_likes: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", mediaOfferId: "string", source: "int", sourceLabel: "string", day: "date", likes: "int",
+            unlikes: "int", capturedAt: "timestamp",
+        },
+        defaultSort: { field: "day", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsMediaLikesKey"],
+    },
+    /** Fansly's top offers by `orderBy` of one surface and window, as its
+     *  newest answer ranked them (`mediaType` 0 = images and videos together;
+     *  `itemMediaType` is the row's own). The figures are the window's. */
+    creator_stats_media_top: {
+        moneyBearing: false, verbatimText: false, disclosesPurchase: false,
+        fields: {
+            platform: "string", source: "int", sourceLabel: "string", mediaType: "int", orderBy: "string", afterDay: "date",
+            beforeDay: "date", rank: "int", mediaOfferId: "string", mediaId: "string", bestMediaId: "string", offerLikes: "int",
+            offerUnlikes: "int", itemMediaType: "int", views: "int", impressions: "int", uniqueViewers: "int", videoViews: "int",
+            completedViews: "int", watchMs: "int", watchPctSum: "string", replays: "int", durationMs: "int",
+            capturedAt: "timestamp",
+        },
+        defaultSort: { field: "beforeDay", dir: "desc", nullsLast: false },
+        stableKey: ["creatorStatsMediaTopKey"],
+    },
 };
 /**
  * Datasets the catalog must NAME rather than hide. The plane's whole premise is

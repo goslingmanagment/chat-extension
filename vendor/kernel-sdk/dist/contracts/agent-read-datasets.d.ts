@@ -1133,6 +1133,601 @@ export declare const AGENT_DATASETS: {
         };
         readonly stableKey: readonly ["pageId", "stream"];
     };
+    readonly creator_stats_views: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly granularity: "string";
+            readonly bucketStart: "timestamp";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly views: "int";
+            readonly impressions: "int";
+            readonly uniqueViewers: "int";
+            readonly videoViews: "int";
+            readonly completedViews: "int";
+            readonly watchMs: "int";
+            /** The sum of each view's watched share in hundredths of a percent:
+             *  divided by `videoViews` and by 100 it is the average percent. */
+            readonly watchPctSum: "string";
+            readonly replays: "int";
+            readonly imageViews: "int";
+            readonly imageImpressions: "int";
+            readonly uniqueImageViewers: "int";
+            readonly imageWatchMs: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "bucketStart";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsViewsKey"];
+    };
+    readonly creator_stats_profile: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly granularity: "string";
+            readonly bucketStart: "timestamp";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly profileVisits: "int";
+            readonly uniqueVisitors: "int";
+            readonly profileWatchMs: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "bucketStart";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsProfileKey"];
+    };
+    readonly creator_stats_follows: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly granularity: "string";
+            readonly bucketStart: "timestamp";
+            readonly follows: "int";
+            readonly unfollows: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "bucketStart";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsFollowsKey"];
+    };
+    readonly creator_stats_subscriptions: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly granularity: "string";
+            readonly bucketStart: "timestamp";
+            readonly tierId: "string";
+            readonly tierName: "string";
+            readonly subscriptionsNew: "int";
+            readonly subscriptionsRenewed: "int";
+            readonly subscriptionsExpired: "int";
+            readonly subscriptionsCancelled: "int";
+            readonly subscriptionsMovedIn: "int";
+            readonly subscriptionsMovedOut: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "bucketStart";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsSubscriptionsKey"];
+    };
+    /** Fansly's own revenue per hour, UTC day or month and product type (the
+     *  2026-10 statistics). Not the ledger: `transactions` is what Hub recorded
+     *  arriving. Refunds per bucket as Fansly counts them. */
+    readonly creator_stats_revenue: {
+        readonly moneyBearing: true;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly granularity: "string";
+            readonly bucketStart: "timestamp";
+            readonly productType: "int";
+            readonly productLabel: "string";
+            readonly transactions: "int";
+            readonly grossMills: "mills";
+            readonly netMills: "mills";
+            readonly refunds: "int";
+            readonly refundedGrossMills: "mills";
+            readonly refundedNetMills: "mills";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "bucketStart";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsRevenueKey"];
+    };
+    /** Follower and subscriber count at each UTC day; a tier's row carries its
+     *  `tierId` and only `subscriberCount`, the account's row no tier. */
+    readonly creator_stats_levels: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly day: "date";
+            readonly tierId: "string";
+            readonly tierName: "string";
+            readonly followerCount: "int";
+            readonly subscriberCount: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsLevelsKey"];
+    };
+    /** Comments and post likes a UTC day (`source` -1) and media likes per surface. */
+    readonly creator_stats_engagement: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly day: "date";
+            readonly metric: "string";
+            readonly source: "int";
+            readonly value: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsEngagementKey"];
+    };
+    /** Every `{ value, previous }` of one summary window as served (uniques and
+     *  paying fans are not additive over days). Money metrics (`*Mills`) are in
+     *  `valueMills` / `previousMills`, everything else in `value` / `previous`
+     *  as decimal text; a flag is 1 or 0. */
+    readonly creator_stats_windows: {
+        readonly moneyBearing: true;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly afterDay: "date";
+            readonly beforeDay: "date";
+            readonly scope: "string";
+            readonly ref: "string";
+            readonly metric: "string";
+            readonly value: "string";
+            readonly previous: "string";
+            readonly valueMills: "mills";
+            readonly previousMills: "mills";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "beforeDay";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsWindowKey"];
+    };
+    /** Views and profile visits per viewer country, surface and window. A
+     *  side the country is not among is null (zero, unless the answer was cut at
+     *  its 200-row limit: coverage `reasonCode` `rows_at_limit`). `country` is
+     *  the upper-case ISO code; '' is Fansly's "Unknown". */
+    readonly creator_stats_geo: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly afterDay: "date";
+            readonly beforeDay: "date";
+            readonly windowDays: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly country: "string";
+            readonly views: "int";
+            readonly imageViews: "int";
+            readonly videoViews: "int";
+            readonly watchMs: "int";
+            /** The per-view watched share summed, in hundredths of a percent. */
+            readonly watchPctSum: "string";
+            /** As Fansly computed them: 0–100, and ms. */
+            readonly avgWatchPercent: "string";
+            readonly avgWatchMs: "string";
+            readonly profileVisits: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "beforeDay";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsGeoKey"];
+    };
+    /** A tag's totals over one window and surface. `kind` 1 = the tags viewers
+     *  browsed by, 2 = the tags of posts. `liftPoints` (percentage points over
+     *  the page's other viewers) is served only for windows up to 120 days
+     *  (`liftAvailable`), and null inside one when there is no one to compare. */
+    readonly creator_stats_tags: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly afterDay: "date";
+            readonly beforeDay: "date";
+            readonly windowDays: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly kind: "int";
+            readonly tagId: "string";
+            readonly tag: "string";
+            readonly views: "int";
+            readonly imageViews: "int";
+            readonly videoViews: "int";
+            readonly watchMs: "int";
+            readonly imageWatchMs: "int";
+            readonly completedViews: "int";
+            readonly watchPctSum: "string";
+            readonly liftPoints: "string";
+            readonly liftVideoViews: "int";
+            readonly liftAvailable: "bool";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "beforeDay";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsTagsKey"];
+    };
+    /** A tag's views per UTC day and surface; no row inside a covered window is a zero. */
+    readonly creator_stats_tag_series: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly day: "date";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly kind: "int";
+            readonly tagId: "string";
+            readonly tag: "string";
+            readonly views: "int";
+            readonly imageViews: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsTagSeriesKey"];
+    };
+    /** The creator's own video averages per length bucket over the last 30
+     *  settled days, per surface and day it was read (not a platform
+     *  percentile). `maxMs` 0 is the open last bucket. */
+    readonly creator_stats_benchmarks: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly afterDay: "date";
+            readonly beforeDay: "date";
+            readonly windowDays: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly lengthBucket: "int";
+            readonly minMs: "int";
+            readonly maxMs: "int";
+            readonly mediaCount: "int";
+            readonly views: "int";
+            readonly videoViews: "int";
+            readonly watchMs: "int";
+            readonly completedViews: "int";
+            readonly watchPctSum: "string";
+            readonly avgWatchPercent: "string";
+            /** 0–1. */
+            readonly completionRate: "string";
+            readonly avgWatchMs: "string";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "beforeDay";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsBenchmarksKey"];
+    };
+    /** The number of different videos a surface put in front of someone over
+     *  `hours` hours whose last hour starts at `endHour` (one hour per row from
+     *  the hourly poll), and over the equally long span before. Distinct counts:
+     *  hours do not add up to a day. */
+    readonly creator_stats_media_shown: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly endHour: "timestamp";
+            readonly hours: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly mediaShown: "int";
+            readonly previousMediaShown: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "endHour";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsMediaShownKey"];
+    };
+    /** Views per UTC weekday (0 = Sunday) and UTC hour over the last 90
+     *  settled days, per surface and day it was read; shift to a time zone at
+     *  read time. */
+    readonly creator_stats_active_hours: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly afterDay: "date";
+            readonly beforeDay: "date";
+            readonly windowDays: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly weekday: "int";
+            readonly hour: "int";
+            readonly views: "int";
+            readonly imageViews: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "beforeDay";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsActiveHoursKey"];
+    };
+    /** Views and watch time of one media of an offer per surface and UTC day.
+     *  `uniqueViewers` is per day: summing it over days double-counts. */
+    readonly creator_stats_media_daily: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly mediaOfferId: "string";
+            readonly mediaId: "string";
+            readonly mediaType: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly day: "date";
+            readonly views: "int";
+            readonly impressions: "int";
+            readonly uniqueViewers: "int";
+            readonly videoViews: "int";
+            readonly completedViews: "int";
+            readonly watchMs: "int";
+            readonly watchPctSum: "string";
+            readonly replays: "int";
+            readonly durationMs: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsMediaDailyKey"];
+    };
+    /** The same per hour (Fansly keeps about two days of a media's hours). */
+    readonly creator_stats_media_hourly: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly mediaOfferId: "string";
+            readonly mediaId: "string";
+            readonly mediaType: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly hourStart: "timestamp";
+            readonly views: "int";
+            readonly impressions: "int";
+            readonly videoViews: "int";
+            readonly completedViews: "int";
+            readonly watchMs: "int";
+            readonly watchPctSum: "string";
+            readonly replays: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "hourStart";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsMediaHourlyKey"];
+    };
+    /** A media's all-time figures on one surface as Fansly served them on
+     *  `capturedDay` (they move: one row per day read). `retention` is the
+     *  retention curve, each point `"<percent of the video>:<share still
+     *  watching, 0–1>"`; empty for an image. */
+    readonly creator_stats_media_totals: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly mediaOfferId: "string";
+            readonly mediaId: "string";
+            readonly mediaType: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly capturedDay: "date";
+            readonly views: "int";
+            readonly impressions: "int";
+            readonly videoViews: "int";
+            readonly completedViews: "int";
+            readonly watchMs: "int";
+            readonly watchPctSum: "string";
+            readonly replays: "int";
+            readonly durationMs: "int";
+            readonly retention: "string_array";
+            readonly retentionSampleSize: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "capturedDay";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsMediaTotalsKey"];
+    };
+    /** The views a viewer tag (`tagKind` 1; 2 = a tag of the post) brought a
+     *  media over one read window (`afterDay` … `beforeDay`, both included). */
+    readonly creator_stats_media_tags: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly mediaOfferId: "string";
+            readonly mediaId: "string";
+            readonly mediaType: "int";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly tagId: "string";
+            readonly tag: "string";
+            readonly tagKind: "int";
+            readonly afterDay: "date";
+            readonly beforeDay: "date";
+            readonly views: "int";
+            readonly videoViews: "int";
+            readonly completedViews: "int";
+            readonly watchMs: "int";
+            readonly watchPctSum: "string";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "beforeDay";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsMediaTagKey"];
+    };
+    /** A tag's views of an offer a UTC day, per surface. */
+    readonly creator_stats_media_tag_series: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly mediaOfferId: "string";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly tagId: "string";
+            readonly tag: "string";
+            readonly tagKind: "int";
+            readonly day: "date";
+            readonly views: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsMediaTagSeriesKey"];
+    };
+    /** An offer's likes and unlikes per surface and UTC day. */
+    readonly creator_stats_media_likes: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly mediaOfferId: "string";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly day: "date";
+            readonly likes: "int";
+            readonly unlikes: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsMediaLikesKey"];
+    };
+    /** Fansly's top offers by `orderBy` of one surface and window, as its
+     *  newest answer ranked them (`mediaType` 0 = images and videos together;
+     *  `itemMediaType` is the row's own). The figures are the window's. */
+    readonly creator_stats_media_top: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly source: "int";
+            readonly sourceLabel: "string";
+            readonly mediaType: "int";
+            readonly orderBy: "string";
+            readonly afterDay: "date";
+            readonly beforeDay: "date";
+            readonly rank: "int";
+            readonly mediaOfferId: "string";
+            readonly mediaId: "string";
+            readonly bestMediaId: "string";
+            readonly offerLikes: "int";
+            readonly offerUnlikes: "int";
+            readonly itemMediaType: "int";
+            readonly views: "int";
+            readonly impressions: "int";
+            readonly uniqueViewers: "int";
+            readonly videoViews: "int";
+            readonly completedViews: "int";
+            readonly watchMs: "int";
+            readonly watchPctSum: "string";
+            readonly replays: "int";
+            readonly durationMs: "int";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "beforeDay";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["creatorStatsMediaTopKey"];
+    };
 };
 export type AgentDataset = keyof typeof AGENT_DATASETS;
 /**

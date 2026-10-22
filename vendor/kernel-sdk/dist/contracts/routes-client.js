@@ -771,7 +771,7 @@ export const clientSpenderAwaitingReplyQuerySchema = z.object({
         .min(1).max(CLIENT_SPENDER_AWAITING_REPLY_MAX_LIMIT).default(CLIENT_SPENDER_AWAITING_REPLY_DEFAULT_LIMIT),
 }).strict();
 export const clientSpenderAwaitingReplyItemSchema = z.object({
-    /** The OnlyFans fan id, which is the chat id. */
+    /** The platform's fan id: on OnlyFans also the chat id; a Fansly chat is a group apart from its fan. */
     fanRef: clientFanRefSchema,
     username: z.string().nullable(),
     displayName: z.string().nullable(),
@@ -1389,6 +1389,14 @@ export const clientAudienceNewItemSchema = z.object({
         /** The chat's history was read from OnlyFans to its first message. */
         backfillComplete: z.boolean(),
     }).nullable(),
+    /**
+     * The newest message a person sent the fan by hand in the page's own
+     * composer at or after `subscribedAt`, as the chat extension reported it
+     * (send-attribution-v1, the client's clock); null when the hub knows none.
+     * A greeting made without Hi: a client shows the fan as greeted. Automatic
+     * welcomes and mass messages are never reported, so they never count.
+     */
+    lastPersonalSendAt: isoTimestamp.nullable(),
     claim: clientClaimSummarySchema,
 });
 export const clientAudienceNewResponseSchema = z.object({

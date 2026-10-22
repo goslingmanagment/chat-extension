@@ -103,6 +103,10 @@ export const AGENT_CLAIM_CLASSES = {
             // is money attributed to nobody.
             hubLinkMoney: { required: ["transactions", "page_link_fan_periods", "page_link_fan_walks"] },
             payoutMethod: { required: ["page_payout_methods"] },
+            // Fansly's 2026-10 statistics (0292): what Fansly counts per bucket and
+            // per summary window — neither is the ledger.
+            creatorStatsRevenue: { required: ["fansly_creator_stats_revenue"] },
+            creatorStatsWindow: { required: ["fansly_creator_stats_windows"] },
         },
     },
     identity: {
@@ -122,6 +126,8 @@ export const AGENT_CLAIM_CLASSES = {
             subscriptionState: { required: ["page_subscriptions"] },
             subscriptionPriceMills: { required: ["page_subscriptions"] },
             subscriptionExpiresAt: { required: ["page_subscriptions"] },
+            // Fansly's 2026-10 statistics (0292): subscription changes per tier.
+            creatorStatsSubscriptions: { required: ["fansly_creator_stats_subscriptions"] },
         },
     },
     audience: {
@@ -129,6 +135,13 @@ export const AGENT_CLAIM_CLASSES = {
         fields: {
             followed: { required: ["page_follows"] },
             presenceAt: { required: ["page_fans"] },
+            // Fansly's 2026-10 statistics (0292): follows per bucket, levels per day.
+            creatorStatsFollows: { required: ["fansly_creator_stats_follows"] },
+            creatorStatsLevel: { required: ["fansly_creator_stats_levels", "fansly_creator_stats_tier_levels"] },
+            // Fansly's 2026-10 statistics (0294): viewers and profile visits per
+            // country, views per weekday and hour.
+            creatorStatsGeo: { required: ["fansly_creator_stats_geo"] },
+            creatorStatsActiveHours: { required: ["fansly_creator_stats_active_hours"] },
         },
     },
     crm: {
@@ -194,6 +207,26 @@ export const AGENT_CLAIM_CLASSES = {
             // stays: what a page's capture reaches back to is a fact ABOUT the
             // content planes, and no other class answers for it at all.
             trafficBucket: { required: ["stats_traffic_buckets"] },
+            // Fansly's 2026-10 statistics (0292): views and profile visits per
+            // bucket and surface, engagement per day.
+            creatorStatsViews: { required: ["fansly_creator_stats_views"] },
+            creatorStatsProfile: { required: ["fansly_creator_stats_profile"] },
+            creatorStatsEngagement: { required: ["fansly_creator_stats_engagement"] },
+            // Fansly's 2026-10 statistics (0294): tags per window and per day,
+            // video benchmarks, the videos each surface showed per hour.
+            creatorStatsTags: { required: ["fansly_creator_stats_tags"] },
+            creatorStatsTagSeries: { required: ["fansly_creator_stats_tag_series"] },
+            creatorStatsBenchmarks: { required: ["fansly_creator_stats_benchmarks"] },
+            creatorStatsMediaShown: { required: ["fansly_creator_stats_media_shown"] },
+            // Fansly's 2026-10 statistics (0293): per media offer and surface — days,
+            // hours, all-time totals with retention, tags, likes — and the top lists.
+            creatorStatsMediaDay: { required: ["fansly_creator_stats_media_daily"] },
+            creatorStatsMediaHour: { required: ["fansly_creator_stats_media_hourly"] },
+            creatorStatsMediaTotals: { required: ["fansly_creator_stats_media_totals"] },
+            creatorStatsMediaTag: { required: ["fansly_creator_stats_media_tags"] },
+            creatorStatsMediaTagDay: { required: ["fansly_creator_stats_media_tag_series"] },
+            creatorStatsMediaLikes: { required: ["fansly_creator_stats_media_likes"] },
+            creatorStatsMediaTop: { required: ["fansly_creator_stats_media_top"] },
             topMediaWindow: { required: ["stats_top_media"] },
             topTagWindow: { required: ["stats_top_tags"] },
             mediaTagWindow: { required: ["fansly_media_tag_stats"] },

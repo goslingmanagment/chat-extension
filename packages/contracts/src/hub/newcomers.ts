@@ -265,6 +265,12 @@ export const AudienceNewItemSchema = z.object({
       backfillComplete: z.boolean(),
     }),
   ),
+  /**
+   * The newest message a person sent the fan by hand in the site's own composer since `subscribedAt`, as this
+   * extension reported it (send attribution); null — none known. A greeting without Hi: the row is greeted. Absent
+   * from a hub before it.
+   */
+  lastPersonalSendAt: z.optional(z.nullable(IsoTimestampSchema)),
   claim: ClaimSummarySchema,
 });
 export type AudienceNewItem = z.infer<typeof AudienceNewItemSchema>;

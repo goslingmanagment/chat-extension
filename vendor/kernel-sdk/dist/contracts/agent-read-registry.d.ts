@@ -179,6 +179,12 @@ export declare const AGENT_CLAIM_CLASSES: {
             readonly payoutMethod: {
                 readonly required: readonly ["page_payout_methods"];
             };
+            readonly creatorStatsRevenue: {
+                readonly required: readonly ["fansly_creator_stats_revenue"];
+            };
+            readonly creatorStatsWindow: {
+                readonly required: readonly ["fansly_creator_stats_windows"];
+            };
         };
     };
     readonly identity: {
@@ -213,6 +219,9 @@ export declare const AGENT_CLAIM_CLASSES: {
             readonly subscriptionExpiresAt: {
                 readonly required: readonly ["page_subscriptions"];
             };
+            readonly creatorStatsSubscriptions: {
+                readonly required: readonly ["fansly_creator_stats_subscriptions"];
+            };
         };
     };
     readonly audience: {
@@ -223,6 +232,18 @@ export declare const AGENT_CLAIM_CLASSES: {
             };
             readonly presenceAt: {
                 readonly required: readonly ["page_fans"];
+            };
+            readonly creatorStatsFollows: {
+                readonly required: readonly ["fansly_creator_stats_follows"];
+            };
+            readonly creatorStatsLevel: {
+                readonly required: readonly ["fansly_creator_stats_levels", "fansly_creator_stats_tier_levels"];
+            };
+            readonly creatorStatsGeo: {
+                readonly required: readonly ["fansly_creator_stats_geo"];
+            };
+            readonly creatorStatsActiveHours: {
+                readonly required: readonly ["fansly_creator_stats_active_hours"];
             };
         };
     };
@@ -335,6 +356,48 @@ export declare const AGENT_CLAIM_CLASSES: {
             };
             readonly trafficBucket: {
                 readonly required: readonly ["stats_traffic_buckets"];
+            };
+            readonly creatorStatsViews: {
+                readonly required: readonly ["fansly_creator_stats_views"];
+            };
+            readonly creatorStatsProfile: {
+                readonly required: readonly ["fansly_creator_stats_profile"];
+            };
+            readonly creatorStatsEngagement: {
+                readonly required: readonly ["fansly_creator_stats_engagement"];
+            };
+            readonly creatorStatsTags: {
+                readonly required: readonly ["fansly_creator_stats_tags"];
+            };
+            readonly creatorStatsTagSeries: {
+                readonly required: readonly ["fansly_creator_stats_tag_series"];
+            };
+            readonly creatorStatsBenchmarks: {
+                readonly required: readonly ["fansly_creator_stats_benchmarks"];
+            };
+            readonly creatorStatsMediaShown: {
+                readonly required: readonly ["fansly_creator_stats_media_shown"];
+            };
+            readonly creatorStatsMediaDay: {
+                readonly required: readonly ["fansly_creator_stats_media_daily"];
+            };
+            readonly creatorStatsMediaHour: {
+                readonly required: readonly ["fansly_creator_stats_media_hourly"];
+            };
+            readonly creatorStatsMediaTotals: {
+                readonly required: readonly ["fansly_creator_stats_media_totals"];
+            };
+            readonly creatorStatsMediaTag: {
+                readonly required: readonly ["fansly_creator_stats_media_tags"];
+            };
+            readonly creatorStatsMediaTagDay: {
+                readonly required: readonly ["fansly_creator_stats_media_tag_series"];
+            };
+            readonly creatorStatsMediaLikes: {
+                readonly required: readonly ["fansly_creator_stats_media_likes"];
+            };
+            readonly creatorStatsMediaTop: {
+                readonly required: readonly ["fansly_creator_stats_media_top"];
             };
             readonly topMediaWindow: {
                 readonly required: readonly ["stats_top_media"];

@@ -95,20 +95,6 @@ export declare const deviceTokenAdoptionReportSchema: z.ZodObject<{
         onFreshTokens: z.ZodNumber;
     }, z.core.$strip>;
 }, z.core.$strip>;
-export declare const accessGrantItemSchema: z.ZodObject<{
-    id: z.ZodNumber;
-    scopeType: z.ZodEnum<{
-        page: "page";
-        model: "model";
-        org: "org";
-    }>;
-    scopeId: z.ZodNumber;
-    scopeLabel: z.ZodNullable<z.ZodString>;
-    grantedBy: z.ZodNullable<z.ZodNumber>;
-    grantedAt: z.ZodString;
-    revokedBy: z.ZodNullable<z.ZodNumber>;
-    revokedAt: z.ZodNullable<z.ZodString>;
-}, z.core.$strip>;
 export declare const registrationStateEnum: z.ZodEnum<{
     active: "active";
     invited: "invited";
@@ -4113,10 +4099,9 @@ export declare const AI_START_PROOF_SOURCES: readonly ["tab-short-page", "pass-e
 export declare const AI_START_PROOF_AUTOMATED_IDS_MAX = 120;
 /** A pass counts personal messages among the last 30 of the history it walked. */
 export declare const AI_START_PROOF_PASS_PERSONAL_WINDOW = 30;
-/** `reason` of a `gate_hi_greeting_limit` refusal on the start-proof lane:
- *  `history_unproven` (no proof, or one the hub's history contradicts) and
- *  `too_many_personal` (the proof counts more personal messages than Hi
- *  allows). Open on the wire: a client reads an unknown reason as a refusal. */
+/** Legacy: the `reason`s a `gate_hi_greeting_limit` refusal carried on the
+ *  start-proof lane until Hi lost its count limit (2026-10-21). The hub emits
+ *  neither any more; kept for the released clients that map them. */
 export declare const AI_HI_GREETING_REFUSAL_REASONS: readonly ["history_unproven", "too_many_personal"];
 export declare const aiStartProofV1Schema: z.ZodObject<{
     v: z.ZodLiteral<1>;
@@ -12015,7 +12000,6 @@ export declare const configItemSchema: z.ZodObject<{
     default: z.ZodString;
     editability: z.ZodEnum<{
         never: "never";
-        staged: "staged";
         editable: "editable";
     }>;
     runtimeApply: z.ZodEnum<{
@@ -12028,9 +12012,6 @@ export declare const configItemSchema: z.ZodObject<{
     note: z.ZodNullable<z.ZodString>;
     costWarning: z.ZodNullable<z.ZodString>;
     destructive: z.ZodBoolean;
-    stagedGroup: z.ZodNullable<z.ZodString>;
-    stagedOrder: z.ZodNullable<z.ZodNumber>;
-    requires: z.ZodArray<z.ZodString>;
     source: z.ZodEnum<{
         override: "override";
         env: "env";
@@ -12127,7 +12108,6 @@ export declare const configViewResponseSchema: z.ZodObject<{
             default: z.ZodString;
             editability: z.ZodEnum<{
                 never: "never";
-                staged: "staged";
                 editable: "editable";
             }>;
             runtimeApply: z.ZodEnum<{
@@ -12140,9 +12120,6 @@ export declare const configViewResponseSchema: z.ZodObject<{
             note: z.ZodNullable<z.ZodString>;
             costWarning: z.ZodNullable<z.ZodString>;
             destructive: z.ZodBoolean;
-            stagedGroup: z.ZodNullable<z.ZodString>;
-            stagedOrder: z.ZodNullable<z.ZodNumber>;
-            requires: z.ZodArray<z.ZodString>;
             source: z.ZodEnum<{
                 override: "override";
                 env: "env";
@@ -12199,22 +12176,6 @@ export declare const configClearResponseSchema: z.ZodObject<{
     ok: z.ZodLiteral<true>;
     key: z.ZodString;
 }, z.core.$strip>;
-export declare const configStagedBodySchema: z.ZodObject<{
-    patches: z.ZodArray<z.ZodObject<{
-        key: z.ZodString;
-        desired: z.ZodNullable<z.ZodBoolean>;
-        expectedVersion: z.ZodNumber;
-    }, z.core.$strip>>;
-    note: z.ZodOptional<z.ZodString>;
-    ack: z.ZodBoolean;
-}, z.core.$strip>;
-export declare const configStagedResponseSchema: z.ZodObject<{
-    results: z.ZodArray<z.ZodObject<{
-        key: z.ZodString;
-        value: z.ZodNullable<z.ZodBoolean>;
-        version: z.ZodNullable<z.ZodNumber>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
 export declare const opsMetricsResponseSchema: z.ZodObject<{
     samples: z.ZodArray<z.ZodObject<{
         metric: z.ZodString;
@@ -12228,6 +12189,123 @@ export declare const opsMetricsResponseSchema: z.ZodObject<{
         gapCount: z.ZodNumber;
         duplicateCount: z.ZodNumber;
         updatedAt: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/** Fansly's 2026-10 statistics (`/creator/stats/*`, 0292): one page's
+ *  account plane over the last `days` UTC days ending on `to` (default:
+ *  today). The window's totals are Fansly's own, from the summary of exactly
+ *  that length when Hub holds one (uniques and paying fans are not sums of
+ *  days); everything else is the daily rows as served — a day without a row
+ *  inside the covered span had no activity. */
+export declare const creatorStatsOverviewQuerySchema: z.ZodObject<{
+    days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+    to: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+export declare const creatorStatsOverviewResponseSchema: z.ZodObject<{
+    page: z.ZodObject<{
+        label: z.ZodString;
+        platform: z.ZodEnum<{
+            fansly: "fansly";
+            onlyfans: "onlyfans";
+        }>;
+    }, z.core.$strip>;
+    window: z.ZodObject<{
+        fromDay: z.ZodString;
+        toDay: z.ZodString;
+        days: z.ZodNumber;
+    }, z.core.$strip>;
+    totalsWindow: z.ZodNullable<z.ZodObject<{
+        fromDay: z.ZodString;
+        toDay: z.ZodString;
+        capturedAt: z.ZodString;
+    }, z.core.$strip>>;
+    totals: z.ZodArray<z.ZodObject<{
+        scope: z.ZodString;
+        ref: z.ZodString;
+        metric: z.ZodString;
+        value: z.ZodNullable<z.ZodNumber>;
+        previous: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    views: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        source: z.ZodNumber;
+        views: z.ZodNullable<z.ZodNumber>;
+        uniqueViewers: z.ZodNullable<z.ZodNumber>;
+        videoViews: z.ZodNullable<z.ZodNumber>;
+        completedViews: z.ZodNullable<z.ZodNumber>;
+        watchMs: z.ZodNullable<z.ZodNumber>;
+        watchPctSum: z.ZodNullable<z.ZodNumber>;
+        imageViews: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    profile: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        source: z.ZodNumber;
+        profileVisits: z.ZodNullable<z.ZodNumber>;
+        uniqueVisitors: z.ZodNullable<z.ZodNumber>;
+        profileWatchMs: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    follows: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        follows: z.ZodNullable<z.ZodNumber>;
+        unfollows: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    subscriptions: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        tierId: z.ZodString;
+        subscriptionsNew: z.ZodNullable<z.ZodNumber>;
+        subscriptionsRenewed: z.ZodNullable<z.ZodNumber>;
+        subscriptionsExpired: z.ZodNullable<z.ZodNumber>;
+        subscriptionsCancelled: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    revenue: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        productType: z.ZodNumber;
+        productLabel: z.ZodString;
+        transactions: z.ZodNullable<z.ZodNumber>;
+        grossMills: z.ZodNullable<z.ZodNumber>;
+        netMills: z.ZodNullable<z.ZodNumber>;
+        refunds: z.ZodNullable<z.ZodNumber>;
+        refundedNetMills: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    levels: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        followerCount: z.ZodNullable<z.ZodNumber>;
+        subscriberCount: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    tierLevels: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        tierId: z.ZodString;
+        subscriberCount: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    engagement: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        metric: z.ZodString;
+        source: z.ZodNumber;
+        value: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    hourlyViews: z.ZodArray<z.ZodObject<{
+        hour: z.ZodString;
+        source: z.ZodNumber;
+        views: z.ZodNullable<z.ZodNumber>;
+        watchMs: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    hourlyRevenue: z.ZodArray<z.ZodObject<{
+        hour: z.ZodString;
+        netMills: z.ZodNullable<z.ZodNumber>;
+        transactions: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    tiers: z.ZodArray<z.ZodObject<{
+        tierId: z.ZodString;
+        name: z.ZodNullable<z.ZodString>;
+        color: z.ZodNullable<z.ZodString>;
+        position: z.ZodNullable<z.ZodNumber>;
+        active: z.ZodNullable<z.ZodBoolean>;
+    }, z.core.$strip>>;
+    coverage: z.ZodArray<z.ZodObject<{
+        scopeRef: z.ZodString;
+        oldestCapturedAt: z.ZodNullable<z.ZodString>;
+        newestCapturedAt: z.ZodNullable<z.ZodString>;
+        updatedAt: z.ZodString;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const statsTrafficQuerySchema: z.ZodObject<{
@@ -14007,145 +14085,6 @@ declare const baseRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly adminGrantModel: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["admin"];
-        readonly summary: "Grant a user model-scope access (present and future pages)";
-        readonly params: z.ZodObject<{
-            userId: z.ZodCoercedNumber<unknown>;
-        }, z.core.$strip>;
-        readonly body: z.ZodObject<{
-            modelSlug: z.ZodString;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                ok: z.ZodLiteral<true>;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly adminRevokeModel: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["admin"];
-        readonly summary: "Revoke a user's model-scope grant";
-        readonly params: z.ZodObject<{
-            userId: z.ZodCoercedNumber<unknown>;
-            modelSlug: z.ZodString;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                ok: z.ZodLiteral<true>;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly adminListUserGrants: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["admin"];
-        readonly summary: "Access-grant history for one user (active and revoked)";
-        readonly params: z.ZodObject<{
-            userId: z.ZodCoercedNumber<unknown>;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                grants: z.ZodArray<z.ZodObject<{
-                    id: z.ZodNumber;
-                    scopeType: z.ZodEnum<{
-                        page: "page";
-                        model: "model";
-                        org: "org";
-                    }>;
-                    scopeId: z.ZodNumber;
-                    scopeLabel: z.ZodNullable<z.ZodString>;
-                    grantedBy: z.ZodNullable<z.ZodNumber>;
-                    grantedAt: z.ZodString;
-                    revokedBy: z.ZodNullable<z.ZodNumber>;
-                    revokedAt: z.ZodNullable<z.ZodString>;
-                }, z.core.$strip>>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -17228,7 +17167,6 @@ declare const baseRouteSchemas: {
                         default: z.ZodString;
                         editability: z.ZodEnum<{
                             never: "never";
-                            staged: "staged";
                             editable: "editable";
                         }>;
                         runtimeApply: z.ZodEnum<{
@@ -17241,9 +17179,6 @@ declare const baseRouteSchemas: {
                         note: z.ZodNullable<z.ZodString>;
                         costWarning: z.ZodNullable<z.ZodString>;
                         destructive: z.ZodBoolean;
-                        stagedGroup: z.ZodNullable<z.ZodString>;
-                        stagedOrder: z.ZodNullable<z.ZodNumber>;
-                        requires: z.ZodArray<z.ZodString>;
                         source: z.ZodEnum<{
                             override: "override";
                             env: "env";
@@ -17359,59 +17294,6 @@ declare const baseRouteSchemas: {
             readonly 200: z.ZodObject<{
                 ok: z.ZodLiteral<true>;
                 key: z.ZodString;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly adminConfigStaged: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["admin"];
-        readonly summary: "Flip staged-rollout (boot-applied) config flags in the prescribed order";
-        readonly body: z.ZodObject<{
-            patches: z.ZodArray<z.ZodObject<{
-                key: z.ZodString;
-                desired: z.ZodNullable<z.ZodBoolean>;
-                expectedVersion: z.ZodNumber;
-            }, z.core.$strip>>;
-            note: z.ZodOptional<z.ZodString>;
-            ack: z.ZodBoolean;
-        }, z.core.$strip>;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                results: z.ZodArray<z.ZodObject<{
-                    key: z.ZodString;
-                    value: z.ZodNullable<z.ZodBoolean>;
-                    version: z.ZodNullable<z.ZodNumber>;
-                }, z.core.$strip>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
@@ -17782,6 +17664,158 @@ declare const baseRouteSchemas: {
                     updatedAt: z.ZodString;
                 }, z.core.$strip>>;
                 nextCursor: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly creatorStatsOverview: {
+        readonly auth: {
+            readonly kind: "owner-session";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["insights"];
+        readonly summary: "Fansly's 2026-10 statistics of one page: daily series, levels, engagement, last hours and the window's totals";
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+            to: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                page: z.ZodObject<{
+                    label: z.ZodString;
+                    platform: z.ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                    }>;
+                }, z.core.$strip>;
+                window: z.ZodObject<{
+                    fromDay: z.ZodString;
+                    toDay: z.ZodString;
+                    days: z.ZodNumber;
+                }, z.core.$strip>;
+                totalsWindow: z.ZodNullable<z.ZodObject<{
+                    fromDay: z.ZodString;
+                    toDay: z.ZodString;
+                    capturedAt: z.ZodString;
+                }, z.core.$strip>>;
+                totals: z.ZodArray<z.ZodObject<{
+                    scope: z.ZodString;
+                    ref: z.ZodString;
+                    metric: z.ZodString;
+                    value: z.ZodNullable<z.ZodNumber>;
+                    previous: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                views: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    source: z.ZodNumber;
+                    views: z.ZodNullable<z.ZodNumber>;
+                    uniqueViewers: z.ZodNullable<z.ZodNumber>;
+                    videoViews: z.ZodNullable<z.ZodNumber>;
+                    completedViews: z.ZodNullable<z.ZodNumber>;
+                    watchMs: z.ZodNullable<z.ZodNumber>;
+                    watchPctSum: z.ZodNullable<z.ZodNumber>;
+                    imageViews: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                profile: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    source: z.ZodNumber;
+                    profileVisits: z.ZodNullable<z.ZodNumber>;
+                    uniqueVisitors: z.ZodNullable<z.ZodNumber>;
+                    profileWatchMs: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                follows: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    follows: z.ZodNullable<z.ZodNumber>;
+                    unfollows: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                subscriptions: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    tierId: z.ZodString;
+                    subscriptionsNew: z.ZodNullable<z.ZodNumber>;
+                    subscriptionsRenewed: z.ZodNullable<z.ZodNumber>;
+                    subscriptionsExpired: z.ZodNullable<z.ZodNumber>;
+                    subscriptionsCancelled: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                revenue: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    productType: z.ZodNumber;
+                    productLabel: z.ZodString;
+                    transactions: z.ZodNullable<z.ZodNumber>;
+                    grossMills: z.ZodNullable<z.ZodNumber>;
+                    netMills: z.ZodNullable<z.ZodNumber>;
+                    refunds: z.ZodNullable<z.ZodNumber>;
+                    refundedNetMills: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                levels: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    followerCount: z.ZodNullable<z.ZodNumber>;
+                    subscriberCount: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                tierLevels: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    tierId: z.ZodString;
+                    subscriberCount: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                engagement: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    metric: z.ZodString;
+                    source: z.ZodNumber;
+                    value: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                hourlyViews: z.ZodArray<z.ZodObject<{
+                    hour: z.ZodString;
+                    source: z.ZodNumber;
+                    views: z.ZodNullable<z.ZodNumber>;
+                    watchMs: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                hourlyRevenue: z.ZodArray<z.ZodObject<{
+                    hour: z.ZodString;
+                    netMills: z.ZodNullable<z.ZodNumber>;
+                    transactions: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                tiers: z.ZodArray<z.ZodObject<{
+                    tierId: z.ZodString;
+                    name: z.ZodNullable<z.ZodString>;
+                    color: z.ZodNullable<z.ZodString>;
+                    position: z.ZodNullable<z.ZodNumber>;
+                    active: z.ZodNullable<z.ZodBoolean>;
+                }, z.core.$strip>>;
+                coverage: z.ZodArray<z.ZodObject<{
+                    scopeRef: z.ZodString;
+                    oldestCapturedAt: z.ZodNullable<z.ZodString>;
+                    newestCapturedAt: z.ZodNullable<z.ZodString>;
+                    updatedAt: z.ZodString;
+                }, z.core.$strip>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
@@ -35716,8 +35750,6 @@ export type ConfigUpdateBody = z.infer<typeof configUpdateBodySchema>;
 export type ConfigUpdateResponse = z.infer<typeof configUpdateResponseSchema>;
 export type ConfigClearQuery = z.infer<typeof configClearQuerySchema>;
 export type ConfigClearResponse = z.infer<typeof configClearResponseSchema>;
-export type ConfigStagedBody = z.infer<typeof configStagedBodySchema>;
-export type ConfigStagedResponse = z.infer<typeof configStagedResponseSchema>;
 export type NotificationsSettingsResponse = z.infer<typeof notificationsSettingsResponseSchema>;
 export type NotificationsSettingsUpdateBody = z.infer<typeof notificationsSettingsUpdateBodySchema>;
 export type NotificationsTestMessageResponse = z.infer<typeof notificationsTestMessageResponseSchema>;
@@ -35738,9 +35770,10 @@ export type DomainEventFactsResponse = z.infer<typeof domainEventFactsResponseSc
 export type ChangePasswordBody = z.infer<typeof changePasswordBodySchema>;
 export type DeviceTokenItem = z.infer<typeof deviceTokenItemSchema>;
 export type IssuedDeviceTokenResponse = z.infer<typeof issuedDeviceTokenResponseSchema>;
-export type AccessGrantItem = z.infer<typeof accessGrantItemSchema>;
 export type StatsTrafficQuery = z.infer<typeof statsTrafficQuerySchema>;
 export type StatsTrafficResponse = z.infer<typeof statsTrafficResponseSchema>;
+export type CreatorStatsOverviewQuery = z.infer<typeof creatorStatsOverviewQuerySchema>;
+export type CreatorStatsOverviewResponse = z.infer<typeof creatorStatsOverviewResponseSchema>;
 export type StatsMediaQuery = z.infer<typeof statsMediaQuerySchema>;
 export type StatsMediaResponse = z.infer<typeof statsMediaResponseSchema>;
 export type StatsTagsQuery = z.infer<typeof statsTagsQuerySchema>;
