@@ -151,11 +151,11 @@ describe('MAIN ↔ isolated bridge (§5.3)', () => {
 
   it('extra fields and unsafe ids are rejected', () => {
     const base = { v: 1, kind: 'evt', t: 'chatCache', documentEpoch: 'doc1', seq: 0 } as const;
-    expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: IDS.fan } }).success).toBe(true);
-    expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: IDS.fan, extra: 1 } }).success).toBe(false);
-    expect(C.BridgeEventSchema.safeParse({ ...base, extra: 1, payload: { acc: IDS.acc, fan: IDS.fan } }).success).toBe(false);
+    expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: IDS.fan, history: true } }).success).toBe(true);
+    expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: IDS.fan, history: true, extra: 1 } }).success).toBe(false);
+    expect(C.BridgeEventSchema.safeParse({ ...base, extra: 1, payload: { acc: IDS.acc, fan: IDS.fan, history: true } }).success).toBe(false);
     for (const unsafe of ['0', '-1', '1e9', '9007199254740993.0', 'abc', '1'.repeat(31), ' 2002']) {
-      expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: unsafe } }).success, unsafe).toBe(false);
+      expect(C.BridgeEventSchema.safeParse({ ...base, payload: { acc: IDS.acc, fan: unsafe, history: true } }).success, unsafe).toBe(false);
     }
     expect(C.BridgeRequestSchema.safeParse({ v: 1, kind: 'req', id: 1, t: 'previewSendCommit', documentEpoch: 'doc1', seq: 0, payload: { req: { attemptId: uuid(5) } } }).success).toBe(false);
   });

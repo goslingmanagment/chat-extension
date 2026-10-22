@@ -1264,7 +1264,7 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     C.FromMainFrameSchema,
     [
       { ...bridgeRes, ok: true, data: probe },
-      { v: 1, kind: 'evt', t: 'chatCache', documentEpoch: 'doc1', seq: 9, payload: { acc: IDS.acc, fan: IDS.fan } },
+      { v: 1, kind: 'evt', t: 'chatCache', documentEpoch: 'doc1', seq: 9, payload: { acc: IDS.acc, fan: IDS.fan, history: true } },
     ],
     [{ v: 1, kind: 'req', id: 1, t: 'probe', documentEpoch: null, seq: 0, payload: {} }],
   ),

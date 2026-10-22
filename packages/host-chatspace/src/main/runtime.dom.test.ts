@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakeEditor, type FakePage } from '../testing/fake-page';
 import { type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
 import { faultCounter, guardWith } from '@cg/host-kit/main/guard';
+import { OPEN_CHAT_REQUEST_MS } from './protocol';
 import { createMainRuntime } from './runtime';
 
 const ACC = '1001';
@@ -626,6 +627,21 @@ describe('MAIN runtime — our read of the open chat from the API (X54)', () => 
     h.page.cache.set(['chatList', ACC, 'all'], { pages: [{ items: [{ id: OTHER, unreadMessagesCount: 3, lastMessage: { id: '9100', isOutgoing: false } }] }] });
     expect(await h.call('chatReadState', { acc: ACC, fan: OTHER, username: 'fan_three' })).toEqual({ ok: true, last: null });
     expect(fetches).toHaveLength(1);
+  });
+
+  it('[X54] a session token that never comes: the read ends as late within its deadline, nothing is requested', async () => {
+    const h = harness as Harness;
+    Object.defineProperty(window, 'Clerk', { configurable: true, value: { session: { getToken: () => new Promise(() => undefined) } } });
+    // Timers only: the API's address comes from the page's resource timing.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const asked = h.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 });
+      await vi.advanceTimersByTimeAsync(OPEN_CHAT_REQUEST_MS);
+      expect(OpenChatAnswerSchema.parse(await asked)).toEqual({ ok: false, failure: 'timeout', status: null });
+      expect(fetches).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('[X54] only the page’s own read of its accounts names the API: another `/api/v0/` address carries no token', async () => {

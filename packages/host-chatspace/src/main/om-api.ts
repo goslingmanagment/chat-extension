@@ -204,16 +204,19 @@ export function createOmApi(win: Window, setTimer: Timer) {
   ): Promise<{ readonly ok: true; readonly body: unknown } | Failed | typeof ERR_IDENTITY> => {
     const root = apiBase();
     if (root === null) return fail('endpoint');
+    // One deadline for the session token and the request: a token that never comes ends the read as late, not never.
+    const abort = new AbortController();
+    setTimer(() => abort.abort(), OPEN_CHAT_REQUEST_MS);
+    const late = new Promise<null>((resolve) => abort.signal.addEventListener('abort', () => resolve(null), { once: true }));
     let token: unknown;
     try {
-      token = await (win as PageWindow).Clerk?.session?.getToken?.();
+      token = await Promise.race([(win as PageWindow).Clerk?.session?.getToken?.(), late]);
     } catch {
       token = null;
     }
+    if (abort.signal.aborted) return fail('timeout');
     if (typeof token !== 'string' || token === '') return fail('session');
     if (still !== undefined && !still()) return ERR_IDENTITY;
-    const abort = new AbortController();
-    setTimer(() => abort.abort(), OPEN_CHAT_REQUEST_MS);
     try {
       const response = await win.fetch(root + path, {
         method: init?.method ?? 'GET',
