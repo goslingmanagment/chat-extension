@@ -85,6 +85,9 @@ function openPreview(handle: string): UiAction {
   return { type: 'OpenPreview', targetHandle: handle };
 }
 
+/** The unfolded preview folds back: a press on its fan's row again, as on any list that unfolds. */
+const CLOSE_PREVIEW: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } };
+
 export function openChat(handle: string): UiAction {
   return { type: 'Navigate', to: { kind: 'chat', targetHandle: handle } };
 }
@@ -269,12 +272,12 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
         'data-cg-fan': row.handle,
         onClick: (event: MouseEvent) => {
           onPick(itemKey);
-          // X66: a click opens the preview; a double click opens the chat, as the old Fansly board's click did. The
-          // second click of the pair is itself a click — the person's own, which the chat's opening needs. The
-          // browser's count alone is not enough (a click elsewhere a moment before counts in it): the first click
-          // must be this row's.
+          // X66: a click opens the preview, a click on its fan's row again folds it; a double click opens the chat, as
+          // the old Fansly board's click did. The second click of the pair is itself a click — the person's own, which
+          // the chat's opening needs. The browser's count alone is not enough (a click elsewhere a moment before counts
+          // in it): the first click must be this row's.
           const second = onPress(itemKey);
-          void dispatch(second && event.detail >= 2 ? openChat(row.handle) : openPreview(row.handle));
+          void dispatch(second && event.detail >= 2 ? openChat(row.handle) : expanded ? CLOSE_PREVIEW : openPreview(row.handle));
         },
         onFocus: () => onPick(itemKey),
       };
@@ -652,7 +655,7 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
       case 'Space':
         if (item.kind !== 'fan') return;
         event.preventDefault();
-        void dispatch(openPreview(item.row.handle));
+        void dispatch(unfold && item.row.selected ? CLOSE_PREVIEW : openPreview(item.row.handle));
         return;
       default:
     }
@@ -710,8 +713,14 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
             headerHeight={BOARD_HEIGHTS.head}
             isGroupHeader={(item) => item.kind === 'shelf'}
             stickyLead={unfoldedAt < 1 ? null : { index: unfoldedAt - 1, until: unfoldedAt + 1 }}
-            // A press on the stuck fan brings their row back, the preview whole under it.
-            onStickyPress={(index) => listRef.current?.scrollToIndex(index, 'start')}
+            // A press on the stuck fan folds their preview, as a press on their row does; the focus going back to the
+            // row (the window does it) brings the row back into view.
+            onStickyPress={(index) => {
+              const item = items[index];
+              if (item?.kind !== 'fan') return;
+              setActiveKey(item.key);
+              void dispatch(CLOSE_PREVIEW);
+            }}
             listRef={listRef}
             onRangeChange={onRange}
             onKeyDown={onKeyDown}
@@ -891,5 +900,8 @@ export const BOARD_CSS = `
 /* The fan's row stands over the unfolded preview (stuck at the top while it scrolls): its name, money and ages are not
    said twice. */
 .cg-bd__unfoldcell :is(.cg-pv__name, .cg-pv__money, .cg-pv__ages) { display: none; }
+/* The unfolded preview is a row of the list: a wheel its feed (or its result) has no room left for scrolls the list on
+   to the next fans, instead of stopping dead over the whole height the preview takes. */
+.cg-bd__unfoldcell :is(.cg-pv.is-panel, .cg-feed, .cg-pv__work) { overscroll-behavior: auto; }
 .cg-bd > .cg-sp__foot .cg-btn { margin-right: -8px; }
 `;

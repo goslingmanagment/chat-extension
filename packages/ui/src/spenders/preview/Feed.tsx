@@ -117,15 +117,28 @@ export function Feed({ handle, feed, empty, loading, seen = null }: FeedProps): 
       asked.current = null;
     }
     const previous = before.current;
-    if (previous === null || (previous.last !== last && previous.atBottom)) {
-      // The first paint and every new message while the end is in view: the newest stays in view.
+    if (previous === null || previous.atBottom) {
+      // The first paint, and while the end is in view — a new message, a mark under ours: the newest stays in view.
       node.scrollTop = node.scrollHeight;
     } else if (previous.first !== first && previous.last === last) {
       // An older page arrived above: what the person was reading does not jump.
       node.scrollTop = previous.top + (node.scrollHeight - previous.height);
     }
     before.current = { first, last, height: node.scrollHeight, top: node.scrollTop, atBottom: node.scrollHeight - node.scrollTop - node.clientHeight <= BOTTOM_EDGE_PX };
-  }, [handle, first, last, feed.items.length]);
+  });
+
+  // The feed's box shrinks under it (a line above it, the result or the media under it came later): a feed at its end
+  // stays there, the newest message never slides out under the composer.
+  useLayoutEffect(() => {
+    const node = scroller.current;
+    const view = node?.ownerDocument.defaultView;
+    if (node === null || view === null || view === undefined || typeof view.ResizeObserver !== 'function') return undefined;
+    const observer = new view.ResizeObserver(() => {
+      if (before.current?.atBottom === true) node.scrollTop = node.scrollHeight;
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   const loadOlder = (): void => {
     if (handle === null || !feed.hasOlder || feed.loadingOlder || first === null) return;
