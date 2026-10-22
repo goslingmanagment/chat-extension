@@ -926,7 +926,8 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       { feature: 'coach', surface: 'coach', target, cause, tone: null, split: false, window: 100, coach: { question: 'What next?', history: [], autoRecap: { length: 'full', window: 5000 } } },
       // Fansly uses proof instead of `fresh` and `checkpoint`; analysis can carry text since 1.42.0.
       fanslyStartReply,
-      ...(['review', 'recap', 'recap-short', 'coach'] as const).map((feature) => ({ ...fanslyStartReply, feature, surface: feature === 'coach' ? 'coach' : 'dock', tone: null })),
+      // 1.51.0: Review is a turn of Coach — it carries its text on Coach's surface.
+      ...(['review', 'recap', 'recap-short', 'coach'] as const).map((feature) => ({ ...fanslyStartReply, feature, surface: feature === 'coach' || feature === 'review' ? 'coach' : 'dock', tone: null })),
       { feature: 'recap', surface: 'dock', target: fanslyTarget, cause, tone: null, split: false, window: 3000, proof: { ...tabProof, tail: undefined } },
       { feature: 'hi', surface: 'newcomers', target: fanslyTarget, cause, tone: null, split: true, window: 25, variantCount: 1, proof: passProof },
       { feature: 'reply', surface: 'preview', target: fanslyTarget, cause, tone: 'casual', split: false, window: 100, proof: tabProof },

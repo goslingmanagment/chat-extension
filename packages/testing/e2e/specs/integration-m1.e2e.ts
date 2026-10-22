@@ -314,8 +314,8 @@ describe('integration M1 — the test build on the stand against the fake hub', 
     expect(report.dock).toMatchObject({ login: WORLD.user.username, page: PAGE, persona: persona.displayName, contract: 'ok', banner: null, mode: 'insert' });
     expect(report.dock?.text).toContain(persona.displayName);
     expect(report.dock?.target).not.toBeNull();
-    // Recap, Review and Coach came in behind the dock: their views are served.
-    await dockIs((dock) => ['recap.picker', 'recap.view', 'review', 'coach'].every((view) => dock.views.includes(view)), 'the analysis controllers are in');
+    // Recap and Coach (Review is a turn of Coach since 1.51.0) came in behind the dock: their views are served.
+    await dockIs((dock) => ['recap.picker', 'recap.view', 'coach'].every((view) => dock.views.includes(view)), 'the analysis controllers are in');
   });
 
   it('the dock follows chat switches: one host, always the first child of the active composer', async () => {

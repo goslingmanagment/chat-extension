@@ -33,16 +33,19 @@ export type Tone = z.infer<typeof ToneSchema>;
 export const FRESH_TEXT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly FeatureId[];
 
 /**
- * 1.29.0 (decision X52): fresh page text for Review (in the dock) and Coach (its own panel) too — each the answer of
+ * 1.29.0 (decision X52): fresh page text for Review and Coach (its own panel) too — each the answer of
  * the one person who asked, which no one else reads. The hub takes it there from `live-text-review-coach-v1` on
  * (`LIVE_TEXT_HUB_NEEDS`). 1.31.0 (X52, the owner's ruling 2026-10-17): Recap, full and short, in the dock too, on a
  * hub with `live-text-recap-v1` — such a recap stays the fan's shared recap and goes to the dossier.
  */
 export const ANSWER_FRESH_TEXT_FEATURES = ['review', 'coach', 'recap', 'recap-short'] as const satisfies readonly FeatureId[];
 
-/** Where a start may carry fresh page text: the open chat's dock, Coach's own panel; null — never. */
+/**
+ * Where a start may carry fresh page text: the open chat's dock, Coach's own panel; null — never. 1.51.0: Review on
+ * Coach's panel — it is a turn of Coach's dialog, started there and nowhere else.
+ */
 export function freshTextSurface(feature: FeatureId): Surface | null {
-  if (feature === 'coach') return 'coach';
+  if (feature === 'coach' || feature === 'review') return 'coach';
   return isFreshTextFeature(feature) || (ANSWER_FRESH_TEXT_FEATURES as readonly FeatureId[]).includes(feature) ? 'dock' : null;
 }
 

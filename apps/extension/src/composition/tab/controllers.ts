@@ -3,7 +3,7 @@
 //
 // - with the dock: the AI workspace and the dock's controller (R11), the
 //   keys and navigation (R17) and the shell (toasts, the tab's own actions);
-// - right after it: Recap, Review and Coach over the same workspace;
+// - right after it: Recap and Coach (Review is a turn of Coach) over the same workspace;
 // - with the first board surface: Spenders, «Новые», the fan panel and the
 //   preview (R12) — the same wiring as R12's `createBoardsControllers`, cut
 //   in two chunks, because one would not fit the 30 KiB of a lazy chunk.
@@ -83,7 +83,7 @@ export interface TabWorld {
 
 const done = (type: UiAction['type'], outcome: Extract<ActionReceipt, { ok: true }>['outcome'] = 'done'): ActionReceipt => ({ ok: true, type, outcome });
 
-// ── AI: the workspace, the dock, and — later — Recap, Review, Coach ─────────
+// ── AI: the workspace, the dock, and — later — Recap, Coach ─────────────────
 
 export interface TabAi {
   readonly workspace: AiChunk.AiWorkspace;
@@ -145,7 +145,6 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
 export function startAnalysis(ai: TabAi, analysis: typeof AnalysisChunk, coach: typeof CoachChunk): void {
   ai.recap = analysis.createRecapController(ai.workspace);
   ai.plug(ai.recap);
-  ai.plug(analysis.createReviewController(ai.workspace));
   ai.plug(analysis.createVoiceController(ai.workspace));
   ai.plug(coach.createCoachController(ai.workspace));
 }

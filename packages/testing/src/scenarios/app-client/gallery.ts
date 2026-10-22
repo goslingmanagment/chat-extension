@@ -23,7 +23,7 @@ import { dock, dockOutsideChat } from './dock';
 import { entry, type ScenarioViewEntry } from './fake-app-client';
 import { board, newcomers, defaultNewcomerRows, preview, stats } from './lists';
 import { debugPrompt, journal, options, popup } from './pages';
-import { cheatsheet, coach, coachTurn, fanPanel, palette, quickJump, recapPicker, recapView, review, toasts, toast, voiceStudio } from './panels';
+import { cheatsheet, coach, coachTurn, fanPanel, palette, quickJump, recapPicker, recapView, toasts, toast, voiceStudio } from './panels';
 
 /** Every selector the UI can ask for (one token for the prompt page). */
 export const ALL_SELECTORS: readonly ViewSelector[] = VIEW_NAMES.flatMap((of): ViewSelector[] => {
@@ -46,7 +46,6 @@ const DOCK_BY_STATE: Record<VmViewState, DockStatus | null> = {
 
 const ERROR_CODE: Partial<Record<ViewSelector['of'], CgCode>> = {
   'recap.view': 'CG-PROVIDER-STREAM',
-  review: 'CG-PROVIDER-STREAM',
   'quick-jump': 'CG-HOST-CONTRACT',
   cheatsheet: 'CG-UNKNOWN',
   palette: 'CG-UNKNOWN',
@@ -58,7 +57,6 @@ const ERROR_CODE: Partial<Record<ViewSelector['of'], CgCode>> = {
 const EMPTY_KEY: Partial<Record<ViewSelector['of'], I18nKey>> = {
   'recap.picker': 'common.empty',
   'recap.view': 'cg.recapNotFound.title',
-  review: 'cg.gateHistory.title',
   coach: 'coach.empty.title',
   'spenders.board': 'spenders.empty',
   'spenders.stats': 'stats.noData',
@@ -131,8 +129,6 @@ export function galleryEntry(ctx: ScenarioCtx, selector: ViewSelector, state: Vm
       return entry(selector, recapPicker(ctx, view));
     case 'recap.view':
       return entry(selector, recapView(ctx, view, state === 'partial' ? 'full' : 'short'));
-    case 'review':
-      return entry(selector, review(ctx, view));
     case 'coach':
       return entry(selector, coach(ctx, view, state === 'ready' || state === 'partial' || state === 'offline' ? [coachTurn(ctx, 1)] : []));
     case 'spenders.board':

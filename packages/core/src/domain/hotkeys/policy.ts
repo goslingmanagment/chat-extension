@@ -61,7 +61,7 @@ export interface KeyContext {
    * is held and never takes a key from anything.
    */
   readonly overlays: readonly OverlayKind[];
-  /** A result, Recap or Review is open in the dock. */
+  /** A result or a Recap is open in the dock. */
   readonly dockSheet: boolean;
   /** The key is one ChatSpace's global listener would look at (`isComboLike`): ⌘/Ctrl/Alt held, or a named key. */
   readonly combo: boolean;
@@ -120,8 +120,8 @@ export interface KeyCommand {
   /** Where the command goes: the open chat's dock or the preview on top. */
   readonly target: 'dock' | 'preview' | 'global';
   /**
-   * A lenient site: pressed over the «Развернуть ↗» window, and the window yields to it — a finished Recap, Review or
-   * result gives way to this generation, as a finished overlay did in the old Fansly extension; one still running
+   * A lenient site: pressed over the «Развернуть ↗» window, and the window yields to it — a finished Recap or result
+   * gives way to this generation, as a finished overlay did in the old Fansly extension; one still running
    * refuses it as the dock does («уже идёт генерация»). Absent — under the window only the analysis it shows answers its
    * key (X55).
    */
@@ -146,8 +146,12 @@ export const COVERING_OVERLAYS: readonly OverlayKind[] = ['cheatsheet', 'spender
 export const UNDER_COVER_COMMANDS: readonly DispatcherCommandId[] = ['cheatsheet', 'spenders', 'newcomers', 'cancel', 'close'];
 /** Side panels next to the chat: the chat stays visible and usable, so they own no keys but their own. */
 export const SIDE_PANELS: readonly OverlayKind[] = ['fan-panel', 'coach'];
-/** The keys that start a generation in the open chat's dock: on a lenient site they take the place of what the «Развернуть ↗» window shows. */
-export const GENERATION_COMMANDS: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping', 'recap', 'review'];
+/**
+ * The keys that start a generation in the open chat's dock: on a lenient site they take the place of what the «Развернуть ↗»
+ * window shows. Not Review's (1.51.0): it is a turn of Coach, whose window the key opens — under a covering window it
+ * waits, as Coach's own key does.
+ */
+export const GENERATION_COMMANDS: readonly DispatcherCommandId[] = ['reply', 'fix', 'hi', 'ping', 'recap'];
 
 /** Whether the site has this row of ours at all; a row it has not is a key nobody of ours matched. */
 export const servesRow = (command: DispatcherCommandId, rules: SiteKeyRules | undefined): boolean => rules?.absent?.includes(command) !== true;
@@ -268,9 +272,9 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
   if (cover === 'result-expanded' && inChat) {
     // A lenient site: a generation key starts over what the window shows, as over a finished overlay of the old extension.
     if (lenient && GENERATION_COMMANDS.includes(id)) return claim(id, verdict.repeat ? null : { ...command('dock'), overWindow: true });
-    // X55: Review and the full Recap open in the «Развернуть ↗» window; their keys are its own «Ещё раз» and «Обновить»
-    // (the runner checks that the window shows that very one).
-    if (id === 'recap' || id === 'review') return run('dock');
+    // X55: the full Recap opens in the «Развернуть ↗» window; its key is the window's own «Обновить» (the runner checks
+    // that the window shows that very one).
+    if (id === 'recap') return run('dock');
   }
   if (covered) return refuse('overlay-open');
   if (!inChat) return PASS;

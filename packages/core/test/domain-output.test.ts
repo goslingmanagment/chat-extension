@@ -20,6 +20,7 @@ import {
   parseParts,
   parseVariants,
   partialMarkerLength,
+  reviewHistoryText,
   splitByNext,
   splitByVariant,
   streamPreview,
@@ -208,6 +209,16 @@ describe('[AI-084] [AI-085] [AI-092] Coach answers', () => {
       { index: 1, parts: ['I saved something for you'] },
     ]);
     expect(answer.blocks).toBeNull();
+  });
+});
+
+describe('[1.51.0] a Review as Coach\'s history', () => {
+  it('a frame that did not read goes as the text shown, its score kept; one with no score and no text is nothing', () => {
+    expect(reviewHistoryText(null, '<rating>6</rating><summary>Warm, but the offer came too soon.</summary>')).toBe('Оценка: 6/10\n\nWarm, but the offer came too soon.');
+    expect(reviewHistoryText(null, '<review></review>')).toBe('');
+    // A block whose body is in its items only keeps its label on a line of its own.
+    const doc = { rating: null, lead: '', sections: [{ kind: 'mistakes' as const, body: '', items: [{ body: 'Pushed the set.', fix: null, fixWhere: null, afterFix: null }] }], recommendations: null };
+    expect(reviewHistoryText(doc, '')).toBe('ОШИБКИ:\n1. Pushed the set.');
   });
 });
 

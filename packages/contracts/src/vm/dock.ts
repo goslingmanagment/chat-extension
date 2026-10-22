@@ -15,7 +15,11 @@ import { type RefusalVM, type ResultVM } from './result';
 import { type TargetHandle } from './selectors';
 import { type RunningOpVM, type VmView } from './view';
 
-/** The seven strip buttons, in UI-002 order. */
+/**
+ * The seven AI actions of the open chat, in UI-002 order: the bar's buttons, their keys, the palette's rows. 1.51.0:
+ * Review has no button of its own in the bar — it is a turn of Coach's dialog; its state here is what its key and the
+ * palette's row say, and Coach's «Review» chip says the same.
+ */
 export const DOCK_ACTION_IDS = ['reply', 'fix', 'hi', 'ping', 'review', 'recap', 'coach'] as const satisfies readonly FeatureId[];
 export type DockActionId = (typeof DOCK_ACTION_IDS)[number];
 
@@ -60,7 +64,7 @@ export interface DockActionVM {
  * 1.15.0 (R20 F4). The groups of the bar's chips, in the bar's order (ui-design §3.1): Reply with the capsule of
  * its options │ the draft's tools │ the openers │ what is known about the fan — and, at the right end, the windows.
  * A seam stands before the first chip of a group. How a group is laid out is `ui/kit`'s; its test holds every
- * value here to a row there. 1.50.0: Voice, a group of its own between the openers and the analysis (the owner,
+ * value here to a row there. 1.51.0: Voice, a group of its own between the openers and the analysis (the owner,
  * 2026-10-23: «справа от Ping через перегородку»).
  */
 export const DOCK_CHIP_GROUPS = ['reply', 'draft', 'openers', 'voice', 'analysis', 'windows'] as const;
@@ -168,8 +172,8 @@ export interface DockVM {
    * or the dock itself (`FocusReturn.where`). Absent or null — nothing to focus; nothing is ever inserted by itself.
    */
   readonly focusPart?: { readonly opId: Uuid; readonly part: number } | null;
-  /** Recap or Review open in the sheet; their content is the `recap.*` / `review` views (ui-design §9.1 п. 3). */
-  readonly analysis: 'recap' | 'review' | null;
+  /** Recap open in the sheet; its content is the `recap.*` views (ui-design §9.1 п. 3). 1.51.0: Review is Coach's, never here. */
+  readonly analysis: 'recap' | null;
   /** 1.47.0: the voice studio is the sheet; its content is the `voice` view. Absent or false — not shown. */
   readonly voice?: boolean;
   /** A refused start in place of a result (CG-OP-TAB-LIMIT with «Идут сейчас», CG-OP-CHAT-BUSY). */

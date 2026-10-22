@@ -288,8 +288,8 @@ export const StartOpSchema = z
       }),
     ),
     /**
-     * Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14); 1.29.0 (decision X52) also review in
-     * the dock and coach on its panel (`freshTextSurface`).
+     * Only reply|fix|hi|ping on surface `dock` with the freshText flag (D-14); 1.29.0 (decision X52) also review and
+     * coach — on Coach's panel since 1.51.0 (`freshTextSurface`).
      */
     fresh: z.optional(LiveTextTailSchema),
     /**

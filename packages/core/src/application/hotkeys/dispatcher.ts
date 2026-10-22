@@ -98,7 +98,7 @@ export interface DispatcherState {
   route(): { readonly kind: RouteKind; readonly epoch: number | string };
   /** Our open overlays, bottom first. */
   overlays(): readonly OverlayKind[];
-  /** A result, Recap or Review is open in the dock. */
+  /** A result or a Recap is open in the dock. */
   dockSheet(): boolean;
   /** A Fix waits in the open chat (X58): ⌘↵ / Ctrl+Enter is ours only then. Absent — never. */
   fix?(): FixKeyState;

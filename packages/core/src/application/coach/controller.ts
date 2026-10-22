@@ -15,23 +15,38 @@
 // started from an event. Sessions live in this tab's memory (five, fifty
 // exchanges, two mebibytes) and are wiped by a change of persona or sign-in.
 //
+// Review is a turn of the dialog too (1.51.0, the owner's «интегрировать
+// ревью внутрь коача как фичу»): the «Review» chip by the ready questions, its
+// key and the palette run the page's `review` — the same hub feature, flag,
+// gates and quota — as the next turn, whose answer is the Review's card. It is
+// replayed as history like any exchange, as «Review» and the Review in text,
+// so the next question can be about it. A page whose Coach is off but whose
+// Review is on opens the window with the «Review» chip alone.
+//
 // Actions: `Generate { feature: 'coach', options: {} }` opens the panel and
-// generates nothing; with `question` or `preset` it asks. `NewCoachDialog`
-// (the UI confirms first), `RefreshArchive` («Обновить переписку»: the
-// archive head is read again and the lag behind the chat is shown).
+// generates nothing; with `question` or `preset` it asks. `Generate { feature:
+// 'review' }` opens the panel when it is closed and runs a Review as the next
+// turn — over a dialog that holds one already, a new rating past the cache;
+// `Regenerate` of a Review («Ещё раз» of its turn) rates anew as the next turn.
+// `NewCoachDialog` (the UI confirms first), `RefreshArchive` («Обновить
+// переписку»: the archive head is read again and the lag behind the chat is
+// shown).
 
 import { type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { RECAP_OFF_CAPABILITY, chatKeyOf, type ChatKey } from '@cg/contracts/ids';
-import { type COACH_BLOCK_KINDS } from '@cg/contracts/ops';
+import { COVERAGE_LEVELS, type COACH_BLOCK_KINDS, type CoverageLevel, type ReviewDoc } from '@cg/contracts/ops';
 import {
   type ActionButtonVM,
   type ActionReceipt,
   type CoachHintGroupVM,
   type CoachRecapVM,
+  type CoachReviewVM,
   type CoachTurnVM,
   type CoachVM,
   type ReasonVM,
+  type ReviewItemVM,
+  type ReviewSectionVM,
   type UiAction,
   type UiActionOf,
   type UserOptions,
@@ -47,21 +62,24 @@ import {
   historyFor,
   outsideMemory,
   recapStepVerdict,
+  replayableOf,
   type CoachExchange,
   type CoachFailedTurn,
   type CoachPendingTurn,
+  type CoachReviewTurn,
   type CoachSession,
   type CoachSessionKey,
 } from '../../domain/coach';
-import { windowFor } from '../../domain/features';
+import { featureGate, windowFor } from '../../domain/features';
 import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState } from '../../domain/ops';
-import { COACH_SECTION_LABELS, coachAnswerText, splitLabelledSections, streamPreview } from '../../domain/output';
+import { COACH_SECTION_LABELS, coachAnswerText, reviewHistoryText, reviewRawText, reviewTags, splitLabelledSections, streamPreview } from '../../domain/output';
 import { analysisMark, type ArchivePoint } from '../../domain/recap';
+import { artifactHandle } from '../ai/handles';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
 import { confirmVm, partVms } from '../ai/result-vm';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
-import { button, debugVm, errorActions, errorVm, msg, phaseVm, views } from '../ai/view-models';
-import { type AiWorkspace, type ReadyTarget, type Situation } from '../ai/workspace';
+import { button, debugVm, errorActions, errorVm, featureHotkey, msg, phaseVm, views } from '../ai/view-models';
+import { isOwnSurface, type AiWorkspace, type ReadyTarget, type Situation } from '../ai/workspace';
 import { flagReasonVm } from '../flag-reason';
 
 type CoachBlockKind = (typeof COACH_BLOCK_KINDS)[number];
@@ -97,6 +115,28 @@ const FOLLOW_UP_CHIPS: readonly { readonly key: I18nKey; readonly preset: 'situa
 ];
 
 type CoachDraftVM = NonNullable<CoachTurnVM['answer']>['drafts'][number];
+
+/** The titles of a Review's blocks (AI-053), in the hub's order; the recommendations close it. */
+const REVIEW_TITLES: Readonly<Record<ReviewSectionVM['kind'], I18nKey>> = {
+  verdict: 'review.section.verdict',
+  money: 'review.section.money',
+  persona: 'review.section.persona',
+  mistakes: 'review.section.mistakes',
+  works: 'review.section.works',
+  recommendations: 'review.section.recommendations',
+};
+
+const reviewItemVm = (item: ReviewDoc['sections'][number]['items'][number]): ReviewItemVM => ({ body: item.body, example: item.fix, exampleWhere: item.fixWhere, afterExample: item.afterFix });
+
+/** A Review's blocks as its card shows them: the pinned blocks in the hub's order, then the recommendations. */
+function reviewSections(doc: ReviewDoc): ReviewSectionVM[] {
+  const sections: ReviewSectionVM[] = doc.sections.map((section) => ({ kind: section.kind, title: msg(REVIEW_TITLES[section.kind]), body: section.body, items: section.items.map(reviewItemVm) }));
+  const recommendations = doc.recommendations;
+  if (recommendations !== null && (recommendations.lead.length > 0 || recommendations.items.length > 0)) {
+    sections.push({ kind: 'recommendations', title: msg(REVIEW_TITLES.recommendations), body: recommendations.lead, items: recommendations.items.map(reviewItemVm) });
+  }
+  return sections;
+}
 
 /** The two drafts of «Разбор ситуации» are a calm one and a flirty one, titled so, as the old window titled them. */
 const SITUATION_DRAFTS: readonly I18nKey[] = ['coach.draft.calm', 'coach.draft.flirt'];
@@ -149,13 +189,24 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     ws.bump();
   }
 
-  /** A step ended: the turn moves on to its answer step, becomes an exchange, or fails keeping its question. */
+  /** A step ended: the turn moves on to its answer step, becomes an exchange (or a Review), or fails keeping its question. */
   function settle(record: OpRecord): void {
     const { view } = record;
     const session = sessions.byOp(view.opId);
     const pending = session?.pending ?? null;
     if (session === null || pending === null || pending.opId !== view.opId) return;
     const turnId = pending.turnId;
+    if (view.feature === 'review') {
+      // 1.51.0: the Review turn — its structured Review for the card, its text for the history.
+      if (view.state === 'done' && view.result?.kind === 'review') {
+        const { doc, raw } = view.result;
+        sessions.completeReview(session.sessionId, turnId, { opId: view.opId, generationRef: view.generationRef ?? null, answerRaw: reviewHistoryText(doc, raw), review: { doc, raw }, completedAt: view.endedAt ?? clock.now() });
+        ws.bump();
+        return;
+      }
+      if (view.state === 'canceled') return failTurn(session, turnId, 'canceled', null);
+      return failTurn(session, turnId, view.state === 'interrupted' ? 'interrupted' : 'failed', view.error ?? { code: view.state === 'interrupted' ? 'CG-OP-INTERRUPTED' : 'CG-OUTPUT-UNUSABLE' });
+    }
     if (view.feature !== 'coach') {
       // The recap step of a composite turn. Whether the question goes on is the background's decision: when it
       // does, the answer step took the chat's slot the moment this one ended, and this view names it.
@@ -317,6 +368,67 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     return done(action.type, 'started', { opId: result.opId });
   }
 
+  // ── a Review as a turn (1.51.0) ──────────────────────────────────────────
+
+  /** The window opens for what asks a Review from outside it (its key, the palette); the header's Recaps are read, as at any opening. */
+  function openWindow(ready: ReadyTarget): void {
+    if (ws.ports.overlays?.isOpen?.('coach') === true) return;
+    ws.ports.overlays?.open('coach');
+    if (flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) ws.recaps.loadShared(ws.slotKey(ready));
+  }
+
+  /**
+   * A Review of the open chat as the next turn: the «Review» chip, its key, the palette — or `original`, the «Ещё раз»
+   * of a Review turn. The page's own `review`: its switch, its gates and its quota, as the bar's Review button had
+   * them. Over a dialog that holds a Review already it rates anew, past the cache (the old window's «Ещё раз»); the
+   * first one of a dialog may reopen a Review of the chat the background still keeps (AI-128).
+   */
+  async function review(type: UiAction['type'], cause: CauseKind, original: OpRecord | null): Promise<ActionReceipt> {
+    const situation = ws.situation();
+    const { chat, ready } = situation;
+    if (chat === null) return refused(ws, type, { code: 'CG-CONTEXT-CHANGED' });
+    if (ready === null) return refused(ws, type, ws.blockedError(situation));
+    // The Review is read where it is shown: the window opens before anything is asked of the hub.
+    openWindow(ready);
+    const now = clock.now();
+    const session = sessions.open(keyOf(ready), now);
+    rememberPage(session.sessionId, ready.page.pageId);
+    // One turn at a time (AI-099).
+    if (session.pending !== null) return refused(ws, type, { code: 'CG-OP-COACH-BUSY' });
+    const rated = replayableOf(session).some((turn) => turn.kind === 'review');
+    const turnId = ids.uuid();
+    const begun = sessions.begin(session.sessionId, { turnId, question: i18n.t('coach.chip.review'), preset: null, attachedDraft: false, askedAt: now, step: 'review' });
+    if (!begun.ok) return refused(ws, type, { code: 'CG-OP-COACH-BUSY' });
+    ws.bump();
+    /** Nothing ran: no turn is left behind. */
+    const giveUp = (error: CgErrorWire): ActionReceipt => {
+      sessions.abandon(session.sessionId, turnId);
+      ws.bump();
+      return refused(ws, type, error);
+    };
+    const result = await ws.startFeature({ feature: 'review', surface: 'coach', options: {}, cause, ...(original !== null ? { regenerateOf: original, force: true } : rated ? { force: true } : {}) });
+    // As a question that did not start: said in a toast, a refusal that names what runs also in the chat's sheet.
+    if (result.kind === 'failed') {
+      notStarted(result.error);
+      return giveUp(result.error);
+    }
+    if (result.kind === 'refused') {
+      ws.showRefusal(chat.key, result.refusal);
+      notStarted(result.refusal.error);
+      return giveUp(result.refusal.error);
+    }
+    if (sessions.step(session.sessionId, turnId, 'review', result.opId) === null) {
+      // The dialog was wiped while the start was on its way: nobody would read the Review.
+      void ws.ops.cancel(result.opId);
+      return refused(ws, type, { code: 'CG-CONTEXT-CHANGED' });
+    }
+    ws.bump();
+    // A Review the background kept (AI-128), or one that ended before this answer arrived.
+    const record = ws.ops.get(result.opId);
+    if (record !== null && isTerminalOpState(record.view.state)) settle(record);
+    return done(type, result.reopened ? 'noop' : 'started', { opId: result.opId });
+  }
+
   // ── «Обновить переписку» (AI-097, Б6) ────────────────────────────────────
 
   /** What is known of a chat's archive; a shift opens hundreds of chats, a bounded number of them is remembered. */
@@ -370,6 +482,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const asked = turn.preset === null ? { question: turn.question } : { preset: turn.preset };
     return { type: 'Generate', targetHandle: handle, feature: 'coach', options: { ...asked, ...(turn.attachedDraft ? { attachMyDraft: true } : {}) } };
   }
+
+  /** 1.51.0: a Review of the open chat, as the «Review» chip asks it. */
+  const reviewAction = (handle: string): UiAction => ({ type: 'Generate', targetHandle: handle, feature: 'review', options: {} });
 
   /**
    * A finished exchange reads the same until something its parts show
@@ -450,14 +565,68 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     };
   }
 
+  /**
+   * 1.51.0: a finished Review turn — the question line «Review», the Review's card as its answer. The site's verdict over
+   * it marks it as an answer is marked (R20 P8c); its «Ещё раз» is always there: a new Review as the next turn, when the
+   * «Review» chip could run one now. Built once per state, as an exchange is.
+   */
+  function reviewTurnVm(turn: CoachReviewTurn, outside: ReadonlySet<string>, handle: string | null, chip: ActionButtonVM | null): CoachTurnVM {
+    const record = ws.ops.get(turn.opId);
+    const mark = analysisMark(record === null ? null : ws.ports.policy.verdict(record.view, record.memo.fingerprint));
+    const again = handle === null || chip === null ? null : button('common.again', { type: 'Regenerate', operationId: turn.opId }, { enabled: chip.enabled, reason: chip.reason });
+    const state = [outside.has(turn.turnId), record !== null, mark?.reason ?? '', again === null ? '' : `${handle ?? ''}:${chip?.reason?.id ?? ''}`, debugOn()].join('|');
+    const known = built.get(turn.turnId);
+    if (known !== undefined && known.state === state) return known.vm;
+    const { doc, raw } = turn.review;
+    // Whether the archive it read was whole is known only from the hub's context frame (debug); never guessed.
+    const context = record?.view.debug?.context ?? null;
+    const coverage: CoverageLevel = context !== null && (COVERAGE_LEVELS as readonly string[]).includes(context.coverage) ? (context.coverage as CoverageLevel) : 'unknown';
+    const card: CoachReviewVM = {
+      // An answer whose frame does not read keeps its score when its <rating> does (AI-052).
+      rating: doc?.rating ?? reviewTags(raw).rating,
+      lead: doc === null || doc.lead.length === 0 ? null : doc.lead,
+      sections: doc === null ? [] : reviewSections(doc),
+      raw: reviewRawText(raw),
+      unparsed: doc === null,
+      copyHandle: record === null ? null : artifactHandle({ kind: 'review', opId: turn.opId }),
+      generatedAt: new Date(turn.completedAt).toISOString(),
+      partial: coverage === 'partial',
+    };
+    const vm: CoachTurnVM = {
+      feature: 'review',
+      id: turn.turnId,
+      opId: turn.opId,
+      question: turn.question,
+      askedAt: turn.askedAt,
+      state: 'done',
+      phase: null,
+      sentToCoach: false,
+      streamText: null,
+      attachedDraft: false,
+      outsideMemory: outside.has(turn.turnId),
+      answer: null,
+      review: card,
+      error: null,
+      errorActions: [],
+      confirm: null,
+      debug: turnDebug(record),
+      stale: mark,
+      again,
+    };
+    built.set(turn.turnId, { state, vm });
+    return vm;
+  }
+
   function failedVm(turn: CoachFailedTurn, handle: string | null, canAsk: boolean): CoachTurnVM {
     const wire = turn.error;
-    const again = handle === null ? null : retryAction(handle, turn);
+    // A Review that did not finish is run again as the «Review» chip runs it.
+    const again = handle === null ? null : turn.review ? reviewAction(handle) : retryAction(handle, turn);
     let actions: ActionButtonVM[] = [];
     if (wire !== null) actions = errorActions(wire, { catalog, now: clock.now(), again, againHotkey: null, openChat: null });
     // «Остановлено вами»: nothing failed, the question can simply be asked again.
     else if (again !== null) actions = [button('common.retry', again, { enabled: canAsk })];
     return {
+      ...(turn.review ? { feature: 'review' as const } : {}),
       id: turn.turnId,
       opId: turn.opId,
       question: turn.question,
@@ -482,11 +651,12 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const view = record?.view ?? null;
     const now = clock.now();
     // The recap step of a composite turn shows its timer and its cancel under its own name (the old «Полный рекап
-    // (авто) · обновляется…»); its text is not the Coach's answer.
-    const answering = view !== null && view.feature === 'coach';
-    const preview = answering && view.text !== undefined ? streamPreview('coach', view.text) : '';
+    // (авто) · обновляется…»); its text is not the Coach's answer. A Review (1.51.0) is its own one step.
+    const answering = view !== null && (view.feature === 'coach' || view.feature === 'review');
+    const preview = answering && view.text !== undefined ? streamPreview(view.feature, view.text) : '';
     const phase = view === null ? null : phaseVm(view, now);
     return {
+      ...(turn.step === 'review' ? { feature: 'review' as const } : {}),
       id: turn.turnId,
       opId: turn.opId,
       question: turn.question,
@@ -499,8 +669,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
           : answering
             ? phase
             : { ...phase, stages: [{ id: 'context', label: msg(view?.feature === 'recap-short' ? 'coach.recapStep.short' : 'coach.recapStep.full'), state: 'current' }] },
-      // AI-093: «Отправлено коучу…» until the hub's first frame.
-      sentToCoach: answering && (view.state === 'admitted' || view.state === 'requesting'),
+      // AI-093: «Отправлено коучу…» until the hub's first frame — of a question; a Review shows its stages.
+      sentToCoach: view?.feature === 'coach' && (view.state === 'admitted' || view.state === 'requesting'),
       streamText: preview.length > 0 ? preview : null,
       attachedDraft: turn.attachedDraft,
       outsideMemory: false,
@@ -516,8 +686,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
   function archivePoint(session: CoachSession | null, chatKey: ChatKey): { readonly asOf: string | null; readonly point: ArchivePoint | null } {
     const read = archives.get(chatKey);
     if (read !== undefined && read.state === 'ready') return { asOf: read.asOf, point: read.head };
-    // Until «Обновить переписку» is pressed: what the latest answer was built from.
-    const last = session === null ? undefined : exchangesOf(session).at(-1);
+    // Until «Обновить переписку» is pressed: what the latest answer (or Review) was built from.
+    const last = session === null ? undefined : replayableOf(session).at(-1);
     const head = last === undefined ? null : (ws.ops.get(last.opId)?.view.servedContext?.servedHead ?? null);
     return head === null ? { asOf: read?.asOf ?? null, point: read?.head ?? null } : { asOf: head.at, point: { messageRef: head.messageRef, at: head.at } };
   }
@@ -530,6 +700,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     // The owner's `coach` switch of this chat's page (its own feature).
     const flag = ready === null ? null : flagStateOf(ready.bootstrap, ready.page.pageId, 'coach');
     const usable = flag !== null && flag.usable;
+    // 1.51.0: the page's `review` — what the bar's Review button asked of the page: its switch and what it needs.
+    const reviewAdmitted = ready === null ? null : ws.admitted(situation.host, ready, 'review', 'generate');
+    // Coach's questions are off while its Review is on: the window is there for the «Review» chip alone.
+    const reviewOnly = !usable && reviewAdmitted !== null && reviewAdmitted.usable;
     const pending = session?.pending ?? null;
     const { asOf, point } = chat === null ? { asOf: null, point: null } : archivePoint(session, chat.key);
     const lag = chat === null ? null : ws.archiveLag(point, chat.key);
@@ -539,8 +713,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     else if (ready === null) {
       const error = errorVm(ws.blockedError(situation), i18n);
       view = situation.status === 'loading-chat' ? views.loading(null, msg('dock.status.chatLoading')) : situation.status === 'hub-down' ? views.offline(error, { type: 'ReloadView', selector: { of: 'dock' } }) : views.forbidden(error);
-    } else if (flag !== null && !flag.usable) view = views.forbidden(errorVm(flagRefusal(flag), i18n));
-    else if (session === null || (session.feed.length === 0 && pending === null)) view = views.empty(msg('coach.empty.title'));
+    } else if (flag !== null && !flag.usable && !reviewOnly) view = views.forbidden(errorVm(flagRefusal(flag), i18n));
+    else if (session === null || (session.feed.length === 0 && pending === null)) view = views.empty(msg(reviewOnly ? 'coach.reviewOnly.title' : 'coach.empty.title'));
     else view = lag === null ? views.ready() : { s: 'partial', gaps: [{ kind: 'archive-lag', messages: lag.messages, minutes: null }] };
 
     // The one thing that keeps a question from being asked.
@@ -553,9 +727,33 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     else if (running !== null) askReason = catalog.reason('chat-busy');
     const canAsk = askReason === null;
 
+    // 1.51.0: the «Review» chip, off for the reason the bar's Review button gave — the page, a turn or a generation in
+    // the chat, the shared gate (a short history, AI-051).
+    let reviewReason: ReasonVM | null = off;
+    if (reviewReason === null) {
+      if (ready === null || reviewAdmitted === null) reviewReason = catalog.reason('chat-loading');
+      else if (!reviewAdmitted.usable) reviewReason = flagReasonVm(reviewAdmitted);
+      else if (pending !== null) reviewReason = catalog.reason('coach-busy');
+      else if (running !== null) reviewReason = catalog.reason('chat-busy');
+      else {
+        const composer = situation.host.composer;
+        const gate = featureGate('review', { window: situation.window, draftEmpty: composer === null ? null : composer.draft.provenance === 'empty' }, ws.ports.policy);
+        if (gate !== null) reviewReason = catalog.reason(gate.reason);
+      }
+    }
+    const reviewChip: ActionButtonVM | null =
+      chat === null ? null : button('coach.chip.review', reviewAction(chat.handle), { enabled: reviewReason === null, reason: reviewReason, hotkey: reviewReason === null ? featureHotkey(catalog, 'review') : null });
+
     const outside = session === null ? new Set<string>() : outsideMemory(session, historyLimit);
     const feed = session?.feed ?? [];
-    const turns: CoachTurnVM[] = feed.map((item) => (item.kind === 'exchange' ? exchangeVm(item, outside, situation, chat?.handle ?? null, askReason) : failedVm(item, chat?.handle ?? null, canAsk)));
+    const handle = chat?.handle ?? null;
+    const turns: CoachTurnVM[] = feed.map((item) =>
+      item.kind === 'exchange'
+        ? exchangeVm(item, outside, situation, handle, askReason)
+        : item.kind === 'review'
+          ? reviewTurnVm(item, outside, handle, reviewChip)
+          : failedVm(item, handle, item.review ? reviewReason === null : canAsk),
+    );
     if (pending !== null) turns.push(pendingVm(pending));
     // Views of exchanges no dialog shows any more are not kept.
     if (built.size > feed.length + COACH_BUILT_SLACK) {
@@ -572,11 +770,15 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       recaps.push({ length: 'short', generatedAt: slots.short.revision, summary: slots.short.markdown });
     // A Recap of this chat being built — from «Recap ▾», the strip or a turn's own step: the topbar says so.
     const recapRunning = running !== null && (running.view.feature === 'recap' || running.view.feature === 'recap-short');
+    // The follow-ups are about an answer of Coach; before one — a Review alone, too — the opening questions stand. Where
+    // Coach's questions are off (its Review on) there are none.
     const hasExchange = session !== null && exchangesOf(session).length > 0;
-    const chips = (hasExchange ? FOLLOW_UP_CHIPS : OPENING_CHIPS).map((chip) => ({ label: msg(chip.key), question: i18n.t(chip.key), preset: chip.preset }));
+    const chips = reviewOnly ? [] : (hasExchange ? FOLLOW_UP_CHIPS : OPENING_CHIPS).map((chip) => ({ label: msg(chip.key), question: i18n.t(chip.key), preset: chip.preset }));
     // AI-081: the empty dialog also offers three headings of ready questions; a click fills the input, the person sends.
     const emptyDialog = session === null || (session.feed.length === 0 && pending === null);
-    const hints: CoachHintGroupVM[] = emptyDialog ? HINT_GROUPS.map((group) => ({ label: msg(group.label), questions: group.questions.map((key) => ({ label: msg(key), question: i18n.t(key) })) })) : [];
+    const hints: CoachHintGroupVM[] = emptyDialog && !reviewOnly ? HINT_GROUPS.map((group) => ({ label: msg(group.label), questions: group.questions.map((key) => ({ label: msg(key), question: i18n.t(key) })) })) : [];
+    // No question asked yet — the dialog holds nothing but Reviews, if anything: the first question may build its Recap first (AI-096).
+    const beforeQuestion = session === null || (session.feed.every((item) => item.kind === 'review') && (pending === null || pending.step === 'review'));
 
     const autoRecap = ready?.settings.generation.coach.autoRecap ?? ws.env.settings?.settings.generation.coach.autoRecap ?? 'off';
     // «Учитывать Recap»: the dock's «с Recap» of the chat, where the hub can leave the Recaps out.
@@ -604,7 +806,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       window: ready === null ? null : windowFor('coach', undefined, ready.settings, ready.bootstrap),
       recapOn,
       // Before the first question of a session only; a page without Recap builds none (AI-096), nor an unticked chat.
-      autoRecapNext: emptyDialog && session?.autoRecapAttempted !== true && ready !== null && recapOn !== false && flagUsable(ready.bootstrap, ready.page.pageId, 'recap') ? autoRecapAhead(autoRecap, slots, clock.now()) : null,
+      autoRecapNext:
+        beforeQuestion && usable && session?.autoRecapAttempted !== true && ready !== null && recapOn !== false && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')
+          ? autoRecapAhead(autoRecap, slots, clock.now())
+          : null,
       turns,
       historyLimit,
       chips,
@@ -617,6 +822,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       // AI-090: not while the Coach answers.
       newDialog: button('coach.newDialog', { type: 'NewCoachDialog' }, { enabled: pending === null && ready !== null, reason: pending !== null ? catalog.reason('coach-busy') : null }),
       hints,
+      review: reviewChip,
+      reviewOnly,
     };
   }
 
@@ -624,6 +831,12 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   const handlers: ActionHandlers = {
     Generate(action, cause) {
+      if (action.feature === 'review') {
+        const chat = ws.situation().chat;
+        // A Review of a chat that is gone is neither run nor opened over another one.
+        if (chat === null || chat.handle !== action.targetHandle) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
+        return review(action.type, cause, null);
+      }
       if (action.feature !== 'coach') return null;
       // AI-080: opening the panel generates nothing.
       if (action.options.question === undefined && action.options.preset === undefined) {
@@ -637,6 +850,14 @@ export function createCoachController(ws: AiWorkspace): CoachController {
         return Promise.resolve(done(action.type, 'opened'));
       }
       return ask(action, cause);
+    },
+    // «Ещё раз» of a Review turn (and of its mark): a new Review as the next turn, past the cache.
+    Regenerate(action, cause) {
+      const record = ws.ops.get(action.operationId);
+      if (record === null || record.view.feature !== 'review' || !isOwnSurface(record.view.surface)) return null;
+      const chat = ws.situation().chat;
+      if (chat === null || chat.key !== chatKeyOf(record.view.target.chat)) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
+      return review(action.type, cause, record);
     },
     NewCoachDialog(action) {
       const ready = ws.situation().ready;

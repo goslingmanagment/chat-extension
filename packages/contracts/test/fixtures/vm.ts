@@ -247,6 +247,8 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { type: 'ShowAnalysis', view: 'coach', mode: 'sheet' },
       { type: 'ShowAnalysis', view: 'recap', mode: 'generate' },
       { type: 'ShowAnalysis', view: 'review', mode: 'hidden', operationId: OP },
+      // 1.51.0: Review is a turn of Coach's dialog — no sheet, no window of its own.
+      { type: 'ShowAnalysis', view: 'review', mode: 'sheet' },
     ],
   ),
 ];
@@ -577,8 +579,18 @@ export const COACH_TURN_VM_SAMPLES: { readonly valid: readonly C.CoachTurnVM[]; 
     COACH_TURN_BASE,
     { ...COACH_TURN_BASE, confirm: null, debug: null },
     { ...COACH_TURN_BASE, confirm: { confirmationId: CONFIRMATION, kind: 'human-draft', part: { index: 0 }, formatLoss: false }, debug: COACH_TURN_DEBUG },
+    // 1.51.0: a Review turn — its card in place of an answer.
+    {
+      ...COACH_TURN_BASE,
+      feature: 'review',
+      question: 'Review',
+      answer: null,
+      review: { rating: 7, lead: null, sections: [], raw: 'Warm, but early.', unparsed: true, copyHandle: null, generatedAt: '2026-10-23T00:00:00.000Z', partial: false },
+    },
   ],
   invalid: [
+    // @ts-expect-error a turn is a question to Coach or a Review, nothing else
+    { ...COACH_TURN_BASE, feature: 'recap' } satisfies C.CoachTurnVM,
     // @ts-expect-error a confirmation is the whole ConfirmVM, not its id
     { ...COACH_TURN_BASE, confirm: CONFIRMATION } satisfies C.CoachTurnVM,
     // @ts-expect-error the debug footer is a ResultDebugVM, not a cost line

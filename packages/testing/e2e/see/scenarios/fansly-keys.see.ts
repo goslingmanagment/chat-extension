@@ -1,5 +1,5 @@
-// Fansly's keys as in the old extension: ⌘E under a modal of Fansly, ⌘E over a finished Review in its window,
-// ⌘⇧H — Coach with «разбор ситуации», ⌘E from the mini-chat's field.
+// Fansly's keys as in the old extension: ⌘E under a modal of Fansly, ⌘⇧B — a Review as a turn of Coach (1.51.0) —
+// then ⌘E over it, ⌘⇧H — Coach with «разбор ситуации», ⌘E from the mini-chat's field.
 
 import { callFansly } from '../../support/fansly-stand';
 import { scenario } from '../kit';
@@ -15,9 +15,9 @@ scenario(
     await s.shot('reply-under-fansly-modal');
     await callFansly('setMediaViewer', false);
 
-    // A finished Review in its window: ⌘E closes it and starts Reply.
-    await s.press(/^Review/);
-    await s.see('modal', 'the conversation is alive', 30_000);
+    // ⌘⇧B: Coach opens with a Review turn; ⌘E over it starts Reply, and Coach — with no turn in flight — gives way.
+    await s.keys(...s.PANEL, 'b');
+    await s.see('panel', 'the conversation is alive', 30_000);
     await s.shot('review-finished');
     // The fan writes meanwhile: the Reply is a new one, not the first one reopened.
     const { groupId } = await callFansly('route');

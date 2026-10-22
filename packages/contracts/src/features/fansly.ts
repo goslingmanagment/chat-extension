@@ -54,7 +54,8 @@ const FEATURES = {
   hi: { base: DRAFTS, actions: { generate: HI_BY_PROOF, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'newcomers'], source: 'hub' },
   ping: { base: DRAFTS, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
   'fresh-text': { base: { flags: ['freshText'], hostCapabilities: [], clientNeeds: CLIENT_FLAG_REQUIREMENTS.freshText }, actions: {}, surfaces: ['dock'], source: 'page' },
-  review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
+  // 1.51.0: a turn of Coach's dialog — its window is Review's surface.
+  review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['coach'], source: 'hub' },
   recap: { base: { flags: ['recap'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded', 'fan-panel'], source: 'hub' },
   coach: { base: { flags: ['coach'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['coach'], source: 'hub' },
   // `stats`: the statistics and the «waiting» queue of the board; `preview`: the archive feed of a fan's preview.

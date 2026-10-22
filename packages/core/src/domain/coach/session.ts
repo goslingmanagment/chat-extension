@@ -1,10 +1,11 @@
 // Coach sessions of one tab (AI-089, AI-090, AI-092, AI-099; architecture.md
 // §9.4 «Coach: 5 сессий по 50 обменов, до 2 МиБ»). A session is the dialog
 // about one fan under one persona: the feed the person sees (finished
-// exchanges and failed attempts) and the turn in flight. Only a turn whose
-// answer finished usable becomes an exchange and is ever replayed as
-// history; a failed or canceled turn keeps its question and drops the
-// partial answer. The store lives in the tab's memory: a reload starts
+// exchanges, finished Reviews and failed attempts) and the turn in flight.
+// Only a turn whose answer finished usable becomes an exchange — or, for a
+// Review (1.51.0), a review turn holding the structured Review — and is ever
+// replayed as history; a failed or canceled turn keeps its question and drops
+// the partial answer. The store lives in the tab's memory: a reload starts
 // clean. It keeps at most five sessions (least recently used goes first),
 // fifty exchanges each and two mebibytes in all; «Новый диалог» puts the
 // current session aside (it stays in the five as history) and starts a new
@@ -13,7 +14,7 @@
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type ChatKey } from '@cg/contracts/ids';
 import { STORAGE_LIMITS } from '@cg/contracts/limits';
-import { type CoachAnswer, type CoachTurn } from '@cg/contracts/ops';
+import { type CoachAnswer, type CoachTurn, type ReviewDoc } from '@cg/contracts/ops';
 
 import { replayedCount, serializeCoachHistory } from './history';
 
@@ -52,6 +53,28 @@ export interface CoachExchange {
   readonly recapsUsed?: { readonly full: string | null; readonly short: string | null; readonly off?: true | undefined };
 }
 
+/**
+ * 1.51.0: a finished Review of the chat as a turn of the dialog (the «Review» chip, its key, the palette): what the
+ * dialog shows — the structured Review — and what the history replays — «Review» and the Review as text.
+ */
+export interface CoachReviewTurn {
+  readonly kind: 'review';
+  readonly turnId: string;
+  readonly opId: string;
+  readonly generationRef: string | null;
+  /** «Review»: the question line the dialog shows and the history replays. */
+  readonly question: string;
+  /** The Review as text (domain/output `reviewHistoryText`): the answer the history replays, projected when serialising. */
+  readonly answerRaw: string;
+  /** The Review as it came: the hub's frame parsed for display (null — it did not read, AI-052) and its raw text. */
+  readonly review: { readonly doc: ReviewDoc | null; readonly raw: string };
+  readonly askedAt: number;
+  readonly completedAt: number;
+}
+
+/** A finished turn of either kind: what the history replays. */
+export type CoachReplayable = CoachExchange | CoachReviewTurn;
+
 /** A turn that did not finish: the question is kept, the partial answer is not (AI-092). */
 export interface CoachFailedTurn {
   readonly kind: 'failed';
@@ -65,9 +88,11 @@ export interface CoachFailedTurn {
   /** `canceled` — «Остановлено вами»; otherwise the one error of the turn. */
   readonly outcome: 'failed' | 'canceled' | 'interrupted';
   readonly error: CgErrorWire | null;
+  /** 1.51.0: the turn was a Review: its «Повторить» runs a Review again. */
+  readonly review: boolean;
 }
 
-export type CoachFeedItem = CoachExchange | CoachFailedTurn;
+export type CoachFeedItem = CoachExchange | CoachReviewTurn | CoachFailedTurn;
 
 /** The turn in flight: at most one per session (CG-OP-COACH-BUSY). */
 export interface CoachPendingTurn {
@@ -76,8 +101,8 @@ export interface CoachPendingTurn {
   readonly preset: 'situation' | null;
   readonly attachedDraft: boolean;
   readonly askedAt: number;
-  /** `recap` — the auto-recap step of the composite turn; `coach` — the answer itself. */
-  readonly step: 'recap' | 'coach';
+  /** `recap` — the auto-recap step of the composite turn; `coach` — the answer itself; `review` — a Review (1.51.0), one step. */
+  readonly step: 'recap' | 'coach' | 'review';
   /** The operation of the current step; null while the start is on its way to the background. */
   readonly opId: string | null;
   /** The feed as it was before this turn began: a start that was refused puts it back (AI-099). */
@@ -103,7 +128,7 @@ const keyOf = (key: CoachSessionKey): string => `${key.chatKey}\u0000${key.perso
 /** A fair size of what a session keeps (UTF-16 units → bytes). */
 function sessionBytes(session: CoachSession): number {
   let chars = 0;
-  for (const item of session.feed) chars += item.question.length + (item.kind === 'exchange' ? item.answerRaw.length * 2 : 0) + 200;
+  for (const item of session.feed) chars += item.question.length + (item.kind === 'failed' ? 0 : item.answerRaw.length * 2) + 200;
   if (session.pending !== null) chars += session.pending.question.length + 200;
   return chars * 2;
 }
@@ -207,6 +232,27 @@ export class CoachSessions {
     return this.byId(sessionId);
   }
 
+  /** 1.51.0: a Review finished: the turn becomes a review turn with the structured Review and its text for the history. */
+  completeReview(sessionId: string, turnId: string, done: Pick<CoachReviewTurn, 'opId' | 'generationRef' | 'answerRaw' | 'review' | 'completedAt'>): CoachSession | null {
+    const session = this.byId(sessionId);
+    const pending = session?.pending ?? null;
+    if (session === null || pending === null || pending.turnId !== turnId) return null;
+    const turn: CoachReviewTurn = {
+      kind: 'review',
+      turnId,
+      opId: done.opId,
+      generationRef: done.generationRef,
+      question: pending.question,
+      answerRaw: done.answerRaw,
+      review: done.review,
+      askedAt: pending.askedAt,
+      completedAt: done.completedAt,
+    };
+    this.replace({ ...session, pending: null, feed: [...session.feed, turn] });
+    this.enforce();
+    return this.byId(sessionId);
+  }
+
   /** The turn did not finish: its question stays in the feed, its partial answer is dropped. */
   fail(sessionId: string, turnId: string, end: Pick<CoachFailedTurn, 'outcome' | 'error' | 'endedAt'>): CoachSession | null {
     const session = this.byId(sessionId);
@@ -223,6 +269,7 @@ export class CoachSessions {
       endedAt: end.endedAt,
       outcome: end.outcome,
       error: end.error,
+      review: pending.step === 'review',
     };
     const next: CoachSession = { ...session, pending: null, feed: [...session.feed, failed] };
     this.replace(next);
@@ -288,13 +335,13 @@ export class CoachSessions {
     this.sessions = this.sessions.map((session) => (session.sessionId === next.sessionId ? next : session));
   }
 
-  /** The three caps, cheapest loss first: old exchanges of a long session, then whole sessions least recently used. */
+  /** The three caps, cheapest loss first: old exchanges (and Reviews) of a long session, then whole sessions least recently used. */
   private enforce(): void {
     this.sessions = this.sessions.map((session) => {
-      const exchanges = session.feed.filter((item) => item.kind === 'exchange').length;
+      const exchanges = session.feed.filter((item) => item.kind !== 'failed').length;
       if (exchanges <= this.limits.exchanges) return session;
       let drop = exchanges - this.limits.exchanges;
-      return { ...session, feed: session.feed.filter((item) => item.kind !== 'exchange' || drop-- <= 0) };
+      return { ...session, feed: session.feed.filter((item) => item.kind === 'failed' || drop-- <= 0) };
     });
     const evictable = (session: CoachSession): boolean => session.pending === null;
     while (this.sessions.length > this.limits.sessions) {
@@ -308,28 +355,33 @@ export class CoachSessions {
         this.sessions = this.sessions.filter((session) => session.sessionId !== victim.sessionId);
         continue;
       }
-      // One session left and still too big: its oldest exchange goes.
+      // One session left and still too big: its oldest exchange (or Review) goes.
       const last = this.sessions[0];
-      const oldest = last?.feed.find((item) => item.kind === 'exchange');
+      const oldest = last?.feed.find((item) => item.kind !== 'failed');
       if (last === undefined || oldest === undefined) break;
       this.replace({ ...last, feed: last.feed.filter((item) => item !== oldest) });
     }
   }
 }
 
-/** The exchanges of a session, oldest first. */
+/** The exchanges of a session — Coach's own answers, Reviews aside — oldest first. */
 export function exchangesOf(session: CoachSession): CoachExchange[] {
   return session.feed.filter((item): item is CoachExchange => item.kind === 'exchange');
 }
 
-/** AI-088: what the next question carries as `coachHistory`. */
-export function historyFor(session: CoachSession, limit: number): CoachTurn[] {
-  return serializeCoachHistory(exchangesOf(session), limit);
+/** The finished turns of a session — Coach's answers and the Reviews (1.51.0) — oldest first: what the history replays. */
+export function replayableOf(session: CoachSession): CoachReplayable[] {
+  return session.feed.filter((item): item is CoachReplayable => item.kind !== 'failed');
 }
 
-/** AI-094: turns above the memory boundary — finished exchanges that are no longer replayed. */
+/** AI-088: what the next question carries as `coachHistory`; a Review of the dialog goes as «Review» and its text (1.51.0). */
+export function historyFor(session: CoachSession, limit: number): CoachTurn[] {
+  return serializeCoachHistory(replayableOf(session), limit);
+}
+
+/** AI-094: turns above the memory boundary — finished exchanges (and Reviews) that are no longer replayed. */
 export function outsideMemory(session: CoachSession, limit: number): ReadonlySet<string> {
-  const exchanges = exchangesOf(session);
+  const exchanges = replayableOf(session);
   const kept = replayedCount(exchanges, limit);
   return new Set(exchanges.slice(0, Math.max(0, exchanges.length - kept)).map((exchange) => exchange.turnId));
 }

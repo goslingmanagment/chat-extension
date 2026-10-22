@@ -1,5 +1,6 @@
-// Styles of Recap and Review (ui-design §4.11), adopted when their chunk
-// loads. They read as the old Fansly client's report (2026-10-20, the owner's
+// Styles of Recap and Review (ui-design §4.11), adopted when Recap's chunk
+// loads — and by Coach's window, whose dialog holds Review's card (1.51.0;
+// overlays/coach). They read as the old Fansly client's report (2026-10-20, the owner's
 // reference): in the window a head with the score's badge and the fan's name
 // in the serif; the text in a dashed document of the draft's fill, its blocks
 // under mono headings with a dot of their colour — the verdict on terracotta,

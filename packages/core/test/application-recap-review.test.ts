@@ -1,10 +1,9 @@
-// The Recap and Review controllers over the fake tab RPC (the real
-// scheduler with R11's drivers), @cg/testing's FakeHostPort and the fake
-// hub's frames: the Recap sheet and picker (shared recaps of the hub as two
-// local copies, «Проверяю сохранённые Recap…», builds that are always new,
-// the dossier save and its retries, the archive lag) and the Review sheet
-// (N/10 with its blocks, raw text when the frame does not read, copy,
-// «Ещё раз» past the cache).
+// The Recap controller over the fake tab RPC (the real scheduler with R11's
+// drivers), @cg/testing's FakeHostPort and the fake hub's frames: the Recap
+// sheet and picker (shared recaps of the hub as two local copies, «Проверяю
+// сохранённые Recap…», builds that are always new, the dossier save and its
+// retries, the archive lag) — and what a persona change takes of a Recap and
+// of a Review (a turn of Coach since 1.51.0, application-coach.test.ts).
 
 import { describe, expect, it } from 'vitest';
 
@@ -35,7 +34,7 @@ async function start(options: HarnessOptions = {}): Promise<Harness> {
   const h = await readyHarness(parts(), options);
   h.mount({ of: 'recap.view' });
   h.mount({ of: 'recap.picker' });
-  h.mount({ of: 'review' });
+  h.mount({ of: 'coach' });
   return h;
 }
 
@@ -223,68 +222,6 @@ describe('recap: whose recaps they are', () => {
   });
 });
 
-describe('review', () => {
-  const run = async (h: Harness, text: string = REVIEW, extra: readonly HubFrame[] = []): Promise<string> => {
-    h.script(reviewStream(text, extra));
-    const receipt = await h.generate('review');
-    if (!receipt.ok || receipt.opId === undefined) throw new Error(`not started: ${JSON.stringify(receipt)}`);
-    await h.finish();
-    return receipt.opId;
-  };
-
-  it('[AI-050] Review grades the conversation over the deep window of the hub archive and the open chat\'s fresh tail (X52)', async () => {
-    const h = await start();
-    expect(h.review()).toMatchObject({ opId: null, state: null, rating: null, sections: [], raw: null, unparsed: false, copyHandle: null });
-    expect(h.review().view.s).toBe('empty');
-    h.script(reviewStream(REVIEW));
-    const receipt = await h.generate('review');
-    expect(receipt).toMatchObject({ ok: true, outcome: 'started' });
-    const started = h.bg.callsOf('op.start')[0] as { feature: string; surface: string; window: number; split: boolean; tone: unknown; fresh?: unknown };
-    expect(started).toMatchObject({ feature: 'review', surface: 'dock', window: 3000, split: false, tone: null });
-    expect(started.fresh).toMatchObject({ messages: [{ platformMessageId: '4004', direction: 'fan', text: 'hey' }] });
-    expect(h.host.reads.tail).toBe(1);
-    expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'chat-review', body: { messageCount: 3000, liveTextContext: { items: [{ platformMessageId: '4004', direction: 'fan', text: 'hey' }] } } });
-    expect(h.bg.hub.streams[0]?.body.replyMode).toBeUndefined();
-    expect(h.dock()).toMatchObject({ analysis: 'review', result: null });
-    expect(h.dock().actions.review).toMatchObject({ busy: true, active: true });
-
-    // The stream is a preview without the XML frame.
-    await h.clock.advance(120);
-    const running = h.review();
-    expect(running.view).toMatchObject({ s: 'loading', since: NOW_MS });
-    expect(running).toMatchObject({ state: 'streaming', rating: null, sections: [], copyHandle: null });
-    expect(running.streamText).not.toMatch(/<\/?(rating|evaluation)/);
-    expect(running.regenerate).toMatchObject({ enabled: false });
-    await h.finish();
-    expect(h.review().state).toBe('done');
-  });
-
-  it('a newer Review that failed keeps the earlier one on screen, «Не обновилось» under it; «Ещё раз» stays on the newest', async () => {
-    const h = await start();
-    const first = await run(h);
-    h.script({ kind: 'http-error', status: 500, body: { error: 'internal_error' } });
-    await h.dispatch({ type: 'Regenerate', operationId: first });
-    await h.finish();
-    const vm = h.review();
-    expect(vm).toMatchObject({ opId: first, state: 'done', rating: 7, view: { s: 'ready' } });
-    expect(vm.sections.length).toBeGreaterThan(0);
-    expect(vm.refreshFailed?.retry).toMatchObject({ type: 'Regenerate' });
-    expect(vm.refreshFailed?.retry).toEqual(vm.regenerate.action);
-    expect(vm.regenerate.action).not.toEqual({ type: 'Regenerate', operationId: first });
-  });
-
-  it('a review belongs to its chat: another chat shows none, and «Ещё раз» of it is refused there', async () => {
-    const h = await start();
-    const opId = await run(h);
-    h.host.setWindow({ ...(memory.chatWindows[0] as (typeof memory.chatWindows)[number]), chat: previewChat }, previewChat);
-    h.host.openChat(previewChat);
-    await h.settle();
-    expect(h.review()).toMatchObject({ opId: null, rating: null });
-    expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
-    expect(h.bg.callsOf('op.start')).toHaveLength(1);
-  });
-});
-
 describe('recap: a build belongs to its chat', () => {
   it('«Ещё раз» of another chat\'s recap builds nothing for the chat that is open', async () => {
     const h = await start();
@@ -318,6 +255,8 @@ describe('recap: a build belongs to its chat', () => {
     expect(await h.dispatch({ type: 'Generate', targetHandle: handle, feature: 'recap', options: {} })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
     expect(await h.dispatch({ type: 'Generate', targetHandle: handle, feature: 'review', options: {} })).toMatchObject({ ok: false, code: 'CG-CONTEXT-CHANGED' });
     expect(h.dock().analysis).toBeNull();
+    // Nor is Coach's window opened over the other chat for a Review of the one that is gone.
+    expect(h.overlays.opened).toEqual([]);
     expect(h.bg.callsOf('recap.read')).toEqual([]);
     expect(h.bg.callsOf('op.start')).toEqual([]);
   });
@@ -327,7 +266,7 @@ describe('persona change: nothing of the old persona comes back', () => {
   const OTHER_PERSONA = { key: 'other', definitionId: WORLD.persona.otherDefinitionId };
   const A_TEXT = 'Рекап персоны A.';
 
-  /** A full recap and a review, both made under the first persona. */
+  /** A full recap and a review (a turn of Coach), both made under the first persona. */
   async function madeUnderFirst(h: Harness): Promise<void> {
     h.bg.hub.profileScript.push(saved);
     await openRecap(h);
@@ -338,7 +277,7 @@ describe('persona change: nothing of the old persona comes back', () => {
     await h.generate('review');
     await h.finish();
     expect(h.recapView().markdown).toBe(A_TEXT);
-    expect(h.review().rating).toBe(7);
+    expect(h.coach().turns.at(-1)?.review?.rating).toBe(7);
   }
 
   it('[AI-126] the next visit of the chat does not bring the old persona\'s Recap and Review back', async () => {
@@ -346,9 +285,9 @@ describe('persona change: nothing of the old persona comes back', () => {
     await madeUnderFirst(h);
     h.bg.changePersona(WORLD.pages.one.pageId, OTHER_PERSONA);
     await h.settle();
-    // The sheets of the old persona closed and show nothing.
+    // The sheet of the old persona closed and shows nothing; the Coach dialog with its Review turn is gone.
     expect(h.dock().analysis).toBeNull();
-    expect(h.review()).toMatchObject({ opId: null, rating: null });
+    expect(h.coach().turns).toEqual([]);
     expect(h.recapView().markdown).toBeNull();
 
     // Another chat and back: the background still lists the old results of this chat (it keeps them half an hour).
@@ -362,14 +301,13 @@ describe('persona change: nothing of the old persona comes back', () => {
     expect(h.bg.scheduler.list(OTHER_TAB, 'tab', chatKeyOf(openChat)).ops.map((op) => op.feature).sort()).toEqual(['recap', 'review']);
     // What the change dropped stays dropped in this tab.
     expect(h.ai.workspace.ops.ofChat(chatKeyOf(openChat))).toEqual([]);
-    expect(h.review()).toMatchObject({ opId: null, rating: null, raw: null });
-    expect(h.review().view.s).toBe('empty');
+    expect(h.coach().turns).toEqual([]);
     await openRecap(h);
     expect(h.bg.callsOf('recap.read').at(-1)).toMatchObject({ personaDefinitionId: OTHER_PERSONA.definitionId });
     expect(h.recapView()).toMatchObject({ markdown: null, view: { s: 'empty' } });
     expect(h.recapPicker().slots).toEqual({ short: null, full: null });
     await h.clock.advance(RECAP_STATUS.settleMs);
     expect(h.dock().actions.recap.badge).toBeNull();
-    expect(JSON.stringify([h.recapView(), h.recapPicker(), h.review()])).not.toContain(A_TEXT);
+    expect(JSON.stringify([h.recapView(), h.recapPicker(), h.coach()])).not.toContain(A_TEXT);
   });
 });

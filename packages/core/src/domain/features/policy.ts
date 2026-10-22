@@ -12,13 +12,13 @@ import { freshTextSurface, isSplitFeature, type FeatureId } from '@cg/contracts/
 import { OP_TIMEOUTS, type OpTimeouts } from '@cg/contracts/limits';
 import { type OpResult } from '@cg/contracts/ops';
 
-/** Where a result lives: the dock's draft sheet, the dock's analysis sheet (Recap, Review), or the Coach panel. */
+/** Where a result lives: the dock's draft sheet, the dock's analysis sheet (Recap), or the Coach panel (Coach, Review since 1.51.0). */
 export type FeaturePlace = 'draft-sheet' | 'analysis-sheet' | 'coach-panel';
 
 /** The message window a feature reads (Б5): a settings window, or a fixed one. */
 export type WindowBucket = 'quick' | 'improve' | 'ping' | 'deep' | 'hi' | 'recap-short';
 
-/** The seven buttons of the strip; the two recap lengths share one. */
+/** The seven AI actions of the dock (Review's is Coach's chip since 1.51.0); the two recap lengths share one. */
 export type DockAction = 'reply' | 'fix' | 'hi' | 'ping' | 'review' | 'recap' | 'coach';
 
 export interface FeaturePolicy {
@@ -104,7 +104,7 @@ export const FEATURE_POLICIES: Readonly<Record<FeatureId, FeaturePolicy>> = {
     insertable: true,
   }),
   review: policy('review', {
-    place: 'analysis-sheet',
+    place: 'coach-panel',
     dockAction: 'review',
     result: 'review',
     window: 'deep',

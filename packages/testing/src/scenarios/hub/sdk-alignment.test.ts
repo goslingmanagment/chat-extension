@@ -285,7 +285,8 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
   };
   const start = (feature: FeatureId, over: Partial<StartOp> = {}): StartOp => ({
     feature,
-    surface: feature === 'coach' ? 'coach' : 'dock',
+    // Coach's own, and Review's — a turn of Coach since 1.51.0.
+    surface: feature === 'coach' || feature === 'review' ? 'coach' : 'dock',
     target: { binding, chat, fanRef: WORLD.fan, conversationRef: WORLD.fan },
     cause: { kind: 'click', actionToken: 'tok_0000000000000001' },
     tone: null,

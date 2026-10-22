@@ -10,7 +10,7 @@ import { KEPT_KEY_TTL_MS, createEarlyKeyDispatcher, createHotkeyRunner, type Ear
 import { createCauseHint, createOverlayState } from '@cg/core/application/navigation';
 import { DISPATCHER_COMMAND_IDS, createActionCatalog, type FixKeyState, type HotkeyPlatform, type KeyCommand, type OverlayKind, type RouteKind } from '@cg/core/domain/hotkeys';
 import { createI18n } from '@cg/core/domain/i18n';
-import { FakeToasts, coach, ctxOf, dock, handles, FANS, preview, recapPicker, recapView, result, review, uuid, views } from '@cg/testing/app-client';
+import { FakeToasts, coach, coachReviewTurn, ctxOf, dock, handles, FANS, preview, reason, recapPicker, recapView, result, uuid, views } from '@cg/testing/app-client';
 import { describe, expect, it } from 'vitest';
 
 import { FakeClock, settle } from './support/clock';
@@ -270,7 +270,6 @@ function runnerRig(dockPatch: Parameters<typeof dock>[2] = {}, status: Parameter
   client.set({ of: 'dock' }, dock(CTX, status, dockPatch));
   client.set({ of: 'recap.picker' }, recapPicker(CTX, views.ready()));
   client.set({ of: 'recap.view' }, recapView(CTX, views.ready(), 'short'));
-  client.set({ of: 'review' }, review(CTX, views.ready()));
   client.set({ of: 'coach' }, coach(CTX, views.ready(), []));
   const toasts = new FakeToasts();
   const overlays = createOverlayState();
@@ -308,13 +307,18 @@ describe('the hotkey runner', () => {
   });
 
 
-  it('over a finished Review ⌘⇧B is its «Ещё раз» (a new rating, not the cached one); one Esc closes its window with the sheet', async () => {
+  it('[1.51.0] ⌘⇧B asks Coach for a Review turn of the open chat (Coach opens its window for it); off, it says why; ⌘. stops the Review turn', async () => {
+    const r = runnerRig();
+    expect(await r.run('review')).toEqual({ type: 'Generate', targetHandle: handles.dock(FANS.hubert), feature: 'review', options: {} });
+    // Off for the reason Coach's «Review» chip gives too (a short history): nothing is asked, a toast says why.
+    const off = runnerRig({ actionsOptions: { gates: { review: reason('no-history') } } });
+    expect(await off.run('review')).toBeUndefined();
+    expect(off.toasts.shown).toHaveLength(1);
+    // The Review runs as Coach's turn: with Coach open, ⌘. stops it.
     const opId = uuid(0x73);
-    const r = runnerRig({ analysis: 'review' });
-    r.client.set({ of: 'review' }, review(CTX, views.ready(), { opId, state: 'done', regenerate: { label: { key: 'common.again' }, action: { type: 'Regenerate', operationId: opId }, enabled: true, reason: null, hotkey: null } }));
-    expect(await r.run('review')).toEqual({ type: 'Regenerate', operationId: opId });
-    r.overlays.set('result-expanded', true);
-    expect(await r.run('close')).toEqual({ type: 'ShowAnalysis', view: 'review', mode: 'hidden' });
+    r.overlays.set('coach', true);
+    r.client.set({ of: 'coach' }, coach(CTX, views.ready(), [coachReviewTurn(CTX, 1, { opId, state: 'streaming', review: null, again: null })]));
+    expect(await r.run('cancel')).toEqual({ type: 'CancelGeneration', operationId: opId });
   });
 
   it('[HK-042] in a preview the same keys generate for the preview\'s fan and ⌘. cancels there; no key ever sends or inserts', async () => {

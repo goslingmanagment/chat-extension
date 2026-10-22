@@ -1,13 +1,15 @@
-// What Recap and Review share (ui-design §4.11): the running head with the
-// stage line, the close button of the sheet («Скрыть Esc») or of the window
+// The report's pieces (ui-design §4.11): the running head with the stage
+// line, the close button of the sheet («Скрыть Esc») or of the window
 // («Свернуть» back to the sheet, × «Скрыть Esc»), «Развернуть ↗», the copy
-// icon and the facts row. Neither is a message to the fan: no Insert, no
+// icon and the facts row of a Recap; the score's badge, the coloured blocks,
+// the copy icon and the age that a Review's card in Coach's dialog takes
+// (1.51.0, overlays/coach). Neither is a message to the fan: no Insert, no
 // Split, never a send.
 //
-// In the window they read as the old Fansly client's report (2026-10-20, the
-// owner's reference): a head with the score's badge and the fan's name in the
-// serif, then a dashed document whose blocks carry their colour — the verdict
-// on terracotta, what works on green, a mistake with «Как надо было».
+// They read as the old Fansly client's report (2026-10-20, the owner's
+// reference): a head with the score's badge and the fan's name in the serif,
+// then a dashed document whose blocks carry their colour — the verdict on
+// terracotta, what works on green, a mistake with «Как надо было».
 
 import { type ReadonlySignal } from '@preact/signals';
 import { type ComponentChildren, type JSX } from 'preact';
@@ -28,14 +30,14 @@ export type Which = AnalysisProps['which'];
 
 export const running = (state: OpState | null): boolean => state !== null && isRunning(state);
 
-/** What a Recap or a Review needs of its place: the sheet or the window, and where the debug footer loads from. */
+/** What a Recap needs of its place: the sheet or the window, and where the debug footer loads from. */
 export interface ViewProps {
   readonly place: Place;
   readonly debugPart?: PartLoader<DebugProps>;
 }
 
 /**
- * The debug footer of a Recap or a Review (ui-design §4.12; UI-030, DB-013):
+ * The debug footer of a Recap (ui-design §4.12; UI-030, DB-013):
  * only when the controller sends `debug`, that is in debug mode. The live
  * timer needs the moment the generation started, which the phase carries.
  */
@@ -127,7 +129,7 @@ export function CopyAll({ handle, label }: { readonly handle: string | null; rea
   );
 }
 
-/** «Сделан 1 д назад», refreshed on the shared minute ticker; under a minute — «Сделан только что». */
+/** «Сделан 1 д назад», refreshed on the shared minute ticker; under a minute — «Сделан только что». A Recap's and a Review's. */
 export function MadeAgo({ at }: { readonly at: string }): JSX.Element {
   const i18n = useI18n();
   const now = useNowFn();
@@ -136,7 +138,7 @@ export function MadeAgo({ at }: { readonly at: string }): JSX.Element {
   return <>{fresh ? i18n.t('review.madeNow') : i18n.t('recap.madeAgo', { age: i18n.formatAge(at, now()) })}</>;
 }
 
-/** «Не обновилось · CG-… · Повторить»: a build that failed over a Recap or a Review that stays shown. */
+/** «Не обновилось · CG-… · Повторить»: a build that failed over a Recap that stays shown. */
 export function RefreshFailedFact({ failed }: { readonly failed: RefreshFailedVM | null }): JSX.Element | null {
   const i18n = useI18n();
   const dispatch = useDispatch();
@@ -169,7 +171,7 @@ export interface RunningProps {
 }
 
 /**
- * A Recap or a Review being built: the stage line, «Отменить ⌘.» and the preliminary text (Markdown waits for the end,
+ * A Recap being built: the stage line, «Отменить ⌘.» and the preliminary text (Markdown waits for the end,
  * AI-137). In the window the head also names the fan and keeps «Свернуть», where the window's focus opens: a stray
  * Enter must never cancel a paid run.
  */
@@ -182,7 +184,7 @@ export function Running({ title, opId, phase, text, debug, place, which, fan }: 
   return (
     <>
       {place === 'dialog' ? (
-        // The report's own head, as it stays once it is written: «Review — Hubert», the stages under it.
+        // The report's own head, as it stays once it is written: «Recap — Hubert», the stages under it.
         <ReportHead
           kicker={title}
           title={title}
@@ -259,7 +261,7 @@ export interface ReportHeadProps {
   readonly line?: ComponentChildren;
 }
 
-/** The head of a report in the «Развернуть ↗» window: badge, «REVIEW», «Review — Hubert» in the serif, the buttons. */
+/** The head of a report in the «Развернуть ↗» window: the kicker «RECAP», «Recap — Hubert» in the serif, the buttons. */
 export function ReportHead({ kicker, title, fan, badge, tools, acts, sub = [], line }: ReportHeadProps): JSX.Element {
   return (
     <header class="cg-rhead">

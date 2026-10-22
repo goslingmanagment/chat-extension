@@ -1,4 +1,4 @@
-// The AI controllers under test: the workspace and the four controllers over
+// The AI controllers under test: the workspace and the three controllers over
 // the fake background (real scheduler, real tokens), a host the test moves,
 // the real I18n port, a fake clipboard, toast sink, overlay switch and
 // journal. `dispatch` is the router: it checks the action against the UI
@@ -24,7 +24,6 @@ import {
   type RecapPickerVM,
   type RecapViewVM,
   type ResolveHubError,
-  type ReviewVM,
   type SessionIdentity,
   type SettingsV1,
   type ToastRequest,
@@ -98,7 +97,6 @@ export interface Harness {
   dock(): DockVM;
   recapPicker(): RecapPickerVM;
   recapView(): RecapViewVM;
-  review(): ReviewVM;
   coach(): CoachVM;
   /** The router: the action is checked against the UI contract, then offered to the controllers in order. */
   dispatch(action: UiAction): Promise<ActionReceipt>;
@@ -180,7 +178,6 @@ export function aiHarness(parts: HarnessParts, options: HarnessOptions = {}): Ha
     dock: () => ai.dock.getSnapshot({ of: 'dock' }) as DockVM,
     recapPicker: () => ai.recap.getSnapshot({ of: 'recap.picker' }) as RecapPickerVM,
     recapView: () => ai.recap.getSnapshot({ of: 'recap.view' }) as RecapViewVM,
-    review: () => ai.review.getSnapshot({ of: 'review' }) as ReviewVM,
     coach: () => ai.coach.getSnapshot({ of: 'coach' }) as CoachVM,
     dispatch,
     generate: (feature, generateOptions = {}) => {

@@ -13,7 +13,6 @@ import {
   type PartVM,
   type RecapViewVM,
   type ResultVM,
-  type ReviewVM,
   type ToastVM,
 } from '@cg/contracts';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
@@ -30,6 +29,7 @@ import {
   cgError,
   cheatsheet,
   coach,
+  coachReviewTurn,
   coachTurn,
   ctxOf,
   PAGE_OFF_REASON,
@@ -50,7 +50,6 @@ import {
   recapPicker,
   recapView,
   result,
-  review,
   running,
   scenarioTranslator,
   toast,
@@ -255,19 +254,27 @@ const recap = (ctx: ScenarioCtx, length: 'short' | 'full', view = views.ready(),
 const recapDock = (ctx: ScenarioCtx, patch: DockOptions = {}): DockVM =>
   dock(ctx, 'ready', { analysis: 'recap', options: { ...withSplit(ctx), splitReason: reason('not-a-message') }, actionsOptions: { active: 'recap' }, ...patch });
 
-const reviewVm = (ctx: ScenarioCtx, patch: Partial<ReviewVM> = {}): ReviewVM => {
+/** 1.51.0: a Review as a turn of Coach's dialog — the mockup's Review 7/10 in the thread. */
+const reviewTurn = (ctx: ScenarioCtx, patch: Partial<CoachTurnVM> = {}): CoachTurnVM => {
   const text = REVIEW[ctx.lang];
-  return review(ctx, views.ready(), {
-    lead: text.verdict,
-    sections: [
-      { kind: 'verdict', title: msg('review.section.verdict'), body: text.verdict, items: [] },
-      { kind: 'money', title: msg('review.section.money'), body: text.money, items: [] },
-      { kind: 'persona', title: msg('review.section.persona'), body: text.persona, items: [] },
-      { kind: 'mistakes', title: msg('review.section.mistakes'), body: '', items: [{ body: text.mistake, example: text.example, exampleWhere: text.where, afterExample: null }] },
-      { kind: 'recommendations', title: msg('review.section.recommendations'), body: text.next, items: [] },
-    ],
+  const turn = coachReviewTurn(ctx, 3);
+  return {
+    ...turn,
+    review: turn.review === null || turn.review === undefined
+      ? null
+      : {
+          ...turn.review,
+          lead: text.verdict,
+          sections: [
+            { kind: 'verdict', title: msg('review.section.verdict'), body: text.verdict, items: [] },
+            { kind: 'money', title: msg('review.section.money'), body: text.money, items: [] },
+            { kind: 'persona', title: msg('review.section.persona'), body: text.persona, items: [] },
+            { kind: 'mistakes', title: msg('review.section.mistakes'), body: '', items: [{ body: text.mistake, example: text.example, exampleWhere: text.where, afterExample: null }] },
+            { kind: 'recommendations', title: msg('review.section.recommendations'), body: text.next, items: [] },
+          ],
+        },
     ...patch,
-  });
+  };
 };
 
 const coachTurns = (ctx: ScenarioCtx, patch: Partial<CoachTurnVM> = {}): CoachTurnVM[] => {
@@ -462,7 +469,7 @@ export const GALLERY_STATES: readonly GalleryState[] = [
       ),
     { debug: true },
   ),
-  // ── 18, 19. Recap and Review in the sheet ──
+  // ── 18. Recap in the sheet (19, Review, is a turn of Coach since 1.51.0: the overlays) ──
   state('18a', 'analysis', 'Recap: коротко', (ctx) => one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'short')), entry({ of: 'recap.picker' }, recapPicker(ctx, views.ready()))])),
   state('18b', 'analysis', 'Recap: полностью, архив отстаёт', (ctx) =>
     one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'full', views.partial({ kind: 'archive-lag', messages: 2, minutes: null }), { stamp: { asOf: iso(ctx.now - 2 * MIN), coverage: 'complete', served: 90 } }))]),
@@ -470,23 +477,10 @@ export const GALLERY_STATES: readonly GalleryState[] = [
   state('18c', 'analysis', 'Recap: не сохранено в хаб', (ctx) =>
     one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'short', views.ready(), { saved: { s: 'failed', error: cgError(ctx, 'CG-RECAP-SAVE'), retry: { type: 'RetryRecapSave', length: 'short' } } }))]),
   ),
-  state('19', 'analysis', 'Review 7/10', (ctx) =>
-    one(ctx, dock(ctx, 'ready', { analysis: 'review', options: { ...withSplit(ctx), splitReason: reason('not-a-message') }, actionsOptions: { active: 'review' } }), [entry({ of: 'review' }, reviewVm(ctx))]),
-  ),
-  // The window check's mark over Recap and Review (R20 P8c; ui-design §4.7): the plate of 3c, «Ещё раз» builds or rates anew — Fansly's alone.
+  // The window check's mark over Recap (R20 P8c; ui-design §4.7): the plate of 3c, «Ещё раз» builds anew — Fansly's alone.
   state('x-stale-recap', 'analysis', 'Recap: ответ мог не учесть последние сообщения (Fansly)', (ctx) => one(ctx, recapDock(ctx), [entry({ of: 'recap.view' }, recap(ctx, 'full', views.ready(), { stale: { reason: 'window-miss', at: null } }))]), {
     sites: ['fansly'],
   }),
-  state(
-    'x-stale-review',
-    'analysis',
-    'Review: свежесть не проверена (Fansly)',
-    (ctx) =>
-      one(ctx, dock(ctx, 'ready', { analysis: 'review', options: { ...withSplit(ctx), splitReason: reason('not-a-message') }, actionsOptions: { active: 'review' } }), [
-        entry({ of: 'review' }, reviewVm(ctx, { stale: { reason: 'unverified', at: null } })),
-      ]),
-    { sites: ['fansly'] },
-  ),
   // ── ui-design §10: required, not drawn in the mockup ──
   state('x-one-part', 'extras', 'Split включён, пришла одна часть (AI-011)', (ctx) =>
     one(ctx, replyDock(ctx, reply(ctx, { parts: parts(OP.reply, [SINGLE]), meta: [meta.tone('flirty'), meta.onePart()], splitRequested: true }))),
@@ -605,11 +599,6 @@ export const GALLERY_STATES: readonly GalleryState[] = [
       ]),
     { debug: true },
   ),
-  state('x-review-failed', 'extras', 'Review: мало переписки (AI-051)', (ctx) =>
-    one(ctx, dock(ctx, 'ready', { analysis: 'review', options: withSplit(ctx), actionsOptions: { active: 'review' } }), [
-      entry({ of: 'review' }, review(ctx, views.error(cgError(ctx, 'CG-GATE-HISTORY'), null))),
-    ]),
-  ),
   state('x-hints-off', 'extras', 'Подсказки выключены (ui.hints)', (ctx) => one(ctx, replyDock(ctx, reply(ctx), { hints: false }))),
   // ── overlays ──
   state('12a', 'overlays', 'Тосты: ошибка, «готово», «инфо»', (ctx) =>
@@ -669,6 +658,60 @@ export const GALLERY_STATES: readonly GalleryState[] = [
       entry({ of: 'coach' }, coach(ctx, views.partial({ kind: 'archive-lag', messages: 2, minutes: null }), [])),
     ],
     { surface: 'coach' },
+  ),
+  // ── 19. Review 7/10 — a turn of Coach's dialog (1.51.0), a question about it after ──
+  state(
+    '19',
+    'overlays',
+    'Review 7/10 в Coach, вопрос о нём',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })),
+      entry({ of: 'coach' }, coach(ctx, views.ready(), [reviewTurn(ctx), ...coachTurns(ctx)])),
+    ],
+    { surface: 'coach' },
+  ),
+  state(
+    'x-review-only',
+    'overlays',
+    'Coach выключен, Review включён: только «Review»',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })),
+      entry(
+        { of: 'coach' },
+        coach(ctx, views.empty(msg('coach.reviewOnly.title')), [], {
+          reviewOnly: true,
+          chips: [],
+          hints: [],
+          ask: { enabled: false, reason: reason('feature-disabled'), attachDraft: { available: false, reason: reason('needs-draft') } },
+        }),
+      ),
+    ],
+    { surface: 'coach' },
+  ),
+  state(
+    'x-review-off',
+    'overlays',
+    'Review: мало переписки (AI-051) — «Review» с причиной',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })),
+      entry(
+        { of: 'coach' },
+        coach(ctx, views.empty(msg('coach.empty.title')), [], {
+          review: button('coach.chip.review', { type: 'Generate', targetHandle: handles.dock(FANS.theodore), feature: 'review', options: {} }, { enabled: false, reason: reason('no-history') }),
+        }),
+      ),
+    ],
+    { surface: 'coach' },
+  ),
+  state(
+    'x-stale-review',
+    'overlays',
+    'Review в Coach: свежесть не проверена (Fansly)',
+    (ctx) => [
+      entry(DOCK, dock(ctx, 'ready', { options: withSplit(ctx), actionsOptions: { active: 'coach' } })),
+      entry({ of: 'coach' }, coach(ctx, views.ready(), [reviewTurn(ctx, { stale: { reason: 'unverified', at: null } })])),
+    ],
+    { surface: 'coach', sites: ['fansly'] },
   ),
   // The window check's mark over a Coach answer (R20 P8c): «Ещё раз» asks the question again — Fansly's alone.
   state(
@@ -790,13 +833,6 @@ export const GALLERY_STATES: readonly GalleryState[] = [
     'overlays',
     'Развернуть ↗: Recap полностью (UI-014)',
     (ctx) => [entry(DOCK, recapDock(ctx)), entry({ of: 'recap.view' }, recap(ctx, 'full', views.ready(), { expanded: true }))],
-    { surface: 'result-expanded' },
-  ),
-  state(
-    'x-expanded-review',
-    'overlays',
-    'Развернуть ↗: Review',
-    (ctx) => [entry(DOCK, dock(ctx, 'ready', { analysis: 'review', options: withSplit(ctx), actionsOptions: { active: 'review' } })), entry({ of: 'review' }, reviewVm(ctx, { expanded: true }))],
     { surface: 'result-expanded' },
   ),
 ];

@@ -1,11 +1,11 @@
 // The shared state of the AI controllers of one tab (architecture.md §10.2,
 // §7): the environment (sign-in, bootstrap, settings, catalog), the mirror
 // of operations, the open chat as a target, what the dock sheet shows per
-// chat, part inserts and copies, and local recap copies. The dock, Recap,
-// Review and Coach controllers are thin view-model builders and action
-// handlers over it, so each can be loaded on its own (Coach, Recap and
-// Review are lazy chunks) while the strip still knows what runs and what is
-// open.
+// chat, part inserts and copies, and local recap copies. The dock, Recap and
+// Coach controllers (Review is a turn of Coach's) are thin view-model
+// builders and action handlers over it, so each can be loaded on its own
+// (Coach and Recap are lazy chunks) while the strip still knows what runs and
+// what is open.
 //
 // Nothing here starts by itself: a generation needs a `generate` token of a
 // trusted click or key, an insert an `insert` token. Views are rebuilt on a
@@ -44,7 +44,6 @@ import { VoiceDesk } from './voice-desk';
 export type Sheet =
   | { readonly kind: 'draft'; readonly opId: string }
   | { readonly kind: 'recap' }
-  | { readonly kind: 'review' }
   /** 1.47.0: the voice studio of the chat (the Voice chip). */
   | { readonly kind: 'voice' }
   | { readonly kind: 'refusal'; readonly refusal: RefusalState };
@@ -166,7 +165,7 @@ export type StartResult =
 export type CopyState = 'idle' | 'done' | 'failed';
 
 /**
- * Whose operation it is: the dock, Recap, Review and Coach controllers answer
+ * Whose operation it is: the dock, Recap and Coach controllers answer
  * for operations of the open chat's surfaces; previews and «Новые» have
  * their own controllers (R12), which the router asks after these.
  */
@@ -1410,7 +1409,7 @@ export class AiWorkspace {
       if (changed.size > 0) {
         // AI-126: a persona change drops the results and the Coach dialogs of that page.
         this.forget(this.ops.drop((record) => changed.has(record.view.target.binding.pageId) && isTerminalOpState(record.view.state)));
-        // A Recap or Review sheet of that page showed the old persona's: it closes (a page not known then — to be safe, too).
+        // A Recap sheet of that page showed the old persona's: it closes (a page not known then — to be safe, too).
         for (const ui of this.chats.values()) {
           if (ui.sheet !== null && ui.sheet.kind !== 'draft' && (ui.pageId === null || changed.has(ui.pageId))) ui.sheet = null;
         }

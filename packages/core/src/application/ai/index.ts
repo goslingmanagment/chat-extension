@@ -1,14 +1,15 @@
 // core/application/ai — the AI controllers of the tab (R11; architecture.md
-// §10.2, §16): the dock, Recap, Review and Coach over one shared workspace.
+// §10.2, §16): the dock, Recap and Coach — Review is a turn of Coach's dialog
+// since 1.51.0 — over one shared workspace.
 // The integrator plugs the controllers into the tab's AppClient router and
 // hands the ports in; nothing here touches browser.*, the DOM, the network
 // or storage.
 //
-// - `createAiSurfaces(ports)` builds the workspace and the four controllers
+// - `createAiSurfaces(ports)` builds the workspace and the three controllers
 //   and starts them. Each controller is a router `SurfaceController`
 //   (`kinds`, `getSnapshot`, `subscribe`, `dispatch` → null when the action
-//   is not its own). Recap, Review and Coach may also be created later from
-//   the same workspace (lazy chunks): `createRecapController(workspace)`.
+//   is not its own). Recap and Coach may also be created later from the same
+//   workspace (lazy chunks): `createRecapController(workspace)`.
 // - `command(id)` is for the early hotkey dispatcher (§9.1): the key of an
 //   AI action pressed in a chat either becomes the action, or — when the
 //   action is off — is swallowed with its reason as a toast (HK-026). ⌘⇧H is
@@ -22,7 +23,6 @@ import { HELP_REMOVED, nextTone } from '../../domain/features';
 import { createCoachController, type CoachController } from '../coach/controller';
 import { createDockController, type DockController } from '../dock/controller';
 import { createRecapController, type RecapController } from '../recap/controller';
-import { createReviewController, type ReviewController } from '../review/controller';
 import { type AiPorts } from './ports';
 import { type AiController } from './surface';
 import { msg } from './view-models';
@@ -40,7 +40,6 @@ export interface AiSurfaces {
   readonly workspace: AiWorkspace;
   readonly dock: DockController;
   readonly recap: RecapController;
-  readonly review: ReviewController;
   readonly coach: CoachController;
   /** For the router, in asking order. */
   readonly controllers: readonly AiController[];
@@ -57,9 +56,8 @@ export function createAiSurfaces(ports: AiPorts): AiSurfaces {
   const workspace = new AiWorkspace(ports);
   const dock = createDockController(workspace);
   const recap = createRecapController(workspace);
-  const review = createReviewController(workspace);
   const coach = createCoachController(workspace);
-  const controllers: readonly AiController[] = [dock, recap, review, coach];
+  const controllers: readonly AiController[] = [dock, recap, coach];
   workspace.start();
 
   /** A hotkey's action goes to the controller that takes it, as a `key` cause. */
@@ -128,7 +126,6 @@ export function createAiSurfaces(ports: AiPorts): AiSurfaces {
     workspace,
     dock,
     recap,
-    review,
     coach,
     controllers,
     command,
@@ -145,7 +142,6 @@ export { type BoardHandover, type BoardPartFacts, type BoardResults, type BoardS
 export { KEYS_FOOTER_RESULTS, createDockController, type DockController } from '../dock/controller';
 export { createPartFocus, type FocusPart, type PartFocus } from '../dock/focus-part';
 export { RECAP_UI_CHATS_MAX, createRecapController, type RecapController } from '../recap/controller';
-export { createReviewController, type ReviewController } from '../review/controller';
 export { TabEnvironment, type EnvironmentChange, type Loaded, type PersonaState } from './environment';
 export { artifactHandle, readArtifactHandle, readTargetHandle, targetHandle, type Artifact, type TargetSurface } from './handles';
 export { OpStore, RESYNC_RETRY_MS, WATCHED_CHATS_MAX, type OpRecord, type OpStoreEvent, type StartMemo, type StartOutcome } from './op-store';

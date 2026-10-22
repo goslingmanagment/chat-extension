@@ -6,7 +6,7 @@
 import { type CgCode, type CgErrorView, type SettingsSection } from '../errors';
 import { type Uuid } from '../primitives';
 import { type UiActionType, type UiAction } from './actions';
-import { type CoachVM, type RecapPickerVM, type RecapViewVM, type ReviewVM } from './analysis';
+import { type CoachVM, type RecapPickerVM, type RecapViewVM } from './analysis';
 import { type DockVM } from './dock';
 import { type NewcomersVM } from './newcomers';
 import { type DebugPromptVM, type JournalVM, type OptionsVM, type PopupVM } from './pages';
@@ -21,7 +21,6 @@ export interface ViewMap {
   readonly dock: DockVM;
   readonly 'recap.picker': RecapPickerVM;
   readonly 'recap.view': RecapViewVM;
-  readonly review: ReviewVM;
   readonly coach: CoachVM;
   readonly 'spenders.board': SpendersBoardVM;
   readonly 'spenders.stats': SpendersStatsVM;
@@ -50,7 +49,6 @@ export const VM_STATE_SUPPORT = {
   dock: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   'recap.picker': ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   'recap.view': ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
-  review: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   coach: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   'spenders.board': ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   'spenders.stats': ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],

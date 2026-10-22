@@ -42,7 +42,8 @@ const FEATURES = {
   hi: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview', 'newcomers'], source: 'hub' },
   ping: { base: NOTHING, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['dock', 'result-expanded', 'preview'], source: 'hub' },
   'fresh-text': { base: { flags: ['freshText'], hostCapabilities: [], clientNeeds: CLIENT_FLAG_REQUIREMENTS.freshText }, actions: {}, surfaces: ['dock'], source: 'page' },
-  review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
+  // 1.51.0: a turn of Coach's dialog — its window is Review's surface.
+  review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['coach'], source: 'hub' },
   recap: { base: { flags: ['recap'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded', 'fan-panel'], source: 'hub' },
   // 1.47.0: the page's `voice` (the hub weighs its lane: the switch, the provider, the allowlist and a voice profile);
   // the MP3 goes into ChatSpace's composer by a drop on it, its own upload (HostPort.attachFile).
