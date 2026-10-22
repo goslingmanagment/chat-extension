@@ -837,6 +837,8 @@ export const EN: I18nCatalog<'en'> = {
   'coach.turn.recapOff': 'without the Recap — off',
   'result.meta.recap': 'with the Recap · {age} ago',
   'result.meta.recapOff': 'Recap off',
+  'result.recap.onHint': "The answer used the fan's Recap. Untick it and the answer is made again without it; Reply, Ping and Coach of this chat then answer from the chat alone",
+  'result.recap.offHint': 'The Recap is off in this chat. Tick it and the answer is made again with it; Reply, Ping and Coach use it from then on',
   'recap.tick': 'with Recap',
   'recap.tick.onHint': "Reply, Ping and Coach use the fan's Recap. Untick it and they answer from the chat alone",
   'recap.tick.offHint': 'The Recap is off in this chat: Reply, Ping and Coach answer from the chat alone. The tick or a new Recap brings it back',

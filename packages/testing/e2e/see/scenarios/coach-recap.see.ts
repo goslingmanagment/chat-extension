@@ -1,7 +1,7 @@
 // What a Recap is used by, and the tick that leaves it out, seen through: the dock's Recap sheet with nothing built
 // (which one, who uses it), Coach without a Recap and its answer «без Recap», «Собрать Recap» from Coach, the next
-// answer «с Recap», «Учитывать Recap» unticked and the answer «без Recap — выключен», a Reply «Recap выключен» under
-// the bar's unticked «с Recap», the tick again and a Reply «с Recap».
+// answer «с Recap», «Учитывать Recap» unticked and the answer «без Recap — выключен», a Reply whose head shows «с Recap»
+// unticked, the head's tick pressed and the Reply made again «с Recap».
 
 import { scenario } from '../kit';
 
@@ -49,17 +49,18 @@ scenario(
     await s.shot('answer-recap-off');
     await s.closeAll();
 
-    // The full Recap reaches Reply once the hub holds it as the fan's dossier (its save follows the build); the
-    // tick is the bar's «с Recap» too, still unticked.
+    // The full Recap reaches Reply once the hub holds it as the fan's dossier (its save follows the build). The tick is
+    // the chat's: Reply goes without the Recap, and its head says so with the tick unticked.
     await s.wait(6_000);
     await s.press(/^Reply/);
     await s.done();
-    await s.see('dock', 'Recap выключен', 10_000);
+    const pressed = async (): Promise<string | null> => (await s.h.readOurs('dock', '.cg-head__recap .cg-check', (tick) => tick.getAttribute('aria-pressed'))) ?? null;
+    await s.browser.waitUntil(async () => (await pressed()) === 'false', { timeout: 10_000, timeoutMsg: 'the head never showed «с Recap» unticked' });
     await s.shot('reply-recap-off');
-    await s.press(/с Recap/, 'dock', '.cg-recap-tick');
-    await s.press(/^Reply/);
+    // Ticked in the head, the answer is made again with the Recap.
+    await s.press(/с Recap/, 'dock', '.cg-head__recap .cg-check');
     await s.done();
-    await s.see('dock', 'с Recap ·', 10_000);
+    await s.see('dock', 'с Recap ·', 15_000);
     await s.shot('reply-with-recap');
     await s.press(/^Recap/);
     await s.see('modal', 'учитывают Reply, Ping и Coach', 10_000);

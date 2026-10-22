@@ -258,6 +258,7 @@ describe('the action tokens of a tab', () => {
     expect(Object.fromEntries(Object.entries(GRANTED_KINDS).map(([action, kinds]) => [action, [...kinds]]))).toEqual({
       Generate: ['generate'],
       Regenerate: ['generate'],
+      SetRecap: ['generate'],
       RefreshRecap: ['generate'],
       InsertPart: ['insert'],
       ReplaceMyDraft: ['insert'],

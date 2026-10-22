@@ -163,6 +163,8 @@ export function gestureRefusal(event: Event | null, kind: ActionKind, surface: S
 export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly ActionKind[]>>> = {
   Generate: ['generate'],
   Regenerate: ['generate'],
+  // 1.48.0: the head's «с Recap» asks its answer again with the new tick (`again`), under the same click.
+  SetRecap: ['generate'],
   RefreshRecap: ['generate'],
   InsertPart: ['insert'],
   ReplaceMyDraft: ['insert'],

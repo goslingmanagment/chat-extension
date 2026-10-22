@@ -896,6 +896,8 @@ export const RU: I18nCatalog<'ru'> = {
   'coach.turn.recapOff': 'без Recap — выключен',
   'result.meta.recap': 'с Recap · {age} назад',
   'result.meta.recapOff': 'Recap выключен',
+  'result.recap.onHint': 'Ответ учёл Recap фана. Снимите галочку — ответ пересоберётся без него, и дальше Reply, Ping и Coach в этом чате ответят только по переписке',
+  'result.recap.offHint': 'Recap в этом чате выключен. Поставьте галочку — ответ пересоберётся с ним, и дальше Reply, Ping и Coach будут его учитывать',
   'recap.tick': 'с Recap',
   'recap.tick.onHint': 'Reply, Ping и Coach учитывают Recap фана. Снимите галочку — ответят только по переписке',
   'recap.tick.offHint': 'Recap выключен в этом чате: Reply, Ping и Coach отвечают только по переписке. Галочка или новый Recap вернут его',
