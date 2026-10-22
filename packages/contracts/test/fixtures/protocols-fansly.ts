@@ -126,14 +126,24 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     res: { valid: [{ ok: true, groupId: F.group }, { ok: true, groupId: null }, failure], invalid: [{ ok: true, groupId: Number(F.group) }, unknownFailure] },
   },
   'fansly.ppv.read': {
-    req: { valid: [{ hostAccountId: F.creator, fanRef: F.fan, groupId: F.group }], invalid: [{ hostAccountId: F.creator, fanRef: F.fan }, { hostAccountId: F.creator, fanRef: 123, groupId: F.group }] },
+    req: {
+      valid: [{ hostAccountId: F.creator, fanRef: F.fan, groupId: F.group }, { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, ppv: false, photos: true }],
+      invalid: [{ hostAccountId: F.creator, fanRef: F.fan }, { hostAccountId: F.creator, fanRef: 123, groupId: F.group }, { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, photos: 'yes' }],
+    },
     res: {
       valid: [
         { ok: true, capturedAt: '2026-10-20T12:00:00.000Z', items: [] },
+        { ok: true, capturedAt: '2026-10-20T12:00:00.000Z', items: [], photos: [{ platformMessageId: F.group, sentAt: '2026-10-20T11:59:00.000Z', mediaId: F.fan, url: 'https://cdn3.fansly.com/1/2.jpeg?ngsw-bypass=true&Policy=P&Key-Pair-Id=K&Signature=S' }] },
         { ok: true, capturedAt: '2026-10-20T12:00:00.000Z', items: [{ platformMessageId: F.group, contentKind: 'media', contentRef: F.fan, priceUsd: 20, purchased: false }, { platformMessageId: F.group, contentKind: 'bundle', contentRef: F.creator, purchased: true }] },
         failure,
       ],
-      invalid: [{ ok: true, items: [] }, { ok: true, capturedAt: '2026-10-20T12:00:00.000Z', items: [{ platformMessageId: F.group, priceUsd: 20, purchased: true }] }, unknownFailure],
+      invalid: [
+        { ok: true, items: [] },
+        { ok: true, capturedAt: '2026-10-20T12:00:00.000Z', items: [{ platformMessageId: F.group, priceUsd: 20, purchased: true }] },
+        // A photo off Fansly's CDN.
+        { ok: true, capturedAt: '2026-10-20T12:00:00.000Z', items: [], photos: [{ platformMessageId: F.group, sentAt: '2026-10-20T11:59:00.000Z', mediaId: F.fan, url: 'https://evil.example/2.jpeg' }] },
+        unknownFailure,
+      ],
     },
   },
   'fansly.preview.readState': {

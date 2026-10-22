@@ -5,9 +5,10 @@
 // never loads it — its policy rides in its `tab-app`.
 
 import type { CgErrorWire } from '@cg/contracts/errors';
+import { FanslyPhotoRefSchema, type LiveImageRef } from '@cg/contracts/host';
 import { LivePpvStateSchema, type AiHostPolicy, type LivePpvState } from '@cg/contracts/ops';
 import { SettingsExtSchema, type SettingsExt } from '@cg/contracts/settings-ext';
-import { createFanslyAi } from '@cg/core/application/hosts/fansly/ai';
+import { createFanslyAi, type FanslyChatRead } from '@cg/core/application/hosts/fansly/ai';
 import type { TabRpcClient } from '@cg/platform';
 
 export { createFanslyAi } from '@cg/core/application/hosts/fansly/ai';
@@ -36,21 +37,37 @@ export async function readFanslyWindows(rpc: Pick<TabRpcClient, 'request'>): Pro
 }
 
 /**
- * The open chat's PPV state (X54 on Fansly): each paid attachment of its newest messages with the fan's purchase, read
- * by the background from Fansly (`fansly.ppv.read`) and checked here by the start's own schema. A refusal, a timeout,
- * a wrong shape or nothing known — null: the hub marks the attachments from its own stores.
+ * The open chat read by the background from Fansly (`fansly.ppv.read`), each part checked here by its own schema:
+ * - the PPV state (X54 on Fansly), when asked: each paid attachment of its newest messages with the fan's purchase. A
+ *   refusal, a timeout, a wrong shape or nothing known — null: the hub marks the attachments from its own stores;
+ * - the photos of the fan's latest turn, when asked; a wrong one is left out.
  */
-export async function readFanslyPpv(rpc: Pick<TabRpcClient, 'request'>, chat: { readonly creatorId: string; readonly fanId: string; readonly groupId: string }): Promise<LivePpvState | null> {
-  const payload = { hostAccountId: chat.creatorId, fanRef: chat.fanId, groupId: chat.groupId };
+export async function readFanslyPpv(
+  rpc: Pick<TabRpcClient, 'request'>,
+  chat: { readonly creatorId: string; readonly fanId: string; readonly groupId: string },
+  want: { readonly ppv: boolean; readonly photos: boolean } = { ppv: true, photos: false },
+): Promise<FanslyChatRead | null> {
+  const payload = { hostAccountId: chat.creatorId, fanRef: chat.fanId, groupId: chat.groupId, ...(want.ppv ? {} : { ppv: false }), ...(want.photos ? { photos: true } : {}) };
   const answer = await (rpc.request as unknown as AnyRequest)('fansly.ppv.read', payload, { timeoutMs: PPV_TIMEOUT_MS }).catch(() => null);
   if (answer === null || !answer.ok) return null;
-  const read = answer.payload as { readonly ok?: unknown; readonly capturedAt?: unknown; readonly items?: unknown };
-  if (read.ok !== true || !Array.isArray(read.items) || read.items.length === 0) return null;
-  const checked = LivePpvStateSchema.safeParse({ capturedAt: read.capturedAt, items: read.items });
-  return checked.success ? checked.data : null;
+  const read = answer.payload as { readonly ok?: unknown; readonly capturedAt?: unknown; readonly items?: unknown; readonly photos?: unknown };
+  if (read.ok !== true) return null;
+  let livePpv: LivePpvState | null = null;
+  if (want.ppv && Array.isArray(read.items) && read.items.length > 0) {
+    const checked = LivePpvStateSchema.safeParse({ capturedAt: read.capturedAt, items: read.items });
+    livePpv = checked.success ? checked.data : null;
+  }
+  const photos: LiveImageRef[] = [];
+  if (want.photos && Array.isArray(read.photos)) {
+    for (const photo of read.photos) {
+      const checked = FanslyPhotoRefSchema.safeParse(photo);
+      if (checked.success) photos.push(checked.data);
+    }
+  }
+  return { livePpv, photos };
 }
 
-/** Fansly's policy of this tab: the page's clock, the deep window and the open chat's PPV state asked of the background. */
+/** Fansly's policy of this tab: the page's clock, the deep window and the open chat's read asked of the background. */
 export function startFanslyAi(rpc: Pick<TabRpcClient, 'request'>): AiHostPolicy {
-  return createFanslyAi({ now: () => Date.now(), windows: () => readFanslyWindows(rpc), ppv: (chat) => readFanslyPpv(rpc, chat) });
+  return createFanslyAi({ now: () => Date.now(), windows: () => readFanslyWindows(rpc), ppv: (chat, want) => readFanslyPpv(rpc, chat, want) });
 }

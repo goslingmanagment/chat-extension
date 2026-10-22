@@ -45,11 +45,16 @@
 //   old extension read `orderhistory` on every generation — and carries it as
 //   `livePpv`. The read is bounded (≤ 2 s, an answer with what is known after
 //   1.3 s); none is no state: the hub marks from its own stores.
+// - The fan's newest photos (as ChatSpace's): a Reply, Fix or Coach start to a hub that lists `live-images-v1` asks the
+//   same read for the photos of the fan's latest turn (their addresses on Fansly's CDN, signed for this browser), the
+//   host draws them as JPEG (`loadImages`, at most LIVE_IMAGE_LIMITS.waitMs) and they ride as `liveImages`. None — the
+//   start goes without them, and the hub's text notes stay.
 
 import type { FanslySnapshot } from '@cg/contracts/fansly';
 import type { FanslyHostPort } from '@cg/contracts/fansly-host';
-import type { HostPort } from '@cg/contracts/host';
-import type { AiProofAsk, CoverageProof, LivePpvState } from '@cg/contracts/ops';
+import type { HostPort, LiveImage, LiveImageRef } from '@cg/contracts/host';
+import { LIVE_IMAGE_LIMITS } from '@cg/contracts/limits';
+import { LIVE_IMAGE_FEATURES, type AiProofAsk, type CoverageProof, type LivePpvState } from '@cg/contracts/ops';
 import type { SettingsExt } from '@cg/contracts/settings-ext';
 
 import { type AiPolicy } from '../../../ai/ports';
@@ -63,10 +68,17 @@ export interface FanslyAiDeps {
   /** The person's deep window in Fansly's `settings.ext` (`fansly.settings.windows`); absent — none (the v1 window). */
   readonly windows?: () => Promise<SettingsExt['windows'] | null>;
   /**
-   * The open chat's PPV state read by the background (`fansly.ppv.read`): its paid attachments with the fan's
-   * purchase; null — none known (a refusal, a timeout, nothing paid). Absent — never asked.
+   * The open chat read by the background (`fansly.ppv.read`): its PPV state — the paid attachments with the fan's
+   * purchase, null when none is known (a refusal, a timeout, nothing paid) — when `ppv` is asked, and the photos of
+   * the fan's latest turn when `photos` is. Null — nothing came. Absent — never asked.
    */
-  readonly ppv?: (chat: { readonly creatorId: string; readonly fanId: string; readonly groupId: string }) => Promise<LivePpvState | null>;
+  readonly ppv?: (chat: { readonly creatorId: string; readonly fanId: string; readonly groupId: string }, want: { readonly ppv: boolean; readonly photos: boolean }) => Promise<FanslyChatRead | null>;
+}
+
+/** What the background read of the open chat for a start. */
+export interface FanslyChatRead {
+  readonly livePpv: LivePpvState | null;
+  readonly photos: readonly LiveImageRef[];
 }
 
 /** What a start on Fansly gathered: the snapshot MAIN gave and the start's proof made of it. */
@@ -75,10 +87,21 @@ export interface FanslyStartProof {
   readonly proof: Extract<CoverageProof, { kind: 'tab-snapshot' }>;
   /** The open chat's PPV state, when the start asked for it and the background knew some. */
   readonly livePpv?: LivePpvState;
+  /** The fan's newest photos the host drew, when the start asked for them and some came. */
+  readonly liveImages?: readonly LiveImage[];
 }
 
 /** Fansly's port has the freshness of its own snapshot; a port without one (none but Fansly's has it) gives no proof. */
 const freshnessOf = (host: HostPort): FanslyHostPort['freshness'] | undefined => (host as Partial<FanslyHostPort>).freshness;
+
+/** The photos drawn by the host within LIVE_IMAGE_LIMITS.waitMs; none — it could not. */
+async function drawPhotos(host: HostPort, refs: readonly LiveImageRef[]): Promise<readonly LiveImage[]> {
+  try {
+    return (await host.loadImages?.(refs, { waitMs: LIVE_IMAGE_LIMITS.waitMs })) ?? [];
+  } catch {
+    return [];
+  }
+}
 
 function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<FanslyStartProof | null> | null {
   const freshness = freshnessOf(host);
@@ -89,13 +112,23 @@ function gather(host: HostPort, ask: AiProofAsk, deps: FanslyAiDeps): Promise<Fa
   const same = route.epoch === ask.identity.routeEpoch && route.chat !== null && route.chat.hostAccountId === chat.hostAccountId && route.chat.platformFanId === chat.platformFanId;
   if (!same || route.conversationRef === undefined) return null;
   const request = { conversationRef: route.conversationRef, feature: ask.feature, window: checkWindowOf(ask.messageCount), withText: ask.fresh !== null };
-  // The PPV state beside the snapshot: the start waits for the slower of the two, the PPV read at most its bound.
-  const ppv = ask.livePpv === true && ask.fresh !== null && deps.ppv !== undefined
-    ? deps.ppv({ creatorId: chat.hostAccountId, fanId: chat.platformFanId, groupId: route.conversationRef }).catch(() => null)
+  // The PPV state and the photos beside the snapshot, one read of the chat: the start waits for the slowest, the read
+  // at most its bound and the drawing at most LIVE_IMAGE_LIMITS.waitMs after it.
+  const wantPpv = ask.livePpv === true && ask.fresh !== null;
+  const wantPhotos = ask.liveImages === true && ask.fresh !== null && LIVE_IMAGE_FEATURES.has(ask.feature) && host.loadImages !== undefined;
+  const read = (wantPpv || wantPhotos) && deps.ppv !== undefined
+    ? deps.ppv({ creatorId: chat.hostAccountId, fanId: chat.platformFanId, groupId: route.conversationRef }, { ppv: wantPpv, photos: wantPhotos }).catch(() => null)
     : Promise.resolve(null);
-  return Promise.all([freshness.snapshot(chat, request), ppv]).then(([snapshot, livePpv]) => {
+  const drawn = read.then((answer) => (wantPhotos && answer !== null && answer.photos.length > 0 ? drawPhotos(host, answer.photos) : []));
+  return Promise.all([freshness.snapshot(chat, request), read, drawn]).then(([snapshot, answer, liveImages]) => {
     if (snapshot === null) return null;
-    return { snapshot, proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()), ...(livePpv === null ? {} : { livePpv }) };
+    const livePpv = wantPpv ? (answer?.livePpv ?? null) : null;
+    return {
+      snapshot,
+      proof: startProofOf(snapshot, ask.fresh, new Date(deps.now()).toISOString()),
+      ...(livePpv === null ? {} : { livePpv }),
+      ...(liveImages.length > 0 ? { liveImages } : {}),
+    };
   });
 }
 
@@ -105,7 +138,15 @@ export function createFanslyAi(deps: FanslyAiDeps): AiPolicy<FanslyStartProof, P
     watch: (host, changed) => checks.watch(host, changed),
     preflight: (feature, _window, gathered) => hiPingGate(feature, gathered?.snapshot ?? null, deps.now()),
     proof: (host, ask) => gather(host, ask, deps),
-    fields: (gathered) => (gathered === null ? {} : { proof: gathered.proof, ...hiFieldsOf(gathered.snapshot), ...(gathered.livePpv === undefined ? {} : { livePpv: gathered.livePpv }) }),
+    fields: (gathered) =>
+      gathered === null
+        ? {}
+        : {
+            proof: gathered.proof,
+            ...hiFieldsOf(gathered.snapshot),
+            ...(gathered.livePpv === undefined ? {} : { livePpv: gathered.livePpv }),
+            ...(gathered.liveImages === undefined ? {} : { liveImages: [...gathered.liveImages] }),
+          },
     fingerprint: (gathered) => (gathered === null ? null : fingerprintOf(gathered.proof)),
     // No «Свежесть не проверена» on a result or an analysis copy (2026-10-22): a real miss stays (`shownMark`).
     verdict: (view, fingerprint) => shownMark(view, checks.current(view, fingerprint)),

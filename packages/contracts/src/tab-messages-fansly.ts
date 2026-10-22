@@ -43,8 +43,8 @@ import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { ChatKeySchema } from './ids';
-import { ChatReadStateSchema, LiveTextMessageSchema } from './host';
-import { LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
+import { ChatReadStateSchema, FanslyPhotoRefSchema, LiveTextMessageSchema } from './host';
+import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
@@ -435,12 +435,19 @@ export const FANSLY_TAB_REQUESTS = {
   /**
    * An AI start in the open chat (X54 on Fansly): the background reads the chat's newest pages and the fan's orders of
    * its paid attachments from Fansly, by the click (core services/hosts/fansly/ppv.ts). `items` — what it could tell
-   * by its deadline, newest first; none — nothing paid, or nothing known.
+   * by its deadline, newest first; none — nothing paid, or nothing known. `ppv: false` — only the newest page, no
+   * orders. `photos` — the photos of the fan's latest turn on that page as well (Reply, Fix, Coach to a hub that takes
+   * them), for the tab to draw; none — the fan sent none since the model last wrote.
    */
   'fansly.ppv.read': {
-    req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, groupId: NativeIdSchema }),
+    req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, groupId: NativeIdSchema, ppv: z.optional(z.boolean()), photos: z.optional(z.boolean()) }),
     res: z.discriminatedUnion('ok', [
-      z.strictObject({ ok: z.literal(true), capturedAt: IsoTimestampSchema, items: z.array(LivePpvAttachmentItemSchema).check(z.maxLength(LIVE_PPV_LIMITS.maxItems)) }),
+      z.strictObject({
+        ok: z.literal(true),
+        capturedAt: IsoTimestampSchema,
+        items: z.array(LivePpvAttachmentItemSchema).check(z.maxLength(LIVE_PPV_LIMITS.maxItems)),
+        photos: z.optional(z.array(FanslyPhotoRefSchema).check(z.maxLength(LIVE_IMAGE_LIMITS.maxImages))),
+      }),
       Failure,
     ]),
     from: TAB,

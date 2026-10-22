@@ -126,6 +126,11 @@ const RECEIPT_FILE = 'packages/host-chatspace/src/main/receipt.ts';
  * stays banned there too.
  */
 const OM_API_FILE = 'packages/host-chatspace/src/main/om-api.ts';
+/**
+ * The one request of Fansly's isolated world: a GET of a fan's photo on Fansly's CDN as the page (`win.fetch`, only an
+ * address on `cdn*.fansly.com`) for an AI start, by the click. The global `fetch` stays banned there too.
+ */
+const FANSLY_CDN_FILE = 'packages/host-fansly/src/isolated/cdn-photos.ts';
 
 const APP_RESTRICTION: Restriction = {
   // `wxt` and `wxt/utils/*` stay allowed for the define helpers and types;
@@ -356,6 +361,12 @@ export default defineConfig(
       ),
       'no-restricted-globals': ['error', ...hostBannedGlobals()],
       'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
+    },
+  },
+  {
+    files: [FANSLY_CDN_FILE],
+    rules: {
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['fetch'])],
     },
   },
   {
