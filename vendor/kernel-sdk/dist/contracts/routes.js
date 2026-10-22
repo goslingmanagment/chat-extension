@@ -150,16 +150,6 @@ export const deviceTokenAdoptionReportSchema = z.object({
         onFreshTokens: z.number().int().nonnegative(),
     }),
 });
-export const accessGrantItemSchema = z.object({
-    id: intId,
-    scopeType: z.enum(["org", "model", "page"]),
-    scopeId: z.number().int(),
-    scopeLabel: z.string().nullable(),
-    grantedBy: z.number().int().nullable(),
-    grantedAt: isoTimestamp,
-    revokedBy: z.number().int().nullable(),
-    revokedAt: isoTimestamp.nullable(),
-});
 export const registrationStateEnum = z.enum(["invited", "active"]);
 export const adminUserSchema = authUserSchema.extend({
     // Deactivation tombstone (null = active) and the honest
@@ -2185,24 +2175,22 @@ export const aiCoverageCheckSchema = z.object({
 // already loaded, and counts the personal messages there: its open tab, by a
 // fresh end of the history shorter than a page and the continuous observation
 // since (`tab-short-page`), or its walk of the history to the empty page
-// (`pass-empty-page`). The hub checks the ids against the history it holds and
-// the count against the Hi limit (docs/ai-gateway-contract.md, "Hi on Fansly").
-// Ids only, never a text.
+// (`pass-empty-page`). Hi has no count limit since 2026-10-21, so the hub
+// gates nothing on it: a valid proof of this chat only leaves its counts in the
+// context manifest (docs/ai-gateway-contract.md, "Hi on Fansly"). Ids only,
+// never a text.
 //
 // The schema is the client's own, field by field and rule by rule
-// (chat-extension `packages/contracts/src/fansly.ts`, `StartProofV1Schema`);
-// tests/fixtures/ai-hi-start-proof-matrix.json holds the bodies both accept
-// and both refuse.
+// (chat-extension `packages/contracts/src/fansly.ts`, `StartProofV1Schema`).
 /** Who proved the start. */
 export const AI_START_PROOF_SOURCES = ["tab-short-page", "pass-empty-page"];
 /** How many ids `startProof.automatedIds` may name: the newest ones. */
 export const AI_START_PROOF_AUTOMATED_IDS_MAX = 120;
 /** A pass counts personal messages among the last 30 of the history it walked. */
 export const AI_START_PROOF_PASS_PERSONAL_WINDOW = 30;
-/** `reason` of a `gate_hi_greeting_limit` refusal on the start-proof lane:
- *  `history_unproven` (no proof, or one the hub's history contradicts) and
- *  `too_many_personal` (the proof counts more personal messages than Hi
- *  allows). Open on the wire: a client reads an unknown reason as a refusal. */
+/** Legacy: the `reason`s a `gate_hi_greeting_limit` refusal carried on the
+ *  start-proof lane until Hi lost its count limit (2026-10-21). The hub emits
+ *  neither any more; kept for the released clients that map them. */
 export const AI_HI_GREETING_REFUSAL_REASONS = ["history_unproven", "too_many_personal"];
 export const aiStartProofV1Schema = z.object({
     v: z.literal(1),
@@ -2321,18 +2309,13 @@ export const aiFeatureStreamBodySchema = z.object({
     // chat-extension R20 HF-5 — Hi on Fansly (above). These three are read only
     // on `hi-greeting`, on a Fansly page, without `clientContext`, from a caller
     // that advertised `hi-start-proof-v1`; anywhere else each is a 400 with a
-    // machine reason. With that capability the hub admits Hi on Fansly by the
-    // proof (its start checked against the hub's history, at most 10 personal
-    // messages) and by nothing else: without a proof the answer is
-    // `gate_hi_greeting_limit` with reason `history_unproven`.
+    // machine reason. They gate nothing: Hi has no count limit (2026-10-21).
     startProof: aiStartProofV1Schema.optional(),
     // The same count at the top level, as the released clients carry it in
-    // `clientContext.personalMessageCount`. On the Fansly lane it proves nothing
-    // by itself, and beside a proof it must equal `startProof.personalCount`.
-    // On an OnlyFans `hi-greeting` (no clientContext) it is accepted alone: the
-    // ChatSpace extension's count of the personal messages in the window it read
-    // (fan messages and the model's own, no mass, queue or welcome sends), which
-    // the Hi gate counts in place of the hub's transcript (audit 2026-10-20 row 6).
+    // `clientContext.personalMessageCount`. On the Fansly lane, beside a proof,
+    // it must equal `startProof.personalCount`. On an OnlyFans `hi-greeting` (no
+    // clientContext) it is accepted alone: the ChatSpace extension's count of
+    // the personal messages in the window it read (audit 2026-10-20 row 6).
     personalMessageCount: z.number().int().min(0).optional(),
     // The fan's avatar as the page already loaded it; rides to the provider as
     // an image, exactly as `clientContext.fanAvatarUrl` does. The hub never
@@ -2376,10 +2359,10 @@ export const aiFeatureStreamBodySchema = z.object({
         // to the deprecated greetingMode alias). The kernel never fetches the URL.
         fanUsername: z.string().max(200).optional(),
         fanAvatarUrl: fanslyAvatarUrlSchema.optional(),
-        // hi-greeting only: messages in the window that are NOT
-        // automatic/mass sends (fan messages plus the model's personal ones). The
-        // freshness gate counts these when present, so a fan holding only welcome
-        // and mass messages is not locked out. Never above messageCount.
+        // hi-greeting and ping only: messages in the window that are NOT
+        // automatic/mass sends (fan messages plus the model's personal ones).
+        // Ping's minimum (10, `gate_min_messages`) counts these when present, and
+        // every message otherwise; Hi has no count limit. Never above messageCount.
         personalMessageCount: z.number().int().min(0).max(5000).optional(),
         pingSegment: z.enum(["segment-a", "segment-b", "active"]).optional(),
         // Whole days since the fan's latest text message, computed from the same
@@ -4373,8 +4356,7 @@ const ofapiCreditsSpendBySourceSchema = z.object({
     adjustment: z.number().int(),
 });
 export const ofapiCreditsSummaryResponseSchema = z.object({
-    // OFAPI_CREDIT_LEDGER_ENABLED — with the flag off the page shows a notice and
-    // the ledger-derived sections are empty.
+    // Always true: the ledger always runs; kept on the wire.
     enabled: z.boolean(),
     balance: z.object({
         value: z.number().int().nullable(),
@@ -4881,7 +4863,7 @@ export const configItemSchema = z.object({
     subsystem: z.string(),
     label: z.string(),
     default: z.string(),
-    editability: z.enum(["never", "staged", "editable"]),
+    editability: z.enum(["never", "editable"]),
     // Authoritative wiring class (replaces applyMode): 'live' = wired to the runtime
     // overlay (no restart); 'boot' = applied at process start (needs restart); 'none' =
     // not overridable via the DB (env-only / read-only). Orthogonal to `editability`.
@@ -4891,24 +4873,19 @@ export const configItemSchema = z.object({
     note: z.string().nullable(),
     costWarning: z.string().nullable(),
     destructive: z.boolean(),
-    stagedGroup: z.string().nullable(),
-    stagedOrder: z.number().int().nullable(),
-    requires: z.array(z.string()),
     // Effective-state fields. In Stage A there is no overlay, so source is always
     // "env", desired is null and pendingApply is false; the running array carries
     // each live process's actual value and drift flags cross-instance disagreement.
     source: z.enum(["env", "override"]),
     desired: configValueScalar,
-    // SERVER-computed APPLIED truth (Stage C) — the single source for the staged UI's
-    // lock/Enable-Disable decision, so the client never reconstructs it. For a boot key it is
+    // SERVER-computed APPLIED truth, so the client never reconstructs it. For a boot key it is
     // getRunningFlagState (role-complete + fail-closed: every expected role must have an active
     // instance and report the key true to read "on", else "off"; "unknown" when it can't be
     // proven, e.g. no fleet / a missing role / a stale snapshot). For a non-boot key it summarizes
     // the active instances' reported values (all-true → "on", any non-true → "off", none → "unknown").
     runningState: z.enum(["on", "off", "unknown"]),
-    // SERVER-computed desired baseline (Stage C): the override boolean when one exists, else the
+    // SERVER-computed desired baseline: the override boolean when one exists, else the
     // env (rawConfig) boolean; null for keys with no boolean meaning (non-boolean / non-overridable).
-    // The staged UI's Enable/Disable + dependent locks read THIS, never a client recomputation.
     desiredEffective: z.boolean().nullable(),
     // Current version of the override row (null when env-sourced); the editor sends it
     // back as expectedVersion for optimistic-concurrency.
@@ -4962,8 +4939,7 @@ export const configUpdateBodySchema = z.object({
         value: configOverrideValueSchema,
         // Optimistic concurrency: when present it must match the row's current
         // version (0 for a brand-new key) or the write is a 409 conflict. Intentionally
-        // OPTIONAL on the live path (opt-in, last-write-wins for owner-only low-stakes knobs);
-        // the staged path makes it MANDATORY since staged flips are higher-stakes.
+        // OPTIONAL (opt-in, last-write-wins for owner-only knobs).
         expectedVersion: z.number().int().min(0).optional(),
     }))
         .min(1),
@@ -4988,37 +4964,6 @@ export const configClearQuerySchema = z.object({
 export const configClearResponseSchema = z.object({
     ok: z.literal(true),
     key: z.string(),
-});
-// --- Staged-rollout flips (Stage C: boot-applied flag set, owner-only) ---
-// A staged flip writes an explicit boolean override for a `runtimeApply === 'boot'`
-// key in the prescribed enable order, OR reverts it to env (`desired: null` → clears the
-// override row). Unlike the live PATCH, expectedVersion is MANDATORY (a staged flip is
-// always version-checked: 0 means "no row yet"), and an explicit `ack` records the
-// operator's acknowledgement that the flag only takes effect after a restart — persisted
-// into the audit note, not just the UI.
-export const configStagedBodySchema = z.object({
-    patches: z
-        .array(z.object({
-        key: z.string(),
-        // boolean = set the desired value; null = revert to env (clear the override). A
-        // null patch is validated as the env baseline boolean but applied as a clear.
-        desired: z.boolean().nullable(),
-        // Required (not optional): staged flips are always version-checked. 0 = the
-        // override row is absent; a mismatch is a 409 conflict.
-        expectedVersion: z.number().int().min(0),
-    }))
-        .min(1),
-    note: z.string().max(CONFIG_NOTE_MAX_LEN).optional(),
-    // Must be true; the handler rejects ack:false (400) and stores it in the audit note.
-    ack: z.boolean(),
-});
-export const configStagedResponseSchema = z.object({
-    results: z.array(z.object({
-        key: z.string(),
-        // boolean for an upsert; null for a cleared key (reverted to env).
-        value: z.boolean().nullable(),
-        version: z.number().int().nullable(),
-    })),
 });
 export const opsMetricsResponseSchema = z.object({
     samples: z.array(z.object({
@@ -5134,6 +5079,57 @@ const insightsTrafficRowSchema = z.object({
     previewVideoPercentWatchedSum: z.string().nullable(),
     revisionCount: z.number().int(),
     lastObservedAt: isoTimestamp,
+});
+/** Fansly's 2026-10 statistics (`/creator/stats/*`, 0292): one page's
+ *  account plane over the last `days` UTC days ending on `to` (default:
+ *  today). The window's totals are Fansly's own, from the summary of exactly
+ *  that length when Hub holds one (uniques and paying fans are not sums of
+ *  days); everything else is the daily rows as served — a day without a row
+ *  inside the covered span had no activity. */
+export const creatorStatsOverviewQuerySchema = z.object({
+    days: z.coerce.number().int().refine((value) => value === 7 || value === 30 || value === 90, "days must be 7, 30 or 90").default(30),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a UTC day YYYY-MM-DD").optional(),
+});
+const creatorStatsCount = z.number().int().nullable();
+export const creatorStatsOverviewResponseSchema = z.object({
+    page: insightsPageSchema,
+    window: z.object({ fromDay: z.string(), toDay: z.string(), days: z.number().int() }),
+    totalsWindow: z.object({ fromDay: z.string(), toDay: z.string(), capturedAt: isoTimestamp }).nullable(),
+    /** `{ value, previous }` of the summary window; money metrics end in `Mills`,
+     *  ratios and averages are not whole numbers. */
+    totals: z.array(z.object({
+        scope: z.string(), ref: z.string(), metric: z.string(), value: z.number().nullable(), previous: z.number().nullable(),
+    })),
+    views: z.array(z.object({
+        day: z.string(), source: z.number().int(), views: creatorStatsCount, uniqueViewers: creatorStatsCount,
+        videoViews: creatorStatsCount, completedViews: creatorStatsCount, watchMs: creatorStatsCount,
+        watchPctSum: z.number().nullable(), imageViews: creatorStatsCount,
+    })),
+    profile: z.array(z.object({
+        day: z.string(), source: z.number().int(), profileVisits: creatorStatsCount, uniqueVisitors: creatorStatsCount,
+        profileWatchMs: creatorStatsCount,
+    })),
+    follows: z.array(z.object({ day: z.string(), follows: creatorStatsCount, unfollows: creatorStatsCount })),
+    subscriptions: z.array(z.object({
+        day: z.string(), tierId: z.string(), subscriptionsNew: creatorStatsCount, subscriptionsRenewed: creatorStatsCount,
+        subscriptionsExpired: creatorStatsCount, subscriptionsCancelled: creatorStatsCount,
+    })),
+    revenue: z.array(z.object({
+        day: z.string(), productType: z.number().int(), productLabel: z.string(), transactions: creatorStatsCount,
+        grossMills: mills.nullable(), netMills: mills.nullable(), refunds: creatorStatsCount, refundedNetMills: mills.nullable(),
+    })),
+    levels: z.array(z.object({ day: z.string(), followerCount: creatorStatsCount, subscriberCount: creatorStatsCount })),
+    tierLevels: z.array(z.object({ day: z.string(), tierId: z.string(), subscriberCount: creatorStatsCount })),
+    engagement: z.array(z.object({ day: z.string(), metric: z.string(), source: z.number().int(), value: creatorStatsCount })),
+    hourlyViews: z.array(z.object({ hour: isoTimestamp, source: z.number().int(), views: creatorStatsCount, watchMs: creatorStatsCount })),
+    hourlyRevenue: z.array(z.object({ hour: isoTimestamp, netMills: mills.nullable(), transactions: creatorStatsCount })),
+    tiers: z.array(z.object({
+        tierId: z.string(), name: z.string().nullable(), color: z.string().nullable(), position: z.number().int().nullable(),
+        active: z.boolean().nullable(),
+    })),
+    coverage: z.array(z.object({
+        scopeRef: z.string(), oldestCapturedAt: isoTimestamp.nullable(), newestCapturedAt: isoTimestamp.nullable(), updatedAt: isoTimestamp,
+    })),
 });
 export const statsTrafficQuerySchema = z.object({
     from: insightsInstant,
@@ -7388,45 +7384,6 @@ const baseRouteSchemas = {
             403: errorResponseSchema,
         },
     },
-    adminGrantModel: {
-        auth: { kind: "owner-session" },
-        tags: ["admin"],
-        summary: "Grant a user model-scope access (present and future pages)",
-        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
-        body: z.object({ modelSlug: z.string().min(1) }),
-        response: {
-            200: z.object({ ok: z.literal(true) }),
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
-    adminRevokeModel: {
-        auth: { kind: "owner-session" },
-        tags: ["admin"],
-        summary: "Revoke a user's model-scope grant",
-        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER), modelSlug: z.string().min(1) }),
-        response: {
-            200: z.object({ ok: z.literal(true) }),
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
-    adminListUserGrants: {
-        auth: { kind: "owner-session" },
-        tags: ["admin"],
-        summary: "Access-grant history for one user (active and revoked)",
-        params: z.object({ userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
-        response: {
-            200: z.object({ grants: z.array(accessGrantItemSchema) }),
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
     // --- Unified chatter account (PR-1A) ---
     adminCreateInvite: {
         auth: { kind: "owner-session" },
@@ -8153,19 +8110,6 @@ const baseRouteSchemas = {
             409: errorResponseSchema,
         },
     },
-    adminConfigStaged: {
-        auth: { kind: "owner-session" },
-        tags: ["admin"],
-        summary: "Flip staged-rollout (boot-applied) config flags in the prescribed order",
-        body: configStagedBodySchema,
-        response: {
-            200: configStagedResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            409: errorResponseSchema,
-        },
-    },
     // --- WP-S1: the endpoints-cover serving surface (Fansly only, A28-2) -------
     // Every one of the eight is `owner-session` + `scope: "page"`. That pairing is
     // deliberate and is the whole access story for now: widening any of them to a
@@ -8211,6 +8155,20 @@ const baseRouteSchemas = {
         querystring: statsTagsQuerySchema,
         response: {
             200: statsTagsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    creatorStatsOverview: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "Fansly's 2026-10 statistics of one page: daily series, levels, engagement, last hours and the window's totals",
+        params: pageParamsSchema,
+        querystring: creatorStatsOverviewQuerySchema,
+        response: {
+            200: creatorStatsOverviewResponseSchema,
             400: errorResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,

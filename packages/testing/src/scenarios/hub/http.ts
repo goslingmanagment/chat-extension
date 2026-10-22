@@ -468,6 +468,7 @@ const audienceItem = (n: number, over: Partial<AudienceNewItem> = {}): AudienceN
   subscribedAtSource: 'notification',
   status: { isSubscriber: true, subscriptionStatus: 'active', endsAt: at(86_400 * 30), asOf: at(-60), source: 'webhook' },
   thread: { lastMessageAt: at(-3600 * (n + 1)), lastFanMessageAt: null, lastModelMessageAt: at(-3600 * (n + 1)), storedMessageCount: 1, coverage: 'complete', backfillComplete: true },
+  lastPersonalSendAt: null,
   claim: noClaim,
   ...over,
 });

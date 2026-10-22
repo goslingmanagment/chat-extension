@@ -34,13 +34,6 @@ export declare const agentKeyCapabilityEnum: z.ZodEnum<{
     "read:datasets": "read:datasets";
     "request:hydration": "request:hydration";
 }>;
-/**
- * Defaults chosen at plan time (§9 OPEN item 25) and editable per key at
- * issuance. They are generous on purpose: the budget exists to bound a runaway
- * loop, not to ration honest work.
- */
-export declare const AGENT_KEY_DEFAULT_DAILY_REQUEST_BUDGET = 5000;
-export declare const AGENT_KEY_DEFAULT_DAILY_ROW_BUDGET = 500000;
 /** The sliding default; the hard ceiling lives with the repository. */
 export declare const AGENT_KEY_DEFAULT_LIFETIME_DAYS = 90;
 /**
@@ -60,8 +53,6 @@ export declare const agentKeyItemSchema: z.ZodObject<{
         "request:hydration": "request:hydration";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
-    dailyRequestBudget: z.ZodNumber;
-    dailyRowBudget: z.ZodNumber;
     expiresAt: z.ZodString;
     createdAt: z.ZodString;
     revokedAt: z.ZodNullable<z.ZodString>;
@@ -78,8 +69,6 @@ export declare const agentKeyCreateBodySchema: z.ZodObject<{
         "request:hydration": "request:hydration";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
-    dailyRequestBudget: z.ZodDefault<z.ZodNumber>;
-    dailyRowBudget: z.ZodDefault<z.ZodNumber>;
     expiresInDays: z.ZodDefault<z.ZodNumber>;
 }, z.core.$strict>;
 export declare const agentKeyCreateResponseSchema: z.ZodObject<{
@@ -96,8 +85,6 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
             "request:hydration": "request:hydration";
         }>>;
         pageLabels: z.ZodArray<z.ZodString>;
-        dailyRequestBudget: z.ZodNumber;
-        dailyRowBudget: z.ZodNumber;
         expiresAt: z.ZodString;
         createdAt: z.ZodString;
         revokedAt: z.ZodNullable<z.ZodString>;
@@ -130,8 +117,6 @@ export declare const agentKeyAdminRouteSchemas: {
                 "request:hydration": "request:hydration";
             }>>;
             pageLabels: z.ZodArray<z.ZodString>;
-            dailyRequestBudget: z.ZodDefault<z.ZodNumber>;
-            dailyRowBudget: z.ZodDefault<z.ZodNumber>;
             expiresInDays: z.ZodDefault<z.ZodNumber>;
         }, z.core.$strict>;
         readonly response: {
@@ -149,8 +134,6 @@ export declare const agentKeyAdminRouteSchemas: {
                         "request:hydration": "request:hydration";
                     }>>;
                     pageLabels: z.ZodArray<z.ZodString>;
-                    dailyRequestBudget: z.ZodNumber;
-                    dailyRowBudget: z.ZodNumber;
                     expiresAt: z.ZodString;
                     createdAt: z.ZodString;
                     revokedAt: z.ZodNullable<z.ZodString>;
@@ -214,8 +197,6 @@ export declare const agentKeyAdminRouteSchemas: {
                     "request:hydration": "request:hydration";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
-                dailyRequestBudget: z.ZodNumber;
-                dailyRowBudget: z.ZodNumber;
                 expiresAt: z.ZodString;
                 createdAt: z.ZodString;
                 revokedAt: z.ZodNullable<z.ZodString>;

@@ -1237,6 +1237,7 @@ export declare const clientAudienceNewItemSchema: z.ZodObject<{
         coverage: z.ZodString;
         backfillComplete: z.ZodBoolean;
     }, z.core.$strip>>;
+    lastPersonalSendAt: z.ZodNullable<z.ZodString>;
     claim: z.ZodObject<{
         greeting: z.ZodEnum<{
             none: "none";
@@ -1311,6 +1312,7 @@ export declare const clientAudienceNewResponseSchema: z.ZodObject<{
             coverage: z.ZodString;
             backfillComplete: z.ZodBoolean;
         }, z.core.$strip>>;
+        lastPersonalSendAt: z.ZodNullable<z.ZodString>;
         claim: z.ZodObject<{
             greeting: z.ZodEnum<{
                 none: "none";
@@ -2431,6 +2433,7 @@ export declare const clientRouteSchemas: {
                         coverage: z.ZodString;
                         backfillComplete: z.ZodBoolean;
                     }, z.core.$strip>>;
+                    lastPersonalSendAt: z.ZodNullable<z.ZodString>;
                     claim: z.ZodObject<{
                         greeting: z.ZodEnum<{
                             none: "none";

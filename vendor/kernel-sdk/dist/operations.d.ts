@@ -43,10 +43,6 @@ export declare const kernelOperations: {
         readonly method: "DELETE";
         readonly path: "/api/v1/admin/config/:key";
     };
-    readonly adminConfigStaged: {
-        readonly method: "PATCH";
-        readonly path: "/api/v1/admin/config/staged";
-    };
     readonly adminConfigUpdate: {
         readonly method: "PATCH";
         readonly path: "/api/v1/admin/config";
@@ -107,10 +103,6 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/sync/followers-reconcile/reset";
     };
-    readonly adminGrantModel: {
-        readonly method: "POST";
-        readonly path: "/api/v1/admin/users/by-id/:userId/models";
-    };
     readonly adminIncidents: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/incidents";
@@ -122,10 +114,6 @@ export declare const kernelOperations: {
     readonly adminListDeviceTokens: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/users/by-id/:userId/device-tokens";
-    };
-    readonly adminListUserGrants: {
-        readonly method: "GET";
-        readonly path: "/api/v1/admin/users/by-id/:userId/grants";
     };
     readonly adminListUsers: {
         readonly method: "GET";
@@ -294,10 +282,6 @@ export declare const kernelOperations: {
     readonly adminRevokeDeviceTokens: {
         readonly method: "DELETE";
         readonly path: "/api/v1/admin/users/by-id/:userId/device-tokens";
-    };
-    readonly adminRevokeModel: {
-        readonly method: "DELETE";
-        readonly path: "/api/v1/admin/users/by-id/:userId/models/:modelSlug";
     };
     readonly adminSetDeviceTokenHarvestCapability: {
         readonly method: "PATCH";
@@ -626,6 +610,10 @@ export declare const kernelOperations: {
     readonly createOfapiCommand: {
         readonly method: "POST";
         readonly path: "/api/v1/ofapi/commands";
+    };
+    readonly creatorStatsOverview: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/stats/creator";
     };
     readonly crossPageFanDetail: {
         readonly method: "GET";

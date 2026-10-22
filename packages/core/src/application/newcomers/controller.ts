@@ -215,7 +215,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     const confirmed = detail?.greeting.state === 'confirmed';
     const claim = row?.claim ?? NO_CLAIM;
     const fanWrote = (row?.thread?.lastFanMessageAt ?? null) !== null;
-    return greetingStatus(confirmed ? { ...claim, greeting: 'confirmed' } : claim, localOf(fanRef), detail?.greeting.at ?? null, fanWrote);
+    return greetingStatus(confirmed ? { ...claim, greeting: 'confirmed' } : claim, localOf(fanRef), detail?.greeting.at ?? null, fanWrote, row?.personalSendAt ?? null);
   }
 
   function stopTimer(record: LeaseRecord): void {

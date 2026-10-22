@@ -434,6 +434,7 @@ const audienceItem: C.AudienceNewItem = {
   subscribedAtSource: 'notification',
   status: { isSubscriber: true, subscriptionStatus: 'active', endsAt: ISO_LATER, asOf: ISO, source: 'webhook' },
   thread: { lastMessageAt: ISO, lastFanMessageAt: null, lastModelMessageAt: ISO, storedMessageCount: 1, coverage: 'complete', backfillComplete: true },
+  lastPersonalSendAt: null,
   claim: claimSummary,
 };
 const audiencePage: C.AudienceNewPage = {

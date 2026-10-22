@@ -29,6 +29,8 @@ export interface NewcomerRow {
     readonly lastFanMessageAt: IsoTimestamp | null;
     readonly lastModelMessageAt: IsoTimestamp | null;
   } | null;
+  /** The newest send by hand to the fan since the subscription (the hub's send attribution): a greeting without Hi. */
+  readonly personalSendAt: IsoTimestamp | null;
   readonly claim: ClaimSummary;
   readonly haystack: string;
 }
@@ -73,6 +75,7 @@ export function newcomerRow(item: AudienceNewItem): NewcomerRow {
             lastFanMessageAt: item.thread.lastFanMessageAt,
             lastModelMessageAt: item.thread.lastModelMessageAt,
           },
+    personalSendAt: item.lastPersonalSendAt ?? null,
     claim: item.claim,
     haystack: [item.displayName, item.username, item.fanRef]
       .filter((part) => part !== null)
@@ -123,9 +126,17 @@ export function progressOfClaim(state: ClaimState | null): LocalGreeting['progre
  * theirs past its ticket, hold nothing here — the hub refuses at the send what
  * it must. Incoming archive history is a conversation without a ChatGoose
  * greeting receipt; outgoing messages alone may be automated and do not
- * establish that fact.
+ * establish that fact. A message a person sent by hand in the site's own
+ * composer since the subscription does (the hub's send attribution, which
+ * never covers a welcome or a mass message): the fan is greeted.
  */
-export function greetingStatus(claim: ClaimSummary, local: LocalGreeting = NO_LOCAL_GREETING, greetedAt: IsoTimestamp | null = null, fanWrote = false): GreetingStatusVM {
+export function greetingStatus(
+  claim: ClaimSummary,
+  local: LocalGreeting = NO_LOCAL_GREETING,
+  greetedAt: IsoTimestamp | null = null,
+  fanWrote = false,
+  personalSendAt: IsoTimestamp | null = null,
+): GreetingStatusVM {
   const progress = local.progress;
   if (progress !== null && progress.uncertainPart !== null) {
     return { s: 'stopped', sent: progress.sent, total: progress.total, part: progress.uncertainPart + 1 };
@@ -133,6 +144,7 @@ export function greetingStatus(claim: ClaimSummary, local: LocalGreeting = NO_LO
   if (progress !== null && progress.sent >= progress.total && progress.total > 0) return { s: 'greeted', at: progress.sentAt ?? greetedAt };
   if (progress !== null && (progress.sent > 0 || progress.inFlight)) return { s: 'sending', sent: progress.sent, total: progress.total };
   if (claim.greeting === 'confirmed') return { s: 'greeted', at: greetedAt };
+  if (personalSendAt !== null) return { s: 'greeted', at: personalSendAt };
   // An incoming message is direct evidence of a started conversation, even without a ChatGoose send receipt.
   // Outgoing messages alone prove nothing: the archive may contain only an automatic welcome or a mass message.
   if (fanWrote) return { s: 'replied' };

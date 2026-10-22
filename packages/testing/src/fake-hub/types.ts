@@ -178,7 +178,7 @@ export type FakeHubCommand =
   /** The fan's archive is rebuilt (the hub's archive generation moves): every feed cursor of the fan is `cursor_invalid` from now on. */
   | { readonly op: 'archiveRebuild'; readonly pageLabel: string; readonly fanRef: string }
   /** A subscription event lands in «Новые». */
-  | { readonly op: 'audienceEvent'; readonly pageLabel: string; readonly fanRef: string; readonly kind?: 'new' | 'returning'; readonly trial?: boolean; readonly fanWrote?: boolean }
+  | { readonly op: 'audienceEvent'; readonly pageLabel: string; readonly fanRef: string; readonly kind?: 'new' | 'returning'; readonly trial?: boolean; readonly fanWrote?: boolean; readonly handSent?: boolean }
   /**
    * The first rows of every page's Spenders board are these fans, in this order — fans the e2e's stand has, so
    * a chat a preview names can be opened, inserted into and sent to. The board's shelves become the six
