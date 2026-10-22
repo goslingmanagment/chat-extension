@@ -594,14 +594,14 @@ export declare const subscriberListQuerySchema: z.ZodObject<{
     query: z.ZodOptional<z.ZodString>;
     expiringWithinDays: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     startedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-    autoRenew: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+    autoRenew: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
 }, z.core.$strip>;
 export declare const followerListQuerySchema: z.ZodObject<{
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     offset: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     query: z.ZodOptional<z.ZodString>;
     followedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-    subscriber: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+    subscriber: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
     dmStatus: z.ZodOptional<z.ZodEnum<{
         none: "none";
         has_dm: "has_dm";
@@ -779,7 +779,7 @@ export declare const pageSpenderAutoListQuerySchema: z.ZodObject<{
     }>>;
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
-    excludeNonFollowers: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+    excludeNonFollowers: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
 }, z.core.$strip>;
 export declare const fansSearchQuerySchema: z.ZodObject<{
     scope: z.ZodEnum<{
@@ -3033,7 +3033,7 @@ export declare const revenueDailyQuerySchema: z.ZodObject<{
     }>>;
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
-    groupByType: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+    groupByType: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
 }, z.core.$strip>;
 export declare const revenueDailyItemSchema: z.ZodObject<{
     businessDate: z.ZodString;
@@ -3178,7 +3178,7 @@ export declare const crossPageTransactionListQuerySchema: z.ZodObject<{
     }>>;
     from: z.ZodOptional<z.ZodISODateTime>;
     to: z.ZodOptional<z.ZodISODateTime>;
-    reportableOnly: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+    reportableOnly: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
 }, z.core.$strip>;
 export declare const crossPageTransactionListResponseSchema: z.ZodObject<{
     items: z.ZodArray<z.ZodObject<{
@@ -4083,6 +4083,16 @@ export declare const aiLivePpvContextSchema: z.ZodObject<{
         purchased: z.ZodBoolean;
     }, z.core.$strict>]>>;
 }, z.core.$strict>;
+export declare const AI_LIVE_IMAGES_MAX = 3;
+/** Per image, base64 characters (about 512 KiB of JPEG). */
+export declare const AI_LIVE_IMAGE_DATA_MAX_CHARS = 700000;
+export declare const aiLiveImagesSchema: z.ZodArray<z.ZodObject<{
+    platformMessageId: z.ZodString;
+    mediaId: z.ZodString;
+    sentAt: z.ZodString;
+    mediaType: z.ZodLiteral<"image/jpeg">;
+    data: z.ZodString;
+}, z.core.$strict>>;
 export declare const aiCoverageCheckSchema: z.ZodObject<{
     window: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
@@ -4213,6 +4223,13 @@ export declare const aiFeatureStreamBodySchema: z.ZodObject<{
             purchased: z.ZodBoolean;
         }, z.core.$strict>]>>;
     }, z.core.$strict>>;
+    liveImages: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        platformMessageId: z.ZodString;
+        mediaId: z.ZodString;
+        sentAt: z.ZodString;
+        mediaType: z.ZodLiteral<"image/jpeg">;
+        data: z.ZodString;
+    }, z.core.$strict>>>;
     clientContext: z.ZodOptional<z.ZodObject<{
         transcript: z.ZodString;
         messageCount: z.ZodNumber;
@@ -12198,7 +12215,7 @@ export declare const opsMetricsResponseSchema: z.ZodObject<{
  *  days); everything else is the daily rows as served — a day without a row
  *  inside the covered span had no activity. */
 export declare const creatorStatsOverviewQuerySchema: z.ZodObject<{
-    days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+    days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     to: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export declare const creatorStatsOverviewResponseSchema: z.ZodObject<{
@@ -13398,6 +13415,13 @@ declare const baseRouteSchemas: {
                     purchased: z.ZodBoolean;
                 }, z.core.$strict>]>>;
             }, z.core.$strict>>;
+            liveImages: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                platformMessageId: z.ZodString;
+                mediaId: z.ZodString;
+                sentAt: z.ZodString;
+                mediaType: z.ZodLiteral<"image/jpeg">;
+                data: z.ZodString;
+            }, z.core.$strict>>>;
             clientContext: z.ZodOptional<z.ZodObject<{
                 transcript: z.ZodString;
                 messageCount: z.ZodNumber;
@@ -17849,7 +17873,7 @@ declare const baseRouteSchemas: {
             pageLabel: z.ZodString;
         }, z.core.$strip>;
         readonly querystring: z.ZodObject<{
-            days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
             to: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>;
         readonly response: {
@@ -18001,7 +18025,7 @@ declare const baseRouteSchemas: {
             pageLabel: z.ZodString;
         }, z.core.$strip>;
         readonly querystring: z.ZodObject<{
-            days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
             to: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>;
         readonly response: {
@@ -18083,7 +18107,7 @@ declare const baseRouteSchemas: {
             mediaOfferId: z.ZodString;
         }, z.core.$strip>;
         readonly querystring: z.ZodObject<{
-            days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
             to: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>;
         readonly response: {
@@ -18164,7 +18188,7 @@ declare const baseRouteSchemas: {
             pageLabel: z.ZodString;
         }, z.core.$strip>;
         readonly querystring: z.ZodObject<{
-            days: z.ZodDefault<z.ZodCoercedNumber<unknown> & z.ZodType<7 | 30 | 90, unknown, z.core.$ZodTypeInternals<7 | 30 | 90, unknown>>>;
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
             to: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>;
         readonly response: {
@@ -23745,7 +23769,7 @@ declare const baseRouteSchemas: {
             query: z.ZodOptional<z.ZodString>;
             expiringWithinDays: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
             startedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-            autoRenew: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            autoRenew: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -23912,7 +23936,7 @@ declare const baseRouteSchemas: {
             offset: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
             query: z.ZodOptional<z.ZodString>;
             followedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-            subscriber: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            subscriber: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
             dmStatus: z.ZodOptional<z.ZodEnum<{
                 none: "none";
                 has_dm: "has_dm";
@@ -24429,7 +24453,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            excludeNonFollowers: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            excludeNonFollowers: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -29045,7 +29069,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            groupByType: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            groupByType: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -29152,7 +29176,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            groupByType: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            groupByType: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -29216,7 +29240,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            groupByType: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            groupByType: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -29297,7 +29321,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodISODateTime>;
             to: z.ZodOptional<z.ZodISODateTime>;
-            reportableOnly: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            reportableOnly: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{

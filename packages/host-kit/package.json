@@ -14,6 +14,7 @@
     "./isolated/hosts": "./src/isolated/hosts.ts",
     "./isolated/keep-bottom": "./src/isolated/keep-bottom.ts",
     "./isolated/keyboard": "./src/isolated/keyboard.ts",
+    "./isolated/photos": "./src/isolated/photos.ts",
     "./isolated/report": "./src/isolated/report.ts",
     "./isolated/shadow-registry": "./src/isolated/shadow-registry.ts",
     "./isolated/validation": "./src/isolated/validation.ts",

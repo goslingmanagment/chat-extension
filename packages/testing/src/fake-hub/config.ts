@@ -87,13 +87,14 @@ export interface FakeHubConfig {
 const allFlags = (on: (flag: ClientFeatureFlag) => boolean): Record<string, boolean> => Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, on(flag)]));
 
 /**
- * Pilot capabilities: every one the hub serves but client-health (B′ ingest still off) and the PPV state of the open
- * chat (X54, `live-ppv-v1`, and Fansly's `live-ppv-fansly-v1`). With it every draft start reads the open chat from the
- * stand's API, our own read the stand labels `ours`; the specs that count the stand's history loads of the page are
- * written without it, and the ones that prove the PPV state switch it on (`suite-live-ppv`, `see fansly-ppv`).
+ * Pilot capabilities: every one the hub serves but client-health (B′ ingest still off), the PPV state of the open
+ * chat (X54, `live-ppv-v1`, and Fansly's `live-ppv-fansly-v1`) and the fan's photos (`live-images-v1`). With either of
+ * the last every draft start reads the open chat from the stand's API, our own read the stand labels `ours`; the specs
+ * that count the stand's history loads of the page are written without them, and the ones that prove the PPV state
+ * switch it on (`suite-live-ppv`, `see fansly-ppv`).
  */
 export const PILOT_CAPABILITIES: readonly string[] = CLIENT_HUB_CAPABILITY_NAMES.filter(
-  (capability) => capability !== 'client-health-perf-v1' && capability !== 'live-ppv-v1' && capability !== 'live-ppv-fansly-v1',
+  (capability) => capability !== 'client-health-perf-v1' && capability !== 'live-ppv-v1' && capability !== 'live-ppv-fansly-v1' && capability !== 'live-images-v1',
 );
 
 const BASE = {

@@ -32,8 +32,8 @@
 // lazy layer that needs it, and the table would follow it into `tab-app`.
 
 import type { ChatRef } from '@cg/contracts/ids';
-import type { HostPort, LiveTextTail, OpenChatPage } from '@cg/contracts/host';
-import { LIVE_PPV_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
+import type { HostPort, LiveImage, LiveImageRef, LiveTextTail, OpenChatPage } from '@cg/contracts/host';
+import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 import type { AiHostPolicy, LivePpvState } from '@cg/contracts/ops';
 
 /**
@@ -43,10 +43,45 @@ import type { AiHostPolicy, LivePpvState } from '@cg/contracts/ops';
  */
 const LIVE_PPV_FEATURES: ReadonlySet<string> = new Set(['reply', 'fix', 'hi', 'ping']);
 
-/** What a ChatSpace start gathers of the open chat: the visible tail (D-14) and the PPV state (X54); each may be absent. */
+/** The starts that carry the fan's newest photos as images (`StartOp.liveImages`, contracts LIVE_IMAGE_FEATURES). */
+const LIVE_IMAGE_FEATURES: ReadonlySet<string> = new Set(['reply', 'fix', 'coach']);
+
+/** What a ChatSpace start gathers of the open chat: the visible tail (D-14), the PPV state (X54) and the fan's newest photos; each may be absent. */
 export interface ChatSpaceProof {
   readonly tail: LiveTextTail | null;
   readonly livePpv: LivePpvState | null;
+  readonly liveImages?: readonly LiveImage[];
+}
+
+/**
+ * The photos of the fan's latest turn — their messages after the model's last personal one (a queued mass or scheduled
+ * message does not end it) — among the page's newest LIVE_IMAGE_LIMITS.windowMessages, newest first, each media once,
+ * at most `maxImages`. Empty — the fan sent none since the model last answered.
+ */
+export function liveImageRefsOf(page: OpenChatPage): LiveImageRef[] {
+  const refs: LiveImageRef[] = [];
+  for (const item of page.items.slice(0, LIVE_IMAGE_LIMITS.windowMessages)) {
+    if (item.direction === 'model') {
+      if (item.automatic) continue;
+      break;
+    }
+    for (const photo of item.photos ?? []) {
+      if (refs.length >= LIVE_IMAGE_LIMITS.maxImages) return refs;
+      if (!refs.some((ref) => ref.mediaId === photo.mediaId)) refs.push({ platformMessageId: item.platformMessageId, sentAt: item.sentAt, mediaId: photo.mediaId, url: photo.url });
+    }
+  }
+  return refs;
+}
+
+/** The latest turn's photos drawn by the host, waited for at most LIVE_IMAGE_LIMITS.waitMs; none — no photo, or the host cannot. */
+async function liveImagesOf(host: HostPort, page: OpenChatPage | null): Promise<readonly LiveImage[]> {
+  const refs = page === null ? [] : liveImageRefsOf(page);
+  if (refs.length === 0 || host.loadImages === undefined) return [];
+  try {
+    return await host.loadImages(refs, { waitMs: LIVE_IMAGE_LIMITS.waitMs });
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -128,13 +163,24 @@ export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
     const chat = ask.identity.chat;
     if (fresh === null) return null;
     const ppv = ask.livePpv === true && LIVE_PPV_FEATURES.has(ask.feature);
-    // Both reads at once: page memory's tail and the host's API page (the slower of the two), one page for the tail
-    // and the PPV state. The API only where the hub takes the state: a hub without it is asked of nothing of ours.
+    const images = ask.liveImages === true && LIVE_IMAGE_FEATURES.has(ask.feature) && host.loadImages !== undefined;
+    // Both reads at once: page memory's tail and the host's API page (the slower of the two), one page for the tail,
+    // the PPV state and the photos of the fan's latest turn, drawn as soon as the page names them. The API only where
+    // the hub takes the state or the photos: a hub without them is asked of nothing of ours.
     const memory = host.readVisibleTail(ask.identity, fresh.maxItems).catch(() => null);
-    const page = ask.livePpv !== true || chat === null ? Promise.resolve(null) : readOpenPage(host, chat, Math.max(fresh.maxItems, ppv ? LIVE_PPV_LIMITS.readMessages : 0));
-    return Promise.all([memory, page]).then(([tail, read]) => ({ tail: tailOf(read, tail, fresh.maxItems), livePpv: ppv && read !== null ? livePpvOf(read) : null }));
+    const page = (ask.livePpv !== true && !images) || chat === null ? Promise.resolve(null) : readOpenPage(host, chat, Math.max(fresh.maxItems, ppv ? LIVE_PPV_LIMITS.readMessages : 0));
+    const photos = images ? page.then((read) => liveImagesOf(host, read)) : Promise.resolve([]);
+    return Promise.all([memory, page, photos]).then(([tail, read, liveImages]) => ({
+      tail: tailOf(read, tail, fresh.maxItems),
+      livePpv: ppv && read !== null ? livePpvOf(read) : null,
+      ...(liveImages.length > 0 ? { liveImages } : {}),
+    }));
   },
-  fields: (proof) => ({ fresh: proof?.tail ?? null, ...(proof?.livePpv ? { livePpv: proof.livePpv } : {}) }),
+  fields: (proof) => ({
+    fresh: proof?.tail ?? null,
+    ...(proof?.livePpv ? { livePpv: proof.livePpv } : {}),
+    ...(proof?.liveImages !== undefined && proof.liveImages.length > 0 ? { liveImages: [...proof.liveImages] } : {}),
+  }),
   fingerprint: () => null,
   verdict: (view) => view.stale ?? null,
 };

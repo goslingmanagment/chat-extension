@@ -93,6 +93,11 @@ export const CHAT_READ_USERNAME_MAX = 100;
 export const CHAT_READ_SEARCH_LIMIT = 10;
 /** Messages the guarded history read asks for: enough to see a fan message that came between the list and the history. */
 export const CHAT_READ_HISTORY_LIMIT = 5;
+/** contracts LIVE_IMAGE_LIMITS, HostPhotoUrlSchema: the photos named on the open chat's newest messages. */
+export const LIVE_IMAGE_WINDOW = 10;
+export const LIVE_IMAGE_PER_MESSAGE = 4;
+export const LIVE_IMAGE_URL_MAX = 2048;
+export const PHOTO_URL = /^https:\/\/[a-z0-9-]+\.ompcdn\.com\/[^\s"'<>\\]+$/;
 /** contracts MEDIA_LIMITS, MEDIA_TYPES (decision X53). */
 export const MEDIA_FOLDERS_PAGE = 10;
 export const MEDIA_ITEMS_PAGE = 40;

@@ -16,7 +16,7 @@
 import { count, idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 import { ERR_IDENTITY } from '@cg/host-kit/main/protocol';
 import { iso, plain, utf8Bytes } from './page';
-import { API_ACCOUNTS_PATH, API_PATH, CHAT_READ_HISTORY_LIMIT, CHAT_READ_SEARCH_LIMIT, FRAME_DATA_BUDGET, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS } from './protocol';
+import { API_ACCOUNTS_PATH, API_PATH, CHAT_READ_HISTORY_LIMIT, CHAT_READ_SEARCH_LIMIT, FRAME_DATA_BUDGET, LIVE_IMAGE_PER_MESSAGE, LIVE_IMAGE_URL_MAX, LIVE_IMAGE_WINDOW, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS, PHOTO_URL } from './protocol';
 
 type PageWindow = Window & { readonly Clerk?: { readonly session?: { readonly getToken?: () => unknown } | null } };
 
@@ -28,14 +28,48 @@ const price = (value: unknown): number | null => {
   return amount > 0 && amount <= OPEN_CHAT_PRICE_MAX ? amount : null;
 };
 
-/** One raw message (`{id, content, sent_at, is_from_fan, platform_metadata}`) as contracts OpenChatMessage; null — unreadable. */
-const message = (raw: unknown): Plain | null => {
+/** A rendition's address: the string itself or its `{url}`. */
+const fileUrl = (value: unknown): string | null => (typeof value === 'string' ? value : isPlain(value) && typeof value['url'] === 'string' ? value['url'] : null);
+
+/**
+ * A photo's address on OnlyMonster's media proxy, the mid-size rendition first, as the hub picks one for its describer
+ * (`selectOfapiMediaVariantUrls`): preview, then the full file, then the thumb. null — none the page can read.
+ */
+const photoUrl = (media: Plain): string | null => {
+  const files = isPlain(media['files']) ? media['files'] : {};
+  const candidates = [files['preview'], media['preview'], files['full'], media['full'], media['src'], files['thumb'], files['squarePreview'], media['thumb']];
+  for (const candidate of candidates) {
+    const url = fileUrl(candidate);
+    if (url !== null && url.length <= LIVE_IMAGE_URL_MAX && PHOTO_URL.test(url)) return url;
+  }
+  return null;
+};
+
+/** The photos of a message the viewer may see (`canView`), as contracts HostPhoto; empty — none. */
+const photosOf = (meta: Plain): Plain[] => {
+  const photos: Plain[] = [];
+  for (const media of Array.isArray(meta['media']) ? meta['media'] : []) {
+    if (photos.length >= LIVE_IMAGE_PER_MESSAGE) break;
+    if (!isPlain(media) || media['type'] !== 'photo' || media['canView'] === false) continue;
+    const mediaId = idOf(media['id']);
+    const url = photoUrl(media);
+    if (mediaId !== null && url !== null) photos.push({ mediaId, url });
+  }
+  return photos;
+};
+
+/**
+ * One raw message (`{id, content, sent_at, is_from_fan, platform_metadata}`) as contracts OpenChatMessage; null —
+ * unreadable. `withPhotos` — the page's newest messages name their photos (`LIVE_IMAGE_WINDOW`).
+ */
+const message = (raw: unknown, withPhotos = false): Plain | null => {
   const id = isPlain(raw) ? idOf(raw['id']) : null;
   const at = id === null ? null : iso((raw as Plain)['sent_at']);
   const fromFan = (raw as Plain | null)?.['is_from_fan'];
   if (at === null || typeof fromFan !== 'boolean') return null;
   const meta = isPlain((raw as Plain)['platform_metadata']) ? ((raw as Plain)['platform_metadata'] as Plain) : {};
   const media = meta['mediaCount'];
+  const photos = withPhotos ? photosOf(meta) : [];
   return {
     platformMessageId: id,
     direction: fromFan ? 'fan' : 'model',
@@ -47,6 +81,7 @@ const message = (raw: unknown): Plain | null => {
     mediaCount: count(media) ? media : Array.isArray(meta['media']) ? meta['media'].length : 0,
     tip: meta['isTip'] === true,
     automatic: meta['isFromQueue'] === true,
+    ...(photos.length > 0 ? { photos } : {}),
   };
 };
 
@@ -226,7 +261,8 @@ export function createOmApi(win: Window, setTimer: Timer) {
       let bytes = 0;
       let cut = false;
       for (const raw of raws) {
-        const item = message(raw);
+        // Only the newest page names photos: what a start sends of them is the fan's latest turn.
+        const item = message(raw, cursor === undefined && items.length < LIVE_IMAGE_WINDOW);
         if (item === null) continue;
         bytes += utf8Bytes(JSON.stringify(item));
         if ((cut = bytes > FRAME_DATA_BUDGET || items.length >= limit)) break;

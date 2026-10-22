@@ -160,6 +160,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * the state and sends it only to a hub that lists this capability.
    */
   'live-ppv-fansly-v1',
+  /**
+   * The AI stream takes `liveImages`, the fan's newest photos of the open chat as JPEG; listed while the owner's
+   * `aiLiveImagesEnabled` is on. A hub without it refuses the field (400), so a start draws the photos only for a hub
+   * that lists it.
+   */
+  'live-images-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

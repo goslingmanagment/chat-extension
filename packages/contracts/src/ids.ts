@@ -66,6 +66,9 @@ export const HI_BY_START_PROOF: Readonly<Record<Platform, boolean>> = { onlyfans
  */
 export const LIVE_PPV_CAPABILITY: Readonly<Record<Platform, 'live-ppv-v1' | 'live-ppv-fansly-v1'>> = { onlyfans: 'live-ppv-v1', fansly: 'live-ppv-fansly-v1' };
 
+/** The bootstrap capability under which the hub takes the fan's newest photos as images (`liveImages`). */
+export const LIVE_IMAGES_CAPABILITY = 'live-images-v1';
+
 /**
  * 1.15.0 (R20 P9d): the page's switches the hub admits a greeting's custody `dispatch` under, by platform (hub HF-3,
  * admission by platform, purpose and action). OnlyFans' greeting leaves through the preview's queue (X8): `previewSend`

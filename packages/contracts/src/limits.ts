@@ -244,6 +244,26 @@ export const CHAT_READ_LIMITS = { usernameMax: 100, bridgeMs: 22 * SECOND, fresh
 export const LIVE_PPV_LIMITS = { readMessages: 50, waitMs: 1200, maxItems: 100 } as const;
 
 /**
+ * The fan's newest photos a Reply, Fix or Coach start carries as images (`StartOp.liveImages`, hub `liveImages`,
+ * `live-images-v1`): the photos of the fan's latest turn — their messages after the model's last personal one — among
+ * the open chat's `windowMessages` newest, at most `maxImages` (the hub's `AI_LIVE_IMAGES_MAX`), drawn from the page's
+ * own media proxy as JPEG of at most `maxEdgePx` on the long edge. `perMessage` — the photos one message of the open
+ * chat's page names; `urlMaxChars` — a photo's address; `dataMaxChars` — one image's base64 (the hub's
+ * `AI_LIVE_IMAGE_DATA_MAX_CHARS`); `waitMs` — how long the click waits for the photos after the chat's page before it
+ * starts with those that came.
+ */
+export const LIVE_IMAGE_LIMITS = {
+  windowMessages: 10,
+  maxImages: 3,
+  perMessage: 4,
+  maxEdgePx: 1024,
+  jpegQuality: 0.82,
+  urlMaxChars: 2048,
+  dataMaxChars: 700_000,
+  waitMs: 2000,
+} as const;
+
+/**
  * 1.15.0 (R20): hub limits of the window coverage check (HF-8в `AI_COVERAGE_CHECK_WINDOW_MAX` / `_DELETED_MAX`):
  * the ids of the check window and the ids of its messages the tab saw deleted, each list at most this many.
  */

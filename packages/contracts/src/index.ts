@@ -40,7 +40,7 @@ export * from './hub';
 
 /**
  * Semver of the frozen contracts (`contracts-v1.0`, R01). A new field is a
- * minor bump, a new meaning a major one; every bump has its entry in
- * docs/contracts-changelog.md (architecture.md §5).
+ * minor bump, a new meaning a major one; the PR description says why
+ * (architecture.md §5).
  */
-export const CONTRACTS_VERSION = '1.44.0';
+export const CONTRACTS_VERSION = '1.45.0';

@@ -24,10 +24,13 @@
 // The open chat's PPV state (1.27.0, X54) goes as `livePpvContext` where fresh text may go, to a hub that lists
 // `live-ppv-v1` (ChatSpace) or `live-ppv-fansly-v1` (Fansly's attachments): a hub without it refuses the field, so it
 // is never sent one.
+//
+// The fan's newest photos go as `liveImages` (Reply, Fix, Coach) where fresh text may go, to a hub that lists
+// `live-images-v1`: a hub without it refuses the field.
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
-import { HI_BY_START_PROOF, LIVE_PPV_CAPABILITY } from '@cg/contracts/ids';
+import { HI_BY_START_PROOF, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY } from '@cg/contracts/ids';
 import {
   HUB_FEATURE_MAP,
   HubStreamRequestSchema,
@@ -167,6 +170,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   const liveNeed = LIVE_TEXT_HUB_NEEDS[start.feature];
   if (tail !== undefined && ctx.freshText && (liveNeed === undefined || hasCapability(ctx.bootstrap.capabilities, liveNeed))) body.liveTextContext = liveTextOf(tail);
   if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, LIVE_PPV_CAPABILITY[body.platform])) body.livePpvContext = start.livePpv;
+  if (start.liveImages !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, LIVE_IMAGES_CAPABILITY)) body.liveImages = [...start.liveImages];
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };
   const parsed = HubStreamRequestSchema.safeParse(request);

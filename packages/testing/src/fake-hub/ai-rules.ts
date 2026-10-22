@@ -99,6 +99,19 @@ export function livePpvRefusal(feature: string, body: StreamRuleBody): string | 
   return null;
 }
 
+// ── The fan's newest photos (hub context/live-images.ts `assertLiveImagesRequestShape`) ──
+
+/** The hub's `AI_LIVE_IMAGES_FEATURES`. */
+const LIVE_IMAGES_FEATURES: readonly string[] = ['fast-reply', 'improve-draft', 'coach-chat'];
+
+/** Why the hub refuses `liveImages` before any context loads (400, reason `live_text_not_allowed`). Null — taken. */
+export function liveImagesRefusal(feature: string, body: StreamRuleBody): string | null {
+  if (body.liveImages === undefined) return null;
+  if (!LIVE_IMAGES_FEATURES.includes(feature)) return `${feature} does not accept liveImages`;
+  if (body.clientContext !== undefined) return 'liveImages cannot be combined with clientContext';
+  return null;
+}
+
 // ── Hi by the start proof (hub context/hi-start-proof.ts, HF-5, bd3eec065) ──
 // Since 2026-10-21 Hi has no message limit: the hub refuses no Hi for its count or for a start nobody proved
 // (`gate_hi_greeting_limit` is gone); only the shape of the lane's fields is still checked.
