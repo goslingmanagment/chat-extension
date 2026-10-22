@@ -1,5 +1,7 @@
-// R20 P9e: the common board with Fansly's missing-data source. This module is
-// Fansly's own lazy entry; none of its registry or host code reaches ChatSpace.
+// R20 P9e: the common board with Fansly's missing-data source — and, as on
+// ChatSpace, its statistics and the hub's «Ждут ответа» queue, whose fans'
+// groups the same source finds. This module is Fansly's own lazy entry; none
+// of its registry or host code reaches ChatSpace.
 export { Surfaces, createChatNavigator, createPageContext } from '@cg/core/application/boards';
 export { createFanPanelController } from '@cg/core/application/fanpanel';
 export { createPaletteDirectory } from '@cg/core/application/preview';
@@ -16,7 +18,7 @@ export const createNewcomersController: typeof SharedBoards.createNewcomersContr
 
 export function createSpendersController(deps: SpendersControllerDeps & { readonly host: HostPort }) {
   const host = deps.host as FanslyPort;
-  return create({ ...deps, statistics: false, source: {
+  return create({ ...deps, source: {
     cached: (account, fan) => host.groupForFan(account, fan),
     async resolve(account, fan) {
       if (host.current().contract.capabilities.navigate.state !== 'on') throw new Error('navigation unavailable');

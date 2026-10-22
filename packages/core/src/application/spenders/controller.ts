@@ -95,6 +95,7 @@ export interface SpendersSource {
 
 export interface SpendersControllerDeps {
   readonly source?: SpendersSource;
+  /** false — a board without the statistics column, S and the hub's «ждут ответа» queue (both sites have them; default on). */
   readonly statistics?: boolean;
   readonly rpc: TabRpc;
   readonly i18n: I18n;
@@ -642,6 +643,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       source: 'spenders',
       pageId: id,
       fanRef,
+      ...conversationOfRow(asRow),
       name: asRow.name,
       username: asRow.username,
       lifetime: asRow.lifetime,
@@ -652,14 +654,27 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     };
   };
 
+  /**
+   * The fan's row as the list knows it: the board's own, else the «ждут ответа» queue's — a payer of the hub's queue
+   * the board did not load (it holds up to 1000). The queue's row names no chat: on Fansly its group is found as a
+   * board row's is, by the site's inbox search over the queue's names.
+   */
+  function knownRow(fanRef: string): { readonly row: SpenderRow; readonly displayName: string | null } | null {
+    const index = listIndex();
+    const listed = index?.byFan.get(fanRef);
+    if (listed !== undefined) return { row: listed, displayName: listed.displayName ?? null };
+    const queued = queue.state.items.find((item) => item.fanRef === fanRef);
+    return queued === undefined || index === null || index === undefined ? null : { row: queueRow(queued, 0, undefined, index.period), displayName: queued.displayName };
+  }
+
   async function resolveConversation(fanRef: string, active: boolean): Promise<void> {
     const binding = context.current().binding;
     const source = deps.source;
-    const row = listIndex()?.byFan.get(fanRef);
-    if (binding === null || CHAT_IS_FAN[binding.platform] || row === undefined || source === undefined || conversationOfRow(row).conversationRef !== undefined) return;
+    const known = knownRow(fanRef);
+    if (binding === null || CHAT_IS_FAN[binding.platform] || known === null || source === undefined || conversationOfRow(known.row).conversationRef !== undefined) return;
     const atEpoch = epoch;
     let ref = await source.cached(binding.platformAccountId, fanRef);
-    if (!disposed && epoch === atEpoch && ref === null && active) ref = await source.resolve(binding.platformAccountId, { fanRef, displayName: row.displayName ?? null, username: row.username });
+    if (!disposed && epoch === atEpoch && ref === null && active) ref = await source.resolve(binding.platformAccountId, { fanRef, displayName: known.displayName, username: known.row.username });
     if (disposed || epoch !== atEpoch || ref === null) return;
     conversations.set(fanRef, ref);
     lookups.delete(fanRef);
@@ -738,7 +753,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     const atEpoch = epoch;
     const run = ++navigationRun;
     // The chat is not known yet: the site's inbox search finds it (up to its budget), and the row says «ищу чат…» meanwhile.
-    const row = listIndex()?.byFan.get(fanRef);
+    const row = knownRow(fanRef)?.row;
     const looks = row !== undefined && chatOfRow(row) !== undefined;
     if (looks) {
       lookups.set(fanRef, 'finding');
@@ -750,7 +765,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     catch { failed = true; }
     if (disposed || epoch !== atEpoch) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     // R20 P8a: the fan's chat as the board knows it; where a chat has an id of its own, the fan's id opens none.
-    const { conversationRef } = conversationOfRow(listIndex()?.byFan.get(fanRef));
+    const { conversationRef } = conversationOfRow(knownRow(fanRef)?.row);
     const found = conversationRef !== undefined || CHAT_IS_FAN[binding.platform];
     // What the search found is the row's, whoever clicked since: a chat not found stays «чат не найден».
     if (looks) lookupEnded(fanRef, found && !failed);

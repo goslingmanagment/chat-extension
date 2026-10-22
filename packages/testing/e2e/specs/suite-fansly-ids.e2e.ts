@@ -400,7 +400,7 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     await openChat(A.group, A.fan);
   });
 
-  it('[SP-037] [SP-035] [FS-SPD-2] [SP-055] [TL-004] Reply inserts part 0, Fansly’s own Send confirms it, the reopened preview offers part 1; both themes without statistics', async function () {
+  it('[SP-037] [SP-035] [FS-SPD-2] [SP-055] [TL-004] Reply inserts part 0, Fansly’s own Send confirms it, the reopened preview offers part 1; both themes with the statistics column', async function () {
     this.timeout(120_000);
     const mark = await fakeFansly().mark();
     const hubMark = await hub().mark();
@@ -409,8 +409,11 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     await pressOurs('modal', '.cg-pv button', /^Reply/);
     await browser.waitUntil(() => oursExists('modal', '.cg-pvp'), { timeout: 30_000, timeoutMsg: 'Reply in the Spenders preview did not finish' });
     expect(await oursByText('modal', '.cg-pv button', /^Отправить$/)).toBeNull();
-    expect(await oursExists('modal', '[data-cg-stats]')).toBe(false);
-    expect((await callsOf(hub(), hubMark, ['clientSpenderStats', 'clientSpenderAwaitingReply']))).toEqual([]);
+    // The statistics column beside the list, as on ChatSpace: the hub's numbers of this Fansly page, read and served.
+    expect(await oursExists('modal', '[data-cg-stats]')).toBe(true);
+    const statsReads = await callsOf(hub(), hubMark, ['clientSpenderStats']);
+    expect(statsReads.length).toBeGreaterThan(0);
+    expect(allServed(statsReads)).toEqual([]);
     const streams = await callsOf(hub(), hubMark, ['aiFeatureStream']);
     expect(streams.map(({ fan, conversation }) => [fan, conversation])).toEqual([[B.fan, B.group]]);
     expect(allServed(streams)).toEqual([]);
