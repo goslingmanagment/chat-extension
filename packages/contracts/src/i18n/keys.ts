@@ -369,7 +369,7 @@ export const UI_TEXT_KEYS = [
   'voice.tag.sighs', 'voice.tag.shortPause', 'voice.tag.longPause', 'voice.make', 'voice.makeTooltip', 'voice.makeAgain',
   'voice.makeAgainTooltip', 'voice.makeNew', 'voice.attach', 'voice.attachNoName', 'voice.attachTooltip', 'voice.attach.handing',
   'voice.attach.waiting', 'voice.attach.attached', 'voice.attach.unknown', 'voice.attach.again', 'voice.attach.againLead',
-  'voice.attach.againQuestion', 'voice.attach.failed', 'voice.leftover', 'voice.leftoverClear', 'voice.download', 'voice.downloaded',
+  'voice.attach.againQuestion', 'voice.attach.failed', 'voice.leftover', 'voice.leftoverClear', 'voice.leftoverCleared', 'voice.leftoverRestore', 'voice.download', 'voice.downloaded',
   'voice.takes.label', 'voice.take', 'voice.take.working', 'voice.take.slow', 'voice.take.stale', 'voice.take.attached',
   'voice.take.attachedUnknown', 'voice.take.play', 'voice.take.pause', 'voice.take.seek', 'voice.take.check', 'voice.take.checkTooltip',
   'voice.take.select', 'voice.take.selected', 'voice.take.playFailed', 'voice.take.loading', 'voice.take.charged',

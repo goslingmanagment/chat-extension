@@ -520,20 +520,23 @@ function AttachLine({ attach }: { readonly attach: VoiceAttachVM }): JSX.Element
       );
     case 'attached':
       return (
-        <div class="cg-voice__attach is-done" role="status">
-          <Icon name="check" size={14} />
-          <span>
-            {i18n.t('voice.attach.attached', { n: attach.n })}
-            {attach.leftover === null ? null : <span class="cg-voice__leftover"> {i18n.t('voice.leftover')}</span>}
-          </span>
-        </div>
+        <>
+          <div class="cg-voice__attach is-done" role="status">
+            <Icon name="check" size={14} />
+            <span>{i18n.t('voice.attach.attached', { n: attach.n })}</span>
+          </div>
+          <Leftover leftover={attach.leftover} />
+        </>
       );
     case 'unknown':
       return (
-        <div class="cg-voice__attach is-unknown" role="status">
-          <Dot kind="ring" />
-          <span>{i18n.t('voice.attach.unknown', { n: attach.n })}</span>
-        </div>
+        <>
+          <div class="cg-voice__attach is-unknown" role="status">
+            <Dot kind="ring" />
+            <span>{i18n.t('voice.attach.unknown', { n: attach.n })}</span>
+          </div>
+          <Leftover leftover={attach.leftover} />
+        </>
       );
     case 'failed':
       return (
@@ -544,14 +547,30 @@ function AttachLine({ attach }: { readonly attach: VoiceAttachVM }): JSX.Element
   }
 }
 
+/** The draft's text left in the field after a take went in: «Убрать текст»; once taken out, «Вернуть текст». */
+function Leftover({ leftover }: { readonly leftover: VoiceAttachVM['leftover'] }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  if (leftover === null) return null;
+  const action = leftover.action;
+  return (
+    <div class={leftover.cleared ? 'cg-voice__leftover is-cleared' : 'cg-voice__leftover'} role="status">
+      {leftover.cleared ? <Icon name="check" size={14} /> : <Dot kind="ring" />}
+      <span class="cg-voice__leftover-t">{i18n.t(leftover.cleared ? 'voice.leftoverCleared' : 'voice.leftover')}</span>
+      {action === null ? null : <Button label={i18n.t(leftover.cleared ? 'voice.leftoverRestore' : 'voice.leftoverClear')} size="sm" variant="line" onClick={() => void dispatch(action)} />}
+    </div>
+  );
+}
+
 function Footer({ vm }: { readonly vm: VoiceVM }): JSX.Element | null {
-  if (vm.primary === null && vm.secondary === null && vm.restart === null && vm.attach === null) return null;
+  if (vm.primary === null && vm.secondary === null && vm.restart === null && vm.again === null && vm.attach === null) return null;
   return (
     <footer class="cg-voice__foot">
       {vm.attach === null ? null : <AttachLine attach={vm.attach} />}
       <div class="cg-voice__acts">
         {vm.restart === null ? null : <ActionButton vm={vm.restart} variant="quiet" class="cg-voice__restart" />}
         <span class="cg-voice__sp" />
+        {vm.again === null ? null : <ActionButton vm={vm.again} variant="quiet" />}
         {vm.secondary === null ? null : <ActionButton vm={vm.secondary} variant="line" />}
         {vm.primary === null ? null : <ActionButton vm={vm.primary} variant="line" class="cg-voice__go" />}
       </div>

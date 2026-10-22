@@ -102,7 +102,12 @@ ${/* ── the question, the handover, the footer ── */ ''}
 .cg-voice__attach { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--cg-ink-2); font-size: var(--cg-text-sm2); line-height: 18px; }
 .cg-voice__attach.is-done { color: var(--cg-good-ink); }
 .cg-voice__attach.is-done .cg-ico { flex: none; }
-.cg-voice__leftover { color: var(--cg-amber-ink); }
+.cg-voice__leftover {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; padding: 4px 6px 4px 10px; border-radius: var(--cg-r-md);
+  background: var(--cg-amber-bg); box-shadow: inset 0 0 0 1px var(--cg-amber-line); color: var(--cg-amber-ink); font-size: var(--cg-text-sm2); line-height: 18px;
+}
+.cg-voice__leftover.is-cleared { background: none; box-shadow: none; padding-left: 0; color: var(--cg-ink-2); }
+.cg-voice__leftover-t { flex: 1 1 200px; min-width: 0; }
 @container cg (max-width: 420px) {
   .cg-voice { padding: 6px 8px 8px 10px; }
   .cg-voice__foot { padding-left: 10px; }

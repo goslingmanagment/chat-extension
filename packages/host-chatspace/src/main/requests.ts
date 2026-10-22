@@ -77,17 +77,25 @@ const insertKeys = shape({
     shape({ kind: is('open'), documentEpoch: isToken, routeEpoch: count, composerInstanceId: isToken, draftRevision: count, draftDigest: isDigest })(value) ||
     shape({ kind: is('deferred'), documentEpoch: isToken })(value),
   mode: is('replace', 'append'),
-  text: (value) => typeof value === 'string' && value.length > 0 && value.length <= MAX_STRING,
+  // Empty only in an open replace (Voice's «Убрать текст», 1.46.0): checked with the refinements below.
+  text: (value) => typeof value === 'string' && value.length <= MAX_STRING,
   confirmationId: orNull(isUuid),
   createdAt: count,
   expiresAt: count,
 });
 
-/** Both refinements of InsertWireSchema: expiry after creation; a deferred insert replaces and carries no consent. */
+/**
+ * The refinements of InsertWireSchema: expiry after creation; a deferred insert replaces and carries no consent; only
+ * an open replace writes an empty text.
+ */
 const isInsert: Check = (value) => {
   if (!insertKeys(value)) return false;
   const insert = value as InsertWire;
-  return insert.expiresAt > insert.createdAt && (insert.expected.kind === 'open' || (insert.confirmationId === null && insert.mode === 'replace'));
+  return (
+    insert.expiresAt > insert.createdAt &&
+    (insert.expected.kind === 'open' || (insert.confirmationId === null && insert.mode === 'replace')) &&
+    (insert.text !== '' || (insert.mode === 'replace' && insert.expected.kind === 'open'))
+  );
 };
 
 /** The preview send as MAIN gets it (contracts MainSendRequestSchema): no hub binding, no ticket, no token. */

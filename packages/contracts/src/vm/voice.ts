@@ -58,9 +58,10 @@ export interface VoiceAttachVM {
   readonly error: CgErrorView | null;
   /**
    * After an attach the chat's field still holds the text the script was made from: it goes to the fan with the
-   * voice unless the person removes it («Убрать текст»). null — the field holds nothing more.
+   * voice unless the person removes it («Убрать текст»); once removed, «Вернуть текст» puts it back while the field
+   * stays empty. null — the field holds nothing of it.
    */
-  readonly leftover: { readonly clear: UiAction | null } | null;
+  readonly leftover: { readonly cleared: boolean; readonly action: UiAction | null } | null;
 }
 
 /** A question in the studio itself (no dialog): the person's answer goes on, the other button leaves it. */
@@ -117,6 +118,8 @@ export interface VoiceVM {
   readonly secondary: ActionButtonVM | null;
   /** «Новый войс» from the field's draft now; null — nothing to start over from. */
   readonly restart: ActionButtonVM | null;
+  /** «Прикрепить ещё раз» once the chosen take was handed over (it asks first): a quiet button, never the main one. */
+  readonly again: ActionButtonVM | null;
   readonly confirm: VoiceConfirmVM | null;
   readonly attach: VoiceAttachVM | null;
 }

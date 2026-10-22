@@ -300,6 +300,8 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('NewVoice', { targetHandle: HandleSchema, confirmed: z.optional(z.literal(true)) }),
   /** «Убрать текст» after an attach: the draft's text leaves the chat's field (nothing is sent). */
   act('ClearVoiceDraft', { targetHandle: HandleSchema }),
+  /** «Вернуть текст»: the text «Убрать текст» took goes back into the field. */
+  act('RestoreVoiceDraft', { targetHandle: HandleSchema }),
   /** The studio's question goes away unanswered («Отмена»). */
   act('DismissVoiceConfirm', { targetHandle: HandleSchema }),
 

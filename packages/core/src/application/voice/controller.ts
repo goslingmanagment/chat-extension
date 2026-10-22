@@ -14,11 +14,13 @@
 // handover that was not seen, waits for the person's own click.
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
-import { type AttachIntent, type AttachReceipt } from '@cg/contracts/host';
+import { type AttachIntent, type AttachReceipt, type InsertReceipt } from '@cg/contracts/host';
+import { type DraftSnapshot } from '@cg/contracts/ids';
 import { VOICE_LIMITS, VOICE_TONE_REPLY, VOICE_TONES, type VoiceSession, type VoiceTake, type VoiceTone } from '@cg/contracts/voice';
 import { type ActionButtonVM, type ActionReceipt, type Msg, type UiActionOf, type VoiceTakeVM, type VoiceVM } from '@cg/contracts/vm';
 
 import { windowFor } from '../../domain/features';
+import { buildOpenInsert } from '../../domain/insert/intent';
 import { canonicalVoiceScript, currentScriptText, takeIsStale, voiceScriptIssue, voiceSeconds, type VoiceScriptIssue } from '../../domain/voice';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, errorVm, msg, views } from '../ai/view-models';
@@ -145,6 +147,7 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       primary: null,
       secondary: null,
       restart: null,
+      again: null,
       confirm: null,
       attach: null,
     };
@@ -196,6 +199,7 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
     // The footer: the next step first, the other one beside it.
     let primary: ActionButtonVM | null = null;
     let secondary: ActionButtonVM | null = null;
+    let again: ActionButtonVM | null = null;
     if (stage === 'empty' || stage === 'failed') {
       // A script that failed is asked again from the draft it was asked for; a first one — from the field.
       const again = stage === 'failed' && session !== null;
@@ -208,19 +212,23 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       // «Озвучить» first, «Озвучить новый текст» after an edit, «Ещё вариант» of the same text.
       const makeLabel: Msg = session.takes.length === 0 ? msg('voice.make', { chars }) : fresh.length === 0 ? msg('voice.makeNew', { chars }) : msg('voice.makeAgain', { chars });
       const make = button(makeLabel, { type: 'MakeVoiceTake', targetHandle: handle }, blocked === null ? {} : { enabled: false, reason: blocked });
-      const attach = selected === null ? null : attachButton(selected, ui, fanName, handle);
+      // A take already handed over goes into the field again only by a quiet «Прикрепить ещё раз», which asks first.
+      const handed = selected !== null && handedOver(selected, ui);
+      const attach = selected === null ? null : attachButton(selected, ui, fanName, handle, handed);
+      if (handed) again = attach;
       if (attach !== null && selected !== null && !takeIsStale(selected, text)) {
-        // A take of this text is ready: it goes into the field; another take is the second choice.
-        primary = attach;
+        // A take of this text is ready: it goes into the field; another take is the second choice. Once it is in the
+        // field the next step is the site's Send: no main button here.
+        primary = handed ? null : attach;
         secondary = make;
       } else if (freshWorking) {
         // A take of this text renders: the next step is waiting for it.
         primary = button('voice.take.working', { type: 'MakeVoiceTake', targetHandle: handle }, { enabled: false, reason: ws.ports.catalog.reason('voice-working') });
-        secondary = attach;
+        secondary = handed ? null : attach;
       } else {
         // No take of this text yet (or the text changed since): voicing is the next step; an older take stays attachable.
         primary = make;
-        secondary = attach;
+        secondary = handed ? null : attach;
       }
     }
     const restart =
@@ -236,8 +244,7 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
             n: (session?.takes.findIndex((take) => take.takeId === ui.attach?.takeId) ?? -1) + 1,
             state: ui.attach.state,
             error: ui.attach.error === null ? null : errorVm(ui.attach.error, i18n),
-            // The draft the script came from is still in the field: it goes with the voice unless the person removes it.
-            leftover: ui.attach.state === 'attached' && !draftEmpty ? { clear: null } : null,
+            leftover: ui.attach.state === 'attached' || ui.attach.state === 'unknown' ? leftoverVm(ui, draftEmpty, handle) : null,
           };
 
     return {
@@ -257,19 +264,52 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       primary,
       secondary,
       restart,
+      again,
       confirm: confirmVm(session, ui, handle),
       attach: attachVm,
     };
   }
 
-  function attachButton(take: VoiceTake, ui: DeskUi, fanName: string | null, handle: string): ActionButtonVM {
-    const label = fanName === null ? msg('voice.attachNoName') : msg('voice.attach', { name: fanName });
+  function attachButton(take: VoiceTake, ui: DeskUi, fanName: string | null, handle: string, handed: boolean): ActionButtonVM {
+    const label = handed ? msg('voice.attach.again') : fanName === null ? msg('voice.attachNoName') : msg('voice.attach', { name: fanName });
     const action = { type: 'AttachVoiceTake', targetHandle: handle, takeId: take.takeId } as const;
     const host = ws.ports.host;
     const capability = ws.situation().host.contract.capabilities.fileAttach;
     if (host.attachFile === undefined || capability?.state !== 'on') return button(label, action, { enabled: false, reason: ws.ports.catalog.reason('voice-attach-off') });
     if (ui.attach !== null && ui.attach.state === 'handing') return button(label, action, { enabled: false, reason: ws.ports.catalog.reason('voice-attaching') });
     return button(label, action);
+  }
+
+  /** Paid takes that never reached the field, one still rendering, one whose create had no answer. */
+  function atStake(session: VoiceSession): boolean {
+    return session.takes.some((take) => take.state === 'creating' || take.state === 'working' || take.state === 'uncertain' || (take.state === 'ready' && take.attached === null));
+  }
+
+  /** The field holds another draft than the one the session's script was made from. */
+  async function fieldMovedOn(chat: OpenChat, session: VoiceSession): Promise<boolean> {
+    if (chat.identity === null) return false;
+    try {
+      const draft = await ws.ports.host.readDraft(chat.identity);
+      return draft.plainText.trim() !== '' && canonicalVoiceScript(draft.plainText) !== canonicalVoiceScript(session.draft);
+    } catch {
+      return false;
+    }
+  }
+
+  /** The take went into the field (seen there, or handed over and not seen) — by this tab or another. */
+  function handedOver(take: VoiceTake, ui: DeskUi): boolean {
+    return (ui.attach?.takeId === take.takeId && (ui.attach.state === 'attached' || ui.attach.state === 'unknown')) || take.attached !== null;
+  }
+
+  /**
+   * The draft's text still in the field after a take went in: «Убрать текст» while the field holds something;
+   * «Вернуть текст» once it was taken out and the field is still empty. Nothing once the person changed the field.
+   */
+  function leftoverVm(ui: DeskUi, draftEmpty: boolean, handle: string): NonNullable<VoiceVM['attach']>['leftover'] {
+    const left = ui.leftover;
+    if (left === null) return null;
+    if (left.cleared) return draftEmpty ? { cleared: true, action: { type: 'RestoreVoiceDraft', targetHandle: handle } } : null;
+    return draftEmpty ? null : { cleared: false, action: { type: 'ClearVoiceDraft', targetHandle: handle } };
   }
 
   function confirmVm(session: VoiceSession | null, ui: DeskUi, handle: string): VoiceVM['confirm'] {
@@ -391,6 +431,8 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
     } catch {
       receipt = { state: 'unknown' };
     }
+    // What the field still holds of the draft: it would go to the fan with the voice («Убрать текст»).
+    ui.leftover = receipt.state === 'attached' || receipt.state === 'unknown' ? await leftoverOf(chat.key) : null;
     switch (receipt.state) {
       case 'attached':
         ui.attach = { takeId: take.takeId, state: 'attached', error: null };
@@ -410,6 +452,61 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
     }
     ws.bump();
     return receipt.state === 'attached' ? done(action.type) : receipt.state === 'not-attached' && receipt.reason === 'dismissed' ? done(action.type, 'noop') : refused(ws, action.type, ui.attach?.error ?? { code: 'CG-VOICE-ATTACH' });
+  }
+
+  /** The field's text now, when it holds any (the chat still the one the take went to). */
+  async function leftoverOf(key: OpenChat['key']): Promise<{ readonly text: string; cleared: boolean } | null> {
+    const now = open();
+    if (now === null || now.chat.key !== key || now.chat.identity === null) return null;
+    try {
+      const draft = await ws.ports.host.readDraft(now.chat.identity);
+      return draft.plainText.trim() === '' ? null : { text: draft.plainText, cleared: false };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * «Убрать текст» and «Вернуть текст»: the person's own click writes the field (the insert's guarded path — the CAS
+   * on the draft just read, the click's consent to replace their text). `text` '' empties it.
+   */
+  async function writeField(target: { readonly chat: OpenChat; readonly ready: ReadyTarget }, text: string, type: string, cause: CauseKind): Promise<ActionReceipt> {
+    const { chat, ready } = target;
+    if (chat.identity === null) return studioError(chat.key, type, { code: 'CG-GATE-CHAT-LOADING' });
+    let draft: DraftSnapshot;
+    try {
+      draft = await ws.ports.host.readDraft(chat.identity);
+    } catch {
+      return studioError(chat.key, type, { code: 'CG-HOST-NOT-READY' });
+    }
+    const token = await ws.token('insert', 'dock', cause);
+    if (!token.ok) return studioError(chat.key, type, token.error);
+    const state = desk.session(ready.page.pageId, chat.conversationRef);
+    const session = state.state === 'ready' ? state.session : null;
+    if (session === null) return gone(type);
+    const built = buildOpenInsert({
+      intentId: ids.uuid(),
+      operationId: session.sessionId,
+      part: { index: 0 },
+      text,
+      // Back into a field the person filled meanwhile: after their text, never over it.
+      mode: text !== '' && draft.plainText.trim() !== '' ? 'append' : 'replace',
+      target: ready.target.chat,
+      draft,
+      confirmationId: ids.uuid(),
+      cause: token.payload,
+      now: clock.now(),
+    });
+    if (!built.ok) return studioError(chat.key, type, { code: built.code });
+    let receipt: InsertReceipt;
+    try {
+      receipt = await ws.ports.host.insert(built.intent);
+    } catch {
+      receipt = { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' };
+    }
+    if (receipt.state !== 'applied') return studioError(chat.key, type, { code: receipt.code });
+    desk.ui(chat.key).error = null;
+    return done(type as never);
   }
 
   const handlers: ActionHandlers = {
@@ -434,7 +531,11 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       const session = state.state === 'ready' ? state.session : null;
       const composer = ws.situation().host.composer;
       const draft = composer !== null && composer.draft.provenance !== 'empty';
-      if (state.state === 'ready' && (session === null || (session.script === null && session.writing === null && session.takes.length === 0)) && draft) return write(target, ui.tone, 'field', cause, action.type);
+      if (state.state !== 'ready' || !draft) return done(action.type, 'opened');
+      if (session === null || (session.script === null && session.writing === null && session.takes.length === 0)) return write(target, ui.tone, 'field', cause, action.type);
+      // A voice that already went into the field (or one nothing was paid for) gives way to a new draft in the field at
+      // once; paid takes that never reached the field, or the person's own text of the script, wait for «Новый войс».
+      if (!atStake(session) && (session.script === null || session.script.edited === null) && (await fieldMovedOn(chat, session))) return write(target, ui.tone, 'field', cause, action.type);
       return done(action.type, 'opened');
     },
     WriteVoiceScript(action, cause) {
@@ -543,8 +644,7 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       const state = desk.session(ready.page.pageId, chat.conversationRef);
       const session = state.state === 'ready' ? state.session : null;
       // Paid takes that never reached the field, or one still rendering: the person is asked first.
-      const atStake = session !== null && session.takes.some((take) => take.state === 'creating' || take.state === 'working' || (take.state === 'ready' && take.attached === null));
-      if (atStake && action.confirmed !== true) {
+      if (session !== null && atStake(session) && action.confirmed !== true) {
         ui.confirm = { kind: 'new' };
         ws.bump();
         return done(action.type, 'needs-confirm');
@@ -561,8 +661,25 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       ws.bump();
       return Promise.resolve(done(action.type));
     },
-    ClearVoiceDraft(action) {
-      return Promise.resolve(refused(ws, action.type, { code: 'CG-FEATURE-DISABLED' }));
+    async ClearVoiceDraft(action, cause) {
+      const target = chatOf(action.targetHandle);
+      if (target === null) return gone(action.type);
+      const left = desk.ui(target.chat.key).leftover;
+      if (left === null || left.cleared) return done(action.type, 'noop');
+      const receipt = await writeField(target, '', action.type, cause);
+      if (receipt.ok) left.cleared = true;
+      ws.bump();
+      return receipt;
+    },
+    async RestoreVoiceDraft(action, cause) {
+      const target = chatOf(action.targetHandle);
+      if (target === null) return gone(action.type);
+      const left = desk.ui(target.chat.key).leftover;
+      if (left === null || !left.cleared) return done(action.type, 'noop');
+      const receipt = await writeField(target, left.text, action.type, cause);
+      if (receipt.ok) left.cleared = false;
+      ws.bump();
+      return receipt;
     },
   };
 

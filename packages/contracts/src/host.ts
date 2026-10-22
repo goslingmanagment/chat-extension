@@ -315,15 +315,20 @@ const insertShape = {
   target: ChatRefSchema,
   expected: InsertExpectationSchema,
   mode: z.enum(['replace', 'append']),
-  /** Plain text; ChatSpace's bridge escapes it. */
-  text: boundedText(BRIDGE_LIMITS.maxStringLength),
+  /**
+   * Plain text; ChatSpace's bridge escapes it. Empty only in an open replace (1.46.0): Voice's «Убрать текст» takes the
+   * draft out of the field after the person attached its voice.
+   */
+  text: z.string().check(z.maxLength(BRIDGE_LIMITS.maxStringLength)),
   /** One-time consent for this draft revision (Б2); never on a deferred insert (no draft was seen). */
   confirmationId: z.nullable(UuidSchema),
   createdAt: EpochMsSchema,
   expiresAt: EpochMsSchema,
 };
-type InsertShape = { readonly expected: InsertExpectation; readonly mode: 'replace' | 'append'; readonly confirmationId: string | null; readonly createdAt: number; readonly expiresAt: number };
+type InsertShape = { readonly expected: InsertExpectation; readonly mode: 'replace' | 'append'; readonly text: string; readonly confirmationId: string | null; readonly createdAt: number; readonly expiresAt: number };
 const insertTimesHold = (i: InsertShape): boolean => i.expiresAt > i.createdAt;
+const insertTextHolds = (i: InsertShape): boolean => i.text !== '' || (i.mode === 'replace' && i.expected.kind === 'open');
+const INSERT_TEXT = { message: 'only an open replace may write an empty text' } as const;
 const deferredHolds = (i: InsertShape): boolean => i.expected.kind === 'open' || (i.confirmationId === null && i.mode === 'replace');
 const INSERT_TIMES = { message: 'expiresAt must be after createdAt' } as const;
 const INSERT_DEFERRED = { message: 'a deferred insert replaces an empty or our own draft and carries no consent' } as const;
@@ -332,7 +337,7 @@ const INSERT_DEFERRED = { message: 'a deferred insert replaces an empty or our o
  * The insert as MAIN receives it: no action token (§14). Also the
  * `thenInsert` of a navigation, which the navigation's own cause covers.
  */
-export const InsertWireSchema = z.strictObject(insertShape).check(z.refine(insertTimesHold, INSERT_TIMES), z.refine(deferredHolds, INSERT_DEFERRED));
+export const InsertWireSchema = z.strictObject(insertShape).check(z.refine(insertTimesHold, INSERT_TIMES), z.refine(deferredHolds, INSERT_DEFERRED), z.refine(insertTextHolds, INSERT_TEXT));
 export type InsertWire = z.infer<typeof InsertWireSchema>;
 
 /**
@@ -345,7 +350,7 @@ export type InsertWire = z.infer<typeof InsertWireSchema>;
  */
 export const InsertIntentSchema = z
   .strictObject({ ...insertShape, cause: HumanCauseSchema })
-  .check(z.refine(insertTimesHold, INSERT_TIMES), z.refine(deferredHolds, INSERT_DEFERRED));
+  .check(z.refine(insertTimesHold, INSERT_TIMES), z.refine(deferredHolds, INSERT_DEFERRED), z.refine(insertTextHolds, INSERT_TEXT));
 export type InsertIntent = z.infer<typeof InsertIntentSchema>;
 
 export const InsertReceiptSchema = z.discriminatedUnion('state', [

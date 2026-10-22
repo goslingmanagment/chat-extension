@@ -285,6 +285,7 @@ export function voiceStudio(ctx: ScenarioCtx, view: VmView, patch: Partial<Voice
     primary: hasScript ? button(msg('voice.attach', { name: FANS.hubert.name }), { type: 'AttachVoiceTake', targetHandle: target, takeId: take.takeId }) : null,
     secondary: hasScript ? button(msg('voice.makeAgain', { chars }), { type: 'MakeVoiceTake', targetHandle: target }) : null,
     restart: hasScript ? button('voice.restart', { type: 'NewVoice', targetHandle: target }) : null,
+    again: null,
     confirm: null,
     attach: null,
     ...patch,

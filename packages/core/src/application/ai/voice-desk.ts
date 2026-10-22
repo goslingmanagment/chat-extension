@@ -40,6 +40,11 @@ export interface DeskUi {
   confirm: DeskConfirm | null;
   /** The studio's own failure of a click (a refusal of the background, a draft that could not be read). */
   error: CgErrorWire | null;
+  /**
+   * The draft the field still held when a take went into it (the text goes to the fan with the voice): `cleared` once
+   * «Убрать текст» took it out, for «Вернуть текст». null — nothing was left.
+   */
+  leftover: { readonly text: string; cleared: boolean } | null;
   /** Takes that got ready while the studio was not open: the chip's dot until it opens. */
   readonly unseen: Set<string>;
 }
@@ -149,6 +154,7 @@ export class VoiceDesk {
         ui.text = null;
         ui.attach = null;
         ui.confirm = null;
+        ui.leftover = null;
       }
     }
     this.deps.changed();
@@ -182,7 +188,7 @@ export class VoiceDesk {
   ui(key: ChatKey): DeskUi {
     let ui = this.uis.get(key);
     if (ui === undefined) {
-      ui = { tone: 'calm', selected: null, text: null, attach: null, confirm: null, error: null, unseen: new Set() };
+      ui = { tone: 'calm', selected: null, text: null, attach: null, confirm: null, error: null, leftover: null, unseen: new Set() };
       this.uis.set(key, ui);
       while (this.uis.size > SESSIONS_KEPT) this.uis.delete(this.uis.keys().next().value as ChatKey);
     }

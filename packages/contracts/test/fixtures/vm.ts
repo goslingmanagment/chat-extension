@@ -59,6 +59,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   DownloadVoiceTake: { type: 'DownloadVoiceTake', targetHandle: TARGET, takeId: uuid(31) },
   NewVoice: { type: 'NewVoice', targetHandle: TARGET, confirmed: true },
   ClearVoiceDraft: { type: 'ClearVoiceDraft', targetHandle: TARGET },
+  RestoreVoiceDraft: { type: 'RestoreVoiceDraft', targetHandle: TARGET },
   DismissVoiceConfirm: { type: 'DismissVoiceConfirm', targetHandle: TARGET },
   SetSpendersPeriod: { type: 'SetSpendersPeriod', period: '30d' },
   SetSpendersFilter: { type: 'SetSpendersFilter', filter: 'waiting' },
