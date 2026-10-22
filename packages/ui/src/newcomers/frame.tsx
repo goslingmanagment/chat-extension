@@ -317,6 +317,33 @@ function sameRow(a: RowProps, b: RowProps): boolean {
 
 export const NewcomerRow = pure(RowView, sameRow);
 
+/**
+ * The row's own «Отправить» of its batch draft (X59): the card's send by one click in the list — it never opens the card,
+ * no key presses it; off with `blocked` when the card's checks do not let the draft go as it is.
+ */
+export function RowSendButton({ row, label, tooltip, blocked }: { readonly row: NewcomerRowVM; readonly label: string; readonly tooltip: string; readonly blocked: string }): JSX.Element | null {
+  const dispatch = useDispatch();
+  const send = row.send;
+  if (send === undefined || row.greeting.s === 'greeted') return null;
+  const sending = row.greeting.s === 'sending';
+  return (
+    <Button
+      label={label}
+      variant="send"
+      size="sm"
+      class="cg-nw__end cg-nw__rsend"
+      busy={sending}
+      tabIndex={-1}
+      tooltip={tooltip}
+      reason={send.can || sending ? null : blocked}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (send.can && !sending) void dispatch({ type: 'SendNewcomerGreeting', targetHandle: row.handle });
+      }}
+    />
+  );
+}
+
 /** Row heights by the text size (the virtual list needs them before it draws): a fan, and the batch's draft under it. */
 export const ROW_HEIGHTS: Readonly<Record<UiTextSize, { readonly base: number; readonly draft: number }>> = {
   // 9 + 52 px of text + 9; the draft: 7 above, a box of two 17 px lines (4 + 34 + 4, the border 2).

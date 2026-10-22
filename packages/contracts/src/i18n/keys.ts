@@ -184,6 +184,7 @@ export const UI_TEXT_KEYS = [
   'newcomers.batch.generating', 'newcomers.batch.ready', 'newcomers.batch.sent', 'newcomers.batch.failed', 'newcomers.batch.review',
   'newcomers.card.label', 'newcomers.card.placeholder', 'newcomers.card.generate', 'newcomers.card.generating', 'newcomers.card.send',
   'newcomers.card.ai', 'newcomers.card.aiTooltip', 'newcomers.card.notDrafted', 'newcomers.card.part', 'newcomers.card.empty',
+  'newcomers.row.send', 'newcomers.row.sendTooltip', 'newcomers.row.sendBlocked', 'newcomers.row.failed',
   'fanPanel.label', 'fanPanel.tab.fan', 'fanPanel.tab.recap', 'fanPanel.sub', 'fanPanel.spent', 'fanPanel.spentIn', 'fanPanel.spentNone', 'fanPanel.byKind.messages',
   'fanPanel.byKind.tips', 'fanPanel.byKind.subscription', 'fanPanel.subscription', 'fanPanel.subscribed', 'fanPanel.autoRenew',
   'fanPanel.autoRenew.on', 'fanPanel.autoRenew.off', 'fanPanel.churn', 'fanPanel.bio', 'fanPanel.lists', 'fanPanel.recap.made', 'fanPanel.recap.hub',

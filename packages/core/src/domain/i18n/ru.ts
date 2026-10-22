@@ -734,7 +734,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.batch.ready': 'Готово {n}',
   'newcomers.batch.sent': 'отправлено {n}',
   'newcomers.batch.failed': 'не вышло {n}',
-  'newcomers.batch.review': 'Прочтите черновик под фаном, откройте его и нажмите «Отправить →»; поправить — в карточке справа',
+  'newcomers.batch.review': 'Прочтите черновик под фаном и нажмите «Отправить» в его строке; поправить — в карточке справа',
   'newcomers.card.label': 'Личное сообщение',
   'newcomers.card.placeholder': 'Напишите сами или нажмите «Сгенерировать»',
   'newcomers.card.generate': 'Сгенерировать',
@@ -745,6 +745,10 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.card.notDrafted': 'Черновик не создан: {reason}. Повторите или напишите сами.',
   'newcomers.card.part': 'Часть {n} из {total}',
   'newcomers.card.empty': 'Выберите фана в списке.',
+  'newcomers.row.send': 'Отправить',
+  'newcomers.row.sendTooltip': 'Отправить этот черновик фану сейчас — как «Отправить →» в карточке',
+  'newcomers.row.sendBlocked': 'Так этот черновик не уйдёт — откройте фана: в карточке сказано почему',
+  'newcomers.row.failed': 'Не отправлено: {reason}',
 
   // ── Fan panel and Coach ──
   'fanPanel.label': 'ChatGoose: фан',

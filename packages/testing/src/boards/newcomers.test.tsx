@@ -104,6 +104,25 @@ describe('«Новые»: the window and the list', () => {
   });
 });
 
+describe('«Новые»: a batch draft sent from its row (X59, as on Fansly)', () => {
+  it('a ready draft has its row’s own «Отправить»: one click, one fan, the card never opened, never a key', async () => {
+    const ready = (vm: NewcomersVM): NewcomersVM => ({
+      ...vm,
+      rows: vm.rows.map((entry, at) => (at === 0 ? { ...entry, batch: { pickable: false, picked: false, state: 'ready', text: 'hey 💛 welcome!', failure: null }, send: { can: true, refused: null } } : entry)),
+    });
+    ui = await mountBoardSettled('newcomers', change('13a', ready));
+    const sends = ui.$$('.cg-nw__rsend');
+    expect(sends.map((button) => [textOf(button), button.classList.contains('cg-btn--send')])).toEqual([['Отправить', true]]);
+    expect(ui.text('.cg-nw__row .cg-nw__dtext')).toBe('hey 💛 welcome!');
+    for (const code of ['Enter', 'Space', 'KeyS']) await flush(() => keydown(row('n001'), code === 'Space' ? ' ' : code, { code }));
+    expect(ui.actionsOf('SendNewcomerGreeting')).toEqual([]);
+    const opened = ui.actionsOf('OpenPreview').length;
+    await flush(() => (sends[0] as HTMLElement).click());
+    expect(ui.actions().at(-1)).toEqual({ type: 'SendNewcomerGreeting', targetHandle: 'newcomers:n001' });
+    expect(ui.actionsOf('OpenPreview')).toHaveLength(opened);
+  });
+});
+
 describe('«Новые»: the card', () => {
   const field = (): HTMLTextAreaElement => ui?.$('.cg-nc__field textarea') as HTMLTextAreaElement;
   const bar = (): string[] => (ui?.$$('.cg-nc__gbar button') ?? []).map(textOf);

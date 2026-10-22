@@ -21,8 +21,15 @@ scenario(
       timeoutMsg: 'the greeting did not land in the field',
     });
     await s.shot('newcomer-hi');
+    // A batch: pick the fans, one click generates for all, each draft is read under its fan and sent from its row.
+    await s.press(/^Выбрать \d+/, 'modal', '.cg-nw__tools button');
+    await s.press(/^Сгенерировать \d+/, 'modal', '.cg-nw__batch button');
+    await s.browser.waitUntil(() => s.has('modal', '.cg-nw__rsend'), { timeout: 30_000, timeoutMsg: 'no draft row with its «Отправить»' });
+    await s.see('modal', 'Готово', 30_000);
+    await s.shot('newcomers-batch');
   },
   {
+    previewSend: true,
     before: async ({ hub, stand }) => {
       const { a5, a6, a7 } = STAND_IDS.fans;
       await stand.traffic({ firstSummaryMs: 150 });

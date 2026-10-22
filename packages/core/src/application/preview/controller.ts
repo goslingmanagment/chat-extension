@@ -38,6 +38,7 @@ import {
   type DockActionVM,
   type FeedItemVM,
   type I18n,
+  type NewcomerRowSendVM,
   type PartialGap,
   type PreviewActionId,
   type PreviewSource,
@@ -287,6 +288,11 @@ export interface PreviewController extends SurfaceController<'preview'> {
   onBatch(listener: () => void): () => void;
   /** A batch started this generation: its end is said by its row, not by a toast. */
   fromBatch(opId: string): boolean;
+  /**
+   * X59 on a hub's «Новые»: the row's own «Отправить» of the fan's greeting — can the result's next part go now by
+   * the card's own send, and why the last click on it was refused; null — no part of a «Новые» result waits.
+   */
+  batchSend(handle: TargetHandle): NewcomerRowSendVM | null;
 }
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
@@ -1291,7 +1297,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   function reportProgress(track: OpTrack): void {
-    if (track.source !== 'newcomers' || deps.greeting === null) return;
+    if (track.source !== 'newcomers') return;
+    batchChanged(track.handle);
+    if (deps.greeting === null) return;
     const p = progress(track);
     deps.greeting.noteProgress(track.fanRef, p === null ? null : { sent: p.sent, total: p.total, uncertainPart: p.uncertainPart, inFlight: p.inFlight, sentAt: p.sentAt });
     touchDesk(track);
@@ -1826,12 +1834,36 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return { text: firstPart(track.mirror.done), sent: sent !== null && sent.total > 0 && sent.sent >= sent.total };
   }
 
+  /**
+   * The part a «Новые» row's «Отправить» sends (X59 on a hub's list): the next part of the fan's greeting that has not
+   * gone, as the card's «Отправить →» holds it; null — none waits.
+   */
+  function rowPart(handle: TargetHandle): { readonly track: OpTrack; readonly index: number; readonly rows: PartRows } | null {
+    const track = tracks.get(currentOp.get(handle) ?? '');
+    if (track === undefined || track.source !== 'newcomers' || track.hidden || track.mirror.done?.state !== 'done') return null;
+    const parts = partsOfResult(track.mirror.done.result, 0) ?? [];
+    for (let index = 0; index < parts.length; index += 1) {
+      const rows = rowsOf(track, 0, index);
+      if (rows.send?.s !== 'sent') return { track, index, rows };
+    }
+    return null;
+  }
+
+  function batchSend(handle: TargetHandle): NewcomerRowSendVM | null {
+    const next = rowPart(handle);
+    const send = next?.rows.send;
+    if (next === null || send === undefined) return null;
+    // Only what the card would send by one plain click: a warning («фан написал новое») or a part in work is the card's.
+    return { can: send.s === 'available' && next.rows.order === null, refused: send.s === 'rejected' && !send.canRetry ? { code: send.code, retryAt: null } : null };
+  }
+
   /** A row of a batch follows its fan's result only when what it shows changes — never on every streamed word. */
   function batchChanged(handle: TargetHandle): void {
     const last = batched.get(handle);
     if (last === undefined) return;
     const live = batchLive(handle);
-    const now = live === null ? '' : `${live.sent ? 1 : 0}${live.text ?? ''}`;
+    const send = batchSend(handle);
+    const now = live === null ? '' : `${live.sent ? 1 : 0}${send === null ? '-' : `${send.can ? 1 : 0}${send.refused?.code ?? ''}`}${live.text ?? ''}`;
     if (now === last) return;
     batched.set(handle, now);
     for (const listener of [...batchListeners]) listener();
@@ -2368,6 +2400,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const state = stateOf(action.targetHandle);
       return state === null ? null : sendDraft(type, state);
     }
+    if (action.type === 'SendNewcomerGreeting') {
+      // X59 on a hub's «Новые»: the row's «Отправить» is the card's own send of the greeting's next part, by this click.
+      const next = rowPart(action.targetHandle);
+      if (next === null) return null;
+      return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index);
+    }
     if (action.type === 'Regenerate' || action.type === 'CancelGeneration' || action.type === 'HideResult' || action.type === 'ExpandResult' || action.type === 'SendPart' || action.type === 'OpenAndInsertPart') {
       const track = tracks.get(action.operationId);
       if (track === undefined) return null;
@@ -2565,6 +2603,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     },
     batchStart,
     batchLive,
+    batchSend,
     fromBatch: (opId) => batchOps.has(opId),
     onBatch(listener) {
       batchListeners.add(listener);

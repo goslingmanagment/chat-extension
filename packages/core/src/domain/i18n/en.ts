@@ -692,7 +692,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.batch.ready': '{n} ready',
   'newcomers.batch.sent': '{n} sent',
   'newcomers.batch.failed': '{n} failed',
-  'newcomers.batch.review': 'Read the draft under the fan, open it and press «Send →»; edit it in the card on the right',
+  'newcomers.batch.review': 'Read the draft under the fan and press «Send» in its row; edit it in the card on the right',
   'newcomers.card.label': 'Personal message',
   'newcomers.card.placeholder': 'Write it yourself or press «Generate»',
   'newcomers.card.generate': 'Generate',
@@ -703,6 +703,10 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.card.notDrafted': 'No draft: {reason}. Try again or write it yourself.',
   'newcomers.card.part': 'Part {n} of {total}',
   'newcomers.card.empty': 'Choose a fan in the list.',
+  'newcomers.row.send': 'Send',
+  'newcomers.row.sendTooltip': 'Send this draft to the fan now — as «Send →» in the card',
+  'newcomers.row.sendBlocked': 'This draft cannot go as it is — open the fan: the card says why',
+  'newcomers.row.failed': 'Not sent: {reason}',
 
   // ── Fan panel and Coach ──
   'fanPanel.label': 'ChatGoose: fan',
