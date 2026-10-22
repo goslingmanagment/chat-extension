@@ -16,19 +16,35 @@
 //
 //   div[data-stand-composer-slot]               ← per tab (v-show)
 //     div.relative
-//       div.relative[data-stand-composer]       ← composer root
+//       div.relative[data-stand-composer]       ← composer root: the frame root, ChatSpace's drop zone
 //         div.composer-frame.overflow-hidden    ← clips its content
 //           div.h-10 (top strip)
 //             … quick buttons …
 //             div.inline-flex (trailing group)
 //               div[data-id="browser-composer-translator"]  ← bridge slot, Vue never renders children
 //               button Templates
+//           div.composer-audio                  ← the draft's audio tiles (only with an audio)
+//           div.composer-media-zone             ← other media and the uploads' tiles (only with one)
 //           div.om-rich-text-editor > .ProseMirror (TipTap, created asynchronously)
 //           footer: translator chip, Send
+//         toasts, the drop overlay              ← beside the frame, as ChatSpace's are outside it
 //
 // Alt+S (by `code`, any other modifiers) toggles the translator in a capture
 // listener on the composer root; the Templates panel carries
 // `data-dismissible-open` while open.
+//
+// Files (1.46.0, as ChatSpace 0.233.0's composer): the composer root is a drop
+// zone like ChatSpace's (VueUse useDropZone) — a drag whose items hold a file
+// is taken, and on the drop the PAGE's own listener reads `files` (so a
+// DataTransfer an extension builds in its isolated world reaches it empty, as
+// in Firefox). Only with the role's «Media uploader» (om_view_media_uploader
+// or om_upload_media_hub) and no GIF; the type by MIME or extension, at most
+// 4 GB, one audio and 40 media a message (the uploads counted) — else a toast
+// and nothing. Each file shows an uploading tile while the stand «uploads» it
+// (env.upload: delay, failure); then, in one step, the medium joins the
+// draft's `media` (with `uploadDescriptor.name` = the file's name) and its
+// tile takes the upload's place — or the tile goes and a toast says it
+// failed. Send waits while anything uploads and takes media without text.
 
 import type { JSONContent } from '@tiptap/core';
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, vShow, watch, withDirectives, type PropType, type VNode } from 'vue';
@@ -42,7 +58,7 @@ import type { FansMap } from '../query/model';
 import { keys } from '../query/queries';
 import { useComposerTranslator, useOfComposerInsert } from '../stores/composer';
 import { isMimicTakeover, usePendingMessages, type QueueInput } from '../stores/pending-messages';
-import { draftKey, loadDraft, persistDraft, textToParagraph, vComposerBridge, type DraftBody } from './bridge';
+import { draftKey, loadDraft, persistDraft, textToParagraph, vComposerBridge, type DraftBody, type DraftMedium } from './bridge';
 import { createEditorHandle } from './editor-handle';
 import { registerComposer, unregisterComposer } from './registry';
 
@@ -51,8 +67,56 @@ const TRANSLATE_MS = 60;
 const QUICK_REPLIES = ['(◕‿◕)', 'ok!', '♡'];
 const TEMPLATES = ['Синтетический шаблон: привет!', 'Stand template: how was your day?', 'Тестовый шаблон №3'];
 const PLACEHOLDER = 'Stand message…';
+/** ChatSpace's «Media uploader»: either permission lets a file into the composer. */
+const UPLOAD_PERMISSIONS = ['om_view_media_uploader', 'om_upload_media_hub'];
+/** What ChatSpace's composer takes: these MIME types, or a name with one of these extensions. */
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/gif', 'audio/mpeg', 'video/mp4', 'audio/ogg', 'audio/wav', 'video/quicktime'];
+const ACCEPTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.heic', '.gif', '.mp3', '.mp4', '.ogg', '.wav', '.mov'];
+const MAX_FILE_BYTES = 4 * 1024 ** 3;
+const MAX_MEDIA = 40;
+/** How long a metadata read of a file waits before its length counts as unknown. */
+const DURATION_WAIT_MS = 3000;
+const NOTICE_MS = 2500;
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** A file on its way up (ChatSpace's uploading list). */
+interface UploadingFile {
+  readonly id: string;
+  readonly type: DraftMedium['type'];
+  readonly name: string;
+  readonly file: File;
+}
+
+/** The medium's kind by MIME, as ChatSpace tells it (a file of no known MIME counts as an image). */
+const mediaTypeOf = (mime: string): DraftMedium['type'] =>
+  mime.startsWith('image/gif') ? 'gif' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'image';
+
+/** A file's length in seconds, as ChatSpace reads it (a media element's metadata); 0 — not told. */
+const durationOf = (file: File, type: DraftMedium['type']): Promise<number> =>
+  type !== 'audio' && type !== 'video'
+    ? Promise.resolve(0)
+    : new Promise((resolve) => {
+        const url = URL.createObjectURL(file);
+        const element = document.createElement(type);
+        let done = false;
+        const finish = (seconds: number): void => {
+          if (done) return;
+          done = true;
+          URL.revokeObjectURL(url);
+          resolve(seconds);
+        };
+        element.preload = 'metadata';
+        element.onloadedmetadata = () => finish(Number.isFinite(element.duration) ? Math.floor(element.duration) : 0);
+        element.onerror = () => finish(0);
+        setTimeout(() => finish(0), DURATION_WAIT_MS);
+        element.src = url;
+      });
+
+/** `m:ss`; an unknown length — `–:––`. */
+export const clockOf = (seconds: number | undefined): string => (seconds !== undefined && seconds > 0 ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}` : '–:––');
+
+let uploads = 0;
 
 /** The stand's «translation» of a text (clearly synthetic). */
 export const syntheticTranslation = (text: string): string => `[EN] ${text}`;
@@ -95,7 +159,132 @@ const OfComposer = defineComponent({
       notice.value = text;
       setTimeout(() => {
         if (notice.value === text) notice.value = null;
-      }, 2500);
+      }, NOTICE_MS);
+    };
+
+    // ── files: the drop zone, the uploads, the draft's media (1.46.0) ──
+    const canUpload = computed(() => (cache.getQueryData<string[]>(keys.userPermissions()) ?? []).some((permission) => UPLOAD_PERMISSIONS.includes(permission)));
+    const uploading = ref<UploadingFile[]>([]);
+    /** Drags with a file over the root (in minus out): ChatSpace's drop overlay shows while there is one. */
+    const dragging = ref(0);
+    /** ChatSpace's toasts of a file: outside the frame, as its own are. */
+    const toast = ref<string | null>(null);
+    const playingId = ref<string | null>(null);
+    let player: HTMLAudioElement | null = null;
+
+    const notify = (text: string): void => {
+      toast.value = text;
+      record('composer-toast', { key: props.composerKey, text });
+      setTimeout(() => {
+        if (toast.value === text) toast.value = null;
+      }, NOTICE_MS);
+    };
+    const medias = (): readonly DraftMedium[] => model.value.media?.medias ?? [];
+    /** The draft's media from now on; a medium that leaves it lets its file go. */
+    const setMedias = (next: readonly DraftMedium[]): void => {
+      for (const medium of medias()) if (!next.includes(medium) && medium.playableContentUrl?.startsWith('blob:') === true) URL.revokeObjectURL(medium.playableContentUrl);
+      model.value = { ...model.value, media: next.length > 0 ? { medias: next, price: null, lockedText: false } : null };
+    };
+
+    /** The stand's upload of one file: `env.upload` says how long it takes and whether it fails. */
+    const upload = async (item: UploadingFile): Promise<void> => {
+      const duration = await durationOf(item.file, item.type);
+      await delay(env.upload.delayMs);
+      // Canceled meanwhile, or the composer went (ChatSpace cancels its upload with it).
+      if (!alive || !uploading.value.some((entry) => entry.id === item.id)) return;
+      const rest = uploading.value.filter((entry) => entry.id !== item.id);
+      if (env.upload.fail) {
+        uploading.value = rest;
+        record('composer-upload-failed', { key: props.composerKey, name: item.name });
+        notify('Upload failed');
+        return;
+      }
+      const processId = `stand-upload-${item.id}`;
+      const medium: DraftMedium = {
+        id: processId,
+        type: item.type,
+        ...(duration > 0 ? { duration } : {}),
+        isFree: true,
+        ...(item.type === 'audio' || item.type === 'video' ? { playableContentUrl: URL.createObjectURL(item.file) } : {}),
+        uploadDescriptor: { processId, host: 'stand', name: item.name, extra: { duration } },
+      };
+      // One step, as ChatSpace's: the medium joins the draft and its tile takes the upload's place.
+      setMedias([...medias(), medium]);
+      uploading.value = rest;
+      record('composer-uploaded', { key: props.composerKey, name: item.name, type: item.type });
+    };
+
+    /** ChatSpace's `addFiles`: its types, its size, one audio and 40 media a message (the uploads counted), then an upload each. */
+    const addFiles = (files: readonly File[]): void => {
+      const known = files.filter((file) => ACCEPTED_TYPES.includes(file.type) || ACCEPTED_EXTENSIONS.some((extension) => file.name.toLowerCase().endsWith(extension)));
+      if (known.length < files.length) notify('Unsupported file type');
+      const sized = known.filter((file) => file.size <= MAX_FILE_BYTES);
+      if (sized.length < known.length) notify('File is too large');
+      const held = [...medias(), ...uploading.value];
+      let audios = held.filter((item) => item.type === 'audio').length;
+      let count = held.length;
+      for (const file of sized) {
+        const type = mediaTypeOf(file.type);
+        if ((type === 'audio' && audios >= 1) || count >= MAX_MEDIA) {
+          notify('Reached Platform Limit');
+          continue;
+        }
+        if (type === 'audio') audios += 1;
+        count += 1;
+        uploads += 1;
+        const item: UploadingFile = { id: String(uploads), type, name: file.name, file };
+        uploading.value = [...uploading.value, item];
+        record('composer-upload', { key: props.composerKey, name: file.name, type, size: file.size });
+        void upload(item);
+      }
+    };
+
+    const hasFile = (event: DragEvent): boolean => Array.from(event.dataTransfer?.items ?? []).some((item) => item.kind === 'file');
+    /** VueUse's zone: a drag whose items hold a file is taken; `delta` counts it in or out for the overlay. */
+    const onDrag =
+      (delta: number) =>
+      (event: DragEvent): void => {
+        if (!hasFile(event)) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+        dragging.value = Math.max(0, dragging.value + delta);
+      };
+    const onDrop = (event: DragEvent): void => {
+      if (!hasFile(event)) return;
+      event.preventDefault();
+      dragging.value = 0;
+      // The page reads the drop's files itself: a DataTransfer an extension built in its isolated world reaches it empty.
+      const files = Array.from(event.dataTransfer?.files ?? []);
+      const allowed = canUpload.value && model.value.gif === null;
+      record('composer-drop', { key: props.composerKey, files: files.length, allowed });
+      if (allowed && files.length > 0) addFiles(files);
+    };
+    /** The root's listeners: the frame root is ChatSpace's drop zone. */
+    const dropZone = { onDragenter: onDrag(1), onDragover: onDrag(0), onDragleave: onDrag(-1), onDrop };
+
+    const stopPlaying = (): void => {
+      player?.pause();
+      player = null;
+      playingId.value = null;
+    };
+    const play = (medium: DraftMedium): void => {
+      const again = playingId.value === medium.id;
+      stopPlaying();
+      if (again || medium.playableContentUrl === undefined) return;
+      const audio = new Audio(medium.playableContentUrl);
+      audio.onended = stopPlaying;
+      player = audio;
+      playingId.value = medium.id;
+      audio.play().catch(stopPlaying);
+    };
+    const removeMedium = (id: string): void => {
+      if (playingId.value === id) stopPlaying();
+      setMedias(medias().filter((medium) => medium.id !== id));
+      record('composer-media-removed', { key: props.composerKey, id });
+    };
+    const cancelUpload = (id: string): void => {
+      uploading.value = uploading.value.filter((entry) => entry.id !== id);
+      record('composer-upload-canceled', { key: props.composerKey, id });
     };
 
     const toggleTranslator = (): void => {
@@ -122,8 +311,9 @@ const OfComposer = defineComponent({
 
     const submit = async (): Promise<void> => {
       const current = editor;
-      if (current.tiptap === null || current.getText().trim() === '' || templatesOpen.value) return;
-      if (settings.value.enabled && settings.value.autoTranslate) {
+      // Nothing to send, an upload still on its way (ChatSpace's Send waits for it), or the templates open.
+      if (current.tiptap === null || (current.getText().trim() === '' && model.value.media === null) || uploading.value.length > 0 || templatesOpen.value) return;
+      if (settings.value.enabled && settings.value.autoTranslate && current.getText().trim() !== '') {
         const before = current.getText();
         record('translator-translating', { accountId: props.accountId, chatId: props.chatId });
         await new Promise((resolve) => setTimeout(resolve, TRANSLATE_MS));
@@ -136,14 +326,16 @@ const OfComposer = defineComponent({
         current.insertContent(textToParagraph(syntheticTranslation(before)));
       }
       const html = current.getText().trim() === '' ? '' : current.getHTML();
+      const media = model.value.media;
       const entry = toQueue({
         accountId: props.accountId,
         chatId: props.chatId,
         platform: 'onlyfans',
         text: html,
-        hasAttachments: false,
-        platformMetadata: {},
-        composerContent: { html, media: null, gif: null, taggedCreators: [] },
+        hasAttachments: media !== null,
+        // ChatSpace's metadata of the media: an upload goes by its descriptor, a vault medium by its id.
+        platformMetadata: media === null ? {} : { mediaFiles: media.medias.map((medium) => medium.uploadDescriptor ?? (medium.type === 'audio' ? { id: Number(medium.id), thumbId: 0 } : Number(medium.id))) },
+        composerContent: { html, media, gif: null, taggedCreators: [] },
         internalTemplateId: null,
         isCopied: lastPaste !== '' && current.getText().trim() === lastPaste.trim(),
       });
@@ -151,7 +343,9 @@ const OfComposer = defineComponent({
         flash('Queue is full or Mimic runs this chat');
         return;
       }
+      stopPlaying();
       current.clear();
+      setMedias([]);
       lastPaste = '';
     };
 
@@ -202,6 +396,7 @@ const OfComposer = defineComponent({
 
     onBeforeUnmount(() => {
       alive = false;
+      stopPlaying();
       root.value?.removeEventListener('keydown', onKeydownCapture, { capture: true });
       document.removeEventListener('keydown', onDocumentKeydown);
       editor.detach();
@@ -221,12 +416,43 @@ const OfComposer = defineComponent({
       },
     );
 
+    const audioTile = (medium: DraftMedium): VNode =>
+      h('div', { key: medium.id, class: 'composer-audio__tile', 'data-stand-audio': medium.uploadDescriptor?.name ?? medium.id }, [
+        h('button', { type: 'button', class: 'composer-audio__play', 'aria-label': playingId.value === medium.id ? 'Pause' : 'Play', onClick: () => play(medium) }, playingId.value === medium.id ? '❚❚' : '▶'),
+        h('span', { class: 'composer-audio__wave', 'aria-hidden': 'true' }),
+        h('span', { class: 'composer-audio__time' }, clockOf(medium.duration)),
+        h('button', { type: 'button', class: 'composer-tile-remove', 'aria-label': 'Remove audio', title: 'Remove audio', onClick: () => removeMedium(medium.id) }, '✕'),
+      ]);
+    const mediaTile = (medium: DraftMedium): VNode =>
+      h('div', { key: medium.id, class: 'composer-media-tile', 'data-stand-media': medium.type }, [
+        h('span', { class: 'composer-media-tile__kind' }, medium.type),
+        h('button', { type: 'button', class: 'composer-tile-remove', 'aria-label': 'Remove media', title: 'Remove media', onClick: () => removeMedium(medium.id) }, '✕'),
+      ]);
+    const uploadingTile = (item: UploadingFile): VNode =>
+      h('div', { key: item.id, class: 'composer-media-tile composer-media-tile--uploading', 'data-stand-uploading': item.name }, [
+        h('span', { class: 'composer-media-tile__kind' }, item.type),
+        h('span', { class: 'composer-spinner', role: 'progressbar', 'aria-label': 'Uploading' }),
+        h('button', { type: 'button', class: 'composer-tile-remove', 'aria-label': 'Cancel upload', title: 'Cancel upload', onClick: () => cancelUpload(item.id) }, '✕'),
+      ]);
+    /**
+     * ChatSpace's attachments, right in the frame, each section a node of its own (keyed: a done upload REPLACES the
+     * zone with the audio's section, as ChatSpace's components do): the audio tiles; the zone of other media and uploads.
+     */
+    const attachments = (): VNode[] => {
+      const audios = medias().filter((medium) => medium.type === 'audio');
+      const others = medias().filter((medium) => medium.type !== 'audio');
+      return [
+        ...(audios.length > 0 ? [h('div', { key: 'audio', class: 'composer-audio' }, audios.map(audioTile))] : []),
+        ...(others.length > 0 || uploading.value.length > 0 ? [h('div', { key: 'media', class: 'composer-media-zone' }, [...others.map(mediaTile), ...uploading.value.map(uploadingTile)])] : []),
+      ];
+    };
+
     return (): VNode => {
       const frameClass = isBroken('composer-frame') ? 'composer-shell overflow-hidden' : 'composer-frame overflow-hidden';
       const slotProps: Record<string, string> = { 'data-id': isBroken('composer-slot') ? 'browser-composer-tools' : 'browser-composer-translator', class: 'inline-flex shrink-0 items-center' };
       if (nativeTranslatorOwner.value) slotProps['data-native-translator'] = '1';
       const translatorOn = settings.value.enabled;
-      return h('div', { ref: root, class: 'relative', 'data-stand-composer': props.composerKey }, [
+      return h('div', { ref: root, class: 'relative', 'data-stand-composer': props.composerKey, ...dropZone }, [
         h('div', { class: frameClass }, [
           h('div', { class: 'h-10 composer-strip' }, [
             h(
@@ -241,13 +467,18 @@ const OfComposer = defineComponent({
               h('button', { type: 'button', class: 'chip', 'data-stand-templates': '', 'aria-expanded': String(templatesOpen.value), onClick: () => (templatesOpen.value = !templatesOpen.value) }, 'Templates'),
             ]),
           ]),
+          ...attachments(),
           h('div', { ref: editorHost, class: 'om-rich-text-editor' }),
           h('div', { class: 'composer-footer' }, [
             h('button', { type: 'button', class: ['chip', translatorOn ? 'chip--on' : ''], title: 'Alt+S', onClick: toggleTranslator }, translatorOn ? `Translate: on${settings.value.autoTranslate ? ' (auto)' : ''}` : 'Translate: off'),
             notice.value !== null ? h('span', { class: 'composer-notice' }, notice.value) : null,
-            h('button', { type: 'button', class: 'send-button', 'data-stand-send': '', onClick: () => void submit() }, 'Send'),
+            h('button', { type: 'button', class: 'send-button', 'data-stand-send': '', disabled: uploading.value.length > 0, onClick: () => void submit() }, 'Send'),
           ]),
         ]),
+        dragging.value > 0
+          ? h('div', { class: 'composer-drop-overlay', 'data-stand-drop-overlay': '' }, [h('strong', 'Drop files here'), h('span', ACCEPTED_EXTENSIONS.map((extension) => extension.slice(1).toUpperCase()).join(', '))])
+          : null,
+        toast.value !== null ? h('div', { class: 'composer-toast', role: 'status', 'data-stand-toast': '' }, toast.value) : null,
         templatesOpen.value
           ? h(
               'div',

@@ -22,6 +22,22 @@ export interface ApiContext {
 
 const DEFAULT_PAGE = 10;
 const DEFAULT_ECHO_GAP_MS = 40;
+/** A file the page uploaded that the platform keeps as a voice note. */
+const AUDIO_FILE = /\.(?:mp3|ogg|wav)$/i;
+
+const fields = (value: unknown): Record<string, unknown> => (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {});
+
+/**
+ * 1.46.0: the voice note a send takes along — the first audio among its `platformMetadata.mediaFiles`, the descriptors
+ * of the page's uploads (the stand's upload puts the length into `extra`); undefined — none.
+ */
+function voiceOf(body: Record<string, unknown>, state: StandState): StandMessage['audio'] {
+  const files = fields(body['platformMetadata'])['mediaFiles'];
+  const file = (Array.isArray(files) ? (files as unknown[]) : []).map(fields).find((item) => typeof item['name'] === 'string' && AUDIO_FILE.test(item['name']));
+  if (file === undefined) return undefined;
+  const duration = fields(file['extra'])['duration'];
+  return { id: state.nextMessageId(), duration: typeof duration === 'number' && duration > 0 ? duration : 0 };
+}
 
 export function sendJson(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }).end(JSON.stringify(body));
@@ -343,7 +359,8 @@ async function handleSend(context: ApiContext, request: IncomingMessage, respons
     case 'ok': {
       // What the platform stored (and echoes) may differ from what was sent and from the receipt.
       const id = outcome.id ?? state.nextMessageId();
-      const message: StandMessage = { id: outcome.echoId ?? id, content: outcome.echoContent ?? text, sentAt: new Date().toISOString(), isFromFan: false };
+      const audio = voiceOf(body, state);
+      const message: StandMessage = { id: outcome.echoId ?? id, content: outcome.echoContent ?? text, sentAt: new Date().toISOString(), isFromFan: false, ...(audio ? { audio } : {}) };
       const responseId = outcome.responseId ?? id;
       state.appendMessage(accountId, fanId, message);
       const echo = (): void => {

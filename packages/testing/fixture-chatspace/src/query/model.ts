@@ -39,7 +39,8 @@ export interface OnlyFansMessageMetadata {
   readonly giphyId?: string;
   readonly replyToMessage?: { readonly id: string };
   readonly mediaItems?: ReadonlyArray<{ readonly id: string; readonly type: string; readonly isFree: boolean }>;
-  readonly audioItems?: ReadonlyArray<{ readonly id: string; readonly isFree: boolean }>;
+  /** Audio the viewer may play; `duration` — seconds, when the platform says. */
+  readonly audioItems?: ReadonlyArray<{ readonly id: string; readonly isFree: boolean; readonly duration?: number }>;
   readonly storyImageUrl?: string;
   readonly tags?: unknown;
   readonly taggedCreators?: readonly unknown[];
@@ -169,7 +170,7 @@ const isNumber = (value: unknown): value is number => typeof value === 'number';
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const nonEmpty = <T>(items: readonly T[]): readonly T[] | undefined => (items.length > 0 ? items : undefined);
 
-/** Raw OnlyFans message metadata → the cache's metadata (own derivation; the stand has text messages only). */
+/** Raw OnlyFans message metadata → the cache's metadata (own derivation; the stand's media are a PPV video and voice notes). */
 export function mapOnlyFansMetadata(raw: Raw): OnlyFansMessageMetadata {
   const media = Array.isArray(raw['media']) ? (raw['media'] as unknown[]).map(record) : [];
   const freeIds = new Set((Array.isArray(raw['previews']) ? (raw['previews'] as unknown[]) : []).map((id) => String(id)));
@@ -183,7 +184,11 @@ export function mapOnlyFansMetadata(raw: Raw): OnlyFansMessageMetadata {
   const tipText = strOrNull(raw['tipText']);
   const lockedCounts = locked.length > 0 && isFree !== true && raw['isOpened'] !== true ? { images: countOf('photo'), videos: countOf('video'), gifs: countOf('gif'), audios: countOf('audio') } : undefined;
   const mediaItems = nonEmpty(viewable.filter((item) => item['type'] !== 'audio').map((item) => ({ id: str(item['id']), type: str(item['type']), isFree: freeIds.has(str(item['id'])) })));
-  const audioItems = nonEmpty(viewable.filter((item) => item['type'] === 'audio').map((item) => ({ id: str(item['id']), isFree: freeIds.has(str(item['id'])) })));
+  const audioItems = nonEmpty(
+    viewable
+      .filter((item) => item['type'] === 'audio')
+      .map((item) => ({ id: str(item['id']), isFree: freeIds.has(str(item['id'])), ...(typeof item['duration'] === 'number' ? { duration: item['duration'] } : {}) })),
+  );
   const mediaCount = optional(raw['mediaCount'], isNumber);
   const isOpened = optional(raw['isOpened'], isBoolean);
   const isNew = optional(raw['isNew'], isBoolean);
@@ -216,9 +221,28 @@ export function mapOnlyFansMetadata(raw: Raw): OnlyFansMessageMetadata {
   };
 }
 
-/** Metadata of a message the queue just sent (the server answered with its id only). */
-export function sentMessageMetadata(cancelSeconds: number): OnlyFansMessageMetadata {
-  return { isTip: false, gifUrl: null, mediaCount: 0, isFree: true, isOpened: false, isLiked: false, isPinned: false, canBePinned: false, canReport: false, cancelSeconds };
+/** Metadata of a message the queue just sent (the server answered with its id only); `audioItems` — the audio it took along. */
+export function sentMessageMetadata(cancelSeconds: number, audioItems?: OnlyFansMessageMetadata['audioItems']): OnlyFansMessageMetadata {
+  return {
+    isTip: false,
+    gifUrl: null,
+    mediaCount: audioItems?.length ?? 0,
+    isFree: true,
+    isOpened: false,
+    isLiked: false,
+    isPinned: false,
+    canBePinned: false,
+    canReport: false,
+    cancelSeconds,
+    ...(audioItems !== undefined ? { audioItems } : {}),
+  };
+}
+
+/** The audio of a composer's media (`composerContent.media`, ChatSpace's draft shape) as the cache keeps it; none — undefined. */
+export function sentAudioItems(media: unknown): OnlyFansMessageMetadata['audioItems'] {
+  const medias = typeof media === 'object' && media !== null ? (media as { medias?: unknown }).medias : null;
+  const audios = (Array.isArray(medias) ? (medias as unknown[]) : []).map(record).filter((item) => item['type'] === 'audio');
+  return nonEmpty(audios.map((item) => ({ id: str(item['id']), isFree: item['isFree'] !== false, ...(typeof item['duration'] === 'number' ? { duration: item['duration'] } : {}) })));
 }
 
 /** A history item from the REST API. */

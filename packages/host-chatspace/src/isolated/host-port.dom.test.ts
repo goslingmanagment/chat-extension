@@ -2,8 +2,9 @@
 // against the contracts: snapshots and events in, receipts out.
 
 import type { ToMainType } from '@cg/contracts/bridge';
-import type { AttachIntent, ComposerState, HostEvent, HostIdentity, HostTheme, InsertIntent, MountPoints, NavigationIntent } from '@cg/contracts/host';
+import type { AttachIntent, ComposerState, HostEvent, HostTheme, InsertIntent, MountPoints, NavigationIntent } from '@cg/contracts/host';
 import { InsertReceiptSchema, NavigationReceiptSchema } from '@cg/contracts/host';
+import type { HostIdentity } from '@cg/contracts/ids';
 import { ATTACH_LIMITS } from '@cg/contracts/limits';
 import { beforeEach, describe, expect, it } from 'vitest';
 

@@ -1,5 +1,6 @@
 // `__omComposerBridge` on the translator slot (metadata.ts «composer-bridge»),
-// and the composer's draft in localStorage (metadata.ts «draft»).
+// and the composer's draft in localStorage (metadata.ts «draft»): its text
+// (TipTap JSON) and, since 1.46.0, the media the person uploaded into it.
 // The bridge is set by a directive on the slot, like ChatSpace's: on mount and
 // on EVERY update of the composer that renders the slot, with a NEW object each
 // time, holding the editor component's surface (editor-handle.ts). So the
@@ -97,10 +98,27 @@ export const vComposerBridge: ObjectDirective<HTMLElement, BridgeTarget> = {
 
 // ── Draft ──
 
+/** A medium of the draft (ChatSpace's `media.medias[]`): a file the person uploaded carries the descriptor of its upload. */
+export interface DraftMedium {
+  readonly id: string;
+  readonly type: 'image' | 'video' | 'audio' | 'gif';
+  readonly duration?: number;
+  readonly isFree: boolean;
+  readonly playableContentUrl?: string;
+  readonly uploadDescriptor?: { readonly processId: string; readonly host: string; readonly name: string; readonly extra: unknown };
+}
+
+/** The draft's media, as ChatSpace keeps them; null — none. */
+export interface DraftMedia {
+  readonly medias: readonly DraftMedium[];
+  readonly price: number | null;
+  readonly lockedText: boolean;
+}
+
 export interface DraftBody {
   readonly json: JSONContent | null;
   readonly gif: null;
-  readonly media: null;
+  readonly media: DraftMedia | null;
   readonly taggedCreators: readonly unknown[];
 }
 

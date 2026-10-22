@@ -5,7 +5,7 @@
 import { DEFAULT_SOCKET_TRAFFIC, type FanPatch, type MimicState, type SendOutcome, type SocketTraffic } from '../../fixture-chatspace/src/protocol';
 import { chatKey, createDataset, type StandAccount, type StandChat, type StandDataset, type StandMessage } from './dataset';
 
-/** What the synthetic chatter may do (names as ChatSpace's permission strings). */
+/** What the synthetic chatter may do (names as ChatSpace's permission strings); «Media uploader» lets files into the composer. */
 export const DEFAULT_PERMISSIONS: readonly string[] = [
   'om_use_chatspace',
   'of_messages',
@@ -13,6 +13,7 @@ export const DEFAULT_PERMISSIONS: readonly string[] = [
   'om_message_translator',
   'om_buying_power',
   'om_view_copilot',
+  'om_view_media_uploader',
 ];
 
 const ANY_CHAT = '*';
