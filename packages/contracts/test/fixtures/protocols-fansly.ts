@@ -136,6 +136,13 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [{ ok: true, items: [] }, { ok: true, capturedAt: '2026-10-20T12:00:00.000Z', items: [{ platformMessageId: F.group, priceUsd: 20, purchased: true }] }, unknownFailure],
     },
   },
+  'fansly.preview.readState': {
+    req: { valid: [{ pageId: 12, hostAccountId: F.creator, fanRef: F.fan, groupId: F.group }], invalid: [{ pageId: 12, hostAccountId: F.creator, fanRef: F.fan }, { pageId: 12, hostAccountId: F.creator, fanRef: F.fan, groupId: 123 }] },
+    res: {
+      valid: [{ ok: true, last: { messageId: F.group, direction: 'model', sentAt: '2026-10-20T12:00:00.000Z', read: true, readAt: '2026-10-20T12:05:00.000Z' } }, { ok: true, last: null }, failure],
+      invalid: [{ ok: true, last: { messageId: F.group, direction: 'model', sentAt: null, read: 'yes', readAt: null } }, { ok: true }, unknownFailure],
+    },
+  },
   'fansly.registration.read': {
     req: { valid: [{ pageId: 12, hostAccountId: F.creator, groupId: F.group }], invalid: [{ pageId: 12, hostAccountId: F.creator }, { pageId: 12, hostAccountId: F.creator, groupId: 123 }] },
     res: { valid: [{ ok: true, fanId: F.fan }, failure, sharedFailure], invalid: [{ ok: true, fanId: 123 }, { ok: true, groupId: F.group }, unknownFailure] },

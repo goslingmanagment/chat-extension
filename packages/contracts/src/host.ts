@@ -4,8 +4,10 @@ import type { PageDiagnostics } from './diagnostics';
 // the host's own API: since 1.22.0 (X54) the messages of the chat the person
 // has open (`openChatMessages`) — never another chat's, whose history load
 // would mark it read —, since 1.30.0 (X53) the vault of a preview's media
-// picker (`media`: folders, media, a fan's media statuses, release forms). The
-// port never has, and never will have, fetchHistory() of any chat,
+// picker (`media`: folders, media, a fan's media statuses, release forms),
+// and whether a fan read our newest message (`chatReadState`: the chat
+// list's last message, found by the fan's username — a list read marks
+// nothing read). The port never has, and never will have, fetchHistory() of any chat,
 // markRead(), setStore(), a general send() or an arbitrary execute(). Writes:
 // guarded insert, navigation on a human action, and the X8 preview send
 // (PreviewSendPort), which may take vault media along (X53).
@@ -519,6 +521,34 @@ export type OpenChatRead =
   | { readonly ok: false; readonly reason: OpenChatFailure; readonly status: number | null };
 
 /**
+ * The conversation's newest message and whether the fan has read it, as the site says it without the chat
+ * being opened. OnlyFans (through OnlyMonster's chat list): the last message's `isNew` — false once the fan has seen
+ * the model's message —, no time of the reading. Fansly (the group's `lastMessage`): the fan's `interactions[].readAt`.
+ * `read` and `readAt` speak of the model's message only: null on the fan's, or when the site did not say.
+ */
+export const ChatReadStateSchema = z.strictObject({
+  messageId: NativeIdSchema,
+  direction: z.enum(['fan', 'model']),
+  sentAt: z.nullable(IsoTimestampSchema),
+  read: z.nullable(z.boolean()),
+  readAt: z.nullable(IsoTimestampSchema),
+});
+export type ChatReadState = z.infer<typeof ChatReadStateSchema>;
+
+/**
+ * MAIN's answer to `chatReadState` (failures as OpenChatAnswer's). `last` null — the search found no chat of
+ * this fan, or the chat has no message.
+ */
+export const ChatReadAnswerSchema = z.union([
+  z.strictObject({ ok: z.literal(true), last: z.nullable(ChatReadStateSchema) }),
+  z.strictObject({ ok: z.literal(false), failure: z.enum(OPEN_CHAT_FAILURES), status: z.nullable(z.int().check(z.gte(100), z.lte(599))) }),
+]);
+export type ChatReadAnswer = z.infer<typeof ChatReadAnswerSchema>;
+
+/** What HostPort.chatReadState resolves with; it never rejects. `unavailable` — no bridge, or no answer from MAIN. */
+export type ChatReadRead = { readonly ok: true; readonly last: ChatReadState | null } | { readonly ok: false; readonly reason: (typeof OPEN_CHAT_FAILURES)[number] | 'unavailable' };
+
+/**
  * 1.15.0 (R20 §7.7): what the fan's own lines among the texts a host holds say about the fan's script — the language
  * gate's word (AI-087): Cyrillic in any of them — `cyrillic`; fan lines without — `other`; none — `unknown`.
  */
@@ -813,6 +843,12 @@ export interface HostPort {
    * message of that chat coming in or the person leaving the chat drops it. Absent on a host without such an API.
    */
   openChatMessages?(chat: ChatRef, options: OpenChatReadOptions): Promise<OpenChatRead>;
+  /**
+   * Whether the fan has read the chat's newest message, from the host's own chat list searched by the fan's
+   * `username` (never the chat's history, so nothing is marked read). Any chat, open or not; nothing is cached. Absent
+   * on a host without such a list.
+   */
+  chatReadState?(chat: ChatRef, username: string): Promise<ChatReadRead>;
   /** Prechecks of the open chat. */
   chatWindow(chat: ChatRef, max: number): ChatWindow | null;
   /** Decoration only, when already in memory. */

@@ -43,7 +43,7 @@ import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { ChatKeySchema } from './ids';
-import { LiveTextMessageSchema } from './host';
+import { ChatReadStateSchema, LiveTextMessageSchema } from './host';
 import { LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, GenerationRefSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema, boundedText, displayText } from './primitives';
@@ -580,6 +580,16 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.spenders.resolve': {
     req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, displayName: z.nullable(displayText(1000)), username: z.nullable(displayText(1000)) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), groupId: z.nullable(NativeIdSchema) }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
+   * A fan's preview rests on the fan: whether the fan read the group's newest message (`GET /group/<id>/`, its
+   * `lastMessage` and the fan's `readAt`) — once, nothing while the creator cools down; never `POST /message/ack`.
+   * `last` null — the group has no message, or it is not this fan's.
+   */
+  'fansly.preview.readState': {
+    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, groupId: NativeIdSchema }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), last: z.nullable(ChatReadStateSchema) }), Failure]),
     from: TAB, hosts: FANSLY,
   },
 

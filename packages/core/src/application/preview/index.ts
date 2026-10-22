@@ -7,3 +7,4 @@ export * from './controller';
 export * from './palette';
 export * from './result';
 export * from './send-rows';
+export * from './seen';

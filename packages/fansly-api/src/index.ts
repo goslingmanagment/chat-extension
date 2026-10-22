@@ -13,6 +13,7 @@ export * from './allowlist';
 export * from './errors';
 export * from './client';
 export * from './notes';
+export * from './read-state';
 export { traceFanslyTransport } from './http-trace';
 export * from './pacer';
 export * from './transport';

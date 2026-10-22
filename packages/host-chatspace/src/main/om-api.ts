@@ -5,13 +5,15 @@
 // page's own requests (its resource timing): ChatSpace's API lives on another
 // host than the page, and MAIN names no origin. The runtime refuses any chat
 // but the one on the route before this file runs: loading a chat's history
-// marks it read on OnlyFans (facts.md). Nothing is written, retried or kept;
-// the isolated side checks the answer with its schema.
+// marks it read on OnlyFans (facts.md). Whether a fan read our newest message
+// is read from the chat list instead (`chatReadState`), for any chat: a list
+// read marks nothing read. Nothing is written, retried or kept; the isolated
+// side checks the answer with its schema.
 
 import { count, idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 import { ERR_IDENTITY } from '@cg/host-kit/main/protocol';
 import { iso, plain, utf8Bytes } from './page';
-import { API_ACCOUNTS_PATH, API_PATH, FRAME_DATA_BUDGET, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS } from './protocol';
+import { API_ACCOUNTS_PATH, API_PATH, CHAT_READ_SEARCH_LIMIT, FRAME_DATA_BUDGET, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS } from './protocol';
 
 type PageWindow = Window & { readonly Clerk?: { readonly session?: { readonly getToken?: () => unknown } | null } };
 
@@ -42,6 +44,32 @@ const message = (raw: unknown): Plain | null => {
     mediaCount: count(media) ? media : Array.isArray(meta['media']) ? meta['media'].length : 0,
     tip: meta['isTip'] === true,
     automatic: meta['isFromQueue'] === true,
+  };
+};
+
+/**
+ * The fan's chat of a chat list's answer (`{items: [{platform_fan_id, last_message}]}`) as contracts ChatReadAnswer:
+ * its last message, and on the model's whether the fan has seen it — OnlyFans' `isNew` turns false once the fan opened
+ * it (ChatSpace's own «прочитано», composables:89277). The sender is the raw `is_from_fan` when given, else the
+ * message's `fromUser`. `last` null — no chat of this fan in the answer, or no message in it.
+ */
+export const readStateOf = (body: unknown, fan: string): Plain => {
+  const items = isPlain(body) ? body['items'] : null;
+  if (!Array.isArray(items)) return fail('invalid');
+  const chat = items.find((item): item is Plain => isPlain(item) && idOf(item['platform_fan_id']) === fan);
+  const raw = chat?.['last_message'];
+  const id = isPlain(raw) ? idOf(raw['id']) : null;
+  if (id === null) return { ok: true, last: null };
+  const meta = isPlain((raw as Plain)['platform_metadata']) ? ((raw as Plain)['platform_metadata'] as Plain) : {};
+  const fromFan = (raw as Plain)['is_from_fan'];
+  const sender = meta['fromUser'];
+  const from = isPlain(sender) ? idOf(sender['id']) : null;
+  const direction = typeof fromFan === 'boolean' ? (fromFan ? 'fan' : 'model') : from === null ? null : from === fan ? 'fan' : 'model';
+  if (direction === null) return { ok: true, last: null };
+  const isNew = meta['isNew'];
+  return {
+    ok: true,
+    last: { messageId: id, direction, sentAt: iso((raw as Plain)['sent_at']), read: direction === 'model' && typeof isNew === 'boolean' ? !isNew : null, readAt: null },
   };
 };
 
@@ -107,6 +135,15 @@ export function createOmApi(win: Window, setTimer: Timer) {
 
   return {
     omRequest,
+    /**
+     * Whether the fan read the chat's newest message: the account's chat list searched by the fan's username, past
+     * OnlyMonster's own cache (`force=true`: a reading changes no message the socket would bring). Never the chat's
+     * history: nothing is marked read, so any chat may be asked.
+     */
+    async chatReadState(acc: string, fan: string, username: string): Promise<Plain | typeof ERR_IDENTITY> {
+      const read = await omRequest(`accounts/${acc}/chats?limit=${CHAT_READ_SEARCH_LIMIT}&query=${encodeURIComponent(username)}&force=true`);
+      return typeof read === 'string' || !read.ok ? read : readStateOf(read.body, fan);
+    },
     /**
      * The open chat's newest `limit` messages (before `cursor`), newest first, within one frame's byte budget — read
      * past OnlyMonster's own cache (`force=true`, its Refresh): a purchase changes a message, and only a fresh read

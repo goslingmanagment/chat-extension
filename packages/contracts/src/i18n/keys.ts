@@ -150,6 +150,8 @@ export const UI_TEXT_KEYS = [
   'preview.draft.placeholder', 'preview.draft.aria', 'preview.draft.send', 'preview.draft.sendTooltip', 'preview.draft.sendEmpty', 'preview.empty', 'preview.emptyNewcomers',
   // 1.37.0 (X65): the preview under the list — the neighbouring fans in its header, the row's last message while the archive has none.
   'preview.previousFan', 'preview.nextFan', 'preview.feed.lastOnly',
+  // Whether the fan read our newest message, live from the site: under its bubble, or beside the header's ages.
+  'preview.seen.read', 'preview.seen.readAt', 'preview.seen.unread',
   // 1.30.0 (X53): the media picker of a preview.
   'preview.media.button', 'preview.media.buttonTooltip', 'preview.media.label', 'preview.media.close', 'preview.media.all', 'preview.media.foldersMore',
   'preview.media.more', 'preview.media.loading', 'preview.media.empty', 'preview.media.notReady', 'preview.media.fan.paid', 'preview.media.fan.unpaid',
