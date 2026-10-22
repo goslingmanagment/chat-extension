@@ -108,6 +108,8 @@ export interface NewcomersController extends SurfaceController<'newcomers'> {
   draftsChanged(): void;
   /** 1.32.0: the preview that starts a batch's Hi (made after the list); a list without it has no batch. */
   attachBatch?(port: BatchPreviewPort): void;
+  /** A batch of the list's own (a pass's greetings) started this generation: no toast for its end. */
+  fromBatch?(opId: string): boolean;
 }
 
 export function createNewcomersController(deps: NewcomersControllerDeps): NewcomersController {

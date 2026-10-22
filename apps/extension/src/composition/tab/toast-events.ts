@@ -13,6 +13,9 @@
 //   Spenders preview, a «Новые» card): its chat is not the open one, yet the
 //   result is under the person's eyes, and the toast would lie over the
 //   preview's own header;
+// - nor for a generation a list's batch started («Сгенерировать для N»):
+//   its row says how it ended, and a toast per fan of the batch would only
+//   cover what the person does meanwhile;
 // - any other toast of the open chat carries no «Открыть чат»;
 // - a toast of another chat is named by its fan, as ChatSpace already holds
 //   the name in memory (the background knows no names; decoration only).
@@ -33,12 +36,14 @@ export interface ToastFacts {
   fanName(chat: ChatRef): string | null;
   /** The operation's result stands in a preview that is open now. */
   inPreview(opId: string): boolean;
+  /** A list's batch started the operation. */
+  fromBatch(opId: string): boolean;
 }
 
 /** The toast to show, or null when the open chat's dock already says it. */
 export function toastOfTab(toast: BackgroundToast, facts: ToastFacts): BackgroundToast | null {
   const chat = toast.chat;
-  if (toast.opId !== undefined && OP_SCOPES.has(toast.scope) && facts.visible() && facts.inPreview(toast.opId)) return null;
+  if (toast.opId !== undefined && OP_SCOPES.has(toast.scope) && (facts.fromBatch(toast.opId) || (facts.visible() && facts.inPreview(toast.opId)))) return null;
   if (chat === undefined) return toast;
   const showing = facts.showing();
   if (showing !== null && chatKeyOf(showing) === chatKeyOf(chat) && facts.visible()) {
