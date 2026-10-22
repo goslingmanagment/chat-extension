@@ -65,9 +65,9 @@ ${/* The bar is first in the document (Tab reaches it first, ui-design §6.3) an
 ${/* The bar and a result's head keep the base type scale under «Крупнее» (2026-10-22): only the AI text, parts and cards grow. */ ''}
 .cg-strip, .cg-head { ${BASE_TEXT_DECLARATIONS} }
 
-${/* ── the bar: a card of raised chips, the old Fansly extension's toolbar — 8 px around 30 px buttons; a row that does not fit scrolls ── */ ''}
+${/* ── the bar: a card of raised chips, the old Fansly extension's 30 px buttons in the 40 px bar it had before (2026-10-22, the owner: at 48 px it stood apart from the composer); a row that does not fit scrolls ── */ ''}
 .cg-strip {
-  display: flex; align-items: center; gap: 4px; height: 48px; min-width: 0; padding: 0 8px;
+  display: flex; align-items: center; gap: 4px; height: 40px; min-width: 0; padding: 0 5px;
   overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; overscroll-behavior-x: contain;
   background: var(--cg-raised); border: 1px solid var(--cg-rule-2); border-radius: var(--cg-r-lg); box-shadow: var(--cg-shadow);
 }
