@@ -58,7 +58,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the window (R
     const at = drafted.actions().length;
     await flush(() => keydown(drafted.$$('.cg-nw__row')[0] as HTMLElement, 'Enter', { code: 'Enter' }));
     expect(drafted.actions().slice(at)).toEqual([]);
-    expect(drafted.root.activeElement).toBe(drafted.$('.cg-fnc__field textarea'));
+    expect(drafted.root.activeElement).toBe(drafted.$('.cg-nc__field textarea'));
     expect(drafted.actions().some((action) => action.type === 'SendNewcomerGreeting')).toBe(false);
   });
 });
@@ -107,7 +107,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
 
   it('[X59] after the card’s own «Отправить →» the card moves on to the next draft of the batch', async () => {
     const board = await mount('13o');
-    await click(button(board, '.cg-fnc__gbar', 'Отправить →'));
+    await click(button(board, '.cg-nc__gbar', 'Отправить →'));
     await flush();
     expect(board.actions().slice(-2)).toEqual([
       { type: 'SendNewcomerGreeting', targetHandle: handle(1) },

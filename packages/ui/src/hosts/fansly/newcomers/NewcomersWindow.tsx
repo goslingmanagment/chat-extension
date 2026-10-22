@@ -1,21 +1,12 @@
 // «Новые фоловеры» on Fansly (R20 P10a–P10c; X59, X60; ui-design §3.12; FS-NEW-1; NF-001…NF-028, NF-038, FX-017): the
-// window of the old Fansly extension, kept as the owner liked it, in the family's «Новые» frame every site shares
-// (ui/newcomers frame.tsx): the list of new followers on the left (the picture, the name, «@handle · 2 ч назад», the
-// status in words) and the selected fan on the right — Fansly's own card: the profile, «Открыть в Fansly ↗», the
-// conversation the pass read, the draft and «Отправить →» — over the shared `NewcomersVM` with its `pass`. What the old
-// one lacked is here too: a batch — tick fans (or «Выбрать N»), «Сгенерировать N», read each draft right in the list
-// under its fan and send it by the row's own small «Отправить» (X59: the card's send, one click per fan); after a card's
-// own «Отправить →» the card moves on to the next draft of the batch.
-//
-// What is Fansly's here: the pass (its stage, «Пауза», the dates, the pause Fansly asked for, why it stopped), each
-// fan's verdict, the row's «Отправить», the card. The frame, the rows and the keys are the shared ones.
-//
-// Keys (X55): J / K and ↑ ↓ move along the rows, the card follows once the keys stop; Enter is the row's greeting
-// («Сгенерировать» while the field is empty, the field otherwise); Space opens the card; X ticks the row for the batch;
-// `/` is the search; Esc clears the search, then closes. «Отправить» is a click only, never a key.
+// family's «Новые» window and card (ui/newcomers window.tsx, card.tsx — the same as on ChatSpace) with Fansly's adapter,
+// over the shared `NewcomersVM` with its `pass`: Fansly's words, the pass (its stage, «Пауза», the dates, the pause
+// Fansly asked for, why it stopped), each fan's verdict and the row's own «Отправить» of a batch's draft (X59: the
+// card's send by one click in the list), and the card from what the pass read — the profile, «Открыть в Fansly ↗», the
+// conversation, the verdict, the draft. The window, the rows, the card's look and the keys are the shared ones.
 
-import { type JSX, type TargetedKeyboardEvent } from 'preact';
-import { useCallback, useLayoutEffect, useRef } from 'preact/hooks';
+import { type JSX } from 'preact';
+import { useLayoutEffect, useRef } from 'preact/hooks';
 
 import { isCgAnyCode, type CgAnyCode } from '@cg/contracts/errors-fansly';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
@@ -37,51 +28,12 @@ import {
   type UiAction,
 } from '@cg/contracts/vm';
 
-import {
-  Button,
-  Dot,
-  ErrorCard,
-  Icon,
-  SearchBox,
-  Spinner,
-  TextField,
-  VirtualList,
-  ViewState,
-  focusQuietly,
-  isComposing,
-  pure,
-  useCountdown,
-  useDispatch,
-  useHints,
-  useI18n,
-  useKit,
-  useMinuteClock,
-  useNowFn,
-  useTooltip,
-  useView,
-} from '../../../kit';
-import {
-  BatchFoot,
-  CLOSE_NEWCOMERS,
-  ListTabs,
-  NewcomerAvatar,
-  NewcomerRow,
-  NewcomersFrame,
-  PeriodMenu,
-  PickAll,
-  StatusMenu,
-  periodText,
-  rowKey,
-  toggleBatchPick,
-  useLoadMore,
-  useNewcomerRows,
-  useRowHeight,
-  type BatchWords,
-  type RowParts,
-} from '../../../newcomers/frame';
-import { useOwnEchoes } from '../../../spenders/ownEchoes';
-import { rowKeyOf, useCardFollow } from '../../../spenders/rowFocus';
-import { isPlainKey, isTextEntry } from '../../../spenders/window';
+import { Button, Dot, ErrorCard, Icon, Spinner, pure, useCountdown, useDispatch, useI18n, useNowFn } from '../../../kit';
+import { CardOpen, GreetingEditor, GreetingState, NewcomerCard, NoCard, type GreetingModel } from '../../../newcomers/card';
+import { StatusMenu, periodText, type BatchWords, type RowParts } from '../../../newcomers/frame';
+import { NewcomersWindowOf, RefreshButton, nextDraft, type NewcomersSite } from '../../../newcomers/window';
+
+export { nextDraft };
 
 const RELOAD: UiAction = { type: 'ReloadView', selector: { of: 'newcomers' } };
 
@@ -114,16 +66,6 @@ export function greetingStart(card: NewcomerCardVM): UiAction | null {
   const greeting = card.greeting ?? null;
   if (greeting === null || !greeting.canGenerate || greeting.text.trim() !== '' || greeting.state.s === 'generating' || greeting.state.s === 'sending') return null;
   return { type: 'Generate', targetHandle: card.handle, feature: 'hi', options: {} };
-}
-
-/** The next row after `handle` whose batch draft waits to be read and sent (round the list); null — none. */
-export function nextDraft(rows: readonly NewcomerRowVM[], handle: string): string | null {
-  const at = rows.findIndex((row) => row.handle === handle);
-  for (let step = 1; step < rows.length; step += 1) {
-    const row = rows[(at + step) % rows.length];
-    if (row !== undefined && row.batch?.state === 'ready' && row.greeting.s === 'none') return row.handle;
-  }
-  return null;
 }
 
 // ── a row: Fansly's status line and its «Отправить» in the shared row ──
@@ -187,10 +129,10 @@ const ROW_PARTS: RowParts = {
   End: RowSend,
 };
 
-// ── the header and the toolbar ──
+// ── the toolbar and the lines under it ──
 
 /** «Проверено 12 из 40», the phase of the fast part, the queue (NF-008); a spinner while the pass reads. */
-function Stage({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | null {
+function PassStage({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | null {
   const i18n = useI18n();
   const remaining = pass.total === null || pass.checked === null ? 0 : Math.max(0, pass.total - pass.checked);
   let text: string | null = null;
@@ -243,6 +185,17 @@ function RunButton({ run }: { readonly run: NewcomersPassRunVM }): JSX.Element |
   return <Button label={label} variant="line" size="sm" busy={run.busy} class="cg-fnw__run" onClick={() => void dispatch({ type: 'SetNewcomersPassRunning', running: !run.pause })} />;
 }
 
+function Stage({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
+  const pass = vm.pass ?? null;
+  if (pass === null) return null;
+  return (
+    <>
+      <PassStage pass={pass} />
+      {pass.run === undefined || pass.stage === 'failed' ? null : <RunButton run={pass.run} />}
+    </>
+  );
+}
+
 /**
  * Why ↻ waits (the old window's `refresh.disabled` while it scanned): a running or paused pass is the same pass when
  * asked again, so ↻ would do nothing — «Пауза» / «Проверить оставшихся» are its buttons then. Null — ↻ checks anew.
@@ -264,6 +217,12 @@ function refreshWait(i18n: I18n, pass: NewcomersPassVM | null): string | null {
   }
 }
 
+function Refresh({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
+  const i18n = useI18n();
+  const pass = vm.pass ?? null;
+  return <RefreshButton label={fanslyText(i18n, 'fansly.newcomers.refresh')} class="cg-nw__refresh cg-fnw__refresh" busy={pass?.stage === 'connecting'} wait={refreshWait(i18n, pass)} />;
+}
+
 /** «1 окт, 09:16 — 3 окт, 09:16 · местное время»: the dates the pass covers. */
 function rangeText(i18n: I18n, pass: NewcomersPassVM | null): string | null {
   if (pass === null || pass.range === null) return null;
@@ -283,16 +242,18 @@ function Cooldown({ until }: { readonly until: number }): JSX.Element | null {
 }
 
 /** Under the toolbar: the dates, and only when there is something to say — the pause Fansly asked for, «Результат неполный», why the pass stopped. */
-function PassLines({ vm, pass, range }: { readonly vm: NewcomersVM; readonly pass: NewcomersPassVM; readonly range: string | null }): JSX.Element {
+function Lines({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
   const i18n = useI18n();
+  const pass = vm.pass ?? null;
+  if (pass === null) return null;
+  const range = rangeText(i18n, pass);
   return (
     <>
       {range === null ? null : <div class="cg-nw__line cg-fnw__range">{range}</div>}
       {pass.stage === 'cooldown' && pass.cooldownUntil !== null ? <Cooldown until={pass.cooldownUntil} /> : null}
       {vm.incomplete === null ? null : (
         <div class="cg-nw__line cg-nw__incomplete" role="status">
-          <b>{i18n.t('newcomers.incomplete')}</b>{' '}
-          <span>{fanslyText(i18n, 'fansly.newcomers.incomplete')}</span>
+          <b>{i18n.t('newcomers.incomplete')}</b> <span>{fanslyText(i18n, 'fansly.newcomers.incomplete')}</span>
         </div>
       )}
       {pass.stage === 'stopped' && pass.failure !== null ? (
@@ -305,12 +266,12 @@ function PassLines({ vm, pass, range }: { readonly vm: NewcomersVM; readonly pas
 }
 
 /** FX-017: the list was not read — a failure with its reason and the way to «Fansly через вкладку», never «nobody new». */
-function ListFailed({ failure }: { readonly failure: NewcomersFailureVM | null }): JSX.Element {
+function Failed({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   return (
     <div class="cg-fnw__failed" data-cg-list="failed">
-      <ErrorCard error={failureView(i18n, failure ?? { code: 'CG-DATA-UNAVAILABLE', retryAt: null })} tone="failure">
+      <ErrorCard error={failureView(i18n, vm.pass?.failure ?? { code: 'CG-DATA-UNAVAILABLE', retryAt: null })} tone="failure">
         <Button label={i18n.t('common.retry')} variant="line" onClick={() => void dispatch(RELOAD)} />
       </ErrorCard>
       <p class="cg-fnw__hint2">{fanslyText(i18n, 'fansly.newcomers.listFailedHint')}</p>
@@ -319,21 +280,22 @@ function ListFailed({ failure }: { readonly failure: NewcomersFailureVM | null }
 }
 
 /** What the list says when it has no row to show: an empty period, a filter or a search with no match, an empty queue. */
-function emptyText(i18n: I18n, vm: NewcomersVM, filterOn: boolean): string {
-  if ((vm.pass?.total ?? 0) === 0) return fanslyText(i18n, 'fansly.newcomers.empty.window', { window: periodText(i18n, vm.windowHours) });
-  if (vm.query.trim() !== '') return fanslyText(i18n, 'fansly.newcomers.empty.search');
-  if (filterOn || vm.tab !== 'todo') return fanslyText(i18n, 'fansly.newcomers.empty.filter');
-  return fanslyText(i18n, 'fansly.newcomers.empty.todo');
+function Empty({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
+  const i18n = useI18n();
+  const filterOn = (vm.pass?.filters.find((filter) => filter.pressed)?.id ?? 'any') !== 'any';
+  if ((vm.pass?.total ?? 0) === 0) return <>{fanslyText(i18n, 'fansly.newcomers.empty.window', { window: periodText(i18n, vm.windowHours) })}</>;
+  if (vm.query.trim() !== '') return <>{fanslyText(i18n, 'fansly.newcomers.empty.search')}</>;
+  if (filterOn || vm.tab !== 'todo') return <>{fanslyText(i18n, 'fansly.newcomers.empty.filter')}</>;
+  return <>{fanslyText(i18n, 'fansly.newcomers.empty.todo')}</>;
 }
 
-// ── the list's own controls ──
-
 /** The pass's status filter (NF-004): the shared menu with Fansly's words for the verdicts. */
-function PassStatusMenu({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | null {
+function Filter({ vm }: { readonly vm: NewcomersVM }): JSX.Element | null {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const on = pass.filters.find((filter) => filter.pressed) ?? pass.filters[0];
-  if (on === undefined) return null;
+  const pass = vm.pass ?? null;
+  const on = pass?.filters.find((filter) => filter.pressed) ?? pass?.filters[0];
+  if (pass === null || on === undefined) return null;
   const label = (id: (typeof pass.filters)[number]['id']): string => fanslyText(i18n, `fansly.newcomers.filter.${id}`);
   return (
     <StatusMenu
@@ -367,21 +329,29 @@ function batchWords(i18n: I18n): BatchWords {
   };
 }
 
-// ── the card ──
+// ── the card: what the pass read, in the family's card ──
 
-/** One message; the pass's messages keep their identity between models, so a bubble is drawn once. */
-const Bubble = pure(function BubbleView({ message }: { readonly message: NewcomerMessageVM }): JSX.Element {
-  const i18n = useI18n();
-  return (
-    <div class={`cg-fnc__msg${message.fromFan ? '' : ' is-own'}`} data-cg-msg={message.id}>
-      <span class="cg-sr">{fanslyText(i18n, message.fromFan ? 'fansly.newcomers.fanPrefix' : 'fansly.newcomers.ownPrefix')} </span>
-      {message.automated ? <span class="cg-fnc__auto">{fanslyText(i18n, 'fansly.newcomers.automated')}</span> : null}
-      {message.text}
-      {message.attachments > 0 ? <span class="cg-fnc__att">{fanslyText(i18n, 'fansly.newcomers.attachments', { n: message.attachments })}</span> : null}
-      <time class="cg-fnc__time cg-num">{i18n.formatTime(message.at, 'datetime')}</time>
-    </div>
-  );
-}, (a, b) => a.message === b.message);
+/** One message in the preview's bubbles; the pass's messages keep their identity between models, so a bubble is drawn once. */
+const Bubble = pure(
+  function BubbleView({ message, day }: { readonly message: NewcomerMessageVM; readonly day: string | null }): JSX.Element {
+    const i18n = useI18n();
+    return (
+      <>
+        {day === null ? null : <div class="cg-feed__day">{day}</div>}
+        <div class={`cg-feed__msg${message.fromFan ? '' : ' is-own'}`} data-cg-msg={message.id}>
+          <span class="cg-sr">{fanslyText(i18n, message.fromFan ? 'fansly.newcomers.fanPrefix' : 'fansly.newcomers.ownPrefix')} </span>
+          {message.text}
+          {message.attachments > 0 ? <span class="cg-feed__att">{fanslyText(i18n, 'fansly.newcomers.attachments', { n: message.attachments })}</span> : null}
+          <small class="cg-num">
+            {i18n.formatTime(message.at, 'time')}
+            {message.automated ? ` · ${fanslyText(i18n, 'fansly.newcomers.automated')}` : ''}
+          </small>
+        </div>
+      </>
+    );
+  },
+  (a, b) => a.message === b.message && a.day === b.day,
+);
 
 /** The conversation as the pass read it (NF-010): oldest first, «Более ранние сообщения», the cap of 750 said. */
 function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
@@ -401,7 +371,7 @@ function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
     before.current = { first, height: node.scrollHeight, top: node.scrollTop };
   }, [first, history.messages.length, history.s]);
   const state = (key: FanslyNewcomersTextKey, busy = false): JSX.Element => (
-    <div class="cg-fnc__empty" {...(busy ? { role: 'status' } : {})} data-cg-history={history.s}>
+    <div class="cg-feed__state" {...(busy ? { role: 'status' } : {})} data-cg-history={history.s}>
       {busy ? <Spinner /> : null}
       {fanslyText(i18n, key)}
     </div>
@@ -413,7 +383,7 @@ function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
   else if (history.s === 'loading') body = state('fansly.newcomers.history.loading', true);
   else if (history.s === 'failed') {
     body = (
-      <div class="cg-fnc__fail" data-cg-history="failed">
+      <div class="cg-feed__fail" data-cg-history="failed">
         <p>{fanslyText(i18n, 'fansly.newcomers.history.failed')}</p>
         {history.failure === null ? null : (
           <ErrorCard error={failureView(i18n, history.failure)} tone="failure" inline alert={false}>
@@ -426,10 +396,11 @@ function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
     // An empty chat of a fan the check found «Не писали» / «Ждёт ответа» is the finding itself, as the old window said it.
     body = state(card.check === 'ready' || card.check === 'reply' ? 'fansly.newcomers.history.none' : 'fansly.newcomers.history.empty');
   }
+  let lastDay: string | null = null;
   return (
     <div
       ref={scroller}
-      class="cg-fnc__feed"
+      class="cg-feed"
       role="log"
       aria-label={fanslyText(i18n, 'fansly.newcomers.history.label')}
       tabIndex={0}
@@ -438,25 +409,29 @@ function History({ card }: { readonly card: NewcomerCardVM }): JSX.Element {
         if (before.current !== null) before.current = { ...before.current, top: node.scrollTop, height: node.scrollHeight };
       }}
     >
-      {history.capped ? <div class="cg-fnc__sys">{fanslyText(i18n, 'fansly.newcomers.history.capped', { n: history.cap })}</div> : null}
+      {history.capped ? <div class="cg-feed__sys">{fanslyText(i18n, 'fansly.newcomers.history.capped', { n: history.cap })}</div> : null}
       {history.s === 'ready' && history.failure !== null && history.messages.length > 0 ? (
-        <div class="cg-fnc__older">
+        <div class="cg-feed__older">
           <ErrorCard error={failureView(i18n, history.failure)} tone="failure" inline alert={false}>
             {retry}
           </ErrorCard>
         </div>
       ) : history.loadingMore ? (
-        <div class="cg-fnc__older" role="status">
+        <div class="cg-feed__older" role="status">
           <Spinner label={i18n.t('common.loading')} />
         </div>
       ) : history.more ? (
-        <div class="cg-fnc__older">
+        <div class="cg-feed__older">
           <Button label={fanslyText(i18n, 'fansly.newcomers.history.older')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'LoadOlder', targetHandle: card.handle })} />
         </div>
       ) : null}
-      {history.messages.map((message) => (
-        <Bubble key={message.id} message={message} />
-      ))}
+      {history.messages.map((message) => {
+        // A day separator («22 окт») before the first message of each day, as the preview's feed has it.
+        const day = i18n.formatTime(message.at, 'day');
+        const shown = day === lastDay ? null : day;
+        lastDay = day;
+        return <Bubble key={message.id} message={message} day={shown} />;
+      })}
       {body}
     </div>
   );
@@ -476,8 +451,8 @@ function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element | nul
   const exclude = card.exclude ?? null;
   if (card.check === 'ready' || card.check === 'reply' || card.check === 'checking') return null;
   return (
-    <div class="cg-fnc__verdict" data-cg-check={card.check}>
-      <div class="cg-fnc__why">
+    <div class="cg-nc__verdict" data-cg-check={card.check}>
+      <div class="cg-nc__why">
         <b>{checkText(i18n, card.check)}</b>
         {closed ? (
           <span>
@@ -493,7 +468,7 @@ function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element | nul
         ) : null}
       </div>
       {checkNext === null ? null : (
-        <span class="cg-fnc__check">
+        <span class="cg-nc__check">
           <Button
             label={fanslyText(i18n, checkNext === 'next' ? 'fansly.newcomers.checkNext' : 'fansly.newcomers.checkNow')}
             variant="line"
@@ -503,7 +478,7 @@ function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element | nul
         </span>
       )}
       {exclude === null ? null : (
-        <span class="cg-fnc__check">
+        <span class="cg-nc__check">
           <Button
             label={fanslyText(i18n, exclude === 'exclude' ? 'fansly.newcomers.exclude' : 'fansly.newcomers.restore')}
             tooltip={exclude === 'exclude' ? fanslyText(i18n, 'fansly.newcomers.excludeTooltip') : null}
@@ -520,87 +495,7 @@ function Verdict({ card }: { readonly card: NewcomerCardVM }): JSX.Element | nul
 /** «Открыть в Fansly ↗» (NF-011): the person's own link to the chat, in a new tab; the window stays. */
 function OpenLink({ href }: { readonly href: string }): JSX.Element {
   const i18n = useI18n();
-  const hints = useHints();
-  const tip = useTooltip(hints ? fanslyText(i18n, 'fansly.newcomers.openTooltip') : null);
-  return (
-    <>
-      <a class="cg-fnc__open" href={href} target="_blank" rel="noopener noreferrer" {...tip.props}>
-        {fanslyText(i18n, 'fansly.newcomers.open')}
-      </a>
-      {tip.description}
-    </>
-  );
-}
-
-/**
- * Where the card's click stands: a spinner while it runs, «✓ Отправлено 09:21», a dot and the code's line otherwise. An
- * unknown outcome says what to do, as ChatSpace's preview does: open the chat; if the message is not there, send again
- * («как раньше», the owner 2026-10-20) — never by itself.
- */
-function GreetingState({ greeting, openHref }: { readonly greeting: NewcomerGreetingVM; readonly openHref: string | null }): JSX.Element | null {
-  const i18n = useI18n();
-  const state = greeting.state;
-  switch (state.s) {
-    case 'idle':
-      return null;
-    case 'generating':
-    case 'sending':
-      return (
-        <div class="cg-fnc__gst" role="status">
-          <Spinner />
-          <b>{fanslyText(i18n, state.s === 'sending' ? 'fansly.newcomers.greeting.sending' : 'fansly.newcomers.greeting.generating')}</b>
-        </div>
-      );
-    case 'inserted':
-      return (
-        <div class="cg-fnc__gst" role="status">
-          {fanslyText(i18n, 'fansly.newcomers.greeting.inserted')}
-        </div>
-      );
-    case 'sent':
-      return (
-        <div class="cg-fnc__gst is-sent" role="status">
-          <Icon name="check" />
-          <span>{fanslyText(i18n, 'fansly.newcomers.greeting.sent', { time: state.at === null ? '' : i18n.formatTime(state.at, 'time') })}</span>
-        </div>
-      );
-    case 'refused':
-      return (
-        <div class="cg-fnc__gst" role="status" data-cg-code={state.failure.code}>
-          <Dot kind="danger" />
-          <b>{fanslyText(i18n, 'fansly.newcomers.greeting.refused')}</b>
-          <span class="cg-fnc__gcode">
-            ChatGoose · {state.failure.code}: {failureView(i18n, state.failure).title}
-            {state.failure.retryAt !== null ? <RetryIn until={state.failure.retryAt} /> : null}
-          </span>
-        </div>
-      );
-    case 'not-drafted':
-      // «Сгенерировать» made no draft (the old window's words): nothing was sent, the field is the person's to retry or write.
-      return (
-        <div class="cg-fnc__gst" role="status" data-cg-code={state.failure.code} data-cg-not-drafted="1">
-          <Dot kind="danger" />
-          <b>{fanslyText(i18n, 'fansly.newcomers.greeting.notDrafted', { reason: inSentence(failureView(i18n, state.failure).title) })}</b>
-          <span class="cg-fnc__gcode">{fanslyText(i18n, 'fansly.newcomers.errorFrom', { code: state.failure.code })}</span>
-        </div>
-      );
-    case 'uncertain':
-      return (
-        <div class="cg-fnc__gst" role="status" data-cg-code={state.failure.code} data-cg-uncertain="1">
-          <Dot kind="ink" />
-          <b>{fanslyText(i18n, 'fansly.newcomers.greeting.uncertain')}</b>
-          <span class="cg-fnc__gcode">
-            {fanslyText(i18n, 'fansly.newcomers.greeting.uncertainTail')}
-            {openHref === null ? null : (
-              <>
-                {' '}
-                <OpenLink href={openHref} />
-              </>
-            )}
-          </span>
-        </div>
-      );
-  }
+  return <CardOpen href={href} label={fanslyText(i18n, 'fansly.newcomers.open')} tooltip={fanslyText(i18n, 'fansly.newcomers.openTooltip')} />;
 }
 
 /** A code's title inside a sentence after a colon: «Хаб недоступен» → «хаб недоступен»; «AI…», «Fansly…» stay as they are. */
@@ -618,340 +513,207 @@ function RetryIn({ until }: { readonly until: number }): JSX.Element | null {
   return <span data-cg-retry-in="1"> · {fanslyText(i18n, 'fansly.newcomers.greeting.retryIn', { s: Math.ceil(left / 1000) })}</span>;
 }
 
-/** The card's greeting (R20 P10c): the draft, «AI» while it is the generation unchanged, «Сгенерировать», «Открыть и вставить», «Отправить →». */
-function Greeting({ handle, greeting, openHref, onSent }: { readonly handle: string; readonly greeting: NewcomerGreetingVM; readonly openHref: string | null; readonly onSent: (handle: string) => void }): JSX.Element {
+/**
+ * Where the card's click stands: a spinner while it runs, «✓ Отправлено 09:21», a dot and the code's line otherwise. An
+ * unknown outcome says what to do, as ChatSpace's card does: open the chat; if the message is not there, send again
+ * («как раньше», the owner 2026-10-20) — never by itself.
+ */
+function StateLine({ greeting, openHref }: { readonly greeting: NewcomerGreetingVM; readonly openHref: string | null }): JSX.Element | null {
   const i18n = useI18n();
-  const dispatch = useDispatch();
-  const draft = useOwnEchoes(greeting.text, handle);
+  const state = greeting.state;
+  switch (state.s) {
+    case 'idle':
+      return null;
+    case 'generating':
+    case 'sending':
+      return <GreetingState mark={<Spinner />} words={fanslyText(i18n, state.s === 'sending' ? 'fansly.newcomers.greeting.sending' : 'fansly.newcomers.greeting.generating')} />;
+    case 'inserted':
+      return <GreetingState strong={false} words={fanslyText(i18n, 'fansly.newcomers.greeting.inserted')} />;
+    case 'sent':
+      return <GreetingState class="is-sent" mark={<Icon name="check" />} strong={false} words={fanslyText(i18n, 'fansly.newcomers.greeting.sent', { time: state.at === null ? '' : i18n.formatTime(state.at, 'time') })} />;
+    case 'refused':
+      return (
+        <GreetingState
+          mark={<Dot kind="danger" />}
+          words={fanslyText(i18n, 'fansly.newcomers.greeting.refused')}
+          code={state.failure.code}
+          tail={
+            <>
+              ChatGoose · {state.failure.code}: {failureView(i18n, state.failure).title}
+              {state.failure.retryAt !== null ? <RetryIn until={state.failure.retryAt} /> : null}
+            </>
+          }
+        />
+      );
+    case 'not-drafted':
+      // «Сгенерировать» made no draft (the old window's words): nothing was sent, the field is the person's to retry or write.
+      return (
+        <GreetingState
+          mark={<Dot kind="danger" />}
+          words={fanslyText(i18n, 'fansly.newcomers.greeting.notDrafted', { reason: inSentence(failureView(i18n, state.failure).title) })}
+          code={state.failure.code}
+          attrs={{ 'data-cg-not-drafted': '1' }}
+          tail={fanslyText(i18n, 'fansly.newcomers.errorFrom', { code: state.failure.code })}
+        />
+      );
+    case 'uncertain':
+      return (
+        <GreetingState
+          mark={<Dot kind="ink" />}
+          words={fanslyText(i18n, 'fansly.newcomers.greeting.uncertain')}
+          code={state.failure.code}
+          attrs={{ 'data-cg-uncertain': '1' }}
+          tail={
+            <>
+              {fanslyText(i18n, 'fansly.newcomers.greeting.uncertainTail')}
+              {openHref === null ? null : (
+                <>
+                  {' '}
+                  <OpenLink href={openHref} />
+                </>
+              )}
+            </>
+          }
+        />
+      );
+  }
+}
+
+/** The card's greeting (R20 P10c): the draft, «AI» while it is the generation unchanged, «Сгенерировать», «Открыть и вставить», «Отправить →». */
+function greetingOf(i18n: I18n, card: NewcomerCardVM, greeting: NewcomerGreetingVM): GreetingModel {
+  const handle = card.handle;
   const s = greeting.state.s;
   const running = s === 'generating' || s === 'sending';
-  const runningText = (): string => fanslyText(i18n, s === 'sending' ? 'fansly.newcomers.greeting.sending' : 'fansly.newcomers.greeting.generating');
+  const runningText = fanslyText(i18n, s === 'sending' ? 'fansly.newcomers.greeting.sending' : 'fansly.newcomers.greeting.generating');
   // Why a button is off, in the tooltip it always shows (ui-design §4): what runs, what the pass has not proven, how the click ended, an empty field.
   const why = (): string => {
-    if (running) return runningText();
+    if (running) return runningText;
     if (greeting.waiting) return fanslyText(i18n, 'fansly.newcomers.greeting.waiting');
     if (s === 'sent') return fanslyText(i18n, 'fansly.newcomers.greeting.sent', { time: '' }).trim();
     return fanslyText(i18n, 'fansly.newcomers.greeting.placeholder');
   };
-  const sendReason = greeting.canSend || s === 'sending' ? null : greeting.sendBlocked !== null ? failureView(i18n, greeting.sendBlocked).title : why();
-  return (
-    <div class="cg-fnc__greet" data-cg-greeting={s}>
-      {greeting.stale ? <div class="cg-fnc__gnote is-strong">{fanslyText(i18n, 'fansly.newcomers.greeting.stale')}</div> : null}
-      <div class="cg-fnc__field">
-        <TextField
-          value={draft.shown}
-          label={fanslyText(i18n, 'fansly.newcomers.greeting.label')}
-          // Not checked yet: the field itself says the draft may be typed and goes after the check (the old window's placeholder).
-          placeholder={fanslyText(i18n, greeting.waiting ? 'fansly.newcomers.greeting.waiting' : 'fansly.newcomers.greeting.placeholder')}
-          multiline
-          minHeight={72}
-          maxHeight={180}
-          maxLength={greeting.maxChars}
-          reason={running ? runningText() : null}
-          onValue={(typed) => {
-            const text = typed.slice(0, greeting.maxChars);
-            draft.sent(text);
-            void dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text });
-          }}
-        />
-        {greeting.ai ? (
-          <span class="cg-fnc__ai" title={fanslyText(i18n, 'fansly.newcomers.greeting.aiTooltip')}>
-            {fanslyText(i18n, 'fansly.newcomers.greeting.ai')}
-          </span>
-        ) : null}
-      </div>
-      <div class="cg-fnc__gbar">
-        <Button
-          label={fanslyText(i18n, 'fansly.newcomers.greeting.generate')}
-          variant="line"
-          size="sm"
-          busy={s === 'generating'}
-          tooltip={fanslyText(i18n, 'fansly.newcomers.noAutoSend')}
-          reason={greeting.canGenerate || s === 'generating' ? null : why()}
-          onClick={() => void dispatch({ type: 'Generate', targetHandle: handle, feature: 'hi', options: {} })}
-        />
-        <Button
-          label={fanslyText(i18n, 'fansly.newcomers.greeting.insert')}
-          variant="quiet"
-          size="sm"
-          tooltip={fanslyText(i18n, 'fansly.newcomers.greeting.insertTooltip')}
-          reason={greeting.canInsert ? null : why()}
-          onClick={() => void dispatch({ type: 'InsertNewcomerGreeting', targetHandle: handle })}
-        />
-        <span class="cg-nw__grow" />
-        <Button
-          label={fanslyText(i18n, s === 'uncertain' ? 'fansly.newcomers.greeting.sendAgain' : 'fansly.newcomers.greeting.send')}
-          variant="send"
-          busy={s === 'sending'}
-          tooltip={fanslyText(i18n, 'fansly.newcomers.noAutoSend')}
-          reason={sendReason}
-          onClick={() =>
-            void dispatch({ type: 'SendNewcomerGreeting', targetHandle: handle }).then((receipt) => {
-              if (receipt?.ok === true) onSent(handle);
-            })
-          }
-        />
-      </div>
-      <GreetingState greeting={greeting} openHref={openHref} />
-    </div>
-  );
+  const noAutoSend = fanslyText(i18n, 'fansly.newcomers.noAutoSend');
+  return {
+    scope: handle,
+    text: greeting.text,
+    label: fanslyText(i18n, 'fansly.newcomers.greeting.label'),
+    // Not checked yet: the field itself says the draft may be typed and goes after the check (the old window's placeholder).
+    placeholder: fanslyText(i18n, greeting.waiting ? 'fansly.newcomers.greeting.waiting' : 'fansly.newcomers.greeting.placeholder'),
+    maxChars: greeting.maxChars,
+    edit: running ? null : (text) => ({ type: 'SetPreviewDraft', targetHandle: handle, text }),
+    locked: running ? runningText : null,
+    ai: greeting.ai ? { label: fanslyText(i18n, 'fansly.newcomers.greeting.ai'), tooltip: fanslyText(i18n, 'fansly.newcomers.greeting.aiTooltip') } : null,
+    note: greeting.stale ? fanslyText(i18n, 'fansly.newcomers.greeting.stale') : null,
+    generate: {
+      label: fanslyText(i18n, 'fansly.newcomers.greeting.generate'),
+      tooltip: noAutoSend,
+      action: { type: 'Generate', targetHandle: handle, feature: 'hi', options: {} },
+      busy: s === 'generating',
+      reason: greeting.canGenerate || s === 'generating' ? null : why(),
+    },
+    insert: {
+      label: fanslyText(i18n, 'fansly.newcomers.greeting.insert'),
+      tooltip: fanslyText(i18n, 'fansly.newcomers.greeting.insertTooltip'),
+      action: { type: 'InsertNewcomerGreeting', targetHandle: handle },
+      reason: greeting.canInsert ? null : why(),
+    },
+    send: {
+      label: fanslyText(i18n, s === 'uncertain' ? 'fansly.newcomers.greeting.sendAgain' : 'fansly.newcomers.greeting.send'),
+      tooltip: noAutoSend,
+      action: { type: 'SendNewcomerGreeting', targetHandle: handle },
+      busy: s === 'sending',
+      reason: greeting.canSend || s === 'sending' ? null : greeting.sendBlocked !== null ? failureView(i18n, greeting.sendBlocked).title : why(),
+      state: s,
+      stamp: greeting,
+      last: true,
+    },
+    state: <StateLine greeting={greeting} openHref={card.openHref} />,
+    stage: s,
+  };
 }
 
-function Card({ card, onSent }: { readonly card: NewcomerCardVM; readonly onSent: (handle: string) => void }): JSX.Element {
+/** Fansly's card in the window: what the pass read of the selected fan, in the family's card. */
+function PassCard({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   const i18n = useI18n();
+  const card = vm.pass?.card ?? null;
+  const label = fanslyText(i18n, 'fansly.newcomers.cardLabel');
+  if (card === null) return <NoCard label={label} loading={vm.view.s === 'loading' ? <Spinner label={i18n.t('common.loading')} /> : null} text={fanslyText(i18n, 'fansly.newcomers.empty.card')} />;
   const greeting = card.greeting ?? null;
+  const meta = [
+    card.username === null ? null : `@${card.username}`,
+    fanslyText(i18n, 'fansly.newcomers.followedAgo', { age: i18n.formatAge(card.followedAt) }),
+    card.checkedAt === null ? null : fanslyText(i18n, 'fansly.newcomers.checkedAt', { time: i18n.formatTime(card.checkedAt, 'time') }),
+  ]
+    .filter((piece) => piece !== null)
+    .join(' · ');
   return (
-    <section class="cg-fnc" aria-label={fanslyText(i18n, 'fansly.newcomers.cardLabel')} data-cg-card={card.handle}>
-      <header class="cg-fnc__head">
-        <NewcomerAvatar name={card.name} url={card.avatarUrl} size="card" />
-        <div class="cg-fnc__who">
-          <h3 class="cg-fnc__name">
-            {card.name}
-            {card.customName === null ? null : <span class="cg-nw__custom"> ({card.customName})</span>}
-          </h3>
-          <div class="cg-fnc__meta" title={fanslyText(i18n, 'fansly.newcomers.followedAt', { date: i18n.formatTime(card.followedAt, 'datetime') })}>
-            {card.username === null ? null : `@${card.username} · `}
-            {fanslyText(i18n, 'fansly.newcomers.followedAgo', { age: i18n.formatAge(card.followedAt) })}
-            {card.checkedAt === null ? null : ` · ${fanslyText(i18n, 'fansly.newcomers.checkedAt', { time: i18n.formatTime(card.checkedAt, 'time') })}`}
-          </div>
-        </div>
-        {card.openHref === null ? null : <OpenLink href={card.openHref} />}
-      </header>
-      {card.moved === true ? (
-        <div class="cg-fnc__moved" role="status" data-cg-moved={card.check}>
-          {fanslyText(i18n, card.check === 'greeted' ? 'fansly.newcomers.moved.greeted' : 'fansly.newcomers.moved.filter')}
-        </div>
-      ) : null}
-      {card.bio === null || card.bio.trim() === '' ? null : <div class="cg-fnc__bio">{card.bio}</div>}
-      {card.proof === null ? null : (
-        <details class="cg-fnc__proof">
-          <summary>{fanslyText(i18n, 'fansly.newcomers.proof', { date: i18n.formatTime(card.proof.at, 'datetime') })}</summary>
-          <div class="cg-fnc__proofNote">{fanslyText(i18n, 'fansly.newcomers.proofNote')}</div>
-          <blockquote>{card.proof.text}</blockquote>
-        </details>
-      )}
+    <NewcomerCard
+      key={card.handle}
+      handle={card.handle}
+      label={label}
+      name={card.name}
+      custom={card.customName}
+      avatarUrl={card.avatarUrl ?? null}
+      meta={meta}
+      metaTitle={fanslyText(i18n, 'fansly.newcomers.followedAt', { date: i18n.formatTime(card.followedAt, 'datetime') })}
+      open={card.openHref === null ? null : <OpenLink href={card.openHref} />}
+      notes={
+        <>
+          {card.moved === true ? (
+            <div class="cg-nc__moved" role="status" data-cg-moved={card.check}>
+              {fanslyText(i18n, card.check === 'greeted' ? 'fansly.newcomers.moved.greeted' : 'fansly.newcomers.moved.filter')}
+            </div>
+          ) : null}
+          {card.bio === null || card.bio.trim() === '' ? null : <div class="cg-nc__bio">{card.bio}</div>}
+          {card.proof === null ? null : (
+            <details class="cg-nc__proof">
+              <summary>{fanslyText(i18n, 'fansly.newcomers.proof', { date: i18n.formatTime(card.proof.at, 'datetime') })}</summary>
+              <div class="cg-nc__proofNote">{fanslyText(i18n, 'fansly.newcomers.proofNote')}</div>
+              <blockquote>{card.proof.text}</blockquote>
+            </details>
+          )}
+        </>
+      }
+      verdict={<Verdict card={card} />}
+      greeting={greeting === null ? null : <GreetingEditor model={greetingOf(i18n, card, greeting)} />}
+    >
       <History key={card.handle} card={card} />
-      <Verdict card={card} />
-      {greeting === null ? null : <Greeting handle={card.handle} greeting={greeting} openHref={card.openHref} onSent={onSent} />}
-    </section>
+    </NewcomerCard>
   );
 }
 
 // ── the window ──
 
+/** Fansly's adapter of the family's window. */
+export const FANSLY_SITE: NewcomersSite = {
+  class: 'cg-fnw',
+  title: (i18n) => fanslyText(i18n, 'fansly.newcomers.title'),
+  listLabel: (i18n) => fanslyText(i18n, 'fansly.newcomers.listLabel'),
+  tabLabel: (i18n, tab) => fanslyText(i18n, tab.id === 'todo' ? 'fansly.newcomers.tab.todo' : 'fansly.newcomers.tab.all'),
+  period: (i18n, vm) => ({
+    lead: fanslyText(i18n, 'fansly.newcomers.period'),
+    menuLabel: fanslyText(i18n, 'fansly.newcomers.window'),
+    tooltip: rangeText(i18n, vm.pass ?? null) ?? fanslyText(i18n, 'fansly.newcomers.window'),
+  }),
+  Stage,
+  Refresh,
+  Lines,
+  blocked: (vm) => {
+    const pass = vm.pass ?? null;
+    if (pass?.stage === 'failed') return 'failed';
+    return vm.view.s === 'forbidden' || (pass === null && vm.view.s !== 'loading') ? 'forbidden' : null;
+  },
+  Failed,
+  Filter,
+  pickAll: { label: (i18n, n) => fanslyText(i18n, 'fansly.newcomers.pickAll', { n }), tooltip: (i18n, max) => fanslyText(i18n, 'fansly.newcomers.pickTooltip', { max }) },
+  rows: ROW_PARTS,
+  batchWords,
+  Empty,
+  Card: PassCard,
+  // The window opens on the selected row: the pass's card is the selected fan's.
+  opening: () => null,
+};
+
 export function FanslyNewcomersWindow(): JSX.Element {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const { root } = useKit();
-  const vm = useView({ of: 'newcomers' }).value;
-  const pass = vm.pass ?? null;
-  const rows = vm.rows;
-  useMinuteClock(rows.length > 0);
-  const minute = Math.floor(useNowFn()() / 60_000);
-  const frameRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  // The keyboard's row: the one the person is on, else the selected one.
-  const { current, currentHandle, setActiveHandle, wrapRef, listRef, focusRow, settle } = useNewcomerRows(rows, () => rows[0] ?? null);
-  const filter = pass?.filters.find((item) => item.pressed)?.id ?? 'any';
-  // Pages of 100 (NF-006): asked once per length of the list, again for another pass, tab, query or filter.
-  const onRange = useLoadMore(vm, settle, `${pass?.passId ?? ''} ${vm.tab} ${vm.query} ${filter}`);
-  const rowHeight = useRowHeight();
-
-  const latestRows = useRef(rows);
-  latestRows.current = rows;
-
-  // Esc in turn: the search, then the window.
-  const close = useCallback((): void => {
-    if (vm.query !== '') void dispatch({ type: 'Search', list: 'newcomers', query: '' });
-    else void dispatch(CLOSE_NEWCOMERS);
-  }, [vm.query, dispatch]);
-
-  // The window opens on the selected row — also when the rows arrive later, unless the person moved focus meanwhile.
-  const hasRows = rows.length > 0;
-  const openedOn = useRef<Element | null | undefined>(undefined);
-  useLayoutEffect(() => {
-    const firstTime = openedOn.current === undefined;
-    const box = frameRef.current?.closest<HTMLElement>('.cg-dialog') ?? null;
-    const focused = root.activeElement;
-    if (hasRows && currentHandle !== null && (firstTime || focused === openedOn.current || focused === null || focused === box)) focusRow(current, currentHandle);
-    if (firstTime) openedOn.current = root.activeElement;
-  }, [hasRows]);
-
-  // The card follows the keyboard's row once the keys stop (X55): a held J asks the pass for no card per row.
-  const cardFollow = useCardFollow((handle) => void dispatch({ type: 'OpenPreview', targetHandle: handle }));
-
-  /** X59: after the card's own «Отправить →», the next draft of the batch, so the person reads and sends on. */
-  const onSent = useCallback(
-    (handle: string): void => {
-      const next = nextDraft(latestRows.current, handle);
-      if (next === null) return;
-      const at = latestRows.current.findIndex((row) => row.handle === next);
-      setActiveHandle(next);
-      focusRow(at, next);
-      void dispatch({ type: 'OpenPreview', targetHandle: next });
-    },
-    [dispatch, focusRow, setActiveHandle],
-  );
-
-  const onListKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
-    const key = rowKey(event, rows, rowKeyOf);
-    if (key === null) return;
-    const { at, row, to } = key;
-    if (to !== null) {
-      event.preventDefault();
-      const next = rows[to];
-      if (next === undefined || to === at) return;
-      setActiveHandle(next.handle);
-      focusRow(to, next.handle);
-      cardFollow.follow(next.handle);
-      return;
-    }
-    if (event.code === 'KeyX') {
-      event.preventDefault();
-      toggleBatchPick(row, dispatch);
-      return;
-    }
-    if (event.code === 'Enter' || event.code === 'NumpadEnter') {
-      event.preventDefault();
-      cardFollow.stop();
-      const shown = pass?.card ?? null;
-      if (shown === null || shown.handle !== row.handle) {
-        void dispatch({ type: 'OpenPreview', targetHandle: row.handle });
-        return;
-      }
-      const start = greetingStart(shown);
-      // The draft is there (or Generate is off): the field takes the focus — what goes to the fan is read there, and
-      // «Отправить →» is a click.
-      if (start !== null) void dispatch(start);
-      else focusQuietly(frameRef.current?.querySelector<HTMLElement>('.cg-fnc__field textarea') ?? null);
-      return;
-    }
-    if (event.code === 'Space') {
-      event.preventDefault();
-      cardFollow.stop();
-      void dispatch({ type: 'OpenPreview', targetHandle: row.handle });
-    }
-  };
-
-  const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
-    if (event.defaultPrevented || isComposing(event) || isTextEntry(event.target) || !isPlainKey(event)) return;
-    if (event.code === 'Slash' || event.key === '/') {
-      event.preventDefault();
-      searchRef.current?.focus();
-    }
-  };
-
-  const failed = pass?.stage === 'failed';
-  const forbidden = vm.view.s === 'forbidden' || (pass === null && vm.view.s !== 'loading');
-  const showList = hasRows && !failed && vm.view.s !== 'error' && vm.view.s !== 'forbidden' && vm.view.s !== 'empty';
-  const range = rangeText(i18n, pass);
-  const card = pass?.card ?? null;
-  const title = fanslyText(i18n, 'fansly.newcomers.title');
-
-  let list: JSX.Element;
-  if (showList) {
-    list = (
-      <div class="cg-nw__list" ref={wrapRef}>
-        <VirtualList
-          items={rows}
-          rowHeight={rowHeight}
-          getKey={(row) => row.handle}
-          role="listbox"
-          label={fanslyText(i18n, 'fansly.newcomers.listLabel')}
-          listRef={listRef}
-          onRangeChange={onRange}
-          onKeyDown={onListKeyDown}
-          renderRow={(row, index) => <NewcomerRow row={row} index={index} count={rows.length} active={index === current} minute={minute} parts={ROW_PARTS} onPick={setActiveHandle} />}
-        />
-      </div>
-    );
-  } else if (vm.view.s === 'empty') {
-    list = (
-      <div class="cg-nw__state" data-cg-empty="1">
-        {emptyText(i18n, vm, filter !== 'any')}
-      </div>
-    );
-  } else {
-    list = (
-      <div class="cg-nw__state">
-        <ViewState view={vm.view} />
-      </div>
-    );
-  }
-
-  // Fansly's account may carry its id alone: the bound page names it then.
-  const sub = (
-    <>
-      {pass?.creator === null || pass?.creator === undefined ? null : <span class="cg-nw__creator">@{pass.creator}</span>}
-      {vm.pageName === null ? null : <span class="cg-nw__page">{vm.pageName}</span>}
-    </>
-  );
-
-  return (
-    <NewcomersFrame title={title} sub={sub} class="cg-fnw" onEsc={close} frameRef={frameRef} onKeyDown={onKeyDown}>
-      {forbidden ? null : (
-        <div class="cg-nw__bar" data-cg-pass={pass?.stage ?? 'none'}>
-          <PeriodMenu vm={vm} lead={fanslyText(i18n, 'fansly.newcomers.period')} menuLabel={fanslyText(i18n, 'fansly.newcomers.window')} tooltip={range ?? fanslyText(i18n, 'fansly.newcomers.window')} />
-          {pass === null ? null : <Stage pass={pass} />}
-          {pass?.run === undefined || failed ? null : <RunButton run={pass.run} />}
-          <span class="cg-nw__grow" />
-          <SearchBox
-            value={vm.query}
-            label={i18n.t('spenders.search.placeholder')}
-            placeholder={i18n.t('spenders.search.placeholder')}
-            class="cg-nw__search"
-            inputRef={searchRef}
-            onQuery={(query) => void dispatch({ type: 'Search', list: 'newcomers', query })}
-          />
-          <Button
-            label={fanslyText(i18n, 'fansly.newcomers.refresh')}
-            icon="refresh"
-            iconOnly
-            variant="quiet"
-            class="cg-fnw__refresh"
-            busy={pass?.stage === 'connecting'}
-            reason={refreshWait(i18n, pass)}
-            onClick={() => void dispatch(RELOAD)}
-          />
-        </div>
-      )}
-      {pass === null || forbidden || failed ? null : <PassLines vm={vm} pass={pass} range={range} />}
-      {/* The port to the background is down: what is shown stays, the banner says so (its return reads it again). */}
-      {vm.view.s === 'offline' && !failed && hasRows ? <ViewState view={vm.view} /> : null}
-      {failed ? (
-        <ListFailed failure={pass?.failure ?? null} />
-      ) : forbidden ? (
-        <div class="cg-nw__state">
-          <ViewState view={vm.view} />
-        </div>
-      ) : (
-        <div class="cg-nw__main">
-          <aside class="cg-nw__side" aria-label={fanslyText(i18n, 'fansly.newcomers.listLabel')} data-cg-newcomers={vm.view.s}>
-            <ListTabs
-              tabs={vm.tabs.map((tab) => ({ id: tab.id, label: fanslyText(i18n, tab.id === 'todo' ? 'fansly.newcomers.tab.todo' : 'fansly.newcomers.tab.all'), count: tab.count }))}
-              value={vm.tab}
-              label={fanslyText(i18n, 'fansly.newcomers.listLabel')}
-            />
-            {pass === null ? null : (
-              <div class="cg-nw__tools" role="group" aria-label={fanslyText(i18n, 'fansly.newcomers.filter.label')}>
-                <PassStatusMenu pass={pass} />
-                <span class="cg-nw__grow" />
-                <PickAll rows={rows} batch={vm.batch} label={(n) => fanslyText(i18n, 'fansly.newcomers.pickAll', { n })} tooltip={(max) => fanslyText(i18n, 'fansly.newcomers.pickTooltip', { max })} />
-              </div>
-            )}
-            {list}
-            <BatchFoot batch={vm.batch} words={batchWords(i18n)} />
-          </aside>
-          {card === null ? (
-            <section class="cg-fnc cg-fnc--none" aria-label={fanslyText(i18n, 'fansly.newcomers.cardLabel')}>
-              <div class="cg-fnc__empty">{vm.view.s === 'loading' ? <Spinner label={i18n.t('common.loading')} /> : fanslyText(i18n, 'fansly.newcomers.empty.card')}</div>
-            </section>
-          ) : (
-            <Card key={card.handle} card={card} onSent={onSent} />
-          )}
-        </div>
-      )}
-    </NewcomersFrame>
-  );
+  return <NewcomersWindowOf site={FANSLY_SITE} />;
 }

@@ -93,7 +93,7 @@ function Header({ vm, closable }: { readonly vm: PreviewVM; readonly closable: b
   );
 }
 
-function UnreadLine({ unread }: { readonly unread: PreviewVM['unread'] }): JSX.Element {
+export function UnreadLine({ unread }: { readonly unread: PreviewVM['unread'] }): JSX.Element {
   const i18n = useI18n();
   const kept = unread === 'kept';
   const tip = useTooltip(i18n.t(kept ? 'preview.notOpenedTooltip' : 'preview.notOpenedAfterSendTooltip'));
@@ -143,7 +143,7 @@ export function ArchiveLine({ vm, quiet = false, lead = null }: { readonly vm: P
 }
 
 /** The own greeting lease of the card («Новые»), above the strip: it counts down and can be renewed or let go. */
-function OwnLease({ claim }: { readonly claim: Extract<ClaimVM, { s: 'mine' }> }): JSX.Element {
+export function OwnLease({ claim }: { readonly claim: Extract<ClaimVM, { s: 'mine' }> }): JSX.Element {
   const i18n = useI18n();
   const remaining = useCountdown(claim.until, useNowFn());
   return (
@@ -159,7 +159,7 @@ function OwnLease({ claim }: { readonly claim: Extract<ClaimVM, { s: 'mine' }> }
  * What the card says of the greeting under the strip (ui-design §4.17): a refusal the hub gave a send, the row
  * changed, or a part's outcome is unknown — said, holding nothing (2026-10-20 audit, row 2).
  */
-function LeaseNote({ claim, hasResult, stoppedNote }: { readonly claim: ClaimVM; readonly hasResult: boolean; readonly stoppedNote: Msg | null }): JSX.Element | null {
+export function LeaseNote({ claim, hasResult, stoppedNote }: { readonly claim: ClaimVM; readonly hasResult: boolean; readonly stoppedNote: Msg | null }): JSX.Element | null {
   const i18n = useI18n();
   switch (claim.s) {
     case 'none':

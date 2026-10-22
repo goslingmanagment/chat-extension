@@ -138,14 +138,14 @@ export class LongRunActions {
     await this.openNewcomers();
     await pressOurs('modal', '.cg-fnw [role="tab"]', /^Все \d+$/);
     const row = `.cg-nw__row[data-cg-fan$=":${fan}"]`;
-    const card = '.cg-fnc';
-    const field = `${card} .cg-fnc__greet textarea`;
-    const buttons = `${card} .cg-fnc__gbar button`;
+    const card = '.cg-nc';
+    const field = `${card} .cg-nc__greet textarea`;
+    const buttons = `${card} .cg-nc__gbar button`;
     const check = () => readOurs('modal', row, (node) => node.getAttribute('data-cg-check'));
     await browser.waitUntil(async () => (await check()) === 'ready', { timeout: 90_000, timeoutMsg: 'the new follower was not checked ready' });
     await ours('modal', row).click();
     await pressOurs('modal', buttons, 'Сгенерировать');
-    await browser.waitUntil(async () => (await readOurs('modal', field, (node) => (node as HTMLTextAreaElement).value)) === text && await oursExists('modal', `${card} .cg-fnc__ai`), { timeout: 30_000, timeoutMsg: 'no AI greeting in the newcomer card' });
+    await browser.waitUntil(async () => (await readOurs('modal', field, (node) => (node as HTMLTextAreaElement).value)) === text && await oursExists('modal', `${card} .cg-nc__ai`), { timeout: 30_000, timeoutMsg: 'no AI greeting in the newcomer card' });
     this.expectSend();
     await pressOurs('modal', buttons, 'Отправить →');
     await browser.waitUntil(async () => {

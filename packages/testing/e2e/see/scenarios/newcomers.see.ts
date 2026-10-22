@@ -1,4 +1,4 @@
-// Newcomers: the list of new subscribers, then a card with its greeting (the palette row is «Новые»).
+// Newcomers: the list of new subscribers, then the card with its greeting in the field (the palette row is «Новые»).
 
 import { STAND_IDS } from '../../support/stand';
 import { scenario, STAND_PAGE } from '../kit';
@@ -13,9 +13,13 @@ scenario(
     await s.see('modal', 'newfan_');
     await s.shot('newcomers');
     await s.h.ours('modal', '.cg-nw__side [data-cg-key]').click();
-    await s.browser.waitUntil(() => s.has('modal', '.cg-pv'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
-    await s.press(/^Hi/, 'modal', '.cg-pv button');
-    await s.see('modal', 'so glad you’re here', 30_000);
+    await s.browser.waitUntil(() => s.has('modal', '.cg-nc__greet'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
+    await s.press(/^Сгенерировать/, 'modal', '.cg-nc__gbar button');
+    // The greeting lands in the card's field.
+    await s.browser.waitUntil(async () => ((await s.h.readOurs('modal', '.cg-nc__field textarea', (node) => (node as HTMLTextAreaElement).value)) ?? '') !== '', {
+      timeout: 30_000,
+      timeoutMsg: 'the greeting did not land in the field',
+    });
     await s.shot('newcomer-hi');
   },
   {

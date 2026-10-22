@@ -147,23 +147,23 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'the queue runs: «Пауза»', 15_000);
     await waitOursText('modal', /Проверка на паузе/, 'the queue stands', { timeout: 15_000, selector: WINDOW });
     await ours('modal', ROW).click();
-    await waitOursText('modal', /Нельзя написать.*Fansly не даёт написать: модель не проходит правила фана для личных сообщений\..*Исключить из очереди/, 'the card says why', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
+    await waitOursText('modal', /Нельзя написать.*Fansly не даёт написать: модель не проходит правила фана для личных сообщений\..*Исключить из очереди/, 'the card says why', { timeout: 10_000, selector: `${WINDOW} .cg-nc__verdict` });
     await browser.pause(400);
     await picture('dm-closed');
     const before = await todo();
     expect(before).toBeGreaterThan(0);
 
-    await pressOurs('modal', `${WINDOW} .cg-fnc__check button`, 'Исключить из очереди');
+    await pressOurs('modal', `${WINDOW} .cg-nc__check button`, 'Исключить из очереди');
     await browser.waitUntil(async () => !(await oursExists('modal', ROW)) && (await todo()) === before - 1, { timeout: 10_000, timeoutMsg: 'the excluded fan did not leave «К обработке»' });
 
     await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все \d+$/);
     await chooseStatus(/^Нельзя написать/);
     await browser.waitUntil(async () => (await checkOf()) === 'excluded', { timeout: 10_000, timeoutMsg: 'the excluded fan is not under «Все»' });
     await ours('modal', ROW).click();
-    await waitOursText('modal', /Исключён · нельзя написать.*Вернуть в очередь/, 'the card of the excluded fan', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
+    await waitOursText('modal', /Исключён · нельзя написать.*Вернуть в очередь/, 'the card of the excluded fan', { timeout: 10_000, selector: `${WINDOW} .cg-nc__verdict` });
     await browser.pause(400);
     await picture('excluded');
-    await pressOurs('modal', `${WINDOW} .cg-fnc__check button`, 'Вернуть в очередь');
+    await pressOurs('modal', `${WINDOW} .cg-nc__check button`, 'Вернуть в очередь');
     await browser.waitUntil(async () => (await checkOf()) === 'dm-closed' && (await todo()) === before, { timeout: 10_000, timeoutMsg: 'the fan did not come back to «К обработке»' });
 
     // Nothing was sent and nothing outside the list was asked: FS-NET-1's `newcomers` routes alone.
@@ -194,19 +194,19 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     await browser.waitUntil(async () => (await checkOf()) === 'ready', { timeout: 120_000, interval: 250, timeoutMsg: 'the new follower was not checked «Не писали»' });
     await ours('modal', ROW).click();
     // The card's chat is the group the pass resolved, never the fan's id (FS-IDN-6).
-    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-fnc__greet textarea`), { timeout: 10_000, timeoutMsg: 'the card has no greeting' });
-    const href = await readOurs('modal', `${WINDOW} .cg-fnc__open`, (node) => node.getAttribute('href'));
+    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-nc__greet textarea`), { timeout: 10_000, timeoutMsg: 'the card has no greeting' });
+    const href = await readOurs('modal', `${WINDOW} .cg-nc__open`, (node) => node.getAttribute('href'));
     const group = /\/messages\/(\d+)$/.exec(href ?? '')?.[1] ?? '';
     expect(group).toMatch(/^\d+$/);
     expect(group).not.toBe(fan);
-    expect(await oursText('modal', `${WINDOW} .cg-fnc__greet`)).toMatch(/AI ничего не отправляет автоматически/);
-    expect(await ours('modal', `${WINDOW} .cg-fnc__greet textarea`).getAttribute('maxlength')).toBe('5000');
+    expect(await oursText('modal', `${WINDOW} .cg-nc__greet`)).toMatch(/AI ничего не отправляет автоматически/);
+    expect(await ours('modal', `${WINDOW} .cg-nc__greet textarea`).getAttribute('maxlength')).toBe('5000');
     // Keep the greeted row visible after it leaves «К обработке»; the transient send status is not a receipt.
     await pressOurs('modal', `${WINDOW} [role="tab"]`, /^Все \d+$/);
 
-    await ours('modal', `${WINDOW} .cg-fnc__greet textarea`).click();
+    await ours('modal', `${WINDOW} .cg-nc__greet textarea`).click();
     await browser.keys([...'Hi there, welcome!']);
-    await pressOurs('modal', `${WINDOW} .cg-fnc__gbar button`, 'Отправить →');
+    await pressOurs('modal', `${WINDOW} .cg-nc__gbar button`, 'Отправить →');
     // A receipt marks the row greeted and removes its greeting field, including the transient «Отправлено».
     // Wait for durable custody, then inspect the final row instead of polling a status that may already be gone.
     // The hub's custody of this fan: one attempt, sent.
@@ -220,8 +220,8 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     // «Уже писали»: the card offers no second greeting.
     await browser.waitUntil(async () => (await checkOf()) === 'greeted', { timeout: 10_000, timeoutMsg: 'the greeted fan is not «Уже писали»' });
     await ours('modal', ROW).click();
-    await waitOursText('modal', /Уже писали/, 'the card shows the greeted fan', { timeout: 10_000, selector: `${WINDOW} .cg-fnc__verdict` });
-    expect(await oursExists('modal', `${WINDOW} .cg-fnc__greet`)).toBe(false);
+    await waitOursText('modal', /Уже писали/, 'the card shows the greeted fan', { timeout: 10_000, selector: `${WINDOW} .cg-nc__verdict` });
+    expect(await oursExists('modal', `${WINDOW} .cg-nc__greet`)).toBe(false);
     await browser.pause(400);
     await picture('greeting-sent');
     // One click, one request of ours (NF-019) to the resolved group (FS-IDN-6); nothing outside FS-NET-1.
