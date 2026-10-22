@@ -21,4 +21,6 @@ export const FIELD_CSS = `
 .cg-search input::placeholder { color: var(--cg-ink-muted); opacity: 1; }
 .cg-search input:focus-visible { outline: none; }
 .cg-search:focus-within { border-color: var(--cg-rule-3); box-shadow: 0 0 0 2px var(--cg-focus-soft); }
+.cg-search__key { flex: none; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--cg-rule-2); font: 500 var(--cg-text-2xs)/16px var(--cg-font); color: var(--cg-ink-muted); text-align: center; }
+.cg-search:focus-within .cg-search__key { visibility: hidden; }
 `;

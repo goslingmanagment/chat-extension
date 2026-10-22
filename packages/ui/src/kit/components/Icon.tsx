@@ -51,6 +51,9 @@ const PATHS = {
   chevronDown: <path d="M4.5 6.5L8 10l3.5-3.5" />,
   /** The previous fan of the Spenders preview (X65); its twin, the next one, is `chevronDown`. */
   chevronUp: <path d="M4.5 9.5L8 6l3.5 3.5" />,
+  /** The Spenders statistics' rail («open») and its column's «collapse». */
+  chevronLeft: <path d="M9.5 4.5L6 8l3.5 3.5" />,
+  chevronRight: <path d="M6.5 4.5L10 8l-3.5 3.5" />,
   /** Review — the conversation's score: a gauge. */
   gauge: (
     <>
@@ -135,14 +138,17 @@ export function GooseMark({ size = 20, class: extra }: { readonly size?: 20 | 22
   );
 }
 
-/** The Split / settings check box glyph: filled square with a check when on, an outline when off (§2.10). */
-export function CheckGlyph({ on, size = 12 }: { readonly on: boolean; readonly size?: 12 | 14 }): JSX.Element {
+/**
+ * The Split / settings check box glyph: filled square with a check when on, an outline when off (§2.10); `mixed` —
+ * filled with a dash (a column's «select all» over a list partly ticked).
+ */
+export function CheckGlyph({ on, mixed = false, size = 12 }: { readonly on: boolean; readonly mixed?: boolean; readonly size?: 12 | 14 }): JSX.Element {
   return (
     <svg class="cg-cb" width={size} height={size} viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-      {on ? (
+      {on || mixed ? (
         <>
           <rect width="12" height="12" rx="3" fill="currentColor" />
-          <path class="cg-cb__tick" d="M3.2 6.2l1.9 1.8 3.8-4" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+          <path class="cg-cb__tick" d={mixed && !on ? 'M3.5 6h5' : 'M3.2 6.2l1.9 1.8 3.8-4'} fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </>
       ) : (
         <rect x=".7" y=".7" width="10.6" height="10.6" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.3" />

@@ -37,6 +37,8 @@ const SPENDERS_FILTER_KEYS: Record<SpendersFilter, I18nKey> = {
   'fan-wrote': 'spenders.filter.fanWrote',
   history: 'spenders.filter.history',
   'no-history': 'spenders.filter.noHistory',
+  'silent-8-21': 'spenders.filter.silent8to21',
+  'silent-over-21': 'spenders.filter.silentOver21',
 };
 
 export const stamp = (ctx: ScenarioCtx, coverage: DataStamp['coverage'] = 'complete', ageMs = 2 * MIN): DataStamp => ({ asOf: iso(ctx.now - ageMs), coverage });
@@ -50,7 +52,6 @@ export function spenderRow(ctx: ScenarioCtx, fan: FanFixture, lifetime: number |
     username: fan.username,
     lifetime,
     period,
-    isNew: false,
     deleted: false,
     weWroteAt: iso(ctx.now - 10 * HOUR),
     fanWroteAt: iso(ctx.now - 7 * MIN),
@@ -84,7 +85,7 @@ function shelves(ctx: ScenarioCtx, selected: FanFixture | null): ShelfVM[] {
       lifetime: usd(940),
       period: 0,
       rows: [
-        spenderRow(ctx, FANS.jake, usd(540), 0, { isNew: true, weWroteAt: null }),
+        spenderRow(ctx, FANS.jake, usd(540), 0, { weWroteAt: null }),
         spenderRow(ctx, FANS.leo, usd(400), null, { deleted: true, fanWroteAt: null }),
       ],
       collapsed: { hidden: 4, reveal: button('spenders.shelfMore', { type: 'RevealShelf', shelfId: 'shelf-350' }) },
@@ -127,29 +128,30 @@ export function stats(ctx: ScenarioCtx, view: VmView, patch: Partial<SpendersSta
   const s = stamp(ctx, coverage);
   const money = (dollars: number) => ({ mills: known ? usd(dollars) : null, stamp: s });
   const count = (n: number) => ({ count: known ? n : null, stamp: s });
+  // What the model keeps (1.44.0): the platform's 20 % off what the fans paid.
   return {
     view,
     expanded: false,
+    open: false,
     windowDays: 30,
     timeZone: 'Europe/Moscow',
     days: known
-      ? Array.from({ length: 30 }, (_, i) => ({ date: iso(ctx.now - (29 - i) * DAY).slice(0, 10), gross: i % 7 === 3 ? null : usd(40 + ((i * 37) % 210)), today: i === 29 }))
+      ? Array.from({ length: 30 }, (_, i) => ({ date: iso(ctx.now - (29 - i) * DAY).slice(0, 10), net: i % 7 === 3 ? null : usd(32 + ((i * 29) % 168)), today: i === 29 }))
       : [],
-    today: money(65),
-    d7: { ...money(1_110), changePct: known ? 4 : null, prev7: known ? usd(1_068) : null },
-    d30: { ...money(4_670), purchases: known ? 57 : null },
+    today: money(52),
+    d7: { ...money(888), changePct: known ? 4 : null, prev7: known ? usd(854) : null },
+    d30: { ...money(3_736), purchases: known ? 57 : null, gross: known ? usd(4_670) : null, feePct: known ? 20 : null },
     payers: count(20),
-    avgCheck: money(106),
+    avgCheck: money(85),
     shelves: known
       ? [
-          { id: 'shelf-600', range: { fromMills: usd(600), toMills: null }, fans: 3, lifetime: usd(31_480), period: usd(4_005), share: 0.86 },
-          { id: 'shelf-350', range: { fromMills: usd(350), toMills: usd(600) }, fans: 2, lifetime: usd(940), period: 0, share: 0 },
-          { id: 'shelf-none', range: { fromMills: null, toMills: null }, fans: 35, lifetime: usd(2_100), period: usd(665), share: 0.14 },
+          { id: 'shelf-600', range: { fromMills: usd(600), toMills: null }, fans: 3, net: usd(3_204) },
+          { id: 'shelf-350', range: { fromMills: usd(350), toMills: usd(600) }, fans: 2, net: 0 },
+          { id: 'shelf-outside', range: { fromMills: null, toMills: null }, remainder: 'untiered', fans: 35, net: usd(532) },
         ]
       : [],
     attention: {
       awaiting: count(12),
-      newPayers: { ...count(3), firstObserved: coverage !== 'complete' },
       silent8to21: count(10),
       silentOver21: count(6),
       noData: count(4),

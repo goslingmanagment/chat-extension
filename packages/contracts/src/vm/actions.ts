@@ -110,11 +110,19 @@ export type NavigationTarget = z.infer<typeof NavigationTargetSchema>;
 export type SpendersPeriod = z.infer<typeof SpendersPeriodSchema>;
 /** The board periods (same list as the `spenders.board` request, pinned by a test); kept local so actions do not load the tab registry. */
 const SpendersPeriodChoiceSchema = z.enum(['lifetime', '30d', 'mtd', '7d', 'today'] as const satisfies readonly SpendersPeriod[]);
-/** Board filters (SP-008…SP-010): one pressed at a time per group, the controller decides the grouping. */
-export const SPENDERS_FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history'] as const;
+/**
+ * Board filters (SP-008…SP-010): one pressed at a time per group, the controller decides the grouping. 1.44.0: the
+ * fans silent 8–21 and more than 21 full days since their last message (§8.7 «Молчание»; the statistics' «Кому
+ * написать» opens them).
+ */
+export const SPENDERS_FILTERS = ['all', 'waiting', 'new', 'we-wrote', 'fan-wrote', 'history', 'no-history', 'silent-8-21', 'silent-over-21'] as const;
 export type SpendersFilter = (typeof SPENDERS_FILTERS)[number];
-/** «Всё время ↓» sorts shelves by sum; «Фан писал» by recency of the fan's last message. */
-export const SPENDERS_SORTS = ['sum', 'fan-age'] as const;
+/**
+ * 1.44.0: a click on a column's header. `sum` — «Потратил», by the lifetime under the tiers' headers; `waiting` — «Ждёт
+ * ответа», the fans who wait first, the longest waiting on top, then the rest by the lifetime; `we-wrote` — «Мы
+ * писали», the longest since our last message first; `period` — the period's column. The last two are one flat list.
+ */
+export const SPENDERS_SORTS = ['sum', 'waiting', 'we-wrote', 'period'] as const;
 export type SpendersSort = (typeof SPENDERS_SORTS)[number];
 
 export const NEWCOMERS_TABS = ['todo', 'all'] as const;
@@ -265,6 +273,8 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** 1.38.0 (X67): a tier chip of the board («🐳 Whale 42»): the list shows that shelf alone; null — every shelf. */
   act('SetSpendersShelf', { shelfId: z.nullable(HandleSchema) }),
   act('SetStatsExpanded', { expanded: z.boolean() }),
+  /** 1.44.0: the statistics column beside the list (the rail's click, ›, S); false — the rail at the window's edge. */
+  act('SetStatsOpen', { open: z.boolean() }),
   act('SetNewcomersTab', { tab: z.enum(NEWCOMERS_TABS) }),
   act('SetNewcomersFilter', { filter: z.enum(GREETING_FILTERS) }),
   /** 1.15.0 (R20 P10a): a status filter of a list a background pass checks. */

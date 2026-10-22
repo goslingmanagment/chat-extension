@@ -12,6 +12,7 @@ import {
   type PaletteItemVM,
   type ShelfVM,
   type SpenderRowVM,
+  type SpendersSort,
   type SpendersStatsVM,
 } from '@cg/contracts';
 
@@ -113,40 +114,70 @@ export const boardHandle = (key: string): string => `spenders:${key}`;
 
 const ago = (ctx: ScenarioCtx, minutes: number | null): string | null => (minutes === null ? null : iso(ctx.now - minutes * MIN));
 
-export function boardRow(ctx: ScenarioCtx, source: BoardFan, selected: string | null): SpenderRowVM {
+export function boardRow(ctx: ScenarioCtx, source: BoardFan, selected: string | null, tier?: ShelfVM['range']): SpenderRowVM {
   return {
     handle: boardHandle(source.key),
     name: source.name,
     username: source.username,
     lifetime: usd(source.lifetime),
     period: usd(source.d30),
-    isNew: source.isNew === true,
     deleted: source.deleted === true,
     weWroteAt: ago(ctx, source.weAgo),
     fanWroteAt: ago(ctx, source.fanAgo),
     waiting: source.lastFrom === 'fan',
-    lastMessage: { fromUs: source.lastFrom === 'we', text: source.last },
+    // A fan of the mockup with no last message: «нет переписки».
+    lastMessage: source.last === '' ? null : { fromUs: source.lastFrom === 'we', text: source.last },
     selected: source.key === selected,
+    ...(tier === undefined ? {} : { tier }),
   };
 }
 
-export type BoardSort = 'sum' | 'fan-age';
+export type BoardSort = SpendersSort;
 
-/** Shelves of `fans` in tier order; within a shelf by sum, or by how recently the fan wrote (unknown last). */
+const rangeOf = (bounds: (typeof SHELF_BOUNDS)[number]): ShelfVM['range'] => ({ fromMills: usd(bounds.from), toMills: bounds.to === null ? null : usd(bounds.to) });
+const boundsOf = (fan: BoardFan): (typeof SHELF_BOUNDS)[number] | undefined => SHELF_BOUNDS.find((bounds) => fan.lifetime >= bounds.from && (bounds.to === null || fan.lifetime < bounds.to));
+/** Earlier first; unknown last (ages are minutes ago: the larger, the earlier). */
+const longestAgo = (a: number | null, b: number | null): number => (a === b ? 0 : a === null ? 1 : b === null ? -1 : b - a);
+
+function group(ctx: ScenarioCtx, id: string, kind: NonNullable<ShelfVM['group']>, fans: readonly BoardFan[], selected: string | null): ShelfVM {
+  const tierOf = (fan: BoardFan): ShelfVM['range'] => {
+    const bounds = boundsOf(fan);
+    return bounds === undefined ? { fromMills: null, toMills: null } : rangeOf(bounds);
+  };
+  return {
+    id,
+    range: { fromMills: null, toMills: null },
+    fans: fans.length,
+    lifetime: usd(fans.reduce((sum, item) => sum + item.lifetime, 0)),
+    period: usd(fans.reduce((sum, item) => sum + item.d30, 0)),
+    rows: fans.map((item) => boardRow(ctx, item, selected, tierOf(item))),
+    collapsed: null,
+    group: kind,
+  };
+}
+
+/**
+ * Shelves of `fans` as the controller lists them for each sort (1.44.0): `sum` — the tiers, by the sum inside; `waiting`
+ * — who waits (the longest first), then the rest by the sum; `we-wrote` and `period` — one list.
+ */
 export function boardShelves(ctx: ScenarioCtx, fans: readonly BoardFan[], selected: string | null, sort: BoardSort = 'sum'): ShelfVM[] {
+  const bySum = [...fans].sort((a, b) => b.lifetime - a.lifetime);
+  if (sort === 'waiting') {
+    const waiting = fans.filter((item) => item.lastFrom === 'fan').sort((a, b) => longestAgo(a.fanAgo, b.fanAgo));
+    const rest = bySum.filter((item) => item.lastFrom !== 'fan');
+    return [group(ctx, 'group-waiting', 'waiting', waiting, selected), group(ctx, 'group-rest', 'rest', rest, selected)].filter((shelf) => shelf.rows.length > 0);
+  }
+  if (sort === 'we-wrote') return [group(ctx, 'group-all', 'flat', [...bySum].sort((a, b) => longestAgo(a.weAgo, b.weAgo)), selected)];
+  if (sort === 'period') return [group(ctx, 'group-all', 'flat', [...bySum].sort((a, b) => b.d30 - a.d30), selected)];
   return SHELF_BOUNDS.map((bounds): ShelfVM => {
-    const inShelf = fans.filter((item) => item.lifetime >= bounds.from && (bounds.to === null || item.lifetime < bounds.to));
-    const ordered =
-      sort === 'sum'
-        ? [...inShelf].sort((a, b) => b.lifetime - a.lifetime)
-        : [...inShelf].sort((a, b) => (a.fanAgo === null ? 1 : b.fanAgo === null ? -1 : a.fanAgo - b.fanAgo));
+    const inShelf = bySum.filter((item) => boundsOf(item) === bounds);
     return {
       id: bounds.id,
-      range: { fromMills: usd(bounds.from), toMills: bounds.to === null ? null : usd(bounds.to) },
+      range: rangeOf(bounds),
       fans: inShelf.length,
       lifetime: usd(inShelf.reduce((sum, item) => sum + item.lifetime, 0)),
       period: usd(inShelf.reduce((sum, item) => sum + item.d30, 0)),
-      rows: ordered.map((item) => boardRow(ctx, item, selected)),
+      rows: inShelf.map((item) => boardRow(ctx, item, selected)),
       collapsed: null,
     };
   });
@@ -188,29 +219,36 @@ function daySeries(total: number): number[] {
   return days;
 }
 
-export function boardStats(ctx: ScenarioCtx, fans: readonly BoardFan[], coverage: 'complete' | 'partial' = 'complete'): Omit<SpendersStatsVM, 'view' | 'expanded'> {
+/** What the model keeps of what the fans paid on the stand: the platform takes 20 %. */
+const NET_SHARE = 0.8;
+
+export function boardStats(ctx: ScenarioCtx, fans: readonly BoardFan[], coverage: 'complete' | 'partial' = 'complete'): Omit<SpendersStatsVM, 'view' | 'expanded' | 'open'> {
   const stamp = { asOf: iso(ctx.now - 2 * MIN), coverage };
   const total = fans.reduce((sum, item) => sum + item.d30, 0);
   const purchases = fans.reduce((sum, item) => sum + item.purchases30, 0);
+  const net = (dollars: number): number => usd(Math.round(dollars * NET_SHARE));
   const days = daySeries(total);
   const d7 = days.slice(23, 30).reduce((a, b) => a + b, 0);
   const prev7 = days.slice(16, 23).reduce((a, b) => a + b, 0);
   const shelves = boardShelves(ctx, fans, null);
-  const top = shelves.reduce((most, shelf) => Math.max(most, shelf.period ?? 0), 0);
   const silent = (from: number, to: number): number => fans.filter((item) => item.fanAgo !== null && item.fanAgo >= from && item.fanAgo <= to).length;
+  const deleted = fans.filter((item) => item.deleted === true);
   return {
     windowDays: 30,
     timeZone: 'Europe/Moscow',
-    days: days.map((gross, index) => ({ date: iso(ctx.now - (29 - index) * DAY).slice(0, 10), gross: usd(gross), today: index === 29 })),
-    today: { mills: usd(days[29] ?? 0), stamp },
-    d7: { mills: usd(d7), stamp, changePct: prev7 === 0 ? null : ((d7 - prev7) / prev7) * 100, prev7: usd(prev7) },
-    d30: { mills: usd(total), stamp, purchases },
+    days: days.map((gross, index) => ({ date: iso(ctx.now - (29 - index) * DAY).slice(0, 10), net: net(gross), today: index === 29 })),
+    today: { mills: net(days[29] ?? 0), stamp },
+    d7: { mills: net(d7), stamp, changePct: prev7 === 0 ? null : ((d7 - prev7) / prev7) * 100, prev7: net(prev7) },
+    d30: { mills: net(total), stamp, purchases, gross: usd(total), feePct: Math.round(100 - NET_SHARE * 100) },
     payers: { count: fans.filter((item) => item.d30 > 0).length, stamp },
-    avgCheck: { mills: purchases === 0 ? null : usd(Math.round(total / purchases)), stamp },
-    shelves: shelves.map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.fans, lifetime: shelf.lifetime, period: shelf.period, share: top === 0 ? 0 : (shelf.period ?? 0) / top })),
+    avgCheck: { mills: purchases === 0 ? null : net(Math.round(total / purchases)), stamp },
+    shelves: [
+      ...shelves.map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.fans, net: shelf.period === null ? null : Math.round(shelf.period * NET_SHARE) })),
+      // The fans whose accounts are gone: «Удалённые аккаунты», muted, last.
+      ...(deleted.length === 0 ? [] : [{ id: 'shelf-outside', range: { fromMills: null, toMills: null }, remainder: 'untiered' as const, fans: deleted.length, net: net(deleted.reduce((sum, item) => sum + item.d30, 0)) }]),
+    ],
     attention: {
       awaiting: { count: fans.filter((item) => item.lastFrom === 'fan').length, stamp },
-      newPayers: { count: fans.filter((item) => item.isNew === true).length, stamp, firstObserved: coverage !== 'complete' },
       silent8to21: { count: silent(8 * D, 21 * D), stamp },
       silentOver21: { count: fans.filter((item) => item.fanAgo !== null && item.fanAgo > 21 * D).length, stamp },
       noData: { count: fans.filter((item) => item.fanAgo === null).length, stamp },

@@ -1,10 +1,12 @@
 // Search, filters and sorting of the Spenders board (SP-018…SP-020). The
 // search looks in the alias, the display name, the @handle and the fan id,
 // in one normalized form (an IME's full-width letters and any case match).
-// Filters come in three groups with one pressed at a time in each: the main
-// row (все / ждут ответа / новые), «Последнее сообщение» (мы / фан) and
-// «Доступная история» (есть / нет). Inside a shelf rows go by the lifetime
-// sum, or by how recently the fan wrote (unknown last).
+// Filters come in four groups with one pressed at a time in each: the main
+// row (все / ждут ответа / новые), «Последнее сообщение» (мы / фан),
+// «Доступная история» (есть / нет) and the fan's silence (8–21 days, more
+// than 21; §8.7). The sorts are the table's headers (1.44.0): «Потратил» by
+// the lifetime sum, «Ждёт ответа» the longest waiting first, «Мы писали» the
+// longest since our message first, the period's sum; unknown last in each.
 
 import { type SpendersFilter, type SpendersSort } from '@cg/contracts/vm';
 
@@ -13,17 +15,19 @@ import { normalizeSearch, type SpenderRow } from './rows';
 export type MainFilter = 'all' | 'waiting' | 'new';
 export type LastMessageFilter = 'we-wrote' | 'fan-wrote';
 export type HistoryFilter = 'history' | 'no-history';
+export type SilenceFilter = 'silent-8-21' | 'silent-over-21';
 
 export interface BoardFilters {
   readonly main: MainFilter;
   readonly lastMessage: LastMessageFilter | null;
   readonly history: HistoryFilter | null;
+  readonly silence: SilenceFilter | null;
 }
 
-export const NO_FILTERS: BoardFilters = { main: 'all', lastMessage: null, history: null };
+export const NO_FILTERS: BoardFilters = { main: 'all', lastMessage: null, history: null, silence: null };
 
 export function filtersActive(filters: BoardFilters): boolean {
-  return filters.main !== 'all' || filters.lastMessage !== null || filters.history !== null;
+  return filters.main !== 'all' || filters.lastMessage !== null || filters.history !== null || filters.silence !== null;
 }
 
 /**
@@ -44,16 +48,30 @@ export function pressFilter(filters: BoardFilters, pressed: SpendersFilter): Boa
     case 'history':
     case 'no-history':
       return { ...filters, history: filters.history === pressed ? null : pressed };
+    case 'silent-8-21':
+    case 'silent-over-21':
+      return { ...filters, silence: filters.silence === pressed ? null : pressed };
   }
 }
 
 export function filterPressed(filters: BoardFilters, id: SpendersFilter): boolean {
   if (id === 'all') return !filtersActive(filters);
-  return filters.main === id || filters.lastMessage === id || filters.history === id;
+  return filters.main === id || filters.lastMessage === id || filters.history === id || filters.silence === id;
 }
 
-/** Whether one filter button alone takes the row. */
-export function rowPasses(row: SpenderRow, id: SpendersFilter): boolean {
+const DAY_MS = 86_400_000;
+
+/**
+ * §8.7 «Молчание»: whole days since the fan's last message; null — the fan never wrote, or when is unknown (the
+ * statistics' «Нет переписки»). A message «from the future» (clocks apart) is zero days old.
+ */
+export function silentDays(row: Pick<SpenderRow, 'fanWroteAt'>, now: number): number | null {
+  const at = timeOf(row.fanWroteAt);
+  return at === null ? null : Math.floor(Math.max(0, now - at) / DAY_MS);
+}
+
+/** Whether one filter button alone takes the row; `now` — the clock the fan's silence is counted to. */
+export function rowPasses(row: SpenderRow, id: SpendersFilter, now: number): boolean {
   switch (id) {
     case 'all':
       return true;
@@ -70,14 +88,23 @@ export function rowPasses(row: SpenderRow, id: SpendersFilter): boolean {
       return row.history !== 'none';
     case 'no-history':
       return row.history === 'none';
+    case 'silent-8-21': {
+      const days = silentDays(row, now);
+      return days !== null && days >= 8 && days <= 21;
+    }
+    case 'silent-over-21': {
+      const days = silentDays(row, now);
+      return days !== null && days > 21;
+    }
   }
 }
 
-export function rowMatches(row: SpenderRow, filters: BoardFilters, needle: string): boolean {
+export function rowMatches(row: SpenderRow, filters: BoardFilters, needle: string, now: number): boolean {
   if (needle.length > 0 && !row.haystack.includes(needle)) return false;
-  if (filters.main !== 'all' && !rowPasses(row, filters.main)) return false;
-  if (filters.lastMessage !== null && !rowPasses(row, filters.lastMessage)) return false;
-  if (filters.history !== null && !rowPasses(row, filters.history)) return false;
+  if (filters.main !== 'all' && !rowPasses(row, filters.main, now)) return false;
+  if (filters.lastMessage !== null && !rowPasses(row, filters.lastMessage, now)) return false;
+  if (filters.history !== null && !rowPasses(row, filters.history, now)) return false;
+  if (filters.silence !== null && !rowPasses(row, filters.silence, now)) return false;
   return true;
 }
 
@@ -87,19 +114,27 @@ export function searchNeedle(query: string): string {
 }
 
 /** How many loaded rows each filter button would show on its own. */
-export function filterCounts(rows: readonly SpenderRow[], ids: readonly SpendersFilter[]): Record<SpendersFilter, number> {
+export function filterCounts(rows: readonly SpenderRow[], ids: readonly SpendersFilter[], now: number): Record<SpendersFilter, number> {
   const counts = Object.fromEntries(ids.map((id) => [id, 0])) as Record<SpendersFilter, number>;
   for (const row of rows) {
-    for (const id of ids) if (rowPasses(row, id)) counts[id] += 1;
+    for (const id of ids) if (rowPasses(row, id, now)) counts[id] += 1;
   }
   return counts;
 }
 
-const timeOf = (iso: string | null): number | null => {
+function timeOf(iso: string | null): number | null {
   if (iso === null) return null;
   const ms = Date.parse(iso);
   return Number.isNaN(ms) ? null : ms;
-};
+}
+
+/** Earlier first; unknown after every known one. */
+function compareAscending(a: number | null, b: number | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a - b;
+}
 
 /** Richest first; an unknown sum after every known one; ties keep the hub's ranking. */
 export function compareBySum(a: SpenderRow, b: SpenderRow): number {
@@ -111,18 +146,44 @@ export function compareBySum(a: SpenderRow, b: SpenderRow): number {
   return a.rank - b.rank;
 }
 
-/** Who wrote most recently — higher; a fan who never wrote (or unknown) last (SP-018). */
-export function compareByFanAge(a: SpenderRow, b: SpenderRow): number {
-  const ta = timeOf(a.fanWroteAt);
-  const tb = timeOf(b.fanWroteAt);
-  if (ta !== tb) {
-    if (ta === null) return 1;
-    if (tb === null) return -1;
-    return tb - ta;
-  }
-  return compareBySum(a, b);
+/** «Ждёт ответа»: the fan whose message is the oldest — who waits the longest — first; unknown last; ties by the sum. */
+export function compareByWaiting(a: SpenderRow, b: SpenderRow): number {
+  return compareAscending(timeOf(a.fanWroteAt), timeOf(b.fanWroteAt)) || compareBySum(a, b);
 }
 
+/** «Мы писали»: the longest since our last message first; never or unknown last; ties by the sum. */
+export function compareByWeWrote(a: SpenderRow, b: SpenderRow): number {
+  return compareAscending(timeOf(a.weWroteAt), timeOf(b.weWroteAt)) || compareBySum(a, b);
+}
+
+/** The period's column: the most spent in the period first; unknown last; ties by the sum. */
+export function compareByPeriod(a: SpenderRow, b: SpenderRow): number {
+  const pa = a.period === null ? null : -a.period;
+  const pb = b.period === null ? null : -b.period;
+  return compareAscending(pa, pb) || compareBySum(a, b);
+}
+
+const COMPARE: Readonly<Record<SpendersSort, (a: SpenderRow, b: SpenderRow) => number>> = {
+  sum: compareBySum,
+  waiting: compareBySum,
+  'we-wrote': compareByWeWrote,
+  period: compareByPeriod,
+};
+
+/**
+ * The rows in the sort's order. `waiting` is two groups (`groupRows`); taken whole it is the fans who wait first, the
+ * longest waiting on top, then the rest by the sum.
+ */
 export function sortRows(rows: readonly SpenderRow[], sort: SpendersSort): SpenderRow[] {
-  return [...rows].sort(sort === 'fan-age' ? compareByFanAge : compareBySum);
+  if (sort !== 'waiting') return [...rows].sort(COMPARE[sort]);
+  const { waiting, rest } = waitingGroups(rows);
+  return [...waiting, ...rest];
+}
+
+/** «Ждёт ответа»'s two groups: the fans who wait, the longest waiting first; the rest by the sum. */
+export function waitingGroups(rows: readonly SpenderRow[]): { readonly waiting: SpenderRow[]; readonly rest: SpenderRow[] } {
+  const waiting: SpenderRow[] = [];
+  const rest: SpenderRow[] = [];
+  for (const row of rows) (row.waiting ? waiting : rest).push(row);
+  return { waiting: waiting.sort(compareByWaiting), rest: rest.sort(compareBySum) };
 }

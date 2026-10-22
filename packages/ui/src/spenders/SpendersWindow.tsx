@@ -1,25 +1,26 @@
 // The Spenders window (architecture.md §10.1; ui-design §3.5, §4.14–§4.16,
-// §6.3, §6.4; SP-002, SP-019, SP-033, SP-049, SP-050; X66, X67): the old Fansly
-// extension's window, the same on both sites — a compact window over a scrim in
-// the middle of the page, the serif title over «page · N фанов · данные на …»,
-// «Обновить» and «Закрыть», the chips and the search under them, the list, the
-// keys at the foot. A site with statistics has them as a column right of the
-// list, inside the same window. A picked fan's preview unfolds right under their
-// row (X66); only a fan the list does not show (a filter or a search hides them)
-// gets the preview as a panel under the list, its height dragged on the border
-// between them. The statistics may also be expanded in place of both. It renders three view models (`spenders.board`,
-// `spenders.stats`, `preview` from `spenders`) and asks for everything
-// through UiAction.
+// §6.3, §6.4; SP-002, SP-019, SP-033, SP-049, SP-050; X66, X67; 1.44.0 — the
+// owner's «Таблица»): one window on both sites over a scrim in the middle of the
+// page — «Spenders  page · N фанов · данные на …» with «Обновить» and «Закрыть
+// Esc» on one line, the chips and the search under it (or, while fans are
+// ticked, the batch's row in their place), the table, the keys at the foot. A
+// site with statistics has them at the table's right edge: a rail by default,
+// the column on a click or S, or expanded in place of the list. A picked fan's
+// preview unfolds right under their row (X66); only a fan the list does not
+// show (a filter or a search hides them) gets the preview as a panel under the
+// list, its height dragged on the border between them. It renders three view
+// models (`spenders.board`, `spenders.stats`, `preview` from `spenders`) and
+// asks for everything through UiAction.
 
 import { type JSX, type RefObject, type TargetedKeyboardEvent } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 
-import { type SpendersBoardVM } from '@cg/contracts/vm';
+import { type BatchVM, type SpendersBoardVM } from '@cg/contracts/vm';
 
-import { Boundary, Button, Dialog, KeysFooter, OverlayLayer, SearchBox, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
+import { Boundary, Button, Dialog, KeysFooter, OverlayLayer, SearchBox, activeIn, focusQuietly, isComposing, useDispatch, useI18n, useKit, useView } from '../kit';
 import { BOARD_CSS, Board, BoardFilters, firstFan, focusIsIdle, openChat, type BoardHandle } from './Board';
 import { PanelPreview, type PreviewFallback } from './preview/PanelPreview';
-import { STATS_CSS, StatsColumn, StatsExpanded } from './Stats';
+import { STATS_CSS, StatsColumn, StatsExpanded, StatsRail, type StatsShow } from './Stats';
 import { RefreshButton, isPlainKey, isTextEntry, type RefreshableView } from './window';
 
 /** Marks of the paints the UI reports; the controller starts the measure, the UI ends it (RenderMarks). */
@@ -98,6 +99,50 @@ function PanelSplit({ panelRef, height, onResize }: { readonly panelRef: RefObje
   );
 }
 
+/**
+ * The ticked fans' row in place of the chips (1.44.0): «Отмечено 3 · [Написать приветствие] · Снять · ИИ напишет
+ * черновик каждому — отправляете вы сами»; a batch already on its way says how far it got and can be stopped. The
+ * batch never sends: each result waits on its fan's card for the person's own click (X8).
+ */
+function PickedBar({ batch, picked }: { readonly batch: BatchVM; readonly picked: readonly string[] }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const total = batch.queued + batch.generating + batch.ready + batch.sent + batch.failed;
+  const running = batch.queued + batch.generating > 0;
+  return (
+    <div class="cg-sp__picked" role="group" aria-label={i18n.t('batch.pickAll')} data-cg-batch={running ? 'running' : 'picked'}>
+      <b class="cg-sp__pickedn cg-num">{i18n.t('spenders.batch.picked', { n: batch.picked })}</b>
+      <Button
+        label={i18n.t('spenders.batch.write')}
+        size="sm"
+        class="cg-sp__solid"
+        reason={batch.reason === null ? null : i18n.text(batch.reason)}
+        tooltip={i18n.t('batch.generateTooltip')}
+        onClick={() => void dispatch({ type: 'GenerateBatch', list: 'spenders' })}
+      />
+      <Button
+        label={i18n.t('spenders.batch.unpick')}
+        variant="quiet"
+        size="sm"
+        class="cg-sp__unpick"
+        // The ticks go; the drafts a batch already wrote stay on their rows.
+        onClick={() => void dispatch(picked.length === 0 ? { type: 'ClearBatch', list: 'spenders' } : { type: 'SetBatchPick', list: 'spenders', targetHandles: picked.slice(0, 1000), picked: false })}
+      />
+      {total === 0 ? (
+        <span class="cg-sp__hint">{i18n.t('spenders.batch.hint')}</span>
+      ) : (
+        <>
+          <span class="cg-sp__hint" role="status">
+            {i18n.t('batch.progress', { done: batch.ready + batch.sent, total })}
+            {batch.failed === 0 ? null : ` · ${i18n.t('batch.failedCount', { n: batch.failed })}`}
+          </span>
+          {running ? <Button label={i18n.t('batch.stop')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'StopBatch', list: 'spenders' })} /> : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function SpendersWindow(): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
@@ -107,6 +152,11 @@ export function SpendersWindow(): JSX.Element {
   // A board without the statistics (its controller's `statistics: false`; both sites have them): no column, no S, the preview next to the list alone.
   const statistics = board.statistics !== false;
   const expanded = statistics && stats.expanded;
+  const statsOpen = statistics && stats.open && !expanded;
+  const railRef = useRef<HTMLButtonElement>(null);
+  const collapseRef = useRef<HTMLButtonElement>(null);
+  const picked = useMemo(() => board.shelves.flatMap((shelf) => shelf.rows.filter((row) => row.batch?.picked === true).map((row) => row.handle)), [board.shelves]);
+  const ticking = board.batch !== undefined && board.batch.picked > 0;
   const boardRef = useRef<BoardHandle>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -179,6 +229,28 @@ export function SpendersWindow(): JSX.Element {
     previewWasOpen.current = board.previewOpen;
   }, [board.previewOpen]);
 
+  // The rail turned into the column or back (a click on it, ›): the button pressed is gone with it, and the focus would
+  // fall out of the window, where no key of ours is heard. It goes to the other one. S on a row keeps it on the row.
+  const statsWereOpen = useRef(statsOpen);
+  useLayoutEffect(() => {
+    if (statsWereOpen.current !== statsOpen && activeIn(root) === null) focusQuietly(statsOpen ? collapseRef.current : railRef.current);
+    statsWereOpen.current = statsOpen;
+  }, [statsOpen, root]);
+
+  // «Кому написать»: the list shows those fans — «Ждут ответа» sorts it, the rest filter it — from its first row.
+  const showFans = useCallback(
+    (what: StatsShow): void => {
+      const now = deps.client.getSnapshot({ of: 'spenders.board' });
+      const actions: Promise<unknown>[] = [];
+      if (what === 'waiting') {
+        if (now.sort !== 'waiting') actions.push(dispatch({ type: 'SetSpendersSort', sort: 'waiting' }));
+      } else if (now.filters.find((filter) => filter.id === what)?.pressed !== true) actions.push(dispatch({ type: 'SetSpendersFilter', filter: what }));
+      if (expanded) actions.push(dispatch({ type: 'SetStatsExpanded', expanded: false }));
+      void Promise.all(actions).then(() => requestAnimationFrame(() => boardRef.current?.scrollToTop()));
+    },
+    [deps, dispatch, expanded],
+  );
+
   // The statistics took the place of the list (S, «Развернуть»): the row that had the focus is gone with it, and
   // the focus would fall out of the window — to the page, where no key of ours is heard, so a second S could
   // not bring the list back. It goes to «Свернуть к списку», and back to the fan's row when the list returns.
@@ -221,9 +293,9 @@ export function SpendersWindow(): JSX.Element {
       event.preventDefault();
       searchRef.current?.focus();
     } else if (event.code === 'KeyS' && !event.shiftKey && statistics) {
-      // S — the statistics, expanded and back (SP-049).
+      // S — the statistics' column and its rail (SP-049); from the full view, back to the column beside the list.
       event.preventDefault();
-      void dispatch({ type: 'SetStatsExpanded', expanded: !expanded });
+      void dispatch(expanded ? { type: 'SetStatsExpanded', expanded: false } : { type: 'SetStatsOpen', open: !stats.open });
     }
   };
 
@@ -252,58 +324,56 @@ export function SpendersWindow(): JSX.Element {
         <div ref={frameRef} class="cg-sp__frame" onKeyDown={onKeyDown}>
           <div class="cg-sp__top">
             <header class="cg-sp__head">
-              <div class="cg-sp__titles">
-                <h2 class="cg-sp__title">{i18n.t('spenders.title')}</h2>
-                <span class="cg-sp__sub">
-                  {board.pageName === null ? null : <span class="cg-sp__page">{board.pageName}</span>}
-                  {/* «1000 из 1240 фанов» when the hub has more than the list holds; else «1240 фанов». */}
-                  {board.footer.loaded > 0 ? <span>{board.footer.total !== null && board.footer.total > board.footer.loaded ? i18n.plural('spenders.headOf', board.footer.total, { loaded: board.footer.loaded }) : i18n.plural('common.fans', board.footer.loaded)}</span> : null}
-                  {board.footer.stamp.asOf === null ? null : <span>{i18n.t('common.dataAsOf', { time: { time: board.footer.stamp.asOf } })}</span>}
-                </span>
-              </div>
+              <h2 class="cg-sp__title">{i18n.t('spenders.title')}</h2>
+              <span class="cg-sp__sub">
+                {board.pageName === null ? null : <span class="cg-sp__page">{board.pageName}</span>}
+                {/* «1000 из 1240 фанов» when the hub has more than the list holds; else «1240 фанов». */}
+                {board.footer.loaded > 0 ? <span>{board.footer.total !== null && board.footer.total > board.footer.loaded ? i18n.plural('spenders.headOf', board.footer.total, { loaded: board.footer.loaded }) : i18n.plural('common.fans', board.footer.loaded)}</span> : null}
+                {board.footer.stamp.asOf === null ? null : <span>{i18n.t('common.dataAsOf', { time: { time: board.footer.stamp.asOf } })}</span>}
+              </span>
+              <span class="cg-sp__grow" />
               {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
               <RefreshButton views={statistics ? BOARD_REFRESH : LIST_REFRESH} />
-              <Button
-                label={i18n.t('common.close')}
-                variant="line"
-                size="sm"
-                tooltip={i18n.t('spenders.closeTooltip')}
-                class="cg-sp__close"
-                onClick={closeWindow}
-              />
+              <Button label={i18n.t('common.close')} variant="quiet" size="sm" hotkey="Esc" tooltip={i18n.t('spenders.closeTooltip')} class="cg-sp__close" onClick={closeWindow} />
             </header>
-            <div class="cg-sp__bar">
-              <BoardFilters board={board} />
-              <span class="cg-sp__grow" />
-              <SearchBox
-                value={board.query}
-                label={i18n.t('spenders.search.placeholder')}
-                placeholder={i18n.t('spenders.search.placeholder')}
-                class="cg-sp__search"
-                inputRef={searchRef}
-                onQuery={(query) => void dispatch({ type: 'Search', list: 'spenders', query })}
-                onEnter={searchEnter}
-                onArrow={(_direction, query) => searchArrow(query)}
-              />
-            </div>
+            {ticking && board.batch !== undefined ? (
+              <div class="cg-sp__bar is-batch">
+                <PickedBar batch={board.batch} picked={picked} />
+              </div>
+            ) : (
+              <div class="cg-sp__bar">
+                <BoardFilters board={board} />
+                <span class="cg-sp__grow" />
+                <SearchBox
+                  value={board.query}
+                  label={i18n.t('spenders.search.placeholder')}
+                  placeholder={i18n.t('spenders.search.placeholder')}
+                  class="cg-sp__search"
+                  hotkey="/"
+                  inputRef={searchRef}
+                  onQuery={(query) => void dispatch({ type: 'Search', list: 'spenders', query })}
+                  onEnter={searchEnter}
+                  onArrow={(_direction, query) => searchArrow(query)}
+                />
+              </div>
+            )}
           </div>
           {expanded ? (
             <div class="cg-sp__cols is-stats">
               <Boundary surface={null}>
-                <StatsExpanded stats={stats} />
+                <StatsExpanded stats={stats} onShow={showFans} />
               </Boundary>
             </div>
           ) : (
             <div ref={bodyRef} class={`cg-sp__body${preview && !unfold ? ' has-panel' : ''}`}>
-              <div class={`cg-sp__cols${statistics ? '' : ' no-stats'}`}>
-                <Board board={board} boardRef={boardRef} unfolded={unfold ? unfolded : null} />
+              <div class={`cg-sp__cols${statistics ? (statsOpen ? ' has-column' : ' has-rail') : ' no-stats'}`}>
+                <Board board={board} boardRef={boardRef} unfolded={unfold ? unfolded : null} narrow={statsOpen} />
                 {/* A broken statistics column does not take the board down (ER-020). */}
-                {statistics ? <Boundary surface={null}>
-                  <StatsColumn stats={stats} onShelf={(shelfId) => {
-                    void dispatch({ type: 'RevealShelf', shelfId });
-                    boardRef.current?.scrollToShelf(shelfId);
-                  }} />
-                </Boundary> : null}
+                {statistics ? (
+                  <Boundary surface={null}>
+                    {statsOpen ? <StatsColumn stats={stats} onShow={showFans} collapseRef={collapseRef} /> : <StatsRail stats={stats} buttonRef={railRef} />}
+                  </Boundary>
+                ) : null}
               </div>
               {preview && !unfold ? (
                 <>
@@ -325,57 +395,76 @@ export function SpendersWindow(): JSX.Element {
   );
 }
 
-// The window (X67): the old extension's — 980 px at most over a scrim in the middle of the page, 1240 with the
-// statistics column; its head a serif title over a quiet line, «Обновить» and «Закрыть» as buttons; the chips and
-// the search a row of their own under it (they wrap in a narrow window). The body: the list (and the statistics
-// column); a preview of a fan the list does not show is a panel under them, dragged on its border.
+// The window (1.44.0, the owner's «Таблица»): 1320 px at most over a scrim in the middle of the page; a 56 px head —
+// «Spenders» and its quiet line, «Обновить», «Закрыть Esc» —, a 48 px row of the chips (one segmented group), «Фильтр
+// ▾» and the search at its right end, or the ticked fans' batch row in its place. The body: the table and, at its
+// right edge, the statistics — a 40 px rail or the 336 px column. A preview of a fan the list does not show is a
+// panel under them, dragged on its border. Terracotta is the board's «ждёт» alone: buttons here hover in grey.
 //
-// ≤ 680 px — the statistics column gives way; S still opens the statistics in full.
+// ≤ 680 px — the statistics give way; S still opens them in full.
 export const SPENDERS_CSS = `
 .cg-dialog.cg-dialog--wide.cg-sp {
-  top: 50%; translate: -50% -50%; width: min(980px, calc(100vw - 48px)); height: min(880px, calc(100vh - 48px)); max-height: none;
-  border-radius: 14px;
+  top: 50%; translate: -50% -50%; width: min(1320px, calc(100vw - 48px)); height: min(900px, calc(100vh - 48px)); max-height: none;
+  border-radius: 12px;
 }
-.cg-dialog.cg-dialog--wide.cg-sp.has-stats { width: min(1240px, calc(100vw - 48px)); }
-.cg-sp .cg-sp__top { display: block; flex: none; height: auto; padding: 0; border-bottom: 1px solid var(--cg-rule); }
-.cg-sp__head { display: flex; align-items: flex-start; gap: 8px; padding: 16px 16px 12px 22px; }
-.cg-sp__titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.cg-sp .cg-sp__title { margin: 0; font: 600 var(--cg-text-2xl)/1.2 var(--cg-serif); color: var(--cg-ink-strong); letter-spacing: -0.01em; }
-.cg-sp__sub { display: flex; gap: 6px; min-width: 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-sp .cg-sp__top { display: block; flex: none; height: auto; padding: 0; border-bottom: 0; }
+.cg-sp__head { display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 16px; }
+.cg-sp .cg-sp__title { flex: none; margin: 0 8px 0 0; font: 600 var(--cg-text-2xl)/24px var(--cg-font); color: var(--cg-ink-strong); letter-spacing: 0; }
+.cg-sp__sub { display: flex; gap: 6px; min-width: 0; font-size: var(--cg-text-sm2); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-sp__sub > * + *::before { content: "·"; margin-right: 6px; }
 .cg-sp__head > .cg-sp__refresh { margin: 0; }
+.cg-spw .cg-sp__head .cg-btn { height: 28px; padding: 0 8px; border-radius: var(--cg-r-sm); color: var(--cg-ink-2); font-size: var(--cg-text-sm2); }
+.cg-spw .cg-sp__head .cg-btn:hover { background: var(--cg-sunk); color: var(--cg-ink-strong); }
+.cg-spw .cg-sp__head .cg-btn kbd { margin-left: 2px; }
 .cg-sp__close { flex: none; }
-.cg-sp__bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 0 16px 12px 18px; min-width: 0; }
-.cg-sp__bar .cg-sp__filters { margin: 0; flex-wrap: wrap; gap: 6px; }
-.cg-sp__tiers { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.cg-sp__bar .cg-flt { height: 26px; padding: 0 10px; border-radius: var(--cg-r-pill); background: var(--cg-sunk); color: var(--cg-ink-2); font-weight: 500; }
-.cg-sp__bar .cg-flt:hover { background: var(--cg-hover); color: var(--cg-ink-strong); }
-.cg-sp__bar .cg-flt[aria-pressed="true"] { background: var(--cg-ink-strong); color: var(--cg-surface); }
-.cg-sp__bar .cg-flt[aria-pressed="true"] .cg-flt__n { color: inherit; opacity: 0.75; }
-.cg-sp__bar .cg-flt__n { font-family: var(--cg-mono); font-size: var(--cg-text-xs); }
-.cg-sp__bar .cg-choice { height: 26px; border-radius: var(--cg-r-pill); }
-.cg-sp__bar .cg-sp__search { width: 220px; height: 30px; }
+.cg-sp__bar { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; min-width: 0; border-bottom: 1px solid var(--cg-rule); }
+.cg-sp__bar.is-batch { background: var(--cg-sunk); border-top: 1px solid var(--cg-rule); }
+.cg-sp__bar .cg-sp__filters { margin: 0; gap: 8px; min-width: 0; }
+.cg-sp__seg { display: flex; gap: 2px; padding: 2px; border-radius: var(--cg-r-md); box-shadow: inset 0 0 0 1px var(--cg-rule-2); min-width: 0; overflow: hidden; }
+.cg-spw .cg-sp__seg .cg-flt { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border-radius: var(--cg-r-sm); color: var(--cg-ink-muted); font-size: var(--cg-text-sm2); font-weight: 400; }
+.cg-spw .cg-sp__seg .cg-flt:hover { background: var(--cg-sunk); color: var(--cg-ink-strong); }
+.cg-spw .cg-sp__seg .cg-flt[aria-pressed="true"] { background: var(--cg-seg-on); color: var(--cg-ink-strong); font-weight: 400; }
+.cg-spw .cg-sp__seg .cg-flt__n { margin: 0; color: var(--cg-ink-faint); font-family: inherit; font-size: inherit; }
+.cg-spw .cg-sp__seg .cg-flt[aria-pressed="true"] .cg-flt__n { color: var(--cg-ink-muted); }
+.cg-spw .cg-sp__bar .cg-choice { height: 28px; padding: 0 8px; border-radius: var(--cg-r-sm); color: var(--cg-ink-2); font-size: var(--cg-text-sm2); }
+.cg-spw .cg-sp__bar .cg-choice:hover { background: var(--cg-sunk); color: var(--cg-ink-strong); }
+.cg-spw .cg-sp__bar .cg-choice.is-on { background: var(--cg-seg-on); color: var(--cg-ink-strong); }
+.cg-spw .cg-sp__bar .cg-choice .cg-ico { width: 12px; height: 12px; color: var(--cg-ink-muted); }
+.cg-sp__bar .cg-sp__search { width: 264px; min-width: 160px; height: 32px; border-radius: var(--cg-r-md); }
+/* The window's menus (the period, «Фильтр») mark their choice in grey: terracotta is the board's «ждёт» alone. */
+.cg-spw .cg-menu__item.is-on { background: var(--cg-seg-on); color: var(--cg-ink-strong); }
+.cg-spw .cg-menu__item.is-on::after { color: var(--cg-ink-strong); }
+.cg-sp__picked { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1; }
+.cg-sp__pickedn { flex: none; font-weight: 600; color: var(--cg-ink-strong); }
+.cg-spw .cg-sp__solid.cg-btn { height: 28px; padding: 0 12px; border-radius: var(--cg-r-sm); background: var(--cg-ink); color: var(--cg-surface); font-size: var(--cg-text-sm2); font-weight: 600; box-shadow: none; }
+.cg-spw .cg-sp__solid.cg-btn:hover { background: var(--cg-ink-strong); color: var(--cg-surface); }
+.cg-spw .cg-sp__solid.cg-btn[aria-disabled="true"] { background: var(--cg-rule-2); color: var(--cg-ink-muted); }
+.cg-sp__picked .cg-sp__unpick { margin-left: -8px; color: var(--cg-ink-2); }
+.cg-sp__hint { min-width: 0; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-sp__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.cg-sp__cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 264px; }
-.cg-sp__cols.no-stats, .cg-sp__cols.is-stats { grid-template-columns: minmax(0, 1fr); }
+.cg-sp__cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.cg-sp__cols.has-rail { grid-template-columns: minmax(0, 1fr) 40px; }
+.cg-sp__cols.has-column { grid-template-columns: minmax(0, 1fr) 336px; }
 .cg-sp__cols > * { min-height: 0; min-width: 0; }
 .cg-sp__cols > * + * { border-left: 1px solid var(--cg-rule); }
 .cg-sp__split {
   flex: none; height: 9px; margin: -4px 0; position: relative; z-index: 4; cursor: row-resize; touch-action: none;
   background: linear-gradient(var(--cg-rule-2), var(--cg-rule-2)) center / 100% 1px no-repeat;
 }
-.cg-sp__split:hover, .cg-sp__split:focus-visible { outline: none; background-image: linear-gradient(var(--cg-clay-line), var(--cg-clay-line)); background-size: 100% 3px; }
+.cg-sp__split:hover, .cg-sp__split:focus-visible { outline: none; background-image: linear-gradient(var(--cg-ink-muted), var(--cg-ink-muted)); background-size: 100% 3px; }
 .cg-sp__panel { flex: none; height: clamp(180px, 46%, 560px); min-height: min(180px, 50%); max-height: calc(100% - 160px); display: flex; flex-direction: column; }
 .cg-sp__panel > * { flex: 1; min-height: 0; }
-.cg-sp .cg-keys { padding-left: 22px; }
+.cg-sp .cg-keys { min-height: 32px; padding-left: 16px; gap: 4px 16px; font-size: var(--cg-text-xs); }
 /* A short window (200 % zoom of a laptop) keeps its room for the list and the unfolded preview. */
 @media (max-height: 560px) { .cg-sp .cg-keys { display: none; } }
+@media (max-width: 1100px) { .cg-sp__bar .cg-sp__search { width: 200px; } }
 @media (max-width: 760px) {
-  .cg-dialog.cg-dialog--wide.cg-sp, .cg-dialog.cg-dialog--wide.cg-sp.has-stats { width: calc(100vw - 16px); height: calc(100vh - 16px); }
+  .cg-dialog.cg-dialog--wide.cg-sp { width: calc(100vw - 16px); height: calc(100vh - 16px); }
+  .cg-sp__bar { height: auto; min-height: 48px; flex-wrap: wrap; padding: 8px 16px; }
   .cg-sp__bar .cg-sp__search { width: 100%; }
 }
 @media (max-width: 680px) {
-  .cg-sp__cols { grid-template-columns: minmax(0, 1fr); }
+  .cg-sp__cols.has-rail, .cg-sp__cols.has-column { grid-template-columns: minmax(0, 1fr); }
   .cg-sp__cols > .cg-st { display: none; }
 }
 ${BOARD_CSS}

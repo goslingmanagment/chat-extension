@@ -388,6 +388,8 @@ export const SpendersStatsSchema = z.object({
       members: CountSchema,
       windowPayers: CountSchema,
       windowGrossMills: Mills,
+      /** What the model keeps of the tier's window (hub #739); absent — a hub before it: unknown («—»). */
+      windowNetMills: z.optional(Mills),
     }),
   ),
   silence: z.object({ d8to21: SilenceBucketSchema, over21: SilenceBucketSchema, unknown: SilenceBucketSchema }),
