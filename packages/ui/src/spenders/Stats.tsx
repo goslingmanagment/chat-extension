@@ -1,9 +1,9 @@
 // Spenders statistics (ui-design §4.15; SP-044…SP-049; 1.44.0 — the owner's
 // «Таблица»): three states — a 40 px rail at the window's right edge (every
 // opening of the board starts there), the column beside the list, and the full
-// view in place of the list. One money unit everywhere: what the model keeps
-// («на руки модели»), the unit of the platform's own earnings page; what the
-// fans paid is one muted line with the platform's share. Every number is the
+// view in place of the list. One money unit everywhere, so no label names it:
+// what the model keeps (net), the unit of the platform's own earnings page;
+// what the fans paid is one muted line with the platform's share. Every number is the
 // hub's, with its coverage and time (SpendersStatsVM); unknown is `—`, never 0.
 // A known zero of money is the words «трат нет» in muted ink (decision X55).
 // «Кому написать» opens those fans in the list: «Ждут ответа» sorts it, the
@@ -181,7 +181,7 @@ function Chart({ stats, axisMiddle }: { readonly stats: SpendersStatsVM; readonl
   );
 }
 
-/** «Тир · фанов · на руки»: the tiers from the richest down, the remainders muted under a hairline. */
+/** «Тир · фанов · сумма»: the tiers from the richest down, the remainders muted under a hairline. */
 function Tiers({ stats, period }: { readonly stats: SpendersStatsVM; readonly period: string }): JSX.Element | null {
   const i18n = useI18n();
   if (stats.shelves.length === 0) return null;
