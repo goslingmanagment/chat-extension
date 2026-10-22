@@ -204,7 +204,7 @@ export type ClaimState = z.infer<typeof ClaimStateSchema>;
 
 export const AUDIENCE_LIMITS = {
   defaultWindowHours: 48,
-  quickWindowsHours: [24, 48, 72, 168],
+  quickWindowsHours: [1, 3, 6, 12, 24, 48, 72, 168, 336, 720],
   maxWindowHours: 720,
   defaultLimit: 50,
   maxLimit: 100,

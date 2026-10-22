@@ -13,7 +13,7 @@ import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type GreetingStatusVM, type I18n, type NewcomerRowVM, type NewcomersVM } from '@cg/contracts/vm';
 
 import { Dot, Icon, Spinner, ViewState, useDispatch, useI18n } from '../kit';
-import { RowSendButton, StatusMenu, periodText, type BatchWords, type RowParts } from './frame';
+import { RowSendButton, StatusMenu, type BatchWords, type RowParts } from './frame';
 import { HubCard } from './hub-card';
 import { NewcomersWindowOf, RefreshButton, type NewcomersSite } from './window';
 
@@ -113,12 +113,17 @@ function RowSend({ row }: { readonly row: NewcomerRowVM }): JSX.Element | null {
   return <RowSendButton row={row} label={i18n.t('newcomers.row.send')} tooltip={i18n.t('newcomers.row.sendTooltip')} blocked={i18n.t('newcomers.row.sendBlocked')} />;
 }
 
-/** What the rows of ChatSpace's list say: «@handle · новый, подписка 14 мин назад», the greeting, a saved draft, «Отправить». */
+/** «14 мин назад» of a new fan, as on Fansly; «продлил подписку 2 ч назад», «вернулся 2 ч назад» of the others. */
+function subscribedText(i18n: I18n, row: NewcomerRowVM): string {
+  const age = i18n.formatAge(row.subscribedAt);
+  return row.kind === 'new' ? i18n.t('common.agoSuffix', { age }) : i18n.t('newcomers.cardMeta', { kind: i18n.t(KIND_KEYS[row.kind]), age });
+}
+
+/** What the rows of ChatSpace's list say: «@handle · 14 мин назад», the greeting, a saved draft, «Отправить». */
 const ROW_PARTS: RowParts = {
   Status: GreetingStatus,
   End: RowSend,
-  meta: (i18n: I18n, row: NewcomerRowVM) =>
-    `${row.username === null ? '' : `@${row.username} · `}${i18n.t('newcomers.cardMeta', { kind: i18n.t(KIND_KEYS[row.kind]), age: i18n.formatAge(row.subscribedAt) })}`,
+  meta: (i18n: I18n, row: NewcomerRowVM) => `${row.username === null ? '' : `@${row.username} · `}${subscribedText(i18n, row)}`,
   tag: (i18n: I18n, row: NewcomerRowVM) => (row.hasDraft ? i18n.t(row.draftStale ? 'newcomers.draftStale' : 'newcomers.draft') : null),
 };
 
@@ -154,18 +159,23 @@ function Refresh({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   return <RefreshButton label={i18n.t('newcomers.refresh')} busy={vm.scan !== null || vm.view.s === 'loading'} />;
 }
 
-/** What is in the list and whose name Hi greets in, the data's time; «Результат неполный» with why. */
+/** «21 окт, 09:19 — 22 окт, 09:19 · местное время»: the dates the list covers, as on Fansly, up to the hub's data. */
+function rangeText(i18n: I18n, vm: NewcomersVM): string | null {
+  const to = vm.footer.stamp.asOf;
+  if (to === null) return null;
+  const from = Date.parse(to) - vm.windowHours * 3_600_000;
+  return i18n.t('newcomers.range', { from: i18n.formatTime(from, 'datetime'), to: i18n.formatTime(to, 'datetime') });
+}
+
+/** The dates the list covers and whose name Hi greets in; «Результат неполный» with why. */
 function Lines({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   const i18n = useI18n();
-  const summary = [i18n.t('newcomers.footer', { n: vm.footer.count, window: periodText(i18n, vm.windowHours) }), vm.personaLabel === null ? null : i18n.t('newcomers.personaNote', { persona: vm.personaLabel })]
+  const summary = [rangeText(i18n, vm), vm.personaLabel === null ? null : i18n.t('newcomers.personaNote', { persona: vm.personaLabel })]
     .filter((part) => part !== null)
     .join(' · ');
   return (
     <>
-      <div class="cg-nw__line cg-nw__summary">
-        <span>{summary}</span>
-        {vm.footer.stamp.asOf === null ? null : <span>{i18n.t('common.dataAsOf', { time: { time: vm.footer.stamp.asOf } })}</span>}
-      </div>
+      {summary === '' ? null : <div class="cg-nw__line cg-nw__summary">{summary}</div>}
       {vm.incomplete === null ? null : (
         <div class="cg-nw__line cg-nw__incomplete" role="status">
           <b>{i18n.t('newcomers.incomplete')}</b> <span>{i18n.text(vm.incomplete)}</span>
@@ -203,7 +213,8 @@ const nothing = (): null => null;
 
 /** ChatSpace's adapter of the family's window. */
 export const HUB_SITE: NewcomersSite = {
-  title: (i18n) => i18n.t('newcomers.title'),
+  // «Новые подписчики», as the old OnlyFans client named it; Fansly's is «Новые фоловеры» (a follow is not a subscription there).
+  title: (i18n) => i18n.t('newcomers.listLabel'),
   listLabel: (i18n) => i18n.t('newcomers.listLabel'),
   tabLabel: (i18n, tab) => i18n.text(tab.label),
   period: (i18n) => ({ lead: i18n.t('newcomers.period'), menuLabel: i18n.t('newcomers.window.label'), tooltip: i18n.t('newcomers.window.label') }),

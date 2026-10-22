@@ -180,7 +180,7 @@ export const UI_TEXT_KEYS = [
   'newcomers.title', 'newcomers.personaNote', 'newcomers.col.fan', 'newcomers.col.kind', 'newcomers.col.subscription', 'newcomers.col.greeting',
   'newcomers.kind.new', 'newcomers.kind.renewed', 'newcomers.kind.returning', 'newcomers.status.none', 'newcomers.status.sendingOther',
   'newcomers.status.sending', 'newcomers.status.stopped',
-  'newcomers.status.greeted', 'newcomers.status.replied', 'newcomers.hint', 'newcomers.footer', 'newcomers.cardMeta', 'newcomers.stopped', 'newcomers.listLabel',
+  'newcomers.status.greeted', 'newcomers.status.replied', 'newcomers.hint', 'newcomers.range', 'newcomers.cardMeta', 'newcomers.stopped', 'newcomers.listLabel',
   'newcomers.cardLabel', 'newcomers.noAutoSend', 'newcomers.tab.todo', 'newcomers.tab.all', 'newcomers.filter.any', 'newcomers.filter.none',
   'newcomers.filter.sending', 'newcomers.filter.stopped', 'newcomers.filter.greeted', 'newcomers.filter.replied', 'newcomers.claim.renew',
   'newcomers.claim.release', 'newcomers.claim.mine', 'newcomers.incomplete', 'newcomers.incomplete.body', 'newcomers.draft', 'newcomers.draftStale',
