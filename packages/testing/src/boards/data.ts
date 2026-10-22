@@ -286,8 +286,8 @@ export function newcomerRows(ctx: ScenarioCtx, selected: keyof typeof NEWCOMER_F
   return [
     row('tomasz', 'new', 14, tomasz),
     row('jake', 'renewed', 2 * H, { s: 'greeted', at: iso(ctx.now - HOUR) }),
-    // A colleague's lease: no name and no countdown (ui-design §12 п. 5).
-    row('leo', 'returning', 5 * H, { s: 'claim-other' }),
+    // A colleague's part on its way: a quiet note, no hold (2026-10-22).
+    row('leo', 'returning', 5 * H, { s: 'sending-other' }),
   ];
 }
 

@@ -507,10 +507,12 @@ function OpenLink({ href }: { readonly href: string }): JSX.Element {
   );
 }
 
-/** The words of a mark over an unchanged AI text, by its reason (ui-design §4.7; Fansly's catalog has the window check's). */
-
-/** Where the card's click stands: a spinner while it runs, «✓ Отправлено 09:21», a dot and the code's line otherwise. */
-function GreetingState({ greeting }: { readonly greeting: NewcomerGreetingVM }): JSX.Element | null {
+/**
+ * Where the card's click stands: a spinner while it runs, «✓ Отправлено 09:21», a dot and the code's line otherwise. An
+ * unknown outcome says what to do, as ChatSpace's preview does: open the chat; if the message is not there, send again
+ * («как раньше», the owner 2026-10-20) — never by itself.
+ */
+function GreetingState({ greeting, openHref }: { readonly greeting: NewcomerGreetingVM; readonly openHref: string | null }): JSX.Element | null {
   const i18n = useI18n();
   const state = greeting.state;
   switch (state.s) {
@@ -538,14 +540,29 @@ function GreetingState({ greeting }: { readonly greeting: NewcomerGreetingVM }):
         </div>
       );
     case 'refused':
-    case 'uncertain':
       return (
         <div class="cg-fnc__gst" role="status" data-cg-code={state.failure.code}>
-          <Dot kind={state.s === 'refused' ? 'danger' : 'ink'} />
-          <b>{fanslyText(i18n, state.s === 'refused' ? 'fansly.newcomers.greeting.refused' : 'fansly.newcomers.greeting.uncertain')}</b>
+          <Dot kind="danger" />
+          <b>{fanslyText(i18n, 'fansly.newcomers.greeting.refused')}</b>
           <span class="cg-fnc__gcode">
             ChatGoose · {state.failure.code}: {failureView(i18n, state.failure).title}
-            {state.s === 'refused' && state.failure.retryAt !== null ? <RetryIn until={state.failure.retryAt} /> : null}
+            {state.failure.retryAt !== null ? <RetryIn until={state.failure.retryAt} /> : null}
+          </span>
+        </div>
+      );
+    case 'uncertain':
+      return (
+        <div class="cg-fnc__gst" role="status" data-cg-code={state.failure.code} data-cg-uncertain="1">
+          <Dot kind="ink" />
+          <b>{fanslyText(i18n, 'fansly.newcomers.greeting.uncertain')}</b>
+          <span class="cg-fnc__gcode">
+            {fanslyText(i18n, 'fansly.newcomers.greeting.uncertainTail')}
+            {openHref === null ? null : (
+              <>
+                {' '}
+                <OpenLink href={openHref} />
+              </>
+            )}
           </span>
         </div>
       );
@@ -561,7 +578,7 @@ function RetryIn({ until }: { readonly until: number }): JSX.Element | null {
 }
 
 /** The card's greeting (R20 P10c): the draft, «AI» while it is the generation unchanged, «Сгенерировать», «Открыть и вставить», «Отправить →». */
-function Greeting({ handle, greeting, onSent }: { readonly handle: string; readonly greeting: NewcomerGreetingVM; readonly onSent: (handle: string) => void }): JSX.Element {
+function Greeting({ handle, greeting, openHref, onSent }: { readonly handle: string; readonly greeting: NewcomerGreetingVM; readonly openHref: string | null; readonly onSent: (handle: string) => void }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const draft = useOwnEchoes(greeting.text, handle);
@@ -572,7 +589,7 @@ function Greeting({ handle, greeting, onSent }: { readonly handle: string; reado
   const why = (): string => {
     if (running) return runningText();
     if (greeting.waiting) return fanslyText(i18n, 'fansly.newcomers.greeting.waiting');
-    if (s === 'sent' || s === 'uncertain') return fanslyText(i18n, s === 'sent' ? 'fansly.newcomers.greeting.sent' : 'fansly.newcomers.greeting.uncertain', { time: '' }).trim();
+    if (s === 'sent') return fanslyText(i18n, 'fansly.newcomers.greeting.sent', { time: '' }).trim();
     return fanslyText(i18n, 'fansly.newcomers.greeting.placeholder');
   };
   const sendReason = greeting.canSend || s === 'sending' ? null : greeting.sendBlocked !== null ? failureView(i18n, greeting.sendBlocked).title : why();
@@ -622,7 +639,7 @@ function Greeting({ handle, greeting, onSent }: { readonly handle: string; reado
         />
         <span class="cg-nw__grow" />
         <Button
-          label={fanslyText(i18n, 'fansly.newcomers.greeting.send')}
+          label={fanslyText(i18n, s === 'uncertain' ? 'fansly.newcomers.greeting.sendAgain' : 'fansly.newcomers.greeting.send')}
           variant="send"
           busy={s === 'sending'}
           tooltip={fanslyText(i18n, 'fansly.newcomers.noAutoSend')}
@@ -634,7 +651,7 @@ function Greeting({ handle, greeting, onSent }: { readonly handle: string; reado
           }
         />
       </div>
-      <GreetingState greeting={greeting} />
+      <GreetingState greeting={greeting} openHref={openHref} />
     </div>
   );
 }
@@ -674,7 +691,7 @@ function Card({ card, onSent }: { readonly card: NewcomerCardVM; readonly onSent
       )}
       <History key={card.handle} card={card} />
       <Verdict card={card} />
-      {greeting === null ? null : <Greeting handle={card.handle} greeting={greeting} onSent={onSent} />}
+      {greeting === null ? null : <Greeting handle={card.handle} greeting={greeting} openHref={card.openHref} onSent={onSent} />}
     </section>
   );
 }

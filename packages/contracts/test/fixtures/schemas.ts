@@ -418,11 +418,11 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
     ],
   ),
   fixture('DispatchTicket', C.DispatchTicketSchema, [dispatchTicket], [{ ...dispatchTicket, ticket: '' }]),
-  fixture('PreviewSendConditionCode', C.PreviewSendConditionCodeSchema, ['CG-SEND-HISTORY', 'CG-CONTEXT-CHANGED', 'CG-CLAIM-BUSY'], ['CG-SEND-QUEUE', 'CG-NETWORK']),
+  fixture('PreviewSendConditionCode', C.PreviewSendConditionCodeSchema, ['CG-SEND-FAN', 'CG-CONTEXT-CHANGED', 'CG-CLAIM-BUSY'], ['CG-SEND-QUEUE', 'CG-NETWORK', 'CG-SEND-HISTORY', 'CG-SEND-FUSE']),
   fixture(
     'PreviewSendPreflight',
     C.PreviewSendPreflightSchema,
-    [{ ok: true }, { ok: false, code: 'CG-SEND-BUSY' }, { ok: false, code: 'CG-SEND-HISTORY' }],
+    [{ ok: true }, { ok: false, code: 'CG-SEND-BUSY' }, { ok: false, code: 'CG-SEND-FAN' }],
     [{ ok: false }, { ok: true, code: 'CG-SEND-BUSY' }, { ok: false, code: 'CG-SEND-UNCERTAIN' }],
   ),
   fixture('PendingId', C.PendingIdSchema, [uuid(7)], ['']),

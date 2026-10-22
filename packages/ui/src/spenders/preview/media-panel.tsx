@@ -42,9 +42,10 @@ function Notes({ vm, handle }: MediaPanelProps): JSX.Element | null {
         {i18n.t('preview.media.tagsLoading')}
       </span>,
     );
+  // A warning, not a hold (2026-10-22): the picks go without tags; «Повторить» asks again.
   if (vm.tags === 'failed')
     notes.push(
-      <span key="tags" class="cg-pvm__bad">
+      <span key="tags" class="cg-pvm__warn" data-cg-media-tags="failed">
         {i18n.t('preview.media.tagsFailed')}
         <Button label={i18n.t('preview.media.retry')} size="sm" variant="quiet" onClick={() => void dispatch({ type: 'RetryMedia', targetHandle: handle })} />
       </span>,
@@ -263,6 +264,7 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm__line .cg-pvm__notes { padding: 0 0 4px; }
 .cg-pvm__bad { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-danger); }
 .cg-pvm__wait-line { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-muted); }
+.cg-pvm__warn { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-warn-ink); }
 `;
 
 export const MEDIA_PANEL_STYLES: StyleSource = { id: 'cg-preview-media', css: MEDIA_PANEL_CSS };

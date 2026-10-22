@@ -56,8 +56,8 @@ const codeLine = (index: number): string => textOf(part(index).querySelector('.c
 const sends = (): UiAction[] => (ui?.actions() ?? []).filter((action) => action.type === 'SendPart');
 
 describe('[SP-054] «Отправить»: the states that must not send', () => {
-  it('[X8-06] unavailable by the fuse (decision X25): CG-SEND-FUSE in plain words — what happened, where to reset it, insert by hand; nothing is sent', async () => {
-    ui = await mountBoardSettled('spenders', previewOf([{ s: 'unavailable', code: 'CG-SEND-FUSE', reason: msg('send.reason.fuse') }]));
+  it('[X8-06] unavailable (the page switched the preview send off): the reason in plain words, insert by hand; nothing is sent', async () => {
+    ui = await mountBoardSettled('spenders', previewOf([{ s: 'unavailable', code: 'CG-SEND-OFF', reason: msg('send.reason.off') }]));
     const send = part(0).querySelector('.cg-pvs__send') as HTMLElement;
     expect(send.getAttribute('aria-disabled')).toBe('true');
     expect(buttons(0)).toEqual(['Отправить', 'Открыть и вставить', 'Копировать часть 1']);
@@ -156,8 +156,8 @@ describe('[SP-054] one click sends one part; nothing sends by itself', () => {
   it('[HK-042] [NF-022] Enter opens-and-inserts only where the row shows that button: never on an uncertain or waiting part, whatever the model sent', async () => {
     const uncertain: PreviewSendView = { s: 'uncertain', since: SENT_AT, attemptId: uuid(711) };
     const cases: readonly { readonly name: string; readonly states: readonly PreviewSendView[]; readonly rows: readonly (string | null)[] }[] = [
-      // One uncertain part holds the group (§6.7.8, §6.7.9).
-      { name: 'uncertain and the parts held behind it', states: [{ s: 'sent', at: SENT_AT }, uncertain, { s: 'available' }], rows: [null, 'uncertain', 'held-group'] },
+      // An uncertain part: «Открыть чат» and «Отправить ещё раз», no insert (it holds nothing behind it, audit row 2).
+      { name: 'uncertain', states: [{ s: 'sent', at: SENT_AT }, uncertain], rows: [null, 'uncertain'] },
       // A part in work: itself and the ones waiting behind it.
       { name: 'in work and the parts after it', states: [{ s: 'sending' }, { s: 'available' }, { s: 'available' }], rows: ['sending', 'after', 'after'] },
       { name: 'queued', states: [{ s: 'queued' }], rows: ['queued'] },

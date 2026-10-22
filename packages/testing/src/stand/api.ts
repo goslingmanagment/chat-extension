@@ -257,6 +257,10 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
 
   // 1.30.0 (X53): the release forms of media, as ChatSpace's composer asks before it tags a message with them.
   if (method === 'POST' && rest === 'platforms/onlyfans/vault/media/release-forms') {
+    if (state.failReleaseForms) {
+      sendJson(response, 503, errorBody(503));
+      return log(503, { accountId });
+    }
     const body = await readJson(request);
     const ids = typeof body === 'object' && body !== null && Array.isArray((body as Record<string, unknown>)['media_ids']) ? ((body as Record<string, unknown>)['media_ids'] as unknown[]).map(String) : [];
     sendJson(response, 200, { items: ids.flatMap((id) => STAND_VAULT.forms[id] ?? []) });

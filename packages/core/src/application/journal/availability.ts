@@ -171,7 +171,6 @@ export function previewAvailability(vm: PreviewVM, say: Say): AvailabilityMap | 
   const claim = vm.claim;
   if (claim !== null) {
     if (claim.s === 'none' || claim.s === 'mine') out.set('claim', AVAILABLE);
-    else if (claim.s === 'elsewhere') out.set('claim', off('elsewhere', null, say(claim.note)));
     else out.set('claim', ofError(claim.s, claim.error));
   }
   if (vm.media !== null) out.set('media', vm.media.blocked === null ? AVAILABLE : off('media', 'CG-SEND-MEDIA', say(vm.media.blocked)));
@@ -179,7 +178,7 @@ export function previewAvailability(vm: PreviewVM, say: Say): AvailabilityMap | 
 }
 
 /** Row states of «Новые» that let the person greet the fan. */
-const ROW_OPEN: ReadonlySet<string> = new Set(['none', 'claim-mine', 'ready', 'pending', 'checking', 'unverified', 'reply']);
+const ROW_OPEN: ReadonlySet<string> = new Set(['none', 'sending-other', 'replied', 'ready', 'pending', 'checking', 'unverified', 'reply']);
 
 /** «Новые»: the list's own state, every row's (who can be greeted, who not and why), the selected card's buttons, the batch. */
 export function newcomersAvailability(vm: NewcomersVM, say: Say): AvailabilityMap | null {

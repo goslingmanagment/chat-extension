@@ -31,6 +31,8 @@ export class StandState {
   private fansGate: { readonly opened: Promise<void>; readonly open: () => void } | null = null;
   /** While true, the socket never answers `auth` with `authenticated`. */
   withholdAuth = false;
+  /** While true, the release forms of vault media (X53) answer 503: the picker's co-creator tags cannot be read. */
+  failReleaseForms = false;
   /** What the socket sends on its own (summaries, typing). */
   traffic: SocketTraffic = DEFAULT_SOCKET_TRAFFIC;
   /** Fans the presence endpoint (`fans-online`) answers as online, by `${accountId}:${fanId}`; nobody on start. */
@@ -49,6 +51,7 @@ export class StandState {
     this.holdMimic(false);
     this.holdFans(false);
     this.withholdAuth = false;
+    this.failReleaseForms = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.onlineFans.clear();
     this.scripts.clear();

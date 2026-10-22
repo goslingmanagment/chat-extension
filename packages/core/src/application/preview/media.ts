@@ -18,7 +18,9 @@
 //   is asked for the media a page shows, once per medium and fan.
 // - The release forms of the picks (the creators a message with them is
 //   tagged with, as ChatSpace's own composer tags it) are asked after every
-//   change of the picks; until they are known the picks cannot go.
+//   change of the picks; while that short read runs the picks wait. A read
+//   that failed is a warning the person passes (2026-10-22, «правь все»): the
+//   picks go without tags, and «Повторить» asks again.
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type ChatRef } from '@cg/contracts/ids';
@@ -33,6 +35,9 @@ import { errorOf, msg } from '../boards/views';
 
 /** The release forms are asked this long after the last change of the picks. */
 export const MEDIA_TAGS_DEBOUNCE_MS = 300;
+
+/** No co-creator tags: what the picks go with when their release forms could not be read. */
+const NO_TAGS: MediaTags = { users: [], guests: [] };
 
 interface List<T> {
   items: T[];
@@ -184,7 +189,8 @@ export class MediaDesk {
     if (picker === undefined || picker.attachment.picks.length === 0) return { kind: 'none' };
     const blocked = this.blockedReason(picker);
     if (blocked !== null) return { kind: 'blocked', reason: blocked };
-    const media = picker.tags === null ? null : sendMediaOf(picker.attachment, picker.tags.value);
+    // A failed tags read leaves `value` empty: the picks go without tags (the panel's note says so).
+    const media = picker.tags === null ? null : sendMediaOf(picker.attachment, picker.tags.state === 'ok' ? picker.tags.value : NO_TAGS);
     return media === null ? { kind: 'blocked', reason: msg('preview.media.blocked.price') } : { kind: 'media', media };
   }
 
@@ -417,7 +423,6 @@ export class MediaDesk {
     if (problem?.kind === 'price') return msg('preview.media.blocked.price');
     if (problem?.kind === 'all-free') return msg('preview.media.blocked.allFree');
     if (picker.tags === null || picker.tags.state === 'loading') return msg('preview.media.blocked.tagsLoading');
-    if (picker.tags.state === 'failed') return msg('preview.media.blocked.tagsFailed');
     return null;
   }
 }

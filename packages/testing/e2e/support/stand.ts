@@ -176,6 +176,10 @@ export const standServer = {
   holdFans: async (hold: boolean): Promise<void> => {
     await control('/__stand/state', { body: { holdFans: hold } });
   },
+  /** X53: the release forms of vault media answer 503 while on (the picker's co-creator tags cannot be read). */
+  failReleaseForms: async (fail: boolean): Promise<void> => {
+    await control('/__stand/state', { body: { failReleaseForms: fail } });
+  },
   /** Who of the account's fans the presence endpoint (`fans-online`) answers as online; a page sees it at its poll's next look. */
   presence: async (accountId: string, online: readonly string[]): Promise<void> => {
     await control('/__stand/presence', { body: { accountId, online } });

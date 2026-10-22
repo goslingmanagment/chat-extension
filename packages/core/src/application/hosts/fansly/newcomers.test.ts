@@ -474,7 +474,7 @@ function greetingWorld(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2)], opt
 
 describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10c)', () => {
 
-  it('[FS-NEW-3] uncertain and sent survive reopening and another tab, disabling both send and native insert', async () => {
+  it('[FS-NEW-3] sent and uncertain survive reopening and another tab: a sent greeting is never sent or inserted again (X5); an unknown one says so and lets the person send again by their own click', async () => {
     for (const state of ['uncertain', 'sent'] as const) {
       const w = greetingWorld();
       await w.open();
@@ -483,25 +483,35 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
       await w.send(1);
       await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
       await w.open();
-      expect(w.greeting()).toMatchObject({ state: { s: state }, canSend: false, canInsert: false, canGenerate: false });
+      const open = state === 'uncertain';
+      expect(w.greeting()).toMatchObject({ state: { s: state }, canSend: open, canInsert: open, canGenerate: open });
       const other = greetingWorld(undefined, { background: w.background });
       await other.open();
-      expect(other.greeting()).toMatchObject({ state: { s: state }, canSend: false, canInsert: false });
-      expect(await other.controller.dispatch({ type: 'InsertNewcomerGreeting', targetHandle: other.handle(1) })).toMatchObject({ ok: false });
-      expect(await other.send(1)).toMatchObject({ ok: false });
-      expect(other.site.navigations).toHaveLength(0);
+      expect(other.greeting()).toMatchObject({ state: { s: state }, canSend: open, canInsert: open });
+      // Nothing is sent again by itself: one click so far.
       expect(w.background.of('fansly.followers.send')).toHaveLength(1);
+      if (state === 'sent') {
+        expect(await other.controller.dispatch({ type: 'InsertNewcomerGreeting', targetHandle: other.handle(1) })).toMatchObject({ ok: false });
+        expect(await other.send(1)).toMatchObject({ ok: false });
+        expect(other.site.navigations).toHaveLength(0);
+        expect(w.background.of('fansly.followers.send')).toHaveLength(1);
+      } else {
+        // «Отправить ещё раз» is the person's own new click: one more request.
+        await other.send(1);
+        expect(w.background.of('fansly.followers.send')).toHaveLength(2);
+      }
     }
   });
 
-  it('[FS-NEW-3] a background refusal because another tab already sent or is uncertain keeps the native-insert ban', async () => {
+  it('[FS-NEW-3] a background refusal because another tab already sent keeps the native-insert ban; an unknown outcome there holds nothing', async () => {
     for (const code of ['CG-SEND-UNCERTAIN', 'CG-SEND-PART'] as const) {
       const w = greetingWorld();
       await w.open();
       await w.type(1, 'Hi!');
       w.background.sendAnswer = () => ({ ok: false, error: { code } });
       await w.send(1);
-      expect(w.greeting()).toMatchObject({ state: { s: code === 'CG-SEND-PART' ? 'sent' : 'uncertain' }, canSend: false, canInsert: false });
+      const sent = code === 'CG-SEND-PART';
+      expect(w.greeting()).toMatchObject({ state: { s: sent ? 'sent' : 'uncertain' }, canSend: !sent, canInsert: !sent });
     }
   });
 
@@ -519,10 +529,11 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
       w.background.next.set('fansly.followers.send', { ok: false, error: { code } });
       w.background.release();
       await send;
-      expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' }, canSend: false, canInsert: false });
+      // Unknown: said, never sent again by itself — the person may check the chat and send again.
+      expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' }, canSend: true, canInsert: true });
       await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
       await w.open();
-      expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' }, canInsert: false });
+      expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' } });
       w.background.attempts.set(fan(1), { attemptId: click.attemptId, fanRef: fan(1), state: 'sent', proof: 'resolved-sent' });
       w.background.reconnect();
       await settle();
@@ -675,7 +686,7 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     expect(edited['opId']).toBeUndefined();
   });
 
-  it('[X69] [NF-018] a freshness warning is advisory, but a changed history still blocks the old AI draft', async () => {
+  it('[X69] [NF-018] a freshness warning is advisory, and a history that changed after the AI draft is a note: the draft goes on the history the card shows (as the old window)', async () => {
     const w = greetingWorld();
     await w.open();
     const run = w.generate(1);
@@ -687,12 +698,12 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     expect(w.greeting()).toMatchObject({ mark: 'unverified', canSend: true });
     w.background.change(w.background.last().view.passId, [wireRow(1, { historyRevision: uuid(0x777) })]);
     await settle();
-    expect(w.greeting()).toMatchObject({ canSend: false, sendBlocked: { code: 'CG-FNEW-HISTORY' } });
-    expect(await w.send(1)).toMatchObject({ ok: false });
-    expect(w.background.of('fansly.followers.send')).toEqual([]);
+    expect(w.greeting()).toMatchObject({ canSend: true, sendBlocked: null, stale: true, ai: true });
+    await w.send(1);
+    expect(w.background.of('fansly.followers.send')).toMatchObject([{ text: 'Hey Fan 1!', historyRevision: uuid(0x777), admission: { kind: 'ai' } }]);
   });
 
-  it('[NF-018] [NF-024] [NF-023] the background’s refusal names its reason and nothing is repeated — the history changed after the review, a colleague’s lease, an unknown outcome; a second click while one runs is busy', async () => {
+  it('[NF-018] [NF-024] [NF-023] the background’s refusal names its reason and nothing is repeated by itself — the history changed between the click and the send, a colleague’s lease, an unknown outcome; a second click while one runs is busy', async () => {
     const w = greetingWorld();
     await w.open();
     await w.type(1, 'Hi!');
@@ -704,10 +715,11 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
     expect(w.greeting()?.state).toEqual({ s: 'refused', failure: { code: 'CG-CLAIM-BUSY', retryAt: null } });
     w.background.sendAnswer = (payload) => ({ ok: true, attempt: { attemptId: payload.attemptId, fanRef: payload.fanRef, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' } });
     await w.send(1);
-    expect(w.greeting()).toMatchObject({ state: { s: 'uncertain', failure: { code: 'CG-SEND-UNCERTAIN' } }, canSend: false });
-    // Unknown: never sent again from here.
-    expect(await w.send(1)).toMatchObject({ ok: false });
+    expect(w.greeting()).toMatchObject({ state: { s: 'uncertain', failure: { code: 'CG-SEND-UNCERTAIN' } }, canSend: true });
+    // Unknown: never sent again by itself; «Отправить ещё раз» is the person's own click.
     expect(w.background.of('fansly.followers.send')).toHaveLength(3);
+    await w.send(1);
+    expect(w.background.of('fansly.followers.send')).toHaveLength(4);
 
     const v = greetingWorld();
     await v.open();

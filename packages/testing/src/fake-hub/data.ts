@@ -682,12 +682,6 @@ export class DataModel {
     return { window: window.map((message) => ({ messageRef: message.messageId, isFromFan: message.sender === 'fan', at: message.at })), stores };
   }
 
-  /** The times (ms) of the fan's messages with a text among what the reader serves — the hub's Ping segment reads them. */
-  fanTextTimes(page: FakePage, ref: string, requested: number): number[] {
-    const served = this.archive(page, ref).messages.filter((message) => !message.deleted && message.held !== true).slice(0, requested);
-    return served.flatMap((message) => (message.sender === 'fan' && message.text.trim() !== '' && message.at !== null ? [Date.parse(message.at)] : []));
-  }
-
   /** The head the generation reader serves (context_v1) and whether a message id is in the archive. */
   archiveFacts(page: FakePage, fanRef: string): { head: FeedItem | null; total: number; states: (id: string) => 'included' | 'absent' | 'deleted' } {
     const archive = this.archive(page, fanRef);

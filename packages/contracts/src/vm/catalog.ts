@@ -113,6 +113,8 @@ export const UNAVAILABLE_REASONS = {
   'needs-draft': { key: 'dock.reason.needsDraft', code: 'CG-GATE-DRAFT' },
   'no-history': { key: 'dock.reason.noHistory', code: 'CG-GATE-HISTORY' },
   'hi-gate': { key: 'dock.reason.hiGate', code: 'CG-GATE-HI' },
+  /** «Новые»: a part of the fan's greeting is confirmed — no second greeting (owner X5); the rest is Reply's. */
+  'hi-greeted': { key: 'dock.reason.hiGreeted', code: 'CG-GATE-HI' },
   'ping-gate': { key: 'dock.reason.pingGate', code: 'CG-GATE-PING' },
   /** Ping is for a conversation of at least ten messages (the owner, 2026-10-21; the hub's `gate_min_messages` on Ping). */
   'ping-few': { key: 'dock.reason.pingFew', code: 'CG-GATE-HISTORY' },
@@ -130,17 +132,12 @@ export const UNAVAILABLE_REASONS = {
   /** Audit 2026-10-20 №15: a conversation is open, but the page has not named its account or fan (old «Аккаунт не определён»). */
   'host-unidentified': { key: 'dock.reason.hostUnidentified', code: 'CG-HOST-ACCOUNT-UNKNOWN' },
   'claim-busy': { key: 'dock.reason.claimedBy', code: 'CG-CLAIM-BUSY' },
-  /** The same person holds the lease in another tab or on another device (H-7 `you-elsewhere`). */
-  'claim-elsewhere': { key: 'dock.reason.claimElsewhere', code: null },
-  'claim-expired': { key: 'dock.reason.claimExpired', code: 'CG-CLAIM-EXPIRED' },
   /** Tone and Split are frozen while a generation runs (AI-009). */
   'locked-during-generation': { key: 'dock.reason.lockedDuringGeneration', code: null },
   /** Split for Recap and Review: «это не сообщение фану». */
   'not-a-message': { key: 'dock.option.splitNotMessage', code: null },
   /** «Ещё раз» in a preview while a part is queued, sending or accepted. */
   'parts-sending': { key: 'result.againBlocked', code: null },
-  /** «Ещё раз» while a part's outcome is unknown: «Нельзя, пока неясен исход части {n}». */
-  'part-uncertain': { key: 'result.againBlockedUncertain', code: 'CG-SEND-UNCERTAIN' },
   /** The answer did not parse: one copy-only part (UI-032). */
   unparsed: { key: 'result.meta.unparsed', code: null },
   /** «Заменить мой черновик» without a verified editor (`fix.canReplace = false`, §6.4). */

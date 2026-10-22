@@ -1078,8 +1078,9 @@ describe('[NF-019] a greeting is sent part by part, under the lease, and counts 
     // NF-012: the greeting draft is cleared once a part is confirmed.
     expect(h.boards.preview.draftOf('newcomers', PAGE.pageId, '2010')).toBeNull();
     // §6.7.9: another Hi would be a second greeting — the card does not offer one, by the strip or by «Ещё раз».
-    expect(vm.result).toMatchObject({ canRegenerate: false, regenerateReason: { id: 'hi-gate', code: 'CG-GATE-HI' } });
-    expect(vm.bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-gate' } });
+    // X5, in its own words: «уже поздоровались — дальше Reply».
+    expect(vm.result).toMatchObject({ canRegenerate: false, regenerateReason: { id: 'hi-greeted', code: 'CG-GATE-HI', text: { key: 'dock.reason.hiGreeted' } } });
+    expect(vm.bar.actions.hi).toMatchObject({ enabled: false, reason: { id: 'hi-greeted' } });
     expect(await h.dispatch({ type: 'Regenerate', operationId: opId })).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
     expect(await h.dispatch({ type: 'Generate', targetHandle: newcomer('2010'), feature: 'hi', options: {} })).toMatchObject({ ok: false, code: 'CG-GATE-HI' });
     expect(count(h, 'op.start')).toBe(1);
@@ -1231,19 +1232,23 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     expect(pv(second.h).media).toMatchObject({ picks: 0 });
   });
 
-  it('a failed read is a card with «Повторить»; failed release forms hold the parts until read again', async () => {
-    const { h, handle } = await withReply({ media: { ...VAULT, fail: { folders: 'session', tags: 'http' } } });
+  it('a failed read is a card with «Повторить»; failed release forms are a warning: the part goes with its media, without tags (2026-10-22)', async () => {
+    const { h, handle, opId } = await withReply({ media: { ...VAULT, fail: { folders: 'session', tags: 'http' } } });
     await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
     await h.flush();
     expect(pv(h).media?.folders.error).toMatchObject({ code: 'CG-HOST-SESSION' });
     expect(pv(h).media?.grid.items).toHaveLength(4);
     await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11' });
     await h.advance(300);
-    expect(pv(h).media).toMatchObject({ tags: 'failed', blocked: { key: 'preview.media.blocked.tagsFailed' } });
+    expect(pv(h).media).toMatchObject({ tags: 'failed', blocked: null, attached: { count: 1 } });
     const before = h.host.calls.media.length;
     await h.dispatch({ type: 'RetryMedia', targetHandle: handle });
     await h.advance(300);
     expect(h.host.calls.media.slice(before).map((request) => request.of)).toEqual(['folders', 'tags']);
+    // Still unreadable: the part is the person's to send, and it goes with the pick and no tags.
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'available' });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
+    expect(h.clicks.at(-1)?.media).toMatchObject({ items: [{ id: '11' }], tags: { users: [], guests: [] } });
   });
 });
 

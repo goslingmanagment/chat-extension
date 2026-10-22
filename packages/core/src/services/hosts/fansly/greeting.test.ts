@@ -157,14 +157,15 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     w.restart();
     w.state.generation = null;
     expect(await w.draft()).toMatchObject({ text: 'Hey you', generation: { opId: OP, generationRef: GEN, text: 'Hey you', historyRevision: REV, mark: 'unverified' } });
-    for (const admission of [{ kind: 'own' }, { kind: 'ai-edited', generationRef: GEN, variant: 0 }] as const) {
-      expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
-    }
-    expect(w.starts).toHaveLength(0);
-    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: { kind: 'ai', generationRef: GEN, variant: 0 }, opId: OP }))).toMatchObject({ ok: true });
-    expect(w.log).toEqual(['recheck', 'send']);
-    expect(w.starts).toHaveLength(1);
-    expect(w.starts[0]?.request).toMatchObject({ text: 'Hey you', admission: { kind: 'ai', generationRef: GEN }, opId: OP });
+    // A reopened or older tab that labels the unchanged AI text as the person's own: no refusal (2026-10-22) — it goes
+    // as the tab says, the person's own text.
+    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: { kind: 'own' } }))).toMatchObject({ ok: true });
+    expect(w.starts[0]?.request).toMatchObject({ text: 'Hey you', admission: { kind: 'own' } });
+    w.state.status = null;
+    expect(await w.ask('fansly.followers.send', w.request({ attemptId: '00000000-0000-4000-8000-000000000a02', text: 'Hey you', admission: { kind: 'ai', generationRef: GEN, variant: 0 }, opId: OP }))).toMatchObject({ ok: true });
+    expect(w.log).toEqual(['recheck', 'send', 'recheck', 'send']);
+    expect(w.starts).toHaveLength(2);
+    expect(w.starts[1]?.request).toMatchObject({ text: 'Hey you', admission: { kind: 'ai', generationRef: GEN }, opId: OP });
   });
 
   it('[FS-NEW-6] a saved fresh verdict remains usable when the background no longer holds the operation', async () => {
@@ -183,12 +184,16 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     await w.ask('fansly.followers.send', w.request());
     w.restart();
     expect(await w.draft()).toMatchObject({ attempt: { state: 'uncertain' } });
-    expect(await w.ask('fansly.followers.send', w.request())).toEqual({ ok: false, error: { code: 'CG-SEND-UNCERTAIN' } });
-    w.emit({ attemptId: w.request().attemptId, fanRef: FAN, state: 'sent', proof: 'resolved-sent' });
+    // An unknown outcome holds nothing («как раньше»): the person's own new click is one more attempt — never ours.
+    const again = '00000000-0000-4000-8000-000000000a02';
+    expect(await w.ask('fansly.followers.send', w.request({ attemptId: again }))).toMatchObject({ ok: true, attempt: { attemptId: again, state: 'uncertain' } });
+    expect(w.starts).toHaveLength(2);
+    w.emit({ attemptId: again, fanRef: FAN, state: 'sent', proof: 'resolved-sent' });
     w.restart();
     expect(await w.draft()).toMatchObject({ attempt: { state: 'sent' } });
-    expect(await w.ask('fansly.followers.send', w.request())).toEqual({ ok: false, error: { code: 'CG-SEND-PART' } });
-    expect(w.starts).toHaveLength(1);
+    // X5: a greeting that went is never sent again.
+    expect(await w.ask('fansly.followers.send', w.request({ attemptId: '00000000-0000-4000-8000-000000000a03' }))).toEqual({ ok: false, error: { code: 'CG-SEND-PART' } });
+    expect(w.starts).toHaveLength(2);
   });
 
   it('[NF-018] [NF-024] what stops a click before any attempt, each with its own reason: the history changed since the review, the draft changed, the fan is written to or closed, not checked in full, another account, another conversation', async () => {
@@ -221,17 +226,27 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     const w = world();
     await w.draft('Hey you');
     const ai = { kind: 'ai', generationRef: GEN, variant: 0 } as const;
-    // No operation named, or one that is not this generation: no send of an unchanged AI text.
-    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
-    w.state.generation = { generationRef: '00000000-0000-4000-8000-000000000602', fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: true };
-    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai, opId: OP }))).toEqual({ ok: false, error: { code: 'CG-SEND-FRESHNESS' } });
-    // Not its text.
-    w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you!', fresh: true };
-    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai, opId: OP }))).toEqual({ ok: false, error: { code: 'CG-DRAFT-CHANGED' } });
+    // No operation named, one that is not this generation, or not its text: the background cannot vouch for an AI text,
+    // so it goes as the person's own (2026-10-22) — never a refusal, never under another generation's name.
+    const unvouched: readonly (GreetingGeneration | null)[] = [
+      null,
+      { generationRef: '00000000-0000-4000-8000-000000000602', fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: true },
+      { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you!', fresh: true },
+    ];
+    for (const [index, generation] of unvouched.entries()) {
+      const u = world();
+      await u.draft('Hey you');
+      u.state.generation = generation;
+      expect(await u.ask('fansly.followers.send', u.request({ text: 'Hey you', admission: ai, ...(index === 0 ? {} : { opId: OP }) })), String(index)).toMatchObject({ ok: true });
+      expect(u.starts.map((start) => start.request)).toEqual([{ ...u.request({ text: 'Hey you' }), admission: { kind: 'own' } }]);
+    }
     expect(w.starts).toEqual([]);
     // This generation and its text: its unverified verdict is advisory (X69).
-    w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you\n', fresh: false, mark: 'unverified' };
-    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai, opId: OP }))).toMatchObject({ ok: true });
+    const v = world();
+    await v.draft('Hey you');
+    v.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you\n', fresh: false, mark: 'unverified' };
+    expect(await v.ask('fansly.followers.send', v.request({ text: 'Hey you', admission: ai, opId: OP }))).toMatchObject({ ok: true });
+    expect(v.starts[0]?.request).toMatchObject({ admission: ai, opId: OP });
     // An edited result is the person's own: no operation is asked of it.
     const e = world();
     await e.draft('Hey you, welcome');

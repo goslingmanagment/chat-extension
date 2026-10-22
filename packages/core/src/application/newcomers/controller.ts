@@ -50,11 +50,10 @@ export const NEWCOMERS_SEARCH_DEBOUNCE_MS = 150;
 const SELECTOR = { of: 'newcomers' } as const;
 const TABS = ['todo', 'all'] as const satisfies readonly NewcomersTab[];
 const TAB_LABELS: Readonly<Record<NewcomersTab, I18nKey>> = { todo: 'newcomers.tab.todo', all: 'newcomers.tab.all' };
-const FILTERS = ['any', 'none', 'claimed', 'sending', 'stopped', 'greeted', 'replied'] as const satisfies readonly GreetingFilter[];
+const FILTERS = ['any', 'none', 'sending', 'stopped', 'greeted', 'replied'] as const satisfies readonly GreetingFilter[];
 const FILTER_LABELS: Readonly<Record<GreetingFilter, I18nKey>> = {
   any: 'newcomers.filter.any',
   none: 'newcomers.filter.none',
-  claimed: 'newcomers.filter.claimed',
   sending: 'newcomers.filter.sending',
   stopped: 'newcomers.filter.stopped',
   greeted: 'newcomers.filter.greeted',
@@ -195,16 +194,10 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     return record === undefined ? { s: 'none' } : leaseNow(record.view, clock.now());
   };
 
-  /** What this tab itself knows about the fan's greeting, for the status column. */
+  /** What this tab itself knows about the fan's greeting, for the status column: the parts it sent (no lease is a status, 2026-10-22). */
   function localOf(fanRef: string): LocalGreeting {
     const record = leases.get(fanRef);
-    if (record === undefined) return { leaseMine: false, heldBy: null, progress: null };
-    const lease = leaseNow(record.view, clock.now());
-    return {
-      leaseMine: lease.s === 'mine',
-      heldBy: lease.s === 'other' ? 'someone-else' : lease.s === 'elsewhere' ? 'you-elsewhere' : null,
-      progress: record.progress ?? progressOfClaim(record.detail),
-    };
+    return record === undefined ? { progress: null } : { progress: record.progress ?? progressOfClaim(record.detail) };
   }
 
   const NO_CLAIM = { greeting: 'none', lease: 'none', heldBy: null, custody: null } as const;
@@ -331,6 +324,11 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     changed();
   }
 
+  /**
+   * What the card says of the greeting beside its result: an unknown outcome (in the words of the preview:
+   * «Не подтвердилось — откройте чат»), a refusal the hub gave a send, a lease of ours an older flow took. A
+   * colleague's lease or send in flight is no card any more (2026-10-22): it holds nothing here.
+   */
   function claimVM(fanRef: string): ClaimVM {
     const record = leases.get(fanRef);
     const local = localOf(fanRef);
@@ -347,19 +345,15 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
         const failed = record?.renewError ?? null;
         return failed === null ? mine : { ...mine, renewError: errorOf(failed, i18n) };
       }
+      // The hub refused a send: an older client of a colleague holds the fan.
       case 'other':
         return { s: 'other', error: claimError(fanRef, 'CG-CLAIM-BUSY') };
-      case 'elsewhere':
-        return { s: 'elsewhere', note: msg('newcomers.claim.elsewhere') };
       case 'expired':
         return { s: 'expired', error: errorOf({ code: 'CG-CLAIM-EXPIRED' }, i18n) };
-      case 'none': {
-        // The list may know what this tab has not asked yet: a colleague's lease, or this person's in another tab.
-        const status = statusOf(fanRef);
-        if (status.s === 'claim-other') return { s: 'other', error: claimError(fanRef, 'CG-CLAIM-BUSY') };
-        if (status.s === 'claim-elsewhere') return { s: 'elsewhere', note: msg('newcomers.claim.elsewhere') };
+      // This person's lease in another tab holds nothing here; what the list knows of leases is no card either.
+      case 'elsewhere':
+      case 'none':
         return { s: 'none' };
-      }
     }
   }
 
@@ -382,7 +376,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       const block = hiBlock(statusOf(fanRef));
       if (block === null) return null;
       if (block === 'sending') return reason('parts-sending');
-      return reason('hi-gate');
+      // X5: a part of the greeting is confirmed — no second greeting; the reason says it in its own words.
+      return reason('hi-greeted');
     },
     threadRevision(fanRef) {
       const row = rowOf(fanRef);

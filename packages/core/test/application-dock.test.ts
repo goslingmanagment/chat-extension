@@ -847,14 +847,14 @@ describe('dock: a board’s result goes on in the dock of the chat «Откры�
     expect(result(h).meta.map((item) => item.key)).not.toContain('result.meta.inserted');
     // A delivered part is never put into a composer again, whatever asks.
     expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
-    // Another tab sent part 2 through the preview and its outcome is unknown: the fan is held, here as in the preview.
-    side.parts.set('0:1', { sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } } });
+    // Another tab is sending part 2 through the preview: the fan is held, here as in the preview.
+    side.parts.set('0:1', { sentAt: null, hold: { id: 'parts-sending', code: null, text: { key: 'result.againBlocked' } } });
     side.told();
     await h.settle();
-    expect(partsOf(h)[1]?.insertBlocked).toEqual({ id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } });
-    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(partsOf(h)[1]?.insertBlocked).toEqual({ id: 'parts-sending', code: null, text: { key: 'result.againBlocked' } });
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-BUSY' });
     expect(h.fake.calls.inserts).toEqual([]);
-    // The hold ends (the hub resolved it «не ушло»): the part is the dock's to insert again.
+    // The hold ends (the part went or was refused): the part is the dock's to insert again.
     side.parts.delete('0:1');
     side.told();
     await h.settle();
@@ -871,13 +871,13 @@ describe('dock: a board’s result goes on in the dock of the chat «Откры�
     await h.settle();
     await h.ai.workspace.adoptBoardResult(handover(opId));
     await h.settle();
-    const uncertain = { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 1 } } } as const;
-    // Another tab sent part 1 of this fan through its preview, and the outcome is unknown. This tab was told
+    const uncertain = { id: 'parts-sending', code: null, text: { key: 'result.againBlocked' } } as const;
+    // Another tab is sending part 1 of this fan through its preview. This tab was told
     // nothing (the board holds what it last heard): the row still offers «Вставить».
     expect(partsOf(h)[1]).toMatchObject({ insert: 'idle', insertBlocked: null });
     side.atSync = () => side.parts.set('0:1', { sentAt: null, hold: uncertain });
     const before = side.syncs;
-    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
+    expect(await h.dispatch({ type: 'InsertPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-BUSY' });
     expect(side.syncs).toBe(before + 1);
     expect(h.fake.calls.inserts).toEqual([]);
     expect(h.bg.callsOf('token.issue').filter((call) => (call as { kind: string }).kind === 'insert')).toEqual([]);
@@ -923,9 +923,9 @@ describe('dock: a board’s result goes on in the dock of the chat «Откры�
           '0:0',
           since === 'sent'
             ? { sentAt: new Date(NOW_MS + 60_000).toISOString(), hold: null }
-            : { sentAt: null, hold: { id: 'part-uncertain', code: 'CG-SEND-UNCERTAIN', text: { key: 'result.againBlockedUncertain', params: { n: 2 } } } },
+            : { sentAt: null, hold: { id: 'parts-sending', code: null, text: { key: 'result.againBlocked' } } },
         );
-      expect([since, await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'append' })]).toMatchObject([since, { ok: false, code: since === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN' }]);
+      expect([since, await h.dispatch({ type: 'AnswerConfirm', confirmationId: confirm?.confirmationId as string, choice: 'append' })]).toMatchObject([since, { ok: false, code: since === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-BUSY' }]);
       // Nothing was written, the person's words are as they were, and the question is gone with its «да».
       expect(h.fake.calls.inserts).toEqual([]);
       expect(h.host.draftOf(previewChat)?.plainText).toBe('mine in the chat');

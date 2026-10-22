@@ -13,7 +13,7 @@ import { button, cgError, ctxOf, FANS, handles, iso, MIN, msg, NOW, PERSONA, rea
 import { dock, dockActions, running } from './dock';
 import { entry, type AppClientScenario, type ScenarioReaction, type ScenarioStep, type ScenarioTopic, type ScenarioViewEntry } from './fake-app-client';
 import { gallery, galleryEntry } from './gallery';
-import { board, claimMine, newcomerRow, newcomers, preview, stats, withResult, defaultNewcomerRows } from './lists';
+import { board, newcomerRow, newcomers, preview, stats, withResult, defaultNewcomerRows } from './lists';
 import { options, popup } from './pages';
 import { aiReadyToast, coach, coachTurn, fanPanel, palette, recapPicker, recapView, review, toast, toasts } from './panels';
 import { failedResult, meta, part, parts, phase, result, sendParts, variants } from './results';
@@ -385,8 +385,8 @@ const previewResult = (ctx: ScenarioCtx, opId: string, feature: 'reply' | 'hi', 
   const sent = states.filter((s) => s.s === 'sent').length;
   const started = states.some((s) => s.s !== 'available' && s.s !== 'unavailable' && s.s !== 'held-stale');
   const inWork = states.some((s) => s.s === 'queued' || s.s === 'sending' || s.s === 'accepted');
-  const uncertain = states.findIndex((s) => s.s === 'uncertain');
-  const blocked = uncertain >= 0 ? reason('part-uncertain', { n: uncertain + 1 }) : inWork ? reason('parts-sending') : null;
+  // An unknown outcome holds nothing (2026-10-20 audit, row 2): only a part on its way keeps «Ещё раз» off.
+  const blocked = inWork ? reason('parts-sending') : null;
   return result(ctx, {
     opId,
     feature,
@@ -459,14 +459,14 @@ const X8: AppClientScenario[] = [
     views: [
       entry(
         NEWCOMERS_PREVIEW,
-        preview(ctx, 'newcomers', views.empty(msg('preview.feed.emptySubscribed', { name: FANS.tomasz.name, age: { age: ctx.now - 14 * MIN } })), { claim: claimMine(ctx, FANS.tomasz) }),
+        preview(ctx, 'newcomers', views.empty(msg('preview.feed.emptySubscribed', { name: FANS.tomasz.name, age: { age: ctx.now - 14 * MIN } })), { claim: { s: 'none' } }),
       ),
       entry({ of: 'recap.view' }, recapView(ctx, views.empty(msg('cg.recapNotFound.title')), 'short')),
     ],
   })),
 ];
 
-// ── «Новые» and the lease ──
+// ── «Новые»: a colleague's send, an unknown outcome ──
 
 const NEWCOMERS_LIST = { of: 'newcomers' } as const;
 
@@ -478,62 +478,23 @@ const LEASE: AppClientScenario[] = [
       ])),
     ],
   })),
-  make({ id: 'claim-busy', title: 'Another chatter holds the fan: Hi is off', covers: ['claim-busy'] }, (ctx) => {
+  make({ id: 'colleague-sending', title: 'A colleague\'s part is on its way: a quiet note, Hi stays on', covers: ['colleague-sending'] }, (ctx) => {
     const rows = defaultNewcomerRows(ctx).map((r) => ({ ...r, selected: r.name === FANS.leo.name }));
     return {
       views: [
         entry(NEWCOMERS_LIST, newcomers(ctx, views.ready(), rows)),
-        entry(
-          NEWCOMERS_PREVIEW,
-          preview(ctx, 'newcomers', views.ready(), {
-            fan: FANS.leo,
-            claim: { s: 'other', error: cgError(ctx, 'CG-CLAIM-BUSY') },
-            greeting: { s: 'claim-other' },
-            barPatch: { hi: { enabled: false, busy: false, active: false, reason: reason('claim-busy'), hotkey: null, badge: null } },
-          }),
-        ),
+        entry(NEWCOMERS_PREVIEW, preview(ctx, 'newcomers', views.ready(), { fan: FANS.leo, claim: { s: 'none' }, greeting: { s: 'sending-other' } })),
+      ],
+      steps: [
+        {
+          label: 'the fan row changed',
+          at: 2_000,
+          views: [entry(NEWCOMERS_PREVIEW, preview(ctx, 'newcomers', views.ready(), { claim: { s: 'row-changed', error: cgError(ctx, 'CG-CLAIM-ROW-CHANGED') } }))],
+        },
       ],
     };
   }),
-  make({ id: 'claim-elsewhere', title: 'You hold the fan in another tab: no second greeting here', covers: ['claim-elsewhere'] }, (ctx) => {
-    const rows = defaultNewcomerRows(ctx).map((r) => (r.name === FANS.leo.name ? { ...r, greeting: { s: 'claim-elsewhere' } as const, selected: true } : r));
-    return {
-      views: [
-        entry(NEWCOMERS_LIST, newcomers(ctx, views.ready(), rows)),
-        entry(
-          NEWCOMERS_PREVIEW,
-          preview(ctx, 'newcomers', views.ready(), {
-            fan: FANS.leo,
-            claim: { s: 'elsewhere', note: msg('newcomers.claim.elsewhere') },
-            greeting: { s: 'claim-elsewhere' },
-            barPatch: { hi: { enabled: false, busy: false, active: false, reason: reason('claim-elsewhere'), hotkey: null, badge: null } },
-          }),
-        ),
-      ],
-    };
-  }),
-  make({ id: 'claim-expired', title: 'The lease expired before the send', covers: ['claim-expired'] }, (ctx) => ({
-    views: [
-      entry(
-        NEWCOMERS_PREVIEW,
-        withResult(
-          preview(ctx, 'newcomers', views.ready(), { claim: { s: 'expired', error: cgError(ctx, 'CG-CLAIM-EXPIRED') } }),
-          previewResult(ctx, OP.greet, 'hi', HI_TEXTS[0] ?? [], [
-            { s: 'unavailable', code: 'CG-CLAIM-EXPIRED', reason: msg('send.reason.claimExpired') },
-            { s: 'unavailable', code: 'CG-CLAIM-EXPIRED', reason: msg('send.reason.claimExpired') },
-          ]),
-        ),
-      ),
-    ],
-    steps: [
-      {
-        label: 'the fan row changed under the lease',
-        at: 2_000,
-        views: [entry(NEWCOMERS_PREVIEW, preview(ctx, 'newcomers', views.ready(), { claim: { s: 'row-changed', error: cgError(ctx, 'CG-CLAIM-ROW-CHANGED') } }))],
-      },
-    ],
-  })),
-  make({ id: 'claim-uncertain', title: 'Part 2 of a greeting is uncertain: the fan is held', covers: ['claim-uncertain', 'x8-states'] }, (ctx) => {
+  make({ id: 'claim-uncertain', title: 'Part 2 of a greeting is not confirmed: said, holding nothing — open the chat, send again', covers: ['claim-uncertain', 'x8-states'] }, (ctx) => {
     const texts = ['Hi Tomasz, welcome!', 'So happy you are here', 'I have a little gift for you'];
     const rows = [newcomerRow(ctx, FANS.tomasz, 'new', 14, { s: 'stopped', sent: 1, total: 3, part: 2 }, { selected: true }), ...defaultNewcomerRows(ctx).slice(1)];
     return {
@@ -545,7 +506,6 @@ const LEASE: AppClientScenario[] = [
             preview(ctx, 'newcomers', views.ready(), {
               claim: { s: 'held-uncertain', part: 2, error: cgError(ctx, 'CG-SEND-UNCERTAIN') },
               greeting: { s: 'stopped', sent: 1, total: 3, part: 2 },
-              stoppedNote: msg('newcomers.stopped', { n: 2 }),
             }),
             previewResult(ctx, OP.greet, 'hi', texts, [{ s: 'sent', at: iso(NOW - 4 * MIN) }, { s: 'uncertain', since: iso(NOW - 3 * MIN), attemptId: uuid(503) }, { s: 'available' }]),
             { unread: 'read-after-send' },
@@ -561,7 +521,7 @@ const LEASE: AppClientScenario[] = [
       entry(
         NEWCOMERS_PREVIEW,
         withResult(
-          preview(ctx, 'newcomers', views.ready(), { claim: claimMine(ctx, FANS.tomasz), greeting: { s: 'sending', sent: 1, total: 3 } }),
+          preview(ctx, 'newcomers', views.ready(), { claim: { s: 'none' }, greeting: { s: 'sending', sent: 1, total: 3 } }),
           previewResult(ctx, OP.greet, 'hi', ['Hi Tomasz, welcome!', 'So happy you are here', 'I have a little gift for you'], [{ s: 'sent', at: iso(NOW - MIN) }, { s: 'queued' }, { s: 'available' }], {
             meta: [meta.variants(1), meta.parts(3), meta.sent(1, 3)],
           }),

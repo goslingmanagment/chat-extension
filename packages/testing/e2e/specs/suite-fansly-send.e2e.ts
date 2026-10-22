@@ -4,7 +4,8 @@
 // custody of the fake hub, final check and `POST /message` to the fake Fansly — and holds them at the boundaries:
 // - one click → one POST; the receipt and its echo (also an echo before the receipt) → `sent`, the custody `sent`;
 //   two clicks at once → one POST; the journal holds ids, never the text;
-// - `200 {success:false}` and a lost answer without proof → `uncertain`, never repeated, the fan held;
+// - `200 {success:false}` and a lost answer without proof → `uncertain`, never repeated by itself; past the hub's
+//   ticket the person's own click sends again («как раньше», the owner 2026-10-20) — one more POST;
 //   X41: a browser resend may store TWO messages; only its own receipt+echo proves `sent`;
 // - the custody's answer delayed, the intent's write itself delayed: the history, the tab's document (the relay
 //   frame's too) or the ticket's end changing in that pause → `refused` with no POST, the custody told «not enqueued»;
@@ -217,18 +218,22 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     await custodyIs(1, attempt, 'sent');
   });
 
-  it('[NF-022] [RB-007] `200 {success:false}` is uncertain: never repeated, the fan held — the next click asks Fansly nothing', async () => {
+  it('[NF-022] [RB-007] `200 {success:false}` is uncertain: never repeated by itself; past the hub’s ticket the person’s own click sends again — one more POST', async () => {
     await fakeFansly().command({ op: 'api', rules: [{ route: 'message.send', caller: 'ours', times: 1, outcome: { kind: 'refuse', code: 10 } }] });
     const mark = await fakeFansly().mark();
     const attempt = randomUUID();
     expect((await answered(await click(2, [attempt])))[0]).toMatchObject({ state: 'uncertain', cause: 'rejected-200', code: 'CG-SEND-UNCERTAIN' });
     await browser.pause(2_000);
     expect(await posts(mark)).toBe(1);
-    const again = randomUUID();
-    expect((await answered(await click(2, [again])))[0]).toMatchObject({ state: 'refused', code: 'CG-SEND-UNCERTAIN' });
-    expect(await posts(mark)).toBe(1);
-    expect((await custody(2)).map(([id]) => id)).toEqual([attempt]);
     expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'rejected-200' });
+    // «Отправить ещё раз» (the owner, 2026-10-20): the old dispatch's ticket (10 s) passed, the hub sets it aside and
+    // the person's click goes — one more POST; the first attempt stays unknown, never sent again.
+    await browser.pause(10_000);
+    const again = randomUUID();
+    expect(await settled((await answered(await click(2, [again])))[0])).toMatchObject({ attemptId: again, state: 'sent', proof: 'echo' });
+    expect(await posts(mark)).toBe(2);
+    expect(await journal(attempt)).toMatchObject({ state: 'uncertain', cause: 'rejected-200' });
+    expect((await custody(2)).map(([id]) => id)).toEqual([attempt, again]);
   });
 
   it('[NF-022] [RB-007] the lost answer: one fetch/requestId, never asked again; X41 browser resend may store TWO messages — sent only by its receipt+echo, otherwise uncertain', async () => {
@@ -270,7 +275,8 @@ describe('Fansly greeting send: FS-NEW-3 — one click, the hub’s custody, the
     await oneRequest();
     await browser.pause(3_000);
     await oneRequest();
-    expect((await answered(await click(3, [randomUUID()])))[0]).toMatchObject({ state: 'refused', code: sent ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN' });
+    // A greeting that went is never sent again (X5); an unknown one is the person's to send again (the test above).
+    if (sent) expect((await answered(await click(3, [randomUUID()])))[0]).toMatchObject({ state: 'refused', code: 'CG-SEND-PART' });
     await oneRequest();
     expect(await view(attempt)).toMatchObject(expected);
     expect((await custody(3)).map(([id]) => id)).toEqual([attempt]);

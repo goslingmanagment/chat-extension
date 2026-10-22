@@ -1,11 +1,10 @@
 // «Новые» (architecture.md §8.5, H-7, §6.7.9; ui-design §3.6, §4.17): who
-// subscribed, renewed or came back in the window, the greeting lease and the
-// per-part progress. A fan counts as greeted only after a linked receipt and
-// echo with one id; one uncertain part holds the fan and the group until an
-// owner or a team lead resolves it in the hub.
+// subscribed, renewed or came back in the window, and the per-part progress.
+// A fan counts as greeted only after a linked receipt and echo with one id. A
+// part whose outcome is unknown says so and holds nothing (2026-10-20 audit,
+// row 2): the person looks at the chat and may send again by their own click.
 
 import { type CgErrorView } from '../errors';
-import { type LEASE_HOLDERS } from '../hub/newcomers';
 import { type StaleReason } from '../ops';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type BatchRowVM, type BatchVM } from './batch';
@@ -18,29 +17,21 @@ export const NEWCOMER_KINDS = ['new', 'renewed', 'returning'] as const;
 export type NewcomerKind = (typeof NEWCOMER_KINDS)[number];
 
 /**
- * The «Приветствие» column (ui-design §4.17). The hub never names a lease's
- * holder (H-7 `heldBy`): `claim-other` is a colleague, `claim-elsewhere` is
- * this person in another tab or on another device — Hi stays off here too,
- * so two greeting flows never run for one fan.
+ * The «Приветствие» column (ui-design §4.17). No lease is a status (2026-10-22): nobody takes one, and what an
+ * older client holds blocks nothing here.
  */
 export type GreetingStatusVM =
   | { readonly s: 'none' }
-  | { readonly s: 'claim-mine' }
-  /**
-   * «бронь: другой чаттер». No countdown (ui-design §12 п. 5): the colleague's 120 s lease renews
-   * every 40 s while they work with the fan and has no overall cap.
-   */
-  | { readonly s: 'claim-other' }
-  /** «бронь: вы, в другой вкладке». */
-  | { readonly s: 'claim-elsewhere' }
+  /** «отправляется другим чаттером»: somebody's part is on its way to the fan now (the hub's custody `dispatching`): a note, not a hold. */
+  | { readonly s: 'sending-other' }
   | { readonly s: 'sending'; readonly sent: number; readonly total: number }
-  /** «отправлено 1 из 3, остановлено»: part `part` is uncertain. */
+  /** «не подтвердилось: 1 из 3»: part `part` has an unknown outcome; it holds nothing — the person checks the chat. */
   | { readonly s: 'stopped'; readonly sent: number; readonly total: number; readonly part: number }
   | { readonly s: 'greeted'; readonly at: IsoTimestamp | null }
   /** The archive contains an incoming message: continue the conversation instead of a first greeting. */
   | { readonly s: 'replied' };
 
-export const GREETING_STATUSES = ['none', 'claim-mine', 'claim-other', 'claim-elsewhere', 'sending', 'stopped', 'greeted', 'replied'] as const satisfies readonly GreetingStatusVM['s'][];
+export const GREETING_STATUSES = ['none', 'sending-other', 'sending', 'stopped', 'greeted', 'replied'] as const satisfies readonly GreetingStatusVM['s'][];
 
 /** The greeting lease of the open card (H-7: 120 s, renewed every 40 s while the person works). */
 export type ClaimVM =
@@ -52,24 +43,16 @@ export type ClaimVM =
    * again while the person works with the fan, «Продлить бронь» tries now.
    */
   | { readonly s: 'mine'; readonly until: number; readonly renew: ActionButtonVM; readonly release: ActionButtonVM; readonly renewError?: CgErrorView }
-  /** CG-CLAIM-BUSY: a colleague holds the lease (never named, H-7); Hi off while they do; no countdown. */
+  /** CG-CLAIM-BUSY: the hub refused a send because a colleague's older client holds the fan (never named, H-7). */
   | { readonly s: 'other'; readonly error: CgErrorView }
-  /** This person holds it in another tab or on another device: Hi off here, no release from here (the lease token lives there). */
-  | { readonly s: 'elsewhere'; readonly note: Msg }
-  /** CG-CLAIM-EXPIRED: «бронь истекла — нажмите Hi ещё раз». */
+  /** CG-CLAIM-EXPIRED: the hub refused a send under an expired lease. */
   | { readonly s: 'expired'; readonly error: CgErrorView }
-  /** An uncertain part keeps the fan held (CG-SEND-UNCERTAIN); only a hub `resolve` releases it. */
+  /** A part's outcome is unknown (CG-SEND-UNCERTAIN): said, holding nothing — «Не подтвердилось — откройте чат». */
   | { readonly s: 'held-uncertain'; readonly part: number; readonly error: CgErrorView }
   /** CG-CLAIM-ROW-CHANGED / CG-CLAIM-ROW-BUSY. */
   | { readonly s: 'row-changed'; readonly error: CgErrorView };
 
-export const CLAIM_STATES = ['none', 'mine', 'other', 'elsewhere', 'expired', 'held-uncertain', 'row-changed'] as const satisfies readonly ClaimVM['s'][];
-
-/** The hub's `heldBy` → the views: the only two holders H-7 tells apart. */
-export const LEASE_HOLDER_STATES = {
-  'someone-else': { greeting: 'claim-other', claim: 'other' },
-  'you-elsewhere': { greeting: 'claim-elsewhere', claim: 'elsewhere' },
-} as const satisfies Record<(typeof LEASE_HOLDERS)[number], { readonly greeting: GreetingStatusVM['s']; readonly claim: ClaimVM['s'] }>;
+export const CLAIM_STATES = ['none', 'mine', 'other', 'expired', 'held-uncertain', 'row-changed'] as const satisfies readonly ClaimVM['s'][];
 
 export interface NewcomerRowVM {
   readonly handle: TargetHandle;

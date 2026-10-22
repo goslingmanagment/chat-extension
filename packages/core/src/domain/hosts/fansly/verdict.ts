@@ -132,13 +132,27 @@ export function freshnessVerdict(fingerprint: ProofFingerprint | null, served: S
  * A result still running, failed or canceled has no mark.
  */
 export function verdictMark(view: OpView, fingerprint: ProofFingerprint | null): ResultMarkVM | null {
+  return markOf(view, fingerprint, ['unverified', 'window-miss', 'deleted-served']);
+}
+
+/**
+ * The mark a result SHOWS (the dock, Recap, Review, Coach): the verdict without `unverified` (the owner, 2026-10-22,
+ * «правь все»): «Свежесть не проверена» came on the first chat after every reload or reconnect and said nothing the
+ * chatter could act on. A real miss of the latest messages (`window-miss`) and a deleted message served stay; the
+ * send's own check (`freshForSend`) still reads `unverified`.
+ */
+export function shownMark(view: OpView, fingerprint: ProofFingerprint | null): ResultMarkVM | null {
+  return markOf(view, fingerprint, ['window-miss', 'deleted-served']);
+}
+
+function markOf(view: OpView, fingerprint: ProofFingerprint | null, reasons: readonly Exclude<FreshnessVerdict, 'fresh'>[]): ResultMarkVM | null {
   if (view.state !== 'done') return null;
   // The current window can only add a condition. It never replaces the evidence of the generation itself:
   // a miss cannot become fresh just because the hub caught up or a different start checked another window.
   const own = view.freshnessProof?.fingerprint ?? fingerprint;
   const original = freshnessVerdict(own, view.servedContext);
   const current = freshnessVerdict(fingerprint === null ? null : { ...fingerprint, text: own?.text ?? false }, view.servedContext);
-  const verdict = (['unverified', 'window-miss', 'deleted-served'] as const).find((reason) => original === reason || current === reason) ?? 'fresh';
+  const verdict = reasons.find((reason) => original === reason || current === reason) ?? 'fresh';
   return verdict === 'fresh' ? (view.stale ?? null) : { reason: verdict, at: null };
 }
 

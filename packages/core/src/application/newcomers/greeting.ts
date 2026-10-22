@@ -11,10 +11,13 @@
 //   (X69); the start carries their ids, proof of the start and fan's avatar (NF-034, FX-018). The sign-in, the
 //   binding and the persona are the same before and after (NF-016) — else the result is not taken; an empty, too long
 //   or split result is unusable (NF-017, CG-OUTPUT-UNUSABLE). A usable one goes into the field: «AI» while unchanged.
-// - «Отправить» (NF-019): one click, one attempt of the site's send; the FIELD's content goes (FS-NEW-6): an unchanged
-//   AI result as that generation (its freshness mark remains advisory, X69), anything else as
-//   the person's own text on the history revision the card shows. Nothing is repeated; every refusal says why
-//   (NF-024); one action at a time per fan (NF-023).
+// - «Отправить» (NF-019): one click, one attempt of the site's send; the FIELD's content goes (FS-NEW-6) on the history
+//   revision the card shows (as the old window sent, 2026-10-22): an unchanged AI result as that generation (its
+//   freshness mark remains advisory, X69), anything else — and an AI text the hub gave no generation for — as the
+//   person's own text. A history that changed since the draft is a note, not a hold; only a change between the click and
+//   the send refuses (the site's own re-check). Nothing is repeated by itself; an unknown outcome says so with
+//   «Открыть чат» and lets the person «Отправить ещё раз» by their own click («как раньше», the owner 2026-10-20); every
+//   refusal says why (NF-024); one action at a time per fan (NF-023).
 // - «Открыть и вставить»: the fan's chat opens in this tab with the field's text (one navigation, its deferred
 //   insert); when the person sends it with the site's own button and the tab links that send to our insert, the site
 //   registers it — the fan is greeted for everyone (FS-NEW-3).
@@ -251,25 +254,25 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
   /** The mark over an unchanged AI text: its own verdict (FS-TAIL-8); null — fresh, or not an AI text. */
   const markOf = (card: Card): StaleReason | null => (card.gen !== null && unchanged(card) ? card.gen.mark : null);
 
-  /** Why «Отправить» or «Открыть и вставить» may not take the field now; null — it may. */
-  function blockedOf(card: Card, row: PassRow, send: boolean): NewcomersFailureVM | null {
+  /**
+   * Why «Отправить» or «Открыть и вставить» may not take the field now; null — it may. Only a history the pass has not
+   * read to its start holds the field (the old «Отправка после проверки»). An AI text with no generation of the hub's
+   * goes as the person's own, and a history that changed since the draft is the card's note (`stale`), never a hold
+   * (2026-10-22): the person sees the chat and clicks.
+   */
+  function blockedOf(card: Card, row: PassRow): NewcomersFailureVM | null {
     if (card.text.trim() === '') return null;
     if (!proven(row)) return failure('CG-FNEW-UNVERIFIED');
-    if (send && card.gen !== null && unchanged(card)) {
-      // X69: the person reviews the field and clicks Send; an AI freshness warning is not a send prohibition.
-      if (card.gen.generationRef === null) return failure('CG-SEND-FRESHNESS');
-      // The pass checked the history again since: the old result is not this history's (FS-NEW-6) — only a new one.
-      if (card.gen.historyRevision !== row.historyRevision) return failure('CG-FNEW-HISTORY');
-    }
     return null;
   }
 
   function vm(passId: string, row: PassRow): NewcomerGreetingVM | null {
     if (!greets(row)) return null;
     const card = cardOf(passId, row.fanRef);
-    const sendBlocked = blockedOf(card, row, true);
+    const sendBlocked = blockedOf(card, row);
     const filled = card.text.trim() !== '';
-    const final = card.state.s === 'sent' || card.state.s === 'uncertain';
+    // Gone out: never again from this card. An unknown outcome holds nothing — «Отправить ещё раз» is the person's click.
+    const final = card.state.s === 'sent';
     return {
       text: card.text,
       maxChars: MAX_CHARS,
@@ -410,7 +413,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
 
   async function send(type: UiAction['type'], card: Card, row: PassRow): Promise<ActionReceipt> {
     const account = context.current().account?.hostAccountId ?? null;
-    const blocked = blockedOf(card, row, true);
+    const blocked = blockedOf(card, row);
     if (card.text.trim() === '' || account === null || row.conversationRef === null || (row.historyRevision ?? null) === null) return refused(type, localError('CG-DATA-NOT-READY', i18n));
     if (blocked !== null) {
       said(card, { s: 'refused', failure: blocked });
@@ -429,12 +432,12 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     await flush(card);
     if (!await read(card)) return stop('CG-RUNTIME-UNREACHABLE');
     if (at !== generation || disposed) return stop('CG-CONTEXT-CHANGED');
-    if (card.state.s === 'sent' || card.state.s === 'uncertain') {
+    if (card.state.s === 'sent') {
       card.busy = false;
-      return refused(type, localError(card.state.s === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN', i18n));
+      return refused(type, localError('CG-SEND-PART', i18n));
     }
     if (card.text !== clickedText) return stop('CG-DRAFT-CHANGED');
-    const currentBlock = blockedOf(card, row, true);
+    const currentBlock = blockedOf(card, row);
     if (currentBlock !== null) return stop(currentBlock.code);
     const text = card.text.trim();
     if (card.dirty || card.stored === null || card.stored.text.trim() !== text) return stop('CG-DRAFT-CHANGED');
@@ -453,8 +456,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
         conversationRef: row.conversationRef,
         text,
         draftRevision: card.stored.revision,
-        // An unchanged AI text goes on the history it was made from; the person's own on the one the card shows.
-        historyRevision: admission.kind === 'ai' && gen !== null ? gen.historyRevision : (row.historyRevision as string),
+        // The history the card shows, whatever the field holds (as the old window sent): the site re-checks it at the send.
+        historyRevision: row.historyRevision as string,
         admission,
         cause: issued.cause,
         ...(admission.kind === 'ai' && gen !== null ? { opId: gen.opId } : {}),
@@ -498,9 +501,9 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     await flush(card);
     if (!await read(card)) return stop('CG-RUNTIME-UNREACHABLE');
     if (at !== generation || disposed) return stop('CG-CONTEXT-CHANGED');
-    if (card.state.s === 'sent' || card.state.s === 'uncertain') {
+    if (card.state.s === 'sent') {
       card.busy = false;
-      return refused(type, localError(card.state.s === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN', i18n));
+      return refused(type, localError('CG-SEND-PART', i18n));
     }
     if (card.text !== clickedText || card.dirty) return stop('CG-DRAFT-CHANGED');
     const issued = await issueCause(rpc, 'navigate', 'newcomers');
@@ -611,8 +614,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       if (card.loaded !== 'yes') return Promise.resolve(refused(type, localError('CG-DATA-NOT-READY', i18n)));
       // NF-023: one action of a fan at a time.
       if (card.busy) return Promise.resolve(refused(type, localError('CG-SEND-BUSY', i18n)));
-      // Gone out, or it may have: never again from this card (FS-NEW-3).
-      if (card.state.s === 'sent' || card.state.s === 'uncertain') return Promise.resolve(refused(type, localError(card.state.s === 'sent' ? 'CG-SEND-PART' : 'CG-SEND-UNCERTAIN', i18n)));
+      // Gone out: never again from this card (FS-NEW-3). An unknown outcome is the person's to judge: their own click goes.
+      if (card.state.s === 'sent') return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
       if (!greets(row)) return Promise.resolve(refused(type, localError(row.check === 'greeted' ? 'CG-SEND-PART' : 'CG-DATA-NOT-READY', i18n)));
       if (action.type === 'Generate') return generate(type, card, row);
       if (action.type === 'SendNewcomerGreeting') return send(type, card, row);

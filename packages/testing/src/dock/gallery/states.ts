@@ -318,9 +318,9 @@ export const GALLERY_STATES: readonly GalleryState[] = [
   ),
   state('3c', 'results', 'Фан написал новое', (ctx) => one(ctx, replyDock(ctx, reply(ctx, { stale: { reason: 'fan-wrote', at: iso(ctx.now - MIN) } })))),
   // The window check's marks (R20 P8b2; spec §3.5, ui-design §4.7): the plate of 3c in their own words — Fansly's alone.
+  // `unverified` is drawn nowhere since 2026-10-22 (verdict.ts `shownMark`).
   ...(
     [
-      ['unverified', 'Свежесть не проверена (Fansly)'],
       ['window-miss', 'Ответ мог не учесть последние сообщения (Fansly)'],
       ['deleted-served', 'Контекст устарел (Fansly)'],
     ] as const

@@ -45,12 +45,11 @@ describe('«Новые»: the window and the list', () => {
     expect(ui.actions().slice(before)).toEqual([]);
     expect(ui.root.activeElement?.closest('.cg-pv [data-cg-part]')).not.toBeNull();
     ui.unmount();
-    // A colleague holds the fan: Hi is off — Enter starts nothing and shows Hi, whose tooltip says why.
+    // A colleague's part is on its way: a note, no hold (2026-10-22) — Enter is Hi, never a send.
     ui = await mountBoardSettled('newcomers', '13c');
     const held = ui.actions().length;
     await press(row('n003'), 'Enter');
-    expect(ui.actions().slice(held)).toEqual([]);
-    expect(ui.root.activeElement?.closest('[data-cg-strip="hi"]')).not.toBeNull();
+    expect(ui.actions().slice(held)).toMatchObject([{ type: 'Generate', feature: 'hi' }]);
     expect(ui.actions().filter((action) => action.type === 'SendPart' || action.type === 'InsertPart' || action.type === 'OpenAndInsertPart')).toEqual([]);
   });
 

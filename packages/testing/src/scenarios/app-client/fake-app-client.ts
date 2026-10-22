@@ -36,8 +36,7 @@ export const REQUIRED_TOPICS = [
   'human-draft-conflict',
   'streaming',
   'timeout',
-  'claim-busy',
-  'claim-expired',
+  'colleague-sending',
   'claim-uncertain',
   'recap-short',
   'recap-full',
@@ -72,7 +71,6 @@ export const EXTRA_TOPICS = [
   'coach',
   'review',
   'state-gallery',
-  'claim-elsewhere',
 ] as const;
 
 export type ScenarioTopic = (typeof REQUIRED_TOPICS)[number] | (typeof EXTRA_TOPICS)[number];
