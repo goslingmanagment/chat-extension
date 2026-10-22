@@ -297,6 +297,8 @@ export function dockChatBridge(ai: typeof AiChunk, navigation: NavigationChunk.N
 export interface TabBoards {
   /** The palette's «Онлайн» choice: OUR preview of the fan in its own window, walking the list the palette showed (X24). */
   openOnline(chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt>;
+  /** A list's batch started this generation: its row says how it ended, a toast does not. */
+  fromBatch(opId: string): boolean;
   dispose(): void;
 }
 
@@ -460,6 +462,7 @@ export async function startBoards(
 
   return {
     openOnline: (chat, shown) => previewChunk.openOnlinePreview(palette, preview, i18n, chat, shown),
+    fromBatch: (opId) => preview.fromBatch(opId) || (newcomers.fromBatch?.(opId) ?? false),
     dispose() {
       dock.bind(null);
       win.removeEventListener('online', onOnline);

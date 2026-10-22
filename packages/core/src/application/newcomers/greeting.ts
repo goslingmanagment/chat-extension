@@ -29,7 +29,7 @@ import { type ActionReceipt, type I18n, type NewcomerGreetingStateVM, type Newco
 import { buildDeferredInsert, buildOpenAndInsert } from '../../domain/insert/intent';
 import { FIXED_WINDOWS } from '../../domain/ops/request';
 import { type PassRow } from '../../domain/newcomers/pass';
-import { type BatchOutcome } from '../boards/batch';
+import { noteBatchOp, type BatchOutcome } from '../boards/batch';
 import { type PageContextPort } from '../boards/context';
 import { issueCause } from '../boards/navigate';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
@@ -96,6 +96,8 @@ export interface CardGreeting {
   batchStart(passId: string, row: PassRow): Promise<BatchOutcome>;
   /** The card's field as it is now, and whether it went out; null — no card of the fan. */
   batchLive(passId: string, fanRef: string): { readonly text: string | null; readonly sent: boolean } | null;
+  /** A batch started this generation: its end is said by its row, not by a toast. */
+  fromBatch(opId: string): boolean;
   /** X59: where the fan's greeting stands (a send of «Отправить готовые» ended how); null — no card of the fan yet. */
   stateOf(passId: string, fanRef: string): NewcomerGreetingStateVM | null;
   /** Another pass, sign-in or account: everything of the old one goes. */
@@ -128,6 +130,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
   /** Generations waiting for their end, by operation; null — it never came. */
   const waiting = new Map<string, (view: OpView | null) => void>();
   const ended = new Map<string, OpView>();
+  const batchOps = new Set<string>();
   const offs: (() => void)[] = [];
   let generation = 0;
   let disposed = false;
@@ -361,6 +364,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (!admission.ok) return stop(admission.error.code);
     if (!admission.payload.ok) return stop(admission.payload.code);
     const opId = admission.payload.opId;
+    if (type === 'GenerateBatch') noteBatchOp(batchOps, opId);
     const view = await new Promise<OpView | null>((resolve) => {
       const timer = clock.setTimer(GREETING_GENERATION_WAIT_MS, () => {
         if (waiting.get(opId) !== undefined) waiting.delete(opId);
@@ -586,7 +590,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       const card = cards.get(keyOf(passId, fanRef));
       return card === undefined ? null : { text: card.text.trim() === '' ? null : card.text, sent: card.state.s === 'sent' };
     },
-    stateOf: (passId, fanRef) => cards.get(keyOf(passId, fanRef))?.state ?? null,
+    fromBatch: (opId) => batchOps.has(opId),
+    stateOf:(passId, fanRef) => cards.get(keyOf(passId, fanRef))?.state ?? null,
     refresh() {
       for (const card of cards.values()) {
         card.loaded = 'loading';

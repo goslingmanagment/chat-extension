@@ -328,6 +328,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   let stageTwo: Promise<void> | null = null;
   let stageTwoIn = false;
   let boards: Promise<TabBoards> | null = null;
+  /** The boards once they started, for what a toast asks synchronously. */
+  let boardsReady: TabBoards | null = null;
   const needsBoards = (action: UiAction): boolean => action.type === 'OpenPreview' || (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface));
   /** What a board could not say itself (it has closed, or its row keeps nothing of it): a toast with the code. */
   const say = (code: CgCode, scope: string, title: I18nKey | null): void => {
@@ -455,6 +457,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     },
     // The boards come with the first action that opens one: before that no preview holds anything.
     inPreview: (opId) => router.serves('preview') && PREVIEW_SOURCES.some((from) => router.getSnapshot({ of: 'preview', from }).result?.opId === opId),
+    fromBatch: (opId) => boardsReady?.fromBatch(opId) ?? false,
   };
   const shell = createShellController({
     rpc: {
@@ -777,7 +780,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
               if (left !== null) say(left.code, left.scope, left.title);
             });
           },
-        }),
+        }).then((ready) => (boardsReady = ready)),
       (error: unknown) => {
         boards = null;
         logger.error('tab.app', 'a part of the application did not load', { code: 'CG-UI-FAILED', fields: { part: 'boards', name: error instanceof Error ? error.name : typeof error } });

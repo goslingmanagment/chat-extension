@@ -29,6 +29,21 @@ const titleOf = (code: string): Msg | null => (Object.hasOwn(CG_REGISTRY, code) 
 /** After the background said «limit of the tab», the queue tries again this much later (or when a generation ends). */
 export const BATCH_BUSY_RETRY_MS = 5_000;
 
+/** Generations of batches remembered for the toasts: a few whole batches. */
+const BATCH_OPS_KEPT = 4 * BATCH_LIMITS.picks;
+
+/**
+ * A generation a batch started: its end is said by its row, never by «AI готово · фан» over whatever the person does
+ * meanwhile (tab/toast-events.ts). The oldest are forgotten past BATCH_OPS_KEPT.
+ */
+export function noteBatchOp(ops: Set<string>, opId: string): void {
+  ops.add(opId);
+  for (const old of ops) {
+    if (ops.size <= BATCH_OPS_KEPT) return;
+    ops.delete(old);
+  }
+}
+
 export interface BatchDeps {
   readonly clock: BoardsClock;
   /** Starts the fan's generation; resolves when it ended (or did not start). */

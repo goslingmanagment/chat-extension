@@ -69,7 +69,7 @@ import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pag
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
 import { boardOpenRefusal, issueCause, type BoardSwitch, type ChatNavigator } from '../boards/navigate';
-import { type BatchOutcome } from '../boards/batch';
+import { noteBatchOp, type BatchOutcome } from '../boards/batch';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
@@ -276,6 +276,8 @@ export interface PreviewController extends SurfaceController<'preview'> {
   batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null;
   /** A result a batch made moved on (it ended, a part went out). */
   onBatch(listener: () => void): () => void;
+  /** A batch started this generation: its end is said by its row, not by a toast. */
+  fromBatch(opId: string): boolean;
 }
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
@@ -319,6 +321,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const shadows = new Set<TargetHandle>();
   const batchWaiters = new Map<string, (outcome: BatchOutcome) => void>();
   const batchListeners = new Set<() => void>();
+  const batchOps = new Set<string>();
   /** The boards are closing because a chat is being opened by us: not the person closing the preview. */
   let closingForNavigation = false;
   let epoch = context.current().epoch;
@@ -1714,6 +1717,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       return refusedAfterLease({ ok: false, type, code: admission.payload.code, error: localError(admission.payload.code, i18n), running: runningVMs([...admission.payload.active, ...(admission.payload.siteActive ?? [])].sort((a, b) => a.startedAt - b.startedAt)) });
     }
     const opId = admission.payload.opId;
+    if (type === 'GenerateBatch') noteBatchOp(batchOps, opId);
     // The tone was for this one Reply (Б1).
     if (feature === 'reply') state.tone = null;
     let track = tracks.get(opId);
@@ -2495,6 +2499,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     },
     batchStart,
     batchLive,
+    fromBatch: (opId) => batchOps.has(opId),
     onBatch(listener) {
       batchListeners.add(listener);
       return () => {
