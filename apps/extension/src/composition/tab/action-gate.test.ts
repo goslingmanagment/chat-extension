@@ -270,6 +270,14 @@ describe('the action tokens of a tab', () => {
       SendDraft: ['send'],
       SendNewcomerGreeting: ['send'],
       InsertNewcomerGreeting: ['navigate'],
+      ShowVoice: ['generate'],
+      WriteVoiceScript: ['generate'],
+      NewVoice: ['generate'],
+      MakeVoiceTake: ['generate'],
+      CheckVoiceTake: ['generate'],
+      AttachVoiceTake: ['insert'],
+      ClearVoiceDraft: ['insert'],
+      RestoreVoiceDraft: ['insert'],
     });
     const s = seam();
     // A view switch asks for nothing, with or without a person behind it.

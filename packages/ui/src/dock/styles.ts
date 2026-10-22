@@ -222,6 +222,12 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
   ${/* While the chat loads the status in the windows' place is its spinner alone. */ ''}
   .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
 }
+@container cg (max-width: 719px) {
+  ${/* 1.47.0: Voice, the draft group's chip with an icon, is its 🎙 here — the words of the bar fit a little longer; its name stays in its hint. */ ''}
+  .cg-strip .cg-slot--draft .cg-act--ico { width: 28px; padding: 0; }
+  .cg-slot--draft .cg-act--ico > .cg-ico { display: block; }
+  .cg-slot--draft .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
+}
 @container cg (max-width: 659px) {
   .cg-strip__opts { padding-left: 4px; }
   .cg-strip .cg-div { margin: 0 2px; }

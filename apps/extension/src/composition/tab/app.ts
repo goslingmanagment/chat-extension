@@ -390,6 +390,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     gate,
     logger,
     drafts: env.drafts,
+    files: { save: (file) => saveFile({ fileName: file.name, mime: file.mime, body: file.bytes }) },
   };
 
   // ── stage one: the dock's controller, keys and navigation, the shell ───────
@@ -929,7 +930,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     if (saved && !disposed) toasts.show({ kind: 'success', code: null, scope: 'log.download', title: { key: 'log.downloaded' }, body: null });
     return saved;
   }
-  function saveFile(file: { readonly fileName: string; readonly mime: string; readonly body: string }): boolean {
+  function saveFile(file: { readonly fileName: string; readonly mime: string; readonly body: string | ArrayBuffer }): boolean {
     try {
       const url = URL.createObjectURL(new Blob([file.body], { type: file.mime }));
       const link = doc.createElement('a');

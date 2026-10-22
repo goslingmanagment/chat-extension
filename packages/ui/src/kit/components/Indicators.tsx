@@ -29,6 +29,8 @@ export const ACCENT_USES = [
   'archive-lag',
   /** «Recap готов» on Recap or «Ещё» (final-1b). */
   'recap-ready',
+  /** 1.47.0: «Войс готов» on Voice — a take got ready while its studio was closed. */
+  'voice-ready',
 ] as const;
 export type AccentUse = (typeof ACCENT_USES)[number];
 
@@ -54,9 +56,9 @@ export function Dot(props: DotProps): JSX.Element {
   );
 }
 
-/** The 7 px «Recap готов» point at the top right corner of a bar chip (§4.1, UI-010). */
-export function ReadyBadge(): JSX.Element {
-  return <span class="cg-badge" data-accent-use={'recap-ready' satisfies AccentUse} aria-hidden="true" />;
+/** The 7 px «Recap готов» («Войс готов») point at the top right corner of a bar chip (§4.1, UI-010). */
+export function ReadyBadge({ use = 'recap-ready' }: { readonly use?: Extract<AccentUse, 'recap-ready' | 'voice-ready'> }): JSX.Element {
+  return <span class="cg-badge" data-accent-use={use} aria-hidden="true" />;
 }
 
 export const INDICATORS_CSS = `

@@ -31,7 +31,7 @@ import type { HostEvent } from '@cg/contracts/host';
 
 import type { FanslyPort, FanslyVaultFact, FanslyVaultFacts } from '../host-port';
 import { isVaultPath, readVaultPage, VAULT_SELECTORS, vaultMediaKey, type VaultPage } from './dom';
-import { handFile } from './handoff';
+import { handFile } from '../handoff';
 
 /** How long one file may take to be confirmed (the old extension's limit). */
 export const VAULT_FILE_TIMEOUT_MS = 45 * 60 * 1000;

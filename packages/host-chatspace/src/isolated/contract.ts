@@ -154,6 +154,10 @@ export function buildContractReport(input: ContractInput): ChatSpaceContractRepo
     theme: anchors.theme === 'ok' ? on : degraded('theme'),
     previewSend,
     receipt,
+    // 1.47.0: the voice note's MP3 by a drop on the composer frame root, ChatSpace's own upload (HostPort.attachFile):
+    // MAIN finds the open chat's composer, drops on its frame root and reads the role's upload right; the draft key is
+    // read before (an audio, a GIF, 40 media) and after it. Without the key only MAIN's view of the frame tells.
+    fileAttach: composer(anchors.composerFrame !== 'ok' ? off('composerFrame') : anchors.userPermissions !== 'ok' ? off('userPermissions') : anchors.draftKey === 'ok' ? on : degraded('draftKey')),
   };
   const match = live.receipt ? live.receiptMatch : null;
   return {

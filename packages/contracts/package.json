@@ -53,7 +53,8 @@
     "./vm": "./src/vm/index.ts",
     "./hub": "./src/hub/index.ts",
     "./fixtures": "./test/fixtures/index.ts",
-    "./sound": "./src/sound.ts"
+    "./sound": "./src/sound.ts",
+    "./voice": "./src/voice.ts"
   },
   "dependencies": {
     "zod": "4.6.5"

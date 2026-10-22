@@ -33,12 +33,16 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 // - The person's send (R20 P7f): the draft is read at the person's own Enter
 //   or Send click in the field the port owns, and MAIN's `fx.sent` for that
 //   gesture is linked to it — the port says `humanSend` (send-observe.ts).
+// - The voice note's MP3 (R20 P12c): `attachFile` hands it to the main
+//   composer's own file input, after the checks of the open chat and the
+//   click's spent token, and watches Fansly's upload modal and the composer's
+//   attachments only until it knows what came of it (voice-attach.ts).
 // - `fansly` (FanslyPagePort): the header slot is said from the anchors (its
-//   mount is P7d's and P11a's); a file into the field (P12c) is refused until
-//   then; a file into the vault is the vault panel's upload (`vault.serve`,
-//   P13b), refused while its module is not up; the relay frame of «Fansly
-//   через вкладку» (P9c, relay-frame.ts) is mounted for the creator when the
-//   background asks, and goes with a change of creator.
+//   mount is P7d's and P11a's); a file into the vault is the vault panel's
+//   upload (`vault.serve`, P13b), refused while its module is not up; the
+//   relay frame of «Fansly через вкладку» (P9c, relay-frame.ts) is mounted
+//   for the creator when the background asks, and goes with a change of
+//   creator.
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
@@ -54,7 +58,7 @@ import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, Fro
 import type { CgCode } from '@cg/contracts/errors';
 import type { FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
 import type { FanslyContractReport, FanslyHostPort } from '@cg/contracts/fansly-host';
-import type { ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, LiveImage, LiveImageRef, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
+import type { AttachIntent, AttachReceipt, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, LiveImage, LiveImageRef, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
 import type { ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import { digest } from '@cg/host-kit/common/digest';
 import { photosAsLiveImages } from '@cg/host-kit/isolated/photos';
@@ -79,6 +83,7 @@ import { createSendObserver, type SendObserveStats } from './send-observe';
 import type { FanslyTheme } from './theme';
 import { consumeStream, type StreamStats } from './stream';
 import type { ValidationLoader } from './validation';
+import { createVoiceAttach, type AttachTimer, type VoiceAttachStats } from './voice-attach';
 
 /** What the host tells the tab's log: an event, its code, a few plain facts — never a text, a name or an id of a fan. */
 export interface FanslyDiagnostic {
@@ -102,6 +107,8 @@ export interface FanslyIsolatedHealth {
   readonly staleChats: number;
   /** The person's gestures read and MAIN's `fx.sent` linked to them, or not (P7f). */
   readonly sends: SendObserveStats;
+  /** The voice note's files into the composer: which way they went, what came of them (P12c). */
+  readonly attach: VoiceAttachStats;
 }
 
 /** A fact of the vault from MAIN's stream (§7.11): an addition to an album, an album the page loaded. */
@@ -141,6 +148,8 @@ export interface FanslyPort extends FanslyHostPort {
   insertion(): InsertionRecord | null;
   /** The open field's draft as a human send carries it (§5.9 п. 7, P7f): its revision, provenance and our insert; null — no field. */
   sentDraft(): SentDraft | null;
+  /** The voice note's MP3 into the open chat's composer (§7.10, P12c): always there on Fansly; `fileAttach` says when it can work. */
+  attachFile(intent: AttachIntent): Promise<AttachReceipt>;
   /** The vault's facts for the uploader (§7.11, P13a). */
   readonly vault: FanslyVaultFacts;
   /** What the person asked of the floating launcher (X46): the application's half serves it (launcher.ts). */
@@ -166,6 +175,8 @@ export interface FanslyHostPortOptions {
   readonly navInsertTimeoutMs?: () => number | undefined;
   /** The page loaded by its address when a navigation did not open the chat (SP-036); tests replace it. */
   readonly load?: (path: string) => void;
+  /** The timers of a voice note's attempt (voice-attach.ts): the page's own; tests replace them. */
+  readonly attachTimer?: AttachTimer;
   /** R20 P9c: the relay page of «Fansly через вкладку» (`moz-extension://<uuid>/fansly-relay.html`), asked at the first mount; absent — no relay. */
   readonly relayUrl?: () => Promise<string>;
   readonly adapterVersion?: string;
@@ -689,6 +700,26 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       diag({ event: 'navigate', ...(receipt.state === 'failed' ? { code: receipt.code } : {}), detail: { way, state: receipt.state, insert: receipt.insert?.state ?? null, insertCode: receipt.insert !== null && receipt.insert.state !== 'applied' ? receipt.insert.code : null } }),
   });
 
+  /** The voice note's MP3 into the field this port owns (§7.10, P12c): the checks of the open chat, then the token. */
+  const voice = createVoiceAttach({
+    win,
+    anchors,
+    acting,
+    identity,
+    composer: () => composer,
+    field: () => composerField.element(),
+    redeem,
+    subscribe(listener): Unsubscribe {
+      eventListeners.add(listener);
+      return () => {
+        eventListeners.delete(listener);
+      };
+    },
+    now: clock,
+    ...(options.attachTimer === undefined ? {} : { timer: options.attachTimer }),
+    onDiagnostic: diag,
+  });
+
   const page: FanslyPagePort = {
     headerSlot: () => slot,
     onHeaderSlot(cb): Unsubscribe {
@@ -697,7 +728,6 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         slotListeners.delete(cb);
       };
     },
-    attachToComposer: () => Promise.resolve({ state: 'refused', reason: 'anchor-missing' }),
     uploadToVault: (file) => (vaultUpload === null || disposed ? Promise.resolve({ state: 'refused', reason: 'anchor-missing' }) : vaultUpload(file)),
     relay: { open: () => (disposed ? Promise.resolve('failed') : relayFrame.open()), close: () => relayFrame.close() },
   };
@@ -711,6 +741,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     offRoute();
     offAnchors();
     navigator.dispose();
+    voice.dispose();
     sends.dispose();
     composerField.dispose();
     route.dispose();
@@ -811,7 +842,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     },
     async health() {
       const main = bridge === null || disposed ? null : await bridge.request('fx.health', {}).catch(() => null);
-      return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats, sends: sends.stats() }, main };
+      return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats, sends: sends.stats(), attach: voice.stats() }, main };
     },
     launcher: options.launcher ?? createFanslyLauncher(),
     vault: {
@@ -919,6 +950,15 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       const { thenInsert: _skipped, ...plain } = intent;
       const receipt = await navigator.navigate(plain);
       return { ...receipt, insert: rejected(skipped) };
+    },
+    /**
+     * §7.10 (R20 P12c): the voice note's MP3 into the open chat's composer on the person's click — handed over once,
+     * its token spent before the page is touched; resolves when Fansly shows it there, or cannot be seen to.
+     */
+    async attachFile(intent: AttachIntent): Promise<AttachReceipt> {
+      const check = await validation();
+      if (!check.isAttachIntent(intent)) throw new TypeError('attachFile() takes an AttachIntent with its cause and an MP3');
+      return voice.attach(intent);
     },
     focusComposer(expected: HostIdentity): Promise<boolean> {
       const found = fieldFor(expected, 'focus');

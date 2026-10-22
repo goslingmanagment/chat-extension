@@ -12,6 +12,7 @@ import { FeatureIdSchema, ToneSchema } from '../features';
 import { MediaFolderIdSchema } from '../send-media';
 import { NativeIdSchema, PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
 import { SettingsV1Schema, UI_TEXT_SIZES } from '../settings';
+import type { VoiceTone } from '../voice';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
 import { type SpendersPeriodSchema } from '../tab-messages';
 import { BATCH_LISTS } from './batch';
@@ -150,6 +151,13 @@ export type AnalysisView = (typeof ANALYSIS_VIEWS)[number];
 export const ANALYSIS_MODES = ['sheet', 'expanded', 'hidden'] as const;
 export type AnalysisMode = (typeof ANALYSIS_MODES)[number];
 
+/**
+ * The studio's presets and the bound of the script it edits (voice.ts `VOICE_TONES` and the script cap of its limits),
+ * repeated here so the UI's actions load no schema of the voice module (the dock's first chunk); a test holds both.
+ */
+export const VOICE_ACTION_TONES = ['calm', 'warm', 'playful'] as const satisfies readonly VoiceTone[];
+export const VOICE_ACTION_SCRIPT_MAX_CHARS = 5_000;
+
 const part = z.int().check(z.gte(0), z.lte(PART_LIMITS.maxParts - 1));
 const variant = z.optional(z.int().check(z.gte(0), z.lte(PART_LIMITS.maxVariants - 1)));
 const act = <T extends string, S extends z.core.$ZodLooseShape>(type: T, shape: S) => z.strictObject({ type: z.literal(type), ...shape });
@@ -256,6 +264,46 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * picker («Собрать коротко / полностью»).
    */
   act('ShowAnalysis', { view: z.enum(ANALYSIS_VIEWS), mode: z.enum(ANALYSIS_MODES) }),
+
+  // ── voice notes (1.47.0) ──
+  /**
+   * The Voice chip (`open: true`) and the studio's «Скрыть» (`false`): the chat's studio in the dock's sheet. Opened
+   * with nothing written yet and a draft in the field, it writes the script at once (free of characters).
+   */
+  act('ShowVoice', { targetHandle: HandleSchema, open: z.boolean() }),
+  /**
+   * A preset or «Переписать»: a new script in this tone (free of characters; the takes stay). `field` — from the draft
+   * in the field now (an empty studio, «Новый войс»); `session` — from the draft the session's script came from.
+   * `confirmed` — the person agreed to lose their own edits of the script.
+   */
+  act('WriteVoiceScript', { targetHandle: HandleSchema, tone: z.enum(VOICE_ACTION_TONES), from: z.enum(['field', 'session']), confirmed: z.optional(z.literal(true)) }),
+  /** «Отменить» while the script is written. */
+  act('CancelVoiceScript', { targetHandle: HandleSchema }),
+  /** The person's text of the script, as typed (the controller keeps it and stores it a moment later). */
+  act('EditVoiceScript', { targetHandle: HandleSchema, text: displayText(VOICE_ACTION_SCRIPT_MAX_CHARS) }),
+  /** «Вернуть текст AI». */
+  act('RevertVoiceScript', { targetHandle: HandleSchema }),
+  /** «Озвучить» / «Ещё вариант»: a paid take of the script as it stands, by this click. */
+  act('MakeVoiceTake', { targetHandle: HandleSchema }),
+  /** The take «Прикрепить» puts into the field. */
+  act('SelectVoiceTake', { targetHandle: HandleSchema, takeId: UuidSchema }),
+  /** «Проверить» of a take: a free read of its state; a create with no answer is asked again by the same id. */
+  act('CheckVoiceTake', { targetHandle: HandleSchema, takeId: UuidSchema }),
+  /**
+   * «Прикрепить»: the take's MP3 into the chat's field, the site's own way; never sent. `again` — the person confirmed
+   * a second handover of a take whose first one was not seen.
+   */
+  act('AttachVoiceTake', { targetHandle: HandleSchema, takeId: UuidSchema, again: z.optional(z.literal(true)) }),
+  /** «Скачать MP3». */
+  act('DownloadVoiceTake', { targetHandle: HandleSchema, takeId: UuidSchema }),
+  /** «Новый войс»: the session goes (the hub keeps its audio); `confirmed` — the person agreed to leave unattached takes. */
+  act('NewVoice', { targetHandle: HandleSchema, confirmed: z.optional(z.literal(true)) }),
+  /** «Убрать текст» after an attach: the draft's text leaves the chat's field (nothing is sent). */
+  act('ClearVoiceDraft', { targetHandle: HandleSchema }),
+  /** «Вернуть текст»: the text «Убрать текст» took goes back into the field. */
+  act('RestoreVoiceDraft', { targetHandle: HandleSchema }),
+  /** The studio's question goes away unanswered («Отмена»). */
+  act('DismissVoiceConfirm', { targetHandle: HandleSchema }),
 
   // ── lists ──
   act('SetSpendersPeriod', { period: SpendersPeriodChoiceSchema }),

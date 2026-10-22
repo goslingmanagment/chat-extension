@@ -92,10 +92,11 @@ const NOTHING: HubFeatureNeeds = { capabilities: [] };
  * HF-15 master-first admission deployed at 29708c44d010): per flag, one entry per platform the feature exists on, with what it
  * needs there. A platform with no entry has no such feature (`platform_unsupported`). R20 HF-2 made it per platform:
  * on Fansly Recap and the preview read by conversation (`conversation-recaps-v1`), «Новые» are the greeting custody
- * with the manual group and not the hub's list of new subscribers, and Fansly has its own `drafts`, `voice`,
- * `notesFill`, `notes`, `vault` and `registration`; it has no X8 send, ChatSpace navigation or socket tap. The Spenders
- * statistics and «ждут ответа» exist on both (hub #730). It is the HUB's rule: the client does not carry this table
- * (R20 F4). A hub rule that changes is changed here.
+ * with the manual group and not the hub's list of new subscribers, and Fansly has its own `drafts`, `notesFill`,
+ * `notes`, `vault` and `registration`; it has no X8 send, ChatSpace navigation or socket tap. The Spenders statistics
+ * and «ждут ответа» exist on both (hub #730), and so does `voice` since hub #757 (10fe275d6: the voice notes render for
+ * OnlyFans pages too, on the same lane). It is the HUB's rule: the client does not carry this table (R20 F4). A hub
+ * rule that changes is changed here.
  */
 export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readonly<Partial<Record<HubPlatform, HubFeatureNeeds>>>>> = {
   insertion: { onlyfans: NOTHING, fansly: NOTHING },
@@ -121,7 +122,7 @@ export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readon
   },
   previewSend: { onlyfans: { capabilities: ['preview-send-custody-v1', 'manual-greeting-v1'] } },
   drafts: { fansly: NOTHING },
-  voice: { fansly: { capabilities: ['voice-notes-v1'], lane: 'voice-notes' } },
+  voice: { onlyfans: { capabilities: ['voice-notes-v1'], lane: 'voice-notes' }, fansly: { capabilities: ['voice-notes-v1'], lane: 'voice-notes' } },
   notesFill: { fansly: NOTHING },
   notes: { fansly: NOTHING },
   vault: { fansly: NOTHING },

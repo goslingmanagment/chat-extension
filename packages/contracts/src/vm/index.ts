@@ -22,6 +22,7 @@ export * from './batch';
 export * from './spenders';
 export * from './newcomers';
 export * from './preview';
+export * from './voice';
 export * from './media';
 export * from './panels';
 export * from './pages';

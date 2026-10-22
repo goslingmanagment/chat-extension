@@ -31,6 +31,7 @@ export * from './bridge';
 export * from './bridge-messages';
 export * from './tab-protocol';
 export * from './tab-messages';
+export * from './voice';
 export * from './tab-liveness';
 export * from './errors/registry';
 export * from './i18n/keys';
@@ -43,4 +44,4 @@ export * from './hub';
  * minor bump, a new meaning a major one; the PR description says why
  * (architecture.md §5).
  */
-export const CONTRACTS_VERSION = '1.46.0';
+export const CONTRACTS_VERSION = '1.47.0';

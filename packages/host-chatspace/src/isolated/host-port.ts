@@ -20,14 +20,20 @@
 //   chat cache, contract), checked by the bridge client; the synchronous
 //   reads (`chatWindow`, `fan`, `listCachedChats`) answer from a cache that
 //   those events refresh, and load nothing (§6.9).
-// - Writes need a human: `insert` and `navigate` spend the action token of
-//   the click or key (`token.redeem`, §14) BEFORE anything reaches MAIN, and
-//   MAIN gets no token. The isolated prechecks of §6.4 п. 1 run first; MAIN
-//   repeats every check in one synchronous step right before the write.
+// - Writes need a human: `insert`, `navigate` and `attachFile` spend the
+//   action token of the click or key (`token.redeem`, §14) BEFORE anything
+//   reaches MAIN, and MAIN gets no token. The isolated prechecks of §6.4 п. 1
+//   run first; MAIN repeats every check in one synchronous step right before
+//   the write.
 // - A write that may have run (timeout, lost answer, `internal`) gets the
 //   fixed outcome of BRIDGE_WRITE_FAILURES and is never retried.
 // - An `applied` insert is checked once more against the target chat's own
 //   draft key (NEW-06): a disagreement makes it `uncertain`, never a retry.
+// - 1.47.0: `attachFile` hands the voice note's MP3 to MAIN, which drops it on
+//   the open chat's composer for ChatSpace's own upload (main/attach.ts). The
+//   draft key says beforehand whether the composer can take it (an audio, a
+//   GIF, 40 media: `busy`) and afterwards whether our file is in the draft:
+//   it decides MAIN's word whenever it shows the draft.
 // - The live side (§6.6–§6.8) needs the tap script in the page and the flags
 //   of the bootstrap (`configure`): facts of incoming messages and coverage,
 //   human sends with their receipt, the freshness checkpoint, and the X8
@@ -48,12 +54,12 @@
 //   ever sent or repeated because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
-import type { ChatReadRead, ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveImage, LiveImageRef, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { AttachIntent, AttachReceipt, AttachRefusal, ChatReadRead, ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveImage, LiveImageRef, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
 import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
-import { BRIDGE_LIMITS, CHAT_READ_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
+import { ATTACH_LIMITS, BRIDGE_LIMITS, CHAT_READ_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 import type { MediaFanState, MediaFoldersPage, MediaItemsPage, MediaRead, MediaRequest } from '@cg/contracts/media';
 import type { MediaTags } from '@cg/contracts/send-media';
 
@@ -61,7 +67,7 @@ import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './brid
 import { buildContractReport, type ContractWireInput } from './contract';
 import { photosAsLiveImages } from '@cg/host-kit/isolated/photos';
 import { sameReport } from '@cg/host-kit/isolated/report';
-import { readStoredDraft, storedDraftAgrees, type DraftStorage } from './draft-store';
+import { readStoredDraft, readStoredMedia, storedDraftAgrees, type DraftStorage, type StoredMedia } from './draft-store';
 import { ADAPTER_VERSION } from './host-contract';
 import type { MountManager } from './mount';
 import { loadedScriptUrls, matchReceiptProfile, receiptModules, type ReceiptMatch } from './receipt-profile';
@@ -141,6 +147,8 @@ export interface ChatSpaceHostPort extends HostPort {
   configure(config: ChatSpaceLiveConfig): Promise<ChatSpaceContractReport>;
   /** ChatSpace's report has ChatSpace's shape (contracts 1.15.0: the report is parsed by its site). */
   probe(): ChatSpaceContractReport;
+  /** 1.47.0: ChatSpace's port always has it; whether the page takes a file now, `fileAttach` says. */
+  attachFile(intent: AttachIntent): Promise<AttachReceipt>;
 }
 
 const keyOf = (chat: ChatRef): ChatKey => `${chat.host}:${chat.hostAccountId}:${chat.platformFanId}`;
@@ -148,6 +156,7 @@ const keyOf = (chat: ChatRef): ChatKey => `${chat.host}:${chat.hostAccountId}:${
 type ReadKind = 'chatWindow' | 'fan' | 'listChats' | 'listAccounts';
 const sameChat = (a: ChatRef | null | undefined, b: ChatRef | null | undefined): boolean => !!a && !!b && keyOf(a) === keyOf(b);
 const rejected = (code: CgCode): InsertReceipt => ({ state: 'rejected', code });
+const refusedAttach = (reason: AttachRefusal): AttachReceipt => ({ state: 'refused', reason });
 /** A newest page cut to `limit` messages: what one asking for fewer than were read gets. */
 const firstOf = (page: OpenChatPage, limit: number): OpenChatPage =>
   page.items.length <= limit ? page : { ...page, items: page.items.slice(0, limit), hasMore: true, cursor: page.items[limit - 1]?.platformMessageId ?? null };
@@ -601,6 +610,30 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     return rejected(error.failure === 'not-ready' ? 'CG-HOST-NOT-READY' : 'CG-INSERT-FAILED');
   };
 
+  // ── a file into the composer (1.47.0, voice notes) ──
+
+  /** An attach of ours is on its way (one at a time; MAIN keeps the same rule). */
+  let attaching = false;
+
+  /**
+   * What MAIN saw of an attach, checked against the chat's own draft key. Our file there — by its name, or an audio the
+   * draft did not hold (ChatSpace takes the vault's medium when the vault holds that audio already) — is `attached`,
+   * whatever MAIN said of a file it handed over. MAIN's `attached` while the key shows the draft without it is
+   * `unknown`, never a second attach. A key that says nothing leaves MAIN's word.
+   */
+  const verifyAttach = (answer: AttachReceipt, chat: ChatRef, name: string, before: StoredMedia | null, started: number): AttachReceipt => {
+    if (answer.state === 'refused' || !drafts) return answer;
+    const after = readStoredMedia(drafts, chat);
+    if (after.state !== 'present') return answer;
+    const held = new Set(before?.state === 'present' ? before.medias.map((medium) => medium.id) : []);
+    if (after.medias.some((medium) => medium.type === 'audio' && (medium.name === name || (medium.name === null && !held.has(medium.id))))) {
+      return answer.state === 'attached' ? answer : { state: 'attached', ms: Math.max(0, clock() - started) };
+    }
+    if (answer.state !== 'attached') return answer;
+    diag({ event: 'attach-key-disagrees', code: 'CG-VOICE-ATTACH-UNKNOWN' });
+    return { state: 'unknown' };
+  };
+
   // ── X8: the preview send (§6.7) ──
 
   /** The request as MAIN gets it (contracts MainSendRequestSchema): the host target, the text, the deadline — no binding, ticket or token. */
@@ -888,6 +921,53 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       }
       if (receipt.state === 'uncertain' && receipt.code === 'CG-INSERT-MISPLACED') diag({ event: 'insert-misplaced', code: receipt.code });
       return verifyAgainstKey(receipt, intent.target, intent.text, intent.mode);
+    },
+
+    /**
+     * 1.47.0: the voice note's MP3 into the open chat's composer. Refused before the token is spent: another chat,
+     * document or composer than the intent's (`identity`), the capability off (`anchor-missing`), the draft key showing
+     * an audio, a GIF or 40 media — or an attach of ours still on its way (`busy`). Then the token, then MAIN, once: an
+     * answer lost on the way is `unknown`, never a second drop.
+     */
+    async attachFile(intent: AttachIntent): Promise<AttachReceipt> {
+      if (!(await validation()).isAttachIntent(intent)) throw new HostContractError('attachFile() takes an AttachIntent with its cause: an MP3 named <uuid>.mp3 of at most ATTACH_LIMITS.maxBytes');
+      const { expected, file } = intent;
+      const chat = expected.chat;
+      const current = identity();
+      if (
+        !bridge ||
+        !current ||
+        !chat ||
+        !sameChat(current.chat, chat) ||
+        current.documentEpoch !== expected.documentEpoch ||
+        current.routeEpoch !== expected.routeEpoch ||
+        current.composerInstanceId === null ||
+        current.composerInstanceId !== expected.composerInstanceId
+      ) {
+        return refusedAttach('identity');
+      }
+      if (!capability('fileAttach')) return refusedAttach('anchor-missing');
+      const before = drafts ? readStoredMedia(drafts, chat) : null;
+      const full = before?.state === 'present' && (before.gif || before.medias.length >= MEDIA_LIMITS.maxMedia || before.medias.some((medium) => medium.type === 'audio'));
+      if (full || attaching) return refusedAttach('busy');
+      attaching = true;
+      try {
+        if (!(await redeem({ kind: 'insert', actionToken: intent.cause.actionToken, intentId: intent.intentId }))) return refusedAttach('cause');
+        const started = clock();
+        let answer: AttachReceipt;
+        try {
+          answer = await bridge.request('attachFile', { intentId: intent.intentId, expected, file }, ATTACH_LIMITS.bridgeMs);
+        } catch (error) {
+          if (error instanceof BridgeCallError && error.executed === 'no') answer = refusedAttach(error.failure === 'identity-mismatch' || error.failure === 'stale-document' ? 'identity' : 'anchor-missing');
+          else {
+            diag({ event: 'attach-lost', code: 'CG-VOICE-ATTACH-UNKNOWN', detail: { failure: error instanceof BridgeCallError ? error.failure : 'error' } });
+            answer = WRITE_FAILURES.attachFile;
+          }
+        }
+        return verifyAttach(answer, chat, file.name, before, started);
+      } finally {
+        attaching = false;
+      }
     },
 
     async focusComposer(expected: HostIdentity): Promise<boolean> {

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import * as F from '../src/errors-fansly';
 import * as C from '../src/index';
 import * as T from '../src/tab-messages-fansly';
+import * as FX from './fixtures/index';
 import { IDS, uuid } from './fixtures/index';
 
 describe('tab/pages ↔ background protocol (§5.4)', () => {
@@ -93,10 +94,35 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
       expect(entry.retry === 'after-deadline', entry.code).toBe(entry.recovery === 'wait-until');
       if (entry.retry === 'never') expect(['retry', 'new-generation'], entry.code).not.toContain(entry.recovery);
     }
-    expect(F.cgFanslyEntry('CG-VOICE-UNCERTAIN').retry).toBe('never');
-    // An unknown write is read again, never written again (FS-NOTE-4, FS-VLT-1, FS-VOI-2).
+    // An unknown write is read again, never written again (FS-NOTE-4, FS-VLT-1).
     expect(F.cgFanslyEntry('CG-NOTE-UNCERTAIN').retry).toBe('safe-read');
-    for (const code of ['CG-VAULT-UNCERTAIN', 'CG-VOICE-ATTACH-UNKNOWN'] as const) expect(F.cgFanslyEntry(code).recovery, code).toBe('none');
+    expect(F.cgFanslyEntry('CG-VAULT-UNCERTAIN').recovery).toBe('none');
+  });
+
+  it('voice notes are every site’s (1.47.0): a tab of either site asks, a page never; the paid step and the attach keep their rules', () => {
+    for (const type of ['voice.read', 'voice.script', 'voice.edit', 'voice.take', 'voice.check', 'voice.audio', 'voice.attached', 'voice.discard'] as const) {
+      expect(C.mayRequest(type, 'tab', null, 'chatspace'), type).toBe(true);
+      expect(C.mayRequest(type, 'tab', null, 'fansly-web'), type).toBe(true);
+      expect(C.mayRequest(type, 'page', 'options'), type).toBe(false);
+    }
+    expect(C.TAB_EVENTS['voice.changed'].to).toEqual(['tab']);
+    // An outcome nobody saw is never offered again by itself.
+    expect(C.cgEntry('CG-VOICE-UNCERTAIN').retry).toBe('never');
+    expect(C.cgEntry('CG-VOICE-ATTACH-UNKNOWN').recovery).toBe('none');
+    // The studio's actions repeat the module's presets and bound (the dock's first chunk loads no voice schema).
+    expect([...C.VOICE_ACTION_TONES]).toEqual([...C.VOICE_TONES]);
+    expect(C.VOICE_ACTION_SCRIPT_MAX_CHARS).toBe(C.VOICE_LIMITS.scriptMaxChars);
+    // The hub's codes read as the voice codes, each with the status the hub answers it with.
+    for (const [hubCode, spec] of Object.entries(C.HUB_VOICE_ERROR_CODES)) expect(C.isCgCode(spec.cg), hubCode).toBe(true);
+  });
+
+  it('a voice session, a take and the script’s kept view hold their shape', () => {
+    for (const valid of FX.VOICE_SESSION_FIXTURES.valid) expect(C.VoiceSessionSchema.safeParse(valid).success).toBe(true);
+    for (const invalid of FX.VOICE_SESSION_FIXTURES.invalid) expect(C.VoiceSessionSchema.safeParse(invalid).success).toBe(false);
+    for (const valid of FX.VOICE_OP_VIEW_FIXTURES.valid) expect(C.VoiceOpViewSchema.safeParse(valid).success).toBe(true);
+    for (const invalid of FX.VOICE_OP_VIEW_FIXTURES.invalid) expect(C.VoiceOpViewSchema.safeParse(invalid).success).toBe(false);
+    for (const valid of FX.VOICE_SCRIPT_START_FIXTURES.valid) expect(C.VoiceScriptStartSchema.safeParse(valid).success).toBe(true);
+    for (const invalid of FX.VOICE_SCRIPT_START_FIXTURES.invalid) expect(C.VoiceScriptStartSchema.safeParse(invalid).success).toBe(false);
   });
 
   it('parses in two stages and rejects unknown types', () => {
@@ -114,9 +140,9 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
 });
 
 describe('MAIN ↔ isolated bridge (§5.3)', () => {
-  it('only insert, navigation and the preview send are writes (D-07)', () => {
-    expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].write)).toEqual(['insertGuarded', 'navigate', 'previewSendCommit']);
-    expect([...C.BRIDGE_WRITE_REQUESTS]).toEqual(['insertGuarded', 'navigate', 'previewSendCommit']);
+  it('only insert, navigation, the preview send and the drop of our file on the composer are writes (D-07)', () => {
+    expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].write)).toEqual(['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile']);
+    expect([...C.BRIDGE_WRITE_REQUESTS]).toEqual(['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile']);
     expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].timeout === 'navInsert')).toEqual(['navigate']);
   });
 
@@ -132,6 +158,7 @@ describe('MAIN ↔ isolated bridge (§5.3)', () => {
     const keys = Object.keys(C.MainSendRequestSchema.shape);
     for (const key of ['ticket', 'binding', 'target', 'cause', 'actionToken', 'pageId', 'pageLabel']) expect(keys).not.toContain(key);
     expect(Object.keys(C.NavigationWireSchema.shape)).not.toContain('cause');
+    expect(Object.keys(C.AttachWireSchema.shape)).not.toContain('cause');
   });
 
   it('unknown request types are rejected, prototype names among them', () => {

@@ -1,5 +1,6 @@
-// The Recap and Review controllers over the tab's AI workspace (R11): the
-// views `recap.picker`, `recap.view` and `review`. Loaded right after the dock
-// is on screen.
+// The Recap, Review and voice controllers over the tab's AI workspace (R11,
+// 1.47.0): the views `recap.picker`, `recap.view`, `review` and `voice`.
+// Loaded right after the dock is on screen.
 
 export { createRecapController, createReviewController, type RecapController } from '@cg/core/application/ai';
+export { createVoiceController } from '@cg/core/application/voice';

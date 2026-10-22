@@ -152,6 +152,21 @@ export const UNAVAILABLE_REASONS = {
   'draft-empty': { key: 'preview.draft.sendEmpty', code: null },
   /** «Отправить» of a preview's draft field for the chat that is open: its own composer is the place. */
   'chat-open': { key: 'send.reason.activeChat', code: 'CG-SEND-ACTIVE-CHAT' },
+  // 1.47.0: the voice studio's buttons.
+  /** A preset or «Озвучить» while the script is still being written. */
+  'voice-writing': { key: 'voice.reason.writing', code: null },
+  /** «Озвучить» with no script to voice. */
+  'voice-no-script': { key: 'voice.reason.noScript', code: null },
+  /** «Озвучить» of a script the hub would refuse (an unknown tag, too long, markup): said before the paid click. */
+  'voice-issue': { key: 'voice.reason.issue', code: 'CG-VOICE-SCRIPT' },
+  /** «Прикрепить» of a take that still renders. */
+  'voice-working': { key: 'voice.reason.working', code: null },
+  /** «Прикрепить» where the site takes no file now (`fileAttach` off): «Скачать MP3» is the way. */
+  'voice-attach-off': { key: 'voice.reason.attachOff', code: 'CG-VOICE-ATTACH' },
+  /** «Ещё вариант» when the session holds as many takes as it may. */
+  'voice-takes-full': { key: 'voice.reason.takesFull', code: null },
+  /** «Прикрепить» while a handover of ours is still open. */
+  'voice-attaching': { key: 'voice.reason.attaching', code: null },
 } as const satisfies Record<string, { readonly key: I18nKey; readonly code: CgCode | null }>;
 
 export type UnavailableReasonId = keyof typeof UNAVAILABLE_REASONS;

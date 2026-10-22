@@ -22,7 +22,7 @@ import type { Requirement } from './types';
 export const CHATSPACE_FEATURE_FLAGS = [
   'insertion', 'freshText', 'newcomers', 'spenders', 'stats', 'preview', 'previewSend',
   'previewSendMarkAiGenerated', 'fanPanel', 'navigation', 'wsTap', 'sound', 'coach',
-  'recap', 'review', 'splitAll',
+  'recap', 'review', 'splitAll', 'voice',
 ] as const satisfies readonly ClientFeatureFlag[];
 export type ChatSpaceFeatureFlag = (typeof CHATSPACE_FEATURE_FLAGS)[number];
 
@@ -44,6 +44,9 @@ const FEATURES = {
   'fresh-text': { base: { flags: ['freshText'], hostCapabilities: [], clientNeeds: CLIENT_FLAG_REQUIREMENTS.freshText }, actions: {}, surfaces: ['dock'], source: 'page' },
   review: { base: { flags: ['review'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded'], source: 'hub' },
   recap: { base: { flags: ['recap'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded', 'fan-panel'], source: 'hub' },
+  // 1.47.0: the page's `voice` (the hub weighs its lane: the switch, the provider, the allowlist and a voice profile);
+  // the MP3 goes into ChatSpace's composer by a drop on it, its own upload (HostPort.attachFile).
+  voice: { base: { flags: ['voice'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: { flags: ['insertion'], hostCapabilities: ['fileAttach'] } }, surfaces: ['dock'], source: 'hub' },
   // `preview`: the hub's archive feed of the chat, which Coach reads for its history.
   coach: { base: { flags: ['coach'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['coach'], source: 'hub', switches: ['preview'] },
   // `stats`: the statistics and the «waiting» queue of the board; `preview`: the archive feed of a fan's preview.

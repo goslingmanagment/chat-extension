@@ -151,6 +151,7 @@ export { artifactHandle, readArtifactHandle, readTargetHandle, targetHandle, typ
 export { OpStore, RESYNC_RETRY_MS, WATCHED_CHATS_MAX, type OpRecord, type OpStoreEvent, type StartMemo, type StartOutcome } from './op-store';
 export {
   type AiPorts,
+  type FileSaver,
   type IdPort,
   type JournalSink,
   type OverlaySwitch,

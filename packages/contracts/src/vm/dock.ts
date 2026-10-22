@@ -52,8 +52,8 @@ export interface DockActionVM {
   readonly reason: ReasonVM | null;
   /** Printed on the button only when enabled and the strip is ≥ 690 px wide (ui-design §3.3). */
   readonly hotkey: HotkeyLabel | null;
-  /** The «Recap готов» dot (UI-010); moves to «Ещё» on a narrow strip. */
-  readonly badge: 'recap-ready' | null;
+  /** The «Recap готов» dot (UI-010); moves to «Ещё» on a narrow strip. 1.47.0: «Войс готов» — a take got ready while the studio was closed. */
+  readonly badge: 'recap-ready' | 'voice-ready' | null;
 }
 
 /**
@@ -66,7 +66,7 @@ export const DOCK_CHIP_GROUPS = ['reply', 'draft', 'openers', 'analysis', 'windo
 export type DockChipGroup = (typeof DOCK_CHIP_GROUPS)[number];
 
 /** 1.15.0 (R20 F4). The icons a chip may show on a narrow bar instead of its word; `ui/kit` draws each (its test holds the list to the kit's icon set). */
-export const DOCK_ICON_IDS = ['gauge', 'dossier', 'bulb', 'bill', 'userPlus'] as const;
+export const DOCK_ICON_IDS = ['gauge', 'dossier', 'bulb', 'bill', 'userPlus', 'mic'] as const;
 export type DockIconId = (typeof DOCK_ICON_IDS)[number];
 
 /**
@@ -169,6 +169,8 @@ export interface DockVM {
   readonly focusPart?: { readonly opId: Uuid; readonly part: number } | null;
   /** Recap or Review open in the sheet; their content is the `recap.*` / `review` views (ui-design §9.1 п. 3). */
   readonly analysis: 'recap' | 'review' | null;
+  /** 1.47.0: the voice studio is the sheet; its content is the `voice` view. Absent or false — not shown. */
+  readonly voice?: boolean;
   /** A refused start in place of a result (CG-OP-TAB-LIMIT with «Идут сейчас», CG-OP-CHAT-BUSY). */
   readonly refusal: RefusalVM | null;
   /** Generations of this tab in other chats; the palette lists them too. */

@@ -3,12 +3,14 @@
 // e2e (the test build's hub address points here; the test manifest allows
 // loopback). SSE goes out chunk by chunk as the stream produces it; a reset
 // step destroys the socket (the client sees a broken body, not an EOF); a
-// client that disconnects aborts its stream. The control endpoints
-// (`/__fake-hub/control`, `/__fake-hub/journal`) need the control header.
+// client that disconnects aborts its stream; a request the hub drops or never
+// answers (a voice create scripted `drop` or `hang`) loses its socket with no
+// answer at all. The control endpoints (`/__fake-hub/control`,
+// `/__fake-hub/journal`) need the control header.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
-import { FakeHub, type FakeHubOptions } from './hub';
+import { FakeHub, FakeHubConnectionDrop, type FakeHubOptions } from './hub';
 
 export interface FakeHubServerOptions extends FakeHubOptions {
   /** 0 (default) = a free port. */
@@ -46,7 +48,17 @@ async function serve(hub: FakeHub, origin: string, req: IncomingMessage, res: Se
     signal: abort.signal,
     ...(body === undefined || body.length === 0 ? {} : { body: new Uint8Array(body) }),
   });
-  const response = await hub.handle(request, abort.signal);
+  let response: Response;
+  try {
+    response = await hub.handle(request, abort.signal);
+  } catch (error) {
+    // Dropped, or never answered and the client gone: the connection closes without a word.
+    if (error instanceof FakeHubConnectionDrop || abort.signal.aborted) {
+      res.destroy();
+      return;
+    }
+    throw error;
+  }
   const out: Record<string, string> = {};
   response.headers.forEach((value, name) => {
     out[name] = value;

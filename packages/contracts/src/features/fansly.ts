@@ -1,6 +1,6 @@
 // The feature manifest, fansly.com (R20, docs/project-unite/architecture.md
 // §1.4, §11.1): what each feature needs on Fansly and the features only Fansly
-// has — voice notes, the fan's notes and «Заполнить из чата», «Регистрация»,
+// has — the fan's notes and «Заполнить из чата», «Регистрация»,
 // the vault, «Fansly через вкладку». Nothing of ChatSpace's X8, navigation or
 // palette: they do not exist here.
 //
@@ -31,8 +31,8 @@ import type { Requirement } from './types';
 /** The switches a Fansly entry may name: the shared vocabulary (since P4b3 it has Fansly's own six). */
 export type FanslyFeatureFlag = ClientFeatureFlag;
 
-/** Surfaces only Fansly has, named ahead of `MOUNT_SURFACES` (the PRs of each panel add them): the slot in the chat's header and the three panels. */
-export const FANSLY_SURFACES_AHEAD = ['header-slot', 'voice', 'notes', 'vault'] as const;
+/** Surfaces only Fansly has, named ahead of `MOUNT_SURFACES` (the PRs of each panel add them): the slot in the chat's header and the two panels. */
+export const FANSLY_SURFACES_AHEAD = ['header-slot', 'notes', 'vault'] as const;
 export type FanslySurface = MountSurfaceKind | (typeof FANSLY_SURFACES_AHEAD)[number];
 
 type Req = Requirement<FanslyFeatureFlag, HostCapability | FanslyCapability>;
@@ -67,16 +67,11 @@ const FEATURES = {
   // with the site switched on: no owner switch decides it (its observation of the page is on by itself, FS-WS-4).
   'human-send': { base: { flags: [], hostCapabilities: ['sendObserve'] }, actions: {}, surfaces: [], source: 'page' },
 
+  // A script from the draft and its paid voicing (the hub, HF-4); the MP3 goes into the field of this chat through
+  // Fansly's own input and upload modal (§7.10, HostPort.attachFile).
+  voice: { base: { flags: ['voice'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: { flags: ['insertion'], hostCapabilities: ['fileAttach'] } }, surfaces: ['dock'], source: 'hub' },
+
   // ── only Fansly ──
-  // 🎙: a script from the draft and its paid voicing (the hub, HF-4); the MP3 goes into the field of this chat (§7.10).
-  voice: {
-    kind: 'panel',
-    chip: { group: 'draft', priority: 20, icon: null },
-    base: { flags: ['voice'], hostCapabilities: [] },
-    actions: { generate: NOTHING, insert: { flags: [], hostCapabilities: ['fileAttach'] } },
-    surfaces: ['voice'],
-    source: 'hub',
-  },
   notes: { kind: 'panel', hotkey: 'notes', base: { flags: ['notes'], hostCapabilities: ['headerSlot'] }, actions: {}, surfaces: ['header-slot', 'notes'], source: 'host-pass' },
   // «✨ Заполнить из чата»: the hub's `fan-notes-fill`, in the notes panel.
   'notes-fill': { kind: 'ai', base: { flags: ['notesFill'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['notes'], source: 'hub' },

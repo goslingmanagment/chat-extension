@@ -5,6 +5,7 @@
 // it was. The loopback endpoint answers it with 400.
 
 import { type FakeHubCommand } from './types';
+import { FAKE_VOICE_OUTCOMES } from './voice';
 
 type FieldCheck = (value: unknown) => boolean;
 
@@ -60,6 +61,18 @@ const MATCH = oneOf('exact', 'route');
 const UNSCRIPTED = oneOf('fail', 'model');
 const PAGE_FAN = { pageLabel: isString, fanRef: isString };
 
+const isVoiceOutcome = oneOf(...FAKE_VOICE_OUTCOMES);
+/** `scriptVoice.outcomes`: an outcome's name, or `{ outcome, ms }` (ms ≥ 0) with nothing else. */
+const isVoiceOutcomes: FieldCheck = (value) =>
+  Array.isArray(value) &&
+  value.every(
+    (item) =>
+      isVoiceOutcome(item) ||
+      (isObject(item) &&
+        isVoiceOutcome((item as Record<string, unknown>)['outcome']) &&
+        Object.entries(item as Record<string, unknown>).every(([key, field]) => key === 'outcome' || (key === 'ms' && (field === undefined || (isNumber(field) && (field as number) >= 0))))),
+  );
+
 /** Per op: its fields (required ones listed in REQUIRED), each with its check. */
 const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, FieldCheck>>>> = {
   reset: {},
@@ -69,6 +82,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   useSseScenario: { scenario: either(isString, isObject), match: MATCH },
   scriptHttp: { exchanges: isArray, match: MATCH, unscripted: UNSCRIPTED },
   scriptSse: { responses: isArray, feature: isString },
+  scriptVoice: { outcomes: isVoiceOutcomes },
   clearScripts: {},
   release: { gate: isString },
   clock: { mode: oneOf('manual', 'system'), setMs: isNumber, advanceMs: isNumber },
@@ -97,6 +111,7 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   useSseScenario: ['scenario'],
   scriptHttp: ['exchanges'],
   scriptSse: ['responses'],
+  scriptVoice: ['outcomes'],
   release: ['gate'],
   persona: ['key', 'definitionId'],
   resolveCustody: ['pageLabel', 'fanRef', 'attemptId', 'outcome'],

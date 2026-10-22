@@ -163,6 +163,8 @@ export interface StripButtonProps {
   readonly tooltip?: string | null;
   /** The 6 px «Recap готов» point. */
   readonly ready?: boolean;
+  /** Whose point it is (the closed list of the accent's uses): Recap's by default, Voice's «Войс готов». */
+  readonly readyUse?: 'recap-ready' | 'voice-ready';
   readonly pressed?: boolean;
   readonly expanded?: boolean;
   readonly haspopup?: 'menu';
@@ -221,7 +223,7 @@ export function StripButton(props: StripButtonProps): JSX.Element {
         <span class="cg-act__t">{props.label}</span>
         {props.trailing}
         {keys === null || unavailable ? null : <Kbd>{keys.display}</Kbd>}
-        {props.ready === true ? <ReadyBadge /> : null}
+        {props.ready === true ? <ReadyBadge {...(props.readyUse === undefined ? {} : { use: props.readyUse })} /> : null}
       </button>
       {tip.description}
     </>

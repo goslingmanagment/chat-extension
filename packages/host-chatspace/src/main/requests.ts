@@ -5,6 +5,7 @@
 import { count, int, is, isDigest, isId, isToken, isUuid, orNull, shape, type Check, type Plain } from '@cg/host-kit/main/check';
 import { type Checkpoint } from './live';
 import {
+  ATTACH_MAX_BYTES,
   CHAT_READ_USERNAME_MAX,
   KNOWN_FAN_MESSAGES,
   MAX_PARTS,
@@ -77,17 +78,25 @@ const insertKeys = shape({
     shape({ kind: is('open'), documentEpoch: isToken, routeEpoch: count, composerInstanceId: isToken, draftRevision: count, draftDigest: isDigest })(value) ||
     shape({ kind: is('deferred'), documentEpoch: isToken })(value),
   mode: is('replace', 'append'),
-  text: (value) => typeof value === 'string' && value.length > 0 && value.length <= MAX_STRING,
+  // Empty only in an open replace (Voice's «Убрать текст», 1.47.0): checked with the refinements below.
+  text: (value) => typeof value === 'string' && value.length <= MAX_STRING,
   confirmationId: orNull(isUuid),
   createdAt: count,
   expiresAt: count,
 });
 
-/** Both refinements of InsertWireSchema: expiry after creation; a deferred insert replaces and carries no consent. */
+/**
+ * The refinements of InsertWireSchema: expiry after creation; a deferred insert replaces and carries no consent; only
+ * an open replace writes an empty text.
+ */
 const isInsert: Check = (value) => {
   if (!insertKeys(value)) return false;
   const insert = value as InsertWire;
-  return insert.expiresAt > insert.createdAt && (insert.expected.kind === 'open' || (insert.confirmationId === null && insert.mode === 'replace'));
+  return (
+    insert.expiresAt > insert.createdAt &&
+    (insert.expected.kind === 'open' || (insert.confirmationId === null && insert.mode === 'replace')) &&
+    (insert.text !== '' || (insert.mode === 'replace' && insert.expected.kind === 'open'))
+  );
 };
 
 /** The preview send as MAIN gets it (contracts MainSendRequestSchema): no hub binding, no ticket, no token. */
@@ -171,6 +180,25 @@ const isSend: Check = (value) => {
   return checkpoint.hostAccountId === acc && checkpoint.platformFanId === fan && (checkpoint.knownFanMessageIds[0] ?? null) === checkpoint.lastFanMessageId;
 };
 
+/** A file of ours as MAIN gets it (contracts AttachWireSchema): the composer it is for, and the MP3. */
+export interface AttachWire {
+  readonly intentId: string;
+  readonly expected: Identity;
+  readonly file: { readonly name: string; readonly type: string; readonly bytes: ArrayBuffer };
+}
+
+const isAttach = shape({
+  intentId: isUuid,
+  expected: isIdentity,
+  file: shape({
+    // The page reads the name: a random UUID and `.mp3` (contracts ATTACH_FILE_NAME_PATTERN).
+    name: (value) => typeof value === 'string' && value.endsWith('.mp3') && isUuid(value.slice(0, -4)),
+    type: is('audio/mpeg'),
+    // The bytes themselves (the port's structured clone), within the cap: never a copy of their shape.
+    bytes: (value) => value instanceof ArrayBuffer && value.byteLength > 0 && value.byteLength <= ATTACH_MAX_BYTES,
+  }),
+});
+
 const accFan = { acc: isId, fan: isId };
 const max = int(1, MAX_SNAPSHOT);
 const empty = shape({});
@@ -211,4 +239,6 @@ export const PAYLOAD: Record<string, Check> = {
     shape({ of: is('items'), acc: isId, folder: (folder) => folder === 'all' || isId(folder), offset: int(0, 100_000) })(value) ||
     shape({ of: is('states'), ...accFan, ids: (ids) => isIds(ids) && (ids as unknown[]).length > 0 })(value) ||
     shape({ of: is('tags'), acc: isId, ids: (ids) => isIds(ids) && (ids as unknown[]).length > 0 && (ids as unknown[]).every(isMediaId) })(value),
+  // 1.47.0: a file of ours dropped on the open chat's composer (attach.ts).
+  attachFile: isAttach,
 };

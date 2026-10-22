@@ -18,6 +18,7 @@ import { createFanslyHostPort, type FanslyDiagnostic, type FanslyPort } from '..
 import { createFanslyMounts } from '../isolated/mount';
 import { createRouteWatcher } from '../isolated/route';
 import { loadValidation } from '../isolated/validation';
+import type { AttachTimer } from '../isolated/voice-attach';
 import { createFakeFanslyPage, type FakeFanslyPage } from './fake-dom';
 import { EPOCH, NO_ONE, scriptedMain } from './scripted-main';
 
@@ -80,6 +81,8 @@ export interface WorldOptions {
   /** The groups whose DM rules are not met. */
   readonly copyOnly?: readonly string[];
   readonly navInsertTimeoutMs?: number;
+  /** The timers of a voice note's attempt (R20 P12c): the test fires them. */
+  readonly attachTimer?: AttachTimer;
 }
 
 export interface World {
@@ -154,6 +157,7 @@ export async function startWorld(path: string, options: WorldOptions): Promise<W
     },
     validation: loadValidation,
     ...(options.navInsertTimeoutMs === undefined ? {} : { navInsertTimeoutMs: () => options.navInsertTimeoutMs }),
+    ...(options.attachTimer === undefined ? {} : { attachTimer: options.attachTimer }),
     load: (where) => loads.push(where),
     onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
   });

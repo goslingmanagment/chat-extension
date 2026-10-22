@@ -61,6 +61,8 @@ import { DEFAULT_SETTINGS } from '../../src/index';
 /** 1.21.0 (X48): who sent a message, as the tab tells the background. */
 const attributionFact = { chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false };
 import { HUB_SAMPLES as H } from './hub';
+import { VOICE_SCRIPT_START_FIXTURES, fanslyVoiceSession, voiceAudio, voiceScriptStart, voiceSession } from './voice';
+import { cause } from './samples';
 
 export interface Verdicts {
   readonly valid: readonly unknown[];
@@ -336,6 +338,51 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ ...pageFan, action: 'claim' }, { ...pageFan, action: 'renew' }], invalid: [{ ...pageFan, action: 'dispatch' }] },
     res: dto(H.claimState, { ...H.claimState, lease: { ...H.claimState.lease, state: 'mine' } }),
   },
+  // 1.47.0: voice notes, both sites.
+  'voice.read': {
+    req: { valid: [{ pageId: 11, conversationRef: IDS.fan }, { pageId: 13, conversationRef: FANSLY_IDS.group }], invalid: [{ pageId: 11 }, { pageId: 0, conversationRef: IDS.fan }] },
+    res: { valid: [{ session: voiceSession }, { session: fanslyVoiceSession }, { session: null }], invalid: [{ session: { ...voiceSession, takes: null } }, {}] },
+  },
+  'voice.script': {
+    req: {
+      valid: [...VOICE_SCRIPT_START_FIXTURES.valid.map((start) => ({ start, sessionId: null })), { start: voiceScriptStart, sessionId: uuid(0x700) }],
+      invalid: [...VOICE_SCRIPT_START_FIXTURES.invalid.map((start) => ({ start, sessionId: null })), { start: voiceScriptStart }],
+    },
+    res: {
+      valid: [{ ok: true, session: voiceSession }, { ok: false, error: { code: 'CG-OP-CHAT-BUSY' }, session: null }, { ok: false, error: { code: 'CG-VOICE-NOT-ALLOWED', httpStatus: 400 }, session: voiceSession }],
+      invalid: [{ ok: true }, { ok: false, error: { code: 'CG-NOPE' }, session: null }],
+    },
+  },
+  'voice.edit': {
+    req: { valid: [{ sessionId: uuid(0x700), text: '[whispers] Hey you' }, { sessionId: uuid(0x700), text: '' }], invalid: [{ sessionId: uuid(0x700), text: 'я'.repeat(5001) }, { text: 'x' }] },
+    res: { valid: [{ ok: true, session: voiceSession }, { ok: false, error: { code: 'CG-STORAGE-WRITE' }, session: voiceSession }], invalid: [{ ok: true, session: null }] },
+  },
+  'voice.take': {
+    req: {
+      valid: [{ sessionId: uuid(0x700), takeId: uuid(0x704), script: 'Hey you', cause }],
+      invalid: [{ sessionId: uuid(0x700), takeId: 'take-1', script: 'Hey you', cause }, { sessionId: uuid(0x700), takeId: uuid(0x704), script: 'Hey you' }],
+    },
+    res: { valid: [{ ok: true, session: voiceSession }, { ok: false, error: { code: 'CG-VOICE-QUOTA', httpStatus: 429 }, session: voiceSession }], invalid: [{ ok: false, session: null }] },
+  },
+  'voice.check': {
+    req: { valid: [{ sessionId: uuid(0x700), takeId: uuid(0x703), cause }], invalid: [{ sessionId: uuid(0x700), takeId: uuid(0x703) }] },
+    res: { valid: [{ ok: true, session: voiceSession }], invalid: [{ ok: true, session: { ...voiceSession, revision: -1 } }] },
+  },
+  'voice.audio': {
+    req: { valid: [{ sessionId: uuid(0x700), takeId: uuid(0x701) }], invalid: [{ sessionId: uuid(0x700) }] },
+    res: {
+      valid: [{ ok: true, audio: voiceAudio }, { ok: false, error: { code: 'CG-VOICE-CORRUPT' } }, { ok: false, error: { code: 'CG-VOICE-EXPIRED', httpStatus: 410 } }],
+      invalid: [{ ok: true, audio: { ...voiceAudio, mime: 'audio/wav' } }, { ok: true, audio: { ...voiceAudio, base64: 'not base64!' } }, { ok: true, audio: { ...voiceAudio, bytes: 3 * 1024 * 1024 } }],
+    },
+  },
+  'voice.attached': {
+    req: { valid: [{ sessionId: uuid(0x700), takeId: uuid(0x701), state: 'attached' }, { sessionId: uuid(0x700), takeId: uuid(0x701), state: 'unknown' }], invalid: [{ sessionId: uuid(0x700), takeId: uuid(0x701), state: 'sent' }] },
+    res: { valid: [{ ok: true, session: voiceSession }], invalid: [{ ok: 'yes', session: voiceSession }] },
+  },
+  'voice.discard': {
+    req: { valid: [{ sessionId: uuid(0x700) }], invalid: [{}] },
+    res: { valid: [{ discarded: true }, { discarded: false }], invalid: [{}] },
+  },
   'site.access': {
     req: { valid: [{ host: 'fansly-web' }, { host: 'fansly-web', enabled: true }, { host: 'fansly-web', reload: true }], invalid: [{ host: 'other' }, { host: 'fansly-web', enabled: 'yes' }] },
     res: { valid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 2 }, { host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 1, reloaded: 1 }], invalid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: -1 }, { host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 0, reloaded: -1 }] },
@@ -528,6 +575,10 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
     valid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming', phase: { name: 'streaming', since: T0 }, firstChunkAt: T0 + 900 }],
     invalid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming' }],
   },
+  'voice.changed': {
+    valid: [{ chat, conversationRef: IDS.fan, session: voiceSession }, { chat, conversationRef: IDS.fan, session: null }],
+    invalid: [{ chat, session: voiceSession }, { chat, conversationRef: IDS.fan, session: { ...voiceSession, sessionId: 'x' } }],
+  },
   'op.done': {
     valid: [
       { view: opView },
@@ -598,6 +649,7 @@ const openChatPage = {
   cursor: '9002',
 } as const;
 const draftWire = { composerInstanceId: 'composer1', revision: 4, plainText: 'my draft', provenance: 'human-or-unknown', digest: DIGEST } as const;
+const attachWire = { intentId: uuid(11), expected: hostIdentity, file: { name: `${uuid(12)}.mp3`, type: 'audio/mpeg', bytes: new ArrayBuffer(16) } } as const;
 
 export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeRequestFixtures } = {
   probe: { payload: empty, data: { valid: [probe], invalid: [{ ...probe, v: 2 }] } },
@@ -747,6 +799,26 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
         { ok: false, failure: 'http', status: 429 },
       ],
       invalid: [{ ok: true, last: { messageId: IDS.msg2, direction: 'creator', sentAt: ISO, read: true, readAt: null } }, { ok: false, failure: 'not-open', status: null }, { ok: true }],
+    },
+  },
+  // 1.47.0: a file of ours dropped on the open chat's composer; MAIN answers what the composer showed of it.
+  attachFile: {
+    payload: {
+      valid: [attachWire],
+      invalid: [
+        // MAIN gets no token; the page reads the name, which never names the extension.
+        { ...attachWire, cause: { kind: 'click', actionToken: ACTION_TOKEN } },
+        { ...attachWire, file: { ...attachWire.file, name: 'chatgoose-voice.mp3' } },
+        { ...attachWire, file: { ...attachWire.file, type: 'audio/wav' } },
+        // The bytes themselves, never an empty file or a copy of their shape.
+        { ...attachWire, file: { ...attachWire.file, bytes: new ArrayBuffer(0) } },
+        { ...attachWire, file: { ...attachWire.file, bytes: new Uint8Array(16) } },
+      ],
+    },
+    data: {
+      valid: [{ state: 'attached', ms: 2400 }, { state: 'refused', reason: 'permission' }, { state: 'not-attached', reason: 'site-refused' }, { state: 'unknown' }],
+      // ChatSpace's upload has no window the person closes; a refusal is one of the vocabulary's.
+      invalid: [{ state: 'not-attached', reason: 'dismissed' }, { state: 'refused', reason: 'gif' }, { state: 'attached' }, { state: 'unknown', reason: 'timeout' }],
     },
   },
 };

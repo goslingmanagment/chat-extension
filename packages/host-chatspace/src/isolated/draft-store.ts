@@ -2,8 +2,10 @@
 // `localStorage['chat-space:draft:of:{acc}:{fan}']` = `{ body: { json, … },
 // updatedAt }`, written by a Vue watcher a microtask after each edit; an
 // empty draft removes the key. The isolated side reads it — same origin, no
-// request — to verify an insert against the target's own key (NEW-06) and to
-// learn whether the key still exists (§6.2 anchor `draftKey`).
+// request — to verify an insert against the target's own key (NEW-06), to
+// learn whether the key still exists (§6.2 anchor `draftKey`), and (1.47.0)
+// to see the draft's media before and after an attach of ours: its audio,
+// its GIF, its count, and the upload of our file by its name.
 //
 // The page storage arrives as a port (`DraftStorage`) from the composition
 // root: host-chatspace touches no storage API itself (§4, lint).
@@ -62,6 +64,46 @@ export function readStoredDraft(drafts: DraftStorage, chat: ChatRef): StoredDraf
     const json = parsed?.body?.json;
     if (json === undefined) return { state: 'unreadable' };
     return { state: 'present', text: json === null ? '' : tiptapText(json) };
+  } catch {
+    return { state: 'unreadable' };
+  }
+}
+
+/** A medium of the stored draft as an attach reads it; `name` — the file name of the person's upload it came from. */
+export interface StoredMedium {
+  readonly id: string;
+  readonly type: string;
+  readonly name: string | null;
+}
+
+export type StoredMedia =
+  /** No key: an empty draft (ChatSpace removes the key), or one kept elsewhere. */
+  | { readonly state: 'absent' }
+  | { readonly state: 'unreadable' }
+  | { readonly state: 'present'; readonly gif: boolean; readonly medias: readonly StoredMedium[] };
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** The media of the target chat's own stored draft (`body.media.medias`, `body.gif`); never another chat's. */
+export function readStoredMedia(drafts: DraftStorage, chat: ChatRef): StoredMedia {
+  let raw: string | null;
+  try {
+    raw = drafts.getItem(draftKey(chat.hostAccountId, chat.platformFanId));
+  } catch {
+    return { state: 'unreadable' };
+  }
+  if (raw === null) return { state: 'absent' };
+  try {
+    const body = (JSON.parse(raw) as { body?: unknown } | null)?.body;
+    if (!isRecord(body)) return { state: 'unreadable' };
+    const media = body['media'] ?? null;
+    const list = isRecord(media) ? media['medias'] : media === null ? [] : null;
+    if (!Array.isArray(list)) return { state: 'unreadable' };
+    const medias = (list as unknown[]).filter(isRecord).map((item): StoredMedium => {
+      const name = isRecord(item['uploadDescriptor']) ? item['uploadDescriptor']['name'] : null;
+      return { id: String(item['id']), type: String(item['type']), name: typeof name === 'string' ? name : null };
+    });
+    return { state: 'present', gif: body['gif'] !== null && body['gif'] !== undefined, medias };
   } catch {
     return { state: 'unreadable' };
   }

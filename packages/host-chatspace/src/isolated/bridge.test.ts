@@ -116,6 +116,20 @@ describe('[EX-008] the boot routes requests to the runtime', () => {
     expect(runs).toBe(3);
   });
 
+  it('[EX-008] a repeated request id of an attach drops the file once: the second gets the first answer', async () => {
+    let drops = 0;
+    const raw = await rawPort((t) => (t === 'attachFile' ? ((drops += 1), { state: 'attached', ms: 3 }) : null));
+    const file = { name: '00000000-0000-4000-8000-000000000031.mp3', type: 'audio/mpeg', bytes: new ArrayBuffer(8) };
+    raw.send({ id: 9, t: 'attachFile', payload: { intentId: '00000000-0000-4000-8000-000000000030', expected: {}, file } });
+    raw.send({ id: 9, t: 'attachFile', payload: { intentId: '00000000-0000-4000-8000-000000000030', expected: {}, file } });
+    await raw.settle(2);
+    expect(drops).toBe(1);
+    expect(raw.answers.map((answer) => [answer['id'], answer['data']])).toEqual([
+      [9, { state: 'attached', ms: 3 }],
+      [9, { state: 'attached', ms: 3 }],
+    ]);
+  });
+
   it('[EX-008] a request carrying another document’s epoch is refused before it runs (stale-document)', async () => {
     let runs = 0;
     const raw = await rawPort(() => ((runs += 1), []));

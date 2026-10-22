@@ -155,6 +155,10 @@ export function installControl(nav: Navigation): { readonly markReady: () => voi
       if (owner !== undefined) isOwner.value = owner;
       cache.setQueryData(keys.userPermissions(), [...permissions]);
     },
+    setUpload: (patch) => {
+      env.upload = { ...env.upload, ...patch };
+      record('stand-upload', { ...env.upload });
+    },
     wsStatus: () => {
       const state = socketState();
       return { status: state.status, sockets: state.sockets, authenticated: state.authenticated };

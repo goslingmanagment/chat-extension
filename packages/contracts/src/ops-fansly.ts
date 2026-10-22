@@ -1,6 +1,6 @@
 // Fansly's own operations (1.15.0, R20 P4b3; docs/project-unite/architecture.md
-// §1.6, §8.8, §11.1): the voice script and «Заполнить из чата», as the shared
-// scheduler runs them — through its admission (one operation per chat across
+// §1.6, §8.8, §11.1): «Заполнить из чата», as the shared scheduler runs it
+// (the voice script is every site's since 1.47.0: voice.ts) — through its admission (one operation per chat across
 // the extension and three per tab, together with Reply and the rest), its
 // timeouts, cancel, spend, dedup and kept result. The shared code knows them
 // as types (`SiteOpId`, `SiteStartOp`, `SiteOpResult`); what checks and drives
@@ -16,17 +16,17 @@
 
 import * as z from 'zod/mini';
 
-import { ToneSchema, type SiteOpId } from './features';
+import { type SiteOpId } from './features';
 import type { FanslyFeatureKey } from './features/fansly';
 import { LiveTextTailSchema } from './host';
 import { NoteFieldLabelSchema, NoteFieldsSchema, NoteValuesSchema, type HubAiFeature } from './hub/ai';
 import { HumanCauseSchema, TargetSchema } from './ids';
 import { AI_REQUEST_LIMITS, NOTE_FILL_LIMITS, OP_TIMEOUTS, type OpTimeouts } from './limits';
-import { OpDraftSchema, OpViewSchema, type SiteOpResult, type SiteStartOp, type SiteOpView } from './ops';
-import { UuidSchema, boundedText, displayText } from './primitives';
+import { OpViewSchema, type SiteOpResult, type SiteStartOp, type SiteOpView } from './ops';
+import { UuidSchema, displayText } from './primitives';
 
 /** The operations of Fansly's slice, beside the shared `FEATURE_IDS`. */
-export const FANSLY_OPS = ['voice-script', 'notes-fill'] as const satisfies readonly SiteOpId[];
+export const FANSLY_OPS = ['notes-fill'] as const satisfies readonly SiteOpId[];
 export const FanslyOpSchema = z.enum(FANSLY_OPS);
 export type FanslyOp = z.infer<typeof FanslyOpSchema>;
 
@@ -35,8 +35,6 @@ export function isFanslyOp(feature: string): feature is FanslyOp {
 }
 
 export const FANSLY_OP_LIMITS = {
-  /** The voice script a result may carry: the bound of `fansly.voice.create`'s `script` (the hub checks the script itself; the editor holds about 600). */
-  voiceScriptMaxChars: 5_000,
   /** HF-6: «Заполнить из чата» reads the whole chat, never fewer than this many messages, as the Fansly extension did; above it — the hub's `limits.deepMax` (R20 P11c). */
   notesFillDepthMin: 3_000,
   /** 1.16.0 (R20 P11b2; the Fansly extension's `FAN_NOTE_QUOTES_MAX`, decision 164): quotes kept per field; a fourth is ignored. */
@@ -57,12 +55,11 @@ export interface FanslyOpDriver {
   readonly feature: FanslyFeatureKey;
   /** The kind of its result (`SiteOpResult`). */
   readonly result: SiteOpResult['kind'];
-  /** §7: the voice script waits as long as a draft; the notes fill, which reads the whole chat, as long as a full Recap. */
+  /** §7: the notes fill, which reads the whole chat, waits as long as a full Recap. */
   readonly timeouts: OpTimeouts;
 }
 
 export const FANSLY_OP_DRIVERS = {
-  'voice-script': { hub: 'voice-script', feature: 'voice', result: 'voice-script', timeouts: OP_TIMEOUTS.reply },
   'notes-fill': { hub: 'fan-notes-fill', feature: 'notes-fill', result: 'note-fields', timeouts: OP_TIMEOUTS.recap },
 } as const satisfies Record<FanslyOp, FanslyOpDriver>;
 
@@ -84,14 +81,6 @@ const START = {
   force: z.optional(z.boolean()),
 };
 
-/** The voice script: spoken from the draft in the chat's field (never blank), in a preset's tone — null is the calm one, the hub's `none`. */
-export const VoiceScriptStartSchema = z
-  .strictObject({ feature: z.literal('voice-script'), ...START, tone: z.nullable(ToneSchema), draft: OpDraftSchema })
-  .check(
-    z.refine(ofFansly, { message: "a Fansly operation is a Fansly chat's" }),
-    z.refine((start) => start.draft.text.trim() !== '', { message: 'the voice script is spoken from a draft' }),
-  );
-
 /**
  * «Дополнить из чата»: the questionnaire's labels and, 1.28.0 (X43, the owner's ruling of 2026-10-17), their values,
  * index-aligned — the body's `noteValues`, never anything else of the note (FS-NOTE-5, FX-024). Without `values` the
@@ -104,16 +93,10 @@ export const NotesFillStartSchema = z
     z.refine((start) => start.values === undefined || start.values.length === start.fields.length, { message: 'values: one per field' }),
   );
 
-export const FanslyStartOpSchema = z.discriminatedUnion('feature', [VoiceScriptStartSchema, NotesFillStartSchema]) satisfies z.ZodMiniType<SiteStartOp>;
+export const FanslyStartOpSchema = z.discriminatedUnion('feature', [NotesFillStartSchema]) satisfies z.ZodMiniType<SiteStartOp>;
 export type FanslyStartOp = z.infer<typeof FanslyStartOpSchema>;
 
 // ── A result ───────────────────────────────────────────────────────────────
-
-/** The script, ready for the editor and then for the paid voicing (`fansly.voice.create`); its source is the view's `generationRef`. */
-export const VoiceScriptResultSchema = z.strictObject({
-  kind: z.literal('voice-script'),
-  script: boundedText(FANSLY_OP_LIMITS.voiceScriptMaxChars).check(z.refine((script) => script.trim() !== '', { message: 'an empty voice script' })),
-});
 
 const oneLine = (max: number) => displayText(max).check(z.regex(/^[^\r\n\u2028\u2029]*$/));
 
@@ -146,7 +129,7 @@ export const NoteFieldsResultSchema = z
     z.refine((result) => (result.proposed ?? []).every((field) => !result.fields.some((asked) => asked.label.toLowerCase() === field.label.toLowerCase())), { message: 'a proposed field repeats an asked label' }),
   );
 
-export const FanslyOpResultSchema = z.discriminatedUnion('kind', [VoiceScriptResultSchema, NoteFieldsResultSchema]) satisfies z.ZodMiniType<SiteOpResult>;
+export const FanslyOpResultSchema = z.discriminatedUnion('kind', [NoteFieldsResultSchema]) satisfies z.ZodMiniType<SiteOpResult>;
 export type FanslyOpResult = z.infer<typeof FanslyOpResultSchema>;
 
 /** Kept by the common scheduler, decoded only by the Fansly chunk. */

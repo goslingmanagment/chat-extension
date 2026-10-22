@@ -9,6 +9,9 @@
 // - Writes (D-07): the guarded insert through ChatSpace's composer bridge and
 //   router.push on a human action (the isolated side redeemed the token).
 //   The third write, the X8 queue call, is the tap script's (send-port.ts).
+//   The fourth (1.47.0), on a human action too: one drop of a file of ours
+//   on the open chat's composer frame, which ChatSpace uploads its own way
+//   (attach.ts).
 // - The tap script (chatspace-ws), when the background registered it, hands
 //   over its live port (live.ts): the freshness checkpoint, the X8 send port,
 //   the flags and the `wsFrames` anchor. Without it those requests are
@@ -20,9 +23,9 @@
 // chat's history.
 // Never (§6.10): any other request of its own, history loads, store/cache writes,
 // resend/cancel/confirmEchoedMessage/reset*, ensure*/refresh*/fetch/
-// invalidate*, insertMessage/setInsertPayload, synthetic paste, body
-// observers with subtree, DOM polling on a timer, faked focus/visibility,
-// writes into .ProseMirror, global CSS.
+// invalidate*, insertMessage/setInsertPayload, synthetic paste or any other
+// synthetic event but that one drop, body observers with subtree, DOM polling
+// on a timer, faked focus/visibility, writes into .ProseMirror, global CSS.
 // Every callback ChatSpace or the browser calls — the router's afterEach,
 // the Pinia plugin, the stores' $onAction and $subscribe with their `after`,
 // the editor watch, DOMContentLoaded — goes through the boot's `guard`
@@ -30,6 +33,7 @@
 
 import { type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
 import { isPlain, type Plain } from '@cg/host-kit/main/check';
+import { createAttach } from './attach';
 import { createComposers, rejected, type Composer, type Composers, type Receipt } from './composer';
 import { digest, normalize } from '@cg/host-kit/common/digest';
 import { type LiveHost, type LivePort, type WsTapHandle } from './live';
@@ -62,7 +66,7 @@ import {
 import { mediaRead } from './media';
 import { cachedOpenPage } from './cached-page';
 import { createOmApi } from './om-api';
-import { PAYLOAD, type Identity, type InsertWire, type NavigationWire } from './requests';
+import { PAYLOAD, type AttachWire, type Identity, type InsertWire, type NavigationWire } from './requests';
 import { QUEUE_SEND, queueShape } from './send-port';
 
 type NavReceipt = { readonly state: 'navigated'; readonly routeEpoch: number; readonly insert: Receipt | null } | { readonly state: 'failed'; readonly code: string; readonly insert: Receipt | null };
@@ -297,6 +301,18 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     const composer = identityMatches(expected) && expected.chat ? activeComposer() : null;
     return composer && composer.id === expected.composerInstanceId ? composer : null;
   };
+
+  /** 1.47.0: a file of ours into the open chat's composer, by a drop on its frame (attach.ts). */
+  const attacher = createAttach({
+    win,
+    now,
+    setTimer,
+    frame,
+    guard,
+    composerOf,
+    editorOf: (composer) => composers?.editorElement(composer.slot) ?? null,
+    permissions: () => reader.data(KEY_PERMISSIONS),
+  });
 
   // ── the tap script's live port ──
 
@@ -658,6 +674,8 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         if (pending?.intentId === id) pending.cancel(CG_CANCELED);
         return { canceled: true };
       }
+      case 'attachFile':
+        return attacher.attach(payload as unknown as AttachWire);
     }
     return navigate(payload['intent'] as NavigationWire);
   };
@@ -673,6 +691,7 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     },
     dispose() {
       pending?.cancel(CG_CANCELED);
+      attacher.dispose();
       disposed = true;
       doc.removeEventListener('DOMContentLoaded', onDomReady);
       editorWatch?.disconnect();

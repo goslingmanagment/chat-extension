@@ -148,6 +148,8 @@ app-group-message-input { flex: 0 0 auto; display: flex; position: relative; fle
 .message-attachments { display: flex; flex-wrap: wrap; overflow-y: auto; }
 .message-attachments > div.attachment:empty { height: 0; }
 app-account-media-create-template.attachment { display: block; margin: 0.25em; padding: 0.25em 0.5em; border: 1px solid var(--border-color); border-radius: 0.5em; font-size: 0.875em; }
+.media-template-audio { display: flex; align-items: center; gap: 2px; height: 18px; margin-bottom: 0.25em; }
+.media-template-audio > span { width: 3px; border-radius: 1px; background: var(--blue-1); }
 .progress-bar { height: 4px; background: var(--dark-5); }
 .progress-bar-progress { height: 4px; background: var(--blue-1); }
 .no-dm-allowed { padding: 0.5em; }

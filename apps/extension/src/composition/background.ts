@@ -103,6 +103,7 @@ import { soundRequestHandlers } from '@cg/core/services/sound';
 import { createSiteAccess } from '@cg/core/services/site-access';
 import { createNetworkSession, legacyAccount } from '@cg/core/services/network-session';
 import { HEALTH_TICK_MS } from '@cg/core/services/telemetry';
+import { readVoiceOpView } from '@cg/core/services/voice';
 import { ChatExtensionHub, VENDORED_CONTRACT_HASH, errorWireOf } from '@cg/hub';
 import {
   createAlarms,
@@ -149,6 +150,7 @@ import { createTabAccountsGate } from './background/tab-accounts';
 import { pickCommandTab } from './background/tab-command';
 import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
+import { createBackgroundVoice } from './background/voice';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
 import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily } from './site-access';
@@ -463,6 +465,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const results = createResultsStore<AnyOpView>({ session, log: serviceLog, readView: async (value) => {
     const common = OpViewSchema.safeParse(value);
     if (common.success) return common.data;
+    // 1.47.0: the voice script is every site's, its view the core's own.
+    const voiceView = readVoiceOpView(value);
+    if (voiceView !== null) return voiceView;
     const target = TargetSchema.safeParse((value as { target?: unknown } | null)?.target);
     if (!target.success || !(await moduleUnderSameSignIn(target.data.binding.host))) return null;
     return hostModules.running(target.data.binding.host)?.operations?.readView(value) ?? null;
@@ -567,6 +572,25 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     log: coreLog,
   });
 
+  // 1.47.0: voice notes — the sessions of the chats and their paid takes; the voice script runs in the scheduler below.
+  const voice = createBackgroundVoice({
+    hub,
+    store: local,
+    page: (pageId, sender) => pageOf(pageId, sender),
+    pageLabel: (pageId) => hubInstance?.cachedBootstrap()?.bootstrap.pages.find((page) => page.pageId === pageId)?.pageLabel ?? null,
+    tokens,
+    scheduler: { start: (tab, start) => scheduler.start(tab, start), siteView: (opId, host) => scheduler.siteView(opId, host) },
+    siteActive: (tabSessionId) => siteActive(hostOfTab(tabSessionId)),
+    owner: () => {
+      const signedIn = hubInstance?.session() ?? null;
+      return signedIn === null ? null : { hubOrigin: signedIn.hubOrigin, userId: signedIn.userId };
+    },
+    emit: (change) => rpc.emit('voice.changed', change),
+    errorOf: wireOf,
+    ids: IDS,
+    log: serviceLog,
+  });
+
   const scheduler: OpScheduler = new OpScheduler({
     clock: CLOCK,
     ids: IDS,
@@ -581,9 +605,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // R11: how each feature's start becomes the hub's request and its answer a result ([NEXT] parts, Hi variants,
     // the Review frame, Recap blocks, Coach drafts).
     drivers: AI_FEATURE_DRIVERS,
+    // A site's own operations come with its running module (Fansly's «Заполнить из чата»); the voice script is every
+    // site's (1.47.0), so a site without a module of operations still has it.
     siteOps: async (host) => {
       if (!(await moduleUnderSameSignIn(host))) return null;
-      return hostModules.running(host)?.operations ?? null;
+      return voice.withVoice(host, hostModules.running(host)?.operations ?? null);
     },
     // «Нет связи» vs «хаб не ответил вовремя» at a deadline: what the browser itself says about the connection.
     online: () => navigator.onLine,
@@ -1355,6 +1381,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('feed.read', data['feed.read']);
   rpc.handle('fan.card', data['fan.card']);
   rpc.handle('fan.dossier', data['fan.dossier']);
+  // 1.47.0: voice notes, both sites.
+  rpc.handle('voice.read', voice.handlers['voice.read']);
+  rpc.handle('voice.script', voice.handlers['voice.script']);
+  rpc.handle('voice.edit', voice.handlers['voice.edit']);
+  rpc.handle('voice.take', voice.handlers['voice.take']);
+  rpc.handle('voice.check', voice.handlers['voice.check']);
+  rpc.handle('voice.audio', voice.handlers['voice.audio']);
+  rpc.handle('voice.attached', voice.handlers['voice.attached']);
+  rpc.handle('voice.discard', voice.handlers['voice.discard']);
   rpc.handle('newcomers.list', async (request, sender) => {
     const answer = await data['newcomers.list'](request, sender);
     // The newest rows a tab read for its open window are the same the subscriber sound is decided by (SN-012).
@@ -1492,7 +1527,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('data.clear', async () => {
     const results = scheduler.clearFinished();
     clearDebug();
-    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), logging.clearCounters(), clearPassJournals(), hostModules.notify({ kind: 'clear-finished' }), scheduler.idle()]);
+    const done = await Promise.allSettled([hubInstance?.clearCaches() ?? Promise.resolve(), logging.logs.clear(), logging.clearCounters(), clearPassJournals(), hostModules.notify({ kind: 'clear-finished' }), scheduler.idle(), voice.service.clear()]);
     const cleared = done.every((step) => step.status === 'fulfilled');
     logger.info('bg.data', 'local data cleared', { fields: { results, cleared } });
     return ok({ cleared });
@@ -1613,6 +1648,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     { name: 'site-access', run: () => accessReady },
     { name: 'results', run: () => results.start() },
     { name: 'ops', run: () => scheduler.restore() },
+    // After the operations: a voice script an earlier event page was writing is read from them. Takes in flight go on.
+    { name: 'voice', run: () => voice.service.resume() },
     // A site with unfinished work stored starts its module now (bg/chatspace: the X8 journal is restored, its open
     // attempts hold their fans and owe the hub their reports); the others start with their first tab or request.
     { name: 'hosts', run: () => hostModules.resume(workPending) },

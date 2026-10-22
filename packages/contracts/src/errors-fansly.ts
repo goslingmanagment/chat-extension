@@ -1,7 +1,8 @@
 // The CG codes of fansly.com (1.15.0; R20 docs/project-unite/architecture.md
 // §1.6, §12; docs/architecture.md Appendix A «Коды Fansly»): session, API and
-// relay (`CG-FAN-*`), «Заметки» (`CG-NOTE-*`), voice notes (`CG-VOICE-*`),
-// vault (`CG-VAULT-*`) and Fansly's «Новые» (`CG-FNEW-*`).
+// relay (`CG-FAN-*`), «Заметки» (`CG-NOTE-*`), vault (`CG-VAULT-*`) and
+// Fansly's «Новые» (`CG-FNEW-*`). Voice notes (`CG-VOICE-*`) are on both sites
+// since 1.47.0: the shared registry's.
 //
 // A registry of the site's own, beside the shared one (errors.ts,
 // errors/registry.ts), with the same rules: `CG-<AREA>-<NAME>`, readable
@@ -43,20 +44,6 @@ export const CG_FANSLY_CODES = [
   'CG-NOTE-WRITE',
   'CG-NOTE-UNCERTAIN',
   'CG-NOTE-TOO-LONG',
-  'CG-VOICE-OFF',
-  'CG-VOICE-NOT-ALLOWED',
-  'CG-VOICE-NO-PROFILE',
-  'CG-VOICE-SCRIPT',
-  'CG-VOICE-SOURCE',
-  'CG-VOICE-QUOTA',
-  'CG-VOICE-ATTEMPT',
-  'CG-VOICE-EXPIRED',
-  'CG-VOICE-RETRIEVAL-OFF',
-  'CG-VOICE-PROVIDER',
-  'CG-VOICE-CORRUPT',
-  'CG-VOICE-UNCERTAIN',
-  'CG-VOICE-ATTACH',
-  'CG-VOICE-ATTACH-UNKNOWN',
   'CG-VAULT-NO-ALBUM',
   'CG-VAULT-UPLOAD',
   'CG-VAULT-UNCERTAIN',
@@ -96,7 +83,7 @@ export const CgAnyErrorWireSchema = z.extend(CgErrorWireSchema, { code: CgAnyCod
 export type CgAnyErrorWire = z.infer<typeof CgAnyErrorWireSchema>;
 
 /** Diagnostics grouping of the Fansly codes (the shared `CgKind`s are the shared registry's). */
-export const CG_FANSLY_KINDS = ['fansly', 'note', 'voice', 'vault', 'newcomers'] as const;
+export const CG_FANSLY_KINDS = ['fansly', 'note', 'vault', 'newcomers'] as const;
 export type CgFanslyKind = (typeof CG_FANSLY_KINDS)[number];
 
 /** One entry of the Fansly registry: the fields of a shared entry (errors.ts `CgEntry`), its texts pinned to its code. */
@@ -140,21 +127,6 @@ const SPECS = {
   'CG-NOTE-WRITE': { kind: 'note', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
   'CG-NOTE-UNCERTAIN': { kind: 'note', severity: 'warn', recovery: 'retry', retry: 'safe-read', telemetry: 'count+sample' },
   'CG-NOTE-TOO-LONG': { kind: 'note', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count' },
-  // ── voice notes (hub HF-4) ──
-  'CG-VOICE-OFF': { kind: 'voice', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
-  'CG-VOICE-NOT-ALLOWED': { kind: 'voice', severity: 'info', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },
-  'CG-VOICE-NO-PROFILE': { kind: 'voice', severity: 'warn', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },
-  'CG-VOICE-SCRIPT': { kind: 'voice', severity: 'warn', recovery: 'none', retry: 'new-click', telemetry: 'count' },
-  'CG-VOICE-SOURCE': { kind: 'voice', severity: 'warn', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
-  'CG-VOICE-QUOTA': { kind: 'voice', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count' },
-  'CG-VOICE-ATTEMPT': { kind: 'voice', severity: 'warn', recovery: 'new-generation', retry: 'new-click', telemetry: 'count+sample' },
-  'CG-VOICE-EXPIRED': { kind: 'voice', severity: 'info', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
-  'CG-VOICE-RETRIEVAL-OFF': { kind: 'voice', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count' },
-  'CG-VOICE-PROVIDER': { kind: 'voice', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
-  'CG-VOICE-CORRUPT': { kind: 'voice', severity: 'error', recovery: 'new-generation', retry: 'new-click', telemetry: 'count+sample' },
-  'CG-VOICE-UNCERTAIN': { kind: 'voice', severity: 'error', recovery: 'none', retry: 'never', telemetry: 'count+sample' },
-  'CG-VOICE-ATTACH': { kind: 'voice', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
-  'CG-VOICE-ATTACH-UNKNOWN': { kind: 'voice', severity: 'warn', recovery: 'none', retry: 'new-click', telemetry: 'count+sample' },
   // ── vault ──
   'CG-VAULT-NO-ALBUM': { kind: 'vault', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-VAULT-UPLOAD': { kind: 'vault', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
@@ -203,31 +175,3 @@ export const CG_FANSLY_I18N_KEYS: readonly CgFanslyI18nKey[] = CG_FANSLY_CODES.f
 
 /** A Fansly catalog of one locale: plain texts without parameters (an error crosses runtimes as code and facts). */
 export type CgFanslyCatalog = { readonly [K in CgFanslyI18nKey]: string };
-
-// ── Hub failures that read as Fansly codes ─────────────────────────────────
-
-/**
- * The hub's voice codes (hub docs/error-handling.md §3, HF-4; Appendix A «`voice_*`»): the status each comes with
- * (the fake hub answers with it) and the Fansly code it reads as. `bg/fansly` resolves a failure of its own hub calls
- * (voice note create, status, audio) by this table first, then by the shared rules (hub/error-map.ts), which claim no
- * `voice_*` code. `gate_voice_*` come on the AI stream of `voice-script` (an operation of the Fansly slice, P4b3);
- * `gate_voice_unsupported_platform` and `gate_voice_identity_required` are our own bugs there and stay CG-HUB-REQUEST
- * by their 400. `idempotency_mismatch` of the Fansly Sync Engine is an owner route, never ours.
- */
-export const HUB_FANSLY_ERROR_CODES = {
-  voice_disabled: { status: 403, cg: 'CG-VOICE-OFF' },
-  voice_not_allowlisted: { status: 403, cg: 'CG-VOICE-NOT-ALLOWED' },
-  gate_voice_disabled: { status: 400, cg: 'CG-VOICE-NOT-ALLOWED' },
-  voice_no_profile: { status: 409, cg: 'CG-VOICE-NO-PROFILE' },
-  gate_voice_no_profile: { status: 400, cg: 'CG-VOICE-NO-PROFILE' },
-  voice_script_invalid: { status: 400, cg: 'CG-VOICE-SCRIPT' },
-  voice_source_invalid: { status: 400, cg: 'CG-VOICE-SOURCE' },
-  voice_quota_denied: { status: 429, cg: 'CG-VOICE-QUOTA' },
-  idempotency_mismatch: { status: 409, cg: 'CG-VOICE-ATTEMPT' },
-  artifact_expired: { status: 410, cg: 'CG-VOICE-EXPIRED' },
-  voice_retrieval_disabled: { status: 403, cg: 'CG-VOICE-RETRIEVAL-OFF' },
-  voice_provider_unavailable: { status: 503, cg: 'CG-VOICE-PROVIDER' },
-  gate_voice_provider_unavailable: { status: 400, cg: 'CG-VOICE-PROVIDER' },
-  voice_artifact_corrupt: { status: 500, cg: 'CG-VOICE-CORRUPT' },
-} as const satisfies Readonly<Record<string, { readonly status: number; readonly cg: CgFanslyCode }>>;
-export type HubFanslyErrorCode = keyof typeof HUB_FANSLY_ERROR_CODES;

@@ -1,8 +1,9 @@
 // Fixtures of Fansly's own operations (1.15.0, R20 P4b3; ops-fansly.ts): the
-// starts of the voice script and of «Заполнить из чата», their results, the
-// questionnaire's labels, and the hub bodies and requests the two become —
-// valid and invalid. Synthetic Fansly ids (FANSLY_IDS): the conversation is
-// the group, the fan named apart.
+// start of «Заполнить из чата», its results, the questionnaire's labels, and
+// the hub bodies and requests it and the voice script become — valid and
+// invalid (the voice script is every site's since 1.47.0, voice.ts; its start
+// is no Fansly operation any more). Synthetic Fansly ids (FANSLY_IDS): the
+// conversation is the group, the fan named apart.
 
 import { DIGEST, FANSLY_IDS, cause, fanslyTarget, target, uuid, opView } from './samples';
 
@@ -54,11 +55,6 @@ export const fanslyNotesFillStart = { feature: 'notes-fill', target: fanslyTarge
 
 export const FANSLY_START_OP_FIXTURES: Verdicts = {
   valid: [
-    fanslyVoiceScriptStart,
-    { ...fanslyVoiceScriptStart, fresh },
-    // «Спокойный»: no tone, the hub's `none`.
-    { ...fanslyVoiceScriptStart, tone: null },
-    { ...fanslyVoiceScriptStart, regenerateOf: uuid(0x501), force: true },
     fanslyNotesFillStart,
     { ...fanslyNotesFillStart, fresh },
     { ...fanslyNotesFillStart, window: 5, regenerateOf: uuid(0x502) },
@@ -66,13 +62,10 @@ export const FANSLY_START_OP_FIXTURES: Verdicts = {
     { ...fanslyNotesFillStart, values: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] },
   ],
   invalid: [
-    // A ChatSpace chat has no operation of Fansly's.
-    { ...fanslyVoiceScriptStart, target },
+    // A ChatSpace chat has no operation of Fansly's; the voice script is every site's (voice.ts), not this slice's.
     { ...fanslyNotesFillStart, target },
-    // The script is spoken from a draft: none, or a blank one, is no start.
-    { ...fanslyVoiceScriptStart, draft: undefined },
-    { ...fanslyVoiceScriptStart, draft: { ...draft, text: '   ' } },
-    { ...fanslyVoiceScriptStart, tone: 'calm' },
+    fanslyVoiceScriptStart,
+    { ...fanslyVoiceScriptStart, fresh },
     // The notes fill sends labels it can send and one value the hub takes per label (1.28.0, X43): one line, trimmed, ≤ 2000.
     { ...fanslyNotesFillStart, fields: [] },
     { ...fanslyNotesFillStart, fields: ['Имя: Анна'] },
@@ -114,7 +107,7 @@ export const noteFieldsMergeResult = {
 } as const;
 
 export const FANSLY_OP_RESULT_FIXTURES: Verdicts = {
-  valid: [voiceScriptResult, noteFieldsResult, noteFieldsMergeResult, { ...noteFieldsResult, proposed: [] }, { kind: 'note-fields', fields: [{ label: 'Имя', value: '' }] }, { kind: 'voice-script', script: 'с'.repeat(5000) }],
+  valid: [noteFieldsResult, noteFieldsMergeResult, { ...noteFieldsResult, proposed: [] }, { kind: 'note-fields', fields: [{ label: 'Имя', value: '' }] }],
   invalid: [
     // 1.16.0: three quotes a value, each one line and not empty; a proposed field has a value and is not an asked one.
     { kind: 'note-fields', fields: [{ label: 'Имя', value: 'Анна', quotes: ['a', 'b', 'c', 'd'] }] },
@@ -124,10 +117,9 @@ export const FANSLY_OP_RESULT_FIXTURES: Verdicts = {
     { ...noteFieldsMergeResult, proposed: [{ label: 'имя', value: 'Аня' }] },
     { ...noteFieldsMergeResult, proposed: [{ label: 'Питомцы', value: ' ' }] },
     { ...noteFieldsMergeResult, proposed: Array.from({ length: 6 }, (_, i) => ({ label: `Поле ${String(i)}`, value: 'x' })) },
+    // The voice script's result is the voice module's (voice.ts), not this slice's.
+    voiceScriptResult,
     { kind: 'voice-script', script: '' },
-    { kind: 'voice-script', script: '  \n ' },
-    { kind: 'voice-script', script: 'с'.repeat(5001) },
-    { ...voiceScriptResult, generationRef: uuid(0x503) },
     { kind: 'note-fields', fields: [] },
     { kind: 'note-fields', fields: [{ label: 'Имя', value: 'Анна' }, { label: 'ИМЯ', value: 'Аня' }] },
     // A value is one line of the note.
@@ -172,10 +164,12 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: NOTE_LABELS.map(() => '') }, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteFields: noteLabelsAtTheBound(), noteValues: noteLabelsAtTheBound().map(() => '') }, capabilities: ['context-v1'] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] }, capabilities: ['context-v1'] },
+    // 1.47.0: the voice script of an OnlyFans page — the chat is the fan.
+    { feature: 'voice-script', body: { ...voiceScriptBody, platform: 'onlyfans', conversationRef: FANSLY_IDS.fan }, capabilities: [] },
   ],
   invalid: [
-    // A Fansly page's, the fan named: the hub refuses the voice script elsewhere (`gate_voice_unsupported_platform`) and without the fan.
-    { feature: 'voice-script', body: { ...voiceScriptBody, platform: 'onlyfans', conversationRef: FANSLY_IDS.fan }, capabilities: [] },
+    // The fan is always named; on OnlyFans it is the chat itself.
+    { feature: 'voice-script', body: { ...voiceScriptBody, platform: 'onlyfans' }, capabilities: [] },
     { feature: 'voice-script', body: { ...voiceScriptBody, fanRef: undefined }, capabilities: [] },
     { feature: 'voice-script', body: { ...voiceScriptBody, fanRef: null }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, fanRef: undefined }, capabilities: [] },
@@ -198,8 +192,17 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
 };
 
 // P12a: a kept site view uses the same lifecycle with a strict site result.
-export const fanslyVoiceView = { ...opView, target: fanslyTarget, feature: 'voice-script', result: voiceScriptResult, generationRef: uuid(0x550), toneUsed: null } as const;
+export const fanslyNotesView = { ...opView, target: fanslyTarget, feature: 'notes-fill', result: noteFieldsResult, generationRef: uuid(0x550), toneUsed: null } as const;
 export const FANSLY_OP_VIEW_FIXTURES: Verdicts = {
-  valid: [fanslyVoiceView, { ...fanslyVoiceView, feature: 'notes-fill', result: noteFieldsResult }, { ...fanslyVoiceView, state: 'streaming', result: undefined }],
-  invalid: [opView, { ...fanslyVoiceView, target }, { ...fanslyVoiceView, result: noteFieldsResult }, { ...fanslyVoiceView, generationRef: undefined }, { ...fanslyVoiceView, result: undefined }, { ...fanslyVoiceView, clientContext: {} }],
+  valid: [fanslyNotesView, { ...fanslyNotesView, state: 'streaming', result: undefined }],
+  invalid: [
+    opView,
+    { ...fanslyNotesView, target },
+    { ...fanslyNotesView, result: voiceScriptResult },
+    // The voice script's view is the voice module's (voice.ts).
+    { ...fanslyNotesView, feature: 'voice-script', result: voiceScriptResult },
+    { ...fanslyNotesView, generationRef: undefined },
+    { ...fanslyNotesView, result: undefined },
+    { ...fanslyNotesView, clientContext: {} },
+  ],
 };

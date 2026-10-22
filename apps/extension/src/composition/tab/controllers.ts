@@ -77,6 +77,8 @@ export interface TabWorld {
   readonly gate: GestureGate;
   readonly logger: Logger;
   readonly drafts: DraftStore | null;
+  /** 1.47.0: «Скачать MP3» of a voice take — a Blob saved inside our own closed root. */
+  readonly files: AiChunk.FileSaver;
 }
 
 const done = (type: UiAction['type'], outcome: Extract<ActionReceipt, { ok: true }>['outcome'] = 'done'): ActionReceipt => ({ ok: true, type, outcome });
@@ -105,6 +107,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     policy: world.aiPolicy,
     clipboard: world.clipboard,
     toasts: world.toasts,
+    files: world.files,
     extensionVersion: world.extensionVersion,
     // Route and insert journal lines (LG-017): ids, lengths and fingerprints, never a text.
     journal: { write: (entry) => void logger.write(entry.level, entry.scope, entry.msg, { ...(entry.code === undefined ? {} : { code: entry.code }), ...(entry.fields === undefined ? {} : { fields: entry.fields }), ...(entry.ctx === undefined ? {} : { ctx: entry.ctx }) }) },
@@ -143,6 +146,7 @@ export function startAnalysis(ai: TabAi, analysis: typeof AnalysisChunk, coach: 
   ai.recap = analysis.createRecapController(ai.workspace);
   ai.plug(ai.recap);
   ai.plug(analysis.createReviewController(ai.workspace));
+  ai.plug(analysis.createVoiceController(ai.workspace));
   ai.plug(coach.createCoachController(ai.workspace));
 }
 

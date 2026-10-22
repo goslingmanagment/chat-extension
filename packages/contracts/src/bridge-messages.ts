@@ -11,6 +11,7 @@ import * as z from 'zod/mini';
 
 import { BRIDGE_PROTOCOL_VERSION, BridgeRequestIdSchema, BridgeResponseSchema, MainProbeSchema, type FromMainType, type ToMainType } from './bridge';
 import {
+  ATTACH_REFUSALS,
   AnchorIdSchema,
   ChatReadAnswerSchema,
   ChatWindowSchema,
@@ -29,10 +30,10 @@ import {
   thenInsertFits,
 } from './host';
 import { DraftProvenanceSchema, HostAccountSchema, HostIdentitySchema, PartRefSchema } from './ids';
-import { BRIDGE_LIMITS, CHAT_READ_LIMITS, OPEN_CHAT_LIMITS, SEND_LIMITS } from './limits';
+import { ATTACH_LIMITS, BRIDGE_LIMITS, CHAT_READ_LIMITS, OPEN_CHAT_LIMITS, SEND_LIMITS } from './limits';
 import { MediaAnswerSchema, MediaRequestSchema } from './media';
 import { SendMediaSchema } from './send-media';
-import { CountSchema, DigestSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
+import { CountSchema, DigestSchema, DurationMsSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
 import { FreshnessCheckpointSchema, PendingIdSchema, PreviewSendCommitSchema, PreviewSendPreflightSchema, SendAttemptViewSchema, SendFuseFactSchema, checkpointMatches } from './send';
 
 const EmptySchema = z.strictObject({});
@@ -119,6 +120,42 @@ export const MainSendRequestSchema = z
   })
   .check(z.refine((r) => checkpointMatches(r.checkpoint, r.acc, r.fan), { message: 'the checkpoint belongs to acc/fan' }));
 export type MainSendRequest = z.infer<typeof MainSendRequestSchema>;
+
+/**
+ * 1.47.0: the name of a file of ours as the page reads it — a random UUID and `.mp3`, as ChatSpace names the voice notes
+ * it records; never one that names the extension (decision X22).
+ */
+export const ATTACH_FILE_NAME_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.mp3$/i;
+
+/**
+ * 1.47.0: AttachIntent as MAIN receives it (HostPort.attachFile): no action token (§14) — the intent's one-time id, the
+ * identity of the chat, document and composer it is for, and the file. The bytes cross as an ArrayBuffer (a structured
+ * clone on the port): MAIN builds the File of the drop from them in the page's own world.
+ */
+export const AttachWireSchema = z.strictObject({
+  intentId: UuidSchema,
+  expected: HostIdentitySchema,
+  file: z.strictObject({
+    name: z.string().check(z.regex(ATTACH_FILE_NAME_PATTERN)),
+    type: z.literal('audio/mpeg'),
+    bytes: z.custom<ArrayBuffer>((value) => value instanceof ArrayBuffer && value.byteLength > 0 && value.byteLength <= ATTACH_LIMITS.maxBytes),
+  }),
+});
+export type AttachWire = z.infer<typeof AttachWireSchema>;
+
+/**
+ * What MAIN saw of it: the AttachReceipt of HostPort.attachFile but `dismissed` (ChatSpace's upload has no window the
+ * person closes). `attached` — the composer put a tile in the place of its upload of our file; `not-attached` — the
+ * upload went away and left nothing; `unknown` — nothing of it was seen in time. The isolated side checks each against
+ * the chat's draft key.
+ */
+export const AttachAnswerSchema = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('attached'), ms: DurationMsSchema }),
+  z.strictObject({ state: z.literal('refused'), reason: z.enum(ATTACH_REFUSALS) }),
+  z.strictObject({ state: z.literal('not-attached'), reason: z.literal('site-refused') }),
+  z.strictObject({ state: z.literal('unknown') }),
+]);
+export type AttachAnswer = z.infer<typeof AttachAnswerSchema>;
 
 const AccFan = { acc: NativeIdSchema, fan: NativeIdSchema };
 
@@ -218,7 +255,14 @@ export const TO_MAIN = {
    * deadline is CHAT_READ_LIMITS.bridgeMs.
    */
   chatReadState: { payload: z.strictObject({ ...AccFan, username: z.string().check(z.minLength(1), z.maxLength(CHAT_READ_LIMITS.usernameMax)) }), data: ChatReadAnswerSchema, write: false, timeout: 'network' },
-} as const satisfies Record<ToMainType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: boolean; readonly timeout: 'call' | 'navInsert' | 'network' }>;
+  /**
+   * 1.47.0: a file of ours into the open chat's composer (AttachWire, HostPort.attachFile): MAIN drops it on the
+   * composer frame root, once, in the step of its checks, and answers when the composer showed what became of it — at
+   * the latest after ATTACH_LIMITS.watchMs, or watchMaxMs while the site's upload of it is on view. Its deadline is
+   * ATTACH_LIMITS.bridgeMs.
+   */
+  attachFile: { payload: AttachWireSchema, data: AttachAnswerSchema, write: true, timeout: 'attach' },
+} as const satisfies Record<ToMainType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: boolean; readonly timeout: 'call' | 'navInsert' | 'network' | 'attach' }>;
 
 export type ToMainPayload<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['payload']>;
 export type ToMainData<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['data']>;
@@ -313,6 +357,7 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('cachedChatMessages'),
   requestFrame('media'),
   requestFrame('chatReadState'),
+  requestFrame('attachFile'),
 ]);
 export type BridgeRequest = z.infer<typeof BridgeRequestSchema>;
 

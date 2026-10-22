@@ -3,6 +3,8 @@
 
 import {
   DOCK_ACTION_IDS,
+  VOICE_LIMITS,
+  VOICE_TONES,
   type CheatsheetVM,
   type CoachTurnVM,
   type CoachVM,
@@ -19,6 +21,8 @@ import {
   type ToastVM,
   type ToastsVM,
   type VmView,
+  type VoiceTakeVM,
+  type VoiceVM,
 } from '@cg/contracts';
 
 import { button, DAY, FANS, handles, hotkey, iso, MIN, msg, openChat, PERSONA, reason, usd, uuid, type ScenarioCtx } from './base';
@@ -238,6 +242,54 @@ export function fanPanel(ctx: ScenarioCtx, view: VmView, patch: Partial<FanPanel
     lists: hasData ? ['VIP', 'Tippers'] : [],
     footer: { stamp: stamp(ctx, view.s === 'partial' ? 'partial' : 'complete'), archiveMessages: hasData ? 412 : null },
     close: { type: 'Navigate', to: { kind: 'surface', surface: 'fan-panel', open: false } },
+    ...patch,
+  };
+}
+
+// ── Voice (1.47.0) ──
+
+/** The fake hub's synthetic voice script (fake-hub/ai.ts): what its takes speak (fake-hub/voice-audio.ts). */
+const VOICE_SCRIPT = '[warmly] Hey you, it is lovely to hear from you.';
+
+/** Hubert's voice studio: the script and a ready take of it where the view has content, written while it loads. */
+export function voiceStudio(ctx: ScenarioCtx, view: VmView, patch: Partial<VoiceVM> = {}): VoiceVM {
+  const target = handles.dock(FANS.hubert);
+  const hasScript = view.s === 'ready' || view.s === 'partial' || view.s === 'offline';
+  const chars = VOICE_SCRIPT.length;
+  const take: VoiceTakeVM = {
+    takeId: uuid(501),
+    n: 1,
+    state: 'ready',
+    startedAt: ctx.now - 2 * MIN,
+    slow: false,
+    stale: false,
+    audio: null,
+    loading: false,
+    attached: null,
+    error: null,
+    charged: true,
+    check: null,
+  };
+  return {
+    view,
+    open: true,
+    targetHandle: target,
+    fanName: FANS.hubert.name,
+    stage: hasScript ? 'ready' : view.s === 'loading' ? 'writing' : view.s === 'empty' ? 'empty' : 'failed',
+    source: 'hey, i missed you — what were you up to today?',
+    tone: 'warm',
+    tones: VOICE_TONES,
+    toneReason: view.s === 'loading' ? reason('voice-writing') : null,
+    script: hasScript ? { text: VOICE_SCRIPT, streaming: false, edited: false, chars, max: VOICE_LIMITS.scriptChars, seconds: Math.ceil(chars / VOICE_LIMITS.charsPerSecond), issue: null } : null,
+    takes: hasScript ? [take] : [],
+    selected: hasScript ? take.takeId : null,
+    error: null,
+    primary: hasScript ? button(msg('voice.attach', { name: FANS.hubert.name }), { type: 'AttachVoiceTake', targetHandle: target, takeId: take.takeId }) : null,
+    secondary: hasScript ? button(msg('voice.makeAgain', { chars }), { type: 'MakeVoiceTake', targetHandle: target }) : null,
+    restart: hasScript ? button('voice.restart', { type: 'NewVoice', targetHandle: target }) : null,
+    again: null,
+    confirm: null,
+    attach: null,
     ...patch,
   };
 }

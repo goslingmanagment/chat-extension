@@ -225,6 +225,12 @@ export interface FansOnlineTimings {
   readonly everyMs: number;
 }
 
+/** The composer's upload of a dropped file (ui/composer.ts): the stand «uploads» in `delayMs`, or fails then. */
+export interface UploadBehaviour {
+  readonly delayMs: number;
+  readonly fail: boolean;
+}
+
 export interface OpenChatOptions {
   /** Open in a new chat tab (a second composer) instead of the active one. */
   readonly newTab?: boolean;
@@ -294,6 +300,12 @@ export interface StandControl {
   setMimic(state: MimicState): Promise<void>;
   /** The role's permissions, and whether the user owns the organisation (owners send even with of_block_message_sending). */
   setPermissions(permissions: readonly string[], owner?: boolean): Promise<void>;
+  /**
+   * 1.47.0: the composer's uploads of dropped files from now on — how long one takes, and whether it fails (the uploading
+   * tile goes, nothing in its place). Uploads need the role's «Media uploader» (`om_view_media_uploader` or
+   * `om_upload_media_hub`, see setPermissions).
+   */
+  setUpload(patch: Partial<UploadBehaviour>): void;
   wsStatus(): { readonly status: string; readonly sockets: number; readonly authenticated: boolean };
   /** The session ends without a navigation (Clerk sign-out): the send queue resets, the socket closes. */
   signOut(): void;

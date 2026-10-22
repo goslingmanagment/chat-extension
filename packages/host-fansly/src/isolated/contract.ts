@@ -1,5 +1,5 @@
 // Fansly's contract report (docs/project-unite/architecture.md §7.7, §7.12;
-// FS-CTR-1, FS-CTR-2): the report of the site's own shape — the sixteen
+// FS-CTR-1, FS-CTR-2): the report of the site's own shape — the seventeen
 // shared capabilities and the block `extensions['fansly-web']` with every
 // anchor and every capability of Fansly's own. Pure: the port recomputes it
 // when an input changes (the bridge, MAIN's network anchors, the creator, the
@@ -14,10 +14,11 @@
 // field where the chain says (R20 P7e); «Открыть и вставить» needs the
 // creator. The person's send (R20 P7f) needs all of it: MAIN's creator for
 // the receipt, its socket's frames for the echo, the field for the gesture's
-// reading, the chat MAIN named. What only later work packages bring is `off`
-// with the same code and its own name as the reason: the facts of new
-// messages (P14a), a file into the field
-// (P12c). The relay (P9c) is on with the tab's account, in a build that has its page. The vault (P13b) is on with MAIN's observer of the
+// reading, the chat MAIN named. A file into the field (R20 P12c, the voice
+// note's MP3) needs the field's chain, its own file input and its
+// attachments, where Fansly shows the file after the person's «Upload», and
+// the chat MAIN named; a broken one of the two anchors is a broken contract.
+// The relay (P9c) is on with the tab's account, in a build that has its page. The vault (P13b) is on with MAIN's observer of the
 // page's requests: its facts confirm every file. X8's preview send, its receipt and the cached chat list are no part
 // of Fansly (§7.7): off by design.
 //
@@ -102,12 +103,13 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     theme: dom.themeClass === 'ok' ? ON : degraded('themeClass'),
     previewSend: off('site'),
     receipt: off('site'),
+    // 1.47.0: the voice note's MP3 through the field's own input and Fansly's upload modal (§7.10, P12c).
+    fileAttach: main ?? field ?? (gone(dom.fileInput) ? broken('fileInput') : gone(dom.attachments) ? broken('attachments') : observed),
   };
   const own: Record<FanslyCapability, CapabilityState> = {
     freshness: observed,
     follows: main ?? (anchors.frames === 'shape' ? broken('frames') : anchors.socket === 'ok' && anchors.frames === 'ok' ? ON : degraded('socket')),
     headerSlot: main ?? (gone(dom.headerContact) ? broken('headerContact') : gone(dom.headerSubRow) ? broken('headerSubRow') : ON),
-    fileAttach: notReady('fileAttach'),
     // A file into the open vault album (P13b): the page's own input, confirmed by MAIN's facts of its requests (§7.11).
     vault: main ?? (anchors.xhr === 'shape' ? broken('xhr') : anchors.xhr === 'ok' ? ON : notReady('xhr')),
     // «Fansly через вкладку» (P9c): a frame for the account the tab is on — none without one.

@@ -203,8 +203,9 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     // a narrow composer it is the one place the persona is seen.
     const hint = chip.group === LEAD && vm.persona !== null ? t('dock.hint.replyAs', { persona: vm.persona.label }) : i18n.text(chip.hint);
     const off = whyOff(chip);
-    let tooltip = chip.busy ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(chip.hotkey)), hint);
-    if (chip.badge !== null) tooltip = `${tooltip}\n${t('dock.badge.recapReady')}`;
+    // A panel that works on (Voice renders a take) is no generation ⌘. stops: its hint stays its own.
+    let tooltip = chip.busy && chip.group !== 'draft' ? t('dock.action.busy', { action: name, hotkey: cancelKey }).trim() : hinted(keyed(name, hotkeyText(chip.hotkey)), hint);
+    if (chip.badge !== null) tooltip = `${tooltip}\n${t(chip.badge === 'voice-ready' ? 'dock.badge.voiceReady' : 'dock.badge.recapReady')}`;
     return (
       <StripButton
         key={chip.id}
@@ -215,6 +216,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
         active={chip.active}
         busy={chip.busy}
         ready={chip.badge !== null}
+        {...(chip.badge === 'voice-ready' ? { readyUse: 'voice-ready' as const } : {})}
         reason={off === null ? null : hints ? hinted(offText(chip, off), hint) : offText(chip, off)}
         tooltip={tooltip}
         onClick={() => run(chip.action)}

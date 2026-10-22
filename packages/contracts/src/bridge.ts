@@ -177,15 +177,17 @@ export const TO_MAIN_TYPES = [
   'cachedChatMessages',
   'media',
   'chatReadState',
+  'attachFile',
 ] as const;
 export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 
 /**
- * The only writes (D-07): guarded insert, navigation, the X8 queue call. MAIN
- * deduplicates them by request id: a repeated id returns the first result and
- * does not execute again.
+ * The only writes (D-07): guarded insert, navigation, the X8 queue call and
+ * (1.47.0) the drop of a file of ours on the composer. MAIN deduplicates them
+ * by request id: a repeated id returns the first result and does not execute
+ * again.
  */
-export const BRIDGE_WRITE_REQUESTS = ['insertGuarded', 'navigate', 'previewSendCommit'] as const satisfies readonly ToMainType[];
+export const BRIDGE_WRITE_REQUESTS = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile'] as const satisfies readonly ToMainType[];
 
 /** Events MAIN → isolated (§5.3 `FromMain`), never with message text. */
 export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault'] as const;
@@ -236,13 +238,16 @@ export const BRIDGE_ERRORS_BEFORE_EXECUTION = [
  * MAIN would run late). An insert is then reconciled by reading the draft
  * only; a navigation's `thenInsert` counts as uncertain too. A refusal from
  * BRIDGE_ERRORS_BEFORE_EXECUTION is a plain «not done»: `rejected` insert,
- * `held` send (no queue call), `failed` navigation CG-NAV-FAILED.
+ * `held` send (no queue call), `failed` navigation CG-NAV-FAILED, `refused`
+ * attach. An attach that may have run is `unknown`: the composer is the
+ * person's to check.
  */
 export const BRIDGE_WRITE_FAILURES = {
   insertGuarded: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' },
   navigate: { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } },
   previewSendCommit: { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' },
-} as const satisfies Record<(typeof BRIDGE_WRITE_REQUESTS)[number], { readonly state: string; readonly code: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } }>;
+  attachFile: { state: 'unknown' },
+} as const satisfies Record<(typeof BRIDGE_WRITE_REQUESTS)[number], { readonly state: string; readonly code?: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } }>;
 
 export const BridgeRequestIdSchema = z.int().check(z.gte(1));
 const ToMainTypeSchema = z.enum(TO_MAIN_TYPES);

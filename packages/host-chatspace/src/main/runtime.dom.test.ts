@@ -4,13 +4,13 @@
 // contracts' own schemas (what the isolated side will check).
 
 import { InsertReceiptSchema, NavigationReceiptSchema, OpenChatAnswerSchema } from '@cg/contracts/host';
-import { DraftWireSchema } from '@cg/contracts/bridge-messages';
+import { AttachAnswerSchema, DraftWireSchema } from '@cg/contracts/bridge-messages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFakePage, fakeStore, seedCache, type FakeComposer, type FakeEditor, type FakePage } from '../testing/fake-page';
 import { type MainContext, type MainRuntime } from '@cg/host-kit/main/bridge';
 import { faultCounter, guardWith } from '@cg/host-kit/main/guard';
-import { OPEN_CHAT_REQUEST_MS } from './protocol';
+import { ATTACH_WATCH_MAX_MS, ATTACH_WATCH_MS, OPEN_CHAT_REQUEST_MS } from './protocol';
 import { createMainRuntime } from './runtime';
 
 const ACC = '1001';
@@ -650,5 +650,146 @@ describe('MAIN runtime — our read of the open chat from the API (X54)', () => 
     const fresh = await start();
     expect(OpenChatAnswerSchema.parse(await fresh.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 }))).toEqual({ ok: false, failure: 'endpoint', status: null });
     expect(fetches).toEqual([]);
+  });
+});
+
+describe('MAIN runtime — a file of ours into the composer (1.47.0)', () => {
+  /** happy-dom's DragEvent drops `dataTransfer` from its init: here a drop carries it as the browser's does. */
+  class DropEvent extends Event {
+    readonly dataTransfer: DataTransfer | null;
+    constructor(type: string, init: DragEventInit = {}) {
+      super(type, init);
+      this.dataTransfer = init.dataTransfer ?? null;
+    }
+  }
+  const native = Object.getOwnPropertyDescriptor(window, 'DragEvent');
+
+  /**
+   * ChatSpace's drop zone on the composer frame root (VueUse useDropZone): a drop whose items hold a file is taken and
+   * its files read; the upload of them shows a tile in the frame a microtask later (Vue renders after the drop) until
+   * it ends. `taking: false` — a build without the zone.
+   */
+  const dropZone = (target: FakeComposer, taking = true) => {
+    const drops: Array<{ readonly target: EventTarget | null; readonly files: File[] }> = [];
+    let tile: HTMLElement | null = null;
+    target.root.addEventListener('drop', (event) => {
+      const data = (event as DragEvent).dataTransfer;
+      if (!taking || !Array.from(data?.items ?? []).some((item) => item.kind === 'file')) return;
+      event.preventDefault();
+      drops.push({ target: event.target, files: Array.from(data?.files ?? []) });
+      queueMicrotask(() => {
+        tile = document.createElement('div');
+        target.frame.insertBefore(tile, target.prose);
+      });
+    });
+    return {
+      drops,
+      /** Uploaded: the medium's tile takes the place of the upload, in one step. */
+      finish: () => tile?.replaceWith(document.createElement('div')),
+      /** Failed, or canceled by the person: the upload's tile goes, nothing in its place. */
+      fail: () => tile?.remove(),
+    };
+  };
+
+  const NAME = `${uuid(77)}.mp3`;
+  const wire = (h: Harness, over: Record<string, unknown> = {}) => ({ intentId: uuid(Math.floor(Math.random() * 1e9)), expected: identity(h), file: { name: NAME, type: 'audio/mpeg', bytes: new ArrayBuffer(64) }, ...over });
+  /** The page answers the drop (its microtask, then the observer's); then the frame of the drop ends. */
+  const settleDrop = async (h: Harness): Promise<void> => {
+    for (let i = 0; i < 3; i += 1) await Promise.resolve();
+    h.frame();
+  };
+  const answer = async (pending: Promise<unknown>) => {
+    for (let i = 0; i < 3; i += 1) await Promise.resolve();
+    return AttachAnswerSchema.parse(await pending);
+  };
+
+  beforeEach(async () => {
+    Object.defineProperty(window, 'DragEvent', { configurable: true, writable: true, value: DropEvent });
+    await start((page) => {
+      composer = page.addComposer(ACC, FAN);
+      page.cache.set(['userPermissions'], ['om_message_translator', 'om_view_media_uploader']);
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    if (native) Object.defineProperty(window, 'DragEvent', native);
+  });
+
+  it('drops the MP3 once, on the open composer’s frame root, built in the page’s world; the medium’s tile in place of the upload is attached', async () => {
+    const h = harness as Harness;
+    const zone = dropZone(composer);
+    const pending = h.call('attachFile', wire(h));
+    expect(zone.drops).toHaveLength(1);
+    // The frame root (VueUse's zone), never the editor; the page reads the file itself: its name, type and bytes.
+    expect(zone.drops[0]?.target).toBe(composer.root);
+    expect(zone.drops[0]?.files.map((file) => [file.name, file.type, file.size])).toEqual([[NAME, 'audio/mpeg', 64]]);
+    await settleDrop(h);
+    zone.finish();
+    expect(await answer(pending)).toMatchObject({ state: 'attached' });
+    expect(zone.drops).toHaveLength(1);
+  });
+
+  it('the upload gone with nothing in its place is not attached; nothing seen in time is unknown — later while the upload is on view', async () => {
+    const h = harness as Harness;
+    const zone = dropZone(composer);
+    const failed = h.call('attachFile', wire(h));
+    await settleDrop(h);
+    zone.fail();
+    expect(await answer(failed)).toEqual({ state: 'not-attached', reason: 'site-refused' });
+
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    // The upload stays on view: past the first deadline the outcome is still to come, at the last one it is unknown.
+    const slow = h.call('attachFile', wire(h));
+    await settleDrop(h);
+    let settled: unknown = null;
+    void slow.then((value) => (settled = value));
+    await vi.advanceTimersByTimeAsync(ATTACH_WATCH_MS);
+    expect(settled).toBeNull();
+    await vi.advanceTimersByTimeAsync(ATTACH_WATCH_MAX_MS - ATTACH_WATCH_MS);
+    expect(await answer(slow)).toEqual({ state: 'unknown' });
+    // The upload's end after that changes nothing: an unknown is final, and nothing was dropped again.
+    zone.fail();
+    expect(zone.drops).toHaveLength(2);
+  });
+
+  it('refused before any drop: another composer, no upload right, an attach still open, a used intent, a frame or zone not where it was', async () => {
+    const h = harness as Harness;
+    const zone = dropZone(composer);
+    expect(await h.call('attachFile', wire(h, { expected: identity(h, { composerInstanceId: 'c99' }) }))).toEqual({ state: 'refused', reason: 'identity' });
+    expect(await h.call('attachFile', wire(h, { expected: identity(h, { chat: chatOf(OTHER) }) }))).toEqual({ state: 'refused', reason: 'identity' });
+    h.page.cache.set(['userPermissions'], ['om_message_translator']);
+    expect(await h.call('attachFile', wire(h))).toEqual({ state: 'refused', reason: 'permission' });
+    expect(zone.drops).toHaveLength(0);
+
+    h.page.cache.set(['userPermissions'], ['om_upload_media_hub']);
+    const first = wire(h);
+    const open = h.call('attachFile', first);
+    expect(await h.call('attachFile', wire(h))).toEqual({ state: 'refused', reason: 'busy' });
+    await settleDrop(h);
+    zone.finish();
+    expect(await answer(open)).toMatchObject({ state: 'attached' });
+    // The same intent again, whatever the request id: its one drop is spent.
+    expect(await h.call('attachFile', first)).toEqual({ state: 'refused', reason: 'cause' });
+    expect(zone.drops).toHaveLength(1);
+  });
+
+  it('a build without the frame or without the drop zone: refused, nothing taken by the page', async () => {
+    (harness as Harness).dispose();
+    const framed = await start((page) => {
+      composer = page.addComposer(ACC, FAN, { frame: false });
+      page.cache.set(['userPermissions'], ['om_view_media_uploader']);
+    });
+    const zone = dropZone(composer);
+    expect(await framed.call('attachFile', wire(framed))).toEqual({ state: 'refused', reason: 'anchor-missing' });
+    expect(zone.drops).toHaveLength(0);
+    framed.dispose();
+
+    const zoneless = await start((page) => {
+      composer = page.addComposer(ACC, FAN);
+      page.cache.set(['userPermissions'], ['om_view_media_uploader']);
+    });
+    const ignored = dropZone(composer, false);
+    expect(await zoneless.call('attachFile', wire(zoneless))).toEqual({ state: 'refused', reason: 'anchor-missing' });
+    expect(ignored.drops).toHaveLength(0);
   });
 });
