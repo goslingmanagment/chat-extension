@@ -140,10 +140,11 @@ describe('§12 п. 4 on the wired extension — fast chat switches while generat
     }
 
     const mark = await pageJournalMark();
-    const pressed = { insert: 0, again: 0, nothing: 0 };
+    const pressed = { insert: 0, again: 0, reply: 0, nothing: 0 };
     /**
      * A person in a hurry: the dock of the chat just opened is looked at for at most a quarter of a second, and
-     * whatever it offers is pressed the moment it is seen — «Вставить» of the next part, else «Ещё раз» — or nothing.
+     * whatever it offers is pressed the moment it is seen — «Вставить» of the next part, else «Ещё раз», else Reply
+     * where the chat shows no answer (a used-up one is not brought back, 2026-10-22) — or nothing.
      */
     const pressWhatIsThere = async (): Promise<void> => {
       const until = Date.now() + 250;
@@ -154,6 +155,10 @@ describe('§12 п. 4 on the wired extension — fast chat switches while generat
         }
         if (await pressOursNow('dock', '.cg-again:not([aria-disabled="true"])')) {
           pressed.again += 1;
+          return;
+        }
+        if (!(await oursExists('dock', '.cg-sheet')) && (await pressOursNow('dock', '.cg-strip .cg-act--main:not([aria-disabled="true"])'))) {
+          pressed.reply += 1;
           return;
         }
       } while (Date.now() < until);
