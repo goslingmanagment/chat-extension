@@ -82,6 +82,7 @@ export const VIEW_NAMES = [
   'options',
   'debug-prompt',
   'journal',
+  'voice',
 ] as const;
 export type ViewName = (typeof VIEW_NAMES)[number];
 
@@ -107,6 +108,8 @@ export const ViewSelectorSchema = z.discriminatedUnion('of', [
   /** The opaque token from `debug-prompt.html?t=…` (DB-006, DB-007). */
   z.strictObject({ of: view('debug-prompt'), token: boundedText(128) }),
   z.strictObject({ of: view('journal'), journal: z.enum(JOURNAL_KINDS) }),
+  /** 1.46.0: the voice studio of the open chat. */
+  z.strictObject({ of: view('voice') }),
 ]);
 export type ViewSelector = z.infer<typeof ViewSelectorSchema>;
 

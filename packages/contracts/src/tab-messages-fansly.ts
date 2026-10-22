@@ -24,9 +24,8 @@
 // `fansly.followers.*` — «Новые» by the background's pass (Б17,
 // FS-NEW-*) and its greeting send (`fansly.followers.send`, send-fansly.ts);
 // `fansly.notes.*` — the fan's native notes (FS-NOTE-*);
-// `fansly.voice.*` — paid voice notes over the hub (HF-4, FS-VOI-*; the script
-// is the site's `voice-script` operation, ops-fansly.ts, admitted by the shared
-// scheduler — its start is not a shared `StartOp`);
+// (voice notes are on both sites since 1.46.0: the shared `voice.*` of
+// tab-messages.ts);
 // `fansly.vault.*` — upload checkpoints (FS-VLT-*); `fansly.relay.*` — «Fansly
 // через вкладку» (FS-NET-4, port `cg-relay`); `fansly.settings.*` and
 // `fansly.accounts.*` — the settings page (R20 P14b1: Fansly's part of
@@ -96,11 +95,6 @@ export const FANSLY_TAB_LIMITS = {
   /** A fan's «about» in the «Новые» card (NF-009); Fansly states no limit, ours sits far above a real one. */
   bioMaxChars: 4_000,
   notesPerFan: 200,
-  /** A sanity cap: the hub validates the script itself (`voice_script_invalid`); the editor holds about 600. */
-  voiceScriptMaxChars: 5_000,
-  voiceAttemptsPerChat: 20,
-  /** One MP3 voice note, as base64 in `fansly.voice.audio` (4 characters a 3 bytes). */
-  voiceAudioMaxBytes: 8 * 1024 * 1024,
   /**
    * Files of one vault run. The old extension had no limit and neither does the person (2026-10-20 restrictions,
    * item 22): this only bounds the checkpoint in storage, far above a real upload.
@@ -271,45 +265,6 @@ export const FanslyCustomNameSchema = z.strictObject({ noteId: NativeIdSchema, n
  * own switch `notes` (as `fansly.registration.read`).
  */
 const NoteTarget = { pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema };
-
-// ── fansly.voice.* — paid voice notes (HF-4) ───────────────────────────────
-
-/** The hub's voice note states (`voiceNoteStateSchema` of the SDK). */
-export const VOICE_NOTE_STATES = ['queued', 'dispatched', 'completed', 'indeterminate', 'failed_definite', 'failed_after_dispatch', 'quota_denied', 'artifact_expired'] as const;
-
-/** A voice note as the hub reports it (`voiceNoteStatusSchema` of the SDK). */
-export const VoiceNoteViewSchema = z.strictObject({
-  voiceNoteId: HubIntIdSchema,
-  state: z.enum(VOICE_NOTE_STATES),
-  scriptChars: CountSchema,
-  /** null — the hub does not know yet. */
-  billed: z.nullable(z.boolean()),
-  audioSha256: z.nullable(z.string().check(z.regex(/^[0-9a-f]{64}$/))),
-  audioBytesLen: z.nullable(CountSchema),
-  createdAt: IsoTimestampSchema,
-  /** The hub's own failure word, for diagnostics only. */
-  errorCode: z.optional(OpenTokenSchema),
-});
-export type VoiceNoteView = z.infer<typeof VoiceNoteViewSchema>;
-
-/**
- * A paid attempt the background keeps across event-page unloads (§8.8, AI-113): created once with its
- * `clientRequestId`, restored with the same one, never repeated by itself. `uncertain` — sent, outcome unknown.
- */
-export const VoiceAttemptViewSchema = z.strictObject({
-  attemptId: UuidSchema,
-  clientRequestId: UuidSchema,
-  pageId: HubIntIdSchema,
-  conversationRef: NativeIdSchema,
-  fanRef: NativeIdSchema,
-  state: z.enum(['creating', 'created', 'uncertain', 'failed']),
-  view: z.nullable(VoiceNoteViewSchema),
-  updatedAt: EpochMsSchema,
-});
-export type VoiceAttemptView = z.infer<typeof VoiceAttemptViewSchema>;
-
-const VoiceRef = { attemptId: UuidSchema, pageId: HubIntIdSchema, voiceNoteId: HubIntIdSchema };
-const BASE64_MAX_CHARS = Math.ceil(FANSLY_TAB_LIMITS.voiceAudioMaxBytes / 3) * 4;
 
 // ── fansly.vault.* — upload checkpoints (FS-VLT-1) ─────────────────────────
 
@@ -672,56 +627,6 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.notes.view': { req: Empty, res: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), from: TAB, hosts: FANSLY },
   /** P11b: the person chose another view in the panel; the answer is the view as stored (the old one if the write failed). */
   'fansly.notes.setView': { req: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), res: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), from: TAB, hosts: FANSLY },
-
-  // ── voice notes ──
-  /**
-   * The paid step (`voiceNoteCreate`): the attempt is stored before the call and restored with the same
-   * `clientRequestId`; never repeated by itself (FS-VOI-1: no double payment). `conversationRef` is the group,
-   * `fanRef` the fan (HF-4а), apart.
-   */
-  'fansly.voice.create': {
-    req: z.strictObject({
-      attemptId: UuidSchema,
-      clientRequestId: UuidSchema,
-      pageId: HubIntIdSchema,
-      conversationRef: NativeIdSchema,
-      fanRef: NativeIdSchema,
-      sourceGenerationRef: GenerationRefSchema,
-      script: boundedText(FANSLY_TAB_LIMITS.voiceScriptMaxChars),
-    }),
-    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), view: VoiceNoteViewSchema }), Failure]),
-    from: TAB,
-    hosts: FANSLY,
-  },
-  'fansly.voice.status': {
-    req: z.strictObject(VoiceRef),
-    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), view: VoiceNoteViewSchema }), Failure]),
-    from: TAB,
-    hosts: FANSLY,
-  },
-  /** The MP3 (`fetchVoiceNoteAudio` of the SDK), checked against the hub's sha256 and length before it is handed over. */
-  'fansly.voice.audio': {
-    req: z.strictObject(VoiceRef),
-    res: z.discriminatedUnion('ok', [
-      z.strictObject({
-        ok: z.literal(true),
-        mime: z.literal('audio/mpeg'),
-        base64: z.string().check(z.maxLength(BASE64_MAX_CHARS), z.regex(/^[A-Za-z0-9+/]*={0,2}$/)),
-        sha256: z.string().check(z.regex(/^[0-9a-f]{64}$/)),
-        bytes: z.int().check(z.gte(1), z.lte(FANSLY_TAB_LIMITS.voiceAudioMaxBytes)),
-      }),
-      Failure,
-    ]),
-    from: TAB,
-    hosts: FANSLY,
-  },
-  /** The paid attempts kept for one chat: a panel opened again (a reload) continues them instead of paying again. */
-  'fansly.voice.attempts': {
-    req: z.strictObject({ pageId: HubIntIdSchema, conversationRef: NativeIdSchema }),
-    res: z.strictObject({ attempts: z.array(VoiceAttemptViewSchema).check(z.maxLength(FANSLY_TAB_LIMITS.voiceAttemptsPerChat)) }),
-    from: TAB,
-    hosts: FANSLY,
-  },
 
   // ── vault ──
   /**

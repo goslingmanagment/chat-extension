@@ -46,6 +46,7 @@ import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
 import { SETTINGS_OPTIONS_ONLY_SECTIONS, SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
 import { TabRegisterRequestSchema, TabRegisterResponseSchema, senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
+import { VOICE_LIMITS, VoiceAudioSchema, VoiceScriptStartSchema, VoiceSessionSchema, VoiceWriteResultSchema } from './voice';
 import { JOURNAL_KINDS } from './vm/selectors';
 import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
 
@@ -527,6 +528,66 @@ export const TAB_REQUESTS = {
     hosts: CHATSPACE,
   },
 
+  // ── voice notes (1.46.0; voice.ts) ──
+  /** The chat's voice session as the background keeps it; null — none. The page must be one of the tab's bindings. */
+  'voice.read': {
+    req: z.strictObject({ pageId: HubIntIdSchema, conversationRef: NativeIdSchema }),
+    res: z.strictObject({ session: z.nullable(VoiceSessionSchema) }),
+    from: TAB,
+  },
+  /**
+   * The script, from the draft (the shared scheduler's `voice-script`, its admission and token): into the session
+   * `sessionId` names — its takes stay — or, null, a new session of the chat, replacing whatever it had (the person
+   * was asked first when a take of it was never put into the field).
+   */
+  'voice.script': {
+    req: z.strictObject({ start: VoiceScriptStartSchema, sessionId: z.nullable(UuidSchema) }),
+    res: VoiceWriteResultSchema,
+    from: TAB,
+  },
+  /** The person's text of the script (the last one written wins: one person edits one chat's script). */
+  'voice.edit': {
+    req: z.strictObject({ sessionId: UuidSchema, text: displayText(VOICE_LIMITS.scriptMaxChars) }),
+    res: VoiceWriteResultSchema,
+    from: TAB,
+  },
+  /**
+   * A take, the paid step (`voiceNoteCreate`): written into the session before the hub is asked and never repeated by
+   * itself; `takeId` is its `clientRequestId`. `cause` — the person's click (a `generate` token, redeemed here).
+   */
+  'voice.take': {
+    req: z.strictObject({ sessionId: UuidSchema, takeId: UuidSchema, script: displayText(VOICE_LIMITS.scriptMaxChars), cause: HumanCauseSchema }),
+    res: VoiceWriteResultSchema,
+    from: TAB,
+  },
+  /**
+   * «Проверить» of a take: a free status read; for an `uncertain` one the same create again, by the same id (the hub
+   * answers the note it has, or creates it once) — the person's click only.
+   */
+  'voice.check': {
+    req: z.strictObject({ sessionId: UuidSchema, takeId: UuidSchema, cause: HumanCauseSchema }),
+    res: VoiceWriteResultSchema,
+    from: TAB,
+  },
+  /** A ready take's MP3, checked against the hub's sha256 and length before it is handed over. */
+  'voice.audio': {
+    req: z.strictObject({ sessionId: UuidSchema, takeId: UuidSchema }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), audio: VoiceAudioSchema }), z.strictObject({ ok: z.literal(false), error: CgErrorWireSchema })]),
+    from: TAB,
+  },
+  /** What the composer showed after the person's «Прикрепить»: the take is in it, or its outcome was not seen. */
+  'voice.attached': {
+    req: z.strictObject({ sessionId: UuidSchema, takeId: UuidSchema, state: z.enum(['attached', 'unknown']) }),
+    res: VoiceWriteResultSchema,
+    from: TAB,
+  },
+  /** «Новый войс»: the session goes (the hub keeps its audio). */
+  'voice.discard': {
+    req: z.strictObject({ sessionId: UuidSchema }),
+    res: z.strictObject({ discarded: z.boolean() }),
+    from: TAB,
+  },
+
   // ── service ──
   'site.access': { req: SiteAccessRequestSchema, res: SiteAccessStateSchema, from: PAGE, pages: ['popup', 'options'] },
   'settings.get': { req: Empty, res: SettingsStateSchema, from: ANY },
@@ -743,6 +804,8 @@ export const TAB_EVENTS = {
   },
   /** The terminal view of an operation. */
   'op.done': { payload: z.strictObject({ view: OpViewSchema }), to: ANY },
+  /** 1.46.0: a chat's voice session changed (a script written, a take's state, an edit of another tab); null — it went. */
+  'voice.changed': { payload: z.strictObject({ chat: ChatRefSchema, conversationRef: NativeIdSchema, session: z.nullable(VoiceSessionSchema) }), to: TAB },
   'send.state': { payload: z.strictObject({ view: SendAttemptViewSchema }), to: ANY },
   /** 1.11.0 (decision X25): the X8 fuse tripped or was reset; tabs reconfigure their host adapter by it. */
   'send.fuse': { payload: SendFuseStateSchema, to: ANY },

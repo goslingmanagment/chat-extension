@@ -142,6 +142,27 @@ const SPECS = {
   'CG-SEND-UNCERTAIN': { kind: 'send', severity: 'error', recovery: 'open-chat', retry: 'never', telemetry: 'count+sample' },
   /** 1.30.0 (X53): the picked media cannot go yet — the price, a message of free previews only, the release forms. */
   'CG-SEND-MEDIA': { kind: 'send', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
+  // ── voice notes (1.46.0, both sites; the hub's voice-notes lane, HF-4). Until 1.46.0 Fansly's own codes, unused. ──
+  'CG-VOICE-OFF': { kind: 'voice', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
+  'CG-VOICE-NOT-ALLOWED': { kind: 'voice', severity: 'info', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },
+  'CG-VOICE-NO-PROFILE': { kind: 'voice', severity: 'warn', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },
+  'CG-VOICE-SCRIPT': { kind: 'voice', severity: 'warn', recovery: 'none', retry: 'new-click', telemetry: 'count' },
+  'CG-VOICE-SOURCE': { kind: 'voice', severity: 'warn', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
+  'CG-VOICE-QUOTA': { kind: 'voice', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count' },
+  'CG-VOICE-ATTEMPT': { kind: 'voice', severity: 'warn', recovery: 'new-generation', retry: 'new-click', telemetry: 'count+sample' },
+  'CG-VOICE-EXPIRED': { kind: 'voice', severity: 'info', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
+  'CG-VOICE-RETRIEVAL-OFF': { kind: 'voice', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count' },
+  'CG-VOICE-PROVIDER': { kind: 'voice', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
+  // The render failed before any character was spent (the hub's `failed_definite`): another take may simply be asked.
+  'CG-VOICE-FAILED': { kind: 'voice', severity: 'error', recovery: 'new-generation', retry: 'new-click', telemetry: 'count+sample' },
+  'CG-VOICE-CORRUPT': { kind: 'voice', severity: 'error', recovery: 'new-generation', retry: 'new-click', telemetry: 'count+sample' },
+  'CG-VOICE-UNCERTAIN': { kind: 'voice', severity: 'error', recovery: 'none', retry: 'never', telemetry: 'count+sample' },
+  'CG-VOICE-ATTACH': { kind: 'voice', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
+  'CG-VOICE-ATTACH-UNKNOWN': { kind: 'voice', severity: 'warn', recovery: 'none', retry: 'new-click', telemetry: 'count+sample' },
+  // ChatSpace's role of the person may not upload media («Media uploader»): the file is not handed over; MP3 to download.
+  'CG-VOICE-ATTACH-PERMISSION': { kind: 'voice', severity: 'warn', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },
+  // The composer already holds an audio (one per message), or the site's upload window is still open.
+  'CG-VOICE-ATTACH-BUSY': { kind: 'voice', severity: 'info', recovery: 'none', retry: 'new-click', telemetry: 'count' },
   'CG-NETWORK': { kind: 'network', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
   'CG-TIMEOUT': { kind: 'network', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
   'CG-STORAGE-READ': { kind: 'storage', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count+sample', settings: 'diagnostics' },

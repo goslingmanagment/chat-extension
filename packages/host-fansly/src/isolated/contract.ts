@@ -102,12 +102,13 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     theme: dom.themeClass === 'ok' ? ON : degraded('themeClass'),
     previewSend: off('site'),
     receipt: off('site'),
+    // 1.46.0: the voice note's MP3 through the composer's input and Fansly's upload modal (§7.10); not there yet.
+    fileAttach: notReady('fileAttach'),
   };
   const own: Record<FanslyCapability, CapabilityState> = {
     freshness: observed,
     follows: main ?? (anchors.frames === 'shape' ? broken('frames') : anchors.socket === 'ok' && anchors.frames === 'ok' ? ON : degraded('socket')),
     headerSlot: main ?? (gone(dom.headerContact) ? broken('headerContact') : gone(dom.headerSubRow) ? broken('headerSubRow') : ON),
-    fileAttach: notReady('fileAttach'),
     // A file into the open vault album (P13b): the page's own input, confirmed by MAIN's facts of its requests (§7.11).
     vault: main ?? (anchors.xhr === 'shape' ? broken('xhr') : anchors.xhr === 'ok' ? ON : notReady('xhr')),
     // «Fansly через вкладку» (P9c): a frame for the account the tab is on — none without one.

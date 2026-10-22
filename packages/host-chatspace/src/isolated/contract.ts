@@ -154,6 +154,8 @@ export function buildContractReport(input: ContractInput): ChatSpaceContractRepo
     theme: anchors.theme === 'ok' ? on : degraded('theme'),
     previewSend,
     receipt,
+    // 1.46.0: the voice note's MP3 by a drop on the composer (ChatSpace's own upload); not there yet.
+    fileAttach: off('attach'),
   };
   const match = live.receipt ? live.receiptMatch : null;
   return {

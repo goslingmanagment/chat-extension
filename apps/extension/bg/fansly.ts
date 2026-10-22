@@ -89,7 +89,7 @@ import {
   parseFanslyTabPayload,
   type FanslyTabRequestPayload,
 } from '@cg/contracts/tab-messages-fansly';
-import { createFanslyOperations } from '@cg/core/services/hosts/fansly/voice-operations';
+import { createFanslyOperations } from '@cg/core/services/hosts/fansly/operations';
 import { featureSlice } from '@cg/core/domain/features';
 import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
 import { createFanslyNewcomers, type FanslyNewcomers, type FanslyNewcomersApi } from '@cg/core/services/hosts/fansly/newcomers';

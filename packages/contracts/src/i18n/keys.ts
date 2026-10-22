@@ -358,6 +358,25 @@ export const UI_TEXT_KEYS = [
   'popup.alert.reloadShort', 'popup.alert.reloadTitleOne', 'popup.alert.reloadTitleMany', 'popup.alert.reloadBody',
   // 2026-10-21: «Скачать лог» (the popup and the dock)
   'log.download', 'log.downloadHint', 'log.downloaded', 'log.downloadFailed',
+  // 1.46.0: Voice — the chip, its studio in the dock's sheet, its takes and their handover into the chat's field.
+  'dock.action.voice', 'dock.hint.voice', 'dock.badge.voiceReady',
+  'voice.label', 'voice.forFan', 'voice.hide', 'voice.empty.title', 'voice.empty.body', 'voice.empty.write', 'voice.source',
+  'voice.tone.label', 'voice.tone.calm', 'voice.tone.warm', 'voice.tone.playful', 'voice.hint.tone.calm', 'voice.hint.tone.warm',
+  'voice.hint.tone.playful', 'voice.rewrite', 'voice.rewriteTooltip', 'voice.writing', 'voice.cancel', 'voice.script.label',
+  'voice.script.placeholder', 'voice.script.revert', 'voice.script.counter', 'voice.script.tooLong', 'voice.script.badTag',
+  'voice.script.markup', 'voice.script.empty', 'voice.script.edited', 'voice.tags', 'voice.tagsTooltip', 'voice.tag.warmly',
+  'voice.tag.cheerfully', 'voice.tag.thoughtful', 'voice.tag.excited', 'voice.tag.whispers', 'voice.tag.chuckles', 'voice.tag.giggles',
+  'voice.tag.sighs', 'voice.tag.shortPause', 'voice.tag.longPause', 'voice.make', 'voice.makeTooltip', 'voice.makeAgain',
+  'voice.makeAgainTooltip', 'voice.makeNew', 'voice.attach', 'voice.attachNoName', 'voice.attachTooltip', 'voice.attach.handing',
+  'voice.attach.waiting', 'voice.attach.attached', 'voice.attach.unknown', 'voice.attach.again', 'voice.attach.againLead',
+  'voice.attach.againQuestion', 'voice.attach.failed', 'voice.leftover', 'voice.leftoverClear', 'voice.download', 'voice.downloaded',
+  'voice.takes.label', 'voice.take', 'voice.take.working', 'voice.take.slow', 'voice.take.stale', 'voice.take.attached',
+  'voice.take.attachedUnknown', 'voice.take.play', 'voice.take.pause', 'voice.take.seek', 'voice.take.check', 'voice.take.checkTooltip',
+  'voice.take.select', 'voice.take.selected', 'voice.take.playFailed', 'voice.take.loading', 'voice.take.charged',
+  'voice.take.notCharged', 'voice.take.maybeCharged', 'voice.restart', 'voice.restartTooltip', 'voice.confirm.unattached',
+  'voice.confirm.working', 'voice.confirm.question', 'voice.confirm.yes', 'voice.reason.writing',
+  'voice.reason.noScript', 'voice.reason.issue', 'voice.reason.working', 'voice.reason.attachOff', 'voice.reason.takesFull',
+  'voice.reason.attaching',
   // ── end of the extension pages ──
 ] as const;
 export type UiTextKey = (typeof UI_TEXT_KEYS)[number];

@@ -50,8 +50,8 @@ export const HUB_AI_FEATURES = ['fast-reply', 'improve-draft', 'hi-greeting', 'p
 export const HubAiFeatureSchema = z.enum(HUB_AI_FEATURES);
 export type HubAiFeature = z.infer<typeof HubAiFeatureSchema>;
 
-/** 1.15.0 (R20 P4b3): the hub features of a site's own operations — each a Fansly page's, each names its fan. */
-const SITE_HUB_FEATURES: readonly HubAiFeature[] = ['voice-script', 'fan-notes-fill'];
+/** 1.15.0 (R20 P4b3): the hub feature of Fansly's own operation — a Fansly page's, it names its fan. */
+const FANSLY_HUB_FEATURES: readonly HubAiFeature[] = ['fan-notes-fill'];
 
 /** Body fields only one hub feature takes; anything else in this list on another feature is our bug. */
 export const HUB_FEATURE_ONLY_FIELDS = {
@@ -301,11 +301,15 @@ export const HubStreamRequestSchema = z
     }),
     z.refine((r) => hiStartProofMatches(r.body, r.body.conversationRef), { message: 'start_proof_mismatch' }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),
-    // 1.15.0 (R20 P4b3), the hub's own rules of Fansly's two features (its handler; else 400, or 409 for our narrow
-    // token on a page without the switch): a Fansly page's, the fan named apart from the group; the voice script is
-    // spoken from a draft that is not blank, the notes fill needs the labels it fills.
-    z.refine((r) => !SITE_HUB_FEATURES.includes(r.feature) || (r.body.platform === 'fansly' && typeof r.body.fanRef === 'string'), {
+    // 1.15.0 (R20 P4b3), the hub's own rules of the site operations (its handler; else 400, or 409 for our narrow
+    // token on a page without the switch): the notes fill is a Fansly page's, the fan named apart from the group; the
+    // voice script (1.46.0: both platforms) always names its fan — on OnlyFans the chat itself — and is spoken from a
+    // draft that is not blank; the notes fill needs the labels it fills.
+    z.refine((r) => !FANSLY_HUB_FEATURES.includes(r.feature) || (r.body.platform === 'fansly' && typeof r.body.fanRef === 'string'), {
       message: 'a Fansly feature: its page and fan',
+    }),
+    z.refine((r) => r.feature !== 'voice-script' || (typeof r.body.fanRef === 'string' && (r.body.platform === 'fansly' || r.body.fanRef === r.body.conversationRef)), {
+      message: 'voice-script names its fan; on OnlyFans the chat is the fan',
     }),
     z.refine((r) => r.feature !== 'voice-script' || (r.body.draftText ?? '').trim() !== '', { message: 'voice-script needs draftText' }),
     z.refine((r) => r.feature !== 'fan-notes-fill' || r.body.noteFields !== undefined, { message: 'fan-notes-fill needs noteFields' }),

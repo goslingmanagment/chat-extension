@@ -85,10 +85,11 @@ export type FanslyNetworkAnchor = (typeof FANSLY_NETWORK_ANCHORS)[number];
 /**
  * What the Fansly host can do beyond the shared HOST_CAPABILITIES; each degrades on its own (FS-CTR-2):
  * `freshness` — the generation snapshot (HostPort.freshness); `follows` — new subscribers from the socket (`3/2`) for
- * the sound; `headerSlot` — «Регистрация» and «Заметки» in the chat header; `fileAttach` — a file into the composer
- * (voice); `vault` — a file into the open vault album; `relay` — «Fansly через вкладку».
+ * the sound; `headerSlot` — «Регистрация» and «Заметки» in the chat header; `vault` — a file into the open vault
+ * album; `relay` — «Fansly через вкладку». A file into the composer (the voice note) is the shared `fileAttach`
+ * since 1.46.0.
  */
-export const FANSLY_CAPABILITIES = ['freshness', 'follows', 'headerSlot', 'fileAttach', 'vault', 'relay'] as const;
+export const FANSLY_CAPABILITIES = ['freshness', 'follows', 'headerSlot', 'vault', 'relay'] as const;
 export const FanslyCapabilitySchema = z.enum(FANSLY_CAPABILITIES);
 export type FanslyCapability = z.infer<typeof FanslyCapabilitySchema>;
 

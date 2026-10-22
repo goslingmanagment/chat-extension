@@ -5,8 +5,8 @@
 // `fansly.ts`), and so is a feature only that site has.
 //
 // The chips, as the bar stands (ui-design §3.1, UI-002): Reply and its options
-// │ Fix │ Hi · Ping │ Review · Recap · Coach — and, at the right end, the two
-// windows.
+// │ Fix · Voice │ Hi · Ping │ Review · Recap · Coach — and, at the right end,
+// the two windows.
 
 import type { HostCapability } from '../host';
 import type { ClientFeatureFlag } from '../hub/wire';
@@ -21,6 +21,11 @@ export const FEATURES_COMMON = {
   review: { kind: 'ai', chip: { group: 'analysis', priority: 10, icon: 'gauge' }, hotkey: 'review' },
   recap: { kind: 'ai', chip: { group: 'analysis', priority: 20, icon: 'dossier' }, hotkey: 'recap' },
   coach: { kind: 'ai', chip: { group: 'analysis', priority: 30, icon: 'bulb' }, hotkey: 'coach' },
+  /**
+   * 1.46.0: Voice — the draft spoken in the model's voice (the hub's voice-notes lane): a free script, paid takes, the
+   * MP3 into the chat's field. Its studio is the dock's sheet; a tool of the draft, beside Fix.
+   */
+  voice: { kind: 'panel', chip: { group: 'draft', priority: 20, icon: 'mic' } },
   /** Fresh page text of the open chat for a draft (D-14): not a button, a part of Reply, Fix, Hi and Ping. */
   'fresh-text': { kind: 'service' },
   spenders: { kind: 'board', chip: { group: 'windows', priority: 10, icon: 'bill' }, hotkey: 'spenders' },

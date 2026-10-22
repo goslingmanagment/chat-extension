@@ -72,6 +72,11 @@ export const HOST_CAPABILITIES = [
   'theme',
   'previewSend',
   'receipt',
+  /**
+   * 1.46.0: a file of ours into the open chat's composer, the way the site takes one (HostPort.attachFile) — the
+   * voice note's MP3. ChatSpace: a drop on the composer, its own upload; Fansly: its file input and upload modal.
+   */
+  'fileAttach',
 ] as const;
 export const HostCapabilitySchema = z.enum(HOST_CAPABILITIES);
 export type HostCapability = z.infer<typeof HostCapabilitySchema>;
@@ -359,6 +364,59 @@ export const InsertReceiptSchema = z.discriminatedUnion('state', [
   z.strictObject({ state: z.literal('uncertain'), code: CgCodeSchema }),
 ]);
 export type InsertReceipt = z.infer<typeof InsertReceiptSchema>;
+
+// ── A file into the composer (1.46.0, voice notes) ─────────────────────────
+
+/** A file of ours for the composer: the bytes and the two fields a page reads. Contracts carry no DOM types. */
+export interface AttachFile {
+  readonly name: string;
+  readonly type: 'audio/mpeg';
+  readonly bytes: ArrayBuffer;
+}
+
+/**
+ * The voice note's MP3 into the composer of the open chat (HostPort.attachFile). The site takes the file the way it
+ * takes one from the person — ChatSpace: a drop on the composer, then its own upload and its audio tile; Fansly: its
+ * file input, then its upload modal, where the person chooses Free/PPV and presses «Upload». Nothing is sent: the
+ * person sends the message with the site's own Send.
+ */
+export interface AttachIntent {
+  readonly intentId: string;
+  /** The chat, document and composer the file is for; another one open — refused before anything is handed over. */
+  readonly expected: HostIdentity;
+  /** The person's click; redeemed (`token.redeem`, kind `insert`) before the page is touched (§14). */
+  readonly cause: { readonly kind: 'click' | 'key'; readonly actionToken: string };
+  readonly file: AttachFile;
+}
+
+/** Why a file was not handed over at all: nothing reached the page. */
+export const ATTACH_REFUSALS = [
+  /** Another chat, document or composer than the one asked for. */
+  'identity',
+  /** The click's token was spent or refused. */
+  'cause',
+  /** The site's composer, its drop zone or its input is not where it was. */
+  'anchor-missing',
+  /** The composer already holds an audio (one per message), or a handoff of ours is still open. */
+  'busy',
+  /** The person's role on the site may not upload media (ChatSpace's «Media uploader» right). */
+  'permission',
+] as const;
+export type AttachRefusal = (typeof ATTACH_REFUSALS)[number];
+
+/**
+ * What became of the file. The port never hands the same file over again by itself: «Прикрепить ещё раз» is a new
+ * click of the person.
+ */
+export type AttachReceipt =
+  /** The site took it: the audio is in the open chat's composer, ready to go with the person's Send. */
+  | { readonly state: 'attached'; readonly ms: number }
+  /** Nothing was handed over. */
+  | { readonly state: 'refused'; readonly reason: AttachRefusal }
+  /** Handed over, and the site did not take it: its upload failed, or the person closed its upload window. */
+  | { readonly state: 'not-attached'; readonly reason: 'site-refused' | 'dismissed' }
+  /** Handed over, the outcome not seen in time: the composer is the person's to check. */
+  | { readonly state: 'unknown' };
 
 /** A navigation target and the insert that follows it: same account and fan, deferred, only into a chat. */
 export function thenInsertFits(insert: InsertWire | undefined, hostAccountId: string, platformFanId: string | null): boolean {
@@ -923,6 +981,12 @@ export interface HostPort {
   listCachedAccounts(): readonly HostAccount[];
   /** An `open` intent; its cause is redeemed first (§14). */
   insert(intent: InsertIntent): Promise<InsertReceipt>;
+  /**
+   * 1.46.0: the voice note's MP3 into the open chat's composer, the site's own way (`AttachIntent`); its cause is
+   * redeemed first (§14). Resolves when the site shows the file in the composer, or when its outcome cannot be seen
+   * any more. Absent — the host cannot (`fileAttach` reads off).
+   */
+  attachFile?(intent: AttachIntent): Promise<AttachReceipt>;
   focusComposer(expected: HostIdentity): Promise<boolean>;
   /**
    * Only on a human action; its cause is redeemed first (§14). Aborting

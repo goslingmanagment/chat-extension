@@ -207,7 +207,7 @@ export const siteContractReport: SiteContractReport = {
   extensions: {
     'fansly-web': {
       anchors: Object.fromEntries(FANSLY_ANCHOR_IDS.map((anchor) => [anchor, 'ok'])),
-      capabilities: { freshness: { state: 'on' }, follows: { state: 'on' }, headerSlot: { state: 'on' }, fileAttach: { state: 'on' }, vault: { state: 'off', reason: 'vaultUpload' }, relay: { state: 'off' } },
+      capabilities: { freshness: { state: 'on' }, follows: { state: 'on' }, headerSlot: { state: 'on' }, vault: { state: 'off', reason: 'vaultUpload' }, relay: { state: 'off' } },
     },
   },
 };
