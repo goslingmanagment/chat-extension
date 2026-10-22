@@ -156,6 +156,13 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     },
   });
 
+  /** A row's batch, and the row's own «Отправить» of its ready draft (X59: the card's send by one click in the list). */
+  function batchOf(handle: TargetHandle): Pick<NewcomerRowVM, 'batch' | 'send'> {
+    const row = batch.row(handle);
+    const send = row.state === 'ready' ? (batchPort?.batchSend?.(handle) ?? null) : null;
+    return send === null ? { batch: row } : { batch: row, send };
+  }
+
   const cell = new ViewCell(build);
   const changed = (): void => {
     if (disposed) return;
@@ -578,7 +585,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
         hasDraft: draft !== null,
         draftStale: draft !== null && draftStale(draft.threadRevision, threadRevision(row)),
         selected: row.fanRef === selected,
-        ...(batchPort === null ? {} : { batch: batch.row(fanHandle('newcomers', id ?? 0, row.fanRef)) }),
+        ...(batchPort === null ? {} : batchOf(fanHandle('newcomers', id ?? 0, row.fanRef))),
       };
     });
 

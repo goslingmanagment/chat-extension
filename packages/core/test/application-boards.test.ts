@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, type Bootstrap, type CgCode, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type UiAction, type ViewSelector } from '@cg/contracts';
+import { DEFAULT_SETTINGS, type Bootstrap, type CgCode, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type NewcomerRowVM, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
 import { type BoardHandover } from '@cg/core/application/preview';
 import { FEED_PAGE_SIZE } from '@cg/core/application/preview';
@@ -1140,6 +1140,37 @@ const VAULT: FakeMediaVault = {
   tags: { '12': { users: ['77'], guests: [] } },
 };
 const pv = (h: Harness) => h.boards.preview.getSnapshot(preview('spenders'));
+
+describe('X59 on ChatSpace: a batch draft of «Новые» is sent by its row’s own «Отправить»', () => {
+  it('one click sends the greeting’s next part by the card’s own send, the card never opened; nothing more while it goes', async () => {
+    const h = await harness({ config: X8, checkpointFan: '2010' });
+    await h.dispatch(open('newcomers'));
+    h.script(0, 'hi-greeting', 'Hi there!\n[NEXT]\nSo happy you are here');
+    expect(await h.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [newcomer('2010')], picked: true })).toMatchObject({ ok: true });
+    expect(await h.dispatch({ type: 'GenerateBatch', list: 'newcomers' })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.advance(500);
+    const row = (): NewcomerRowVM | undefined => h.boards.newcomers.getSnapshot(NEWCOMERS).rows.find((entry) => entry.handle === newcomer('2010'));
+    expect(row()).toMatchObject({ batch: { state: 'ready', text: 'Hi there!' }, send: { can: true, refused: null } });
+    // Generating sent nothing.
+    expect(h.clicks).toEqual([]);
+    expect(await h.dispatch({ type: 'SendNewcomerGreeting', targetHandle: newcomer('2010') })).toMatchObject({ ok: true });
+    expect(h.clicks).toHaveLength(1);
+    expect(h.clicks[0]).toMatchObject({ purpose: 'greeting', part: { variant: 0, index: 0 }, group: { variant: 0, partCount: 2 } });
+    expect(count(h, 'op.start')).toBe(1);
+    // While it goes the row's «Отправить» waits, and a second click sends nothing.
+    expect(row()?.send?.can).toBe(false);
+    expect((await h.dispatch({ type: 'SendNewcomerGreeting', targetHandle: newcomer('2010') })).ok).toBe(false);
+    expect(h.clicks).toHaveLength(1);
+    // Confirmed: the next click is the greeting's next part, by its own click.
+    h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
+    h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
+    await h.flush();
+    expect(row()?.send?.can).toBe(true);
+    expect(await h.dispatch({ type: 'SendNewcomerGreeting', targetHandle: newcomer('2010') })).toMatchObject({ ok: true });
+    expect(h.clicks).toHaveLength(2);
+    expect(h.clicks[1]).toMatchObject({ part: { variant: 0, index: 1 } });
+  });
+});
 
 describe('[X53] media from the vault go with a part sent from the preview', () => {
 

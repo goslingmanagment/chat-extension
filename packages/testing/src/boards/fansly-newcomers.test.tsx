@@ -67,7 +67,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
   it('[X59] [NF-019] the drafts are read in the list, under each fan; each row’s own small «Отправить» sends that fan’s draft — one click, one fan, never the card opened, never a key', async () => {
     const board = await mount('13o');
     // One small send per draft row, the send blue; nothing sends them all.
-    const sends = board.$$('.cg-fnw__rsend');
+    const sends = board.$$('.cg-nw__rsend');
     expect(sends.map((button) => [textOf(button), button.classList.contains('cg-btn--send')])).toEqual([['Отправить', true], ['Отправить', true], ['Отправить', true]]);
     expect(board.$$('.cg-nw__batch button').map(textOf)).toEqual(['Очистить']);
     // A key on the list sends nothing.
@@ -84,8 +84,8 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     expect(rowTexts(board).slice(0, 2)).toEqual(['Tomasz W. | @tomasz_w · 14 мин назад | Отправлено', 'Leo | @leo.k · 41 мин назад | Отправляем…']);
     expect(board.$('.cg-nw__row .cg-nw__draft.is-sent')).not.toBeNull();
     const rows = board.$$('.cg-nw__row');
-    expect(rows[0]?.querySelector('.cg-fnw__rsend')).toBeNull();
-    expect(rows[1]?.querySelector('.cg-fnw__rsend')?.getAttribute('aria-busy')).toBe('true');
+    expect(rows[0]?.querySelector('.cg-nw__rsend')).toBeNull();
+    expect(rows[1]?.querySelector('.cg-nw__rsend')?.getAttribute('aria-busy')).toBe('true');
     expect(board.text('.cg-nw__batch .cg-nw__bst')).toBe('Готово 2 · отправлено 1');
   });
 
@@ -99,7 +99,7 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     const leo = ui.$$('.cg-nw__row')[1] as HTMLElement;
     expect([leo.querySelector('.cg-nw__st')?.getAttribute('data-cg-code'), textOf(leo.querySelector('.cg-nw__st'))]).toEqual(['CG-FNEW-HISTORY', 'Не вышло: Переписка изменилась']);
     const alex = ui.$$('.cg-nw__row').find((row) => row.getAttribute('data-cg-key') === handle(8)) as HTMLElement;
-    const off = alex.querySelector('.cg-fnw__rsend') as HTMLElement;
+    const off = alex.querySelector('.cg-nw__rsend') as HTMLElement;
     expect(off.getAttribute('aria-disabled')).toBe('true');
     await click(off);
     expect(ui.actionsOf('SendNewcomerGreeting')).toEqual([]);

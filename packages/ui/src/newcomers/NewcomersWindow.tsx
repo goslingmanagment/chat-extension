@@ -9,10 +9,11 @@
 import { type JSX } from 'preact';
 
 import { type I18nKey } from '@cg/contracts/errors';
+import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type GreetingStatusVM, type I18n, type NewcomerRowVM, type NewcomersVM } from '@cg/contracts/vm';
 
 import { Dot, Icon, Spinner, ViewState, useDispatch, useI18n } from '../kit';
-import { StatusMenu, periodText, type BatchWords, type RowParts } from './frame';
+import { RowSendButton, StatusMenu, periodText, type BatchWords, type RowParts } from './frame';
 import { HubCard } from './hub-card';
 import { NewcomersWindowOf, RefreshButton, type NewcomersSite } from './window';
 
@@ -74,6 +75,17 @@ function GreetingStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
     case 'none':
       break;
   }
+  // The row's last «Отправить» was refused for good: why, in the registry's words (the card says the rest).
+  const refused = row.send?.refused ?? null;
+  if (refused !== null) {
+    const known = Object.hasOwn(CG_REGISTRY, refused.code) ? i18n.t(CG_REGISTRY[refused.code as keyof typeof CG_REGISTRY].title) : refused.code;
+    return (
+      <span class="cg-nw__st is-2" data-cg-code={refused.code}>
+        <Dot kind="danger" />
+        {i18n.t('newcomers.row.failed', { reason: known })}
+      </span>
+    );
+  }
   if (batch === 'generating' || batch === 'queued') {
     return (
       <span class="cg-nw__st is-busy">
@@ -95,9 +107,16 @@ function GreetingStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
   return <span class="cg-nw__st is-act">{i18n.t('newcomers.status.none')}</span>;
 }
 
-/** What the rows of ChatSpace's list say: «@handle · новый, подписка 14 мин назад», the greeting, a saved draft. */
+/** The row's own «Отправить» of its batch draft (X59): the card's «Отправить →» of the greeting's next part, by one click. */
+function RowSend({ row }: { readonly row: NewcomerRowVM }): JSX.Element | null {
+  const i18n = useI18n();
+  return <RowSendButton row={row} label={i18n.t('newcomers.row.send')} tooltip={i18n.t('newcomers.row.sendTooltip')} blocked={i18n.t('newcomers.row.sendBlocked')} />;
+}
+
+/** What the rows of ChatSpace's list say: «@handle · новый, подписка 14 мин назад», the greeting, a saved draft, «Отправить». */
 const ROW_PARTS: RowParts = {
   Status: GreetingStatus,
+  End: RowSend,
   meta: (i18n: I18n, row: NewcomerRowVM) =>
     `${row.username === null ? '' : `@${row.username} · `}${i18n.t('newcomers.cardMeta', { kind: i18n.t(KIND_KEYS[row.kind]), age: i18n.formatAge(row.subscribedAt) })}`,
   tag: (i18n: I18n, row: NewcomerRowVM) => (row.hasDraft ? i18n.t(row.draftStale ? 'newcomers.draftStale' : 'newcomers.draft') : null),

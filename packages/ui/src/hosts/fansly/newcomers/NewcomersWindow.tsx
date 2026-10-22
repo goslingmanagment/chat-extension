@@ -30,7 +30,7 @@ import {
 
 import { Button, Dot, ErrorCard, Icon, Spinner, pure, useCountdown, useDispatch, useI18n, useNowFn } from '../../../kit';
 import { CardOpen, GreetingEditor, GreetingState, NewcomerCard, NoCard, type GreetingModel } from '../../../newcomers/card';
-import { StatusMenu, periodText, type BatchWords, type RowParts } from '../../../newcomers/frame';
+import { RowSendButton, StatusMenu, periodText, type BatchWords, type RowParts } from '../../../newcomers/frame';
 import { NewcomersWindowOf, RefreshButton, nextDraft, type NewcomersSite } from '../../../newcomers/window';
 
 export { nextDraft };
@@ -94,32 +94,10 @@ function RowStatus({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
   return <span class={`cg-nw__st${tone}`}>{checkText(i18n, check)}</span>;
 }
 
-/**
- * The row's own «Отправить» of its batch draft (X59): the card's send by one click in the list — it never opens the card;
- * off with the reason when the card's checks do not let the draft go as it is.
- */
+/** The row's own «Отправить» of its batch draft (X59), in Fansly's words. */
 function RowSend({ row }: { readonly row: NewcomerRowVM }): JSX.Element | null {
   const i18n = useI18n();
-  const dispatch = useDispatch();
-  const send = row.send;
-  if (send === undefined || row.greeting.s === 'greeted') return null;
-  const sending = row.greeting.s === 'sending';
-  return (
-    <Button
-      label={fanslyText(i18n, 'fansly.newcomers.row.send')}
-      variant="send"
-      size="sm"
-      class="cg-nw__end cg-fnw__rsend"
-      busy={sending}
-      tabIndex={-1}
-      tooltip={fanslyText(i18n, 'fansly.newcomers.row.sendTooltip')}
-      reason={send.can || sending ? null : fanslyText(i18n, 'fansly.newcomers.row.sendBlocked')}
-      onClick={(event) => {
-        event.stopPropagation();
-        if (send.can && !sending) void dispatch({ type: 'SendNewcomerGreeting', targetHandle: row.handle });
-      }}
-    />
-  );
+  return <RowSendButton row={row} label={fanslyText(i18n, 'fansly.newcomers.row.send')} tooltip={fanslyText(i18n, 'fansly.newcomers.row.sendTooltip')} blocked={fanslyText(i18n, 'fansly.newcomers.row.sendBlocked')} />;
 }
 
 /** What the rows of Fansly's list say: «@handle · 2 ч назад», the pass's verdict, the row's own «Отправить». */
