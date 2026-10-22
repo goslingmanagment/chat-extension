@@ -8,7 +8,7 @@ import * as z from 'zod/mini';
 import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, freshTextSurface, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
 import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from './hi-start-proof';
-import { LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveTextTail } from './host';
+import { LiveImagesSchema, LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveImage, type LiveTextTail } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
 import {
@@ -186,6 +186,9 @@ function textSurfaceFits(op: { readonly feature: FeatureId; readonly surface: Su
   return freshTextSurface(op.feature) === op.surface || (op.surface === 'coach' && (op.feature === 'recap' || op.feature === 'recap-short'));
 }
 
+/** The starts that carry the fan's newest photos as images (`StartOp.liveImages`): Reply, Fix and Coach, where they answer the fan. */
+export const LIVE_IMAGE_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['reply', 'fix', 'coach']);
+
 /** A start proves its freshness one way: a proof is the target's, never beside ChatSpace's tail or X8's checkpoint. */
 function proofFits(op: {
   readonly feature: FeatureId;
@@ -294,6 +297,8 @@ export const StartOpSchema = z
      * (each paid attachment) on every start that may carry fresh text.
      */
     livePpv: z.optional(LivePpvStateSchema),
+    /** The fan's newest photos as images (hub `liveImages`, `live-images-v1`): Reply, Fix and Coach, where fresh text may go. */
+    liveImages: z.optional(LiveImagesSchema),
     /**
      * Previews: the freshness checkpoint of the Generate click (X8), kept with
      * the opId. Optional so that a preview still generates when MAIN cannot
@@ -327,6 +332,9 @@ export const StartOpSchema = z
     // ChatSpace's PPV state rides with the drafts in the dock; Fansly's (its attachments) wherever fresh text may go.
     z.refine((op) => op.livePpv === undefined || (livePpvShapeIs(op.livePpv, 'messages') ? op.surface === 'dock' && isFreshTextFeature(op.feature) : textSurfaceFits(op)), {
       message: 'PPV state only where fresh text may go',
+    }),
+    z.refine((op) => op.liveImages === undefined || (LIVE_IMAGE_FEATURES.has(op.feature) && textSurfaceFits(op)), {
+      message: 'photos only on Reply, Fix and Coach where fresh text may go',
     }),
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),
     z.refine((op) => op.feature !== 'fix' || op.draft !== undefined, { message: 'fix needs the draft' }),
@@ -726,6 +734,8 @@ export interface AiProofAsk {
    * capability (`live-ppv-v1` for ChatSpace, `live-ppv-fansly-v1` for Fansly).
    */
   readonly livePpv?: boolean;
+  /** The start may carry the fan's newest photos: fresh text is admitted and the hub lists `live-images-v1`. */
+  readonly liveImages?: boolean;
 }
 
 /**
@@ -738,6 +748,8 @@ export interface AiStartFields {
   readonly fresh?: LiveTextTail | null;
   /** 1.27.0 (X54): the open chat's PPV state read from the host's API: ChatSpace's paid messages, Fansly's attachments. */
   readonly livePpv?: LivePpvState;
+  /** The fan's newest photos the host drew (ChatSpace's), JPEG. */
+  readonly liveImages?: readonly LiveImage[];
   /** The proof of freshness the site made of its snapshot (`CoverageProof`, its texts inside): Fansly's (P8b1). */
   readonly proof?: CoverageProof;
   /** Hi's start evidence and avatar (1.15.0, P4b4); the shared plan carries them to StartOp unchanged. */

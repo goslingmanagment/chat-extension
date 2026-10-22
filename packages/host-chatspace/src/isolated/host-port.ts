@@ -48,7 +48,7 @@
 //   ever sent or repeated because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
-import type { ChatReadRead, ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { ChatReadRead, ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveImage, LiveImageRef, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
@@ -59,6 +59,7 @@ import type { MediaTags } from '@cg/contracts/send-media';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { buildContractReport, type ContractWireInput } from './contract';
+import { photosAsLiveImages } from '@cg/host-kit/isolated/photos';
 import { sameReport } from '@cg/host-kit/isolated/report';
 import { readStoredDraft, storedDraftAgrees, type DraftStorage } from './draft-store';
 import { ADAPTER_VERSION } from './host-contract';
@@ -762,6 +763,13 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       } catch {
         return null;
       }
+    },
+
+    /** The photos of the open chat the page shows, drawn from OnlyMonster's media proxy (it lets the page read them). */
+    async loadImages(refs: readonly LiveImageRef[], wait: { readonly waitMs: number }): Promise<readonly LiveImage[]> {
+      if (disposed || refs.length === 0) return [];
+      const { win } = options;
+      return photosAsLiveImages(win.document, refs, wait.waitMs, (callback, ms) => win.setTimeout(callback, ms)).catch(() => []);
     },
 
     async openChatMessages(chat: ChatRef, options: OpenChatReadOptions): Promise<OpenChatRead> {

@@ -8,6 +8,7 @@ import * as z from 'zod/mini';
 
 import { TONES, type FeatureId } from '../features';
 import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from '../hi-start-proof';
+import { LiveImagesSchema } from '../host';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS } from '../limits';
 import { CoverageDeletedIdsSchema, CoverageWindowSchema, LivePpvStateSchema, coverageIdsOnce, livePpvShapeIs } from '../ops';
 import {
@@ -76,6 +77,8 @@ export const HUB_FEATURE_ONLY_FIELDS = {
    * ChatSpace sends it with the drafts only; Fansly wherever fresh text goes.
    */
   livePpvContext: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'chat-review', 'coach-chat', 'fan-summary'],
+  /** The fan's newest photos as images (hub `AI_LIVE_IMAGES_FEATURES`; elsewhere 400). */
+  liveImages: ['fast-reply', 'improve-draft', 'coach-chat'],
   /** 1.15.0 (R20 P4b3): the questionnaire's labels, the notes fill's alone. */
   noteFields: ['fan-notes-fill'],
   /** 1.16.0 (R20 P11b2): the merge mode — the questionnaire's values (`NoteValuesSchema`; empty only before 1.28.0). */
@@ -246,6 +249,11 @@ export const AiFeatureStreamBodySchema = z.strictObject({
    * answers at the click, to a hub that lists `live-ppv-fansly-v1`. Ids, prices and purchase flags, no text.
    */
   livePpvContext: z.optional(LivePpvStateSchema),
+  /**
+   * Hub `aiLiveImagesSchema`: the fan's newest photos of the open chat as JPEG, to a hub that lists `live-images-v1`
+   * (its body is strict: a hub without it answers the field 400). Never beside `clientContext`.
+   */
+  liveImages: z.optional(LiveImagesSchema),
   /** 1.15.0 (R20 HF-8в): the window check — only from a start's proof, under `coverage-check-v1`. */
   coverageCheck: z.optional(CoverageCheckBodySchema),
   /** 1.15.0 (R20 P4b3): `fan-notes-fill` only, and required there — the labels (their values: `noteValues`). */

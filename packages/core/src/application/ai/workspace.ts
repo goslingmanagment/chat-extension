@@ -17,7 +17,7 @@ import type { AdmissionAction } from '@cg/contracts/features/types';
 import { type ChatWindow, type HostSnapshot, type LiveTextTail, type RouteState } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
-import { CHAT_IS_FAN, LIVE_PPV_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
+import { CHAT_IS_FAN, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
 import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
 import { type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
@@ -823,6 +823,8 @@ export class AiWorkspace {
         // X54: the open chat's PPV state rides where fresh text does, to a hub that takes it on this page's platform.
         // (A plain read of the list: the hub contracts' helpers would carry their module into this layer.)
         livePpv: limits !== null && livePpvServed(bootstrap, ready.page.platform),
+        // The fan's newest photos ride where fresh text does, to a hub that takes them.
+        liveImages: limits !== null && bootstrap.capabilities.includes(LIVE_IMAGES_CAPABILITY),
         messageCount: windowFor(feature, request.options.window, settings, bootstrap, extended),
       });
     } catch {

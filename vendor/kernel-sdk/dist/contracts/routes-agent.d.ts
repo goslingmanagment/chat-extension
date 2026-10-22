@@ -1177,7 +1177,7 @@ export declare const agentClaimSchema: z.ZodObject<{
  * splits into two flat fields.
  */
 export declare const agentClaimQuerySchema: z.ZodObject<{
-    claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+    claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
         platformUserId: "platformUserId";
         displayName: "displayName";
@@ -1296,7 +1296,7 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
-    }>>>, unknown>;
+    }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
 }, z.core.$strip>;
 export declare const agentCaptureSchema: z.ZodObject<{
@@ -4821,7 +4821,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
 }, z.core.$strict>;
 export declare const agentPersonQuerySchema: z.ZodObject<{
     pageLabel: z.ZodOptional<z.ZodString>;
-    claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+    claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
         platformUserId: "platformUserId";
         displayName: "displayName";
@@ -4940,7 +4940,7 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
-    }>>>, unknown>;
+    }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
 }, z.core.$strict>;
 export declare const agentPersonResponseSchema: z.ZodObject<{
@@ -6495,7 +6495,7 @@ export declare const agentTimelineKindEnum: z.ZodEnum<{
     "presence.offline": "presence.offline";
 }>;
 export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
-    claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+    claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
         platformUserId: "platformUserId";
         displayName: "displayName";
@@ -6614,18 +6614,18 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
-    }>>>, unknown>;
+    }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
-    lanes: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+    lanes: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
         messages: "messages";
         money: "money";
         subscriptions: "subscriptions";
         follows: "follows";
         post_tips: "post_tips";
         presence: "presence";
-    }>>>, unknown>;
+    }>>>>;
     pageLabel: z.ZodOptional<z.ZodString>;
     sortDir: z.ZodDefault<z.ZodEnum<{
         asc: "asc";
@@ -7915,7 +7915,7 @@ export declare const agentThreadsOrderByEnum: z.ZodEnum<{
     storedMessageCount: "storedMessageCount";
 }>;
 export declare const agentThreadsQuerySchema: z.ZodObject<{
-    claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+    claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
         platformUserId: "platformUserId";
         displayName: "displayName";
@@ -8034,7 +8034,7 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
-    }>>>, unknown>;
+    }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     platform: z.ZodOptional<z.ZodEnum<{
         fansly: "fansly";
@@ -8051,7 +8051,7 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         pending_backfill: "pending_backfill";
         partial_window: "partial_window";
     }>>;
-    quarantined: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+    quarantined: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
     hasMessagesSince: z.ZodOptional<z.ZodString>;
     minStoredMessages: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     orderBy: z.ZodDefault<z.ZodEnum<{
@@ -9402,7 +9402,7 @@ export declare const agentPageConversationParamsSchema: z.ZodObject<{
     pageLabel: z.ZodString;
 }, z.core.$strict>;
 export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
-    claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+    claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
         platformUserId: "platformUserId";
         displayName: "displayName";
@@ -9521,7 +9521,7 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
-    }>>>, unknown>;
+    }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
@@ -9536,10 +9536,10 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         model: "model";
         system: "system";
     }>>;
-    hasMedia: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
-    hasPrice: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
-    isTip: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
-    includeDeleted: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+    hasMedia: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+    hasPrice: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+    isTip: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+    includeDeleted: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
     sortDir: z.ZodDefault<z.ZodEnum<{
         asc: "asc";
         desc: "desc";
@@ -13020,7 +13020,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
     }, z.core.$strict>;
 }, z.core.$strict>;
 export declare const agentCoverageQuerySchema: z.ZodObject<{
-    claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+    claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
         platformUserId: "platformUserId";
         displayName: "displayName";
@@ -13139,7 +13139,7 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
-    }>>>, unknown>;
+    }>>>>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
@@ -29419,7 +29419,7 @@ export declare const agentRouteSchemas: {
         }, z.core.$strip>;
         readonly querystring: z.ZodObject<{
             pageLabel: z.ZodOptional<z.ZodString>;
-            claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+            claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
@@ -29538,7 +29538,7 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
-            }>>>, unknown>;
+            }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
         }, z.core.$strict>;
         readonly response: {
@@ -31118,7 +31118,7 @@ export declare const agentRouteSchemas: {
             platformUserId: z.ZodString;
         }, z.core.$strip>;
         readonly querystring: z.ZodObject<{
-            claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+            claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
@@ -31237,18 +31237,18 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
-            }>>>, unknown>;
+            }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            lanes: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+            lanes: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 messages: "messages";
                 money: "money";
                 subscriptions: "subscriptions";
                 follows: "follows";
                 post_tips: "post_tips";
                 presence: "presence";
-            }>>>, unknown>;
+            }>>>>;
             pageLabel: z.ZodOptional<z.ZodString>;
             sortDir: z.ZodDefault<z.ZodEnum<{
                 asc: "asc";
@@ -32286,7 +32286,7 @@ export declare const agentRouteSchemas: {
         readonly tags: readonly ["agent"];
         readonly summary: "Cross-page DM thread inventory with per-thread capture bounds";
         readonly querystring: z.ZodObject<{
-            claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+            claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
@@ -32405,7 +32405,7 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
-            }>>>, unknown>;
+            }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             platform: z.ZodOptional<z.ZodEnum<{
                 fansly: "fansly";
@@ -32422,7 +32422,7 @@ export declare const agentRouteSchemas: {
                 pending_backfill: "pending_backfill";
                 partial_window: "partial_window";
             }>>;
-            quarantined: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            quarantined: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
             hasMessagesSince: z.ZodOptional<z.ZodString>;
             minStoredMessages: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
             orderBy: z.ZodDefault<z.ZodEnum<{
@@ -33486,7 +33486,7 @@ export declare const agentRouteSchemas: {
             pageLabel: z.ZodString;
         }, z.core.$strict>;
         readonly querystring: z.ZodObject<{
-            claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+            claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
@@ -33605,7 +33605,7 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
-            }>>>, unknown>;
+            }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
@@ -33620,10 +33620,10 @@ export declare const agentRouteSchemas: {
                 model: "model";
                 system: "system";
             }>>;
-            hasMedia: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
-            hasPrice: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
-            isTip: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
-            includeDeleted: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            hasMedia: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            hasPrice: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            isTip: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            includeDeleted: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
             sortDir: z.ZodDefault<z.ZodEnum<{
                 asc: "asc";
                 desc: "desc";
@@ -36601,7 +36601,7 @@ export declare const agentRouteSchemas: {
         readonly tags: readonly ["agent"];
         readonly summary: "Capture-axis probe: what was ever captured for this scope and window";
         readonly querystring: z.ZodObject<{
-            claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
+            claimFields: z.ZodPipe<z.ZodTransform<any[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
@@ -36720,7 +36720,7 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
-            }>>>, unknown>;
+            }>>>>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;

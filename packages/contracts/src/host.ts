@@ -33,7 +33,7 @@ import {
   type HostKind,
   type Platform,
 } from './ids';
-import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
+import { BRIDGE_LIMITS, LIVE_IMAGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -465,6 +465,16 @@ export const OPEN_CHAT_PRICE_MAX = 10_000;
  * `isFree` — OnlyFans' own flag. `automatic` — sent from OnlyFans' queue (a mass or scheduled message), not typed in
  * the chat. `text` — the plain text, empty for media alone.
  */
+/** A photo's address on the host's media proxy (ChatSpace: OnlyMonster's signed `*.ompcdn.com`), the one the page loads. */
+export const HostPhotoUrlSchema = z.string().check(
+  z.maxLength(LIVE_IMAGE_LIMITS.urlMaxChars),
+  z.regex(/^https:\/\/[a-z0-9-]+\.ompcdn\.com\/[^\s"'<>\\]+$/),
+);
+
+/** One photo of a message as the host's API names it: the platform's media id and the address of its mid-size rendition. */
+export const HostPhotoSchema = z.strictObject({ mediaId: NativeIdSchema, url: HostPhotoUrlSchema });
+export type HostPhoto = z.infer<typeof HostPhotoSchema>;
+
 export const OpenChatMessageSchema = z.strictObject({
   platformMessageId: NativeIdSchema,
   direction: z.enum(['fan', 'model']),
@@ -476,8 +486,34 @@ export const OpenChatMessageSchema = z.strictObject({
   mediaCount: CountSchema,
   tip: z.boolean(),
   automatic: z.boolean(),
+  /** The photos the message carries and the viewer may see, only on the page's newest `LIVE_IMAGE_LIMITS.windowMessages`; absent — none. */
+  photos: z.optional(z.array(HostPhotoSchema).check(z.minLength(1), z.maxLength(LIVE_IMAGE_LIMITS.perMessage))),
 });
 export type OpenChatMessage = z.infer<typeof OpenChatMessageSchema>;
+
+/** A photo a start asks the host to draw (`HostPort.loadImages`): the fan's message, its time and the photo. */
+export interface LiveImageRef {
+  readonly platformMessageId: NativeId;
+  readonly sentAt: IsoTimestamp;
+  readonly mediaId: NativeId;
+  readonly url: string;
+}
+
+/** The photo as the start carries it to the hub (`StartOp.liveImages`, hub `liveImages`): JPEG, base64. */
+export const LiveImageSchema = z.strictObject({
+  platformMessageId: NativeIdSchema,
+  mediaId: NativeIdSchema,
+  sentAt: IsoTimestampSchema,
+  mediaType: z.literal('image/jpeg'),
+  data: z.string().check(z.minLength(4), z.maxLength(LIVE_IMAGE_LIMITS.dataMaxChars), z.regex(/^[A-Za-z0-9+/]+={0,2}$/)),
+});
+export type LiveImage = z.infer<typeof LiveImageSchema>;
+
+export const LiveImagesSchema = z.array(LiveImageSchema).check(
+  z.minLength(1),
+  z.maxLength(LIVE_IMAGE_LIMITS.maxImages),
+  z.refine((images) => new Set(images.map((image) => image.mediaId)).size === images.length, { message: 'live image ids repeat' }),
+);
 
 /** 1.22.0 (X54): one page of the open chat's messages, newest first, as the API pages them. */
 export const OpenChatPageSchema = z.strictObject({
@@ -853,6 +889,12 @@ export interface HostPort {
    * marks nothing new read. Any chat, open or not; nothing is cached. Absent on a host without such a list.
    */
   chatReadState?(chat: ChatRef, username: string): Promise<ChatReadRead>;
+  /**
+   * The photos the page already shows, drawn as JPEG of at most `LIVE_IMAGE_LIMITS.maxEdgePx` (the host's media proxy
+   * lets the page read them). Those that came within `waitMs`, in the order asked; never rejects. Absent on a host
+   * that cannot.
+   */
+  loadImages?(refs: readonly LiveImageRef[], options: { readonly waitMs: number }): Promise<readonly LiveImage[]>;
   /** Prechecks of the open chat. */
   chatWindow(chat: ChatRef, max: number): ChatWindow | null;
   /** Decoration only, when already in memory. */
