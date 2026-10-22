@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "0693f8081a89500ce91f57a8bbbb2eb503534aab679d337d5e110581302cbd27",
-    "sourceCommit": "c0fe27688e566fb188e1bf06f900a94311efe7d0",
-    "note": "Vendored on 2026-10-22 from hub main c0fe2768 (#741), the commit deployed on agency-de, with scripts/vendor-sdk.mjs: includes 83dff104 (#739, Spenders statistics tiers carry windowNetMills); the client routes are unchanged since then, only the cabinet's statistics routes moved the contract hash. Re-vendor with the same script and update this pin together."
+    "contractHash": "56068ced14f588bb556dd277bdb997f38419830dae0122776a99837454310e38",
+    "sourceCommit": "a303e0b77340b24313728f18c0e5448ec9e3c9a5",
+    "note": "Vendored on 2026-10-22 from hub main a303e0b7 (#746), deployed on agency-de, with scripts/vendor-sdk.mjs: adds the AI stream body's liveImages and the live-images-v1 capability. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
