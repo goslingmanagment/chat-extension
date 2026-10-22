@@ -59,6 +59,8 @@ export interface ModelStreamFacts {
   readonly pair?: 'verified' | 'unverified';
   /** R20 HF-8в: the answer to the body's window check; absent unless the request advertised `coverage-check-v1` and sent one. */
   readonly coverageCheck?: CoverageCheckAnswer;
+  /** The meta frame's `attachedRecaps`: Coach's Recaps, a Reply's or a Ping's dossier as `full` (hub #756); absent — not said. */
+  readonly attachedRecaps?: Extract<HubFrame, { type: 'meta' }>['attachedRecaps'];
 }
 
 const TEXTS: Readonly<Record<string, { readonly single: string; readonly split: string }>> = {
@@ -153,6 +155,7 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
       provider: 'anthropic',
       providerResponseId: null,
       ...(facts.personaDefinitionId === null ? {} : { personaDefinitionId: facts.personaDefinitionId }),
+      ...(facts.attachedRecaps === undefined ? {} : { attachedRecaps: facts.attachedRecaps }),
       quota: { accepted: true, remainingRequestsToday: facts.remainingRequestsToday, remainingMicroUsdToday: null },
     }),
   ];

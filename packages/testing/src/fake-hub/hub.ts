@@ -53,7 +53,7 @@ import {
 } from '@cg/contracts';
 
 import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
-import { DEFAULT_CATALOG, modelStream, type Generation } from './ai';
+import { DEFAULT_CATALOG, modelStream, type Generation, type ModelStreamFacts } from './ai';
 import { aiFeatureExistsOn, aiFeatureFlag, liveImagesRefusal, livePpvRefusal, pingFewRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagVerdict } from './claims';
@@ -1029,6 +1029,7 @@ export class FakeHub {
     const coverageCheck =
       body.coverageCheck !== undefined && request.capabilities.includes('coverage-check-v1') ? resolveCoverageCheck({ check: body.coverageCheck, window: served.window, stores: served.stores }) : undefined;
     const steps = modelStream(request, {
+      ...this.attachedRecaps(page, request, definitionId),
       requestId: crypto.randomUUID(),
       personaDefinitionId: definitionId,
       remainingRequestsToday: remaining,
@@ -1049,6 +1050,26 @@ export class FakeHub {
       ...(coverageCheck === undefined ? {} : { coverageCheck }),
     });
     return { kind: 'sse', response: { kind: 'stream', steps }, request };
+  }
+
+  /**
+   * As the hub says what a prompt stood on (the meta frame's `attachedRecaps`): Coach — the full Recap of its persona
+   * and the short one when it is newer; Reply and Ping — the fan's dossier (the latest saved full Recap) as `full`,
+   * as under the owner's switch `fast-reply,ping` (hub #754, #756). Other features say nothing.
+   */
+  private attachedRecaps(page: FakePage, request: HubStreamRequest, persona: string | null): Partial<Pick<ModelStreamFacts, 'attachedRecaps'>> {
+    const { body, feature } = request;
+    const now = this.clock.now();
+    const fanRef = body.fanRef ?? body.conversationRef;
+    const slot = (at: string | null | undefined): { generatedAt: string; ageMs: number } | null => (at === null || at === undefined ? null : { generatedAt: at, ageMs: Math.max(0, now - Date.parse(at)) });
+    if (feature === 'coach-chat') {
+      const { full, short } = this.state.data.sharedRecaps(page.pageLabel, fanRef, persona ?? undefined, body.conversationRef);
+      const newer = short !== null && (full === null || Date.parse(short.generatedAt) > Date.parse(full.generatedAt));
+      return { attachedRecaps: { full: slot(full?.generatedAt), short: newer ? slot(short.generatedAt) : null } };
+    }
+    if (feature !== 'fast-reply' && feature !== 'ping') return {};
+    const dossier = this.state.data.dossierOf(page.pageLabel, fanRef);
+    return { attachedRecaps: { full: slot(dossier?.sourceGeneratedAt ?? dossier?.createdAt), short: null } };
   }
 
   private generationWindow(request: HubStreamRequest): { requested: number; served: number } {

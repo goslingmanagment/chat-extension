@@ -21,10 +21,6 @@ export interface MenuItem {
   readonly checked?: boolean;
   /** Unavailable items stay focusable and say why. */
   readonly reason?: string | null;
-  /** A heading over the run of items that share it, under a rule (Coach's «Recap ▾»: «Авто-Recap перед первым вопросом»); '' — a run under a rule with no heading. */
-  readonly group?: string;
-  /** The item's own kind in a menu of the other: the radio choices of an action menu's group. */
-  readonly kind?: 'radio' | 'action';
 }
 
 export interface MenuProps {
@@ -55,8 +51,7 @@ export function Menu(props: MenuProps): JSX.Element | null {
   useLayoutEffect(() => {
     if (!open || !autoFocus) return;
     const list = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-cg-menuitem]') ?? [])];
-    // An action menu opens on its first action, even when a group of it holds a checked choice.
-    const checked = props.kind === 'radio' ? entries.findIndex((item) => item.checked === true) : -1;
+    const checked = entries.findIndex((item) => item.checked === true);
     focusQuietly(list[checked >= 0 ? checked : 0]);
     // Only for the focus moment of opening; later changes of the items keep focus where it is.
   }, [open]);
@@ -141,34 +136,11 @@ export function Menu(props: MenuProps): JSX.Element | null {
       onKeyDown={onKeyDown}
       onFocusOut={onFocusOut}
     >
-      {runsOf(props.items).map((run, index) => {
-        const entries = run.items.map((item) => <MenuEntry key={item.id} item={item} kind={item.kind ?? props.kind} onChoose={() => choose(item)} />);
-        const heading = run.group === undefined || run.group === '' ? null : run.group;
-        if (index === 0 && heading === null) return entries;
-        return (
-          <div key={`run-${index}`} class={`cg-menu__run${index > 0 ? ' is-ruled' : ''}`} {...(heading === null ? {} : { role: 'group', 'aria-label': heading })}>
-            {heading === null ? null : (
-              <div class="cg-menu__h" aria-hidden="true">
-                {heading}
-              </div>
-            )}
-            {entries}
-          </div>
-        );
-      })}
+      {props.items.map((item) => (
+        <MenuEntry key={item.id} item={item} kind={props.kind} onChoose={() => choose(item)} />
+      ))}
     </div>
   );
-}
-
-/** Consecutive items under the same heading (or none) — one run each. */
-function runsOf(items: readonly MenuItem[]): readonly { readonly group: string | undefined; readonly items: readonly MenuItem[] }[] {
-  const runs: { group: string | undefined; items: MenuItem[] }[] = [];
-  for (const item of items) {
-    const last = runs[runs.length - 1];
-    if (last !== undefined && last.group === item.group) last.items.push(item);
-    else runs.push({ group: item.group, items: [item] });
-  }
-  return runs;
 }
 
 function MenuEntry({ item, kind, onChoose }: { readonly item: MenuItem; readonly kind: 'radio' | 'action'; readonly onChoose: () => void }): JSX.Element {
@@ -236,7 +208,5 @@ export const MENU_CSS = `
 .cg-menu__item.is-on { background: var(--cg-clay-bg); color: var(--cg-clay-ink); font-weight: 600; }
 .cg-menu__item.is-on::after { content: "✓"; color: var(--cg-clay-ink); font-size: var(--cg-text-sm); }
 .cg-menu__item[aria-disabled="true"] { color: var(--cg-ink-faint); cursor: default; }
-.cg-menu__run.is-ruled { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--cg-rule-float); }
-.cg-menu__h { padding: 6px 8px 4px; font-family: var(--cg-mono); font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cg-ink-muted); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .cg-menu { animation: none; } }
 `;

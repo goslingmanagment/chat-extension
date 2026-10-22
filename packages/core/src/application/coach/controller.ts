@@ -184,6 +184,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
         answerRaw: view.text ?? coachAnswerText(answer),
         answer,
         completedAt: view.endedAt ?? clock.now(),
+        ...(view.recapsUsed === undefined ? {} : { recapsUsed: view.recapsUsed }),
       });
       ws.bump();
       return;
@@ -197,7 +198,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
   });
 
   // AI-100: without a turn in flight the panel yields to another feature that starts. A Recap does not take it:
-  // Coach stands on it, «Recap ▾» builds it from here and the topbar follows it, as the old window did.
+  // Coach stands on it, the topbar's «Собрать Recap» builds it from here and the topbar follows it.
   const offStarted = ws.onStarted((record) => {
     if (record.view.surface === 'coach' || record.view.feature === 'recap' || record.view.feature === 'recap-short') return;
     const busy = sessions.all().some((session) => session.pending !== null);
@@ -442,6 +443,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       // AI-086: Б2 for one of the draft parts — the id `AnswerConfirm` takes.
       confirm: confirmVm(ws, exchange.opId),
       debug: turnDebug(record),
+      // «с Recap · 3 д назад» / «без Recap» under the answer: what the hub put into it, never a guess.
+      recapsUsed: exchange.recapsUsed ?? null,
     };
   }
 
@@ -594,7 +597,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       },
       recaps,
       recapRunning,
-      autoRecap,
+      window: ready === null ? null : windowFor('coach', undefined, ready.settings, ready.bootstrap),
       // Before the first question of a session only; a page without Recap builds none (AI-096).
       autoRecapNext: emptyDialog && session?.autoRecapAttempted !== true && ready !== null && flagUsable(ready.bootstrap, ready.page.pageId, 'recap') ? autoRecapAhead(autoRecap, slots, clock.now()) : null,
       turns,
@@ -644,13 +647,6 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       // Only the open chat's own handle: previews refresh their feeds themselves.
       if (chat === null || action.targetHandle !== chat.handle) return null;
       return refreshArchive(action);
-    },
-    // «Авто-Recap перед первым вопросом» of «Recap ▾»: the same setting as the settings page's, written from the window
-    // where it acts. It is read when a session's first question is asked.
-    SetPreference(action) {
-      if (action.key !== 'generation.coach.autoRecap') return null;
-      const autoRecap = action.value;
-      return ws.env.patchSettings({ generation: { coach: { autoRecap } } }).then((answer) => (answer.ok ? done(action.type, 'done', { revision: answer.payload.revision }) : refused(ws, action.type, answer.error)));
     },
     ReloadView(action) {
       if (action.selector.of !== 'coach') return null;

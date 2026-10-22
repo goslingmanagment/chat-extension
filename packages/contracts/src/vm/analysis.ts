@@ -7,7 +7,6 @@
 import { type CgErrorView } from '../errors';
 import { type COACH_BLOCK_KINDS, type OpState, type REVIEW_SECTION_KINDS, type ResultMarkVM } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
-import { type CoachAutoRecap } from '../settings';
 import { type RecapLength, type UiAction } from './actions';
 import { type ReasonVM } from './catalog';
 import { type Msg } from './i18n';
@@ -193,6 +192,8 @@ export interface CoachTurnVM {
   readonly stale?: ResultMarkVM | null;
   /** 1.15.0 (R20 P8c): «Ещё раз» of a marked answer — the turn's question asked again; null — no mark, or no chat to ask in. */
   readonly again?: ActionButtonVM | null;
+  /** 1.46.0: the Recaps the hub put into this answer — when each was made, null — none; null or absent — the hub did not say. */
+  readonly recapsUsed?: { readonly full: IsoTimestamp | null; readonly short: IsoTimestamp | null } | null;
 }
 
 export interface CoachVM {
@@ -211,11 +212,11 @@ export interface CoachVM {
    * when it is newer (AI-095). Empty — none: the topbar says «Recap · нет», Coach answers from the chat alone.
    */
   readonly recaps: readonly CoachRecapVM[];
-  /** 1.46.0: «Авто-Recap перед первым вопросом» of «Recap ▾» — `generation.coach.autoRecap`, the same as in the settings. */
-  readonly autoRecap: CoachAutoRecap;
-  /** 1.46.0: the empty dialog's word that the first answer builds this Recap first (no fresh one is known); null — it asks at once. */
+  /** 1.46.0: the setting's auto Recap the first question of this dialog builds first (no fresh one is known); null — it asks at once. */
   readonly autoRecapNext: 'short' | 'full' | null;
-  /** A Recap of this chat is being built (from «Recap ▾», the strip or a turn's auto-recap step): «Recap собирается…». */
+  /** 1.46.0: how many of the chat's latest messages Coach reads (its window); null — not known yet. */
+  readonly window: number | null;
+  /** A Recap of this chat is being built (from the topbar's «Собрать Recap», the strip or a turn's auto-recap step): «Recap собирается…». */
   readonly recapRunning?: boolean;
   readonly turns: readonly CoachTurnVM[];
   /** `generation.coach.historyLimit`. */
