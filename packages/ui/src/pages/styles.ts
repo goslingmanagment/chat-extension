@@ -213,8 +213,11 @@ ${/* The facts: one paper-white card, a line each — the word on the left, the 
 .pg-popup__copy { font: inherit; color: inherit; border-radius: 4px; }
 .pg-popup__copy:hover { color: var(--cg-ink-strong); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 0.22em; }
 ${/* What opens inside the site's tab, in one row; the one black button of the popup is the stage's remedy (X61). */ ''}
-.pg-popup__btns { display: flex; gap: 8px; padding: 12px 16px 0; }
-.pg-popup__btns .cg-btn { flex: 1 1 auto; justify-content: flex-start; height: 36px; padding: 0 11px; min-width: 0; }
+${/* Windows prints Spenders' key as «Ctrl+Alt+M», three times ⌘⇧M: the row is tight enough for it in 360 px. Should a
+   key still not fit (a wider system font), it wraps to a second line the button clips — never past the border. */ ''}
+.pg-popup__btns { display: flex; gap: 6px; padding: 12px 16px 0; }
+.pg-popup__btns .cg-btn { flex: 1 1 auto; flex-wrap: wrap; align-content: flex-start; justify-content: flex-start; row-gap: 20px; height: 36px; padding: 8px 8px 0; column-gap: 5px; min-width: 0; overflow: hidden; }
+.pg-popup__btns .cg-btn kbd { font-size: 11px; letter-spacing: -0.01em; }
 .pg-popup__count { font-weight: 500; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
 .pg-popup__key { margin-left: auto; display: inline-flex; }
 ${/* The foot: «Что нового», the optional site's switch (X61) and «Обновить статус», quiet, in one line under a line. */ ''}

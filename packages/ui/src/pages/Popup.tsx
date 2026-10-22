@@ -303,7 +303,11 @@ function Windows({ vm }: { readonly vm: PopupVM }): JSX.Element | null {
               <>
                 {/* The count of «Новые» is not a shortcut: it stands right after the word (§4.23). */}
                 {count === null ? null : <span class="pg-popup__count">{count}</span>}
-                <span class="pg-popup__key">{keys === null ? null : <Kbd>{keys.display}</Kbd>}</span>
+                {keys === null ? null : (
+                  <span class="pg-popup__key">
+                    <Kbd>{keys.display}</Kbd>
+                  </span>
+                )}
               </>
             }
           />
