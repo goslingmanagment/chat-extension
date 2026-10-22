@@ -139,6 +139,10 @@ const isKnownZone = (timeZone: string): boolean => {
   }
 };
 
+/** What a seeded fan's row says was written last (`lastMessagePreview`), by who wrote it. */
+const FAN_PREVIEWS = ['hey are you there? 🥺', 'that last set was 🔥 do you have more like it?', 'Yeah', 'Sorry, busy week at work. Missed you though'] as const;
+const OUR_PREVIEWS = ['did you like the new set? 😏', 'gimme a min to make it 👀', 'glad to hear it! how was ur day?', '[Photo]'] as const;
+
 // ── the model ──────────────────────────────────────────────────────────────
 
 interface ArchiveMessage extends FeedItem {
@@ -370,6 +374,8 @@ export class DataModel {
     const fanWrote = ago(seed.fanWroteAgoSec, base.lastFanMessageAt);
     const weWrote = ago(seed.weWroteAgoSec, base.conversation.lastModelMessageAt);
     const last = [fanWrote, weWrote].filter((value): value is string => value !== null).sort().at(-1) ?? null;
+    // The hub's `lastMessagePreview`: the newest message's text, the fan's or ours, whoever wrote last.
+    const preview = last === null ? null : (last === weWrote ? OUR_PREVIEWS : FAN_PREVIEWS)[rank % 4] ?? null;
     return {
       ...base,
       fan: { ...base.fan, platformUserId: seed.fanRef, username: seed.username ?? `fan_${seed.fanRef}`, displayName: seed.displayName === undefined ? null : seed.displayName },
@@ -389,6 +395,7 @@ export class DataModel {
         lastMessageAt: last,
         lastFanMessageAt: fanWrote,
         lastModelMessageAt: weWrote,
+        lastMessagePreview: preview,
         messageCoverageStatus: 'complete',
         messageBackfillComplete: true,
       },

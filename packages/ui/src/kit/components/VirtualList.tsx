@@ -2,7 +2,10 @@
 // the Spenders board up to 1000 rows, «Новые», the palette): only the rows in
 // view plus a margin are in the DOM, never more than 150. Rows have a known
 // height (fixed, or per row: a 34 px shelf among 36 px fans). Optional sticky
-// column header and sticky group rows (the shelf under the header, §3.5).
+// column header and sticky group rows (the shelf under the header, §3.5): the
+// next group's row pushes the stuck one up, and a lead row may stick under it
+// while the rows it leads pass (the picked fan over their unfolded preview).
+// Scrolling a row into view keeps it out from under what sticks over it.
 
 import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -16,6 +19,8 @@ const FALLBACK_VIEWPORT_PX = 600;
 
 export interface VirtualListHandle {
   scrollToIndex(index: number, align?: 'nearest' | 'start' | 'center'): void;
+  /** The whole row is in view, none of it under what sticks over it. */
+  isInView(index: number): boolean;
   /** [first, last) of the rows in the DOM. */
   range(): readonly [number, number];
 }
@@ -24,7 +29,8 @@ export interface VirtualListProps<T> {
   readonly items: readonly T[];
   /** Fixed height, or the height of each row. */
   readonly rowHeight: number | ((item: T, index: number) => number);
-  readonly renderRow: (item: T, index: number) => ComponentChildren;
+  /** `copy` — the row's sticky copy at the top: drawn for the eye, it carries no ids the real row is found by. */
+  readonly renderRow: (item: T, index: number, copy?: boolean) => ComponentChildren;
   readonly getKey: (item: T, index: number) => string | number;
   readonly label?: string;
   readonly role?: 'list' | 'listbox' | 'table' | 'grid' | 'rowgroup' | 'feed';
@@ -41,6 +47,10 @@ export interface VirtualListProps<T> {
   readonly headerHeight?: number;
   /** Group rows that stick under the header while their group is in view. */
   readonly isGroupHeader?: (item: T, index: number) => boolean;
+  /** A row that sticks under its group row while the rows after it, up to `until` (exclusive), pass the top. */
+  readonly stickyLead?: { readonly index: number; readonly until: number } | null;
+  /** A press on the lead row's sticky copy (the real row is above the view): e.g. scroll back to it. */
+  readonly onStickyPress?: (index: number) => void;
   readonly listRef?: Ref<VirtualListHandle>;
   readonly class?: string;
   readonly onKeyDown?: (event: TargetedKeyboardEvent<HTMLDivElement>) => void;
@@ -88,11 +98,24 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   const offsets = useMemo(() => rowOffsets(props.items, props.rowHeight), [props.items, props.rowHeight]);
   const headerHeight = props.header === undefined ? 0 : (props.headerHeight ?? 0);
   const overscan = props.overscan ?? DEFAULT_OVERSCAN;
-  // The sticky copy of a group row counts against the DOM cap too.
-  const cap = props.isGroupHeader === undefined ? MAX_DOM_ROWS : MAX_DOM_ROWS - 1;
+  // The sticky copies of a group row and a lead row count against the DOM cap too.
+  const cap = MAX_DOM_ROWS - (props.isGroupHeader === undefined ? 0 : 1) - (props.stickyLead === undefined || props.stickyLead === null ? 0 : 1);
   const [start, end] = visibleRange(offsets, Math.max(0, scrollTop - headerHeight), viewport, overscan, cap);
   const count = props.items.length;
   const total = offsets[count] ?? 0;
+  const heightOf = (index: number): number => (offsets[index + 1] ?? 0) - (offsets[index] ?? 0);
+  /** The group row a row belongs to: the nearest one at or above it. */
+  const groupOf = (index: number): number | null => {
+    if (props.isGroupHeader === undefined) return null;
+    for (let at = Math.min(index, count - 1); at >= 0; at -= 1) if (props.isGroupHeader(props.items[at] as T, at)) return at;
+    return null;
+  };
+  /** What sticks over row `index` once it is at the top: its group row, and the lead row over the rows it leads. */
+  const stickyOver = (index: number): number => {
+    const group = groupOf(index);
+    const lead = props.stickyLead;
+    return (group === null || group === index ? 0 : heightOf(group)) + (lead !== undefined && lead !== null && index > lead.index && index < lead.until ? heightOf(lead.index) : 0);
+  };
 
   useLayoutEffect(() => {
     const node = scroller.current;
@@ -119,10 +142,12 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     const top = (offsets[index] ?? 0) + headerHeight;
     const bottom = (offsets[index + 1] ?? top) + headerHeight;
     const height = node.clientHeight > 0 ? node.clientHeight : viewport;
+    // The row comes to rest under the header and under what sticks over it, never behind them.
+    const over = headerHeight + stickyOver(index);
     let next = node.scrollTop;
-    if (align === 'start') next = top - headerHeight;
+    if (align === 'start') next = top - over;
     else if (align === 'center') next = top - (height - (bottom - top)) / 2;
-    else if (top - headerHeight < node.scrollTop) next = top - headerHeight;
+    else if (top - over < node.scrollTop) next = top - over;
     else if (bottom > node.scrollTop + height) next = bottom - height;
     if (next !== node.scrollTop) {
       node.scrollTop = Math.max(0, next);
@@ -130,7 +155,16 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     }
   };
 
-  useImperativeHandle(props.listRef ?? null, () => ({ scrollToIndex, range: () => [start, end] as const }), [offsets, start, end, viewport]);
+  const isInView = (index: number): boolean => {
+    const node = scroller.current;
+    if (node === null || index < 0 || index >= count) return false;
+    const height = node.clientHeight > 0 ? node.clientHeight : viewport;
+    const top = (offsets[index] ?? 0) + headerHeight;
+    const bottom = (offsets[index + 1] ?? 0) + headerHeight;
+    return top - headerHeight - stickyOver(index) >= node.scrollTop && bottom <= node.scrollTop + height;
+  };
+
+  useImperativeHandle(props.listRef ?? null, () => ({ scrollToIndex, isInView, range: () => [start, end] as const }), [offsets, start, end, viewport, props.stickyLead]);
 
   useEffect(() => {
     if (props.activeIndex !== null && props.activeIndex !== undefined) scrollToIndex(props.activeIndex);
@@ -141,18 +175,23 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     onRange?.(start, end);
   }, [start, end, onRange]);
 
-  let stickyIndex: number | null = null;
+  // What sticks at the top, top to bottom, and where (≤ 0 while the row that ends its stay pushes it up).
+  const stuck: { readonly index: number; readonly top: number; readonly lead: boolean }[] = [];
   if (props.isGroupHeader !== undefined) {
     // The rows start under the in-flow column header, so the row at the header's lower edge is the one at scrollTop.
-    const atEdge = rowAt(offsets, Math.max(0, scrollTop));
-    for (let index = Math.min(atEdge, count - 1); index >= 0; index -= 1) {
-      if (props.isGroupHeader(props.items[index] as T, index)) {
-        stickyIndex = index;
-        break;
-      }
-    }
+    const group = groupOf(rowAt(offsets, Math.max(0, scrollTop)));
     // The real group row still starts at or below the header's edge: no copy over it.
-    if (stickyIndex !== null && (offsets[stickyIndex] ?? 0) >= scrollTop) stickyIndex = null;
+    if (group !== null && (offsets[group] ?? 0) < scrollTop) {
+      let next = group + 1;
+      while (next < count && !props.isGroupHeader(props.items[next] as T, next)) next += 1;
+      stuck.push({ index: group, top: Math.min(0, (offsets[next] ?? total) - scrollTop - heightOf(group)), lead: false });
+    }
+  }
+  const lead = props.stickyLead;
+  if (lead !== undefined && lead !== null && lead.index < count) {
+    const under = stuck.reduce((edge, row) => Math.max(edge, row.top + heightOf(row.index)), 0);
+    const end = (offsets[Math.min(lead.until, count)] ?? total) - scrollTop;
+    if ((offsets[lead.index] ?? 0) - scrollTop < under && end > under) stuck.push({ index: lead.index, top: Math.min(under, end - heightOf(lead.index)), lead: true });
   }
 
   const rows: JSX.Element[] = [];
@@ -194,10 +233,26 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
           {props.header}
         </div>
       )}
-      {stickyIndex === null ? null : (
-        // A copy for the eye only: hidden from screen readers and out of the Tab order (its buttons live on the real row).
-        <div class="cg-vlist__sticky" style={{ top: `${headerHeight}px` }} aria-hidden="true" inert>
-          <div style={{ height: `${(offsets[stickyIndex + 1] ?? 0) - (offsets[stickyIndex] ?? 0)}px` }}>{props.renderRow(props.items[stickyIndex] as T, stickyIndex)}</div>
+      {stuck.length === 0 ? null : (
+        // Copies for the eye only: hidden from screen readers and out of the Tab order (their buttons live on the real
+        // rows). The upper copy lies over the lower: a lead pushed up at its end slides under its group row.
+        <div class="cg-vlist__sticky" style={{ top: `${headerHeight}px` }} aria-hidden="true">
+          {stuck.map(({ index, top, lead }, at) => {
+            const key = props.getKey(props.items[index] as T, index);
+            const style = { transform: `translateY(${top}px)`, height: `${heightOf(index)}px`, zIndex: stuck.length - at };
+            const copy = props.renderRow(props.items[index] as T, index, true);
+            // A group row's copy lets a press through to the row under it. The lead's copy takes the press itself:
+            // under it lie the rows it leads (a preview's buttons), which are never pressed unseen.
+            return lead ? (
+              <div key={key} class={`cg-vlist__copy${props.onStickyPress === undefined ? '' : ' is-pressable'}`} style={style} onClick={() => props.onStickyPress?.(index)}>
+                <div inert>{copy}</div>
+              </div>
+            ) : (
+              <div key={key} class="cg-vlist__copy" style={style} inert>
+                {copy}
+              </div>
+            );
+          })}
         </div>
       )}
       <div class="cg-vlist__inner" style={{ height: `${total}px` }}>
@@ -211,7 +266,9 @@ export const VIRTUAL_LIST_CSS = `
 .cg-vlist { position: relative; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; min-height: 0; height: 100%; }
 .cg-vlist__head { position: sticky; top: 0; z-index: 3; background: var(--cg-surface); }
 .cg-vlist__sticky { position: sticky; z-index: 2; height: 0; overflow: visible; }
-.cg-vlist__sticky > div { background: var(--cg-surface); }
+.cg-vlist__copy { position: absolute; top: 0; left: 0; right: 0; background: var(--cg-surface); }
+.cg-vlist__copy > div { height: 100%; }
+.cg-vlist__copy.is-pressable { cursor: pointer; }
 .cg-vlist__inner { position: relative; width: 100%; }
 .cg-vlist__row { position: absolute; top: 0; left: 0; right: 0; contain: layout style; }
 `;
