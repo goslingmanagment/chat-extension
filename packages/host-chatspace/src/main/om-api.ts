@@ -206,8 +206,12 @@ export function createOmApi(win: Window, setTimer: Timer) {
     if (root === null) return fail('endpoint');
     // One deadline for the session token and the request: a token that never comes ends the read as late, not never.
     const abort = new AbortController();
-    setTimer(() => abort.abort(), OPEN_CHAT_REQUEST_MS);
-    const late = new Promise<null>((resolve) => abort.signal.addEventListener('abort', () => resolve(null), { once: true }));
+    let expire: () => void = () => undefined;
+    const late = new Promise<null>((resolve) => (expire = () => resolve(null)));
+    setTimer(() => {
+      abort.abort();
+      expire();
+    }, OPEN_CHAT_REQUEST_MS);
     let token: unknown;
     try {
       token = await Promise.race([(win as PageWindow).Clerk?.session?.getToken?.(), late]);
