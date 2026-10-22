@@ -122,7 +122,7 @@ AI-053, «Как надо было»). В окне оба — отчёт ста�
    они ни оказались, пока клавиша не отпущена (`composition/tab/keys.ts`).
 8. Размер: `tools/size-budget` считает статическое замыкание `lazy/chatspace/dock.js`. У каждой
    ленивой части своя точка входа расширения (`apps/extension/lazy/entries/`:
-   `dock-analysis`, `dock-debug`, `coach`, `cheatsheet`, `result-expanded`, `dialogs`) и
+   `dock-analysis`, `dock-debug`, `dock-voice`, `coach`, `cheatsheet`, `result-expanded`, `dialogs`) и
    своя строка бюджета; док получает их загрузчики через `parts`.
 
 ## Что отправляет интерфейс

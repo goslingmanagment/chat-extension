@@ -24,6 +24,7 @@ export const LAZY_ENTRIES = {
   // Surfaces, each with the first time it is shown.
   'dock-analysis': 'entries/dock-analysis.ts',
   'dock-debug': 'entries/dock-debug.ts',
+  'dock-voice': 'entries/dock-voice.ts',
   coach: 'entries/coach.ts',
   cheatsheet: 'entries/cheatsheet.ts',
   'result-expanded': 'entries/result-expanded.ts',

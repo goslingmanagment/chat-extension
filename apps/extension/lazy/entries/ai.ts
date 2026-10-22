@@ -4,4 +4,4 @@
 // its controller. Recap, Review and Coach are built over the same workspace
 // by their own entries (`ai-analysis`, `ai-coach`).
 
-export { AiWorkspace, createDockController, readTargetHandle, type AiController, type AiPorts } from '@cg/core/application/ai';
+export { AiWorkspace, createDockController, readTargetHandle, type AiController, type AiPorts, type FileSaver } from '@cg/core/application/ai';

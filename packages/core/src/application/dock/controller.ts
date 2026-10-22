@@ -252,6 +252,30 @@ export function createDockController(ws: AiWorkspace): DockController {
       .map((persona) => ({ key: persona.key, label: persona.displayName, choose: { type: 'ChoosePersona', pageHandle, personaKey: persona.key } as const }));
   }
 
+  /**
+   * 1.46.0: the Voice chip — only where the page has voice notes (its `voice` and the hub's lane: a voice profile, the
+   * provider, the allowlist); elsewhere no chip at all, as the old Fansly extension hid its 🎙. A take that renders or a
+   * script being written makes it busy; a take that got ready while the studio was closed puts its dot on it.
+   */
+  function panels(situation: Situation, handle: string | null, sheet: ReturnType<AiWorkspace['sheet']>): Record<string, DockActionVM & { readonly action: UiActionOf<'ShowVoice'> | null }> {
+    const { chat, ready } = situation;
+    if (chat === null || ready === null || handle === null || situation.off !== null) return {};
+    if (!ws.admitted(situation.host, ready, 'voice', 'generate').usable) return {};
+    const open = sheet?.kind === 'voice';
+    const chip = ws.voice.chip(chat.key, ready.page.pageId, chat.conversationRef);
+    return {
+      voice: {
+        enabled: true,
+        busy: chip.busy,
+        active: open,
+        reason: null,
+        hotkey: null,
+        badge: chip.ready && !open ? 'voice-ready' : null,
+        action: { type: 'ShowVoice', targetHandle: handle, open: !open },
+      },
+    };
+  }
+
   /** UI-010: a recap of this chat can be opened at once (a local copy, or the hub's status line once the chat settled). */
   function hasRecapCopy(ready: NonNullable<Situation['ready']>): boolean {
     return ws.recaps.hasAny(ws.recapOwner(ready), flagUsable(ready.bootstrap, ready.page.pageId, 'recap'));
@@ -358,10 +382,11 @@ export function createDockController(ws: AiWorkspace): DockController {
       },
       actions: actionVms,
       // The bar's chips as data: what has a chip on this site, in the manifest's order (`dockChips`, domain/features/admission.ts).
-      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey),
+      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey, panels(situation, handle, sheet)),
       result,
       focusPart,
       analysis: sheet?.kind === 'recap' ? 'recap' : sheet?.kind === 'review' ? 'review' : null,
+      voice: sheet?.kind === 'voice',
       refusal: sheet?.kind === 'refusal' ? refusalVm(ws, sheet.refusal) : null,
       runningElsewhere: elsewhere,
       statusWords: situation.status === 'loading-chat' && chat !== null,

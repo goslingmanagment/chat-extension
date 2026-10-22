@@ -60,7 +60,7 @@ export interface VoiceAttachVM {
    * After an attach the chat's field still holds the text the script was made from: it goes to the fan with the
    * voice unless the person removes it («Убрать текст»). null — the field holds nothing more.
    */
-  readonly leftover: { readonly clear: UiAction } | null;
+  readonly leftover: { readonly clear: UiAction | null } | null;
 }
 
 /** A question in the studio itself (no dialog): the person's answer goes on, the other button leaves it. */

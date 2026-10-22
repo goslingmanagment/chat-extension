@@ -274,8 +274,9 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /**
    * A preset or «Переписать»: a new script in this tone (free of characters; the takes stay). `field` — from the draft
    * in the field now (an empty studio, «Новый войс»); `session` — from the draft the session's script came from.
+   * `confirmed` — the person agreed to lose their own edits of the script.
    */
-  act('WriteVoiceScript', { targetHandle: HandleSchema, tone: z.enum(VOICE_ACTION_TONES), from: z.enum(['field', 'session']) }),
+  act('WriteVoiceScript', { targetHandle: HandleSchema, tone: z.enum(VOICE_ACTION_TONES), from: z.enum(['field', 'session']), confirmed: z.optional(z.literal(true)) }),
   /** «Отменить» while the script is written. */
   act('CancelVoiceScript', { targetHandle: HandleSchema }),
   /** The person's text of the script, as typed (the controller keeps it and stores it a moment later). */

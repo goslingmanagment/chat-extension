@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 
 import { type CgErrorWire, type HumanCause, type Target, type VoiceNoteView, type VoiceOpView, type VoiceScriptStartWire, type VoiceSession } from '@cg/contracts';
 import type { StartOutcome } from '@cg/core/services';
-import type { KeyValuePort, StorageResult } from '@cg/core/services/storage/ports';
+import type { KeyValuePort, StorageResult } from '@cg/core/services';
 import { VOICE_SESSIONS_KEY, VoiceService, type VoiceFailure, type VoiceServiceDeps } from '@cg/core/services/voice';
 import { describe, expect, it } from 'vitest';
 

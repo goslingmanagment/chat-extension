@@ -27,7 +27,7 @@ import {
   windowOf,
 } from '../kit';
 import { ExpandButton, Head, HideButton, Meta } from './Head';
-import { type AnalysisProps, type DebugProps, type DockParts, type PartLoader, useLazyPart } from './lazy-part';
+import { type AnalysisProps, type DebugProps, type DockParts, type PartLoader, type VoiceProps, useLazyPart } from './lazy-part';
 import { featureKey, isRunning, msgOf, toneOf, withBody } from './model';
 import { ResultContent } from './Result';
 import { useStreamText } from './Stream';
@@ -202,6 +202,15 @@ function Analysis({ loader, which, debugPart }: { readonly loader: PartLoader<An
   return <View which={which} place="sheet" debugPart={debugPart} />;
 }
 
+/** The voice studio in the sheet (1.46.0); its chunk loads on the first open. */
+function Voice({ loader, onHide }: { readonly loader: PartLoader<VoiceProps>; readonly onHide: () => void }): JSX.Element {
+  const i18n = useI18n();
+  const part = useLazyPart(loader);
+  if (part === null) return <Head title={i18n.t('dock.action.voice')} gutter={<Spinner label={i18n.t('common.loading')} />} />;
+  const View = part.view;
+  return <View onHide={onHide} />;
+}
+
 export interface SheetProps {
   /** The steady view model: everything but the streamed text. */
   readonly vm: DockVM;
@@ -264,6 +273,11 @@ export function Sheet({ vm, view, parts, refusalHidden, onHideRefusal }: SheetPr
     const which = vm.analysis;
     hide = () => void dispatch({ type: 'ShowAnalysis', view: which, mode: 'hidden' });
     content = <Analysis loader={parts.analysis} which={which} debugPart={parts.debug} />;
+  } else if (vm.voice === true && vm.targetHandle !== null) {
+    const targetHandle = vm.targetHandle;
+    const hideVoice = (): void => void dispatch({ type: 'ShowVoice', targetHandle, open: false });
+    hide = hideVoice;
+    content = <Voice loader={parts.voice} onHide={() => close(hideVoice)} />;
   } else if (result !== null) {
     hide = hideResult;
     content = (

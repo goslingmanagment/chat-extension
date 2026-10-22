@@ -108,6 +108,7 @@ export const APPLICATION_CHUNKS: readonly string[] = [
   'boards-preview',
   'dock-analysis',
   'dock-debug',
+  'dock-voice',
   'dialogs',
   'cheatsheet',
 ];

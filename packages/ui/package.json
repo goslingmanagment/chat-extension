@@ -11,6 +11,7 @@
     "./kit/tokens": "./src/kit/tokens.ts",
     "./dock": "./src/dock/index.ts",
     "./dock/analysis": "./src/dock/analysis/index.tsx",
+    "./dock/voice": "./src/dock/voice/index.tsx",
     "./dock/debug": "./src/dock/debug/index.tsx",
     "./overlays": "./src/overlays/index.ts",
     "./overlays/toasts": "./src/overlays/toasts/index.tsx",

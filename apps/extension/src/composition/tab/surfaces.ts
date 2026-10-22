@@ -25,6 +25,7 @@ import type { OverlayKind } from '@cg/core/domain/hotkeys';
 import type * as DockChunk from '../../../lazy/entries/dock';
 import type * as AnalysisPartChunk from '../../../lazy/entries/dock-analysis';
 import type * as DebugPartChunk from '../../../lazy/entries/dock-debug';
+import type * as VoicePartChunk from '../../../lazy/entries/dock-voice';
 import type { LazyEntryName } from '../../../lazy/entries/names';
 import type { HostMounts, OverlayLayer } from './adapter';
 
@@ -140,6 +141,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
       parts: {
         analysis: () => env.lazy<typeof AnalysisPartChunk>('dock-analysis').then((module) => module.analysisPart),
         debug: () => env.lazy<typeof DebugPartChunk>('dock-debug').then((module) => module.debugPart),
+        voice: () => env.lazy<typeof VoicePartChunk>('dock-voice').then((module) => module.voicePart),
       },
     }),
   );

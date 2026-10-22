@@ -20,7 +20,7 @@ export function newSubject(neighbor: NeighborSetting, evidenceDir: string): Perf
   let offRoute: ProfileSummary | null = null;
   let fans: Readonly<Record<string, string>> = {};
   let lazyChecked = false;
-  const optionalChunks = /\/lazy\/fansly\/(?:dock-analysis|ai-analysis|ai-coach|boards|spenders|coach|newcomers|vault|fan-panel|registration|cheatsheet|result-expanded)\.js/;
+  const optionalChunks = /\/lazy\/fansly\/(?:dock-analysis|dock-voice|ai-analysis|ai-coach|boards|spenders|coach|newcomers|vault|fan-panel|registration|cheatsheet|result-expanded)\.js/;
   return {
     name: 'new',
     addonId: TEST_GECKO_ID,

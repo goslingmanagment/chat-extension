@@ -57,6 +57,7 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   'boards-preview': 'fansly/boards-preview.ts',
   'dock-analysis': 'entries/dock-analysis.ts',
   'dock-debug': 'entries/dock-debug.ts',
+  'dock-voice': 'entries/dock-voice.ts',
   coach: 'entries/coach.ts',
   cheatsheet: 'entries/cheatsheet.ts',
   'result-expanded': 'entries/result-expanded.ts',

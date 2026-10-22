@@ -38,12 +38,15 @@ import { InsertService, partText, type InsertContext, type PartBlock } from './i
 import { OpStore, type OpRecord, type OpStoreEvent, type PersonaFollow } from './op-store';
 import { type AiPorts, type RpcAnswer } from './ports';
 import { RecapBook, type RecapOwner } from './recap-book';
+import { VoiceDesk } from './voice-desk';
 
 /** What the dock's sheet shows in one chat; the latest action of the person decides. */
 export type Sheet =
   | { readonly kind: 'draft'; readonly opId: string }
   | { readonly kind: 'recap' }
   | { readonly kind: 'review' }
+  /** 1.46.0: the voice studio of the chat (the Voice chip). */
+  | { readonly kind: 'voice' }
   | { readonly kind: 'refusal'; readonly refusal: RefusalState };
 
 /**
@@ -240,6 +243,8 @@ export class AiWorkspace {
   readonly ops: OpStore;
   readonly inserts: InsertService;
   readonly recaps: RecapBook;
+  /** 1.46.0: the voice notes of the chats this tab shows (the Voice chip and its studio). */
+  readonly voice: VoiceDesk;
 
   private readonly chats = new Map<ChatKey, ChatUi>();
   private readonly expanded = new Set<string>();
@@ -284,6 +289,15 @@ export class AiWorkspace {
       ports,
       changed: () => this.bump(),
       openChat: () => this.situation().chat?.key ?? null,
+    });
+    this.voice = new VoiceDesk({
+      ports,
+      changed: () => this.bump(),
+      openChat: () => {
+        const { chat, ready } = this.situation();
+        return chat === null || ready === null ? null : { key: chat.key, pageId: ready.page.pageId, conversationRef: chat.conversationRef };
+      },
+      studioOpen: (key) => this.sheet(key)?.kind === 'voice',
     });
     this.inserts = new InsertService({
       ports,
@@ -377,6 +391,7 @@ export class AiWorkspace {
     this.env.dispose();
     this.ops.dispose();
     this.recaps.dispose();
+    this.voice.dispose();
     this.listeners.clear();
   }
 

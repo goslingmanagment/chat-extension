@@ -148,6 +148,11 @@ export function dockChips(
   actions: Readonly<Record<DockActionId, DockActionVM>>,
   handle: TargetHandle | null,
   keyOf: (action: HotkeyActionId | CatalogActionId) => HotkeyLabel | null,
+  /**
+   * 1.46.0: the panels of the dock (Voice) as their controller decided them — the state and what a click asks for; a
+   * panel the page cannot have now is not here, and has no chip.
+   */
+  panels: Readonly<Record<string, DockActionVM & { readonly action: UiAction | null }>> = {},
 ): ChipVM[] {
   return Object.entries(slice)
     .flatMap(([id, entry]) => (entry.chip === undefined ? [] : [{ id, entry, chip: entry.chip }]))
@@ -167,6 +172,8 @@ export function dockChips(
                 : { type: 'Generate', targetHandle: handle, feature: id as FeatureId, options: {} };
         return [{ ...own, id, group, icon, label: { key: `dock.action.${id}` as I18nKey }, hint, action }];
       }
+      const panel = entry.kind === 'panel' ? panels[id] : undefined;
+      if (panel !== undefined) return [{ ...panel, id, group, icon, label: { key: `dock.action.${id}` as I18nKey }, hint }];
       if (entry.kind !== 'board') return [];
       const open: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: id as OverlaySurface, open: true } };
       // A board's key: the scheme's row it names (Spenders), else the catalog's own row of the board — «Новые» has one
