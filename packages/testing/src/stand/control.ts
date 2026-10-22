@@ -119,6 +119,35 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ id: message.id, delivered });
     return;
   }
+  // The model's message in a chat, as a send from elsewhere would leave it (unread by the fan); delivered on the socket.
+  if (path === '/__stand/model-message' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const account = accountId === null ? undefined : state.account(accountId);
+    if (accountId === null || fanId === null || account === undefined || state.chat(accountId, fanId) === undefined) {
+      ok({ error: 'unknown chat' }, 404);
+      return;
+    }
+    const text = asString(body['text']) ?? 'Синтетический ответ модели';
+    const message: StandMessage = { id: asString(body['id']) ?? state.nextMessageId(), content: `<p>${text}</p>`, sentAt: new Date().toISOString(), isFromFan: false };
+    state.appendMessage(accountId, fanId, message);
+    const delivered = hub.deliverNewMessage(newMessageFrame(account, fanId, message), accountId);
+    ok({ id: message.id, delivered });
+    return;
+  }
+  // The fan opens the chat: every model's message in it reads as seen (`isNew: false`). The socket says nothing of it.
+  if (path === '/__stand/fan-read' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const chat = accountId === null || fanId === null ? undefined : state.chat(accountId, fanId);
+    if (chat === undefined) {
+      ok({ error: 'unknown chat' }, 404);
+      return;
+    }
+    for (const message of chat.messages) if (!message.isFromFan) message.isNew = false;
+    ok({ read: true });
+    return;
+  }
   // X54: a model's paid message (PPV) in a chat, as the model's send would leave it; delivered on the socket like one.
   if (path === '/__stand/paid-message' && method === 'POST') {
     const accountId = asString(body['accountId']);

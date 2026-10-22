@@ -225,6 +225,16 @@ export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 export const OPEN_CHAT_LIMITS = { pageMax: 100, requestMs: 10 * SECOND, bridgeMs: 12 * SECOND, cacheMs: 15 * SECOND } as const;
 
 /**
+ * Whether the fan read our newest message (`chatReadState`, `fansly.preview.readState`), read live when a preview
+ * opens. `usernameMax` — the longest username searched for; `freshMs` — a fan's answer is shown again without a new
+ * read this long (a preview walked with J / K and back); `settleMs` — a preview rests this long on a fan before the read
+ * goes, so a walk through the list asks nothing of the fans it passes; `pollMs`, `pollForMs` — while the open preview
+ * says «не прочитано» it reads again this often, for at most this long on the same fan (the old OnlyFans client's
+ * read-state sweep: 30 s, 10 min).
+ */
+export const CHAT_READ_LIMITS = { usernameMax: 100, freshMs: 30 * SECOND, settleMs: 600, pollMs: 30 * SECOND, pollForMs: 10 * MINUTE } as const;
+
+/**
  * 1.27.0 (X54): the PPV state of the open chat a draft start carries (`StartOp.livePpv`, hub `livePpvContext`).
  * `readMessages` — how many of the chat's newest messages the start reads from the host's API for it; `waitMs` — how
  * long the Generate click waits for that read beside the tail before it starts without it (the read goes on and fills

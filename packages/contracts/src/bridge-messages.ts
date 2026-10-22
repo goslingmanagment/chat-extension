@@ -12,6 +12,7 @@ import * as z from 'zod/mini';
 import { BRIDGE_PROTOCOL_VERSION, BridgeRequestIdSchema, BridgeResponseSchema, MainProbeSchema, type FromMainType, type ToMainType } from './bridge';
 import {
   AnchorIdSchema,
+  ChatReadAnswerSchema,
   ChatWindowSchema,
   ComposerStateSchema,
   HostFanSchema,
@@ -27,7 +28,7 @@ import {
   thenInsertFits,
 } from './host';
 import { DraftProvenanceSchema, HostAccountSchema, HostIdentitySchema, PartRefSchema } from './ids';
-import { BRIDGE_LIMITS, OPEN_CHAT_LIMITS, SEND_LIMITS } from './limits';
+import { BRIDGE_LIMITS, CHAT_READ_LIMITS, OPEN_CHAT_LIMITS, SEND_LIMITS } from './limits';
 import { MediaAnswerSchema, MediaRequestSchema } from './media';
 import { SendMediaSchema } from './send-media';
 import { CountSchema, DigestSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
@@ -198,6 +199,12 @@ export const TO_MAIN = {
    * (`ok: false`), not a bridge error. Its deadline is MEDIA_LIMITS.bridgeMs.
    */
   media: { payload: MediaRequestSchema, data: MediaAnswerSchema, write: false, timeout: 'network' },
+  /**
+   * Whether the fan read the chat's newest message: one read of the host's chat list searched by the fan's username,
+   * never the chat's history (nothing is marked read); any chat, open or not. A failed request is an answer
+   * (`ok: false`), not a bridge error. Its deadline is OPEN_CHAT_LIMITS.bridgeMs.
+   */
+  chatReadState: { payload: z.strictObject({ ...AccFan, username: z.string().check(z.minLength(1), z.maxLength(CHAT_READ_LIMITS.usernameMax)) }), data: ChatReadAnswerSchema, write: false, timeout: 'network' },
 } as const satisfies Record<ToMainType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: boolean; readonly timeout: 'call' | 'navInsert' | 'network' }>;
 
 export type ToMainPayload<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['payload']>;
@@ -288,6 +295,7 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('flags'),
   requestFrame('openChatMessages'),
   requestFrame('media'),
+  requestFrame('chatReadState'),
 ]);
 export type BridgeRequest = z.infer<typeof BridgeRequestSchema>;
 

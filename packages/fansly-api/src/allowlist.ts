@@ -99,7 +99,7 @@ export type FanslyRouteName = keyof typeof FANSLY_ROUTES;
 export const FANSLY_ROUTE_NAMES = Object.keys(FANSLY_ROUTES) as FanslyRouteName[];
 
 /** Why the extension asks Fansly at all: the rows of FS-NET-1's table. */
-export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv'] as const;
+export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv', 'preview'] as const;
 export type FanslyPurpose = (typeof FANSLY_PURPOSES)[number];
 
 /**
@@ -162,6 +162,9 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   // An AI start in the open chat: its newest pages of history and, for each paid attachment no inline order shows bought,
   // the fan's orders of it — by the person's click, once, and not at all while the creator cools down.
   ppv: { 'message.history': CLICK_READ, 'media.orderhistory': CLICK_READ },
+  // A fan's preview (Spenders, «Новые», the palette): the group, whether the fan read its newest message — once the
+  // preview rests on the fan, once, and not at all while the creator cools down.
+  preview: { 'group.detail': CLICK_READ },
 };
 
 const has = (record: object, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);

@@ -77,6 +77,7 @@ import { ViewCell, done, refused, type SurfaceController } from '../boards/surfa
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
 import { type Attachment } from '../../domain/media/attachment';
 import { MediaDesk } from './media';
+import { SeenDesk, hostChatReadPort, type ChatReadPort } from './seen';
 import { partsOfResult, previewResult, type PartRows } from './result';
 import { clickable, fanAttempts, fanSendsOf, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type FanSendFact, type FanSends, type PartAttempt } from './send-rows';
 
@@ -259,6 +260,11 @@ export interface PreviewControllerDeps {
    * 2026-10-20, row 1). Absent — the draft field sends nothing.
    */
   readonly sha256?: (text: string) => Promise<string>;
+  /**
+   * Whether the fan read our newest message, read live from the site (Fansly's, by its background); absent — the
+   * host's own chat list where it has one (ChatSpace), null — none.
+   */
+  readonly readState?: ChatReadPort | null;
 }
 
 export interface PreviewController extends SurfaceController<'preview'> {
@@ -341,6 +347,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    * proved it never reached the platform (held, not queued, refused).
    */
   const mediaAttempts = new Map<string, { readonly chat: ChatRef; readonly taken: Attachment }>();
+  /** Whether the fan read our newest message, by page and fan; its answers draw the fan's cards again. */
+  const seen = new SeenDesk({
+    port: deps.readState === undefined ? hostChatReadPort(host) : deps.readState,
+    clock,
+    changed: (key) => {
+      for (const target of targets.values()) if (fanKey(target.pageId, target.fanRef) === key) changedFor(target.handle);
+    },
+  });
 
   const cells: Record<PreviewSource, ViewCell<PreviewVM>> = {
     spenders: new ViewCell(() => build('spenders')),
@@ -638,6 +652,22 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return state;
   }
 
+  /** The card rests on the fan: whether the fan read our newest message is read (`force` — «Обновить»). */
+  function wantSeen(state: TargetState, force = false): void {
+    seen.want(
+      fanKey(state.pageId, state.fanRef),
+      () => {
+        const ctx = context.current();
+        const chat = chatOf(state);
+        // A card a batch opened unseen asks nothing: only the one the person looks at.
+        if (disposed || targets.get(state.handle) !== state || shadows.has(state.handle) || ctx.phase !== 'ready' || !pageFlag(ctx, 'preview') || chat === null) return null;
+        const info = infoNow(state);
+        return { pageId: state.pageId, chat, username: info.username, conversationRef: conversationNow(state) };
+      },
+      force,
+    );
+  }
+
   function openTarget(source: PreviewSource, handle: TargetHandle): void {
     shadows.delete(handle);
     const state = newTarget(source, handle);
@@ -649,6 +679,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     void loadFeed(state);
     void loadCard(state);
     void restoreOp(state);
+    wantSeen(state);
     // The page conditions may have moved while the card was closed: its result asks MAIN again.
     const shown = tracks.get(currentOp.get(handle) ?? '');
     if (shown !== undefined) void refreshPreflight(shown);
@@ -661,6 +692,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const state = targets.get(handle);
     if (state === undefined) return;
     stopPoll(state);
+    if (![...targets.values()].some((other) => other !== state && other.pageId === state.pageId && other.fanRef === state.fanRef)) seen.leave(fanKey(state.pageId, state.fanRef));
     if (state.feed !== null && state.feedConversation !== null) kept = keepFeed(kept, { key: handle, conversationRef: state.feedConversation.conversationRef ?? state.fanRef, first: state.feed, keptAt: state.feedLoadedAt ?? clock.now() });
     targets.delete(handle);
     // Decision X53: the picks are the open card's; another card of the same fan keeps them.
@@ -1368,6 +1400,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         draftsChanged();
       }
     }
+    // Our message is the newest now: whether the fan read it is read again (after the rest, so the list shows it).
+    if (view.state === 'sentObserved') {
+      seen.drop(fanKey(track.pageId, track.fanRef));
+      const state = shownOn(track);
+      if (state !== null) wantSeen(state);
+    }
     reportProgress(track);
     // A send holds the fan on every card of the fan, not only on the one of this result.
     changed();
@@ -1470,6 +1508,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       unread: 'kept',
       archive: { stamp: stamp(null, 'unknown'), lagMinutes: null, refreshing: false, refresh: button('common.refreshArchive', CLOSE_PREVIEW, { enabled: false, reason: off }) },
       fanWroteNew: false,
+      seen: null,
       feed: { items: [], hasOlder: false, loadingOlder: false, olderError: null },
       ping: null,
       draft: { text: '', maxChars: SEND_LIMITS.previewDraftMaxChars, placeholder: msg(draftPlaceholder(source)) },
@@ -1578,6 +1617,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         refresh: button('common.refreshArchive', { type: 'RefreshArchive', targetHandle: handle }, { enabled: !state.feedLoading }),
       },
       fanWroteNew: shown !== null && (shown.fanWrote || shown.mirror.done?.stale?.reason === 'fan-wrote'),
+      seen: blocked === null ? seen.vm(fanKey(state.pageId, state.fanRef), feedItems(state)) : null,
       feed: {
         items: feedItems(state),
         hasOlder: !chatUnknown && feed !== null && feed.nextOlderCursor !== null,
@@ -2287,6 +2327,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const state = stateOf(action.targetHandle);
       if (state === null) return Promise.resolve(refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n)));
       if (action.type === 'RefreshArchive') {
+        wantSeen(state, true);
         const reads = context.current().phase === 'ready' ? Promise.resolve() : context.refresh();
         return reads.then(() => Promise.all([loadFeed(state), loadCard(state), loadSends(state.pageId, state.fanRef)])).then(() => done(type));
       }
@@ -2403,6 +2444,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         for (const track of tracks.values()) clearHoldTimers(track);
         targets.clear();
         media.reset();
+        seen.reset();
         mediaAttempts.clear();
         kept = [];
         for (const settle of [...batchWaiters.values()]) settle({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
@@ -2564,6 +2606,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       manualInserts.clear();
       for (const off of offs) off();
       for (const target of targets.values()) stopPoll(target);
+      seen.dispose();
       for (const track of tracks.values()) clearHoldTimers(track);
       if (pruneTimer !== null) clock.clearTimer(pruneTimer);
       pruneTimer = null;

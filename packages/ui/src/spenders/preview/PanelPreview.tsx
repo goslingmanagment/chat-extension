@@ -16,6 +16,7 @@ import { type PreviewVM, type TargetHandle } from '@cg/contracts/vm';
 import { ActionButton, Button, Icon, Money, StripButton, ViewState, useDispatch, useI18n, useMinuteClock, useTooltip, useView, type StyleSource } from '../../kit';
 import { MediaPicker } from './MediaPicker';
 import { MiniStrip, generateAction, reasonText } from './MiniStrip';
+import { SeenMark } from './Feed';
 import { ArchiveLine, DraftField, PREVIEW_BASE_CSS, PreviewFeed, WorkZone, bothAges, hasBody, usePreviewKeys } from './Preview';
 
 /** The picked row's last message, with whose it is: the panel shows it while that fan's archive is empty. */
@@ -69,7 +70,13 @@ function PanelHeader({ vm }: { readonly vm: PreviewVM }): JSX.Element {
               <Money mills={header.lifetime} zero="show" class="cg-pv__life" />
               {header.period30 !== null && header.period30 > 0 ? <span class="cg-money">{i18n.t('preview.moneyIn', { moneyIn: { money: header.period30, sign: 'plus' } })}</span> : null}
             </div>
-            {meta === null ? null : <div class="cg-pv__meta">{meta}</div>}
+            {meta === null ? null : (
+              <div class="cg-pv__meta">
+                {meta}
+                {/* Our newest message is not in the archive yet: whether the fan read it stands by the ages. */}
+                {vm.seen !== null && !vm.seen.inFeed ? <SeenMark seen={vm.seen} /> : null}
+              </div>
+            )}
           </>
         )}
       </div>

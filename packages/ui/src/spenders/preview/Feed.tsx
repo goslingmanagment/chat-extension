@@ -2,7 +2,9 @@
 // D-27; SP-050, SP-053, NF-010): only what the hub archive holds. The chat is
 // never opened and nothing is read from ChatSpace, so the feed never carries
 // the fan's live text. Bubbles are the host's own colours: incoming left,
-// ours right; attachments are captions, no media is loaded. Older pages come
+// ours right; attachments are captions, no media is loaded. Our newest
+// message says whether the fan read it, when the site said so (read live, the
+// chat still not opened). Older pages come
 // by the server cursor when the person scrolls up (or presses «Показать более
 // ранние»), and the place they were reading stays where it was. The scroll
 // bookkeeping is one fan's: another fan's feed opens at its newest message.
@@ -12,7 +14,7 @@ import { useLayoutEffect, useRef } from 'preact/hooks';
 
 import { type FeedItemVM, type I18n, type Msg, type PreviewVM, type TargetHandle } from '@cg/contracts/vm';
 
-import { Button, ErrorCard, Spinner, useDispatch, useI18n } from '../../kit';
+import { Button, ErrorCard, Icon, Spinner, useDispatch, useI18n } from '../../kit';
 
 /** How close to the top the scroll must be to ask for the older page. */
 const OLDER_EDGE_PX = 48;
@@ -33,7 +35,19 @@ function underline(i18n: I18n, item: FeedItemVM): { readonly text: string; reado
   return { text: text.replace(/^,\s*/, ''), tip };
 }
 
-function Bubble({ item }: { readonly item: FeedItemVM }): JSX.Element {
+/** «✓✓ прочитано (в 14:05)» / «✓ не прочитано»: whether the fan read our newest message, as the site says it. */
+export function SeenMark({ seen }: { readonly seen: NonNullable<PreviewVM['seen']> }): JSX.Element {
+  const i18n = useI18n();
+  const words = !seen.read ? i18n.t('preview.seen.unread') : seen.readAt === null ? i18n.t('preview.seen.read') : i18n.t('preview.seen.readAt', { time: i18n.formatTime(seen.readAt) });
+  return (
+    <span class={`cg-seen${seen.read ? ' is-read' : ''}`} data-cg-seen={seen.read ? 'read' : 'unread'}>
+      <Icon name={seen.read ? 'checks' : 'check'} size={13} />
+      {words}
+    </span>
+  );
+}
+
+function Bubble({ item, seen }: { readonly item: FeedItemVM; readonly seen: PreviewVM['seen'] }): JSX.Element {
   const i18n = useI18n();
   const own = item.sender === 'model';
   const { text, tip } = underline(i18n, item);
@@ -56,7 +70,7 @@ function Bubble({ item }: { readonly item: FeedItemVM }): JSX.Element {
           {caption}
         </span>
       ))}
-      {text === '' && tip === null ? null : (
+      {text === '' && tip === null && seen === null ? null : (
         <small class="cg-num">
           {text}
           {tip === null ? null : (
@@ -66,6 +80,7 @@ function Bubble({ item }: { readonly item: FeedItemVM }): JSX.Element {
               {tipWords?.[1] ?? ''}
             </>
           )}
+          {seen === null ? null : <SeenMark seen={seen} />}
         </small>
       )}
     </div>
@@ -78,9 +93,11 @@ export interface FeedProps {
   /** «Сообщений пока нет.» — shown instead of the bubbles. */
   readonly empty: Msg | null;
   readonly loading: boolean;
+  /** Whether the fan read our newest message: the mark goes under that message's bubble. */
+  readonly seen?: PreviewVM['seen'];
 }
 
-export function Feed({ handle, feed, empty, loading }: FeedProps): JSX.Element {
+export function Feed({ handle, feed, empty, loading, seen = null }: FeedProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const scroller = useRef<HTMLDivElement>(null);
@@ -169,7 +186,7 @@ export function Feed({ handle, feed, empty, loading }: FeedProps): JSX.Element {
             {i18n.formatTime(item.at, 'day')}
           </div>
         ) : null,
-        <Bubble key={item.id} item={item} />,
+        <Bubble key={item.id} item={item} seen={seen !== null && seen.inFeed && seen.messageId === item.id ? seen : null} />,
       ])}
     </div>
   );
@@ -190,6 +207,9 @@ export const FEED_CSS = `
 .cg-feed__msg.is-deleted { color: var(--cg-ink-muted); }
 .cg-feed__msg small { display: block; font-size: var(--cg-text-xs); line-height: 18px; color: var(--cg-ink-muted); margin-top: 2px; white-space: normal; }
 .cg-feed__msg .cg-money { font-weight: 600; }
+.cg-seen { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; vertical-align: -2px; }
+:is(small, .cg-pv__meta) > .cg-seen { margin-left: 8px; }
+.cg-seen.is-read { color: var(--cg-good-ink); }
 .cg-feed__att { display: block; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); }
 .cg-feed__empty { align-self: center; margin: auto 0; font-size: var(--cg-text-sm2); line-height: 18px; color: var(--cg-ink-muted); text-align: center; max-width: 30ch; }
 .cg-feed__older { align-self: center; display: flex; justify-content: center; min-height: 22px; }

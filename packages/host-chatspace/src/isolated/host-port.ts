@@ -48,12 +48,12 @@
 //   ever sent or repeated because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
-import type { ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { ChatReadRead, ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
 import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
-import { BRIDGE_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
+import { BRIDGE_LIMITS, CHAT_READ_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 import type { MediaFanState, MediaFoldersPage, MediaItemsPage, MediaRead, MediaRequest } from '@cg/contracts/media';
 import type { MediaTags } from '@cg/contracts/send-media';
 
@@ -797,6 +797,15 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       );
       if (newest) openRead = { key, generation, limit, done };
       return done;
+    },
+
+    async chatReadState(chat: ChatRef, username: string): Promise<ChatReadRead> {
+      if (username.length === 0 || username.length > CHAT_READ_LIMITS.usernameMax) throw new HostContractError('chatReadState: a username of 1…usernameMax characters');
+      if (!bridge || disposed) return { ok: false, reason: 'unavailable' };
+      return bridge.request('chatReadState', { acc: chat.hostAccountId, fan: chat.platformFanId, username }, OPEN_CHAT_LIMITS.bridgeMs).then(
+        (answer): ChatReadRead => (answer.ok ? { ok: true, last: answer.last } : { ok: false, reason: answer.failure }),
+        (): ChatReadRead => ({ ok: false, reason: 'unavailable' }),
+      );
     },
 
     media: {

@@ -20,7 +20,7 @@ import { type ClaimVM, type I18n, type Msg, type PreviewActionId, type PreviewSo
 import { ActionButton, Button, Dot, ErrorCard, Icon, Money, TextField, ViewState, isComposing, useCountdown, useDispatch, useI18n, useMinuteClock, useNowFn, useTooltip, useView, type StyleSource } from '../../kit';
 import { useOwnEchoes } from '../ownEchoes';
 import { coverageWord, isPlainKey, isTextEntry, timeOrUnknown } from '../window';
-import { Feed, FEED_CSS } from './Feed';
+import { Feed, FEED_CSS, SeenMark } from './Feed';
 import { MINI_STRIP_CSS, MiniStrip, generateAction } from './MiniStrip';
 import { PreviewResult, RESULT_CSS } from './Result';
 import { MEDIA_PICKER_CSS, MediaAttachedContext, MediaPicker } from './MediaPicker';
@@ -77,7 +77,13 @@ function Header({ vm, closable }: { readonly vm: PreviewVM; readonly closable: b
                 {header.period30 !== null && header.period30 > 0 ? <span class="cg-money">{i18n.t('preview.moneyIn', { moneyIn: { money: header.period30, sign: 'plus' } })}</span> : null}
               </div>
             )}
-            {meta === null ? null : <div class={`cg-pv__meta${header.newcomer === null ? '' : ' cg-pv__meta--tight'}`}>{meta}</div>}
+            {meta === null ? null : (
+              <div class={`cg-pv__meta${header.newcomer === null ? '' : ' cg-pv__meta--tight'}`}>
+                {meta}
+                {/* Our newest message is not in the archive yet: whether the fan read it stands by the ages. */}
+                {vm.seen !== null && !vm.seen.inFeed ? <SeenMark seen={vm.seen} /> : null}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -287,6 +293,7 @@ export function PreviewFeed({ vm, feed = vm.feed }: { readonly vm: PreviewVM; re
       feed={feed}
       empty={vm.view.s === 'empty' ? vm.view.why : vm.view.s === 'loading' ? null : { key: 'preview.feed.empty' }}
       loading={vm.view.s === 'loading'}
+      seen={vm.seen}
     />
   );
 }

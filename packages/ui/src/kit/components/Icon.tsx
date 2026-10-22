@@ -12,6 +12,8 @@ const PATHS = {
     </>
   ),
   check: <path d="M3.2 8.4l3 2.9L12.8 4.8" />,
+  /** Two checks: the fan read our message (the preview's feed). */
+  checks: <path d="M1.4 8.6l2.8 2.7L10.4 5M7.6 11.1l.2.2L14.6 5" />,
   x: <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />,
   lock: (
     <>

@@ -76,6 +76,13 @@ export interface PreviewVM {
   };
   /** A fan message newer than the result: the blue dot line «Фан написал новое после ответа», no text. */
   readonly fanWroteNew: boolean;
+  /**
+   * Whether the fan read our newest message, read live from the site (OnlyFans' chat list, Fansly's group) without the
+   * chat being opened; Fansly says when (`readAt`). `inFeed` — the message is in the feed and the mark stands under it,
+   * else beside the header's ages. null — the newest message is the fan's, the site did not say or was not asked yet,
+   * or the archive shows a newer message than the one the site named.
+   */
+  readonly seen: { readonly messageId: string; readonly read: boolean; readonly readAt: IsoTimestamp | null; readonly inFeed: boolean } | null;
   readonly feed: {
     readonly items: readonly FeedItemVM[];
     readonly hasOlder: boolean;
