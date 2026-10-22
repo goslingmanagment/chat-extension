@@ -140,9 +140,9 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
 });
 
 describe('MAIN ↔ isolated bridge (§5.3)', () => {
-  it('only insert, navigation and the preview send are writes (D-07)', () => {
-    expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].write)).toEqual(['insertGuarded', 'navigate', 'previewSendCommit']);
-    expect([...C.BRIDGE_WRITE_REQUESTS]).toEqual(['insertGuarded', 'navigate', 'previewSendCommit']);
+  it('only insert, navigation, the preview send and the drop of our file on the composer are writes (D-07)', () => {
+    expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].write)).toEqual(['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile']);
+    expect([...C.BRIDGE_WRITE_REQUESTS]).toEqual(['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile']);
     expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].timeout === 'navInsert')).toEqual(['navigate']);
   });
 
@@ -158,6 +158,7 @@ describe('MAIN ↔ isolated bridge (§5.3)', () => {
     const keys = Object.keys(C.MainSendRequestSchema.shape);
     for (const key of ['ticket', 'binding', 'target', 'cause', 'actionToken', 'pageId', 'pageLabel']) expect(keys).not.toContain(key);
     expect(Object.keys(C.NavigationWireSchema.shape)).not.toContain('cause');
+    expect(Object.keys(C.AttachWireSchema.shape)).not.toContain('cause');
   });
 
   it('unknown request types are rejected, prototype names among them', () => {

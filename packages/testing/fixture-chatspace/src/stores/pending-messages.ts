@@ -24,7 +24,7 @@ import { record } from '../journal';
 import { isSignedIn } from '../net/auth';
 import { api, errorBody, HTTPError } from '../net/http';
 import { useQueryCache, type QueryCache } from '../query/cache';
-import { hasMessage, newestMessage, plainText, sentMessageMetadata, upsertMessage, type Account, type History, type Message } from '../query/model';
+import { hasMessage, newestMessage, plainText, sentAudioItems, sentMessageMetadata, upsertMessage, type Account, type History, type Message } from '../query/model';
 import { keys } from '../query/queries';
 
 export const PendingStatus = { PENDING: 'pending', SENDING: 'sending', FAILED: 'failed', CONFIRMED: 'confirmed' } as const;
@@ -174,7 +174,8 @@ export const usePendingMessages = defineStore(storeId('pendingMessages'), () => 
       platform: entry.platform,
       platformSenderId: account.platformAccountId,
       isOutgoing: true,
-      platformMetadata: sentMessageMetadata(SENT_CANCEL_SECONDS),
+      // A voice note the composer took along is in the bubble before the echo comes.
+      platformMetadata: sentMessageMetadata(SENT_CANCEL_SECONDS, sentAudioItems(entry.payload.composerContent?.media)),
     };
     cache.setQueryData<History>(key, (previous) => {
       const base = previous ?? history;

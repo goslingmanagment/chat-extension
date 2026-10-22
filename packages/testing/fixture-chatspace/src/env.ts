@@ -2,7 +2,7 @@
 // (?stand-break=…, §6.2 degradation tests), a slow start (?stand-slow-start=…)
 // and the few knobs tests may turn.
 
-import { STAND_API_ORIGIN_META, STAND_BREAK_PARAM, STAND_SENTRY_PARAM, STAND_SLOW_START_PARAM, type FansOnlineTimings, type StandBreak } from './protocol';
+import { STAND_API_ORIGIN_META, STAND_BREAK_PARAM, STAND_SENTRY_PARAM, STAND_SLOW_START_PARAM, type FansOnlineTimings, type StandBreak, type UploadBehaviour } from './protocol';
 
 const KNOWN_BREAKS = /^(vue-app|router-name|composer-bridge|composer-slot|composer-frame|editor-handle|draft-key|store:[A-Za-z_]+|query-key:[A-Za-z]+)$/;
 
@@ -60,6 +60,11 @@ export const env = {
    * (`setFansOnlineTimings`) to reach a later round.
    */
   fansOnline: { settleMs: 2_000, freshMs: 60_000, everyMs: 300_000 } as FansOnlineTimings,
+  /**
+   * The composer's upload of a dropped file (ui/composer.ts): how long the stand's «upload» takes, and whether it fails.
+   * Tests turn them (`setUpload`) to reach the failure or to watch the uploading tile.
+   */
+  upload: { delayMs: 1500, fail: false } as UploadBehaviour,
 };
 
 export function isBroken(item: StandBreak): boolean {

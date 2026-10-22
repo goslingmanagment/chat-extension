@@ -144,6 +144,7 @@ export function contractAnchors(): Anchor[] {
     { id: `socket event ${contract.WS_AUTHENTICATED}`, group: 'wsFrames', pattern: literal(contract.WS_AUTHENTICATED) },
     { id: 'native send request path', group: 'receipt', pattern: /api\/v0\/accounts\/\$\{[^}]+\}\/chats\/\$\{[^}]+\}\/messages/ },
     { id: `permission ${contract.PERMISSION_NO_SEND}`, group: 'userPermissions', pattern: literal(contract.PERMISSION_NO_SEND) },
+    ...contract.PERMISSIONS_UPLOAD.map((permission) => ({ id: `permission ${permission}`, group: 'userPermissions', pattern: literal(permission) })),
     { id: `guard code ${contract.GUARD_CODE}`, group: 'receipt', pattern: literal(contract.GUARD_CODE) },
     { id: `theme class ${contract.THEME_DARK_CLASS}`, group: 'theme', pattern: literal(contract.THEME_DARK_CLASS) },
     { id: `theme tokens ${contract.THEME_TOKEN_PREFIX}`, group: 'theme', pattern: text(contract.THEME_TOKEN_PREFIX) },

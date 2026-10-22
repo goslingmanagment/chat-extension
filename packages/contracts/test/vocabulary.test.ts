@@ -8,11 +8,12 @@ import * as C from '../src/index';
 import { networkSession } from './fixtures/diagnostics';
 
 describe('bridge writes that may have run', () => {
-  it('fix an outcome each receipt schema accepts, and only for the three writes', () => {
+  it('fix an outcome each receipt schema accepts, and only for the four writes', () => {
     expect(Object.keys(C.BRIDGE_WRITE_FAILURES).sort()).toEqual([...C.BRIDGE_WRITE_REQUESTS].sort());
     expect(C.InsertReceiptSchema.safeParse(C.BRIDGE_WRITE_FAILURES.insertGuarded).success).toBe(true);
     expect(C.NavigationReceiptSchema.safeParse(C.BRIDGE_WRITE_FAILURES.navigate).success).toBe(true);
     expect(C.PreviewSendCommitSchema.safeParse(C.BRIDGE_WRITE_FAILURES.previewSendCommit).success).toBe(true);
+    expect(C.AttachAnswerSchema.safeParse(C.BRIDGE_WRITE_FAILURES.attachFile).success).toBe(true);
     expect(C.BRIDGE_ERRORS_BEFORE_EXECUTION).not.toContain('internal');
   });
 });

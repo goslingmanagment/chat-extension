@@ -23,7 +23,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { record } from '../journal';
 import { api, HTTPError } from '../net/http';
 import { useQueryCache } from '../query/cache';
-import type { Account, FansMap, History, Message } from '../query/model';
+import { sentAudioItems, type Account, type FansMap, type History, type Message, type OnlyFansMessageMetadata } from '../query/model';
 import {
   ALL_CHATS,
   CHAT_LIST_FILTERS,
@@ -42,7 +42,7 @@ import { useQuery } from '../query/use-query';
 import { useChatTabEntries, useTabEntries } from '../stores/accounts';
 import { useChatListStore, useChatMessagesStore, useChatsStore } from '../stores/chats';
 import { usePendingMessages, type PendingEntry } from '../stores/pending-messages';
-import { ConversationComposers, type ComposerSlot } from './composer';
+import { ConversationComposers, clockOf, type ComposerSlot } from './composer';
 import { useFansOnline } from './fans-online';
 import { useNavigation } from './navigation';
 import { registerMessageList } from './registry';
@@ -65,6 +65,14 @@ const preview = (message: Pick<Message, 'text'> | null): string =>
         .replaceAll('&gt;', '>')
         .replaceAll('&amp;', '&');
 const isNotFound = (error: unknown): boolean => error instanceof HTTPError && error.response.status === 404;
+/** A chat row's line: the message's text, or what it carries when it has none. */
+const rowPreview = (message: Message | null): string =>
+  message === null || preview(message) !== '' ? preview(message) : message.platformMetadata.audioItems !== undefined ? 'Voice message' : (message.platformMetadata.mediaCount ?? 0) > 0 ? 'Media' : '';
+/** A voice note in a bubble: ChatSpace's player, here a play mark, a wave and its length. */
+const audioBubbles = (audioItems: OnlyFansMessageMetadata['audioItems']): VNode[] =>
+  (audioItems ?? []).map((audio) =>
+    h('span', { key: audio.id, class: 'message__audio', 'data-stand-message-audio': '' }, [h('span', { class: 'message__play', 'aria-hidden': 'true' }, '▶'), h('span', { class: 'message__wave', 'aria-hidden': 'true' }), h('span', { class: 'message__time' }, clockOf(audio.duration))]),
+  );
 
 const SCOPES: ReadonlyArray<{ readonly value: ChatListView['scope']; readonly label: string }> = [
   { value: 'all', label: 'All chats' },
@@ -153,7 +161,7 @@ const ChatsPanel = defineComponent({
                 h('span', { class: ['avatar', online ? 'avatar--online' : ''] }, fanName(fans.value, chat.id).slice(4, 5)),
                 h('span', { class: 'chat-row__text' }, [
                   h('span', { class: 'chat-row__name' }, fanName(fans.value, chat.id)),
-                  h('span', { class: 'chat-row__preview' }, typing ? 'typing…' : preview(chat.lastMessage)),
+                  h('span', { class: 'chat-row__preview' }, typing ? 'typing…' : rowPreview(chat.lastMessage)),
                 ]),
                 chat.unreadMessagesCount > 0 ? h('span', { class: 'badge' }, String(chat.unreadMessagesCount)) : null,
               ],
@@ -250,11 +258,15 @@ const MessagesList = defineComponent({
       h('div', { ref: scroller, class: 'messages-scroll', 'data-stand-message-list': '', onScroll }, [
         h('div', { ref: content, class: 'messages' }, [
           loading.value && messages.value.length === 0 ? h('p', { class: 'messages__state' }, 'Loading messages…') : null,
-          ...messages.value.map((message) =>
-            h('div', { key: message.id, class: ['message', message.isOutgoing ? 'message--out' : 'message--in'], 'data-stand-message-id': message.id }, [h('span', { class: 'message__text' }, preview(message))]),
-          ),
+          ...messages.value.map((message) => {
+            const audio = audioBubbles(message.platformMetadata.audioItems);
+            // A voice note alone has no text: its bubble is the player.
+            const text = audio.length > 0 && preview(message) === '' ? [] : [h('span', { class: 'message__text' }, preview(message))];
+            return h('div', { key: message.id, class: ['message', message.isOutgoing ? 'message--out' : 'message--in'], 'data-stand-message-id': message.id }, [...audio, ...text]);
+          }),
           ...queued.value.map((entry) =>
             h('div', { key: entry.id, class: ['message', 'message--out', 'message--pending', `message--${entry.status}`], 'data-stand-pending-id': entry.id }, [
+              ...audioBubbles(sentAudioItems(entry.payload.composerContent?.media)),
               h('span', { class: 'message__text' }, preview({ text: entry.payload.text })),
               h('span', { class: 'message__status' }, entry.status === 'failed' ? `failed: ${entry.error?.kind ?? ''}` : entry.status),
               entry.status === 'failed'
