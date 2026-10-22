@@ -1368,6 +1368,8 @@ export const RU: I18nCatalog<'ru'> = {
   'settings.generation.less': 'Меньше',
   'settings.generation.more': 'Больше',
   'settings.generation.splitHint': 'Ответ несколькими короткими сообщениями',
+  'settings.generation.recapDefault': 'Учитывать Recap',
+  'settings.generation.recapHint': 'Reply, Ping и Coach учитывают Recap фана, если он есть. Выключите — будут отвечать только по переписке. В чате это меняет галочка «с Recap» в заголовке ответа и вверху Coach',
   'settings.generation.rememberTone': 'Помнить тон в чате',
   'settings.generation.rememberToneHint': 'Выбранный тон Reply держится в этом чате, пока вы его не смените или не откроете другой чат. Выключено — тон действует на один Reply',
   'settings.generation.on': 'Включён',

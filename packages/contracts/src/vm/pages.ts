@@ -303,6 +303,8 @@ export interface GenerationBodyVM {
   readonly split: boolean;
   /** «Помнить тон в чате» (1.18.0, X45); absent — on. */
   readonly rememberTone?: boolean;
+  /** 1.50.0: «Учитывать Recap» — where a chat's «с Recap» starts; absent — on. */
+  readonly recap?: boolean;
   readonly coach: { readonly historyLimit: number; readonly autoRecap: CoachAutoRecap };
   readonly debug: { readonly enabled: boolean; readonly renderTrace: boolean };
 }

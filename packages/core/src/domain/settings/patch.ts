@@ -54,6 +54,8 @@ export function applySettingsPatch(current: SettingsV1, patch: SettingsPatch, op
       split: patch.generation?.split ?? current.generation.split,
       // Absent in a store from before 1.18.0 and in its patch: stays absent (reads as on).
       ...(patch.generation?.rememberTone !== undefined ? { rememberTone: patch.generation.rememberTone } : current.generation.rememberTone !== undefined ? { rememberTone: current.generation.rememberTone } : {}),
+      // «Учитывать Recap» (1.50.0) the same way: absent stays absent (reads as on).
+      ...(patch.generation?.recap !== undefined ? { recap: patch.generation.recap } : current.generation.recap !== undefined ? { recap: current.generation.recap } : {}),
       windows: merge(current.generation.windows, patch.generation?.windows),
       coach: merge(current.generation.coach, patch.generation?.coach),
     },

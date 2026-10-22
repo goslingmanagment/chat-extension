@@ -127,6 +127,12 @@ export const SettingsV1Schema = z.strictObject({
      * build before 1.18.0 drops it (its repair keeps only the fields it knows), and the choice reads as on again.
      */
     rememberTone: z.optional(z.boolean()),
+    /**
+     * «Учитывать Recap» (1.50.0): where a chat's «с Recap» tick starts — on, Reply, Ping and Coach read the fan's Recap;
+     * off, they answer from the chat alone until the tick is set in that chat. Optional: a store written before reads as
+     * on, with nothing to repair; an older build drops it (its repair keeps only the fields it knows) and reads on.
+     */
+    recap: z.optional(z.boolean()),
     /** Б5: messageCount per feature group. */
     windows: z.strictObject({
       quick: intIn(SETTINGS_RANGES.windowQuick),
@@ -199,6 +205,7 @@ export const DEFAULT_SETTINGS: SettingsV1 = {
   generation: {
     split: false,
     rememberTone: true,
+    recap: true,
     windows: { quick: 100, ping: 100, improve: 25, deep: 3000 },
     coach: { historyLimit: 10, autoRecap: 'off' },
   },
@@ -229,6 +236,7 @@ export const SettingsPatchSchema = z.strictObject({
     z.strictObject({
       split: z.optional(z.boolean()),
       rememberTone: z.optional(z.boolean()),
+      recap: z.optional(z.boolean()),
       windows: z.optional(z.partial(SettingsV1Schema.shape.generation.shape.windows)),
       coach: z.optional(z.partial(SettingsV1Schema.shape.generation.shape.coach)),
     }),

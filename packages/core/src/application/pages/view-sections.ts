@@ -265,6 +265,8 @@ export function generationBody(model: PagesModel): GenerationBodyVM | null {
     split: settings.generation.split,
     // «Помнить тон в чате» (X45): absent in a store from before 1.18.0 — on.
     rememberTone: settings.generation.rememberTone !== false,
+    // «Учитывать Recap» (1.50.0): absent in an older store — on.
+    recap: settings.generation.recap !== false,
     coach: { ...settings.generation.coach },
     debug: { ...settings.debug },
   };

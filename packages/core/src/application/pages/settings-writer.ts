@@ -64,6 +64,8 @@ export function mergeSettingsPatch(earlier: SettingsPatch, later: SettingsPatch)
     if (split !== undefined) generation.split = split;
     const rememberTone = later.generation?.rememberTone ?? earlier.generation?.rememberTone;
     if (rememberTone !== undefined) generation.rememberTone = rememberTone;
+    const recap = later.generation?.recap ?? earlier.generation?.recap;
+    if (recap !== undefined) generation.recap = recap;
     const windows = overlay(earlier.generation?.windows, later.generation?.windows);
     if (windows !== undefined) generation.windows = windows;
     const coach = overlay(earlier.generation?.coach, later.generation?.coach);

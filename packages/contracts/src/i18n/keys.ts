@@ -326,7 +326,7 @@ export const UI_TEXT_KEYS = [
   'settings.generation.coachHistoryHint', 'settings.generation.coachAutoRecapHint', 'settings.generation.coachAutoRecapFullNote',
   'settings.generation.debugTitle', 'settings.generation.debugHint', 'settings.generation.renderTrace', 'settings.generation.renderTraceHint',
   // 1.18.0 (decision X45): «Помнить тон в чате» and its hint.
-  'settings.generation.rememberTone', 'settings.generation.rememberToneHint',
+  'settings.generation.rememberTone', 'settings.generation.rememberToneHint', 'settings.generation.recapDefault', 'settings.generation.recapHint',
   'settings.hotkeys.lead', 'settings.hotkeys.platform.mac', 'settings.hotkeys.platform.win', 'settings.hotkeys.col.action',
   'settings.hotkeys.col.keys', 'settings.hotkeys.col.delivery', 'settings.hotkeys.delivery.delivered', 'settings.hotkeys.delivery.cancelable',
   'settings.hotkeys.delivery.reserved', 'settings.hotkeys.delivery.unverified', 'settings.hotkeys.deliveryNote', 'settings.hotkeys.fallback',
