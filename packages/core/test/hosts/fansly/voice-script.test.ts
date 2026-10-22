@@ -1,16 +1,17 @@
-// P12a: the panel's port → the one scheduler → the real fake hub, whose
-// body validator is the vendored SDK and whose gates repeat HF-4а/б.
+// The voice script (every site's since 1.46.0) and Fansly's «Заполнить из
+// чата» through the one scheduler → the real fake hub, whose body validator
+// is the vendored SDK and whose gates repeat HF-4а/б.
 import { describe, expect, it } from 'vitest';
 import { createClient, routeSchemas } from '@kernel/sdk';
 import { BootstrapSchema, HubFrameSchema, type HubStreamRequest, type Target, type AnyStartOp, type LiveTextTail, type SiteOpView, type VoiceScriptStart, type NotesFillStart } from '@cg/contracts';
-import { VoiceScriptStartSchema, FanslyOpViewSchema } from '@cg/contracts/ops-fansly';
-import { createVoiceScript, voiceScriptResult } from '@cg/core/application/hosts/fansly/voice';
+import { VoiceOpViewSchema, VoiceScriptStartSchema } from '@cg/contracts/voice';
 import { mergeNoteFill, noteFillRequest } from '@cg/core/application/hosts/fansly/notes';
 import { LocalSpendJournal } from '@cg/core/domain/debug';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { stableDigest } from '../../../src/domain/ops/digest';
 import { ActionTokens, OpScheduler, OPS_STORE_KEY, type OpSchedulerDeps } from '@cg/core/services';
-import { createFanslyOperations } from '@cg/core/services/hosts/fansly/voice-operations';
+import { createFanslyOperations } from '@cg/core/services/hosts/fansly/operations';
+import { VOICE_SCRIPT_DRIVER, readVoiceOpView } from '@cg/core/services/voice';
 import { createFakeHub, fanslyPageFlags, hubCall, readSse } from '@cg/testing/fake-hub';
 import { WORLD as HUB, resolveHubErrorReference, meta, NOW_MS } from '@cg/testing/hub';
 import { EventLog, FakeClock, MemoryStore, LogRecorder, sequentialIds, settle } from '../../support/clock';
@@ -42,7 +43,13 @@ async function harness(over: { store?: MemoryStore; firstId?: number } = {}) {
   const log = new LogRecorder();
   const spend = new LocalSpendJournal();
   const done: SiteOpView[] = [];
-  const operations = createFanslyOperations((view) => done.push(view));
+  const own = createFanslyOperations((view) => done.push(view));
+  // The background's core adds the voice script to every site's operations (composition/background/voice.ts).
+  const operations = {
+    ...own,
+    drivers: { ...own.drivers, 'voice-script': VOICE_SCRIPT_DRIVER },
+    readView: (value: unknown) => readVoiceOpView(value) ?? own.readView(value),
+  };
   const requests: HubStreamRequest[] = [];
   const pending = new Set<Promise<void>>();
   const deps: OpSchedulerDeps = {
@@ -116,22 +123,16 @@ describe('[host:fansly] fresh text through the site operation scheduler', () => 
   });
 });
 
-describe('[host:fansly] P12a voice-script through the shared admission', () => {
-  it('[AI-111] script from the draft in each preset’s tone, group ≠ fan, the quick window, no clientContext or page text; only a completed result reaches the editor port', async () => {
+describe('[host:fansly] the voice script through the shared admission', () => {
+  it('[AI-111] script from the draft in each preset’s tone, group ≠ fan, the quick window, no clientContext or page text; only a completed result has a script and its source', async () => {
     const h = await harness();
-    const port = createVoiceScript({ start: async (input) => {
-      const result = await h.start(input);
-      if (result.kind !== 'admission') throw new Error(result.code);
-      return result.admission;
-    }, read: (op) => Promise.resolve(h.scheduler.siteView(op, 'fansly-web')), cancel: (op) => Promise.resolve(h.scheduler.cancel(op)) });
     for (const tone of [null, 'casual', 'flirty'] as const) {
-      const outcome = await port.start(voice(A, `draft ${tone}`, tone));
-      if (!outcome.ok) throw new Error(outcome.code);
-      expect(voiceScriptResult(await port.read(outcome.opId))).toBeNull();
+      const opId = admitted(await h.start(voice(A, `draft ${tone}`, tone)));
+      expect(h.scheduler.siteView(opId, 'fansly-web')?.result).toBeUndefined();
       await h.finish();
-      const view = await port.read(outcome.opId);
-      expect(FanslyOpViewSchema.safeParse(view).success).toBe(true);
-      expect(voiceScriptResult(view)).toEqual({ script: '[warmly] Hey you, it is lovely to hear from you.', generationRef: expect.any(String) as unknown });
+      const view = h.scheduler.siteView(opId, 'fansly-web');
+      expect(VoiceOpViewSchema.safeParse(view).success).toBe(true);
+      expect(readVoiceOpView(view)).toMatchObject({ state: 'done', result: { kind: 'voice-script', script: '[warmly] Hey you, it is lovely to hear from you.' }, generationRef: expect.any(String) as unknown });
       const request = h.requests.at(-1);
       expect(request?.body).toMatchObject({ conversationRef: A.group, fanRef: A.fan, draftText: `draft ${tone}`, replyTone: tone ?? 'none', messageCount: 100 });
       for (const key of ['clientContext', 'liveTextContext', 'coverageCheck', 'noteFields', 'noteValues']) expect(request?.body).not.toHaveProperty(key);

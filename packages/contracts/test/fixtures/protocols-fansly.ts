@@ -6,7 +6,7 @@
 import { FANSLY_RELAY_TARGET, FANSLY_TAB_LIMITS, type FanslyTabEventType, type FanslyTabRequestType } from '../../src/tab-messages-fansly';
 import type { RequestFixtures, Verdicts } from './protocols';
 import { FANSLY_IDS, ISO, T0, uuid } from './samples';
-import { FANSLY_START_OP_FIXTURES, FANSLY_OP_VIEW_FIXTURES, fanslyVoiceView } from './ops-fansly';
+import { FANSLY_START_OP_FIXTURES, FANSLY_OP_VIEW_FIXTURES, fanslyNotesView } from './ops-fansly';
 import { FANSLY_GREETING_REQUEST_FIXTURES, FANSLY_SEND_VIEW_FIXTURES } from './send-fansly';
 import { FANSLY_MSG, passStartProof } from './fansly';
 
@@ -14,7 +14,6 @@ const F = FANSLY_IDS;
 const ack = { valid: [{ recorded: true }, { recorded: false }], invalid: [{ recorded: 'yes' }, {}] } as const;
 /** P13b review: another open tab holds the album — nothing kept; a held write that says it was kept is no answer. */
 const vaultAck = { valid: [...ack.valid, { recorded: false, held: true }, { recorded: true, held: false }], invalid: [...ack.invalid, { recorded: true, held: true }, { recorded: false, held: 'yes' }] } as const;
-const SHA = 'ab'.repeat(32);
 
 /** A Fansly failure in a payload: a Fansly code and a shared one are both readable; an unknown code is not. */
 const failure = { ok: false, error: { code: 'CG-FAN-RATE-LIMIT', retryAt: T0 + 60_000, httpStatus: 429 } } as const;
@@ -82,15 +81,6 @@ export const fanslyRowShown = {
 } as const;
 
 export const fanslyNote = { noteId: '700000000000000010', title: 'Анкета', text: 'Имя: Алекс\nЛокация: ', foreign: false } as const;
-export const voiceNoteView = {
-  voiceNoteId: 77,
-  state: 'completed',
-  scriptChars: 140,
-  billed: true,
-  audioSha256: SHA,
-  audioBytesLen: 48_000,
-  createdAt: ISO,
-} as const;
 export const vaultCheckpoint = {
   hostAccountId: F.creator,
   albumId: '700000000000000020',
@@ -107,15 +97,14 @@ const passRef = { passId: uuid(301) } as const;
 const followersQuery = { search: '@fan_one', tab: 'todo', filter: 'ready' } as const;
 const followersCounts = { tabs: { todo: 1, all: 2 }, filters: { any: 1, ready: 1, pending: 0, reply: 0, unchecked: 0, 'dm-closed': 0, contacted: 0 } } as const;
 const noteTarget = { pageId: 12, hostAccountId: F.creator, fanRef: F.fan } as const;
-const voiceRef = { attemptId: uuid(320), pageId: 12, voiceNoteId: 77 } as const;
 
 export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]: RequestFixtures } = {
   'fansly.ops.start': {
     req: FANSLY_START_OP_FIXTURES,
-    res: { valid: [{ ok: true, opId: uuid(0x550) }, { ok: false, code: 'CG-OP-CHAT-BUSY', active: [], siteActive: [{ opId: uuid(0x550), feature: 'voice-script', surface: 'dock', chat: fanslyVoiceView.target.chat, fanLabel: null, state: 'streaming', startedAt: T0, inThisTab: true }] }], invalid: [{ ok: true }, { ok: false, code: 'wrong', active: [] }] },
+    res: { valid: [{ ok: true, opId: uuid(0x550) }, { ok: false, code: 'CG-OP-CHAT-BUSY', active: [], siteActive: [{ opId: uuid(0x550), feature: 'notes-fill', surface: 'dock', chat: fanslyNotesView.target.chat, fanLabel: null, state: 'streaming', startedAt: T0, inThisTab: true }] }], invalid: [{ ok: true }, { ok: false, code: 'wrong', active: [] }] },
   },
-  'fansly.ops.read': { req: { valid: [{ opId: uuid(0x550) }], invalid: [{ opId: 'x' }] }, res: { valid: [{ view: fanslyVoiceView }, { view: null }], invalid: [{ view: {} }] } },
-  'fansly.ops.list': { req: { valid: [{}], invalid: [{ chatKey: 'x' }] }, res: { valid: [{ ops: [fanslyVoiceView], truncated: false }], invalid: [{ ops: [{}], truncated: false }] } },
+  'fansly.ops.read': { req: { valid: [{ opId: uuid(0x550) }], invalid: [{ opId: 'x' }] }, res: { valid: [{ view: fanslyNotesView }, { view: null }], invalid: [{ view: {} }] } },
+  'fansly.ops.list': { req: { valid: [{}], invalid: [{ chatKey: 'x' }] }, res: { valid: [{ ops: [fanslyNotesView], truncated: false }], invalid: [{ ops: [{}], truncated: false }] } },
   'fansly.ops.cancel': { req: { valid: [{ opId: uuid(0x550) }], invalid: [{}] }, res: { valid: [{ state: 'canceled' }, { state: null }], invalid: [{ state: 'queued' }] } },
   'fansly.spenders.names': {
     req: { valid: [{ hostAccountId: F.creator, fanRefs: [F.fan] }], invalid: [{ hostAccountId: F.creator, fanRefs: [] }, { hostAccountId: F.creator, fanRefs: [123] }] },
@@ -305,36 +294,6 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   },
   'fansly.notes.view': { req: { valid: [{}], invalid: [{ view: 'docked' }] }, res: { valid: [{ view: 'docked' }, { view: 'drawer' }, { view: 'center' }], invalid: [{ view: 'left' }, {}] } },
   'fansly.notes.setView': { req: { valid: [{ view: 'center' }], invalid: [{ view: 'left' }, {}] }, res: { valid: [{ view: 'drawer' }], invalid: [{ view: null }] } },
-
-  'fansly.voice.create': {
-    req: {
-      valid: [{ attemptId: uuid(320), clientRequestId: uuid(321), pageId: 12, conversationRef: F.group, fanRef: F.fan, sourceGenerationRef: uuid(322), script: 'Hey [whispers] you' }],
-      // An empty script; a group id that is not an id.
-      invalid: [
-        { attemptId: uuid(320), clientRequestId: uuid(321), pageId: 12, conversationRef: F.group, fanRef: F.fan, sourceGenerationRef: uuid(322), script: '' },
-        { attemptId: uuid(320), clientRequestId: uuid(321), pageId: 12, conversationRef: 'group', fanRef: F.fan, sourceGenerationRef: uuid(322), script: 'Hey' },
-      ],
-    },
-    res: { valid: [{ ok: true, view: { ...voiceNoteView, state: 'queued', billed: null, audioSha256: null, audioBytesLen: null } }, { ok: false, error: { code: 'CG-VOICE-QUOTA', httpStatus: 429 } }], invalid: [{ ok: true, view: { ...voiceNoteView, state: 'done' } }] },
-  },
-  'fansly.voice.status': {
-    req: { valid: [voiceRef], invalid: [{ ...voiceRef, voiceNoteId: 0 }] },
-    res: { valid: [{ ok: true, view: voiceNoteView }, { ok: true, view: { ...voiceNoteView, state: 'failed_definite', errorCode: 'provider_timeout' } }, { ok: false, error: { code: 'CG-VOICE-UNCERTAIN' } }], invalid: [{ ok: true, view: { ...voiceNoteView, audioSha256: 'abc' } }] },
-  },
-  'fansly.voice.audio': {
-    req: { valid: [voiceRef], invalid: [{ attemptId: uuid(320), voiceNoteId: 77 }] },
-    res: {
-      valid: [{ ok: true, mime: 'audio/mpeg', base64: 'SUQz', sha256: SHA, bytes: 3 }, { ok: false, error: { code: 'CG-VOICE-EXPIRED', httpStatus: 410 } }],
-      invalid: [{ ok: true, mime: 'audio/wav', base64: 'SUQz', sha256: SHA, bytes: 3 }, { ok: true, mime: 'audio/mpeg', base64: 'not base64!', sha256: SHA, bytes: 3 }],
-    },
-  },
-  'fansly.voice.attempts': {
-    req: { valid: [{ pageId: 12, conversationRef: F.group }], invalid: [{ pageId: 12 }] },
-    res: {
-      valid: [{ attempts: [{ attemptId: uuid(320), clientRequestId: uuid(321), pageId: 12, conversationRef: F.group, fanRef: F.fan, state: 'uncertain', view: null, updatedAt: T0 }] }, { attempts: [] }],
-      invalid: [{ attempts: [{ attemptId: uuid(320), clientRequestId: uuid(321), pageId: 12, conversationRef: F.group, fanRef: F.fan, state: 'retrying', view: null, updatedAt: T0 }] }],
-    },
-  },
 
   'fansly.vault.checkpoint': {
     req: {

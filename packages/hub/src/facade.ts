@@ -82,6 +82,11 @@ import {
   type SpendersQuery,
   type SpendersStats,
   type StatsQuery,
+  VoiceNoteCreateRequestSchema,
+  VoiceNoteRefSchema,
+  type VoiceNoteCreateRequest,
+  type VoiceNoteRef,
+  type VoiceNoteView,
 } from '@cg/contracts';
 import { hubErrorWire } from '@cg/core/domain';
 import { KERNEL_CONTRACT_HASH } from '@kernel/sdk';
@@ -886,6 +891,49 @@ export class ChatExtensionHub implements HubFacade {
 
   async claimStatus(pageLabel: string, fanRef: NativeId): Promise<ClaimState> {
     return (await this.client('clientFanClaimStatus', { pageLabel, fanRef }, pageLabel)) as ClaimState;
+  }
+
+  // ── voice notes (1.46.0, both sites) ─────────────────────────────────────
+
+  /**
+   * The paid voicing of a script. One attempt: an answer that does not come is the caller's to read (its take is then
+   * uncertain), never a second create here — the hub would answer a replay of the same `clientRequestId` with the same
+   * note, but only the person's own click asks again.
+   */
+  async voiceNoteCreate(request: VoiceNoteCreateRequest): Promise<VoiceNoteView> {
+    const connection = await this.voiceRoute('voiceNoteCreate', request.pageLabel, VoiceNoteCreateRequestSchema.safeParse(request).success);
+    return (await this.ctx.sdk('voiceNoteCreate', { params: { pageLabel: request.pageLabel }, body: request.body }, { facts: { pageLabel: request.pageLabel } }, connection)) as VoiceNoteView;
+  }
+
+  /** A voice note's state: a read, never a render. */
+  async voiceNoteStatus(ref: VoiceNoteRef): Promise<VoiceNoteView> {
+    const connection = await this.voiceRoute('voiceNoteStatus', ref.pageLabel, VoiceNoteRefSchema.safeParse(ref).success);
+    return (await this.ctx.sdk('voiceNoteStatus', { params: { pageLabel: ref.pageLabel, id: ref.voiceNoteId } }, { facts: { pageLabel: ref.pageLabel } }, connection)) as VoiceNoteView;
+  }
+
+  /** A voice note's MP3, as the hub serves it (`audio/mpeg`, at most `VOICE_LIMITS.audioMaxBytes`): the caller checks its sha256 and length. */
+  async voiceNoteAudio(ref: VoiceNoteRef): Promise<ArrayBuffer> {
+    const connection = await this.voiceRoute('voiceNoteAudio', ref.pageLabel, VoiceNoteRefSchema.safeParse(ref).success);
+    const result = await this.ctx.wire.audio(this.ctx.wireCall(connection, {}), ref.pageLabel, ref.voiceNoteId);
+    return this.ctx.unwrap('voiceNoteAudio', result, connection, { pageLabel: ref.pageLabel }) as ArrayBuffer;
+  }
+
+  /**
+   * A voice-note route of a page, the hub's own checks first: signed in, the request inside its contract (never sent
+   * otherwise, HB-006), `voice-notes-v1` declared, the page granted, and its `voice` usable — the hub checks the same
+   * switch on every call of the narrow token, a replay's included.
+   */
+  private async voiceRoute(route: 'voiceNoteCreate' | 'voiceNoteStatus' | 'voiceNoteAudio', pageLabel: string, valid: boolean): Promise<Connection> {
+    await this.ready;
+    const connection = this.ctx.connection(route);
+    if (!valid) throw this.ctx.failure(route, transportFailure('contract'), connection);
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    const missing = HUB_ROUTES[route].capabilities.filter((capability) => !hasCapability(entry.bootstrap.capabilities, capability));
+    if (missing.length > 0) throw new FacadeCheckError('capabilityMissing', route, connection.epoch, missing.join(','));
+    if (pageOf(entry.bootstrap, pageLabel) === null) throw new FacadeCheckError('pageNotGranted', route, connection.epoch);
+    const state = flagState(entry.bootstrap, 'voice', pageLabel);
+    if (!state.usable) throw flagRefused('voice', state.reason, route, connection.epoch);
+    return connection;
   }
 
   // ── ingest and AI usage (H-11, H-14, H-15) ───────────────────────────────

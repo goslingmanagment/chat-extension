@@ -10,11 +10,12 @@
 // Nothing here retries, wipes a sign-in or shows anything: the facade reads
 // the facts (errors, dispositions, the 401 rule).
 
-import { type AbortSignalLike, type HubFailure, type HubRequestCheck, type HubRouteKey } from '@cg/contracts';
+import { VOICE_LIMITS, type AbortSignalLike, type HubFailure, type HubRequestCheck, type HubRouteKey } from '@cg/contracts';
+import { fetchVoiceNoteAudio } from '@kernel/sdk';
 
 import { transportFailure } from './errors';
 import { type FetchLike, type HubClock } from './ports';
-import { checkSdkAnswer, isSdkRoute, sdkInputOf, sendSdkOperation, type SdkOperation, type SdkRawInput } from './sdk-transport';
+import { checkSdkAnswer, isSdkRoute, sdkInputOf, sdkOptions, sendSdkOperation, type SdkOperation, type SdkRawInput } from './sdk-transport';
 import { callScope, httpFailureOf, readJson, thrownFailure } from './wire';
 
 export interface WireCall {
@@ -59,6 +60,32 @@ export class HubWire {
       if (!read.ok) return scope.signal.aborted ? { ok: false, failure: thrownFailure(null, scope), body: null } : contractFailure();
       const checked = checkSdkAnswer(operation, response.status, read.value);
       return checked.ok ? { ok: true, value: checked.value, status: response.status } : contractFailure();
+    } catch (error) {
+      return { ok: false, failure: thrownFailure(error, scope), body: null };
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /**
+   * 1.46.0: a voice note's MP3 — the SDK's own `fetchVoiceNoteAudio` (the route answers bytes, not JSON). Taken only as
+   * `audio/mpeg` and within the hub's own cap, declared and read; anything else is a contract failure, never handed on.
+   */
+  async audio(call: WireCall & { readonly token: string }, pageLabel: string, id: number): Promise<WireResult> {
+    const scope = callScope(this.deps.clock, call.signals, call.timeoutMs);
+    try {
+      const options = sdkOptions({ hubOrigin: call.hubOrigin, token: call.token, headers: this.deps.headers(), fetch: this.deps.fetch, signal: scope.signal });
+      const response = await fetchVoiceNoteAudio(options, { pageLabel, id });
+      if (!response.ok) {
+        const { failure, body } = await httpFailureOf(response, this.deps.clock.now());
+        return { ok: false, failure, body };
+      }
+      const type = (response.headers.get('content-type') ?? '').toLowerCase();
+      const declared = Number(response.headers.get('content-length') ?? Number.NaN);
+      if (!type.startsWith('audio/mpeg') || (Number.isFinite(declared) && declared > VOICE_LIMITS.audioMaxBytes)) return contractFailure();
+      const bytes = await response.arrayBuffer();
+      if (bytes.byteLength === 0 || bytes.byteLength > VOICE_LIMITS.audioMaxBytes) return contractFailure();
+      return { ok: true, value: bytes, status: response.status };
     } catch (error) {
       return { ok: false, failure: thrownFailure(error, scope), body: null };
     } finally {
