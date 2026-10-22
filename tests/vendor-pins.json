@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "9fe95e033db9050d89221d369211e2be899b961afc8557b79c0cca049db03804",
-    "sourceCommit": "83dff10443cefb0ee0044c175eff7ba833cceaf9",
-    "note": "Vendored on 2026-10-22 from merged hub main 83dff104 (#739) with scripts/vendor-sdk.mjs: Spenders statistics tiers carry windowNetMills, the creator's net for the window (the statistics show the model's net). Includes f255dd57 (#738). Deployed to agency-de on 2026-10-22; re-vendor with the same script and update this pin together."
+    "contractHash": "0693f8081a89500ce91f57a8bbbb2eb503534aab679d337d5e110581302cbd27",
+    "sourceCommit": "c0fe27688e566fb188e1bf06f900a94311efe7d0",
+    "note": "Vendored on 2026-10-22 from hub main c0fe2768 (#741), the commit deployed to agency-de, with scripts/vendor-sdk.mjs: the client routes are the same as 83dff104 (#739, includes f255dd57 #738); only the dashboard's content statistics gained `walk`. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
