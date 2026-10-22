@@ -202,18 +202,24 @@ export class Checkout {
       const earlier = tags.filter((tag) => compareVersions(tag, version) < 0).at(-1);
       return earlier === undefined ? null : `v${earlier}`;
     };
-    const notesOf = async (from: string | null, to: string): Promise<Note[]> => (await this.notesAdded(from, to)).flatMap((slug) => all.get(slug) ?? []);
+    // A version's notes: those added since the tag before it that wait for no other version, and those held for it.
+    const notesOf = async (version: string, from: string | null, to: string): Promise<Note[]> => [
+      ...(await this.notesAdded(from, to)).flatMap((slug) => all.get(slug) ?? []).filter((note) => note.release === null),
+      ...heldFor(all, version),
+    ];
     const later: Array<{ version: string; date: string | null; notes: Note[] }> = [];
-    for (const tag of tags.filter((candidate) => compareVersions(candidate, top) > 0)) later.unshift({ version: tag, date: await this.tagDay(tag), notes: await notesOf(before(tag), `v${tag}`) });
+    for (const tag of tags.filter((candidate) => compareVersions(candidate, top) > 0)) later.unshift({ version: tag, date: await this.tagDay(tag), notes: await notesOf(tag, before(tag), `v${tag}`) });
     if (pending !== undefined && !tags.includes(pending.version) && compareVersions(pending.version, top) > 0) {
-      later.unshift({ version: pending.version, date: pending.day, notes: await this.pendingNotes(pending.head, { all, uncommitted: pending.uncommitted ?? false }) });
+      const regular = await this.pendingNotes(pending.head, { all, uncommitted: pending.uncommitted ?? false });
+      later.unshift({ version: pending.version, date: pending.day, notes: [...regular, ...heldFor(all, pending.version)] });
     }
     return historyOf(changelog, later);
   }
 
   /**
    * The notes no tag holds yet: those committed since the last tag up to `head`, in the order they came, and with
-   * `uncommitted` (a preview) those only in the working tree — a note being written — by name.
+   * `uncommitted` (a preview) those only in the working tree — a note being written — by name. Notes held for a
+   * version (`release:`) are not among them: `heldFor` gives them to their version.
    */
   async pendingNotes(head: string, options: { readonly all?: ReadonlyMap<string, Note>; readonly uncommitted?: boolean } = {}): Promise<Note[]> {
     const all = options.all ?? this.notes();
@@ -221,7 +227,12 @@ export class Checkout {
     const released = new Set(latest === undefined ? [] : await this.notesAdded(null, `v${latest}`));
     const committed = (await this.notesAdded(latest === undefined ? null : `v${latest}`, head)).filter((slug) => !released.has(slug));
     const fresh = options.uncommitted === true ? [...all.keys()].filter((slug) => !released.has(slug) && !committed.includes(slug)) : [];
-    return [...committed, ...fresh].flatMap((slug) => all.get(slug) ?? []);
+    return [...committed, ...fresh].flatMap((slug) => all.get(slug) ?? []).filter((note) => note.release === null);
+  }
+
+  /** The versions some note in the tree is held for, lowest first. */
+  heldVersions(all: ReadonlyMap<string, Note> = this.notes()): string[] {
+    return [...new Set([...all.values()].flatMap((note) => (note.release === null ? [] : [note.release])))].sort(compareVersions);
   }
 
   /** CHANGELOG.md as the build of a release holds it: git's hand-written sections under the releases of notes. */
@@ -379,4 +390,9 @@ export class Checkout {
     const dir = join(root, name);
     return { dir, set: parseTestBuildSet(readFileSync(join(dir, 'set.json'), 'utf8')) };
   }
+}
+
+/** The notes held for `version` (`release:` in their fields), by name. */
+export function heldFor(all: ReadonlyMap<string, Note>, version: string): Note[] {
+  return [...all.values()].filter((note) => note.release === version);
 }
