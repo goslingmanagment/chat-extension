@@ -29,6 +29,8 @@ export const FILE_ACCEPT = 'image/png, image/jpeg, image/webp, image/gif, video/
 const TYPING_ANNOUNCE_MS = 3000;
 /** Composer mode 1: a DM (mode 3 is the mass-message modal, which the stand does not have). */
 const DM_MODE = 1;
+/** The bars of an audio attachment's look, in px. */
+const AUDIO_BARS = [4, 9, 14, 8, 12, 5, 10, 16, 7, 11, 4, 13, 9, 6, 15, 8, 5, 11, 7, 4];
 
 /** Every composer alive on the page (the control reads them). */
 export const liveComposers = new Set<Composer>();
@@ -253,7 +255,9 @@ export class Composer implements View {
     const bar = el(s, 'div', { class: 'progress-bar-progress' });
     const progress = el(s, 'div', { class: 'upload-progress' }, [percent, el(s, 'div', { class: 'progress-bar' }, [bar])]);
     const name = el(s, 'div', { class: 'media-template-name' });
-    element.append(el(s, 'div', { class: 'media-template' }, [name, progress]));
+    // An audio file (the voice note's MP3, a recording) shows a row of bars: the stand's look, not Fansly's own preview.
+    const audio = template.files.some((file) => file.type.startsWith('audio/'));
+    element.append(el(s, 'div', { class: 'media-template' }, [audio ? el(s, 'div', { class: 'media-template-audio', attrs: { 'aria-label': 'Audio' } }, AUDIO_BARS.map((height) => el(s, 'span', { style: `height: ${height}px;` }))) : null, name, progress]));
     // The component refreshes its progress every 500 ms while it uploads (main:6552-6556).
     const timer = setInterval(() => view.refresh(), 500);
     const view: TemplateView = {

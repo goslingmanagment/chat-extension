@@ -14,6 +14,8 @@ import { checkBridgeFrame } from '@cg/contracts/bridge';
 import { FANSLY_WIRE_EVENT_TYPES, FanslyBridgeEventEnvelopeSchema, FanslyBridgeResponseSchema, fanslyFrameByteLimit, type FanslyWireEventType, type ToMainFanslyType } from '@cg/contracts/bridge-fansly';
 import { parseFanslyBridgeData, parseFanslyWireEvent, type FanslyWireEventPayload, type ToMainFanslyData } from '@cg/contracts/bridge-messages-fansly';
 import { InsertIntentSchema, NavigationIntentSchema } from '@cg/contracts/host';
+import { HostIdentitySchema, HumanCauseSchema } from '@cg/contracts/ids';
+import { UuidSchema } from '@cg/contracts/primitives';
 import type { CheckedFrame } from '@cg/host-kit/isolated/validation';
 
 import type { FanslyBridge } from './bridge-client';
@@ -57,6 +59,20 @@ export function parseEvent<T extends FanslyWireEventType>(t: T, payload: unknown
   return Number.isSafeInteger(n) && (n as number) >= 1 ? ({ n, events: [] } as unknown as FanslyWireEventPayload<T>) : null;
 }
 
+type Fields<K extends string> = Partial<Record<K, unknown>>;
+
 /** HostPort inputs from our own controllers (R20 P7e): a broken one is a programming error, not a refusal of the page. */
 export const isInsertIntent = (value: unknown): boolean => InsertIntentSchema.safeParse(value).success;
 export const isNavigationIntent = (value: unknown): boolean => NavigationIntentSchema.safeParse(value).success;
+/**
+ * `AttachIntent` (contracts host.ts, 1.46.0) is an interface, its bytes no wire's: its ids and identity by their
+ * schemas, its file an MP3 with a name and something in it.
+ */
+export const isAttachIntent = (value: unknown): boolean => {
+  if (typeof value !== 'object' || value === null) return false;
+  const { intentId, expected, cause, file } = value as Fields<'intentId' | 'expected' | 'cause' | 'file'>;
+  if (!UuidSchema.safeParse(intentId).success || !HostIdentitySchema.safeParse(expected).success || !HumanCauseSchema.safeParse(cause).success) return false;
+  if (typeof file !== 'object' || file === null) return false;
+  const { name, type, bytes } = file as Fields<'name' | 'type' | 'bytes'>;
+  return typeof name === 'string' && name.length > 0 && name.length <= 255 && type === 'audio/mpeg' && bytes instanceof ArrayBuffer && bytes.byteLength > 0;
+};

@@ -17,7 +17,6 @@ import * as z from 'zod/mini';
 import { FeatureIdSchema } from './features';
 import { HiFanAvatarUrlSchema as FanslyAvatarUrlSchema, START_PROOF_LIMITS, StartProofV1Schema } from './hi-start-proof';
 import type { Unsubscribe } from './host';
-import type { HostIdentity, HumanCause } from './ids';
 import { LIVE_TEXT_LIMITS } from './limits';
 import { nativeIdsAscending as ascending, CountSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText, type NativeId } from './primitives';
 
@@ -237,7 +236,7 @@ export const FanslySnapshotSchema = z
   );
 export type FanslySnapshot = z.infer<typeof FanslySnapshotSchema>;
 
-// ── FanslyPagePort (§7.4, §7.10, §7.11, §8.5) ──────────────────────────────
+// ── FanslyPagePort (§7.4, §7.11, §8.5) ─────────────────────────────────────
 
 /**
  * Where «Регистрация» and «Заметки» live (§7.4): the header slot of the open chat — the UI mounts its surface there
@@ -256,33 +255,23 @@ export interface FanslyFile {
 }
 
 /**
- * How a file reached the page's input (§7.10, S6 Q7): a DataTransfer of the isolated world, or the page world's copy
- * through `wrappedJSObject` + `cloneInto`. client_health counts which one worked.
+ * How a file reached the page's input (§7.10, §7.11, S6 Q7): a DataTransfer of the isolated world, or the page world's
+ * copy through `wrappedJSObject` + `cloneInto`. client_health counts which one worked. The voice note's MP3 takes the
+ * same two paths into the composer: the shared `HostPort.attachFile` (1.46.0).
  */
 export const FANSLY_HANDOFF_PATHS = ['data-transfer', 'clone-into'] as const;
 export type FanslyHandoffPath = (typeof FANSLY_HANDOFF_PATHS)[number];
 
-/** A file into the open chat's composer (§7.10): the voice of the chat the person asked it for. */
-export interface FanslyAttachRequest {
-  /** The chat, document and composer the file is for; another one open — refused before anything is handed over. */
-  readonly expected: HostIdentity;
-  /** The group of the open route (`RouteState.conversationRef`). */
-  readonly conversationRef: NativeId;
-  /** The person's click; redeemed before the page is touched (§14). */
-  readonly cause: HumanCause;
-  readonly file: FanslyFile;
-}
-
 /**
- * The outcome of handing a file to the page. The port never hands the same file again by itself: «Прикрепить ещё
- * раз» is a new request the person confirms (§7.10).
+ * The outcome of handing a file to the vault's input (§7.11). The port never hands the same file again by itself: only
+ * the person's answer decides what happens to one not confirmed (VA-004).
  */
 export type FanslyHandoffReceipt =
-  /** Fansly took it: the attachment is in the main composer (after the person's «Upload»), or the vault confirmed it. */
+  /** Fansly took it: the vault confirmed it. */
   | { readonly state: 'done'; readonly path: FanslyHandoffPath }
-  /** Nothing was handed over: another chat or document, a spent cause, no input, a handoff already open. */
+  /** Nothing was handed over: another account, no album or input, a file of the page's own in progress. */
   | { readonly state: 'refused'; readonly reason: 'identity' | 'cause' | 'anchor-missing' | 'busy' }
-  /** Handed over, the outcome not seen: the modal closed without it, two attachments, a mini chat, the time ran out. */
+  /** Handed over, the outcome not seen: Fansly gave it up, another album loaded, the time ran out. */
   | { readonly state: 'unknown'; readonly path: FanslyHandoffPath };
 
 /** The hidden relay frame of «Fansly через вкладку» (§8.5), in a closed root of this tab. */
@@ -302,11 +291,6 @@ export interface FanslyPagePort {
   /** §7.4: the header slot of the open chat, re-made idempotently each time Fansly re-creates the contact block. */
   headerSlot(): FanslyHeaderSlot;
   onHeaderSlot(cb: (slot: FanslyHeaderSlot) => void): Unsubscribe;
-  /**
-   * §7.10: hands one file to the main composer's file input with one `change`; Fansly attaches it only after the
-   * person clicks «Upload» in its modal. Resolves when the attachment appears, or the outcome cannot be seen.
-   */
-  attachToComposer(request: FanslyAttachRequest): Promise<FanslyHandoffReceipt>;
   /**
    * §7.11: one file into the upload input of the vault album open on the page (one file per `change`), as a step of
    * a run the person started; the run's checkpoint names the album. Done after `fx.vaultAdded` and the album's reload.
