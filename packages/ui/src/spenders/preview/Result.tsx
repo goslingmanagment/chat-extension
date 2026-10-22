@@ -58,7 +58,6 @@ function Head({ result }: { readonly result: ResultVM }): JSX.Element {
   const hints = useHints();
   const dispatch = useDispatch();
   const running = RUNNING.includes(result.state);
-  const draft = useTooltip(hints ? i18n.t('result.draftTooltip') : null);
   const titleKey = FEATURE_KEYS[result.feature];
   const metas = metaTexts(i18n, result);
   const cancel = result.phase?.cancel ?? null;
@@ -72,12 +71,7 @@ function Head({ result }: { readonly result: ResultVM }): JSX.Element {
         <span class="cg-pvr__meta">{metas.join(', ')}</span>
       )}
       {result.sendProgress === null ? null : <Progress text={i18n.t('result.meta.sentProgress', { sent: result.sendProgress.sent, total: result.sendProgress.total })} />}
-      {result.draftNotSent ? (
-        <span class="cg-pvr__draft" {...draft.props}>
-          {i18n.t('result.draft')}
-          {draft.description}
-        </span>
-      ) : null}
+      {/* No «черновик · не отправлено» (2026-10-22, as the dock since #254): each part says its own send state. */}
       <span class="cg-pvr__sp" />
       {running ? (
         cancel === null ? null : <Button label={i18n.t('common.cancelOp')} variant="plain" onClick={() => void dispatch(cancel)} />
@@ -291,7 +285,6 @@ export const RESULT_CSS = `
 .cg-pvr__meta { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
 .cg-pvr__progress { font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; }
 .cg-pvr__progress b { font-weight: 600; color: var(--cg-ink-strong); }
-.cg-pvr__draft { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; }
 .cg-pvr__sp { flex: 1; min-width: 0; }
 .cg-pvr__head .cg-btn kbd { display: none; }
 .cg-pvr__head .cg-stages { flex: 0 1 auto; }

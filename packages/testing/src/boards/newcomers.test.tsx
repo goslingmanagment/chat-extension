@@ -109,7 +109,7 @@ describe('«Новые»: the card', () => {
     ui = await mountBoardSettled('newcomers', '13a');
     expect(ui.text('.cg-pvr__title')).toBe('Hi');
     expect(ui.text('.cg-pvr__meta')).toBe('1 вариант, 3 части');
-    expect(ui.$('.cg-pvr__draft')?.firstChild?.textContent).toBe('черновик · не отправлено');
+    expect(ui.$('.cg-pvr__draft')).toBeNull();
     expect(ui.$$('.cg-pvp')).toHaveLength(3);
     expect(ui.$$('.cg-pvs__send').map(textOf)).toEqual(['Отправить']);
     await flush(() => (ui?.$('.cg-pvb [data-cg-strip="hi"] .cg-act') as HTMLElement).click());

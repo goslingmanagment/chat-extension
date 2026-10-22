@@ -236,6 +236,9 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
   }
   const opId = result.opId;
   const order = part.sendOrder ?? null;
+  // The first part of its answer that stands in this state: a warning of the whole answer is said there only.
+  const siblings = part.variant === null ? (result.parts ?? []) : (result.variants?.[part.variant]?.parts ?? []);
+  const lead = siblings.find((other) => other.send?.s === send.s)?.index === part.index;
 
   // The queue has not reached this part: it waits for an earlier one (§6.7.9).
   if (order !== null && waitsForEarlierPart(part)) {
@@ -328,10 +331,13 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
     case 'held-stale':
       return (
         <div class="cg-pvs" data-cg-send="held-stale">
-          <State>
-            <Dot kind="accent" use="send-held-stale" />
-            {i18n.t('send.heldStale')}
-          </State>
+          {/* The warning is the result's, not the part's: said once, on the first part it stands on. */}
+          {lead ? (
+            <State>
+              <Dot kind="accent" use="send-held-stale" />
+              {i18n.t('send.heldStale')}
+            </State>
+          ) : null}
           <SendButton part={part} opId={opId} anyway label={i18n.t('send.anyway')} tooltip={i18n.t('send.anywayTooltip')} />
           <Button
             label={i18n.t('common.again')}
@@ -344,21 +350,23 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
           <OpenAndInsert part={part} opId={opId} />
           <EditToggle part={part} opId={opId} />
           <CopyIcon part={part} />
-          <CodeLine code="CG-SEND-STALE" text={i18n.t('send.heldStaleTail')} />
+          {lead ? <CodeLine code="CG-SEND-STALE" text={i18n.t('send.heldStaleTail')} /> : null}
         </div>
       );
     case 'unverified':
       return (
         <div class="cg-pvs" data-cg-send="unverified">
-          <State>
-            <Dot kind="accent" use="send-held-stale" />
-            {i18n.t('send.unverified')}
-          </State>
+          {/* Not an error: one quiet line on the first part it stands on, no code line — the button says what to do. */}
+          {lead ? (
+            <State>
+              <Dot kind="accent" use="send-held-stale" />
+              {i18n.t('send.unverified')}
+            </State>
+          ) : null}
           <SendButton part={part} opId={opId} anyway label={i18n.t('send.anyway')} tooltip={i18n.t('send.anywayTooltip')} />
           <OpenAndInsert part={part} opId={opId} />
           <EditToggle part={part} opId={opId} />
           <CopyIcon part={part} />
-          <CodeLine code="CG-SEND-FRESHNESS" text={i18n.t('send.unverifiedTail')} />
         </div>
       );
   }

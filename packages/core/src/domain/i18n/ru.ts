@@ -647,6 +647,7 @@ export const RU: I18nCatalog<'ru'> = {
   'send.reason.busy': 'этому фану уже идёт отправка.',
   'send.reason.queue': 'очередь {site} не приняла сообщение.',
   'send.reason.part': 'часть устарела — обновите ответ.',
+  'send.reason.otherVariant': 'уже отправлен другой вариант — дальше Reply.',
   'send.reason.guard': 'Message Guard {site} не пропустил текст.',
   'send.reason.contextChanged': 'аккаунт, привязка или персона сменились после генерации — сделайте ответ заново.',
   'send.reason.claimBusy': 'с этим фаном уже поздоровался коллега или здоровается прямо сейчас.',
