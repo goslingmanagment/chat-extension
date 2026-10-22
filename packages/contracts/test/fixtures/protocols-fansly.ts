@@ -230,6 +230,14 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [{ ok: true, draft: { text: 'Привет!', revision: -1, historyRevision: null } }, { ok: true, draft: { text: 'Привет!', revision: 1 } }, { ok: true, draft: { text: 'Привет!', revision: 3, historyRevision: uuid(0x501), generation: { ...greetingGeneration, mark: 'fresh' } } }],
     },
   },
+  // 2026-10-22: the newest greeting attempt of each fan of the pass's creator, for the list's status.
+  'fansly.followers.outcomes': {
+    req: { valid: [passRef], invalid: [{}, { ...passRef, fanRef: F.fan }] },
+    res: {
+      valid: [{ ok: true, attempts: [] }, { ok: true, attempts: FANSLY_SEND_VIEW_FIXTURES.valid.slice(0, 2) }, failure],
+      invalid: [{ ok: true }, { ok: true, attempts: [FANSLY_SEND_VIEW_FIXTURES.invalid[0]] }, unknownFailure],
+    },
+  },
   'fansly.followers.sent': {
     req: {
       valid: [greetingSent, { ...greetingSent, admission: { kind: 'ai', generationRef: uuid(0x601), variant: 0 } }],

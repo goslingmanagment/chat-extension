@@ -244,10 +244,15 @@ export type NewcomerGreetingStateVM =
   | { readonly s: 'sent'; readonly at: IsoTimestamp | null }
   /** Proven not sent: why (NF-024); a new click may try again unless the code says it never can. */
   | { readonly s: 'refused'; readonly failure: NewcomersFailureVM }
+  /**
+   * 2026-10-22 (as the old window): «Сгенерировать» made no draft — «Черновик не создан: {причина}. Повторите или напишите
+   * сами». Nothing was sent; «Не отправлено» is a send's word only.
+   */
+  | { readonly s: 'not-drafted'; readonly failure: NewcomersFailureVM }
   /** It may have gone out: never repeated (CG-SEND-UNCERTAIN). */
   | { readonly s: 'uncertain'; readonly failure: NewcomersFailureVM };
 
-export const NEWCOMER_GREETING_STATES = ['idle', 'generating', 'sending', 'inserted', 'sent', 'refused', 'uncertain'] as const satisfies readonly NewcomerGreetingStateVM['s'][];
+export const NEWCOMER_GREETING_STATES = ['idle', 'generating', 'sending', 'inserted', 'sent', 'refused', 'not-drafted', 'uncertain'] as const satisfies readonly NewcomerGreetingStateVM['s'][];
 
 /**
  * 1.15.0 (R20 P10c): the card's greeting (NF-012…NF-019, NF-028). The field is the draft (up to 5000 characters, kept per

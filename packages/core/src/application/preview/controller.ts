@@ -1582,7 +1582,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       bar: barOf(state, track),
       result,
       media: mediaVm(state),
-      idleHint: result === null && feed !== null && blocked === null ? msg('preview.empty') : null,
+      // «Новые» offers Hi alone: its hint names only Hi.
+      idleHint: result === null && feed !== null && blocked === null ? msg(source === 'newcomers' ? 'preview.emptyNewcomers' : 'preview.empty') : null,
       neighbors: {
         previous: around.previous === null ? null : { type: 'OpenPreview', targetHandle: around.previous },
         next: around.next === null ? null : { type: 'OpenPreview', targetHandle: around.next },

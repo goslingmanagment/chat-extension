@@ -551,6 +551,8 @@ export const RU: I18nCatalog<'ru'> = {
   'preview.draft.sendTooltip': 'Отправить этот текст фану одним сообщением',
   'preview.draft.sendEmpty': 'сначала напишите текст',
   'preview.empty': 'Reply, Hi или Ping — черновик появится здесь. Отправка — только кнопкой у каждой части.',
+  // «Новые» offers Hi alone: its hint names only Hi (2026-10-22).
+  'preview.emptyNewcomers': 'Нажмите Hi — приветствие появится здесь. Отправка — только кнопкой у каждой части.',
   'preview.previousFan': 'Предыдущий фан',
   'preview.nextFan': 'Следующий фан',
   'preview.feed.lastOnly': 'Архив пока пуст — ниже последнее сообщение из списка',

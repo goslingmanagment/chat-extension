@@ -81,6 +81,8 @@ export const FANSLY_TAB_LIMITS = {
   followerRowsPerRead: 500,
   /** Changed rows in one `fansly.followers.changed` event. */
   followerRowsPerChange: 100,
+  /** Fans of one `fansly.followers.outcomes` answer: the newest greeting attempts kept for a creator, far above a real pass. */
+  followerOutcomesMax: 2_000,
   /** Messages of one preview read; the window shows up to 750 by «загрузить ещё» (NF-010). */
   historyMessagesPerRead: 250,
   historyMessageMaxChars: 20_000,
@@ -534,6 +536,18 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.followers.draft': {
     req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema, text: z.optional(z.string().check(z.maxLength(SEND_LIMITS.previewDraftMaxChars))), generation: z.optional(z.strictObject({ opId: UuidSchema, historyRevision: UuidSchema })) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), draft: GreetingDraftSchema }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * 2026-10-22 (the old window's «Нужно проверить» in the list): where each fan's greeting stands in the background's
+   * durable send journal for the pass's creator — the newest attempt per fan, read from memory (never a hub call) — so a
+   * row whose greeting may have gone says so in the list before its card is opened, never «Не писали». Read once when
+   * the window opens the pass, and after a lost port. Refused attempts are left out: nothing went.
+   */
+  'fansly.followers.outcomes': {
+    req: z.strictObject(PassRef),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), attempts: z.array(FanslySendViewSchema).check(z.maxLength(FANSLY_TAB_LIMITS.followerOutcomesMax)) }), Failure]),
     from: TAB,
     hosts: FANSLY,
   },

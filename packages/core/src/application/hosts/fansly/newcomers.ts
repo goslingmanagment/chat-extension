@@ -7,7 +7,8 @@
 // registry (the composition's `fanslyRequest`, NF-027); here they become the neutral words of a pass
 // (domain/hosts/fansly/newcomers). A failure is a failure — of the envelope or of the payload — never an empty list.
 // R20 P10b1: the queue's buttons — `pause`, `resume`, `prioritize` (NF-038). R20 P10b2: `exclude` (FS-NEW-2).
-// R20 P10c: the card's greeting — `proof`, `draft`, `send`, `sent` (FS-NEW-3, FS-NEW-6, FS-NEW-7).
+// R20 P10c: the card's greeting — `proof`, `draft`, `send`, `sent` (FS-NEW-3, FS-NEW-6, FS-NEW-7); `outcomes` — where each
+// fan's greeting stands, for the list (2026-10-22).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type FanslySendView } from '@cg/contracts/send-fansly';
@@ -43,6 +44,7 @@ export type FanslyFollowersRequest =
   // R20 P10c: the card's greeting.
   | 'fansly.followers.proof'
   | 'fansly.followers.draft'
+  | 'fansly.followers.outcomes'
   | 'fansly.followers.send'
   | 'fansly.followers.sent';
 
@@ -153,6 +155,12 @@ function greetingSource(port: FanslyFollowersPort): PassGreetingSource {
       if (!answer.payload.ok) return { ok: false, failure: failureOf(answer.payload.error) };
       const { attempt, generation: saved, ...draft } = answer.payload.draft;
       return { ok: true, value: { ...draft, ...(saved === undefined ? {} : { generation: saved }), ...(attempt === undefined ? {} : { outcome: outcomeOf(attempt) }) } };
+    },
+    async outcomes(passId) {
+      const answer = await port.request('fansly.followers.outcomes', { passId });
+      if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
+      if (!answer.payload.ok) return { ok: false, failure: failureOf(answer.payload.error) };
+      return { ok: true, value: answer.payload.attempts.map((attempt) => ({ fanRef: attempt.fanRef, outcome: outcomeOf(attempt) })) };
     },
     async send(click) {
       const { conversationRef, opId, ...rest } = click;

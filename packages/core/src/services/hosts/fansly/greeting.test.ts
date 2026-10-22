@@ -61,6 +61,7 @@ function world() {
   const deps: FanslyGreetingDeps = {
     newcomers: {
       row: (passId, fanRef, tab) => (passId === PASS && fanRef === FAN && tab === TAB && state.row !== null ? { creator: state.creator, view: state.row, proof: state.row.status === 'ready' && state.row.historyRevision !== null ? { groupId: GROUP, historyRevision: state.row.historyRevision, window: [], startProof: { v: 1, source: 'pass-empty-page', groupId: GROUP, startWitnessId: null, coveredCount: 0, personalCount: 0, automatedIds: [] } } : null } : null),
+      creatorOf: (passId, tab) => (passId === PASS && tab === TAB ? state.creator : null),
       greetingProof: () => ({ ok: false, code: 'CG-FNEW-UNVERIFIED' }),
       recheck() {
         log.push('recheck');
@@ -90,6 +91,7 @@ function world() {
         return () => listeners.delete(listener);
       },
       status: () => Promise.resolve(state.status),
+      latest: () => Promise.resolve(state.status === null ? [] : [state.status]),
     },
     local: kv.open(),
     session: () => ({ hubOrigin: 'https://hub.example.test', userId: 7 }),
@@ -99,7 +101,7 @@ function world() {
     now: () => T0,
   };
   let greeting = createFanslyGreeting(deps);
-  const ask = async <T extends 'fansly.followers.draft' | 'fansly.followers.send' | 'fansly.followers.sent'>(type: T, payload: unknown): Promise<FanslyTabResponsePayload<T>> => {
+  const ask = async <T extends 'fansly.followers.draft' | 'fansly.followers.outcomes' | 'fansly.followers.send' | 'fansly.followers.sent'>(type: T, payload: unknown): Promise<FanslyTabResponsePayload<T>> => {
     expect(FANSLY_TAB_REQUESTS[type].req.safeParse(payload).success, `${type} request`).toBe(true);
     const answer = await greeting.answer(type, payload, TAB);
     expect(FANSLY_TAB_REQUESTS[type].res.safeParse(answer).success, `${type} answer`).toBe(true);
@@ -194,6 +196,17 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     // X5: a greeting that went is never sent again.
     expect(await w.ask('fansly.followers.send', w.request({ attemptId: '00000000-0000-4000-8000-000000000a03' }))).toEqual({ ok: false, error: { code: 'CG-SEND-PART' } });
     expect(w.starts).toHaveLength(2);
+  });
+
+  it('[FS-NEW-3] the list reads every fan’s kept attempt at once (an unknown outcome is never «Не писали»); a refused one is left out; another pass or tab gets nothing', async () => {
+    const w = world();
+    expect(await w.ask('fansly.followers.outcomes', { passId: PASS })).toEqual({ ok: true, attempts: [] });
+    const unsure: FanslySendView = { attemptId: '00000000-0000-4000-8000-000000000a01', fanRef: FAN, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' };
+    w.state.status = unsure;
+    expect(await w.ask('fansly.followers.outcomes', { passId: PASS })).toEqual({ ok: true, attempts: [unsure] });
+    w.state.status = { attemptId: unsure.attemptId, fanRef: FAN, state: 'refused', proof: 'before-dispatch', code: 'CG-CLAIM-BUSY' };
+    expect(await w.ask('fansly.followers.outcomes', { passId: PASS })).toEqual({ ok: true, attempts: [] });
+    expect(await w.ask('fansly.followers.outcomes', { passId: '00000000-0000-4000-8000-000000000999' })).toEqual({ ok: false, error: { code: 'CG-CONTEXT-CHANGED' } });
   });
 
   it('[NF-018] [NF-024] what stops a click before any attempt, each with its own reason: the history changed since the review, the draft changed, the fan is written to or closed, not checked in full, another account, another conversation', async () => {
