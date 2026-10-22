@@ -11,9 +11,9 @@ import { type IconName } from './components/Icon';
 
 /**
  * The slot class of a chip, by its group; the bar's sheet folds a narrow bar by these (dock/styles.ts): the
- * `cg-slot--voice` chip (Voice) is its 🎙 below `VOICE_ICON_BELOW`, a `cg-slot--two` chip (Recap, Coach) is its icon
- * below `ICONS_BELOW` and goes into «Ещё» below `MORE_BELOW`, the `cg-slot--boards` ones are always icons and go with
- * them. Reply's slot carries what is left of a low quota.
+ * `cg-slot--voice` chip (Voice) is its 🎙 at every width, a `cg-slot--two` chip (Recap, Coach) is its icon below
+ * `ICONS_BELOW` and goes into «Ещё» below `MORE_BELOW`, the `cg-slot--boards` ones are always icons and go with them.
+ * Reply's slot carries what is left of a low quota.
  */
 export const DOCK_GROUP_SLOT: Readonly<Record<DockChipGroup, string>> = {
   reply: 'cg-slot cg-slot--reply',
