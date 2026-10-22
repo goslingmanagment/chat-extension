@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "c1f774cb109e94ec83db980406aa2b08fe492523c84d6875a668eac6c0073bee",
-    "sourceCommit": "a3d49f84d6316c8336865a3b52e410c70dd80944",
-    "note": "Vendored on 2026-10-23 from hub main a3d49f84 (#760), with scripts/vendor-sdk.mjs: adds the AI stream body's recap: 'off' and the recap-off-v1 capability (and #762's voice-note limits). Re-vendor with the same script and update this pin together."
+    "contractHash": "af24a18f9e5d3517038b065b5e266f3e66f70b72f502df21ec0001b4e43a2900",
+    "sourceCommit": "60739da23db5cdc006228839b66fcbdea5185849",
+    "note": "Vendored on 2026-10-23 from hub main 60739da2 (#763), deployed on agency-de, with scripts/vendor-sdk.mjs: the release's SDK is the one prod serves (adds #763 over #760's recap-off). Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

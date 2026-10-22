@@ -92,9 +92,41 @@ export declare const adminAiAccountUpdateBodySchema: z.ZodObject<{
     }>>;
     balanceMicroUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
 }, z.core.$strict>;
+/**
+ * The ElevenLabs account behind voice notes, as Hub's account check last saw
+ * it (every 30 min while voice notes are on). Read from Hub's own record —
+ * opening this never asks ElevenLabs. Characters are ElevenLabs credits of
+ * the current billing period.
+ */
+export declare const adminVoiceAccountResponseSchema: z.ZodObject<{
+    generatedAt: z.ZodString;
+    configured: z.ZodBoolean;
+    enabled: z.ZodBoolean;
+    check: z.ZodNullable<z.ZodObject<{
+        state: z.ZodEnum<{
+            healthy: "healthy";
+            characters_low: "characters_low";
+            characters_out: "characters_out";
+            subscription_inactive: "subscription_inactive";
+            key_rejected: "key_rejected";
+            unreadable: "unreadable";
+            check_failed: "check_failed";
+        }>;
+        checkedAt: z.ZodString;
+        httpStatus: z.ZodNullable<z.ZodNumber>;
+        readAt: z.ZodNullable<z.ZodString>;
+        tier: z.ZodNullable<z.ZodString>;
+        subscriptionStatus: z.ZodNullable<z.ZodString>;
+        charactersUsed: z.ZodNullable<z.ZodNumber>;
+        charactersLimit: z.ZodNullable<z.ZodNumber>;
+        nextResetAt: z.ZodNullable<z.ZodString>;
+        lowThresholdChars: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
 export type AdminAiAccount = z.infer<typeof adminAiAccountSchema>;
 export type AdminAiAccountsResponse = z.infer<typeof adminAiAccountsResponseSchema>;
 export type AdminAiAccountUpdateBody = z.infer<typeof adminAiAccountUpdateBodySchema>;
+export type AdminVoiceAccountResponse = z.infer<typeof adminVoiceAccountResponseSchema>;
 export declare const aiAccountRouteSchemas: {
     readonly adminAiAccountsList: {
         readonly auth: {
@@ -242,6 +274,54 @@ export declare const aiAccountRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminVoiceAccount: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The ElevenLabs account behind voice notes: Hub's last check and reading";
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                generatedAt: z.ZodString;
+                configured: z.ZodBoolean;
+                enabled: z.ZodBoolean;
+                check: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodEnum<{
+                        healthy: "healthy";
+                        characters_low: "characters_low";
+                        characters_out: "characters_out";
+                        subscription_inactive: "subscription_inactive";
+                        key_rejected: "key_rejected";
+                        unreadable: "unreadable";
+                        check_failed: "check_failed";
+                    }>;
+                    checkedAt: z.ZodString;
+                    httpStatus: z.ZodNullable<z.ZodNumber>;
+                    readAt: z.ZodNullable<z.ZodString>;
+                    tier: z.ZodNullable<z.ZodString>;
+                    subscriptionStatus: z.ZodNullable<z.ZodString>;
+                    charactersUsed: z.ZodNullable<z.ZodNumber>;
+                    charactersLimit: z.ZodNullable<z.ZodNumber>;
+                    nextResetAt: z.ZodNullable<z.ZodString>;
+                    lowThresholdChars: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;

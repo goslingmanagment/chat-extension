@@ -351,6 +351,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/pages/:pageLabel/verify";
     };
+    readonly adminVoiceAccount: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/ai/voice-account";
+    };
     readonly agentCapabilities: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/capabilities";
