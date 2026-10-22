@@ -97,10 +97,16 @@ export function TextField(props: TextFieldProps): JSX.Element {
   const grow = (): void => {
     const node = ref.current;
     if (node === null || props.multiline !== true) return;
+    // The box around keeps its height while the field is measured at `auto`: else everything beside it gets that
+    // moment's room, and a feed scrolled to its newest message is pushed off it for good.
+    const holder = node.parentElement;
+    const held = holder?.style.minHeight ?? '';
+    if (holder !== null) holder.style.minHeight = `${holder.offsetHeight}px`;
     node.style.height = 'auto';
     const max = props.maxHeight ?? 240;
     node.style.height = `${Math.min(max, Math.max(props.minHeight ?? 0, node.scrollHeight))}px`;
     node.style.overflowY = node.scrollHeight > max ? 'auto' : 'hidden';
+    if (holder !== null) holder.style.minHeight = held;
   };
   useEffect(grow, [props.value]);
 
