@@ -51,7 +51,7 @@ import { dockIs } from '../support/shift';
 /** The stand's first two chats as the hub's capture knows them: groups and fans, every id apart. */
 const A = WORLD.fansly.chats.a;
 const B = WORLD.fansly.chats.b;
-/** The chat's archive before the hub caught up: none of the page's ids (the fake hub's own archive of a stand chat is the page's). */
+/** The chat's archive before the hub caught up: none of the page's ids (a Fansly shift gives the hub the page's own). */
 const LAGGING = ['000', '001', '002'].map((n, index) => ({ id: `${A.group}${n}`, sender: index % 2 === 0 ? ('fan' as const) : ('model' as const) }));
 const CREATOR = WORLD.pages.fansly.platformAccountId;
 /** A fan of the page's board whose chat the hub's capture does not know (and the stand has no chat with). */
@@ -328,7 +328,7 @@ describe('groupId on every Fansly surface: the dock, the fan panel, the toast, t
       hub().command({ op: 'archiveConversation', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: A.group, messages });
 
     // The hub lags the page: its archive of the group holds none of the page's ids — every one of them `absent`. (The
-    // fake hub's archive of a stand chat is the page's own, so the lag is made here.)
+    // Fansly shift gives the hub the page's own messages, so the lag is made here.)
     await seed(LAGGING);
     const asked = await regenerate();
     expect(asked.deletedIds).toContain(deleted);
