@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, OP_LIMITS, type Bootstrap, type InsertReceipt, type LiveTextTail, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
+import { CLIENT_FEATURE_FLAG_NAMES, DOCK_ACTION_IDS, OP_LIMITS, RECAP_OFF_CAPABILITY, type Bootstrap, type InsertReceipt, type LiveTextTail, type PartVM, type ResultVM, type UiAction } from '@cg/contracts';
 import { targetHandle, type BoardHandover, type BoardPartFacts, type BoardResults, type BoardSync } from '@cg/core/application/ai';
 import { createFakeCatalog, ctxOf } from '@cg/testing/app-client';
 import { FakeHostPort, hostAccount, memory, openChat, previewChat, startSnapshot, type HostAnswers } from '@cg/testing/host';
@@ -1003,6 +1003,40 @@ describe('dock: «Ещё раз» and the options chosen after the answer (2026-
     expect(starts()[2]).toMatchObject({ tone: 'flirty', split: true });
     // The tab's Split is its own: nothing of it was written to the settings.
     expect((h.bg.callsOf('settings.patch') as { patch: { generation?: unknown } }[]).filter((call) => call.patch.generation !== undefined)).toEqual([]);
+  });
+
+  it('«с Recap» unticked in a chat lasts until a reload: another chat and back keep it, for Reply as for Coach (2026-10-23)', async () => {
+    const h = await start({ bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: [...BOOTSTRAP_PILOT_PAGES.capabilities, RECAP_OFF_CAPABILITY] } });
+    const recaps = (): unknown[] => (h.bg.callsOf('op.start') as { recap?: unknown }[]).map((call) => call.recap ?? 'on');
+    const first = await reply(h, 'with the recap');
+    // The head's tick asks the answer again without the Recap; its part goes into the field.
+    h.script(h.streamOf('fast-reply', ['without it']));
+    expect(await h.dispatch({ type: 'SetRecap', feature: 'reply', on: false, again: first })).toMatchObject({ ok: true });
+    await h.finish();
+    expect(await h.dispatch({ type: 'InsertPart', operationId: result(h).opId, part: 0 })).toMatchObject({ ok: true });
+    expect(await h.dispatch({ type: 'SetRecap', feature: 'coach', on: false })).toMatchObject({ ok: true });
+    h.host.openChat(previewChat);
+    await h.settle();
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(h.coach().recapOn).toBe(false);
+    await reply(h, 'still without it');
+    expect(recaps()).toEqual(['on', 'off', 'off']);
+  });
+
+  it('[AI-128] «Скрыть» keeps the answer under an earlier used-up one: the same click opens it again, nothing new is asked (2026-10-23)', async () => {
+    const h = await start();
+    const used = await reply(h, 'the first, inserted');
+    expect(await h.dispatch({ type: 'InsertPart', operationId: used, part: 0 })).toMatchObject({ ok: true });
+    // The used-up answer is not given back: the click makes a new one.
+    const kept = await reply(h, 'the second, hidden');
+    expect(kept).not.toBe(used);
+    expect(await h.dispatch({ type: 'HideResult', operationId: kept })).toMatchObject({ ok: true });
+    expect(h.dock().result).toBeNull();
+    h.script(h.streamOf('fast-reply', ['a third, never asked for']));
+    expect(await h.generate('reply')).toMatchObject({ ok: true, opId: kept });
+    expect(result(h).opId).toBe(kept);
+    expect((h.bg.callsOf('op.start') as { force?: boolean }[]).map((call) => call.force === true)).toEqual([false, true, false]);
   });
 
   it('a generation that runs is not hidden: HideResult changes nothing until it ends (its answer would show nowhere)', async () => {
