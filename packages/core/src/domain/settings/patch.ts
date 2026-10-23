@@ -82,7 +82,9 @@ export function applySettingsPatch(current: SettingsV1, patch: SettingsPatch, op
 /**
  * The persona choices belong to one hub and one user (`personas.scope`):
  * another scope signing in clears them; the same scope keeps them. Never
- * patched by a tab or page — the background calls this on sign-in.
+ * patched by a tab or page — the background calls this on sign-in, and again
+ * while signed in when the scope is not the person's (its start, before a
+ * persona choice), so a write that failed heals.
  */
 export function withPersonaScope(current: SettingsV1, scope: SettingsV1['personas']['scope']): SettingsV1 {
   const same = scope !== null && current.personas.scope !== null && current.personas.scope.hubOrigin === scope.hubOrigin && current.personas.scope.userId === scope.userId;

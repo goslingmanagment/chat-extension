@@ -67,6 +67,7 @@ import {
   type HubRouteKey,
   type PersonaCatalog,
   type ResolveHubError,
+  type SettingsState,
   type SettingsV1,
 } from '@cg/contracts';
 import { TargetSchema } from '@cg/contracts/ids';
@@ -96,7 +97,9 @@ import {
   onInstalledPlan,
   settingsChangePlan,
   settingsRequestHandlers,
+  type ServiceAnswer,
   type SettingsOwner,
+  type SettingsPatchRequest,
 } from '@cg/core/services';
 import { DiagnosticsService, SpendService, advancedAccountInfo, clearDebugData, type DiagnosticsFacts } from '@cg/core/services/diagnostics';
 import { soundRequestHandlers } from '@cg/core/services/sound';
@@ -519,6 +522,22 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const signedIn = hubInstance?.session() ?? null;
     const scope = current.personas.scope;
     return signedIn !== null && scope !== null && scope.hubOrigin === signedIn.hubOrigin && scope.userId === signedIn.userId;
+  };
+  /**
+   * The scope of the persona choices is written at the sign-in, and again — when it is not the signed-in person's —
+   * at the start of an event page with a sign-in and before a persona choice: one write that failed at the sign-in
+   * (or a broken scope the repair of the settings dropped) would refuse every generation (CG-PERSONA-UNASSIGNED)
+   * until a sign-out, while the pages show the choice as made. The same scope is no write. The error: the scope is
+   * not the person's, and a choice made now would not be theirs either.
+   */
+  const scopePersonas = async (signedIn: { readonly hubOrigin: string; readonly userId: number } | null = hubInstance?.session() ?? null): Promise<CgErrorWire | null> => {
+    if (signedIn === null) return null;
+    const scope = settings.current().personas.scope;
+    if (scope !== null && scope.hubOrigin === signedIn.hubOrigin && scope.userId === signedIn.userId) return null;
+    const saved = await settings.setPersonaScope({ hubOrigin: signedIn.hubOrigin, userId: signedIn.userId });
+    if (saved.ok) return null;
+    logger.warn('bg.personas', 'persona scope not saved', { code: saved.error.code });
+    return saved.error;
   };
 
   const environment = (): OpsEnvironment => {
@@ -1131,7 +1150,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       }
       sound.sync();
       if (change.session !== null) {
-        void settings.setPersonaScope({ hubOrigin: change.session.hubOrigin, userId: change.session.userId });
+        void scopePersonas(change.session);
         return;
       }
       // §9.4: at sign-out everything that belongs to the person goes (the sites' modules heard it above).
@@ -1274,6 +1293,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('persona.set', async ({ pageId, key, definitionId }, sender) => {
     const page = await pageOf(pageId, sender);
     if (!page.ok) return fail(page.code);
+    // A choice is kept only under the signed-in person's scope (scopePersonas).
+    const unscoped = await scopePersonas();
+    if (unscoped !== null) return { ok: false, error: unscoped };
     const saved = await settings.patch({ personas: { byPageId: { [String(pageId)]: { key, definitionId } } } }, { baseRevision: null, restricted: false });
     return saved.ok ? ok({ revision: saved.state.revision }) : { ok: false, error: saved.error };
   });
@@ -1443,15 +1465,20 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       return ok(request.reload === true ? await siteAccess.reload() : await siteAccess.state());
     } catch { return fail('CG-RUNTIME-UNREACHABLE'); }
   });
+  /** A patch that chooses personas is written only under the signed-in person's scope (scopePersonas), as `persona.set` is. */
+  const scopedPatch = async (request: SettingsPatchRequest, write: (request: SettingsPatchRequest) => Promise<ServiceAnswer<SettingsState>>): Promise<ServiceAnswer<SettingsState>> => {
+    const unscoped = request.patch.personas === undefined ? null : await scopePersonas();
+    return unscoped === null ? write(request) : { ok: false, error: unscoped };
+  };
   rpc.handle('settings.get', settingsHandlers['settings.get']);
   rpc.handle('settings.patch', async (request, sender) => {
     // §14: a tab changes personas only of the pages of its own binding — the same check as `persona.set`.
     const refusal = await personaPatchRefusal(request.patch, sender, pageOf);
-    return refusal === null ? settingsHandlers['settings.patch'](request) : fail(refusal, 'personas');
+    return refusal === null ? scopedPatch(request, settingsHandlers['settings.patch']) : fail(refusal, 'personas');
   });
   rpc.handle('settings.patchRestricted', (request) => {
     const refusal = hubAddressRefusal({ next: request.patch.hub?.baseUrl, current: settings.current().hub.baseUrl, signedIn: hub().status().auth !== 'none', testBuild: __CG_TEST_HOSTS__ });
-    return refusal === null ? settingsHandlers['settings.patchRestricted'](request) : fail('CG-HUB-URL', refusal);
+    return refusal === null ? scopedPatch(request, settingsHandlers['settings.patchRestricted']) : fail('CG-HUB-URL', refusal);
   });
 
   // «Настройки» / «Войти» from a ChatSpace tab (ST-006, ST-007): a content script cannot open our pages itself,
@@ -1637,6 +1664,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         hubInstance = instance;
         await instance.ready;
         lastOwner = ownerOf(instance.session());
+        // A scope the sign-in could not write (or the repair of the settings dropped) is written now (scopePersonas).
+        if (lastOwner !== null) void scopePersonas();
         // A choice made before the owner's last edit of its persona follows it now (the catalog of the previous
         // event page, or the read that starts with this one), not only at the next change of the catalog.
         if (lastOwner !== null) void instance.catalog().then(followPersonas).catch(() => undefined);
