@@ -129,7 +129,11 @@ export function createBackgroundVoice(deps: BackgroundVoiceDeps) {
     readonly 'voice.attached': TabRequestHandler<'voice.attached'>;
     readonly 'voice.discard': TabRequestHandler<'voice.discard'>;
   } = {
-    'voice.read': async ({ pageId, conversationRef }, sender) => ok(await service.read(sender, pageId, conversationRef)),
+    // Storage that did not answer is the read's failure: the studio says so and its next open reads again.
+    'voice.read': async ({ pageId, conversationRef }, sender) => {
+      const read = await service.read(sender, pageId, conversationRef);
+      return read.ok ? ok({ session: read.session }) : read;
+    },
     // 1.49.0: a free read, like `voice.read` — no token, and a site switched off still reads it.
     'voice.allowance': async ({ pageId }, sender) => ok(await service.allowance(sender, pageId)),
     'voice.script': async ({ start, sessionId }, sender) => refuseSwitchedOff(sender) ?? ok(await service.script(sender, start, sessionId)),

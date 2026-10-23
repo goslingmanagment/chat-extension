@@ -26,7 +26,7 @@ import { type ActionButtonVM, type ActionReceipt, type Msg, type UiActionOf, typ
 
 import { windowFor } from '../../domain/features';
 import { buildOpenInsert } from '../../domain/insert/intent';
-import { canonicalVoiceScript, currentScriptText, takeIsStale, voiceAllowanceLine, voiceScriptIssue, voiceScriptMax, voiceSeconds, type VoiceScriptIssue } from '../../domain/voice';
+import { canonicalVoiceScript, currentScriptText, takeAtStake, takeIsStale, voiceAllowanceLine, voiceScriptIssue, voiceScriptMax, voiceSeconds, type VoiceScriptIssue } from '../../domain/voice';
 import { createSurface, done, refused, type ActionHandlers, type AiController, type CauseKind } from '../ai/surface';
 import { button, errorVm, msg, views } from '../ai/view-models';
 import { type DeskUi } from '../ai/voice-desk';
@@ -218,9 +218,14 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       primary = button('voice.empty.write', { type: 'WriteVoiceScript', targetHandle: handle, tone: ui.tone, from: again ? 'session' : 'field' }, !again && draftEmpty ? { enabled: false, reason: ws.ports.catalog.reason('needs-draft') } : {});
     } else if (stage === 'ready' && session !== null) {
       const full = session.takes.length >= VOICE_LIMITS.takesPerSession;
-      const blocked = issue !== null ? ws.ports.catalog.reason('voice-issue') : full ? ws.ports.catalog.reason('voice-takes-full', { max: VOICE_LIMITS.takesPerSession }) : null;
+      // One click, one render (the old extension's pending create): while a create of the chat is not answered yet —
+      // this tab's click, or a take the background is creating — no other is asked. One the hub admitted renders on its
+      // own: another take beside it is the person's choice again.
+      const creating = ui.making || session.takes.some((take) => take.state === 'creating');
+      const blocked = issue !== null ? ws.ports.catalog.reason('voice-issue') : full ? ws.ports.catalog.reason('voice-takes-full', { max: VOICE_LIMITS.takesPerSession }) : creating ? ws.ports.catalog.reason('voice-creating') : null;
       const fresh = session.takes.filter((take) => !takeIsStale(take, text));
-      const freshWorking = fresh.some((take) => take.state === 'creating' || take.state === 'working');
+      // This tab's click asked for a take of the text now in the editor.
+      const freshWorking = ui.making || fresh.some((take) => take.state === 'creating' || take.state === 'working');
       // «Озвучить» first, «Озвучить новый текст» after an edit, «Ещё вариант» of the same text.
       const makeLabel: Msg = session.takes.length === 0 ? msg('voice.make', { chars }) : fresh.length === 0 ? msg('voice.makeNew', { chars }) : msg('voice.makeAgain', { chars });
       const make = button(makeLabel, { type: 'MakeVoiceTake', targetHandle: handle }, blocked === null ? {} : { enabled: false, reason: blocked });
@@ -296,9 +301,9 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
     return button(label, action);
   }
 
-  /** Paid takes that never reached the field, one still rendering, one whose create had no answer. */
+  /** Paid takes not seen in the field: one never put there or handed over unseen, one still rendering, one whose create had no answer. */
   function atStake(session: VoiceSession): boolean {
-    return session.takes.some((take) => take.state === 'creating' || take.state === 'working' || take.state === 'uncertain' || (take.state === 'ready' && take.attached === null));
+    return session.takes.some((take) => takeAtStake(take));
   }
 
   /** The field holds another draft than the one the session's script was made from. */
@@ -552,8 +557,9 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       const draft = composer !== null && composer.draft.provenance !== 'empty';
       if (state.state !== 'ready' || !draft) return done(action.type, 'opened');
       if (session === null || (session.script === null && session.writing === null && session.takes.length === 0)) return write(target, ui.tone, 'field', cause, action.type);
-      // A voice that already went into the field (or one nothing was paid for) gives way to a new draft in the field at
-      // once; paid takes that never reached the field, or the person's own text of the script, wait for «Новый войс».
+      // A voice seen in the field (or one nothing was paid for) gives way to a new draft in the field at once; paid takes
+      // not seen there (one handed over whose outcome nobody saw too), or the person's own text of the script, wait for
+      // «Новый войс».
       if (!atStake(session) && (session.script === null || session.script.edited === null) && (await fieldMovedOn(chat, session))) return write(target, ui.tone, 'field', cause, action.type);
       return done(action.type, 'opened');
     },
@@ -610,17 +616,29 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       const state = desk.session(ready.page.pageId, chat.conversationRef);
       const session = state.state === 'ready' ? state.session : null;
       if (session === null || session.script === null || session.writing !== null) return done(action.type, 'noop');
+      // One click, one render (the old extension's pending create): while a create of the chat is not answered yet —
+      // this tab's click, or a take the background is creating — another click (a double click) does nothing.
+      if (ui.making || session.takes.some((take) => take.state === 'creating')) return done(action.type, 'noop');
       const text = textOf(session, ui) ?? '';
       const issue = voiceScriptIssue(canonicalVoiceScript(text), VOICE_LIMITS.scriptMaxChars);
       if (issue !== null) return studioError(chat.key, action.type, { code: 'CG-VOICE-SCRIPT' });
-      await desk.save(chat.key, session.sessionId);
-      const token = await ws.token('generate', 'dock', cause);
-      if (!token.ok) return studioError(chat.key, action.type, token.error);
-      const answer = await ws.ports.rpc.request('voice.take', { sessionId: session.sessionId, takeId: ids.uuid(), script: text, cause: token.payload });
-      if (!answer.ok) return studioError(chat.key, action.type, answer.error);
-      desk.apply(answer.payload);
-      if (!answer.payload.ok) return studioError(chat.key, action.type, answer.payload.error);
-      return done(action.type, 'started');
+      // Claimed before the first wait; let go whatever the answer (a take the background is still creating holds the
+      // button then).
+      ui.making = true;
+      ws.bump();
+      try {
+        await desk.save(chat.key, session.sessionId);
+        const token = await ws.token('generate', 'dock', cause);
+        if (!token.ok) return studioError(chat.key, action.type, token.error);
+        const answer = await ws.ports.rpc.request('voice.take', { sessionId: session.sessionId, takeId: ids.uuid(), script: text, cause: token.payload });
+        if (!answer.ok) return studioError(chat.key, action.type, answer.error);
+        desk.apply(answer.payload);
+        if (!answer.payload.ok) return studioError(chat.key, action.type, answer.payload.error);
+        return done(action.type, 'started');
+      } finally {
+        ui.making = false;
+        ws.bump();
+      }
     },
     SelectVoiceTake(action) {
       const target = chatOf(action.targetHandle);

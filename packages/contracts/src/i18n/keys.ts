@@ -384,7 +384,7 @@ export const UI_TEXT_KEYS = [
   'voice.take.notCharged', 'voice.take.maybeCharged', 'voice.restart', 'voice.restartTooltip', 'voice.confirm.unattached',
   'voice.confirm.working', 'voice.confirm.question', 'voice.confirm.yes', 'voice.reason.writing',
   'voice.reason.noScript', 'voice.reason.issue', 'voice.reason.working', 'voice.reason.attachOff', 'voice.reason.takesFull',
-  'voice.reason.attaching',
+  'voice.reason.attaching', 'voice.reason.creating',
   // 1.49.0: the day's allowance beside «Озвучить» (the left and short lines are plural keys).
   'voice.allowance.out',
   // ── end of the extension pages ──

@@ -1790,6 +1790,7 @@ export const EN: I18nCatalog<'en'> = {
   'voice.reason.noScript': 'no script',
   'voice.reason.issue': 'the script will not pass the check',
   'voice.reason.working': 'the take is still being voiced',
+  'voice.reason.creating': 'the take is still being created',
   'voice.reason.attachOff': 'the site takes no file now — download the MP3',
   'voice.reason.takesFull': 'already {max} takes — start a new voice note',
   'voice.reason.attaching': 'the voice note is already on its way to the field',

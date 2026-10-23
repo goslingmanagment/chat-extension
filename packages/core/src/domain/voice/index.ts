@@ -51,6 +51,15 @@ export function takeIsStale(take: Pick<VoiceTake, 'script'>, current: string | n
   return current === null || canonicalVoiceScript(current) !== take.script;
 }
 
+/**
+ * A paid take not seen in the field yet: one still rendering, one whose create had no answer, a ready one never put
+ * into the field or handed over without its outcome seen. The hub lists no notes: the session's id of it is the only
+ * way back to its MP3 and to «Проверить», so such a take is never dropped without the person.
+ */
+export function takeAtStake(take: Pick<VoiceTake, 'state' | 'attached'>): boolean {
+  return take.state === 'creating' || take.state === 'working' || take.state === 'uncertain' || (take.state === 'ready' && take.attached?.state !== 'attached');
+}
+
 /** How a take reads the hub's view of its note: its state, the error to show, characters spent, the audio's facts. */
 export interface TakeReading {
   readonly state: VoiceTakeState;
