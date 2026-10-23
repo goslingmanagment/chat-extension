@@ -2,12 +2,11 @@
 // model in a durable headless profile (wdio.conf.ts, CG_SEE_LIVE_PROFILE), against the fake hub — no money, no
 // production hub. Not CI, never: it needs the network and the model's sign-in.
 //
-// Fansly hears no write of the browser's pages: every request to Fansly's hosts that is not a read (GET, HEAD,
-// OPTIONS) or the sign-in is failed before it leaves (a WebDriver BiDi intercept) and written down (blocked.json, a
-// `cg-see blocked` line) — a send, a read mark (`/message/ack`), «typing», a post, a media upload, the site's
-// telemetry. So opening a real fan's chat marks nothing read and typing shows him nothing. BiDi does not see the
-// extension's event page: its Fansly writes (notes, `group.create`, X8's send) are the extension's own rules' — X8's
-// send stays off, the fake hub's `previewSend` is never switched on here.
+// Nothing is blocked (the owner, 2026-10-24): the model's chats are real fans, and what a fan would see — a send, a
+// post or a story, anything with money — is done only after the owner's «да» in the chat (AGENTS.md). Every write of
+// the browser's pages to Fansly is written down as it leaves (writes.json, a `cg-see write` line): a read mark
+// (`/message/ack`), «typing», a send, a post, an upload. BiDi does not see the extension's event page (notes,
+// `group.create`, X8's send); X8's send stays off — the fake hub's `previewSend` is never switched on here.
 
 import { DEFAULT_SETTINGS, STORAGE_KEYS, type SettingsV1 } from '@cg/contracts';
 import { $$, browser } from '@wdio/globals';
@@ -32,36 +31,26 @@ const API = 'https://apiv3.fansly.com/api/v1';
  * registers Fansly's scripts only once the whole bundle is granted.
  */
 const FANSLY_ORIGINS = ['https://fansly.com/*', 'https://apiv3.fansly.com/*', 'http://localhost/*'];
-/** Fansly's hosts the guard watches: the site, its API, the media upload, its telemetry. */
-const FANSLY_HOSTS = ['fansly.com', 'apiv3.fansly.com', 'mediav2.fansly.com', 'metrics.fansly.com'];
 const READS = new Set(['GET', 'HEAD', 'OPTIONS']);
-/** The only writes that leave: signing in (and its second step). */
-const ALLOWED_WRITES = [/^\/api\/v1\/login(?:\/|$)/];
 
-export interface BlockedWrite {
+export interface FanslyWrite {
   readonly at: string;
   readonly method: string;
   readonly url: string;
 }
 
-/** The writes the guard failed, in order (the query left out). */
-export const blockedWrites: BlockedWrite[] = [];
+/** The writes of the browser's pages to Fansly's hosts, in order (the query left out). */
+export const fanslyWrites: FanslyWrite[] = [];
 
-/** Fails every write of the browser's pages to Fansly but the sign-in; reads pass untouched. */
-async function guardWrites(): Promise<void> {
+/** Writes down every request of the browser's pages to Fansly that is not a read; nothing is held or failed. */
+async function journalWrites(): Promise<void> {
   await browser.sessionSubscribe({ events: ['network.beforeRequestSent'] });
-  await browser.networkAddIntercept({ phases: ['beforeRequestSent'], urlPatterns: FANSLY_HOSTS.map((hostname) => ({ type: 'pattern' as const, protocol: 'https', hostname })) });
   browser.on('network.beforeRequestSent', (event) => {
-    if (!event.isBlocked) return;
-    const { request, method, url } = event.request;
-    const pass = READS.has(method) || ALLOWED_WRITES.some((rule) => rule.test(new URL(url).pathname));
-    if (!pass) {
-      const write = { at: new Date().toISOString(), method, url: url.split('?')[0] ?? url };
-      blockedWrites.push(write);
-      console.log(`cg-see blocked ${write.method} ${write.url}`);
-    }
-    // A request whose page went away meanwhile has nothing to continue or fail.
-    void (pass ? browser.networkContinueRequest({ request }) : browser.networkFailRequest({ request })).catch(() => undefined);
+    const { method, url } = event.request;
+    if (READS.has(method) || !/(?:^|\.)fansly\.com$/.test(new URL(url).hostname)) return;
+    const write = { at: new Date().toISOString(), method, url: url.split('?')[0] ?? url };
+    fanslyWrites.push(write);
+    console.log(`cg-see write ${write.method} ${write.url}`);
   });
 }
 
@@ -131,12 +120,12 @@ export interface LiveShift {
 }
 
 /**
- * The shift of support/fansly-shift.ts on the real site: the guard first, the test model signed in on a Fansly tab,
+ * The shift of support/fansly-shift.ts on the real site: the journal of writes first, the test model signed in on a Fansly tab,
  * the fake hub's Fansly page bound to that account (before the chatter signs in), the test build pointed at the fake
  * hub and the real Fansly API, Fansly switched on, and the Fansly tab on `/messages`.
  */
 export async function startLiveShift(hub: FakeHubControlClient, options: LiveShiftOptions = {}): Promise<LiveShift> {
-  await guardWrites();
+  await journalWrites();
   const pagesTab = await browser.getWindowHandle();
   const fanslyTab = (await browser.createWindow('tab')).handle;
   await browser.switchToWindow(fanslyTab);

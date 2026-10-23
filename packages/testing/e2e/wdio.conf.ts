@@ -145,8 +145,8 @@ export const config: WebdriverIO.Config = {
           'browser.download.alwaysOpenPanel': false,
           'browser.helperApps.neverAsk.saveToDisk': 'text/plain,application/json',
           // --live: no service workers. Fansly's own (Angular's) fetches whatever a page asks without `ngsw-bypass`
-          // itself, and BiDi neither sees nor intercepts a worker's requests — a write would pass the guard
-          // (e2e/see/live.ts). Measured 2026-10-24: a POST without the flag left, with it it was failed.
+          // itself, and BiDi does not see a worker's requests: the journal of writes (e2e/see/live.ts) would miss
+          // them. Measured 2026-10-24 with a probe POST.
           ...(live ? { 'dom.serviceWorkers.enabled': false } : {}),
         },
       },
