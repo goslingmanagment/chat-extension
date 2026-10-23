@@ -1287,8 +1287,8 @@ export class AiWorkspace {
       // An answer that is used up — every part of it inserted — or that no longer fits the chat (the fan wrote since) is
       // not brought back on the next visit (2026-10-22): the person starts the next one themselves.
       if (ui.sheet !== null && ui.sheet.kind === 'draft' && this.spent(ui.sheet.opId)) ui.sheet = null;
-      // A chat without a chosen tone or an open sheet keeps nothing.
-      if (ui.tone === null && ui.sheet === null) this.chats.delete(other);
+      // A chat without a chosen tone, an open sheet or a «с Recap» of its own keeps nothing: the tick lasts until a reload.
+      if (ui.tone === null && ui.sheet === null && Object.keys(ui.recap).length === 0) this.chats.delete(other);
     }
     if (key !== null) {
       const tail = this.tails.get(key);
@@ -1305,9 +1305,19 @@ export class AiWorkspace {
     this.bump();
   }
 
-  /** Whether this chat holds a used-up or stale answer of the feature (`spent`) that the result cache could give back. */
+  /**
+   * Whether the newest finished answer of the feature in this chat — the one the result cache gives back — is used up
+   * or stale (`spent`). An older spent answer under a newer one says nothing: the newer one, hidden with «Скрыть», comes
+   * back on the same click (AI-128) instead of a new paid one.
+   */
   private spentIn(key: ChatKey, feature: FeatureId): boolean {
-    return this.ops.all().some((record) => record.view.feature === feature && isOwnSurface(record.view.surface) && chatKeyOf(record.view.target.chat) === key && this.spent(record.view.opId));
+    let newest: OpRecord | null = null;
+    for (const record of this.ops.all()) {
+      const { view } = record;
+      if (view.feature !== feature || view.state !== 'done' || !isOwnSurface(view.surface) || chatKeyOf(view.target.chat) !== key) continue;
+      if (newest === null || (view.endedAt ?? view.startedAt) > (newest.view.endedAt ?? newest.view.startedAt)) newest = record;
+    }
+    return newest !== null && this.spent(newest.view.opId);
   }
 
   /** A finished answer whose every part went into the field (or out, from its board), or one stale for its chat. */
