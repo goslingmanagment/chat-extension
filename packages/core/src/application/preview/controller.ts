@@ -171,6 +171,11 @@ interface OpTrack {
   readonly manual: { readonly textFingerprint: string } | null;
   /** Chat Memory week 1: «Отправить всё равно» passed the «в разговоре» warning of this fan, for this result. */
   talkAccepted?: true;
+  /**
+   * The text this result took out of the draft field at its click (2026-10-23 audit): it goes back to the field (when
+   * the field is still empty) once the send is refused for sure; null once given back, or once it may have gone.
+   */
+  fromDraft: string | null;
 }
 
 interface TargetState {
@@ -488,7 +493,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // The cards of «Рассылка» and «Онлайн» keep no draft of their own: the fan's Spenders draft is the one a Fix of theirs would read.
     return session === null ? null : draftKey({ hubOrigin: session.hubOrigin, userId: session.userId, pageId, list: source === 'outreach' || source === 'online' ? 'spenders' : source, fanRef });
   };
-  const draftText = (state: TargetState): string => {
+  const draftText = (state: Pick<TargetState, 'source' | 'pageId' | 'fanRef'>): string => {
     const key = ownerKey(state.source, state.pageId, state.fanRef);
     return key === null ? '' : (findDraft(drafts, key, clock.now())?.text ?? '');
   };
@@ -907,6 +912,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       holdTimers: new Map(),
       edits: new Map(),
       manual: null,
+      fromDraft: null,
     };
   }
 
@@ -1482,6 +1488,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       mediaAttempts.delete(view.attemptId);
       media.restore(picked.chat, picked.taken);
     } else if (picked !== undefined && (view.state === 'nativeAccepted' || view.state === 'sentObserved' || view.state === 'uncertain')) mediaAttempts.delete(view.attemptId);
+    // The person's own text left the draft field at the click (2026-10-23 audit): by the same rule as the picks, a send
+    // that proved it never reached the platform gives it back to the field; one that did, or may have, never does.
+    if (track.fromDraft !== null) {
+      if (view.state === 'rejected' || view.state === 'held' || view.state === 'notEnqueued') giveDraftBack(track);
+      else if (view.state === 'nativeAccepted' || view.state === 'sentObserved' || view.state === 'uncertain') track.fromDraft = null;
+    }
     if (view.state === 'held' && view.code === 'CG-SEND-STALE') markFanWrote(track, null);
     if (view.code === 'CG-CLAIM-EXPIRED' || view.code === 'CG-CLAIM-BUSY') deps.greeting?.noteRefusal(track.fanRef, view.code);
     if (view.state === 'held' && view.code === 'CG-HUB-RATE-LIMIT') {
@@ -2278,10 +2290,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const early = unclaimed.get(answered.attemptId);
     unclaimed.delete(answered.attemptId);
     const latest = early !== undefined && attemptReachable(answered.state, early.state) ? early : answered;
-    // «Отправить ещё раз» of a part whose outcome is unknown, stopped before ChatSpace's queue (the first one is still
-    // inside its ticket, a busy queue): the row keeps the unknown outcome, and the click's answer says why.
+    // «Отправить ещё раз» of a part whose outcome is unknown, stopped before ChatSpace's queue (a busy queue, a page
+    // condition): the row keeps the unknown outcome, and the click's answer says why. The hub's refusal while the first
+    // one is still inside its ticket (CG-SEND-UNCERTAIN, its `custody_held`) is the row's to say instead — wait a few
+    // seconds, then the next click (2026-10-23 audit); the first one stays unknown in the journal all the same.
     const before = track.attempts.get(key);
-    if (latest.state === 'held' && before !== undefined && before.view.state === 'uncertain') {
+    if (latest.state === 'held' && latest.code !== 'CG-SEND-UNCERTAIN' && before !== undefined && before.view.state === 'uncertain') {
       unpace(until);
       if (taken !== null) media.restore(chat, taken);
       reportProgress(track);
@@ -2525,13 +2539,31 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       generationRef: ids.uuid(),
       result: { kind: 'parts', parts: [text], splitRequested: false },
     };
-    const track: OpTrack = { ...trackOf(view, state, { checkpoint }), manual: { textFingerprint } };
+    const track: OpTrack = { ...trackOf(view, state, { checkpoint }), manual: { textFingerprint }, fromDraft: text };
     tracks.set(opId, track);
     currentOp.set(state.handle, opId);
     setDraft(state, '');
     pruneTracks();
     changedFor(state.handle);
-    return sendPart(type, track, 0, 0, true);
+    const receipt = await sendPart(type, track, 0, 0, true);
+    // Refused before the click reached the background (ChatSpace's send is off, no checkpoint, no token): nothing went,
+    // and the card's row may not say why — the toast does, and the text is the field's again.
+    if (!receipt.ok && !track.attempts.has(partKey(0, 0))) {
+      giveDraftBack(track);
+      deps.notifier?.notify(receipt.code, `preview:${state.handle}`);
+    }
+    return receipt;
+  }
+
+  /**
+   * The text a result of the person's own took out of the draft field goes back to it (2026-10-23 audit): a refusal
+   * proved nothing reached the fan. A text the person has written in the field since stays; given back once at most.
+   */
+  function giveDraftBack(track: OpTrack): void {
+    const text = track.fromDraft;
+    track.fromDraft = null;
+    if (text === null || draftText(track).trim() !== '') return;
+    setDraft(track, text);
   }
 
   /**
@@ -2604,7 +2636,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return done(type);
   }
 
-  function setDraft(state: TargetState, text: string): void {
+  function setDraft(state: Pick<TargetState, 'handle' | 'source' | 'pageId' | 'fanRef'>, text: string): void {
     const key = ownerKey(state.source, state.pageId, state.fanRef);
     if (key === null) return;
     const before = revisions.get(key) ?? findDraft(drafts, key, clock.now())?.revision ?? 0;

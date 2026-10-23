@@ -320,7 +320,7 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     }
   });
 
-  it('[SP-054] MAIN held or notEnqueued: custody hears not_enqueued; a queue refusal may be clicked again, a stale hold may not', async () => {
+  it('[SP-054] MAIN held or notEnqueued: custody hears not_enqueued; a queue refusal may be clicked again, a stale hold only by «Отправить всё равно»', async () => {
     const h = sendHarness();
     h.hub.claimScript.push(ticketFor(A), okAnswer(A, 'failed'));
     await h.coordinator.begin(TAB, h.begin());
@@ -333,6 +333,22 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     await h.coordinator.idle();
     expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502) }))).toEqual({ ok: false, view: { attemptId: uuid(0x501), state: 'held', code: 'CG-SEND-STALE' } });
     expect(actions(h)).toEqual(['dispatch', 'failed:not_enqueued', 'dispatch', 'failed:not_enqueued']);
+    // The person read the fan's new message and passed the warning (2026-10-20 audit, row 3): a new attempt, its own dispatch.
+    h.hub.claimScript.push(ticketFor(uuid(0x503)));
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503), acceptFreshness: true }))).toMatchObject({ ok: true, ticket: { attemptId: uuid(0x503) } });
+    expect(actions(h)).toEqual(['dispatch', 'failed:not_enqueued', 'dispatch', 'failed:not_enqueued', 'dispatch']);
+  });
+
+  it('[X8-04] the background’s own stale hold: a plain click of the part still holds, «Отправить всё равно» is dispatched (2026-10-23 audit)', async () => {
+    const h = sendHarness();
+    h.ops.set(OP, doneView({ stale: { reason: 'fan-wrote', at: null } }));
+    const stale = { ok: false, view: { attemptId: A, state: 'held', code: 'CG-SEND-STALE' } };
+    expect(await h.coordinator.begin(TAB, h.begin())).toEqual(stale);
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501) }))).toEqual(stale);
+    expect(h.hub.claims).toHaveLength(0);
+    h.hub.claimScript.push(ticketFor(uuid(0x502)));
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502), acceptFreshness: true }))).toMatchObject({ ok: true, ticket: { attemptId: uuid(0x502) } });
+    expect(actions(h)).toEqual(['dispatch']);
   });
 
   it('[SP-054] Message Guard: a proven 4xx is reported with its status and the same part is never sent again', async () => {
@@ -365,6 +381,43 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     await report(h, 'a', 'sentObserved', { platformMessageId: WORLD.messages.sentByUs });
     await h.coordinator.idle();
     expect(h.coordinator.status(A)?.state).toBe('sentObserved');
+  });
+
+  it('[X8-09] a click inside another send’s ticket is refused by the hub (`custody_held`) and holds nothing: the next click past the ticket is dispatched, and the unknown outcome stays as it is (2026-10-23 audit)', async () => {
+    const h = sendHarness();
+    // The hub as it decides (client-claim-transition.ts): A's custody is in flight for its ticket, unknown after it.
+    const ticketEnd = NOW_MS + 10_000;
+    h.hub.claimStatus = (pageLabel, fanRef) => {
+      h.hub.statusReads.push({ pageLabel, fanRef });
+      return Promise.resolve(claim({ attemptId: A, state: h.clock.now() < ticketEnd ? 'dispatching' : 'uncertain-held' }));
+    };
+    h.hub.claimScript.push(ticketFor(A));
+    await h.coordinator.begin(TAB, h.begin());
+    // ChatSpace's POST answers 5xx at once: A's outcome is unknown well inside its ticket.
+    await report(h, 'a', 'nativeEnqueued', {}, 'p');
+    await report(h, 'a', 'uncertain', { code: 'CG-SEND-UNCERTAIN' });
+    // «Отправить ещё раз» of part 1 and «Отправить» of part 2 inside the ticket: one dispatch each, each refused.
+    const custodyHeld: ClaimAnswer = { kind: 'http', status: 409, error: 'custody_held' };
+    h.hub.claimScript.push(custodyHeld, custodyHeld);
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x501) }))).toEqual({ ok: false, view: { attemptId: uuid(0x501), state: 'held', code: 'CG-SEND-UNCERTAIN' } });
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x502), part: { index: 1 } }))).toEqual({ ok: false, view: { attemptId: uuid(0x502), state: 'held', code: 'CG-SEND-UNCERTAIN' } });
+    await h.coordinator.idle();
+    expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 1 });
+    // Nothing moves by itself while the person waits.
+    await h.clock.advance(10_000);
+    await h.coordinator.idle();
+    expect(actions(h)).toEqual(['dispatch', 'dispatch', 'dispatch']);
+    // Past the ticket the next click of each part is dispatched as usual: the hub sets A aside then.
+    h.hub.claimScript.push(ticketFor(uuid(0x503)), okAnswer(uuid(0x503), 'sent'));
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x503) }))).toMatchObject({ ok: true, ticket: { attemptId: uuid(0x503) } });
+    await report(h, '503', 'nativeAccepted', { platformMessageId: WORLD.messages.sentByUs });
+    await report(h, '503', 'sentObserved', { platformMessageId: WORLD.messages.sentByUs });
+    h.hub.claimScript.push(ticketFor(uuid(0x504)));
+    expect(await h.coordinator.begin(TAB, h.begin({ attemptId: uuid(0x504), part: { index: 1 } }))).toMatchObject({ ok: true, ticket: { attemptId: uuid(0x504) } });
+    await h.coordinator.idle();
+    // One dispatch per click and nothing else; A was never sent again, and is still unknown.
+    expect(actions(h)).toEqual(['dispatch', 'dispatch', 'dispatch', 'dispatch', 'sent', 'dispatch']);
+    expect(h.coordinator.status(A)).toEqual({ attemptId: A, state: 'uncertain', code: 'CG-SEND-UNCERTAIN' });
   });
 
   it('[NF-022] `send.list`: a tab that lost its tracking reads the fan’s journaled attempts back — after a restart too; a resolved one and one that never reached the journal are not listed', async () => {

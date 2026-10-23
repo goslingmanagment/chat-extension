@@ -53,7 +53,7 @@ export const SEND_REASON_KEYS = {
   'CG-CLAIM-BUSY': 'send.reason.claimBusy',
   /** The hub's `preview_send_rate_limited` (6 per minute): off until its deadline. */
   'CG-HUB-RATE-LIMIT': 'send.reason.rateLimit',
-  /** The hub's `custody_held`: another send to this fan is unresolved (the desktop's included). */
+  /** The hub's `custody_held`: another send to this fan is inside its ticket (the desktop's included) — a few seconds, then a new click. */
   'CG-SEND-UNCERTAIN': 'send.reason.otherUncertain',
   /** 1.30.0 (X53): the picked media cannot go yet (the controller's reason says why). */
   'CG-SEND-MEDIA': 'send.reason.media',
@@ -138,7 +138,9 @@ function fromPreflight(preflight: PreviewSendPreflight): PreviewSendState {
  *   it (the controller drops the attempt once the deadline passes);
  *   any other §6.7.4 condition → the current preflight decides (the condition
  *   may have cleared); anything else — a transport failure of `dispatch`, an
- *   expired ticket (CG-TIMEOUT) — nothing reached ChatSpace → rejected with retry.
+ *   expired ticket (CG-TIMEOUT), the hub's refusal while another send to the
+ *   fan is inside its ticket (CG-SEND-UNCERTAIN: «подождите пару секунд») —
+ *   nothing reached ChatSpace → rejected with retry.
  */
 export function previewSendStateOf(attempt: SendAttemptView | null, preflight: PreviewSendPreflight): PreviewSendState {
   if (attempt === null) return fromPreflight(preflight);

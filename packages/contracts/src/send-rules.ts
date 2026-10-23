@@ -52,15 +52,20 @@ export const SEND_ATTEMPT_RETRYABLE_ENDS = ['held', 'notEnqueued'] as const sati
 /**
  * Hold codes that another click of the same part cannot lift (§6.7.5,
  * §6.7.8): a newer fan message or a changed part/identity needs a new
- * generation (or «Открыть и вставить»), an unresolved send to the fan needs
- * the hub's `resolve`, a colleague's lease or a confirmed greeting ends the
- * greeting. A new attempt would only hold again after one more hub dispatch.
+ * generation (or «Открыть и вставить»), a colleague's lease or a confirmed
+ * greeting ends the greeting. A new attempt would only hold again after one
+ * more hub dispatch. The stale hold is the one warning the person may pass:
+ * the click that carries «Отправить всё равно» (`acceptFreshness`) lifts it in
+ * the coordinator, a plain click does not (2026-10-20 audit, row 3). The hub's
+ * refusal while another send to the fan is inside its ticket (`custody_held`,
+ * CG-SEND-UNCERTAIN) is not listed: it holds nothing, the next click asks the
+ * hub again, and past the ticket the hub sets that send aside (row 2;
+ * 2026-10-23 audit).
  */
 export const SEND_HOLD_CODES_WITHOUT_RETRY = [
   'CG-SEND-STALE',
   'CG-SEND-PART',
   'CG-CONTEXT-CHANGED',
-  'CG-SEND-UNCERTAIN',
   'CG-CLAIM-BUSY',
 ] as const satisfies readonly CgCode[];
 
