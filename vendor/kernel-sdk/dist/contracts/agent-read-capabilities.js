@@ -15,7 +15,7 @@
  * Design reference: `investigations/agent-read-api-design-2026-07-31.md` §8.
  */
 /**
- * Exactly five. Adding a sixth is a contract change: it widens what a key can be
+ * Exactly six. Adding a seventh is a contract change: it widens what a key can be
  * granted, so it travels with a migration for the `agent_keys` CHECK, an entry in
  * the per-operation requirement table, and regression coverage.
  */
@@ -30,6 +30,8 @@ export const AGENT_CAPABILITIES = [
     "read:datasets",
     /** Filing a hydration request (#11/#12). Execution stays an owner decision. */
     "request:hydration",
+    /** Drafting publications (wall posts) on the key's pages. Approving stays a person's. */
+    "write:publication_drafts",
 ];
 const AGENT_CAPABILITY_SET = new Set(AGENT_CAPABILITIES);
 /**

@@ -34,6 +34,11 @@ export interface SubscriberPollerDeps {
   /** `settings.sound.subscribers.on` and the owner's switch: off — no polling at all. */
   readonly enabled: () => boolean;
   readonly sink: { handleSubscribers(batch: SubscriberBatch): Promise<unknown> };
+  /**
+   * 2026-10-24: the greeting reminder reads the same answers (`createGreetReminder`); while it is on, the poll runs
+   * with the subscriber sound off, and the sink hears nothing then.
+   */
+  readonly rows?: { enabled(): boolean; handle(page: SubscriberPage, answer: AudienceNewPage): void };
   /** The browser has a network (`navigator.onLine`); false — nothing is asked until it is back. Omitted — always. */
   readonly online?: () => boolean;
   /** 0 ≤ x < 1, for the spread of the pause. Omitted — `Math.random`. */
@@ -75,7 +80,9 @@ export function createSubscriberPoller(deps: SubscriberPollerDeps): SubscriberPo
 
   const round = async (): Promise<void> => {
     // Only for a person at work, with a network, and only pages whose creator this browser has open somewhere.
-    if (!deps.enabled() || deps.presence.listeningTabs() === 0 || deps.online?.() === false) return;
+    const ring = deps.enabled();
+    const remind = deps.rows?.enabled() === true;
+    if ((!ring && !remind) || deps.presence.listeningTabs() === 0 || deps.online?.() === false) return;
     const accounts = deps.presence.accounts();
     let asked = 0;
     let answered = 0;
@@ -85,6 +92,8 @@ export function createSubscriberPoller(deps: SubscriberPollerDeps): SubscriberPo
       try {
         const answer = await deps.read(page, windowHours);
         answered += 1;
+        if (remind) deps.rows?.handle(page, answer);
+        if (!ring) continue;
         await deps.sink.handleSubscribers({
           pageKey: String(page.pageId),
           platform: page.platform,

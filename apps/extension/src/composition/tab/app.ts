@@ -330,7 +330,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   let boards: Promise<TabBoards> | null = null;
   /** The boards once they started, for what a toast asks synchronously. */
   let boardsReady: TabBoards | null = null;
-  const needsBoards = (action: UiAction): boolean => action.type === 'OpenPreview' || (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface));
+  const needsBoards = (action: UiAction): boolean => action.type === 'OpenPreview' || action.type === 'GreetNewcomer' || (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface));
   /** What a board could not say itself (it has closed, or its row keeps nothing of it): a toast with the code. */
   const say = (code: CgCode, scope: string, title: I18nKey | null): void => {
     const entry = CG_REGISTRY[code];

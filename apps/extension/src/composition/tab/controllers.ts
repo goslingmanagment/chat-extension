@@ -446,6 +446,30 @@ export async function startBoards(
   const controllers = [preview, spenders, newcomers, fanPanel];
   const offs = controllers.map((controller) => router.register(adopt(controller as unknown as LooseController)));
 
+  /**
+   * 2026-10-24: «Hi» of a greeting reminder's toast — «Новые» opens on the fan's card and its Hi starts, under that
+   * one click's `generate` grant. A fan the list does not have yet is read for once; whatever then holds Hi (the fan
+   * was greeted meanwhile) the card says itself.
+   */
+  async function greet(handle: string): Promise<ActionReceipt> {
+    await router.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
+    if (newcomers.directory.resolve(handle) === null) await newcomers.refresh();
+    const opened = await router.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    if (!opened.ok) return { ...opened, type: 'GreetNewcomer' };
+    const started = await router.dispatch({ type: 'Generate', targetHandle: handle, feature: 'hi', options: { variants: 1 } });
+    return { ...started, type: 'GreetNewcomer' };
+  }
+  offs.push(
+    router.register(
+      adopt({
+        kinds: [],
+        getSnapshot: () => undefined,
+        subscribe: () => () => undefined,
+        dispatch: (action) => (action.type === 'GreetNewcomer' ? greet(action.targetHandle) : null),
+      }),
+    ),
+  );
+
   const mirror = (): void => {
     const state = surfaces.current();
     const wanted: readonly [Parameters<typeof overlays.set>[0], boolean][] = [

@@ -12,8 +12,9 @@
 // whatever geckodriver finds on PATH elsewhere).
 //
 // CG_SEE_LIVE=1 (`pnpm see … --live`, e2e/see/live.ts) is the one run that leaves loopback: no stand and no egress
-// sink, the real fansly.com in a durable profile (CG_SEE_LIVE_PROFILE, default ~/.cache/chatgoose/fansly-live-profile:
-// the test model's sign-in stays there), the fake hub as ever.
+// sink, the real fansly.com in a durable profile (CG_SEE_LIVE_PROFILE, default ~/.cache/chatgoose/fansly-live/<this
+// worktree's folder>: the test model's sign-in stays there, and agents in two worktrees do not lock each other out of
+// one profile), the fake hub as ever.
 //
 // CG_E2E_SHARD=<k>/<n> runs part k of n of the spec files (src/e2e-shards.ts:
 // the CI job runs the parts side by side); unset, every spec file runs. The
@@ -50,7 +51,7 @@ const firefoxBinary = process.env['FIREFOX_BIN'] ?? (existsSync(macFirefox) ? ma
 process.env['MOZ_REMOTE_SETTINGS_DEVTOOLS'] = '1';
 
 const live = process.env['CG_SEE_LIVE'] === '1';
-const liveProfile = process.env['CG_SEE_LIVE_PROFILE'] || join(homedir(), '.cache/chatgoose/fansly-live-profile');
+const liveProfile = process.env['CG_SEE_LIVE_PROFILE'] || join(homedir(), '.cache/chatgoose/fansly-live', basename(repoRoot));
 if (live) mkdirSync(liveProfile, { recursive: true });
 
 let stand: StandServer | null = null;
@@ -145,8 +146,8 @@ export const config: WebdriverIO.Config = {
           'browser.download.alwaysOpenPanel': false,
           'browser.helperApps.neverAsk.saveToDisk': 'text/plain,application/json',
           // --live: no service workers. Fansly's own (Angular's) fetches whatever a page asks without `ngsw-bypass`
-          // itself, and BiDi neither sees nor intercepts a worker's requests — a write would pass the guard
-          // (e2e/see/live.ts). Measured 2026-10-24: a POST without the flag left, with it it was failed.
+          // itself, and BiDi does not see a worker's requests: the journal of writes (e2e/see/live.ts) would miss
+          // them. Measured 2026-10-24 with a probe POST.
           ...(live ? { 'dom.serviceWorkers.enabled': false } : {}),
         },
       },

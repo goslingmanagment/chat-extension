@@ -183,6 +183,8 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   InsertNewcomerGreeting: ['navigate'],
   // «Рассылка» of Spenders on Fansly: a row's «Отправить» is a send by this click.
   SendOutreach: ['send'],
+  // 2026-10-24: «Hi» of a greeting reminder's toast opens the fan's card and starts its Hi.
+  GreetNewcomer: ['generate'],
   // 1.47.0: Voice. The chip writes the script when the studio opens over a draft; a preset, «Переписать» and «Новый
   // войс» write one; «Озвучить» and «Проверить» are the paid create (the same request again for «Проверить»); only
   // «Прикрепить» hands the MP3 to the site's field, and «Убрать текст» / «Вернуть текст» write the field's draft.

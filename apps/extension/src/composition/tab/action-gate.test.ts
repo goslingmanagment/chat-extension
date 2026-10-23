@@ -272,6 +272,7 @@ describe('the action tokens of a tab', () => {
       SendNewcomerGreeting: ['send'],
       InsertNewcomerGreeting: ['navigate'],
       SendOutreach: ['send'],
+      GreetNewcomer: ['generate'],
       ShowVoice: ['generate'],
       WriteVoiceScript: ['generate'],
       NewVoice: ['generate'],

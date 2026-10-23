@@ -6,7 +6,8 @@
 //   pnpm see <scenario|file> [--site fansly] [--gif] [--no-build]
 //   pnpm see --new <name>            a scenario of one's own (packages/testing/e2e/see/scratch, not committed)
 //   pnpm see:session [chatspace|fansly]   a shift held open; pnpm see:do drives it
-//   … --live [--chat <group>]       Fansly for real: the test model on fansly.com, every write to Fansly failed (e2e/see/live.ts)
+//   … --live [--chat <group>]       Fansly for real: the test model on fansly.com, its writes to Fansly journaled (e2e/see/live.ts)
+//   pnpm see:session --bare          the same site alone, no extension: a browser to study Fansly in (net.json, s.net)
 //   pnpm see:do '<js>' | --file f.js | --shot <name> | --stop
 //   pnpm see:gallery                 the UI galleries (vite, hot reload)
 //
@@ -121,11 +122,12 @@ function ensureBuilds(skip: boolean, live = false): void {
 
 /** The environment of a `--live` run (fansly.com, the test model): null without the switch. */
 function liveEnv(flags: Flags): Record<string, string> | null {
-  if (!flags.switches.has('--live')) return null;
+  const bare = flags.switches.has('--bare');
+  if (!flags.switches.has('--live') && !bare) return null;
   if (flags.site !== null && flags.site !== 'fansly') fail('see: --live is Fansly\'s only');
   const chat = flags.values.get('--chat') ?? '';
   if (chat !== '' && !/^\d+$/.test(chat)) fail(`see: --chat ${chat}: a chat's number (fansly.com/messages/<number>)`);
-  return { CG_SEE_LIVE: '1', CG_SEE_SITE: 'fansly', ...(chat === '' ? {} : { CG_SEE_LIVE_GROUP: chat }) };
+  return { CG_SEE_LIVE: '1', CG_SEE_SITE: 'fansly', ...(bare ? { CG_SEE_LIVE_BARE: '1' } : {}), ...(chat === '' ? {} : { CG_SEE_LIVE_GROUP: chat }) };
 }
 
 // ── scenarios ──────────────────────────────────────────────────────────────
@@ -266,7 +268,7 @@ function contactSheet(out: string, title: string, status: string): string {
     })
     .join('\n');
   const gif = existsSync(join(out, 'see.gif')) ? '<figure><img src="see.gif" alt="see.gif"><figcaption>see.gif</figcaption></figure>' : '';
-  const files = ['report.json', 'diagnostics.json', 'journals.json', 'hub-calls.json', 'console.json', 'egress.json', 'blocked.json', 'violations.txt', 'error.txt', 'wdio.log']
+  const files = ['report.json', 'diagnostics.json', 'journals.json', 'hub-calls.json', 'console.json', 'egress.json', 'writes.json', 'net.json', 'violations.txt', 'error.txt', 'wdio.log']
     .filter((file) => existsSync(join(out, file)))
     .map((file) => `<a href="${file}">${file}</a>`)
     .join(' · ');
@@ -373,12 +375,13 @@ async function run(flags: Flags): Promise<void> {
   const [arg] = flags.positional;
   if (arg === undefined) return listScenarios();
   const spec = resolveScenario(arg);
+  if (flags.switches.has('--bare')) fail('see: --bare is a held session\'s (pnpm see:session --bare): a scenario presses our buttons');
   const live = liveEnv(flags);
   ensureBuilds(flags.noBuild, live !== null);
   const built = Date.now();
   const name = `${scenarioName(spec)}${live !== null ? '-live' : flags.site === null ? '' : `-${flags.site}`}`;
   const out = outDir(name);
-  say(`${relative(REPO_ROOT, spec)} → headless Firefox ${live !== null ? 'on fansly.com (the test model; writes to Fansly failed)' : 'on the stand'}…`);
+  say(`${relative(REPO_ROOT, spec)} → headless Firefox ${live !== null ? 'on fansly.com (the test model: real fans — a send or a post only on the owner\'s «да»)' : 'on the stand'}…`);
   const env: Record<string, string> = { ...(flags.site === null ? {} : { CG_SEE_SITE: flags.site }), ...live, ...(flags.gif ? { CG_SEE_GIF: '1' } : {}) };
   const code = await wdio(spec, out, env).exit;
   if (flags.gif) makeGif(out);
@@ -418,11 +421,12 @@ async function session(flags: Flags): Promise<void> {
   if (live !== null && site !== 'fansly') fail('see: --live is Fansly\'s only');
   const running = readSession();
   if (running !== null) fail(`see: a session (${running.site}) already runs on http://127.0.0.1:${running.port}/live — pnpm see:do --stop`);
-  ensureBuilds(flags.noBuild, live !== null);
-  const label = live !== null ? 'fansly-live' : site;
+  const bare = live?.['CG_SEE_LIVE_BARE'] === '1';
+  ensureBuilds(flags.noBuild || bare, live !== null);
+  const label = bare ? 'fansly-bare' : live !== null ? 'fansly-live' : site;
   const out = outDir(`session-${label}`);
   const idle = flags.values.get('--idle') ?? process.env['CG_SEE_IDLE_MIN'] ?? '30';
-  say(`starting a ${live !== null ? 'live fansly.com (the test model; writes to Fansly failed)' : site} session (headless Firefox; stops after ${idle} min without a request)…`);
+  say(`starting a ${bare ? 'bare fansly.com (the test model, no extension: real fans — a send or a post only on the owner\'s «да»)' : live !== null ? 'live fansly.com (the test model: real fans — a send or a post only on the owner\'s «да»)' : site} session (headless Firefox; stops after ${idle} min without a request)…`);
   const { child, exit } = wdio(join(SEE_DIR, 'session.see.ts'), out, { CG_SEE_SITE: site, ...live, CG_SEE_PORT: String(SESSION_PORT), CG_SEE_IDLE_MIN: idle }, (line) => {
     if (!line.includes('cg-see session ready')) return;
     console.log('');

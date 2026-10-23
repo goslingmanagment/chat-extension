@@ -15,11 +15,11 @@
  * Design reference: `investigations/agent-read-api-design-2026-07-31.md` §8.
  */
 /**
- * Exactly five. Adding a sixth is a contract change: it widens what a key can be
+ * Exactly six. Adding a seventh is a contract change: it widens what a key can be
  * granted, so it travels with a migration for the `agent_keys` CHECK, an entry in
  * the per-operation requirement table, and regression coverage.
  */
-export declare const AGENT_CAPABILITIES: readonly ["read:messages", "read:money", "read:observations_envelope", "read:datasets", "request:hydration"];
+export declare const AGENT_CAPABILITIES: readonly ["read:messages", "read:money", "read:observations_envelope", "read:datasets", "request:hydration", "write:publication_drafts"];
 export type AgentCapability = (typeof AGENT_CAPABILITIES)[number];
 /**
  * Boundary check for an UNVALIDATED capability name (it arrives from an issuance

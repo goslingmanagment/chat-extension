@@ -2,7 +2,7 @@
 // the batch's Reply or Ping, written by the hub from the fan's own history — then the common text, with the copied
 // items the person picked from the page's own «Copied …» list (Fansly's attach menu). Only the person's click on the
 // fan's row sends it (X8: one send — one click; no key, no «send all»), one attempt, never repeated; every «Отправить»
-// of the board rests a second after a click (#343). What reached a fan stays marked while the tab lives.
+// of the board rests half a second after a click (#343, #349). What reached a fan stays marked while the tab lives.
 
 import { type ActionReceipt, type I18n, type OutreachItemVM, type OutreachRowVM, type OutreachVM, type UiAction } from '@cg/contracts/vm';
 
@@ -11,8 +11,8 @@ import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { done, refused } from '../boards/surface';
 import { localError } from '../boards/views';
 
-/** One «Отправить» of the board a second (#343: a run of clicks never goes out in one burst). */
-export const OUTREACH_PACE_MS = 1_000;
+/** One «Отправить» of the board each half second, as the preview's (#343, #349: a run of clicks never goes out in one burst). */
+export const OUTREACH_PACE_MS = 500;
 
 /** An item of Fansly's «Copied …» list: 2 — «Copied Bundle», 1 — «Copied Media». */
 export interface OutreachItem {

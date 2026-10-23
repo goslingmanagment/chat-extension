@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { browser } from '@wdio/globals';
 
 import { lap, OUT, recordFrames, useSee, type See } from './kit';
-import { blockedWrites, LIVE } from './live';
+import { fanslyWrites, LIVE, netRecords } from './live';
 
 const PORT = Number(process.env['CG_SEE_PORT'] ?? 47811);
 const IDLE_MS = Number(process.env['CG_SEE_IDLE_MIN'] ?? 30) * 60_000;
@@ -106,7 +106,7 @@ describe('see: a held session', function (this: Mocha.Suite) {
           } else if (url.pathname === '/live' || url.pathname === '/') {
             answer(response, 200, LIVE_PAGE, 'text/html; charset=utf-8');
           } else if (url.pathname === '/status') {
-            answer(response, 200, { site: s.site, live: LIVE, blockedWrites: blockedWrites.length, out: OUT, port: PORT, shots, last, idleMinutes: IDLE_MS / 60_000 });
+            answer(response, 200, { site: s.site, live: LIVE, fanslyWrites: fanslyWrites.length, net: netRecords.length, out: OUT, port: PORT, shots, last, idleMinutes: IDLE_MS / 60_000 });
           } else if (url.pathname === '/stop') {
             stopped = true;
             answer(response, 200, { ok: true, stopping: true });

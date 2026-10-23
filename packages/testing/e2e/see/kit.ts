@@ -31,7 +31,7 @@ import { fakeFansly } from '../support/fansly-stand';
 import { allOurs, ours, oursExists, oursText, pressOurs, readOurs, waitOursByText, waitOursText, type Where } from '../support/ours';
 import { dockIs, startShift, type ShiftOptions } from '../support/shift';
 import { callStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
-import { blockedWrites, LIVE, startLiveShift } from './live';
+import { fanslyWrites, LIVE, netRecords, startLiveShift, type NetRecord } from './live';
 
 export type Site = 'chatspace' | 'fansly';
 
@@ -128,6 +128,8 @@ export interface See {
   wait(ms: number): Promise<void>;
   /** The page's console so far. */
   readonly console: readonly ConsoleEntry[];
+  /** --live: the page's requests and socket frames so far, with bodies (live.ts `NetRecord`); [] on the stand. */
+  readonly net: readonly NetRecord[];
   readonly MOD: string;
   readonly PANEL: readonly string[];
   readonly Key: typeof Key;
@@ -277,7 +279,7 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
     if (LIVE) {
       const generation = options.settings?.generation as Partial<SettingsV1['generation']> | undefined;
       const group = process.env['CG_SEE_LIVE_GROUP'];
-      const shift = await startLiveShift(hub, { viewport, ...(group === undefined || group === '' ? {} : { group }), ...(generation === undefined ? {} : { generation }) });
+      const shift = await startLiveShift(hub, { viewport, bare: process.env['CG_SEE_LIVE_BARE'] === '1', ...(group === undefined || group === '' ? {} : { group }), ...(generation === undefined ? {} : { generation }) });
       toChat = () => shift.toFansly();
       toPages = () => shift.toPages();
       rpc = (type, payload) => shift.rpc(type, payload);
@@ -322,7 +324,8 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
     await frames?.stop();
     write('shots.json', notes);
     write('console.json', logs);
-    if (LIVE) write('blocked.json', blockedWrites);
+    if (LIVE) write('writes.json', fanslyWrites);
+    if (LIVE) write('net.json', netRecords);
     try {
       write('report.json', await readReport());
     } catch (error) {
@@ -477,6 +480,7 @@ function makeSee(parts: Parts): See {
     get console() {
       return parts.logs;
     },
+    net: netRecords,
     MOD,
     PANEL,
     Key,
