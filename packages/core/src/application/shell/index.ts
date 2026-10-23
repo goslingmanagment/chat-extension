@@ -9,6 +9,10 @@
 // page, a content script has nowhere to save it from), «Промпт» of a result's
 // debug block (DB-007), «Скопировать код» of an error card (ER-006).
 //
+// The greeting reminder's toast (2026-10-24) «Ждёт приветствия · {фан}» stays
+// until it is closed: its «Hi» opens the fan's card in «Новые» and starts Hi
+// there (`GreetNewcomer`, answered by the boards), and the click closes it.
+//
 // A toast the UI or a controller raises by itself (a key's reason, a render
 // failure) goes through ToastPort and is the overlay host's own queue; the
 // two queues are drawn together by the toasts surface. The rules are the
@@ -25,6 +29,7 @@ import { type ActionButtonVM, type ActionReceipt, type I18n, type MountSurfaceKi
 
 import { TOAST_TIMING, errorView, settingsRouteOf, toastKey, toastLifetimeMs, viewOfCode } from '../../domain/errors';
 import { translatorOf } from '../../domain/i18n/live';
+import { fanHandle } from '../boards/handles';
 
 export interface ShellClock {
   now(): number;
@@ -101,6 +106,10 @@ export function createShellController(ports: ShellPorts): ShellController {
     const code = toast.code ?? toast.error?.code ?? null;
     const fan = toast.fanLabel;
     const actions: ActionButtonVM[] = [];
+    if (toast.greet !== undefined) {
+      const action: UiAction = { type: 'GreetNewcomer', targetHandle: fanHandle('newcomers', toast.greet.pageId, toast.greet.fanRef) };
+      return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: fan ?? i18n.t('newcomers.col.fan') }), body: null, actions: [button('dock.action.hi', action)], copyCode: false, expiresAt: null };
+    }
     // §9.5: a background toast leads to its chat — by the person's click only.
     if (toast.chat !== undefined && ports.chatHandle !== undefined) actions.push(button('common.openChat', { type: 'Navigate', to: { kind: 'chat', targetHandle: ports.chatHandle(toast.chat, toast.conversationRef) } }));
     const route = code === null ? null : settingsRouteOf(code);
@@ -153,7 +162,7 @@ export function createShellController(ports: ShellPorts): ShellController {
     const kept = [entry, ...entries.filter((item) => !same(item))];
     for (const extra of kept.slice(TOAST_TIMING.maxVisible)) stop(extra);
     entries = kept.slice(0, TOAST_TIMING.maxVisible);
-    arm(entry, toastLifetimeMs(toast.kind, toast.code ?? null));
+    if (toast.greet === undefined) arm(entry, toastLifetimeMs(toast.kind, toast.code ?? null));
     changed();
   }
 
@@ -184,6 +193,8 @@ export function createShellController(ports: ShellPorts): ShellController {
       if (action.type === 'HoldToast') {
         const entry = entries.find((item) => item.toast.toastId === action.toastId);
         if (entry === undefined) return null;
+        // A reminder has no time to hold.
+        if (entry.toast.greet !== undefined) return Promise.resolve(done(action.type, 'noop'));
         if (action.hold && entry.expiresAt !== null) {
           entry.left = Math.max(0, entry.expiresAt - clock.now());
           stop(entry);
@@ -194,6 +205,11 @@ export function createShellController(ports: ShellPorts): ShellController {
           changed();
         }
         return Promise.resolve(done(action.type));
+      }
+      // «Hi» of a reminder: its toast goes; the boards open the card and start Hi.
+      if (action.type === 'GreetNewcomer') {
+        for (const entry of entries.filter((item) => item.toast.greet !== undefined && fanHandle('newcomers', item.toast.greet.pageId, item.toast.greet.fanRef) === action.targetHandle)) remove(entry.toast.toastId);
+        return null;
       }
       if (action.type === 'ReloadTab') {
         tab.reload();

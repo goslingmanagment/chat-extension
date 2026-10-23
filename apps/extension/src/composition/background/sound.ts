@@ -21,7 +21,7 @@ import { DEFAULT_FANSLY_SETTINGS } from '@cg/contracts/settings-ext';
 import { flagOnSomePage, flagUsable } from '@cg/core/domain/ops';
 import { type SoundTones } from '@cg/core/domain/sound';
 import { type Clock, type KeyValueStore as ThrowingStore, type LogSink, type PresenceService, type TabEventSink } from '@cg/core/services';
-import { SoundArbiter, createSubscriberPoller, type SoundAudioPort, type SubscriberPage, type SubscriberPoller, type SoundStreamPort } from '@cg/core/services/sound';
+import { SoundArbiter, createSubscriberPoller, type GreetReminder, type SoundAudioPort, type SubscriberPage, type SubscriberPoller, type SoundStreamPort } from '@cg/core/services/sound';
 
 /** A page a tab read itself less than this long ago is left out of the slow poll (the tab asks every 30 s). */
 export const TAB_FED_FRESH_MS = 45_000;
@@ -67,6 +67,8 @@ export interface BackgroundSoundDeps {
   /** storage.session. */
   readonly session: ThrowingStore;
   readonly log: LogSink;
+  /** 2026-10-24: the greeting reminder hears every answer of «Новые» the poll or a tab got; it keeps the poll on by itself. */
+  readonly greetings?: Pick<GreetReminder, 'enabled' | 'handle'>;
 }
 
 export interface BackgroundSound {
@@ -129,7 +131,8 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     const out: SubscriberPage[] = [];
     for (const page of bootstrap.pages) {
       const platform = narrowPlatform(page.platform);
-      if (platform !== HOST_PLATFORM.chatspace || !deps.newcomersUsable(page.pageLabel) || !flagUsable(bootstrap, page.pageId, 'sound')) continue;
+      // A page with its `sound` switch off is still read for the greeting reminder; the arbiter then rings nothing for it.
+      if (platform !== HOST_PLATFORM.chatspace || !deps.newcomersUsable(page.pageLabel) || !(flagUsable(bootstrap, page.pageId, 'sound') || deps.greetings?.enabled() === true)) continue;
       if (now - (tabFed.get(page.pageId) ?? Number.NEGATIVE_INFINITY) < TAB_FED_FRESH_MS) continue;
       out.push({ pageId: page.pageId, pageLabel: page.pageLabel, platform, platformAccountId: page.platformAccountId });
     }
@@ -143,6 +146,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
     presence: { listeningTabs: () => deps.presence.listeningTabs(), accounts },
     enabled: () => deps.settings()?.subscribers.on === true && flagOnSomePage(deps.bootstrap(), 'sound'),
     sink: { handleSubscribers: (batch) => hear(batch, null) },
+    ...(deps.greetings === undefined ? {} : { rows: deps.greetings }),
     online: deps.online,
     log: deps.log,
   });
@@ -155,6 +159,7 @@ export function createBackgroundSound(deps: BackgroundSoundDeps): BackgroundSoun
       const platform = narrowPlatform(page.platform);
       if (platform !== HOST_PLATFORM.chatspace) return;
       tabFed.set(page.pageId, deps.clock.now());
+      deps.greetings?.handle({ pageId: page.pageId, platform, platformAccountId: page.platformAccountId }, answer);
       void hear(
         {
           pageKey: String(page.pageId),

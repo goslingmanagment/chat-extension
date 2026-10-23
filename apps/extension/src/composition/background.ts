@@ -102,7 +102,7 @@ import {
   type SettingsPatchRequest,
 } from '@cg/core/services';
 import { DiagnosticsService, SpendService, advancedAccountInfo, clearDebugData, type DiagnosticsFacts } from '@cg/core/services/diagnostics';
-import { soundRequestHandlers } from '@cg/core/services/sound';
+import { createGreetReminder, soundRequestHandlers } from '@cg/core/services/sound';
 import { createSiteAccess } from '@cg/core/services/site-access';
 import { createNetworkSession, legacyAccount } from '@cg/core/services/network-session';
 import { HEALTH_TICK_MS } from '@cg/core/services/telemetry';
@@ -724,7 +724,17 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     'fansly-web': siteMatches().map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
     chatspace: (__CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES).map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
   } satisfies PerHost<readonly string[]>;
+  // 2026-10-24: a fan of «Новые» nobody greeted ten minutes after subscribing — a toast with «Hi» in the tab of their creator.
+  const greetings = createGreetReminder({
+    ids: IDS,
+    presence,
+    events,
+    enabled: () => (hubInstance?.cachedBootstrap() ?? null) !== null,
+    session: throwingStoreOf(session),
+    log: coreLog,
+  });
   const sound = createBackgroundSound({
+    greetings,
     local: throwingStoreOf(local),
     stream: {
       policy: (host, accountId) => hostModules.running(host)?.sound?.(accountId) ?? null,
@@ -1141,6 +1151,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         // tokens (bg/chatspace), the subscriber baselines and the preview drafts were the previous person's. A tab
         // that is open erases its own copy of the drafts; without one the key would stay on disk.
         sound.forget();
+        greetings.forget();
         void local.remove([STORAGE_KEYS.newcomersDrafts]);
       }
       // §9.4: at sign-out what is finished of the X8 journal goes; open records stay until resolved.
@@ -1686,7 +1697,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     { name: 'native-sends', run: () => nativeSends.restore() },
     { name: 'send-attributions', run: () => attributions.restore() },
     { name: 'presence', run: () => presence.start() },
-    { name: 'sound', run: () => sound.start() },
+    { name: 'sound', run: () => Promise.all([sound.start(), greetings.restore()]) },
     { name: 'consent', run: () => consent.start() },
     { name: 'telemetry', run: () => Promise.all([telemetry.start(), spend.start()]) },
     { name: 'ws-tap', run: () => wsTap.fromBootstrap(hubInstance?.cachedBootstrap()?.bootstrap ?? null) },

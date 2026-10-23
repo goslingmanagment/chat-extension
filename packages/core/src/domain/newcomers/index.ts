@@ -8,5 +8,6 @@ export * from './claim';
 export * from './drafts';
 export * from './greeting';
 export * from './poll';
+export * from './remind';
 export * from './rows';
 export * from './window';
