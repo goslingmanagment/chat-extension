@@ -154,13 +154,27 @@ ${/* ── parts: Hi variants, the Б2 question ── */ ''}
 .cg-vhead b { color: var(--cg-ink-2); font-weight: 600; }
 .cg-hi { display: grid; gap: 8px; padding: 6px 8px 8px; }
 .cg-hi__col { display: grid; gap: 6px; align-content: start; min-width: 0; }
+${/* Side by side the variants read as one row of cards: each column's last card reaches the row's foot, its buttons
+   stand at the card's foot — «Вставить» at the text's edge, «Копировать» at the far one — and a card of one message
+   keeps the same margin on both sides of its text. */ ''}
 @container cg (min-width: 680px) {
   .cg-hi { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-  .cg-hi .cg-part { grid-template-columns: 24px minmax(0, 1fr); }
+  .cg-hi__col { container: cg-hi / inline-size; display: flex; flex-direction: column; }
+  .cg-hi__col > .cg-part:last-child { flex-grow: 1; }
+  .cg-hi .cg-vhead { padding: 0 11px; }
+  .cg-hi .cg-part { grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: 1fr; padding: 8px 10px 8px 0; }
+  .cg-hi .cg-part.is-solo { grid-template-columns: 10px minmax(0, 1fr); }
   .cg-hi .cg-part__t { font-size: var(--cg-text-lg); line-height: 20px; }
-  .cg-hi .cg-part__a { grid-column: 2; justify-self: start; margin: 6px 0 0 -2px; }
-  .cg-hi .cg-part.is-done .cg-part__a { margin: 2px 0 0 -2px; }
+  .cg-hi .cg-part__a { grid-column: 2; flex-wrap: wrap; row-gap: 4px; margin: 8px 0 0; }
+  .cg-hi .cg-part__copy { order: 1; margin-left: auto; }
+  .cg-hi .cg-part.is-done .cg-part__a, .cg-hi .cg-part.is-done.is-kept .cg-part__a { margin: 8px 0 0; }
   .cg-hi .cg-part__card, .cg-hi .cg-part__extra { grid-column: 2; }
+}
+${/* A variant's column of a ~700 px dock is ~225 px: «Копировать» in words beside «Вставить ↵» does not fit its card, so
+   the copy is its icon there, as on a narrow dock; a row that still runs past the card wraps instead. */ ''}
+@container cg-hi (max-width: 279px) {
+  .cg-hi .cg-part__copy { width: 28px; padding: 0; justify-content: center; }
+  .cg-hi .cg-part__copy .cg-btn__t { display: none; }
 }
 .cg-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--cg-clay-line); }
 .cg-confirm__q { color: var(--cg-ink); font-weight: 500; margin-right: 6px; }
