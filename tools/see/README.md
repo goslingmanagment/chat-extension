@@ -88,15 +88,17 @@ production hub). A scenario takes ~15 s.
   another). A signed-out run signs in with `FANSLY_TEST_MODEL_EMAIL` /
   `FANSLY_TEST_MODEL_PASSWORD`: `set -a; . ~/.config/agency/secrets.env; set +a`
   first.
-- **Its chats are real fans.** Every write of the browser's pages to Fansly but
-  the sign-in is failed before it leaves (a BiDi intercept) and listed in
-  `blocked.json` and the `blocked …` lines: no read mark when a chat opens, no
-  «печатает», no send, no post, no upload, none of the site's telemetry.
-  Service workers are off in that profile: Fansly's own would carry a write
-  past the guard.
-- **The extension's own writes still leave**: WebDriver does not see its event
-  page — notes («Заметки»), `group.create`. X8's send needs the fake hub's
-  `previewSend`, which `--live` never switches on. No notes in a real fan's chat.
+- **Its chats are real fans, and nothing is blocked.** What a fan would see — a
+  message sent, a post or a story published, anything with money — only after
+  the owner's «да» in the chat (AGENTS.md). Opening chats, reading, uploading to
+  the vault, notes, a scheduled post taken off again: free.
+- **Every write of the browser's pages to Fansly** is listed as it leaves in
+  `writes.json` and the `write …` lines (a read mark, «печатает», a send, a
+  post, an upload, the site's telemetry). Service workers are off in that
+  profile: BiDi does not see Fansly's own worker, which carries any request a
+  page makes without `ngsw-bypass`. The extension's event page is out of
+  WebDriver's sight too (notes, `group.create`). X8's send needs the fake hub's
+  `previewSend`, which `--live` never switches on.
 - **No report on the real site** (`composition/tab/probe.ts`): `s.ready()` waits
   for Reply on the dock, `s.done()` for the dock to stand still 1.5 s,
   `s.dock()` and `s.report()` are null, captions have no dock line. Read the

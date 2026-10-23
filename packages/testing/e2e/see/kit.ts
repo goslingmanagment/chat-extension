@@ -31,7 +31,7 @@ import { fakeFansly } from '../support/fansly-stand';
 import { allOurs, ours, oursExists, oursText, pressOurs, readOurs, waitOursByText, waitOursText, type Where } from '../support/ours';
 import { dockIs, startShift, type ShiftOptions } from '../support/shift';
 import { callStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
-import { blockedWrites, LIVE, startLiveShift } from './live';
+import { fanslyWrites, LIVE, startLiveShift } from './live';
 
 export type Site = 'chatspace' | 'fansly';
 
@@ -322,7 +322,7 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
     await frames?.stop();
     write('shots.json', notes);
     write('console.json', logs);
-    if (LIVE) write('blocked.json', blockedWrites);
+    if (LIVE) write('writes.json', fanslyWrites);
     try {
       write('report.json', await readReport());
     } catch (error) {
