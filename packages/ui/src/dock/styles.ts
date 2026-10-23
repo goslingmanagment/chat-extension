@@ -156,11 +156,18 @@ ${/* ── parts: Hi variants, the Б2 question ── */ ''}
 .cg-hi__col { display: grid; gap: 6px; align-content: start; min-width: 0; }
 @container cg (min-width: 680px) {
   .cg-hi { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .cg-hi__col { container: cg-hi / inline-size; }
   .cg-hi .cg-part { grid-template-columns: 24px minmax(0, 1fr); }
   .cg-hi .cg-part__t { font-size: var(--cg-text-lg); line-height: 20px; }
-  .cg-hi .cg-part__a { grid-column: 2; justify-self: start; margin: 6px 0 0 -2px; }
+  .cg-hi .cg-part__a { grid-column: 2; justify-self: start; flex-wrap: wrap; row-gap: 4px; margin: 6px 0 0 -2px; }
   .cg-hi .cg-part.is-done .cg-part__a { margin: 2px 0 0 -2px; }
   .cg-hi .cg-part__card, .cg-hi .cg-part__extra { grid-column: 2; }
+}
+${/* A variant's column of a ~700 px dock is ~225 px: «Копировать» in words and «Вставить ↵» do not fit its card, so
+   the copy is its icon there, as on a narrow dock; a row that still runs past the card wraps instead. */ ''}
+@container cg-hi (max-width: 279px) {
+  .cg-hi .cg-part__copy { width: 28px; padding: 0; justify-content: center; }
+  .cg-hi .cg-part__copy .cg-btn__t { display: none; }
 }
 .cg-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--cg-clay-line); }
 .cg-confirm__q { color: var(--cg-ink); font-weight: 500; margin-right: 6px; }
