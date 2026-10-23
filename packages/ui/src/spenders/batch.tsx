@@ -68,7 +68,7 @@ export function BatchCheckAll({ list, handles, batch }: { readonly list: BatchLi
 }
 
 /** The bar over the list while someone is ticked or a batch has rows; nothing — when neither. */
-export function BatchBar({ list, batch }: { readonly list: BatchList; readonly batch: BatchVM }): JSX.Element | null {
+export function BatchBar({ list, batch, hint }: { readonly list: BatchList; readonly batch: BatchVM; readonly hint?: string }): JSX.Element | null {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const total = batch.queued + batch.generating + batch.ready + batch.sent + batch.failed;
@@ -97,7 +97,7 @@ export function BatchBar({ list, batch }: { readonly list: BatchList; readonly b
         <span class="cg-bt__sum" role="status">
           {i18n.t('batch.progress', { done: finished, total })}
           {batch.failed === 0 ? null : ` · ${i18n.t('batch.failedCount', { n: batch.failed })}`}
-          {running || finished === 0 ? null : ` · ${i18n.t('batch.hint')}`}
+          {running || finished === 0 ? null : ` · ${hint ?? i18n.t('batch.hint')}`}
         </span>
       )}
       {running ? <Button label={i18n.t('batch.stop')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'StopBatch', list })} /> : null}

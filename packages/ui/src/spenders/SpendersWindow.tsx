@@ -105,7 +105,7 @@ function PanelSplit({ panelRef, height, onResize }: { readonly panelRef: RefObje
  * черновик каждому — отправляете вы сами»; a batch already on its way says how far it got and can be stopped. The
  * batch never sends: each result waits on its fan's card for the person's own click (X8).
  */
-function PickedBar({ batch, picked }: { readonly batch: BatchVM; readonly picked: readonly string[] }): JSX.Element {
+function PickedBar({ batch, picked, outreach }: { readonly batch: BatchVM; readonly picked: readonly string[]; readonly outreach: boolean }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const total = batch.queued + batch.generating + batch.ready + batch.sent + batch.failed;
@@ -114,7 +114,7 @@ function PickedBar({ batch, picked }: { readonly batch: BatchVM; readonly picked
     <div class="cg-sp__picked" role="group" aria-label={i18n.t('batch.pickAll')} data-cg-batch={running ? 'running' : 'picked'}>
       <b class="cg-sp__pickedn cg-num">{i18n.t('spenders.batch.picked', { n: batch.picked })}</b>
       <Button
-        label={i18n.t('spenders.batch.write')}
+        label={i18n.t(outreach ? 'outreach.writeLines' : 'spenders.batch.write')}
         size="sm"
         class="cg-sp__solid"
         reason={batch.reason === null ? null : i18n.text(batch.reason)}
@@ -340,7 +340,7 @@ export function SpendersWindow(): JSX.Element {
             </header>
             {ticking && board.batch !== undefined ? (
               <div class="cg-sp__bar is-batch">
-                <PickedBar batch={board.batch} picked={picked} />
+                <PickedBar batch={board.batch} picked={picked} outreach={board.outreach?.open === true} />
               </div>
             ) : (
               <div class="cg-sp__bar">
@@ -359,7 +359,7 @@ export function SpendersWindow(): JSX.Element {
                 />
               </div>
             )}
-            {board.outreach?.open === true ? <OutreachBar outreach={board.outreach} /> : null}
+            {board.outreach?.open === true ? <OutreachBar outreach={board.outreach} started={board.batch !== undefined && board.batch.queued + board.batch.generating + board.batch.ready + board.batch.sent + board.batch.failed > 0} /> : null}
           </div>
           {expanded ? (
             <div class="cg-sp__cols is-stats">

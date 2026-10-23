@@ -123,7 +123,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [
         { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: ' hey ', attachments: [], cause },
         { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: [{ contentType: 3, contentId: '700000000000000011' }], cause },
-        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: [{ contentType: 2, contentId: 700000000000000011 }], cause },
+        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: [{ contentType: 2, contentId: 11 }], cause },
         { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: Array.from({ length: FANSLY_TAB_LIMITS.outreachAttachmentsMax + 1 }, () => ({ contentType: 2, contentId: '700000000000000011' })), cause },
         { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: [] },
       ],

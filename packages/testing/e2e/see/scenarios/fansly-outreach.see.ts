@@ -20,10 +20,10 @@ scenario(
     await s.see('modal', 'Hub Whale', 20_000);
     await s.press(/^Рассылка/, 'modal', '.cg-or__toggle');
     await s.see('modal', 'Copied Bundle');
-    await s.press(/^/, 'modal', '.cg-or__text textarea');
+    await s.press(/^/, 'modal', '.cg-or textarea');
     await s.browser.keys(Array.from('new video is up, the dragon one, just for you'));
     await s.press(/^/, 'modal', '.cg-bd__head .cg-bt__check');
-    await s.press(/^Написать приветствие/, 'modal');
+    await s.press(/^Написать личные строки/, 'modal');
     await s.see('modal', /Отправить/, 60_000);
     await s.shot('outreach-ready');
     await s.press(/^Отправить/, 'modal', '.cg-or__send');
