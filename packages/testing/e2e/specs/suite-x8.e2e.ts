@@ -202,6 +202,8 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await standServer.script(ACC, a6, [{ kind: 'ok', echo: 'after', gapMs: 1500 }]);
     await openPreview('Fan Fern');
     await generate(a6);
+    // Every «Отправить» rests a second after the last click (SEND_PACE_MS): the burst lands on the button once it is back.
+    await waitSend(0, 'available', 'the pause after the last test’s send is over');
     const send = `${part(0)} .cg-pvs__send`;
     // X66: the preview unfolds inside the list. Viewport pointer actions, unlike element.click(), do not scroll its button into view.
     await ours('modal', send).scrollIntoView({ block: 'center' });
@@ -224,7 +226,8 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     for (let click = 0; click < 20; click += 1) burst = burst.down().up();
     await burst.perform();
     await waitSend(0, /^(accepted|sent)$/, 'the part is on its way');
-    expect(await sendState(1)).toBe('available/after');
+    // The second part waits behind the first (its own word is the pause's for the second after the click).
+    expect(await sendState(1)).toMatch(/\/after$/);
     await waitSend(0, 'sent', 'the part is sent');
     expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
     expect(queueAdds(await pageJournal(mark))).toHaveLength(1);
@@ -291,7 +294,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     const generated = async (): Promise<number> => callsTo((await hub().journal(hubMark)).entries, 'aiFeatureStream').filter((call) => call.stream?.outcome === 'done').length;
     await openPreview('Fan Juniper');
     await generate(a10);
-    expect(await sendState(0)).toBe('available');
+    expect(await waitSend(0, 'available', 'the pause after the last test’s send is over')).toBe('available');
     const fanWrote = await standServer.fanMessage(ACC, a10, 'a new synthetic line of the fan');
     await waitSend(0, 'held-stale', 'the send warns: the fan wrote after the generation');
     const held = await oursText('modal', part(0));
@@ -377,7 +380,8 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
       await pressSendOf(0);
       // Its button comes back as it was — the reason would be lost — so the tab says it: the fan is busy with another send.
       await waitOursText('toast', 'CG-SEND-BUSY', 'the second tab says why its click started nothing');
-      expect(await sendState(0)).toBe('available');
+      // Back as it was once this tab's second of pause after its own click is over (SEND_PACE_MS).
+      expect(await waitSend(0, 'available', 'the button is back after the pause', 3000)).toBe('available');
       await browser.switchToWindow(firstTab);
       await waitSend(0, 'sent', 'the first tab’s part is sent');
       expect(sendsOf(await serverSince(standMark))).toHaveLength(1);
@@ -451,7 +455,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     const mark = await pageJournalMark();
     await openPreview('Fan Linden');
     await generate(a12);
-    expect(await sendState(0)).toBe('available');
+    expect(await waitSend(0, 'available', 'the pause after the last test’s send is over')).toBe('available');
     // The switch goes off at the hub; this browser has not read a bootstrap since.
     await hub().command({ op: 'config', patch: { flags: { previewSend: false } } });
     await pressSendOf(0);
