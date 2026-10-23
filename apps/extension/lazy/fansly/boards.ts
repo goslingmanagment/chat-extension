@@ -10,15 +10,28 @@ import { createSpendersController as create, type SpendersControllerDeps } from 
 import type { HostPort } from '@cg/contracts/host';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanslyRequest } from '../../src/composition/tab/hosts/fansly/requests';
+import { readCopiedMedia } from '@cg/host-fansly/isolated/copied-media';
 import type * as SharedBoards from '../entries/boards';
 import { createFanslyNewcomersController } from '../../src/composition/tab/hosts/fansly/newcomers';
 
 // R20 P10a (§8.17): «Новые» reads the background's pass; the shared entry keeps its hub source.
 export const createNewcomersController: typeof SharedBoards.createNewcomersController = (deps) => createFanslyNewcomersController(deps);
 
+/** Above the background's own wait for Fansly (30 s) and for its module; a send that outlives it is told «unknown», never resent. */
+const OUTREACH_TIMEOUT_MS = 45_000;
+
 export function createSpendersController(deps: SpendersControllerDeps & { readonly host: HostPort }) {
   const host = deps.host as FanslyPort;
-  return create({ ...deps, source: {
+  return create({ ...deps, outreach: {
+    // «Рассылка»: the page's own «Copied …» list (its localStorage, read in this content script) and the background's send.
+    copied: () => readCopiedMedia(window),
+    async send(request) {
+      const answer = await fanslyRequest(deps.rpc, 'fansly.spenders.outreach', { ...request, attachments: [...request.attachments] }, OUTREACH_TIMEOUT_MS);
+      // The port or the answer failed: the request may have reached the background and left — never «not sent».
+      if (!answer.ok) return { ok: false, code: 'CG-SEND-UNCERTAIN' };
+      return answer.payload.ok ? { ok: true, messageId: answer.payload.messageId } : { ok: false, code: answer.payload.error.code };
+    },
+  }, source: {
     cached: (account, fan) => host.groupForFan(account, fan),
     async resolve(account, fan) {
       if (host.current().contract.capabilities.navigate.state !== 'on') throw new Error('navigation unavailable');

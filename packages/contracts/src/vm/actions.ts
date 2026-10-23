@@ -377,6 +377,18 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('StopBatch', { list: z.enum(BATCH_LISTS) }),
   /** 1.32.0: «Очистить» — the rows forget the batch; the results stay on the fans' cards. */
   act('ClearBatch', { list: z.enum(BATCH_LISTS) }),
+  /**
+   * «Рассылка» of Spenders on Fansly: the bar shown or hidden (`open`, the page's «Copied …» list read again on opening
+   * and on `refresh`), its common text, or one copied item picked or not. Nothing is sent.
+   */
+  act('SetOutreach', {
+    open: z.optional(z.boolean()),
+    refresh: z.optional(z.literal(true)),
+    text: z.optional(z.string().check(z.maxLength(5_000))),
+    item: z.optional(z.strictObject({ contentType: z.union([z.literal(1), z.literal(2)]), contentId: z.string().check(z.regex(/^[1-9][0-9]{0,23}$/)), picked: z.boolean() })),
+  }),
+  /** The row's «Отправить» of the outreach: the fan's personal line, the common text and the picked items — one click, one attempt. */
+  act('SendOutreach', { targetHandle: HandleSchema }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),

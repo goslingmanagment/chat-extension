@@ -41,7 +41,7 @@ import { CgAnyErrorWireSchema } from './errors-fansly';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
-import { ChatKeySchema } from './ids';
+import { ChatKeySchema, HumanCauseSchema } from './ids';
 import { ChatReadStateSchema, FanslyPhotoRefSchema, LiveTextMessageSchema } from './host';
 import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
@@ -107,7 +107,18 @@ export const FANSLY_TAB_LIMITS = {
   relayResponseBodyMaxChars: 4 * 1024 * 1024,
   relayRequestHeadersMax: 32,
   relayResponseHeadersMax: 8,
+  /** «Рассылка» of Spenders: the message's text (a personal line and the common text) and the copied items it takes along. */
+  outreachTextMaxChars: 5_000,
+  outreachAttachmentsMax: 10,
 } as const;
+
+/**
+ * An item of Fansly's own «Copied …» list as a message takes it (the page's MediaService, `media_service_copied_media`
+ * in its localStorage; main:55851-55861 of the 2026-10-12 bundle): «Copied Bundle» — `contentType` 2, the bundle's id;
+ * «Copied Media» — 1, the account media's id. The price and the free preview are the bundle's own, set with its post.
+ */
+export const FanslyOutreachAttachmentSchema = z.strictObject({ contentType: z.union([z.literal(1), z.literal(2)]), contentId: NativeIdSchema });
+export type FanslyOutreachAttachment = z.infer<typeof FanslyOutreachAttachmentSchema>;
 
 // ── fansly.followers.* — «Новые» (Б17) ─────────────────────────────────────
 
@@ -542,6 +553,23 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.spenders.resolve': {
     req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, displayName: z.nullable(displayText(1000)), username: z.nullable(displayText(1000)) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), groupId: z.nullable(NativeIdSchema) }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
+   * «Рассылка» (Spenders on Fansly): the row's «Отправить» — one `POST /message` to the fan's group with the text and the
+   * copied items (FS-NET-1 `outreach`, one attempt, never repeated). The click's `send` token of the board (the preview's surface, as X8's) is
+   * redeemed before anything. `CG-SEND-UNCERTAIN` — the request left and its fate is unknown: never sent again by itself.
+   */
+  'fansly.spenders.outreach': {
+    req: z.strictObject({
+      hostAccountId: NativeIdSchema,
+      fanRef: NativeIdSchema,
+      groupId: NativeIdSchema,
+      text: z.string().check(z.minLength(1), z.maxLength(FANSLY_TAB_LIMITS.outreachTextMaxChars), z.refine((text) => text.trim() === text, { message: 'trimmed' })),
+      attachments: z.array(FanslyOutreachAttachmentSchema).check(z.maxLength(FANSLY_TAB_LIMITS.outreachAttachmentsMax)),
+      cause: HumanCauseSchema,
+    }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), messageId: NativeIdSchema }), Failure]),
     from: TAB, hosts: FANSLY,
   },
   /**

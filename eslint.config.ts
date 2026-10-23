@@ -131,6 +131,11 @@ const OM_API_FILE = 'packages/host-chatspace/src/main/om-api.ts';
  * address on `cdn*.fansly.com`) for an AI start, by the click. The global `fetch` stays banned there too.
  */
 const FANSLY_CDN_FILE = 'packages/host-fansly/src/isolated/cdn-photos.ts';
+/**
+ * The one read of the page's own storage in Fansly's isolated world: Fansly's «Copied …» list (`media_service_copied_media`)
+ * for Spenders' «Рассылка», read only — the attach menu keeps it nowhere else. The rest of the page's storage stays banned.
+ */
+const FANSLY_COPIED_FILE = 'packages/host-fansly/src/isolated/copied-media.ts';
 
 const APP_RESTRICTION: Restriction = {
   // `wxt` and `wxt/utils/*` stay allowed for the define helpers and types;
@@ -367,6 +372,12 @@ export default defineConfig(
     files: [FANSLY_CDN_FILE],
     rules: {
       'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['fetch'])],
+    },
+  },
+  {
+    files: [FANSLY_COPIED_FILE],
+    rules: {
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['localStorage'])],
     },
   },
   {

@@ -177,6 +177,7 @@ export const UI_TEXT_KEYS = [
   'send.reason.queue', 'send.reason.part', 'send.reason.otherVariant', 'send.reason.guard',
   'send.reason.contextChanged', 'send.reason.claimBusy', 'send.reason.rateLimit', 'send.reason.otherUncertain',
   'batch.pick', 'batch.pickAll', 'batch.picked', 'batch.generate', 'batch.generateTooltip', 'batch.unpick', 'batch.stop', 'batch.clear', 'batch.progress', 'batch.failedCount', 'batch.hint', 'batch.max', 'batch.state.queued', 'batch.state.generating', 'batch.state.ready', 'batch.state.sent', 'batch.state.failed',
+  'outreach.button', 'outreach.buttonTooltip', 'outreach.title', 'outreach.text', 'outreach.textPlaceholder', 'outreach.items', 'outreach.item.bundle', 'outreach.item.media', 'outreach.noItems', 'outreach.mediaHint', 'outreach.refresh', 'outreach.hint', 'outreach.sent', 'outreach.close', 'outreach.plusText', 'outreach.plus', 'outreach.and', 'outreach.writeLines', 'outreach.batchHint', 'outreach.state.uncertainShort', 'outreach.itemTooltip', 'outreach.send', 'outreach.sendTooltip', 'outreach.state.sending', 'outreach.state.sent', 'outreach.state.uncertain', 'outreach.state.failed',
   'newcomers.title', 'newcomers.personaNote', 'newcomers.col.fan', 'newcomers.col.kind', 'newcomers.col.subscription', 'newcomers.col.greeting',
   'newcomers.kind.new', 'newcomers.kind.renewed', 'newcomers.kind.returning', 'newcomers.status.none', 'newcomers.status.sendingOther',
   'newcomers.status.sending', 'newcomers.status.stopped',
@@ -395,6 +396,7 @@ export type UiTextKey = (typeof UI_TEXT_KEYS)[number];
 export const UI_PLURAL_KEYS = [
   'popup.waitingReload',
   'common.minutes', 'common.hours', 'common.days', 'common.messages', 'common.fans', 'common.money.dollars',
+  'outreach.plusItems',
   'dock.quota.lowTooltip',
   'result.meta.parts', 'result.meta.variants', 'result.meta.partsEach', 'result.announce.ready', 'result.announce.retryIn',
   'recap.archiveLag', 'recap.newAfter', 'recap.coverage.whole',

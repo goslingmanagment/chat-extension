@@ -5,7 +5,7 @@
 
 import { FANSLY_RELAY_TARGET, FANSLY_TAB_LIMITS, type FanslyTabEventType, type FanslyTabRequestType } from '../../src/tab-messages-fansly';
 import type { RequestFixtures, Verdicts } from './protocols';
-import { FANSLY_IDS, ISO, T0, uuid } from './samples';
+import { FANSLY_IDS, ISO, T0, cause, uuid } from './samples';
 import { FANSLY_START_OP_FIXTURES, FANSLY_OP_VIEW_FIXTURES, fanslyNotesView } from './ops-fansly';
 import { FANSLY_GREETING_REQUEST_FIXTURES, FANSLY_SEND_VIEW_FIXTURES } from './send-fansly';
 import { FANSLY_MSG, passStartProof } from './fansly';
@@ -113,6 +113,22 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   'fansly.spenders.resolve': {
     req: { valid: [{ hostAccountId: F.creator, fanRef: F.fan, displayName: 'Fan', username: null }], invalid: [{ hostAccountId: F.creator, fanRef: 123, displayName: null, username: null }, { fanRef: F.fan }] },
     res: { valid: [{ ok: true, groupId: F.group }, { ok: true, groupId: null }, failure], invalid: [{ ok: true, groupId: Number(F.group) }, unknownFailure] },
+  },
+  'fansly.spenders.outreach': {
+    req: {
+      valid: [
+        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey you 😳\n\nnew video is up', attachments: [{ contentType: 2, contentId: '700000000000000011' }, { contentType: 1, contentId: '700000000000000012' }], cause },
+        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: [], cause },
+      ],
+      invalid: [
+        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: ' hey ', attachments: [], cause },
+        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: [{ contentType: 3, contentId: '700000000000000011' }], cause },
+        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: [{ contentType: 2, contentId: 11 }], cause },
+        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: Array.from({ length: FANSLY_TAB_LIMITS.outreachAttachmentsMax + 1 }, () => ({ contentType: 2, contentId: '700000000000000011' })), cause },
+        { hostAccountId: F.creator, fanRef: F.fan, groupId: F.group, text: 'hey', attachments: [] },
+      ],
+    },
+    res: { valid: [{ ok: true, messageId: '700000000000000013' }, failure, { ok: false, error: { code: 'CG-SEND-UNCERTAIN' } }], invalid: [{ ok: true }, { ok: true, messageId: 1 }, unknownFailure] },
   },
   'fansly.ppv.read': {
     req: {

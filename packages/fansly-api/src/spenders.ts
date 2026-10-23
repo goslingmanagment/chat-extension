@@ -1,5 +1,6 @@
-// R20 P9e: only missing names and a person's chat-resolution click. Every
-// request is admitted and paced by P9b; no history, ack, or message send.
+// R20 P9e: only missing names and a person's chat-resolution click; «Рассылка»:
+// the person's click on a row sends that fan's message with the copied items.
+// Every request is admitted and paced by P9b; no history or ack.
 import type { FanslyClient } from './client';
 import type { PacerStorage } from './pacer';
 import { FanslyApiError } from './errors';
@@ -149,4 +150,41 @@ export function createSpendersLookup(client: Pick<FanslyClient, 'call'>, now: ()
     clear() { epoch++; names.clear(); groups.clear(); pending.clear(); return ready.then(save); },
     flush: () => saving,
   };
+}
+
+/** An item of Fansly's «Copied …» list as a message takes it: 2 — «Copied Bundle», 1 — «Copied Media». */
+export interface OutreachAttachment { readonly contentType: 1 | 2; readonly contentId: string }
+export interface OutreachMessage { readonly groupId: string; readonly text: string; readonly attachments: readonly OutreachAttachment[] }
+
+/**
+ * The body of `POST /message` as Fansly's own composer sends it with copied items (the 2026-10-12 bundle: the message
+ * model main:54168-54172, `sendMessage` main:56170-56196): each item `{messageId: null, pos, contentId, contentType}` in
+ * the order picked. The price and the free preview are the bundle's own, set with its post: nothing of them goes here.
+ */
+export function outreachBody(message: OutreachMessage) {
+  return {
+    type: 1,
+    content: message.text,
+    groupId: message.groupId,
+    attachments: message.attachments.map((item, pos) => ({ messageId: null, pos, contentId: item.contentId, contentType: item.contentType })),
+    likes: [],
+    scheduledFor: 0,
+    inReplyTo: null,
+  };
+}
+
+/**
+ * «Рассылка» of Spenders: one `POST /message` of the person's click (FS-NET-1 `outreach`, one attempt, never repeated
+ * here). The receipt is the message Fansly made: its id, in the fan's group. A request that left with no such receipt
+ * throws: the caller tells «not sent» from «unknown» by the error.
+ */
+export async function sendOutreach(client: Pick<FanslyClient, 'call'>, account: string, message: OutreachMessage): Promise<string> {
+  if (!ID.test(account) || !ID.test(message.groupId) || message.attachments.some((item) => !ID.test(item.contentId) || (item.contentType !== 1 && item.contentType !== 2))) {
+    throw new FanslyApiError('not-admitted', { sent: false });
+  }
+  const answer = await client.call({ purpose: 'outreach', route: 'message.send', account, body: outreachBody(message) });
+  const receipt = record(answer.response);
+  const messageId = id(receipt?.['id']);
+  if (messageId === null || receipt?.['groupId'] !== message.groupId) throw malformed();
+  return messageId;
 }

@@ -30,6 +30,7 @@ import { type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '..
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { flagReasonVm } from '../flag-reason';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, localKey, msg, stamp } from '../boards/views';
+import { createOutreach, type OutreachPort } from './outreach';
 
 /** The search waits this long after the last keystroke (SP-019). */
 export const SEARCH_DEBOUNCE_MS = 150;
@@ -111,6 +112,8 @@ export interface SpendersControllerDeps {
   readonly timeZone: string;
   /** Rows of one «ждут ответа» page (QUEUE_PAGE_SIZE by default). */
   readonly queuePageSize?: number;
+  /** «Рассылка» (Fansly): the page's «Copied …» list and the background's send; absent — the board has none. */
+  readonly outreach?: OutreachPort;
 }
 
 type BoardViews = 'spenders.board' | 'spenders.stats';
@@ -183,6 +186,17 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     live: (handle) => batchPort?.batchLive(handle) ?? null,
     changed() {
       shelfCache = null;
+      changed('board');
+    },
+  });
+
+  const outreach = deps.outreach === undefined ? null : createOutreach({
+    port: deps.outreach,
+    rpc,
+    clock,
+    i18n,
+    changed(rows) {
+      if (rows) shelfCache = null;
       changed('board');
     },
   });
@@ -279,6 +293,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       ...(chat === undefined ? {} : { chat }),
       ...(batchPort === null ? {} : { batch: batch.row(handleOf(row.fanRef)) }),
     };
+    const sends = outreach?.row(base.handle, base.batch?.state === 'ready' && base.batch.text !== null);
+    if (sends !== undefined) return cents ? { ...base, lifetimeCents: true, outreach: sends } : { ...base, outreach: sends };
     return cents ? { ...base, lifetimeCents: true } : base;
   }
 
@@ -388,6 +404,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       ],
       waitingFallback: queueFailed === null ? null : { error: errorOf(queueFailed, i18n), retry: boardRetry },
       ...(batchPort === null ? {} : { batch: batch.vm(pageFlag(ctx, 'preview') ? null : flagReasonVm(pageFlagOf(ctx, 'preview')).text) }),
+      ...(outreach === null ? {} : { outreach: outreach.vm() }),
     };
   }
 
@@ -592,6 +609,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       epoch = state.epoch;
       reset();
       batch.reset();
+      outreach?.reset();
       surfaces.setList('spenders', false);
     }
     changed();
@@ -806,6 +824,23 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       }
       return null;
     }
+    if (action.type === 'SetOutreach') return outreach === null ? null : Promise.resolve(outreach.set(action));
+    if (action.type === 'SendOutreach') {
+      const fanRef = own(action.targetHandle);
+      const binding = context.current().binding;
+      if (outreach === null || fanRef === null) return null;
+      if (binding === null) return Promise.resolve(refused(action.type, localError('CG-BINDING-MISSING', i18n)));
+      return outreach.send(action.type, action.targetHandle, {
+        hostAccountId: binding.platformAccountId,
+        fanRef,
+        line: batchPort === null ? null : batch.row(action.targetHandle).text,
+        // The fan's group as the board finds it for «Открыть чат»: its row, the page's memory, then the inbox search.
+        async group() {
+          await resolveConversation(fanRef, true);
+          return conversationOfRow(knownRow(fanRef)?.row).conversationRef ?? null;
+        },
+      });
+    }
     if (isBatchAction(action)) {
       if (action.list !== 'spenders' || batchPort === null) return null;
       return Promise.resolve(batchDispatch(batch, action, (handle) => own(handle) !== null));
@@ -978,6 +1013,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       disposed = true;
       offBatch?.();
       batch.dispose();
+      outreach?.dispose();
       offContext();
       offSurfaces();
       offLanguage();
