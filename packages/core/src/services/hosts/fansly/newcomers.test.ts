@@ -368,7 +368,7 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     expect((await failing.ask('fansly.followers.read', { passId: fused, offset: 0, limit: 1 })).pass).toMatchObject({ state: 'stopped', error: { code: 'CG-FAN-REQUEST' } });
   });
 
-  it('[FS-NEW-4] the window opened again goes on with the same pass (2026-10-23): nobody it checked is asked about again — only the followers since its end; the period moves to now; the person’s «Пауза» stays', async () => {
+  it('[FS-NEW-4] the window opened again goes on with the same pass (2026-10-23): nobody it checked is asked about again — only the followers since its end; the period moves to now; a «Пауза» closed with the window goes on too', async () => {
     const t = setup();
     const ready = t.world.follow(1, T0 - minutes(5));
     // Followed near the period's start: the period moving on takes them out of the list.
@@ -391,8 +391,8 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     expect(read.rows.map((row) => [row.fanRef, row.status])).toEqual([[fresh, 'ready'], [ready, 'ready']]);
     expect(read.pass?.startedAt).toBe(new Date(reopened).toISOString());
 
-    // «Пауза» is the person's: the window opened again leaves the queue standing.
-    t.world.follow(4, T0 + minutes(12));
+    // «Пауза» belongs to the open window: the window closed and opened again goes on, the paused fan is checked.
+    const later = t.world.follow(4, T0 + minutes(12));
     await vi.advanceTimersByTimeAsync(minutes(5));
     const release = t.world.hold('group.create');
     expect(await t.scan()).toBe(passId);
@@ -400,11 +400,12 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     await t.ask('fansly.followers.pause', { passId });
     release();
     await t.settle();
-    const paused = t.world.calls.length;
+    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass?.state).toBe('paused');
+    expect(await t.ask('fansly.followers.close', { passId })).toEqual({ recorded: true });
     expect(await t.scan()).toBe(passId);
     await t.settle();
-    expect(t.world.calls).toHaveLength(paused);
-    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass?.state).toBe('paused');
+    expect(await t.row(passId, later)).toMatchObject({ status: 'ready' });
+    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass?.state).not.toBe('paused');
   });
 
   it('[FS-NEW-4] a row’s own failure (a 400, an answer that did not parse) is the row’s: seven odd fans do not stop the check, as in the old extension', async () => {
