@@ -327,7 +327,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const mode = ready.settings.generation.coach.autoRecap;
     let recap: 'short' | 'full' | null = null;
     // «Учитывать Recap» unticked: a Recap the question would not read is not built for it either.
-    const recapOn = ws.recapOn(chatKeyOf(ready.target.chat));
+    const recapOn = ws.recapOn(chatKeyOf(ready.target.chat), 'coach');
     if (mode !== 'off' && recapOn && !session.autoRecapAttempted && exchangesOf(session).length === 0 && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) {
       // The depth a full recap is built at takes the person's deep window the site keeps (R20 §12): one built at it is no stale one.
       const [read, extended] = await Promise.all([ws.recaps.readStatus(ws.slotKey(ready)), ws.windows()]);
@@ -781,8 +781,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const beforeQuestion = session === null || (session.feed.every((item) => item.kind === 'review') && (pending === null || pending.step === 'review'));
 
     const autoRecap = ready?.settings.generation.coach.autoRecap ?? ws.env.settings?.settings.generation.coach.autoRecap ?? 'off';
-    // «Учитывать Recap»: the dock's «с Recap» of the chat, where the hub can leave the Recaps out.
-    const recapOn = ready === null || !ready.bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY) ? null : ws.recapOn(chatKeyOf(ready.target.chat));
+    // «Учитывать Recap»: Coach's own «с Recap» of the chat, where the hub can leave the Recaps out.
+    const recapOn = ready === null || !ready.bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY) ? null : ws.recapOn(chatKeyOf(ready.target.chat), 'coach');
     const composer = situation.host.composer;
     const draftEmpty = composer === null || composer.draft.provenance === 'empty';
     // «Обновить переписку» reads the archive feed: the PAGE's own `preview` feature (the owner's switch and what

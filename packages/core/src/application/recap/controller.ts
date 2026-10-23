@@ -17,8 +17,8 @@
 // sheet is open (the operation while it runs, the copy's local id, or the
 // sheet's own id).
 
-import { type FeatureId } from '@cg/contracts/features';
-import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
+import { RECAP_READERS, type FeatureId, type RecapReader } from '@cg/contracts/features';
+import { RECAP_OFF_CAPABILITY, chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import {
   type ActionButtonVM,
   type ActionReceipt,
@@ -238,6 +238,9 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       view = gaps.length === 0 ? views.ready() : { s: 'partial', gaps };
     }
     const debugOn = ws.env.settings?.settings.debug.enabled ?? false;
+    // Who reads this Recap here now (1.52.0): a reader whose «с Recap» is unticked does not, where the hub can leave it out.
+    const all: readonly RecapReader[] = length === 'full' ? RECAP_READERS : ['coach'];
+    const readers = chat === null || situation.ready?.bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY) !== true ? all : all.filter((feature) => ws.recapOn(chat.key, feature));
     const preview = running && op.view.text !== undefined ? streamPreview(op.view.feature, op.view.text) : '';
     const canBuild = (which: RecapLength): boolean => buildReason(situation, which) === null;
     return {
@@ -254,7 +257,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       blocks: copy?.blocks?.map((block) => (block.heading === '' ? block : { heading: recapHeadingText(block.heading, (key) => i18n.t(key)), markdown: block.markdown })) ?? null,
       generatedAt: copy?.revision ?? null,
       saved: saveVm(copy),
-      ...(chat === null || ws.recapOn(chat.key) ? {} : { unread: true }),
+      ...(readers.length === all.length ? {} : { readers }),
       stamp: { asOf: point?.at ?? null, coverage: copy?.coverage.level ?? 'unknown', served: copy?.coverage.served ?? null },
       archiveLag: lag,
       refreshFailed: failure === null || copy === null ? null : { error: errorVm(failure, i18n), retry: { type: 'RefreshRecap', length } },
@@ -329,8 +332,6 @@ export function createRecapController(ws: AiWorkspace): RecapController {
         ui.length = length;
         ui.opId = result.opId;
         if (panel) ui.window = ui.holds = false;
-        // A Recap is built to be read: «с Recap» is ticked again.
-        ws.setRecapOn(chat.key, true);
         ws.setSheet(chat.key, { kind: 'recap' });
         return done(type, 'started', { opId: result.opId });
       case 'refused':

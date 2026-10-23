@@ -296,7 +296,7 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
       : full !== null
         ? i18n.t('coach.recap.age', { age: age(full.generatedAt) })
         : i18n.t('coach.recap.ageShort', { age: age(short?.generatedAt ?? '') });
-  // «Учитывать Recap»: the dock's «с Recap» of this chat. Unticked, the next question goes without it; the answer says so.
+  // «Учитывать Recap»: Coach's own «с Recap» of this chat. Unticked, the next question goes without it; the answer says so.
   const on = vm.recapOn ?? null;
   return (
     <span class={`cg-co__recap${on === false ? ' is-off' : ''}`}>
@@ -311,7 +311,7 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
           checked={on}
           semantics="toggle"
           tooltip={i18n.t(on ? 'recap.tick.onHint' : 'recap.tick.offHint')}
-          onChange={(next) => void dispatch({ type: 'SetRecap', on: next })}
+          onChange={(next) => void dispatch({ type: 'SetRecap', feature: 'coach', on: next })}
         />
       )}
       <details>

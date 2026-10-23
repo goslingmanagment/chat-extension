@@ -24,8 +24,9 @@ makes `see.gif` from the run's frames (needs `ffmpeg`).
 
 Scenarios: `dock`, `reply`, `reply-wait` (the sheet at the click while the start still reads the open chat), `coach`, `coach-recap` (what a
 Recap is used by: the Recap picker's words, Coach «Recap нет» and an answer «без Recap», «Собрать Recap» from Coach,
-the next answer «с Recap», «Учитывать Recap» unticked and an answer «без Recap — выключен», a Reply whose head shows «с Recap»
-unticked, the head's tick pressed and the Reply made again «с Recap», the Recap's «его учитывают Reply, Ping и Coach»), `recap`,
+the next answer «с Recap», «Учитывать Recap» unticked and an answer «без Recap — выключен», a Reply whose head still shows
+«с Recap» ticked, the head's tick pressed and the Reply made again without it, the Recap's «в этом чате его учитывают только
+Fix и Ping»), `recap`,
 `review` (Coach's «Review» chip: the Review as a turn of the dialog, then a question about it), `fix`, `hi`,
 `spenders`, `spenders-seen` (whether the fan read our newest message: «не
 прочитано», then «прочитано» by the header and under its bubble), `spenders-seen-race` (the fan writes while the check

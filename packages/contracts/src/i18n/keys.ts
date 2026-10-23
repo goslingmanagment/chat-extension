@@ -215,7 +215,7 @@ export const UI_TEXT_KEYS = [
   'recap.tick', 'recap.tick.onHint', 'recap.tick.offHint', 'recap.usedBy.off', 'result.recap.onHint', 'result.recap.offHint', 'coach.recap.noneSome', 'coach.recap.ahead', 'coach.recap.aheadShort',
   'coach.recap.aheadRefresh', 'coach.recap.building', 'coach.recap.build', 'coach.recap.refresh', 'coach.recap.buildFull',
   'coach.turn.recap', 'coach.turn.recapBoth', 'coach.turn.recapShort', 'coach.turn.noRecap', 'result.meta.recap',
-  'recap.usedBy.full', 'recap.usedBy.short', 'recap.picker.explain', 'coach.newDialog.confirm', 'coach.newDialog.keep',
+  'recap.usedBy.full', 'recap.usedBy.short', 'recap.usedBy.one', 'recap.usedBy.some', 'recap.picker.explain', 'coach.newDialog.confirm', 'coach.newDialog.keep',
   // The old card's line under a Coach draft in Cyrillic for a fan who does not write Cyrillic: neither Insert nor Copy.
   'coach.draftLanguage',
   // 1.51.0: Review is a turn of Coach — its chip and hint by the ready questions, the window of a page whose Coach is off.

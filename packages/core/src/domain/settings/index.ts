@@ -3,3 +3,4 @@ export { SETTINGS_MIGRATIONS, loadStoredSettings, migrationChainProblems, oldest
 export { applySettingsPatch, touchesRestricted, withPersonaScope, type SettingsPatchOutcome } from './patch';
 export { SYSTEM_LOCALE_LAST_VERSION, SYSTEM_LOCALE_REWRITE, rewritesSystemLocale } from './locale-on-update';
 export { applySettingsExtPatch, loadStoredSettingsExt, type SettingsExtPatchOutcome } from './ext';
+export { recapByDefault } from './recap';

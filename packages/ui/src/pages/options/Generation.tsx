@@ -1,6 +1,6 @@
 // «Генерация» (architecture.md §9.4, §9.9; ST-090…ST-097): how many messages
-// each group of features reads (Б5), Split by default, «Помнить тон в чате»
-// (X45: absent — on), Coach's memory and
+// each group of features reads (Б5), Split by default, «Учитывать Recap» per
+// feature (1.52.0), Coach's memory and
 // its Recap, and debug mode. The deep window never exceeds what the hub
 // takes: a larger one is cut when it is saved and the page says so. The
 // field always shows the number that is stored: one stored above the hub's
@@ -8,6 +8,7 @@
 
 import { type JSX } from 'preact';
 
+import { RECAP_READERS } from '@cg/contracts/features';
 import { COACH_AUTO_RECAP, SETTINGS_RANGES, type CoachAutoRecap } from '@cg/contracts/settings';
 import { type GenerationBodyVM, type PreferenceKey, type UiAction } from '@cg/contracts/vm';
 
@@ -73,16 +74,20 @@ export function GenerationSection({ body, readOnly }: { readonly body: Generatio
             />
           </Opt>
 
-          {/* 1.50.0: where a chat's «с Recap» starts (a Reply's or a Ping's head, Coach's «Учитывать Recap»). */}
+          {/* 1.52.0: where a chat's «с Recap» of each feature starts (its answer's head, Coach's «Учитывать Recap»). */}
           <Opt label={i18n.t('settings.generation.recapDefault')} hint={i18n.t('settings.generation.recapHint')}>
-            <Checkbox
-              label={i18n.t('settings.generation.recapDefault')}
-              stateWord={i18n.t('settings.generation.on')}
-              checked={body.recap !== false}
-              size={14}
-              reason={locked}
-              onChange={(value) => void act({ type: 'SetPreference', key: 'generation.recap', value }, { quiet: true })}
-            />
+            <div class="pg-line">
+              {RECAP_READERS.map((feature) => (
+                <Checkbox
+                  key={feature}
+                  label={i18n.t(`dock.action.${feature}`)}
+                  checked={body.recapBy?.[feature] !== false}
+                  size={14}
+                  reason={locked}
+                  onChange={(value) => void act({ type: 'SetPreference', key: `generation.recapBy.${feature}`, value }, { quiet: true })}
+                />
+              ))}
+            </div>
           </Opt>
 
           {/* X68: «Помнить тон в чате» is retired — a tone lasts for one Reply, as in the old extension. */}

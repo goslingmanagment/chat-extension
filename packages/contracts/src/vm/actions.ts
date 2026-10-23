@@ -8,7 +8,7 @@
 import * as z from 'zod/mini';
 
 import { CgCodeSchema, SettingsRouteSchema } from '../errors';
-import { FeatureIdSchema, ToneSchema } from '../features';
+import { FeatureIdSchema, RecapReaderSchema, ToneSchema } from '../features';
 import { MediaFolderIdSchema } from '../send-media';
 import { NativeIdSchema, PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
 import { SettingsV1Schema, UI_TEXT_SIZES } from '../settings';
@@ -46,8 +46,11 @@ export const PREFERENCE_VALUE_SCHEMAS = {
   'generation.split': generation.split,
   // 1.18.0 (X45): stored as optional (absent — on), set as a plain boolean.
   'generation.rememberTone': z.boolean(),
-  // 1.50.0: stored as optional (absent — on), set as a plain boolean.
-  'generation.recap': z.boolean(),
+  // 1.52.0: «Учитывать Recap» per feature, stored as optional (absent — the shared `generation.recap`, then on).
+  'generation.recapBy.reply': z.boolean(),
+  'generation.recapBy.fix': z.boolean(),
+  'generation.recapBy.ping': z.boolean(),
+  'generation.recapBy.coach': z.boolean(),
   'generation.windows.quick': generation.windows.shape.quick,
   'generation.windows.ping': generation.windows.shape.ping,
   'generation.windows.improve': generation.windows.shape.improve,
@@ -204,11 +207,12 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    */
   act('SetSplit', { split: z.boolean() }),
   /**
-   * 1.48.0: «с Recap» of the open chat — Reply, Ping and Coach read the fan's Recap (true, the default) or not: the tick
-   * in a Reply's or a Ping's head and Coach's «Учитывать Recap». For this tab's session, as Split; a Recap built in the
-   * chat ticks it again. `again` — the head's tick: the same click asks that answer again («Ещё раз») with the new tick.
+   * 1.48.0: «с Recap» of the open chat — `feature` (1.52.0: each reader has its own) reads the fan's Recap (true) or
+   * not: the tick in an answer's head and Coach's «Учитывать Recap». For this tab's session, as Split; it starts from
+   * the settings' «Учитывать Recap» of that feature. `again` — the head's tick: the same click asks that answer again
+   * («Ещё раз») with the new tick.
    */
-  act('SetRecap', { on: z.boolean(), again: z.optional(UuidSchema) }),
+  act('SetRecap', { feature: RecapReaderSchema, on: z.boolean(), again: z.optional(UuidSchema) }),
   act('InsertPart', { operationId: UuidSchema, variant, part }),
   /** Fix: the click is the consent for the revision Fix was made from (Б2). */
   act('ReplaceMyDraft', { operationId: UuidSchema, part }),

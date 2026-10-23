@@ -9,6 +9,18 @@ export const FeatureIdSchema = z.enum(FEATURE_IDS);
 export type FeatureId = z.infer<typeof FeatureIdSchema>;
 
 /**
+ * 1.52.0: the features that read the fan's Recap — Reply, Fix and Ping its full one (the hub's dossier), Coach both.
+ * Each has its own «с Recap»: the settings' «Учитывать Recap» per feature and a tick of its own in every chat.
+ */
+export const RECAP_READERS = ['reply', 'fix', 'ping', 'coach'] as const satisfies readonly FeatureId[];
+export const RecapReaderSchema = z.enum(RECAP_READERS);
+export type RecapReader = z.infer<typeof RecapReaderSchema>;
+
+export function isRecapReader(feature: string): feature is RecapReader {
+  return (RECAP_READERS as readonly string[]).includes(feature);
+}
+
+/**
  * 1.15.0 (R20 P4b3; docs/project-unite/architecture.md §1.6, §8.8): the operations of a site's own slice — Fansly's
  * voice script (`voice-script`) and «Заполнить из чата» (`notes-fill`). They run through the scheduler's shared
  * admission beside the features above, but they are no `FeatureId`: the closed list and every shared schema built on

@@ -12,7 +12,7 @@
 // change of this state; the notification is coalesced into one microtask.
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
-import { type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
+import { isRecapReader, type FeatureId, type RecapReader, type Surface, type Tone } from '@cg/contracts/features';
 import type { AdmissionAction } from '@cg/contracts/features/types';
 import { type ChatWindow, type HostSnapshot, type LiveTextTail, type RouteState } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
@@ -30,6 +30,7 @@ import { routeChangeEntry } from '../../domain/insert';
 import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
 import { archiveLag, type ArchiveLag, type ArchivePoint, type RecapSlotKey } from '../../domain/recap';
+import { recapByDefault } from '../../domain/settings';
 import { type BoardHandover, type BoardPartFacts, type BoardResults } from '../board-handover';
 import { PAGE_OFF_REASON, flagReasonVm } from '../flag-reason';
 import { TabEnvironment, type EnvironmentChange, type PersonaState } from './environment';
@@ -74,8 +75,8 @@ interface ChatUi {
   sheet: Sheet | null;
   /** The hub page of the chat when its sheet was set; null — not known then. */
   pageId: number | null;
-  /** «с Recap» of this chat as the person set it (a tick, a build); null — the settings' «Учитывать Recap». Until a reload. */
-  recap: boolean | null;
+  /** «с Recap» of each feature in this chat as the person ticked it; absent — the settings' «Учитывать Recap». Until a reload. */
+  recap: Partial<Record<RecapReader, boolean>>;
 }
 
 export interface OpenChat {
@@ -684,7 +685,7 @@ export class AiWorkspace {
   private ui(key: ChatKey): ChatUi {
     let ui = this.chats.get(key);
     if (ui === undefined) {
-      ui = { tone: null, sheet: null, pageId: null, recap: null };
+      ui = { tone: null, sheet: null, pageId: null, recap: {} };
       this.chats.set(key, ui);
       // A sheet left open in a chat visited long ago is not kept for ever: the oldest go.
       while (this.chats.size > CHAT_UI_MAX) {
@@ -720,18 +721,18 @@ export class AiWorkspace {
   }
 
   /**
-   * «с Recap» of a chat (a Reply's or a Ping's head and Coach's topbar tick it alike): Reply, Ping and Coach read the
-   * fan's Recap unless it is unticked. The chat's own choice until a reload, as Split's, else the settings' «Учитывать
-   * Recap» (absent — on); a Recap built in the chat ticks it again.
+   * «с Recap» of a feature in a chat (its answer's head, Coach's topbar): Reply, Fix, Ping and Coach each read the
+   * fan's Recap unless theirs is unticked (1.52.0). The chat's own choice until a reload, as Split's, else the
+   * settings' «Учитывать Recap» of that feature.
    */
-  recapOn(key: ChatKey): boolean {
-    return this.chats.get(key)?.recap ?? (this.env.settings?.settings.generation.recap !== false);
+  recapOn(key: ChatKey, feature: RecapReader): boolean {
+    return this.chats.get(key)?.recap[feature] ?? recapByDefault(this.env.settings?.settings, feature);
   }
 
-  setRecapOn(key: ChatKey, on: boolean): void {
+  setRecapOn(key: ChatKey, feature: RecapReader, on: boolean): void {
     const ui = this.ui(key);
-    if (ui.recap === on) return;
-    ui.recap = on;
+    if (ui.recap[feature] === on) return;
+    ui.recap[feature] = on;
     this.bump();
   }
 
@@ -889,8 +890,8 @@ export class AiWorkspace {
       regenerateOf: original?.view.opId,
       // Split as the bar shows it now, for «Ещё раз» too: a Split switched after the answer is the one the person wants.
       splitWanted: this.split(),
-      // «с Recap» likewise, to a hub that can leave the Recap out.
-      recapOff: !this.recapOn(chat.key) && bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY),
+      // The feature's «с Recap» likewise, to a hub that can leave the Recap out.
+      recapOff: isRecapReader(feature) && !this.recapOn(chat.key, feature) && bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY),
       // A used-up or stale answer of this chat is not what a new click asks for: the click makes a new one, never the
       // cached one again (2026-10-22, with the sheet that leaves on the chat switch).
       force: request.force === true || (original === undefined && this.spentIn(chat.key, feature)),

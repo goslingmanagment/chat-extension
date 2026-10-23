@@ -79,6 +79,16 @@ function coverageLine(i18n: ReturnType<typeof useI18n>, stamp: RecapViewVM['stam
   return coverage === 'partial' ? i18n.t('common.coverage.partial') : null;
 }
 
+/** «его учитывают Reply, Fix, Ping и Coach»; a reader unticked in this chat is left out (1.52.0): «…только Reply и Coach». */
+function usedBy(i18n: ReturnType<typeof useI18n>, recap: RecapViewVM): string {
+  const readers = recap.readers;
+  if (readers === undefined) return i18n.t(recap.length === 'full' ? 'recap.usedBy.full' : 'recap.usedBy.short');
+  const names = readers.map((feature) => i18n.t(`dock.action.${feature}`));
+  if (names.length === 0) return i18n.t('recap.usedBy.off');
+  if (names.length === 1) return i18n.t('recap.usedBy.one', { name: names[0] ?? '' });
+  return i18n.t('recap.usedBy.some', { names: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(names) });
+}
+
 function RecapFacts({ recap }: { readonly recap: RecapViewVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
@@ -93,10 +103,8 @@ function RecapFacts({ recap }: { readonly recap: RecapViewVM }): JSX.Element {
         </Fact>
       )}
       {covers === null ? null : <Fact>{covers}</Fact>}
-      {/* Who reads this Recap: the full one goes to Reply and Ping too once the hub holds it as the fan's dossier. */}
-      {recap.generatedAt === null || recap.saved.s === 'failed' ? null : (
-        <Fact>{i18n.t(recap.unread === true ? 'recap.usedBy.off' : recap.length === 'full' ? 'recap.usedBy.full' : 'recap.usedBy.short')}</Fact>
-      )}
+      {/* Who reads this Recap: the full one goes to Reply, Fix and Ping too once the hub holds it as the fan's dossier. */}
+      {recap.generatedAt === null || recap.saved.s === 'failed' ? null : <Fact>{usedBy(i18n, recap)}</Fact>}
       <SavedFact saved={recap.saved} />
       <RefreshFailedFact failed={recap.refreshFailed} />
       {/* The chat went on after the Recap: said in its words, «Обновить» right by it. */}

@@ -27,6 +27,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { formatMicroUsd } from '../../domain/debug';
+import { recapByDefault } from '../../domain/settings';
 import { hotkeyRows } from './hotkeys';
 import { accountKeyOf, aliasesOf, boundPageOf, boundPageTagOf, button, errorOf, knownAccounts, msg, pageTagOf, personaOfPage, platformNameOf, valueOf, type PagesModel } from './model';
 import { type PagePorts } from './ports';
@@ -265,8 +266,8 @@ export function generationBody(model: PagesModel): GenerationBodyVM | null {
     split: settings.generation.split,
     // «Помнить тон в чате» (X45): absent in a store from before 1.18.0 — on.
     rememberTone: settings.generation.rememberTone !== false,
-    // «Учитывать Recap» (1.50.0): absent in an older store — on.
-    recap: settings.generation.recap !== false,
+    // «Учитывать Recap» per feature (1.52.0): absent — the shared one of 1.50.0, then on.
+    recapBy: { reply: recapByDefault(settings, 'reply'), fix: recapByDefault(settings, 'fix'), ping: recapByDefault(settings, 'ping'), coach: recapByDefault(settings, 'coach') },
     coach: { ...settings.generation.coach },
     debug: { ...settings.debug },
   };

@@ -856,8 +856,14 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         return { generation: { split: action.value } };
       case 'generation.rememberTone':
         return { generation: { rememberTone: action.value } };
-      case 'generation.recap':
-        return { generation: { recap: action.value } };
+      case 'generation.recapBy.reply':
+        return { generation: { recapBy: { reply: action.value } } };
+      case 'generation.recapBy.fix':
+        return { generation: { recapBy: { fix: action.value } } };
+      case 'generation.recapBy.ping':
+        return { generation: { recapBy: { ping: action.value } } };
+      case 'generation.recapBy.coach':
+        return { generation: { recapBy: { coach: action.value } } };
       case 'generation.windows.quick':
         return { generation: { windows: { quick: action.value } } };
       case 'generation.windows.ping':
