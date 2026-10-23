@@ -56,6 +56,8 @@ export function applySettingsPatch(current: SettingsV1, patch: SettingsPatch, op
       ...(patch.generation?.rememberTone !== undefined ? { rememberTone: patch.generation.rememberTone } : current.generation.rememberTone !== undefined ? { rememberTone: current.generation.rememberTone } : {}),
       // «Учитывать Recap» (1.50.0) the same way: absent stays absent (reads as on).
       ...(patch.generation?.recap !== undefined ? { recap: patch.generation.recap } : current.generation.recap !== undefined ? { recap: current.generation.recap } : {}),
+      // Per feature (1.52.0): a feature of the patch over the stored ones; none stored and none patched — absent.
+      ...(patch.generation?.recapBy !== undefined || current.generation.recapBy !== undefined ? { recapBy: merge(current.generation.recapBy ?? {}, patch.generation?.recapBy) } : {}),
       windows: merge(current.generation.windows, patch.generation?.windows),
       coach: merge(current.generation.coach, patch.generation?.coach),
     },

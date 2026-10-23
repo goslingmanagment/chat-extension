@@ -4,6 +4,7 @@
 // sign-in screen replaces the settings while no one is signed in (ST-011).
 
 import { type CgCode, type CgErrorTone, type CgErrorView, type SettingsSection } from '../errors';
+import { type RecapReader } from '../features';
 import { type HostKind } from '../hosts';
 import { type UiTextKey } from '../i18n/keys';
 import { type Role } from '../ids';
@@ -303,8 +304,8 @@ export interface GenerationBodyVM {
   readonly split: boolean;
   /** «Помнить тон в чате» (1.18.0, X45); absent — on. */
   readonly rememberTone?: boolean;
-  /** 1.50.0: «Учитывать Recap» — where a chat's «с Recap» starts; absent — on. */
-  readonly recap?: boolean;
+  /** 1.52.0: «Учитывать Recap» per feature — where a chat's «с Recap» of each starts; absent — all on. */
+  readonly recapBy?: Readonly<Record<RecapReader, boolean>>;
   readonly coach: { readonly historyLimit: number; readonly autoRecap: CoachAutoRecap };
   readonly debug: { readonly enabled: boolean; readonly renderTrace: boolean };
 }

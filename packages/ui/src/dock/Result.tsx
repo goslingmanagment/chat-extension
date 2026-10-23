@@ -11,6 +11,7 @@ import { type ReadonlySignal } from '@preact/signals';
 import { type JSX } from 'preact';
 
 import { type I18nKey } from '@cg/contracts/errors';
+import { isRecapReader } from '@cg/contracts/features';
 import { type ResultMarkVM, type StaleReason } from '@cg/contracts/ops';
 import { type DockVM, type ResultMarkKey, type ResultVM } from '@cg/contracts/vm';
 
@@ -172,7 +173,9 @@ export function ResultContent(props: ResultContentProps): JSX.Element | null {
             the hints and the cheatsheet, as the old client had them. The cost line is the head's last word, as the
             old head's was. */}
         <Meta texts={meta} usage={result.usage ?? null}>
-          {result.recap === undefined || result.recap === null ? null : <RecapTick opId={result.opId} recap={result.recap} reason={againReason} />}
+          {result.recap === undefined || result.recap === null || !isRecapReader(result.feature) ? null : (
+            <RecapTick opId={result.opId} feature={result.feature} recap={result.recap} reason={againReason} />
+          )}
         </Meta>
       </Head>
       <div class="cg-body">

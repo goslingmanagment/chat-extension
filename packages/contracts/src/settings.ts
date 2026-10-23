@@ -11,11 +11,15 @@
 
 import * as z from 'zod/mini';
 
+import { RecapReaderSchema } from './features';
 import { LOCALES } from './i18n/keys';
 import { HOST_KINDS, type HostKind } from './hosts';
 import { CountSchema, HubIntIdSchema, HubOriginSchema, PersonaDefinitionIdSchema, PersonaKeySchema, boundedText, displayText } from './primitives';
 
 export const SETTINGS_SCHEMA_VERSION = 1;
+
+/** «Учитывать Recap» per feature (1.52.0): a feature absent follows the shared `generation.recap`. */
+export const RecapBySchema = z.partialRecord(RecapReaderSchema, z.boolean());
 
 /** The eight synthesized notification tones (SN-013). */
 export const SOUND_TONE_IDS = ['chime', 'drop', 'bell', 'arpeggio', 'knock', 'double', 'soft', 'blip'] as const;
@@ -128,11 +132,17 @@ export const SettingsV1Schema = z.strictObject({
      */
     rememberTone: z.optional(z.boolean()),
     /**
-     * «Учитывать Recap» (1.50.0): where a chat's «с Recap» tick starts — on, Reply, Ping and Coach read the fan's Recap;
-     * off, they answer from the chat alone until the tick is set in that chat. Optional: a store written before reads as
-     * on, with nothing to repair; an older build drops it (its repair keeps only the fields it knows) and reads on.
+     * «Учитывать Recap» (1.50.0) for all the readers at once — since 1.52.0 only what a feature without its own
+     * `recapBy` entry falls back to. Optional: a store written before reads as on, with nothing to repair; an older
+     * build drops it (its repair keeps only the fields it knows) and reads on.
      */
     recap: z.optional(z.boolean()),
+    /**
+     * «Учитывать Recap» per feature (1.52.0): where a chat's «с Recap» of Reply, Fix, Ping or Coach starts — on, the
+     * feature reads the fan's Recap; off, it answers from the chat alone until its tick is set in that chat. A feature
+     * absent here follows `recap`, then on; an older build drops the field and reads `recap`.
+     */
+    recapBy: z.optional(RecapBySchema),
     /** Б5: messageCount per feature group. */
     windows: z.strictObject({
       quick: intIn(SETTINGS_RANGES.windowQuick),
@@ -237,6 +247,7 @@ export const SettingsPatchSchema = z.strictObject({
       split: z.optional(z.boolean()),
       rememberTone: z.optional(z.boolean()),
       recap: z.optional(z.boolean()),
+      recapBy: z.optional(RecapBySchema),
       windows: z.optional(z.partial(SettingsV1Schema.shape.generation.shape.windows)),
       coach: z.optional(z.partial(SettingsV1Schema.shape.generation.shape.coach)),
     }),

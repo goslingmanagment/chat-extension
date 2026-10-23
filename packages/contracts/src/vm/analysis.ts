@@ -5,6 +5,7 @@
 // Split is off with «это не сообщение фану».
 
 import { type CgErrorView } from '../errors';
+import { type RecapReader } from '../features';
 import { type COACH_BLOCK_KINDS, type OpState, type REVIEW_SECTION_KINDS, type ResultMarkVM } from '../ops';
 import { type IsoTimestamp, type Uuid } from '../primitives';
 import { type RecapLength, type UiAction } from './actions';
@@ -79,8 +80,11 @@ export interface RecapViewVM {
   readonly blocks: readonly { readonly heading: string; readonly markdown: string }[] | null;
   readonly generatedAt: IsoTimestamp | null;
   readonly saved: HubSaveVM;
-  /** 1.48.0: «с Recap» of the chat is unticked — Reply, Ping and Coach do not read this Recap now. Absent — they do. */
-  readonly unread?: boolean;
+  /**
+   * 1.52.0: who reads this Recap in this chat now, when not all of its readers do (a «с Recap» unticked here or in the
+   * settings): the full one goes to Reply, Fix, Ping and Coach, the short one to Coach alone. Absent — all of them.
+   */
+  readonly readers?: readonly RecapReader[];
   readonly stamp: RecapStampVM;
   /** «После Recap ещё 2 сообщения»: the fan or the chatter wrote after it; null — not behind. */
   readonly archiveLag: { readonly messages: number | null } | null;
@@ -220,7 +224,7 @@ export interface CoachVM {
   /** 1.46.0: how many of the chat's latest messages Coach reads (its window); null — not known yet. */
   readonly window: number | null;
   /**
-   * 1.48.0: «Учитывать Recap» of this chat — the same tick as the dock's «с Recap» (`SetRecap`): false — the next
+   * 1.48.0: «Учитывать Recap» of this chat — Coach's own «с Recap» (`SetRecap` of `coach`, 1.52.0): false — the next
    * question goes without the Recaps. Absent or null — no tick: the hub cannot leave them out.
    */
   readonly recapOn?: boolean | null;

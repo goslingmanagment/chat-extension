@@ -9,6 +9,7 @@
 
 import { type ComponentChildren, type JSX } from 'preact';
 
+import { type RecapReader } from '@cg/contracts/features';
 import { type HotkeyLabel, type UiAction } from '@cg/contracts/vm';
 
 import { Button, Checkbox, hotkeyText, useDispatch, useI18n, useKit, useMinuteClock, useNowFn, useTooltip } from '../kit';
@@ -86,11 +87,21 @@ export function Meta({ texts, usage = null, children }: { readonly texts: readon
 }
 
 /**
- * «☑ с Recap · 3 д назад» in a Reply's or a Ping's head (1.48.0): what the answer stood on, as a tick. Pressing it flips
- * the chat's «с Recap» (`SetRecap`, Coach's «Учитывать Recap» too) and asks again, so the head keeps saying what the
- * answer on screen read; the next answers of the chat follow the tick.
+ * «☑ с Recap · 3 д назад» in an answer's head (1.48.0): what the answer stood on, as a tick. Pressing it flips the
+ * chat's «с Recap» of this feature only (`SetRecap`, 1.52.0) and asks again, so the head keeps saying what the answer
+ * on screen read; the feature's next answers in the chat follow the tick.
  */
-export function RecapTick({ opId, recap, reason }: { readonly opId: string; readonly recap: { readonly on: boolean; readonly at: string | null }; readonly reason: string | null }): JSX.Element {
+export function RecapTick({
+  opId,
+  feature,
+  recap,
+  reason,
+}: {
+  readonly opId: string;
+  readonly feature: RecapReader;
+  readonly recap: { readonly on: boolean; readonly at: string | null };
+  readonly reason: string | null;
+}): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const now = useNowFn();
@@ -103,8 +114,8 @@ export function RecapTick({ opId, recap, reason }: { readonly opId: string; read
         checked={recap.on}
         semantics="toggle"
         reason={reason}
-        tooltip={i18n.t(recap.on ? 'result.recap.onHint' : 'result.recap.offHint')}
-        onChange={(on) => void dispatch({ type: 'SetRecap', on, again: opId })}
+        tooltip={i18n.t(recap.on ? 'result.recap.onHint' : 'result.recap.offHint', { feature: i18n.t(`dock.action.${feature}`) })}
+        onChange={(on) => void dispatch({ type: 'SetRecap', feature, on, again: opId })}
       />
     </span>
   );

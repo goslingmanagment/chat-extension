@@ -20,7 +20,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   ExpandResult: { type: 'ExpandResult', operationId: OP, expanded: true },
   SetTone: { type: 'SetTone', targetHandle: TARGET, tone: null },
   SetSplit: { type: 'SetSplit', split: true },
-  SetRecap: { type: 'SetRecap', on: false },
+  SetRecap: { type: 'SetRecap', feature: 'reply', on: false },
   InsertPart: { type: 'InsertPart', operationId: OP, part: 0 },
   ReplaceMyDraft: { type: 'ReplaceMyDraft', operationId: OP, part: 0 },
   RestoreMyDraft: { type: 'RestoreMyDraft', operationId: OP },
