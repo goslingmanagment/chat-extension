@@ -5,7 +5,7 @@ import { STORAGE_KEYS, isHubCallError, isHubCheckError, type CgCode } from '@cg/
 import { BOOTSTRAP_PILOT_ON, HTTP_SCENARIOS, HUB_ROUTE_PATHS, NOW, NOW_MS, WORLD, at, streamBody } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AuthCustody } from '../src/auth';
+import { AUTH_REREAD_MS, AuthCustody } from '../src/auth';
 import { errorWireOf, type HubStatus } from '../src/index';
 import { SILENT_LOG, SYSTEM_CLOCK } from '../src/ports';
 import { MemoryStore, hubError, json } from './support/fake-hub';
@@ -352,5 +352,37 @@ describe('[AU-016] [AU-021] [HB-001] the sign-in is bound to the hub address', (
     await h.facade.signOut();
     expect(h.hub.of('authRevokeCurrentDeviceToken')[0]?.origin).toBe(WORLD.hubOrigin);
     expect(h.facade.status().auth).toBe('none');
+  });
+});
+
+describe('[AU-016] a sign-in that could not be read at start', () => {
+  it('[AU-016] is read again on its next use — one read at a time, not more often than every 5 s — and goes on as after a start', async () => {
+    const session = await signIn(h, WORLD_PILOT);
+    // The next event page: its one read of the sign-in fails (a storage call that failed or ran out of its 5 s).
+    h.local.fail = { get: 'CG-STORAGE-READ' };
+    const restarted = makeHarness({ paths: HUB_ROUTE_PATHS, local: h.local, hub: h.hub });
+    await restarted.facade.ready;
+    const reads = vi.spyOn(h.local, 'get');
+    const authReads = (): number => reads.mock.calls.filter(([keys]) => keys.includes(STORAGE_KEYS.authToken)).length;
+    expect(restarted.facade.status()).toMatchObject({ auth: 'unreadable', state: 'auth-failed', session: null });
+    expect(await codeOf(restarted.facade.bootstrap())).toBe('CG-STORAGE-READ');
+    h.local.fail = {};
+    // Right after the failed read, uses do not read again: a failing storage is not asked in a loop.
+    for (let i = 0; i < 5; i += 1) expect(restarted.facade.session()).toBeNull();
+    await flush(20);
+    expect(authReads()).toBe(0);
+    vi.advanceTimersByTime(AUTH_REREAD_MS);
+    // The next use reads again — once, however many uses come meanwhile; each is answered by what is known now.
+    for (let i = 0; i < 5; i += 1) expect(restarted.facade.status().auth).toBe('unreadable');
+    await until(() => restarted.facade.session() !== null);
+    expect(authReads()).toBe(1);
+    expect(restarted.facade.session()).toEqual(session);
+    // The tabs and pages heard nobody was signed in: they hear the sign-in now.
+    expect(restarted.changes).toEqual([{ session, reason: 'sign-in', epoch: session.epoch, code: null }]);
+    // As after a start: the stored bootstrap of this sign-in is used, and the calls go through.
+    await until(() => restarted.facade.cachedBootstrap() !== null);
+    expect(restarted.facade.status()).toMatchObject({ auth: 'bound', session });
+    expect((await restarted.facade.bootstrap()).identity.userId).toBe(WORLD.user.userId);
+    restarted.facade.dispose();
   });
 });

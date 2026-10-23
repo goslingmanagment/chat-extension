@@ -82,10 +82,16 @@ export class AuthWriteError extends Error {
 
 const UNAUTHORIZED_WIPE_REASONS = { token_revoked: 'revoked', token_expired: 'expired' } as const;
 
+/** A sign-in whose read failed is read again on its next use, at most this long after the last failed read. */
+export const AUTH_REREAD_MS = 5_000;
+
 export class AuthCustody {
   private stored: StoredAuth | null = null;
   private meta: AuthMeta = { v: 1, epoch: 0, token: null, lastEnd: null };
   private readable = true;
+  /** When the last read failed (monotonic ms) — the storage call, not a record that did not parse; null — none did. */
+  private readFailedAt: number | null = null;
+  private rereading = false;
   private tail: Promise<void> = Promise.resolve();
   private epochController = new AbortController();
   /** The settings' hub address as of the last sign-in, start or address change (hubOriginChanged). */
@@ -100,18 +106,30 @@ export class AuthCustody {
       readonly clock: HubClock;
       readonly log: HubLog;
       readonly configuredOrigin: () => string;
+      /** A sign-in that could not be read at start was read again and is usable: what the start does after its read. */
+      readonly onReadAgain?: () => Promise<void>;
     },
   ) {}
 
-  /** Reads the stored sign-in once at background start. A failed read never erases anything and never guesses an identity. */
+  /**
+   * Reads the stored sign-in at background start. A failed read never erases anything and never guesses an
+   * identity; it is read again on the next use (`state`).
+   */
   async load(): Promise<void> {
     this.knownOrigin = this.deps.configuredOrigin();
+    await this.read();
+  }
+
+  private async read(): Promise<void> {
     const read = await this.deps.local.get([STORAGE_KEYS.authToken, STORAGE_KEYS.authMeta]);
     if (!read.ok) {
       this.readable = false;
+      this.readFailedAt = this.deps.clock.monotonic();
       this.deps.log('error', 'auth: storage read failed', { code: read.code });
       return;
     }
+    this.readable = true;
+    this.readFailedAt = null;
     const raw = read.value;
     const meta = AuthMetaSchema.safeParse(raw[STORAGE_KEYS.authMeta]);
     if (meta.success) this.meta = meta.data;
@@ -128,9 +146,41 @@ export class AuthCustody {
   }
 
   state(): AuthState {
-    if (!this.readable) return 'unreadable';
+    if (!this.readable) {
+      this.readAgainSoon();
+      return 'unreadable';
+    }
     if (this.stored === null) return 'none';
     return this.stored.hubOrigin === this.deps.configuredOrigin() ? 'bound' : 'mismatch';
+  }
+
+  /**
+   * AU-016 «unreadable» after a failed storage call lasts until the next use, not for the event page's life: the
+   * use is answered by what is known now and starts one more read — one at a time, at most every AUTH_REREAD_MS
+   * after the last failed one, queued with the transitions so it never reads over a newer sign-in. A usable
+   * sign-in found is announced as `sign-in` with its own epoch (the tabs and pages heard nobody was signed in).
+   * A record that read but did not parse is not read again: it would read the same.
+   */
+  private readAgainSoon(): void {
+    const failedAt = this.readFailedAt;
+    if (failedAt === null || this.rereading || this.deps.clock.monotonic() - failedAt < AUTH_REREAD_MS) return;
+    this.rereading = true;
+    void this.transition(async () => {
+      // A sign-in or a sign-out that ran meanwhile made the custody readable: nothing to read.
+      if (this.readable) return false;
+      await this.read();
+      if (!this.readable) return false;
+      const session = this.session();
+      this.deps.log('info', 'auth: sign-in read again', { state: this.state(), epoch: this.meta.epoch });
+      if (session === null) return false;
+      this.emit({ session, reason: 'sign-in', epoch: this.meta.epoch, code: null });
+      return true;
+    })
+      .then((found) => (found ? this.deps.onReadAgain?.() : undefined))
+      .catch(() => this.deps.log('error', 'auth: sign-in read again failed'))
+      .finally(() => {
+        this.rereading = false;
+      });
   }
 
   /** The usable sign-in: present, readable, and issued by the hub the settings name. */

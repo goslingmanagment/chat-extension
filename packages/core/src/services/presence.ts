@@ -13,7 +13,11 @@
 //   at most 500 (PresenceStoreSchema). One set per change, and a known
 //   account's time is refreshed at most every 10 minutes, so reports do not
 //   turn into a write storm. A failed read is never overwritten: the next
-//   write first reads again.
+//   write first reads again, and joins what it reads to what this event page
+//   saw meanwhile. Memory is this event page's truth — a tab is bound to its
+//   pages by it (`seenAccounts`) — so a failed read or write never drops what
+//   a tab reported: it only means the next event page may not remember it
+//   until a tab reports it again.
 
 import { PresenceStoreSchema, type PresenceStore, type SeenHostAccount } from '@cg/contracts/host';
 import { chatKeyOf, type ChatKey, type ChatRef, type HostAccount } from '@cg/contracts/ids';
@@ -138,17 +142,16 @@ export function createPresence(deps: PresenceDeps): PresenceService {
     }
     const raw = read.value[KEY];
     loaded = true;
-    if (raw === undefined) {
-      seen = [];
+    if (raw === undefined) return true;
+    const parsed = PresenceStoreSchema.safeParse(raw);
+    if (!parsed.success) {
+      // A cache of what this browser saw: an unreadable one starts over.
+      log({ level: 'warn', scope: SCOPE, msg: 'seen accounts not interpretable: starting over' });
       return true;
     }
-    const parsed = PresenceStoreSchema.safeParse(raw);
-    if (parsed.success) seen = [...parsed.data.accounts];
-    else {
-      // A cache of what this browser saw: an unreadable one starts over.
-      seen = [];
-      log({ level: 'warn', scope: SCOPE, msg: 'seen accounts not interpretable: starting over' });
-    }
+    // What this event page saw while the key could not be read (nothing, at start) is newer than what is stored.
+    const known = new Set(seen.map((item) => hostAccountKeyOf(item.account.host, item.account.hostAccountId)));
+    seen = [...seen, ...parsed.data.accounts.filter((item) => !known.has(hostAccountKeyOf(item.account.host, item.account.hostAccountId)))].slice(0, STORAGE_LIMITS.seenAccountsMax);
     return true;
   }
 
@@ -215,13 +218,16 @@ export function createPresence(deps: PresenceDeps): PresenceService {
       const accounts = report.accounts;
       await (started ??= service.start());
       await chain(async () => {
-        if (!loaded && !(await load())) return;
+        const readable = loaded || (await load());
         const next = merged(accounts, clock.now());
         if (next === null) return;
+        // Taken whatever storage says: the tab's requests are answered by it (`seenAccounts`), and it does not
+        // report the same accounts again. A failed read is not written over; a failed write is only logged.
+        seen = next;
+        if (!readable) return;
         const value: PresenceStore = { v: 1, accounts: next };
         const saved = await deps.local.set({ [KEY]: value });
-        if (saved.ok) seen = next;
-        else log({ level: 'warn', scope: SCOPE, msg: 'seen accounts not saved', code: saved.code });
+        if (!saved.ok) log({ level: 'warn', scope: SCOPE, msg: 'seen accounts not saved: kept in memory', code: saved.code });
       });
       return { recorded: true };
     },

@@ -9,7 +9,7 @@
 // - a release build against a hub without `client/bootstrap`: the full token is
 //   revoked and never stored.
 
-import { STORAGE_KEYS, type SendJournalEntry } from '@cg/contracts';
+import { STORAGE_KEYS, type SendJournalEntry, type SettingsV1 } from '@cg/contracts';
 import { account, chat, journalEntry } from '@cg/contracts/fixtures';
 import { NATIVE_SENDS_KEY } from '@cg/core/services';
 import { createSendJournal } from '@cg/core/services/custody';
@@ -18,9 +18,9 @@ import { callsTo } from '@cg/testing/fake-hub';
 import { WORLD } from '@cg/testing/hub';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { pageSender } from '../../../packages/platform/src/test-support/fake-browser.ts';
+import { pageSender, type FakeContext } from '../../../packages/platform/src/test-support/fake-browser.ts';
 import { admitted, bindingOf, opsOf, signInWithPersona, startReply, workingTab } from './support/tabs.ts';
-import { PASSWORD, createWorld, settingsFor, sleep, until, type World } from './support/world.ts';
+import { HUB_ORIGIN, PASSWORD, createWorld, settingsFor, sleep, until, type World } from './support/world.ts';
 
 const uuid = (n: number): string => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const PAGE_ID = WORLD.pages.one.pageId;
@@ -154,6 +154,55 @@ describe('a tab that asks about its page before it said which accounts it shows 
     expect(await client.request('spenders.stats', STATS)).toMatchObject({ ok: false, error: { code: 'CG-BINDING-NOT-GRANTED' } });
     expect(Date.now() - started).toBeLessThan(1000);
     expect(callsTo(w.hub.read().entries, 'clientSpenderStats')).toHaveLength(0);
+  });
+});
+
+describe('the persona scope of a sign-in whose settings write failed (§5.6 `personas.scope`)', () => {
+  const SCOPE = { hubOrigin: HUB_ORIGIN, userId: WORLD.user.userId };
+  const storedScope = (w: World): unknown => (w.fake.areas.local.get(STORAGE_KEYS.settings) as SettingsV1 | undefined)?.personas.scope ?? null;
+
+  /** The next write of the settings fails in the browser (a failed or timed-out storage call); every other write goes on. */
+  function settingsWriteFails(): { readonly arm: () => void; readonly configureApi: (api: FakeContext['api']) => void } {
+    let armed = false;
+    return {
+      arm: () => {
+        armed = true;
+      },
+      configureApi(api) {
+        const area = api.storage.local;
+        const set = area.set.bind(area);
+        area.set = (items) => {
+          if (!armed || !(STORAGE_KEYS.settings in items)) return set(items);
+          armed = false;
+          return Promise.reject(new Error('storage.local.set failed'));
+        };
+      },
+    };
+  }
+
+  it('the next persona choice writes the scope first: the page generates instead of CG-PERSONA-UNASSIGNED until a sign-out', async () => {
+    const write = settingsWriteFails();
+    const w = world({ configureApi: write.configureApi });
+    w.start();
+    write.arm();
+    await signInWithPersona(w);
+    expect(storedScope(w)).toEqual(SCOPE);
+    const tab = await workingTab(w);
+    admitted(await startReply(tab, await bindingOf(tab)));
+  });
+
+  it('the next event page writes it at its start', async () => {
+    const write = settingsWriteFails();
+    const w = world({ configureApi: write.configureApi });
+    w.start();
+    write.arm();
+    expect(await w.page().request('session.signIn', { login: WORLD.user.username, password: PASSWORD })).toMatchObject({ ok: true });
+    await until(() => w.fake.areas.local.has(STORAGE_KEYS.authToken), 'signed in');
+    await sleep(50);
+    expect(storedScope(w)).toBeNull();
+    w.fake.suspendBackground();
+    expect(await w.page().request('session.get', {})).toMatchObject({ ok: true, payload: { session: { userId: SCOPE.userId } } });
+    await until(() => w.starts() === 2 && JSON.stringify(storedScope(w)) === JSON.stringify(SCOPE), 'the scope written at the start');
   });
 });
 

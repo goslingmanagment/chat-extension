@@ -257,7 +257,7 @@ export class ChatExtensionHub implements HubFacade {
     const uuid = options.uuid ?? (() => globalThis.crypto.randomUUID());
     const headers = () => clientVersionHeaders(options.env.extensionVersion);
     this.wire = new HubWire({ fetch: options.fetch, clock, headers });
-    this.custody = new AuthCustody({ local: options.local, clock, log, configuredOrigin: () => options.env.hubOrigin() });
+    this.custody = new AuthCustody({ local: options.local, clock, log, configuredOrigin: () => options.env.hubOrigin(), onReadAgain: () => this.afterSignInRead() });
     this.ctx = new HubContext(options.env, this.custody, this.wire, clock, log, uuid);
     this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {}, compatPlatforms: options.compatPlatforms ?? [] });
     this.catalogService = new CatalogService(this.ctx, options.local);
@@ -309,6 +309,11 @@ export class ChatExtensionHub implements HubFacade {
 
   private async start(): Promise<void> {
     await this.custody.load();
+    await this.afterSignInRead();
+  }
+
+  /** What follows the read of the stored sign-in: at start, and when one that could not be read is read again. */
+  private async afterSignInRead(): Promise<void> {
     if (this.custody.current() === null) return;
     await Promise.all([this.bootstrapService.loadStored(), this.catalogService.loadStored()]);
     // AU-027: a config change is noticed against what the previous background last saw.
