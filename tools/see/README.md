@@ -15,6 +15,7 @@ assert nothing, and a scenario fails only when a step cannot be done.
 | `pnpm see <scenario\|file> [--site fansly \| --live [--chat <n>]] [--gif] [--no-build]` | rebuilds only what is stale; runs the scenario; prints the folder, the PNG paths and `index.html` (a contact sheet) | 6–10 s; +5 s test build, +1.5 s stand when changed |
 | `pnpm see --new <name>` | a scenario of your own in `packages/testing/e2e/see/scratch/` (not committed) | — |
 | `pnpm see:session [chatspace\|fansly] [--live [--chat <n>]]` | holds a shift open; the port is the worktree's own and is printed. An agent runs it in the background. Stops after 30 min idle (`--idle <min>`) | ~5 s to ready |
+| `pnpm see:session --bare [--chat <n>]` | fansly.com alone, signed in as the test model, no extension: a browser to study Fansly in — click anything, read the page, every request and socket frame with its body in `s.net` (below) | ~10 s to ready |
 | `pnpm see:do '<js>'` | one step in the session: async JS with `s` (the verbs below) and `browser`; prints the result and the path of a picture taken after the step. Also: `--name x`, `--no-shot`, `--file f.js`, `-` (stdin), `--shot <name>`, `--status`, `--stop` | 0.3–1.5 s |
 | `pnpm see:gallery` | the UI galleries (kit, dock, boards, pages) on vite with hot reload, prints their URLs; Ctrl+C stops | < 1 s |
 
@@ -83,9 +84,9 @@ run the same verbs on the real fansly.com: the test build in a headless Firefox
 signed in as the agency's test model, against the fake hub (no money, no
 production hub). A scenario takes ~15 s.
 
-- **The model's sign-in** stays in a durable profile,
-  `~/.cache/chatgoose/fansly-live-profile` (`CG_SEE_LIVE_PROFILE` names
-  another). A signed-out run signs in with `FANSLY_TEST_MODEL_EMAIL` /
+- **The model's sign-in** stays in a durable profile, one per worktree,
+  `~/.cache/chatgoose/fansly-live/<worktree folder>` (`CG_SEE_LIVE_PROFILE`
+  names another): two agents in two worktrees do not lock each other out. A signed-out run signs in with `FANSLY_TEST_MODEL_EMAIL` /
   `FANSLY_TEST_MODEL_PASSWORD`: `set -a; . ~/.config/agency/secrets.env; set +a`
   first.
 - **Its chats are real fans, and nothing is blocked.** What a fan would see — a
@@ -99,6 +100,19 @@ production hub). A scenario takes ~15 s.
   page makes without `ngsw-bypass`. The extension's event page is out of
   WebDriver's sight too (notes, `group.create`). X8's send needs the fake hub's
   `previewSend`, which `--live` never switches on.
+- **The page's own traffic, with bodies**: every XMLHttpRequest and fetch of
+  the page with its request and response bodies, and its sockets' frames (in
+  and out), in `s.net` during a session and `net.json` after it. Taken by a
+  preload script in the page, so it survives navigations; no headers, and
+  `token` / `password` fields are blanked before anything is recorded. The
+  bodies are real data of the model and her fans: `.cache/` only, never into
+  the repo or a PR. Example: `pnpm see:do 'return s.net.filter((r) =>
+  r.url.includes("/api/v1/post"))'`.
+- **`--bare`** is the same session without the extension and the fake hub:
+  for studying Fansly itself (what the site sends when a person does X, which
+  code runs — the scripts are `document.scripts`, the snapshot of the bundle is
+  in `docs/research/fansly.md` §2). `s.press`, `s.dock` and the other verbs of
+  our UI have nothing to act on there.
 - **No report on the real site** (`composition/tab/probe.ts`): `s.ready()` waits
   for Reply on the dock, `s.done()` for the dock to stand still 1.5 s,
   `s.dock()` and `s.report()` are null, captions have no dock line. Read the
