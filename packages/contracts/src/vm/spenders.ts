@@ -48,6 +48,41 @@ export interface SpenderRowVM {
   readonly chat?: 'find' | 'finding' | 'missing';
   /** 1.32.0: the row in a batch (`SetBatchPick`, `GenerateBatch`); absent — the board has no batch. */
   readonly batch?: BatchRowVM;
+  /** «Рассылка» is open and the row's batch line is ready: its own «Отправить» and how it went; absent — nothing to send here. */
+  readonly outreach?: OutreachRowVM;
+}
+
+/** An item of the page's own «Copied …» list (Fansly's attach menu): 2 — «Copied Bundle», 1 — «Copied Media». */
+export interface OutreachItemVM {
+  readonly contentType: 1 | 2;
+  readonly contentId: string;
+  /** Goes with every message of the outreach. */
+  readonly picked: boolean;
+}
+
+/**
+ * «Рассылка» of the board (Spenders on Fansly): each fan of the batch gets their personal line (the batch's Reply or
+ * Ping), then the common text, with the picked copied items — by the person's click on the fan's row, one at a time.
+ */
+export interface OutreachVM {
+  /** The bar over the list is shown; the rows offer «Отправить» only then. */
+  readonly open: boolean;
+  /** The common text after each fan's personal line. */
+  readonly text: string;
+  /** The page's «Copied …» list as it was last read (opening the bar or «Обновить»), in its own order. */
+  readonly items: readonly OutreachItemVM[];
+  /** Fans the outreach reached in this tab. */
+  readonly sent: number;
+}
+
+/** A row's «Отправить» of the outreach. */
+export interface OutreachRowVM {
+  /** `ready` — may go; `sending` — on its way; `sent` — Fansly made the message; `uncertain` — it left, its fate unknown; `failed` — not sent. */
+  readonly state: 'ready' | 'sending' | 'sent' | 'uncertain' | 'failed';
+  /** The click goes now (false while another send of the board is on its way or rests its second). */
+  readonly can: boolean;
+  /** `failed` and `uncertain`: the code. */
+  readonly code: string | null;
 }
 
 export interface ShelfVM {
@@ -108,6 +143,8 @@ export interface SpendersBoardVM {
   readonly waitingFallback?: { readonly error: CgErrorView; readonly retry: UiAction } | null;
   /** 1.32.0: the batch of the board — ticked fans, how their generations go; absent — no batch here. */
   readonly batch?: BatchVM;
+  /** «Рассылка» (Spenders on Fansly); absent — the site has none. */
+  readonly outreach?: OutreachVM;
 }
 
 /** One number of the statistics with its own stamp. */

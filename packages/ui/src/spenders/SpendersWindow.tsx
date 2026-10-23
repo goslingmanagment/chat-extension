@@ -22,6 +22,7 @@ import { BOARD_CSS, Board, BoardFilters, firstFan, focusIsIdle, openChat, type B
 import { PanelPreview, type PreviewFallback } from './preview/PanelPreview';
 import { STATS_CSS, StatsColumn, StatsExpanded, StatsRail, type StatsShow } from './Stats';
 import { RefreshButton, isPlainKey, isTextEntry, type RefreshableView } from './window';
+import { OUTREACH_CSS, OutreachBar, OutreachToggle } from './outreach';
 
 /** Marks of the paints the UI reports; the controller starts the measure, the UI ends it (RenderMarks). */
 export const SPENDERS_PAINT_MARKS = { open: 'spenders.board', search: 'spenders.search' } as const;
@@ -333,6 +334,7 @@ export function SpendersWindow(): JSX.Element {
               </span>
               <span class="cg-sp__grow" />
               {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
+              {board.outreach === undefined ? null : <OutreachToggle outreach={board.outreach} />}
               <RefreshButton views={statistics ? BOARD_REFRESH : LIST_REFRESH} />
               <Button label={i18n.t('common.close')} variant="quiet" size="sm" hotkey="Esc" tooltip={i18n.t('spenders.closeTooltip')} class="cg-sp__close" onClick={closeWindow} />
             </header>
@@ -357,6 +359,7 @@ export function SpendersWindow(): JSX.Element {
                 />
               </div>
             )}
+            {board.outreach?.open === true ? <OutreachBar outreach={board.outreach} /> : null}
           </div>
           {expanded ? (
             <div class="cg-sp__cols is-stats">
@@ -469,4 +472,5 @@ export const SPENDERS_CSS = `
 }
 ${BOARD_CSS}
 ${STATS_CSS}
+${OUTREACH_CSS}
 `;

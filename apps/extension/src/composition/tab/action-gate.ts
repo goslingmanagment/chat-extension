@@ -181,6 +181,8 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   // R20 P10c: a «Новые» card asks after writing and reading its draft — «Отправить» a send, «Открыть и вставить» a navigation.
   SendNewcomerGreeting: ['send'],
   InsertNewcomerGreeting: ['navigate'],
+  // «Рассылка» of Spenders on Fansly: a row's «Отправить» is a send by this click.
+  SendOutreach: ['send'],
   // 1.47.0: Voice. The chip writes the script when the studio opens over a draft; a preset, «Переписать» and «Новый
   // войс» write one; «Озвучить» and «Проверить» are the paid create (the same request again for «Проверить»); only
   // «Прикрепить» hands the MP3 to the site's field, and «Убрать текст» / «Вернуть текст» write the field's draft.

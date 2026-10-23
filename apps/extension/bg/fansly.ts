@@ -103,6 +103,7 @@ import { createSpendersLookup } from '@cg/fansly-api/spenders';
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
 import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
 import { createNotesService } from './fansly/notes';
+import { createOutreachService } from './fansly/outreach';
 import { readOpenChatPpv } from './fansly/ppv';
 import { readPreviewState } from './fansly/read-state';
 import { readRegistration } from './fansly/registration';
@@ -118,7 +119,7 @@ const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? o
  * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
  * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself.
  */
-const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.ppv.read', 'fansly.preview.readState']);
+const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState']);
 
 /** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
 async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, type: string, payload: unknown): Promise<HostAnswer> {
@@ -233,6 +234,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   // The client of a feature's call: the realm's own; a test build's, on the stand's loopback API.
   const clientNow = async () => (__CG_TEST_HOSTS__ ? (session === undefined || api === null ? null : await standFanslyClient(kit, session, api)) : (api?.client ?? null));
   const notes = createNotesService(kit, clientNow);
+  const outreach = createOutreachService(kit, clientNow);
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session), active });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
@@ -250,7 +252,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       if (type === 'fansly.ops.start') return unreachable('Fansly is off');
       if (BEGINS.has(type)) return ok({ ok: false, error: { code: 'CG-FAN-OFF' } });
     }
-    if (type === 'fansly.spenders.names' || type === 'fansly.spenders.resolve') {
+    if (type === 'fansly.spenders.names' || type === 'fansly.spenders.resolve' || type === 'fansly.spenders.outreach') {
       if (spenders === null) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
       const account = (payload as { hostAccountId: string }).hostAccountId;
       const owns = (): boolean => {
@@ -260,6 +262,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       // The tab's session names another id than its creator until `/account/me` ties them (AU-032).
       if (!owns()) await (await clientNow())?.identify(account);
       if (!owns()) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
+      // «Рассылка»: the row's «Отправить», one request of the click (bg/fansly/outreach.ts).
+      if (type === 'fansly.spenders.outreach') return ok(await outreach(payload as FanslyTabRequestPayload<'fansly.spenders.outreach'>, tab));
       try {
         if (type === 'fansly.spenders.names') {
           const request = payload as FanslyTabRequestPayload<'fansly.spenders.names'>;

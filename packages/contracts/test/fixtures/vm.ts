@@ -85,6 +85,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   GenerateBatch: { type: 'GenerateBatch', list: 'newcomers' },
   StopBatch: { type: 'StopBatch', list: 'spenders' },
   ClearBatch: { type: 'ClearBatch', list: 'newcomers' },
+  SetOutreach: { type: 'SetOutreach', open: true, text: 'new video is up', item: { contentType: 2, contentId: '700000000000000011', picked: true } },
+  SendOutreach: { type: 'SendOutreach', targetHandle: 'spenders:42:700000000000000002' },
   RenewClaim: { type: 'RenewClaim', targetHandle: 'newcomers:f2' },
   ReleaseClaim: { type: 'ReleaseClaim', targetHandle: 'newcomers:f2' },
   SetFanPanelTab: { type: 'SetFanPanelTab', tab: 'recap' },

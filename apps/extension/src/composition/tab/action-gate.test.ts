@@ -271,6 +271,7 @@ describe('the action tokens of a tab', () => {
       SendDraft: ['send'],
       SendNewcomerGreeting: ['send'],
       InsertNewcomerGreeting: ['navigate'],
+      SendOutreach: ['send'],
       ShowVoice: ['generate'],
       WriteVoiceScript: ['generate'],
       NewVoice: ['generate'],

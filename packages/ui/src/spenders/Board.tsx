@@ -35,6 +35,7 @@ import {
   useTooltip,
 } from '../kit';
 import { BatchBar, BatchCheck, BatchLine, inBatch } from './batch';
+import { OutreachSend } from './outreach';
 import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, inlinePreviewHeight, isStop, nextStop, shelfLabel, shelfTier, type BoardItem } from './rows';
 import { ChoiceMenu, FilterChip, coverageWord, isPlainKey } from './window';
@@ -311,7 +312,7 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
         {period === null ? <span class="cg-bd__none">{i18n.formatMoneyMills(null)}</span> : i18n.formatMoneyMills(period)}
       </span>
       {copy ? <span role="cell" class="cg-bd__act" /> : <OpenCell row={row} live />}
-      {row.batch === undefined || copy ? null : <BatchLine row={row.batch} />}
+      {row.batch === undefined || copy ? null : <BatchLine row={row.batch} end={row.outreach === undefined ? null : <OutreachSend handle={row.handle} row={row.outreach} />} />}
     </div>
   );
 }

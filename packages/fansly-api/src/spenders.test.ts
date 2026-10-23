@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { admit } from './allowlist';
 import type { FanslyAnswer, FanslyCall } from './client';
 import { FanslyApiError } from './errors';
-import { createSpendersLookup, RESOLVE_BUDGET_MS } from './spenders';
+import { createSpendersLookup, RESOLVE_BUDGET_MS, sendOutreach } from './spenders';
 
 const ACCOUNT = '700000000000000001';
 const FAN = '700000000000000002';
@@ -75,5 +75,37 @@ describe('[host:fansly] Spenders missing-data lookup (R20 P9e)', () => {
     expect(await one).toBeNull();
     expect(w.lookup.cached(ACCOUNT, FAN)).toBeNull();
     expect(w.call).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('[host:fansly] «Рассылка»: what goes to the fan', () => {
+  const BUNDLE = '700000000000000011';
+  const PREVIEW = '700000000000000012';
+  it('one POST /message to the fan\'s group with the text and the copied items, as Fansly\'s composer sends them', async () => {
+    const w = world(() => ({ id: '700000000000000013', groupId: GROUP, senderId: ACCOUNT }));
+    const sent = await sendOutreach({ call: w.call }, ACCOUNT, { groupId: GROUP, text: 'hey you\n\nnew video is up', attachments: [{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }] });
+    expect(sent).toBe('700000000000000013');
+    expect(w.call).toHaveBeenCalledTimes(1);
+    expect(w.call.mock.calls[0]?.[0]).toEqual({
+      purpose: 'outreach',
+      route: 'message.send',
+      account: ACCOUNT,
+      body: {
+        type: 1,
+        content: 'hey you\n\nnew video is up',
+        groupId: GROUP,
+        attachments: [{ messageId: null, pos: 0, contentId: BUNDLE, contentType: 2 }, { messageId: null, pos: 1, contentId: PREVIEW, contentType: 2 }],
+        likes: [],
+        scheduledFor: 0,
+        inReplyTo: null,
+      },
+    });
+  });
+  it('a receipt of another group is no receipt; a failed send is never asked again', async () => {
+    const other = world(() => ({ id: '700000000000000013', groupId: '800000000000000009' }));
+    await expect(sendOutreach({ call: other.call }, ACCOUNT, { groupId: GROUP, text: 'hey', attachments: [] })).rejects.toMatchObject({ kind: 'malformed', sent: true });
+    const lost = world(() => { throw new FanslyApiError('network', { sent: true }); });
+    await expect(sendOutreach({ call: lost.call }, ACCOUNT, { groupId: GROUP, text: 'hey', attachments: [] })).rejects.toBeInstanceOf(FanslyApiError);
+    expect(lost.call).toHaveBeenCalledTimes(1);
   });
 });

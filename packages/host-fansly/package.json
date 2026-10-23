@@ -9,6 +9,7 @@
     "./isolated/notice": "./src/isolated/notice.ts",
     "./isolated/vault": "./src/isolated/vault/index.ts",
     "./isolated/notes-place": "./src/isolated/notes-place.ts",
+    "./isolated/copied-media": "./src/isolated/copied-media.ts",
     "./isolated/launcher-view": "./src/isolated/launcher-view.ts",
     "./isolated": "./src/isolated/index.ts",
     "./isolated/validation": "./src/isolated/validate.ts",

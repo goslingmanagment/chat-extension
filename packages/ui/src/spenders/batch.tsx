@@ -4,7 +4,7 @@
 // line: how its generation went, and the text that came out. Nothing here sends: the person opens a row and sends
 // on its card, part by part.
 
-import { type JSX } from 'preact';
+import { type ComponentChildren, type JSX } from 'preact';
 
 import { type BatchList, type BatchRowState, type BatchRowVM, type BatchVM } from '@cg/contracts/vm';
 
@@ -107,7 +107,7 @@ export function BatchBar({ list, batch }: { readonly list: BatchList; readonly b
 }
 
 /** The line under a row in a batch: its state in words, then the text, or the failure's title with its code. */
-export function BatchLine({ row, failureTitle }: { readonly row: BatchRowVM; readonly failureTitle?: (code: string) => string }): JSX.Element | null {
+export function BatchLine({ row, failureTitle, end }: { readonly row: BatchRowVM; readonly failureTitle?: (code: string) => string; readonly end?: ComponentChildren }): JSX.Element | null {
   const i18n = useI18n();
   if (row.state === null) return null;
   const code = row.failure?.code ?? null;
@@ -118,6 +118,7 @@ export function BatchLine({ row, failureTitle }: { readonly row: BatchRowVM; rea
       <b>{i18n.t(STATE_KEYS[row.state])}</b>
       {row.text === null ? null : <span class="cg-bt__text">{row.text}</span>}
       {code === null ? null : <span class="cg-bt__text">{why === null ? code : `${why} · ${code}`}</span>}
+      {end}
     </span>
   );
 }
