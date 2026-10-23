@@ -39,6 +39,11 @@ export interface DeskUi {
   /** The person's text while they type: kept here, stored a moment later. null — what the session holds. */
   text: string | null;
   attach: DeskAttach | null;
+  /**
+   * A take this tab asked for and the background has not answered yet: claimed by the click before its first wait, so
+   * a second click of a double click finds it (one click, one render); let go whatever the answer.
+   */
+  making: boolean;
   confirm: DeskConfirm | null;
   /** The studio's own failure of a click (a refusal of the background, a draft that could not be read). */
   error: CgErrorWire | null;
@@ -264,7 +269,7 @@ export class VoiceDesk {
   ui(key: ChatKey): DeskUi {
     let ui = this.uis.get(key);
     if (ui === undefined) {
-      ui = { tone: 'calm', selected: null, text: null, attach: null, confirm: null, error: null, leftover: null, unseen: new Set() };
+      ui = { tone: 'calm', selected: null, text: null, attach: null, making: false, confirm: null, error: null, leftover: null, unseen: new Set() };
       this.uis.set(key, ui);
       while (this.uis.size > SESSIONS_KEPT) this.uis.delete(this.uis.keys().next().value as ChatKey);
     }

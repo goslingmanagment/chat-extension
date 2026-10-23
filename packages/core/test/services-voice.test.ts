@@ -5,11 +5,14 @@
 // before anyone gets it; a rewrite keeps what was paid for; a restart turns
 // an open create uncertain; another sign-in finds none of the sessions; the
 // page's day allowance (1.49.0) is kept a few seconds and read again once a
-// take moves, and a failure of it is «not known».
+// take moves, and a failure of it is «not known». What the person paid for and
+// never put into the field stays: a storage read that fails writes nothing over
+// it, the cap of sessions and «Очистить локальные данные» let go of it last or
+// not at all.
 
 import { createHash } from 'node:crypto';
 
-import { type CgErrorWire, type HumanCause, type Target, type VoiceAllowance, type VoiceNoteView, type VoiceOpView, type VoiceScriptStartWire, type VoiceSession } from '@cg/contracts';
+import { VOICE_LIMITS, type CgErrorWire, type HumanCause, type Target, type VoiceAllowance, type VoiceNoteView, type VoiceOpView, type VoiceScriptStartWire, type VoiceSession, type VoiceTake } from '@cg/contracts';
 import type { StartOutcome } from '@cg/core/services';
 import type { KeyValuePort, StorageResult } from '@cg/core/services';
 import { VOICE_SESSIONS_KEY, VoiceService, type VoiceFailure, type VoiceServiceDeps } from '@cg/core/services/voice';
@@ -29,6 +32,8 @@ const SCRIPT = '[warmly] Hey you, I missed you today.';
 /** An MPEG-1 Layer III frame header and a little payload: what an MP3 starts with. */
 const MP3 = new Uint8Array([0xff, 0xfb, 0x90, 0x64, ...Array.from({ length: 60 }, (_, i) => i)]).buffer;
 const sha = (bytes: ArrayBuffer): string => createHash('sha256').update(new Uint8Array(bytes)).digest('hex');
+/** The signed-in person of the world: the sessions in storage are theirs. */
+const OWNER = { hubOrigin: 'https://hub.example.test', userId: 7 } as const;
 
 const start = (over: Partial<VoiceScriptStartWire> = {}): VoiceScriptStartWire => ({
   feature: 'voice-script',
@@ -57,7 +62,13 @@ const note = (over: Partial<VoiceNoteView> = {}): VoiceNoteView => ({
 class MemoryPort implements KeyValuePort {
   readonly values = new Map<string, unknown>();
   failWrites = false;
+  /** The next reads that fail (or pass the port's timeout), counted down. */
+  failReads = 0;
   get(keys: readonly string[]): Promise<StorageResult<Readonly<Record<string, unknown>>>> {
+    if (this.failReads > 0) {
+      this.failReads -= 1;
+      return Promise.resolve({ ok: false, code: 'CG-STORAGE-READ', detail: 'timed out' });
+    }
     return Promise.resolve({ ok: true, value: Object.fromEntries(keys.filter((key) => this.values.has(key)).map((key) => [key, structuredClone(this.values.get(key))])) });
   }
   set(items: Readonly<Record<string, unknown>>): Promise<StorageResult<void>> {
@@ -77,6 +88,11 @@ class MemoryPort implements KeyValuePort {
   }
   stored(): readonly VoiceSession[] {
     return ((this.values.get(VOICE_SESSIONS_KEY) as { sessions?: VoiceSession[] } | undefined)?.sessions ?? []);
+  }
+  /** Storage as an earlier background left it: these sessions of the signed-in person. */
+  keep(sessions: readonly VoiceSession[]): this {
+    this.values.set(VOICE_SESSIONS_KEY, { v: 1, owner: OWNER, sessions: structuredClone(sessions) });
+    return this;
   }
 }
 
@@ -123,7 +139,7 @@ function world(over: { store?: MemoryPort } = {}): World {
     started: [],
     emitted: [],
     views: new Map(),
-    owner: { hubOrigin: 'https://hub.example.test', userId: 7 },
+    owner: { ...OWNER },
     redeemable: true,
     onEmit: null,
     timers: [],
@@ -200,6 +216,42 @@ const scriptView = (opId: string, over: Partial<VoiceOpView> = {}): VoiceOpView 
     ...over,
   }) as unknown as VoiceOpView;
 
+/** A take as storage keeps it: ready and not put into the field, unless `over` says otherwise. */
+const keptTake = (n: number, over: Partial<VoiceTake> = {}): VoiceTake => ({
+  takeId: uuid(0xc00 + n),
+  createdAt: NOW - 60_000,
+  script: SCRIPT,
+  sourceGenerationRef: uuid(0x700),
+  state: 'ready',
+  voiceNoteId: 100 + n,
+  audio: { sha256: sha(MP3), bytes: MP3.byteLength },
+  billed: true,
+  error: null,
+  attached: null,
+  ...over,
+});
+
+/** A session of the fan `fan` as storage keeps it, touched `n` ms after the oldest one. */
+const keptSession = (fan: string, n: number, takes: readonly VoiceTake[] = []): VoiceSession => ({
+  sessionId: uuid(0xb00 + n),
+  pageId: PAGE.pageId,
+  chat: chatOf(fan),
+  conversationRef: fan,
+  fanRef: fan,
+  createdAt: NOW - 60_000 + n,
+  updatedAt: NOW - 60_000 + n,
+  revision: 1,
+  draft: 'miss you, want to hear my voice?',
+  script: { tone: 'warm', generationRef: uuid(0x700), original: SCRIPT, edited: null },
+  writing: null,
+  error: null,
+  takes: [...takes],
+});
+
+/** The paid takes not in the field yet, one of each kind, and the takes that are not: what the person would lose. */
+const AT_STAKE: readonly Partial<VoiceTake>[] = [{}, { state: 'uncertain', voiceNoteId: null, audio: null, billed: null, error: { code: 'CG-VOICE-UNCERTAIN' } }, { attached: { state: 'unknown', at: NOW - 30_000 } }];
+const SETTLED: readonly Partial<VoiceTake>[] = [{ attached: { state: 'attached', at: NOW - 30_000 } }, { state: 'refused', voiceNoteId: null, audio: null, billed: false, error: { code: 'CG-VOICE-QUOTA' } }];
+
 /** A session with its script written: the script started and its operation done. */
 async function withScript(w: World): Promise<VoiceSession> {
   const started = await w.service.script(TAB, start(), null);
@@ -208,7 +260,7 @@ async function withScript(w: World): Promise<VoiceSession> {
   w.service.scriptDone(scriptView(opId));
   await flush();
   const read = await w.service.read(TAB, PAGE.pageId, FAN);
-  if (read.session === null || read.session.script === null) throw new Error(`no script: ${JSON.stringify(read.session)}`);
+  if (!read.ok || read.session === null || read.session.script === null) throw new Error(`no script: ${JSON.stringify(read)}`);
   return read.session;
 }
 
@@ -262,6 +314,25 @@ describe('voice notes in the background', () => {
     await flush();
     expect(w.creates).toHaveLength(1);
     expect(w.store.stored()[0]!.takes).toHaveLength(1);
+  });
+
+  it('another take while one is on its way is refused, whoever asks (another tab, a click whose answer got lost); once it settles it is asked', async () => {
+    const w = world();
+    const session = await withScript(w);
+    let answer: (view: VoiceNoteView) => void = () => undefined;
+    w.hub.create = () => new Promise((resolve) => (answer = resolve));
+    await w.service.take(TAB, session.sessionId, uuid(0x80c), SCRIPT, CAUSE);
+    expect(await w.service.take(TAB, session.sessionId, uuid(0x80d), SCRIPT, CAUSE)).toMatchObject({ ok: false, error: { code: 'CG-OP-CHAT-BUSY' } });
+    // Admitted and rendering: still on its way.
+    answer(note());
+    await flush();
+    expect(await w.service.take(TAB, session.sessionId, uuid(0x80d), SCRIPT, CAUSE)).toMatchObject({ ok: false, error: { code: 'CG-OP-CHAT-BUSY' } });
+    expect(w.creates).toHaveLength(1);
+    await w.tick();
+    expect(w.store.stored()[0]!.takes[0]!.state).toBe('ready');
+    expect(await w.service.take(TAB, session.sessionId, uuid(0x80d), SCRIPT, CAUSE)).toMatchObject({ ok: true });
+    await flush();
+    expect(w.creates.map((create) => create.clientRequestId)).toEqual([uuid(0x80c), uuid(0x80d)]);
   });
 
   it('an answer that does not come leaves the take uncertain, and nothing asks again by itself; «Проверить» asks with the same id', async () => {
@@ -367,7 +438,7 @@ describe('voice notes in the background', () => {
     const w = world();
     await withScript(w);
     w.owner = { hubOrigin: 'https://hub.example.test', userId: 8 };
-    expect((await w.service.read(TAB, PAGE.pageId, FAN)).session).toBeNull();
+    expect(await w.service.read(TAB, PAGE.pageId, FAN)).toEqual({ ok: true, session: null });
     expect(w.store.stored()).toHaveLength(0);
   });
 
@@ -377,6 +448,62 @@ describe('voice notes in the background', () => {
     expect(await w.service.discard(TAB, session.sessionId)).toEqual({ discarded: true });
     expect(w.store.stored()).toHaveLength(0);
     expect(w.emitted.at(-1)).toBeNull();
+  });
+
+  it('a storage read that fails writes nothing over the sessions: a read says so, a write is refused, the next call reads again', async () => {
+    const store = new MemoryPort().keep([keptSession(FAN, 0, [keptTake(1)])]);
+    // The background woke and storage did not answer; a tab reads the chat, then starts a script, while it still does not.
+    store.failReads = 3;
+    const w = world({ store });
+    await w.service.resume();
+    expect(await w.service.read(TAB, PAGE.pageId, FAN)).toEqual({ ok: false, error: { code: 'CG-STORAGE-READ' } });
+    expect(await w.service.script(TAB, start(), null)).toMatchObject({ ok: false, error: { code: 'CG-STORAGE-READ' } });
+    expect(w.started).toHaveLength(0);
+    expect(w.store.stored()).toEqual([keptSession(FAN, 0, [keptTake(1)])]);
+    // Storage answers again: the chat's session is there, its paid take with it.
+    expect(await w.service.read(TAB, PAGE.pageId, FAN)).toMatchObject({ ok: true, session: { sessionId: uuid(0xb00), takes: [{ takeId: uuid(0xc01), state: 'ready' }] } });
+    expect(w.store.stored()[0]!.takes).toHaveLength(1);
+  });
+
+  it('the cap of sessions lets go of those with nothing paid at stake first, the least recently touched of them', async () => {
+    // The cap's worth of chats: the oldest hold paid takes not in the field yet, the rest nothing at stake.
+    const atStake = AT_STAKE.map((over, n) => keptSession(String(3000 + n), n, [keptTake(n, over)]));
+    const rest = Array.from({ length: VOICE_LIMITS.sessions - atStake.length }, (_, i) => {
+      const n = atStake.length + i;
+      const over = SETTLED[i];
+      return keptSession(String(3000 + n), n, over === undefined ? [] : [keptTake(n, over)]);
+    });
+    const w = world({ store: new MemoryPort().keep([...atStake, ...rest]) });
+    // A new chat's voice: one session goes — the oldest with nothing at stake (its take is in the field).
+    await withScript(w);
+    const left = w.store.stored().map((session) => session.conversationRef);
+    expect(left).toHaveLength(VOICE_LIMITS.sessions);
+    expect(left).toEqual(expect.arrayContaining(['3000', '3001', '3002', FAN]));
+    expect(left).not.toContain(String(3000 + atStake.length));
+  });
+
+  it('a session with a paid take not in the field goes only when every other one has one too: the oldest, never the one just written', async () => {
+    const all = Array.from({ length: VOICE_LIMITS.sessions }, (_, n) => keptSession(String(3000 + n), n, [keptTake(n)]));
+    const w = world({ store: new MemoryPort().keep(all) });
+    await withScript(w);
+    const left = w.store.stored().map((session) => session.conversationRef);
+    expect(left).toHaveLength(VOICE_LIMITS.sessions);
+    expect(left).toContain(FAN);
+    expect(left).not.toContain('3000');
+  });
+
+  it('«Очистить локальные данные» keeps a session with a paid take not in the field yet (the hub lists no notes); the rest go', async () => {
+    const atStake = [...AT_STAKE, { state: 'working', audio: null, billed: null } satisfies Partial<VoiceTake>].map((over, n) => keptSession(String(3000 + n), n, [keptTake(n, over)]));
+    const rest = [...SETTLED.map((over, i) => [keptTake(10 + i, over)]), []].map((takes, i) => keptSession(String(3010 + i), 10 + i, takes));
+    const w = world({ store: new MemoryPort().keep([...atStake, ...rest]) });
+    await w.service.clear();
+    expect(w.store.stored().map((session) => session.conversationRef)).toEqual(['3000', '3001', '3002', '3003']);
+    expect(w.emitted).toEqual(rest.map(() => null));
+    // A storage read that fails clears nothing: what it keeps is not known.
+    const failing = new MemoryPort().keep([...atStake, ...rest]);
+    failing.failReads = 1;
+    await world({ store: failing }).service.clear();
+    expect(failing.stored()).toHaveLength(atStake.length + rest.length);
   });
 
   it('an edit is the person’s text; the AI’s text again is no edit', async () => {

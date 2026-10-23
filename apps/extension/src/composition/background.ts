@@ -1523,8 +1523,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok({ delivered });
   });
 
-  // «Очистить локальные данные» (ST-110): caches and logs; the sign-in, the settings, running operations and
-  // open X8 attempts stay.
+  // «Очистить локальные данные» (ST-110): caches and logs; the sign-in, the settings, running operations, open X8
+  // attempts and the voice sessions with a paid take not in the field yet stay.
   rpc.handle('data.clear', async () => {
     const results = scheduler.clearFinished();
     clearDebug();

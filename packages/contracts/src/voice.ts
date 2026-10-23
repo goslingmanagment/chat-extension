@@ -39,7 +39,7 @@ export const VOICE_LIMITS = {
   draftMaxChars: 5_000,
   /** Takes of one session; the hub's day budget of characters bounds the spend anyway. */
   takesPerSession: 12,
-  /** Sessions kept, one per chat: the least recently touched beyond this goes. */
+  /** Sessions kept, one per chat: the least recently touched beyond this goes — one with a paid take not in the field yet last. */
   sessions: 40,
   /** A session nobody touched for this long goes (the hub keeps the audio longer; this is our list of it). */
   sessionTtlMs: 3 * 24 * 60 * 60 * 1000,

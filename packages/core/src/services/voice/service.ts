@@ -19,6 +19,12 @@
 // studio's line beside «Озвучить» — a free read, kept a few seconds, read
 // again once a take of the page moves. It decides nothing: the hub refuses a
 // take over the limit itself and charges nothing.
+//
+// A paid take not seen in the field yet (domain takeAtStake) is never dropped
+// by itself: the hub lists no notes, so its id here is the only way back to
+// it. A storage read that fails decides nothing and writes nothing over what
+// storage keeps; the cap of sessions and «Очистить локальные данные» let go
+// of such a session last, or not at all.
 
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { ChatRef, HumanCause } from '@cg/contracts/ids';
@@ -41,7 +47,7 @@ import {
   type VoiceTone,
   type VoiceWriteResult,
 } from '@cg/contracts/voice';
-import { bytesToBase64, canonicalVoiceScript, looksLikeMp3, readNoteView, takeMayMove, voiceScriptIssue } from '../../domain/voice';
+import { bytesToBase64, canonicalVoiceScript, looksLikeMp3, readNoteView, takeAtStake, takeMayMove, voiceScriptIssue } from '../../domain/voice';
 import type { StartOutcome } from '../scheduler';
 import type { KeyValuePort, ServiceLog } from '../storage/ports';
 
@@ -127,7 +133,8 @@ const fail = (code: CgCode, session: VoiceSession | null = null): VoiceWriteResu
 export class VoiceService<S> {
   private sessions = new Map<string, VoiceSession>();
   private owner: Stored['owner'] = null;
-  private loaded: Promise<void> | null = null;
+  /** The read of the stored sessions: true once it succeeded; one that failed is dropped, so the next call reads again. */
+  private loaded: Promise<boolean> | null = null;
   /** One write after another: a write reads the sessions as the last one left them. */
   private chain: Promise<unknown> = Promise.resolve();
   /** Takes whose create this background is asking right now: a `creating` take not here was asked by an earlier one. */
@@ -146,11 +153,12 @@ export class VoiceService<S> {
 
   // ── reads ────────────────────────────────────────────────────────────────
 
-  async read(sender: S, pageId: number, conversationRef: string): Promise<{ readonly session: VoiceSession | null }> {
+  /** The chat's session; storage that did not answer says so — never «none», which would let a new voice replace it. */
+  async read(sender: S, pageId: number, conversationRef: string): Promise<{ readonly ok: true; readonly session: VoiceSession | null } | { readonly ok: false; readonly error: CgErrorWire }> {
     const page = await this.deps.page(pageId, sender);
-    if (!page.ok) return { session: null };
-    await this.ready();
-    return { session: this.byChat(pageId, conversationRef) };
+    if (!page.ok) return { ok: true, session: null };
+    if (!(await this.ready())) return { ok: false, error: { code: 'CG-STORAGE-READ' } };
+    return { ok: true, session: this.byChat(pageId, conversationRef) };
   }
 
   /** The background woke: the sessions are read, an earlier background's open creates turn uncertain, reads go on. */
@@ -210,7 +218,7 @@ export class VoiceService<S> {
       if (tab === null) return fail('CG-UI-FAILED');
       const page = await this.deps.page(start.target.binding.pageId, sender);
       if (!page.ok) return fail(page.code);
-      await this.ready();
+      if (!(await this.ready())) return fail('CG-STORAGE-READ');
       const tone = toneOf(start.tone);
       if (tone === null) return fail('CG-UI-FAILED');
       const { pageId } = start.target.binding;
@@ -258,7 +266,8 @@ export class VoiceService<S> {
   }
 
   private async applyScript(view: VoiceOpView): Promise<VoiceWriteResult> {
-    await this.ready();
+    // Not read: the next read finds the operation's end in the scheduler (load).
+    if (!(await this.ready())) return fail('CG-STORAGE-READ');
     const session = [...this.sessions.values()].find((candidate) => candidate.writing?.opId === view.opId) ?? null;
     if (session === null || session.writing === null) return fail('CG-CONTEXT-CHANGED');
     const writing = session.writing;
@@ -300,6 +309,8 @@ export class VoiceService<S> {
       if (!this.deps.redeem(tab, cause)) return fail('CG-UI-FAILED', session);
       if (session.script === null) return fail('CG-CONTEXT-CHANGED', session);
       if (session.writing !== null) return fail('CG-OP-CHAT-BUSY', session);
+      // One take on its way at a time (the studio waits for it too): a click of another tab, or one whose answer got lost.
+      if (session.takes.some((take) => take.state === 'creating' || take.state === 'working')) return fail('CG-OP-CHAT-BUSY', session);
       if (session.takes.length >= VOICE_LIMITS.takesPerSession) return fail('CG-UI-FAILED', session);
       const canonical = canonicalVoiceScript(script);
       // What the hub refuses for certain is not asked at all; its own cap of characters is its to say (a setting).
@@ -387,14 +398,19 @@ export class VoiceService<S> {
     });
   }
 
-  /** «Очистить локальные данные»: every session goes (the hub keeps the audio). */
+  /**
+   * «Очистить локальные данные»: the sessions go (the hub keeps the audio), except one with a paid take not seen in the
+   * field yet — its id here is the only way back to it. Storage that did not answer clears nothing.
+   */
   clear(): Promise<void> {
     return this.serial(async () => {
-      await this.ready();
-      const gone = [...this.sessions.values()];
-      this.sessions.clear();
+      if (!(await this.ready())) return;
+      const gone = [...this.sessions.values()].filter((session) => !session.takes.some((take) => takeAtStake(take)));
+      for (const session of gone) {
+        this.sessions.delete(session.sessionId);
+        for (const take of session.takes) this.polls.delete(take.takeId);
+      }
       this.audioCache.clear();
-      this.polls.clear();
       this.allowances.clear();
       await this.persist();
       for (const session of gone) this.deps.emit({ chat: session.chat, conversationRef: session.conversationRef, session: null });
@@ -552,30 +568,36 @@ export class VoiceService<S> {
 
   // ── storage ──────────────────────────────────────────────────────────────
 
-  private ready(): Promise<void> {
+  /** The stored sessions are read (once it succeeds); false — storage did not answer, and nothing may be written over it. */
+  private async ready(): Promise<boolean> {
     const owner = this.deps.owner();
-    if (this.loaded === null) this.loaded = this.load();
-    return this.loaded.then(async () => {
-      // Another person signed in: the sessions were the previous one's, and their notes are not this one's to read.
-      if (owner !== null && !sameOwner(owner, this.owner)) {
-        this.sessions.clear();
-        this.audioCache.clear();
-        this.polls.clear();
-        this.allowances.clear();
-        this.owner = owner;
-        await this.persist();
-      }
-    });
+    this.loaded ??= this.load();
+    const loaded = this.loaded;
+    if (!(await loaded)) {
+      // A read that failed (or passed its timeout) decides nothing: the next call reads again.
+      if (this.loaded === loaded) this.loaded = null;
+      return false;
+    }
+    // Another person signed in: the sessions were the previous one's, and their notes are not this one's to read.
+    if (owner !== null && !sameOwner(owner, this.owner)) {
+      this.sessions.clear();
+      this.audioCache.clear();
+      this.polls.clear();
+      this.allowances.clear();
+      this.owner = owner;
+      await this.persist();
+    }
+    return true;
   }
 
-  private async load(): Promise<void> {
+  private async load(): Promise<boolean> {
     const answer = await this.deps.store.get([VOICE_SESSIONS_KEY]);
     if (!answer.ok) {
       this.log('warn', 'voice sessions unreadable', answer.code);
-      return;
+      return false;
     }
     const raw = answer.value[VOICE_SESSIONS_KEY] as Partial<Stored> | undefined;
-    if (raw === undefined || raw.v !== 1 || !Array.isArray(raw.sessions)) return;
+    if (raw === undefined || raw.v !== 1 || !Array.isArray(raw.sessions)) return true;
     this.owner = raw.owner ?? null;
     const now = this.deps.now();
     let changed = false;
@@ -606,6 +628,7 @@ export class VoiceService<S> {
     }
     if (changed) await this.persist();
     this.schedulePoll(0);
+    return true;
   }
 
   /** Keeps a session (and drops the one it replaces): the sessions in storage, then the tabs told. */
@@ -614,7 +637,7 @@ export class VoiceService<S> {
     const before = this.sessions.get(session.sessionId) ?? null;
     if (replaced !== null) this.sessions.delete(replaced.sessionId);
     this.sessions.set(next.sessionId, next);
-    this.trim();
+    this.trim(next.sessionId);
     if (!(await this.persist())) {
       // Not kept: the memory follows the storage, and nothing that needed the write (a paid create) happens.
       if (before === null) this.sessions.delete(next.sessionId);
@@ -627,11 +650,18 @@ export class VoiceService<S> {
     return { ok: true, session: next };
   }
 
-  /** The least recently touched sessions beyond the cap go; a session with a take in flight stays. */
-  private trim(): void {
+  /**
+   * The least recently touched sessions beyond the cap go: those with nothing paid at stake first; one with a paid take
+   * not seen in the field only while the cap still holds after them. A session with a take in flight stays, and so does
+   * `kept`, the one just written.
+   */
+  private trim(kept: string): void {
     if (this.sessions.size <= VOICE_LIMITS.sessions) return;
-    const idle = [...this.sessions.values()].filter((session) => !session.takes.some((take) => take.state === 'creating' || take.state === 'working')).sort((a, b) => a.updatedAt - b.updatedAt);
-    while (this.sessions.size > VOICE_LIMITS.sessions && idle.length > 0) this.sessions.delete(idle.shift()!.sessionId);
+    const idle = [...this.sessions.values()]
+      .filter((session) => session.sessionId !== kept && !session.takes.some((take) => take.state === 'creating' || take.state === 'working'))
+      .map((session) => ({ session, atStake: session.takes.some((take) => takeAtStake(take)) }))
+      .sort((a, b) => Number(a.atStake) - Number(b.atStake) || a.session.updatedAt - b.session.updatedAt);
+    while (this.sessions.size > VOICE_LIMITS.sessions && idle.length > 0) this.sessions.delete(idle.shift()!.session.sessionId);
   }
 
   private async persist(): Promise<boolean> {
@@ -665,7 +695,7 @@ export class VoiceService<S> {
 
   /** A session of the sender's own page, or why not. */
   private async ownSession(sender: S, sessionId: string): Promise<{ readonly ok: true; readonly session: VoiceSession; readonly pageLabel: string } | { readonly ok: false; readonly result: VoiceWriteResult }> {
-    await this.ready();
+    if (!(await this.ready())) return { ok: false, result: fail('CG-STORAGE-READ') };
     const session = this.sessions.get(sessionId) ?? null;
     if (session === null) return { ok: false, result: fail('CG-CONTEXT-CHANGED') };
     const page = await this.deps.page(session.pageId, sender);
