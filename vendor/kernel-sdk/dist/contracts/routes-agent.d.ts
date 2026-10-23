@@ -74,6 +74,7 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "read:observations_envelope": "read:observations_envelope";
     "read:datasets": "read:datasets";
     "request:hydration": "request:hydration";
+    "write:publication_drafts": "write:publication_drafts";
 }>;
 export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_comments: "post_comments";
@@ -2366,6 +2367,7 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "read:observations_envelope": "read:observations_envelope";
         "read:datasets": "read:datasets";
         "request:hydration": "request:hydration";
+        "write:publication_drafts": "write:publication_drafts";
     }>>;
     captureState: z.ZodEnum<{
         unknown: "unknown";
@@ -2428,6 +2430,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "read:observations_envelope": "read:observations_envelope";
                 "read:datasets": "read:datasets";
                 "request:hydration": "request:hydration";
+                "write:publication_drafts": "write:publication_drafts";
             }>;
             granted: z.ZodBoolean;
         }, z.core.$strict>>;
@@ -2683,6 +2686,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "read:observations_envelope": "read:observations_envelope";
             "read:datasets": "read:datasets";
             "request:hydration": "request:hydration";
+            "write:publication_drafts": "write:publication_drafts";
         }>>;
         captureState: z.ZodEnum<{
             unknown: "unknown";
@@ -17968,10 +17972,10 @@ export declare const agentHydrationStateEnum: z.ZodEnum<{
     failed: "failed";
     completed: "completed";
     expired: "expired";
+    approved: "approved";
     rejected: "rejected";
     dispatching: "dispatching";
     requested: "requested";
-    approved: "approved";
     partially_completed: "partially_completed";
 }>;
 /** Fansly has no direct payment for this (a session, not credits): the cost is
@@ -18132,10 +18136,10 @@ export declare const agentHydrationRequestSchema: z.ZodObject<{
         failed: "failed";
         completed: "completed";
         expired: "expired";
+        approved: "approved";
         rejected: "rejected";
         dispatching: "dispatching";
         requested: "requested";
-        approved: "approved";
         partially_completed: "partially_completed";
     }>;
     pageLabel: z.ZodString;
@@ -18226,10 +18230,10 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             failed: "failed";
             completed: "completed";
             expired: "expired";
+            approved: "approved";
             rejected: "rejected";
             dispatching: "dispatching";
             requested: "requested";
-            approved: "approved";
             partially_completed: "partially_completed";
         }>;
         pageLabel: z.ZodString;
@@ -18984,10 +18988,10 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             failed: "failed";
             completed: "completed";
             expired: "expired";
+            approved: "approved";
             rejected: "rejected";
             dispatching: "dispatching";
             requested: "requested";
-            approved: "approved";
             partially_completed: "partially_completed";
         }>;
         pageLabel: z.ZodString;
@@ -19754,10 +19758,10 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             failed: "failed";
             completed: "completed";
             expired: "expired";
+            approved: "approved";
             rejected: "rejected";
             dispatching: "dispatching";
             requested: "requested";
-            approved: "approved";
             partially_completed: "partially_completed";
         }>;
         pageLabel: z.ZodString;
@@ -19842,8 +19846,8 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
     }, z.core.$strict>;
     disposition: z.ZodEnum<{
-        rejected: "rejected";
         approved: "approved";
+        rejected: "rejected";
         already_decided: "already_decided";
     }>;
     delivery: z.ZodObject<{
@@ -20520,10 +20524,10 @@ export declare const agentHydrationRequestListQuerySchema: z.ZodObject<{
         failed: "failed";
         completed: "completed";
         expired: "expired";
+        approved: "approved";
         rejected: "rejected";
         dispatching: "dispatching";
         requested: "requested";
-        approved: "approved";
         partially_completed: "partially_completed";
     }>>;
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -20535,10 +20539,10 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             failed: "failed";
             completed: "completed";
             expired: "expired";
+            approved: "approved";
             rejected: "rejected";
             dispatching: "dispatching";
             requested: "requested";
-            approved: "approved";
             partially_completed: "partially_completed";
         }>;
         pageLabel: z.ZodString;
@@ -27201,6 +27205,7 @@ export declare const agentRouteSchemas: {
                             "read:observations_envelope": "read:observations_envelope";
                             "read:datasets": "read:datasets";
                             "request:hydration": "request:hydration";
+                            "write:publication_drafts": "write:publication_drafts";
                         }>;
                         granted: z.ZodBoolean;
                     }, z.core.$strict>>;
@@ -27456,6 +27461,7 @@ export declare const agentRouteSchemas: {
                         "read:observations_envelope": "read:observations_envelope";
                         "read:datasets": "read:datasets";
                         "request:hydration": "request:hydration";
+                        "write:publication_drafts": "write:publication_drafts";
                     }>>;
                     captureState: z.ZodEnum<{
                         unknown: "unknown";
@@ -40962,10 +40968,10 @@ export declare const agentRouteSchemas: {
                         failed: "failed";
                         completed: "completed";
                         expired: "expired";
+                        approved: "approved";
                         rejected: "rejected";
                         dispatching: "dispatching";
                         requested: "requested";
-                        approved: "approved";
                         partially_completed: "partially_completed";
                     }>;
                     pageLabel: z.ZodString;
@@ -41781,10 +41787,10 @@ export declare const agentRouteSchemas: {
                         failed: "failed";
                         completed: "completed";
                         expired: "expired";
+                        approved: "approved";
                         rejected: "rejected";
                         dispatching: "dispatching";
                         requested: "requested";
-                        approved: "approved";
                         partially_completed: "partially_completed";
                     }>;
                     pageLabel: z.ZodString;
@@ -42605,10 +42611,10 @@ export declare const agentRouteSchemas: {
                         failed: "failed";
                         completed: "completed";
                         expired: "expired";
+                        approved: "approved";
                         rejected: "rejected";
                         dispatching: "dispatching";
                         requested: "requested";
-                        approved: "approved";
                         partially_completed: "partially_completed";
                     }>;
                     pageLabel: z.ZodString;
@@ -42693,8 +42699,8 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                 }, z.core.$strict>;
                 disposition: z.ZodEnum<{
-                    rejected: "rejected";
                     approved: "approved";
+                    rejected: "rejected";
                     already_decided: "already_decided";
                 }>;
                 delivery: z.ZodObject<{
@@ -43419,10 +43425,10 @@ export declare const agentRouteSchemas: {
                 failed: "failed";
                 completed: "completed";
                 expired: "expired";
+                approved: "approved";
                 rejected: "rejected";
                 dispatching: "dispatching";
                 requested: "requested";
-                approved: "approved";
                 partially_completed: "partially_completed";
             }>>;
             limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -43435,10 +43441,10 @@ export declare const agentRouteSchemas: {
                         failed: "failed";
                         completed: "completed";
                         expired: "expired";
+                        approved: "approved";
                         rejected: "rejected";
                         dispatching: "dispatching";
                         requested: "requested";
-                        approved: "approved";
                         partially_completed: "partially_completed";
                     }>;
                     pageLabel: z.ZodString;

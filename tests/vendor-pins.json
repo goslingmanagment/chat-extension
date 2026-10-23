@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "af24a18f9e5d3517038b065b5e266f3e66f70b72f502df21ec0001b4e43a2900",
-    "sourceCommit": "60739da23db5cdc006228839b66fcbdea5185849",
-    "note": "Vendored on 2026-10-23 from hub main 60739da2 (#763), deployed on agency-de, with scripts/vendor-sdk.mjs: the release's SDK is the one prod serves (adds #763 over #760's recap-off). Re-vendor with the same script and update this pin together."
+    "contractHash": "3dfd5a70e7e4a54370a654745195e5af95e5f25d0b5ca61e485563585cda101f",
+    "sourceCommit": "7fcfa59c309bc083bc50eabe02cb5b1928fc3768",
+    "note": "Vendored on 2026-10-24 from hub main 7fcfa59c (#789, over #788) with scripts/vendor-sdk.mjs: the publications contracts (wall posts) come along; the extension's client routes are unchanged. Released once prod serves it. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

@@ -11,6 +11,8 @@ import { ofapiExportRouteSchemas } from "./routes-ofapi-exports";
 import { ofapiCollectionRouteSchemas } from "./routes-ofapi-collection";
 import { ofLinksRouteSchemas } from "./routes-of-links";
 import { pageBrowserRouteSchemas } from "./routes-page-browser";
+import { publicationRouteSchemas } from "./routes-publications";
+import { publicationFileRouteSchemas } from "./routes-publication-files";
 import { opsLiveRouteSchemas } from "./routes-ops-live";
 import { aiAccountRouteSchemas } from "./routes-ai-accounts";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, FANSLY_CLIENT_CHECK_ROUTES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
@@ -3253,6 +3255,8 @@ const notificationIncidentKindEnum = z.enum([
     "ofapi_binding_conflict",
     "sync_silent",
     "fansly_sync_engine",
+    "publishing_stopped",
+    "publication_not_published",
 ]);
 const notificationIncidentStatusEnum = z.enum(["open", "resolved"]);
 const notificationDeliveryOutboxStateEnum = z.enum([
@@ -5710,6 +5714,8 @@ const baseRouteSchemas = {
     ...ofapiCollectionRouteSchemas,
     ...ofLinksRouteSchemas,
     ...pageBrowserRouteSchemas,
+    ...publicationRouteSchemas,
+    ...publicationFileRouteSchemas,
     health: {
         auth: { kind: "public" },
         tags: ["system"],

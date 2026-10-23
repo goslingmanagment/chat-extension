@@ -263,6 +263,74 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/pages";
     };
+    readonly adminPublicationApprove: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/approve";
+    };
+    readonly adminPublicationCancel: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/:id/cancel";
+    };
+    readonly adminPublicationCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications";
+    };
+    readonly adminPublicationFileGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/publications/files/:fileId";
+    };
+    readonly adminPublicationFileList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/publications/files";
+    };
+    readonly adminPublicationFileUpload: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/files";
+    };
+    readonly adminPublicationGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/publications/:id";
+    };
+    readonly adminPublicationList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/publications";
+    };
+    readonly adminPublicationQueueList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/publications/queue";
+    };
+    readonly adminPublicationQueueRefresh: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/queue/refresh";
+    };
+    readonly adminPublicationReplace: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/:id/replace";
+    };
+    readonly adminPublicationResolve: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/:id/resolve";
+    };
+    readonly adminPublicationSettingsList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/publications/settings";
+    };
+    readonly adminPublicationSettingsUpdate: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/admin/publications/settings/:pageLabel";
+    };
+    readonly adminPublicationUpdate: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/admin/publications/:id";
+    };
+    readonly adminPublicationWithdraw: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/:id/withdraw";
+    };
+    readonly adminPublicationWithdrawPage: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/withdraw-page";
+    };
     readonly adminQueueJobs: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/queue/jobs";
@@ -426,6 +494,26 @@ export declare const kernelOperations: {
     readonly agentPersonTimeline: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/people/:platform/:platformUserId/timeline";
+    };
+    readonly agentPublicationCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/pages/:pageLabel/publications";
+    };
+    readonly agentPublicationGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/publications/:id";
+    };
+    readonly agentPublicationList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/pages/:pageLabel/publications";
+    };
+    readonly agentPublicationMedia: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/pages/:pageLabel/publication-media";
+    };
+    readonly agentPublicationUpdate: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/agent/publications/:id";
     };
     readonly agentResolve: {
         readonly method: "POST";
