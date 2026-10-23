@@ -5,6 +5,8 @@
 // checked is what a person would see and what leaves the tab: the view
 // models, the requests, and every write to the host.
 
+import { createHash } from 'node:crypto';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_SETTINGS, type Bootstrap, type CgCode, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type NewcomerRowVM, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type UiAction, type ViewSelector } from '@cg/contracts';
@@ -59,6 +61,8 @@ interface Options {
   readonly fanPanelBesideHost?: boolean;
   /** 1.30.0 (X53): the vault the media picker reads; absent — the host has none. */
   readonly media?: FakeMediaVault;
+  /** «Отправить» of the draft field (audit 2026-10-20, row 1): the page hashes the person's own text. */
+  readonly ownSend?: boolean;
 }
 
 interface Harness {
@@ -269,6 +273,7 @@ async function harness(options: Options = {}): Promise<Harness> {
     ...(options.watchForSound === undefined ? {} : { watchForSound: options.watchForSound }),
     ...(options.fanPanelBesideHost === undefined ? {} : { fanPanelBesideHost: options.fanPanelBesideHost }),
     onNewSubscribers: (events) => fresh.push([...events]),
+    ...(options.ownSend === true ? { sha256: (text: string) => Promise.resolve(createHash('sha256').update(text, 'utf8').digest('hex')) } : {}),
   });
   // The surfaces are mounted: every view has a listener and is rebuilt on each change, as in the page.
   const mount = (made: BoardsControllers): BoardsControllers => {
@@ -608,6 +613,35 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     expect(h.boards.preview.dispatch({ type: 'OpenChatToVerify', attemptId: uuid(0xbad) })).toBeNull();
   });
 
+  it('[X8-09] a click inside the first send’s ticket: the hub refuses it, the row says to wait a few seconds and holds nothing; the next click past the ticket sends (2026-10-23 audit)', async () => {
+    const { h, opId } = await withReply({ answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    const first = uuid(0x500);
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain', attemptId: first });
+    // Inside its ticket the hub still calls the first send in flight (`custody_held`): «Отправить» of part 2 and
+    // «Отправить ещё раз» of part 1 are refused, and each row says so — another send is going, wait a few seconds.
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 });
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    const wait = { s: 'rejected', code: 'CG-SEND-UNCERTAIN', canRetry: true };
+    expect(partsOf(h, 'spenders').map((part) => part.send)).toEqual([wait, wait]);
+    expect(h.host.calls.commits).toHaveLength(1);
+    // Nothing goes by itself while the person waits.
+    await h.advance(11_000);
+    expect(h.host.calls.commits).toHaveLength(1);
+    // Past the ticket the next click is dispatched as usual (the hub sets the first one aside then): one commit per click.
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'sending' });
+    expect(h.host.calls.commits).toHaveLength(2);
+    h.sendState({ attemptId: uuid(0x503), state: 'nativeAccepted', platformMessageId: '4100' });
+    h.sendState({ attemptId: uuid(0x503), state: 'sentObserved', platformMessageId: '4100' });
+    await h.flush();
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 });
+    expect(partsOf(h, 'spenders')[1]?.send).toEqual({ s: 'sending' });
+    expect(h.host.calls.commits).toHaveLength(3);
+    // The first send stays unknown: never sent again, never called «not sent».
+    expect(h.bg.coordinator.status(first)?.state).toBe('uncertain');
+  });
+
   it('[X8-03] condition 6: a result is not sent into the chat that is open — that chat has its composer; MAIN is not even asked', async () => {
     const { h, opId } = await withReply();
     expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'available' });
@@ -657,6 +691,72 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     expect(await h.dispatch({ type: 'SendPart', operationId: opId, variant: 2, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
     expect(h.clicks).toHaveLength(1);
     expect(h.host.calls.commits).toHaveLength(1);
+  });
+});
+
+describe('[SP-054] «Отправить» of the draft field: the person’s own text is never lost to a refusal (audit 2026-10-20, row 1)', () => {
+  /** A Spenders preview of fan 5000, X8 on, with «Отправить» under its draft field. */
+  async function withDraft(options: Options = {}): Promise<{ h: Harness; handle: string }> {
+    const h = await harness({ config: X8, ownSend: true, ...options });
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    const handle = spender('5000');
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    return { h, handle };
+  }
+  const draftOf = (h: Harness): string => h.boards.preview.getSnapshot(preview('spenders')).draft.text;
+
+  it('refused before anything went — no chat opened since the page loaded (CG-SEND-HOST): the text is back in the field, a toast says why, and F5 keeps it (2026-10-23 audit)', async () => {
+    const waiting = { ...contractReport({ previewSend: { state: 'off', reason: 'composerTranslator', code: 'CG-SEND-HOST' } }), anchors: { ...contractReport().anchors, composerTranslator: 'notYet' as const } };
+    const { h, handle } = await withDraft({ start: { contract: waiting } });
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text: 'my long own message' });
+    expect(await h.dispatch({ type: 'SendDraft', targetHandle: handle })).toMatchObject({ ok: false, code: 'CG-SEND-HOST' });
+    expect(draftOf(h)).toBe('my long own message');
+    expect(h.notes).toEqual([{ code: 'CG-SEND-HOST', scope: `preview:${handle}` }]);
+    expect(h.host.calls.commits).toEqual([]);
+    await h.reload();
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    expect(draftOf(h)).toBe('my long own message');
+  });
+
+  it('refused for sure after the click (Mimic took the chat, Message Guard): back in the field while it is empty, a newer text stays; an unknown outcome never brings it back (2026-10-23 audit)', async () => {
+    const { h, handle } = await withDraft({
+      answers: {
+        commit: [
+          { state: 'held', code: 'CG-SEND-MIMIC' },
+          { state: 'nativeEnqueued', pendingId: 'pending-2' },
+          { state: 'nativeEnqueued', pendingId: 'pending-3' },
+          { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' },
+        ],
+      },
+    });
+    const sendDraft = (): ReturnType<Harness['dispatch']> => h.dispatch({ type: 'SendDraft', targetHandle: handle });
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text: 'first words' });
+    // MAIN refuses in the step of the queue call: nothing reached ChatSpace.
+    await sendDraft();
+    expect(draftOf(h)).toBe('first words');
+    // ChatSpace's queue took it and its server refused it with a 4xx: proven not sent.
+    await sendDraft();
+    expect(draftOf(h)).toBe('');
+    h.sendState({ attemptId: uuid(0x501), state: 'rejected', code: 'CG-SEND-GUARD', httpStatus: 422 });
+    await h.flush();
+    expect(draftOf(h)).toBe('first words');
+    // The person wrote something else meanwhile: their newer text is not replaced.
+    await sendDraft();
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text: 'other words' });
+    h.sendState({ attemptId: uuid(0x502), state: 'rejected', code: 'CG-SEND-GUARD', httpStatus: 422 });
+    await h.flush();
+    expect(draftOf(h)).toBe('other words');
+    // An unknown outcome may have reached the fan: the text stays on the card only.
+    await sendDraft();
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain' });
+    await h.advance(60_000);
+    expect(draftOf(h)).toBe('');
+    expect(h.host.calls.commits).toHaveLength(4);
+    // Every refusal above is on the card's row: no toast on top of it.
+    expect(h.notes).toEqual([]);
   });
 });
 

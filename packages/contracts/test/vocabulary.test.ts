@@ -63,6 +63,7 @@ describe('X8 attempt machine (§6.7.7)', () => {
     expect(C.isRetryableEnd('notEnqueued', 'CG-SEND-QUEUE')).toBe(true);
     expect(C.isRetryableEnd('held', 'CG-SEND-BUSY')).toBe(true);
     expect(C.isRetryableEnd('held', 'CG-NETWORK')).toBe(true);
+    expect(C.isRetryableEnd('held', 'CG-SEND-UNCERTAIN')).toBe(true);
     for (const code of C.SEND_HOLD_CODES_WITHOUT_RETRY) expect(C.isRetryableEnd('held', code), code).toBe(false);
     for (const state of ['rejected', 'uncertain', 'sentObserved', 'nativeAccepted'] as const) expect(C.isRetryableEnd(state, undefined)).toBe(false);
   });
@@ -124,7 +125,8 @@ describe('«Отправить» row (previewSendStateOf)', () => {
   it('a hold: stale stays held, a final code stays off, a cleared condition frees the button, a failed dispatch may be clicked again', () => {
     expect(C.previewSendStateOf(attempt('held', 'CG-SEND-STALE'), ok)).toEqual({ s: 'held-stale' });
     expect(C.previewSendStateOf(attempt('held', 'CG-SEND-PART'), ok)).toEqual({ s: 'unavailable', code: 'CG-SEND-PART' });
-    expect(C.previewSendStateOf(attempt('held', 'CG-SEND-UNCERTAIN'), ok)).toEqual({ s: 'unavailable', code: 'CG-SEND-UNCERTAIN' });
+    // The hub's refusal inside another send's ticket (`custody_held`) holds nothing: wait a few seconds, click again (2026-10-23 audit).
+    expect(C.previewSendStateOf(attempt('held', 'CG-SEND-UNCERTAIN'), ok)).toEqual({ s: 'rejected', code: 'CG-SEND-UNCERTAIN', canRetry: true });
     expect(C.previewSendStateOf(attempt('held', 'CG-CLAIM-BUSY'), ok)).toEqual({ s: 'unavailable', code: 'CG-CLAIM-BUSY' });
     expect(C.previewSendStateOf(attempt('held', 'CG-HUB-RATE-LIMIT'), ok)).toEqual({ s: 'unavailable', code: 'CG-HUB-RATE-LIMIT' });
     // No lease is named any more (2026-10-22): an expired one is no condition of the row, only a failed dispatch.
