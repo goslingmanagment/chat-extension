@@ -633,7 +633,7 @@ export const EN: I18nCatalog<'en'> = {
   'send.buttonMediaPaid': 'Send + {media} for {price}',
   'send.buttonMediaTooltip': 'The part and the media go to the fan in one message through {site}',
   'send.reason.media': 'the media are not ready to send.',
-  'send.reason.pace': 'a one-second pause between sends.',
+  'send.reason.pace': 'a half-second pause between sends.',
 
   // ── New subscribers ──
   'newcomers.title': 'New',
@@ -718,7 +718,7 @@ export const EN: I18nCatalog<'en'> = {
   'newcomers.row.send': 'Send',
   'newcomers.row.sendTooltip': 'Send this draft to the fan now — as «Send →» in the card',
   'newcomers.row.sendBlocked': 'This draft cannot go as it is — open the fan: the card says why',
-  'newcomers.row.sendPaused': 'A one-second pause after a send — the button is back in a moment',
+  'newcomers.row.sendPaused': 'A half-second pause after a send — the button is back in a moment',
   'newcomers.row.failed': 'Not sent: {reason}',
 
   // ── Fan panel and Coach ──
