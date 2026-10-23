@@ -62,6 +62,8 @@ function fansly() {
   const calls: NewcomersCall[] = [];
   const failures = new Map<string, Error>();
   let cooling = 0;
+  /** The creator's welcome automation, as `/message/automated` names it. */
+  let welcome = 'Thanks  for\n the follow';
   let nextGroup = 900_000_000_000_000_000n;
   /** Calls of a route that wait for the test to let them go. */
   const gates = new Map<string, Promise<void>>();
@@ -80,6 +82,7 @@ function fansly() {
     failures,
     follows,
     setCooling: (until: number) => (cooling = until),
+    setWelcome: (text: string) => (welcome = text),
     hold(route: NewcomersRoute): () => void {
       let open = (): void => undefined;
       gates.set(route, new Promise((resolve) => (open = resolve)));
@@ -132,7 +135,7 @@ function fansly() {
         const q = call.query ?? {};
         switch (call.route) {
           case 'message.automated':
-            return [{ messageTemplate: JSON.stringify({ content: 'Thanks  for\n the follow' }) }];
+            return [{ messageTemplate: JSON.stringify({ content: welcome }) }];
           case 'followers.new': {
             const before = q['before'] ?? '0';
             const page = follows.filter((follow) => before === '0' || BigInt(follow.id) < BigInt(before)).slice(0, Number(q['limit']));
@@ -368,7 +371,7 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     expect((await failing.ask('fansly.followers.read', { passId: fused, offset: 0, limit: 1 })).pass).toMatchObject({ state: 'stopped', error: { code: 'CG-FAN-REQUEST' } });
   });
 
-  it('[FS-NEW-4] the window opened again goes on with the same pass (2026-10-23): nobody it checked is asked about again — only the followers since its end; the period moves to now; a «Пауза» closed with the window goes on too', async () => {
+  it('[FS-NEW-4] the window opened again goes on with the same pass (2026-10-23): nobody it checked is asked about again — only the welcome texts and the followers since its end; the period moves to now; a «Пауза» closed with the window goes on too', async () => {
     const t = setup();
     const ready = t.world.follow(1, T0 - minutes(5));
     // Followed near the period's start: the period moving on takes them out of the list.
@@ -385,7 +388,7 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     expect(await t.scan()).toBe(passId);
     await t.settle();
     const asked = t.world.calls.slice(from);
-    expect(asked.map((call) => call.route).filter((route) => route === 'followers.new' || route === 'message.automated')).toEqual(['followers.new']);
+    expect(asked.map((call) => call.route).filter((route) => route === 'followers.new' || route === 'message.automated')).toEqual(['message.automated', 'followers.new']);
     expect(asked.filter((call) => call.route === 'group.create').map((call) => (call.body as { users: { userId: string }[] }).users[0]?.userId)).toEqual([fresh]);
     const read = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 10 });
     expect(read.rows.map((row) => [row.fanRef, row.status])).toEqual([[fresh, 'ready'], [ready, 'ready']]);
@@ -406,6 +409,57 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     await t.settle();
     expect(await t.row(passId, later)).toMatchObject({ status: 'ready' });
     expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass?.state).not.toBe('paused');
+  });
+
+  it('[FS-NEW-4] the window opened again reads back a little before the period’s end: a follow Fansly dated just before it (its clock behind this machine’s) is read; a fan read again keeps their row and is not asked about', async () => {
+    const t = setup();
+    const ready = t.world.follow(1, T0 - minutes(2));
+    const passId = await t.scan();
+    await t.settle();
+    const checked = await t.row(passId, ready);
+    expect(checked).toMatchObject({ status: 'ready' });
+    expect(await t.ask('fansly.followers.close', { passId })).toEqual({ recorded: true });
+
+    // Fansly's clock 3 s behind this machine's: a follow made right after the read carries T0 - 3 s.
+    const skewed = t.world.follow(2, T0 - 3000);
+    await vi.advanceTimersByTimeAsync(minutes(10));
+    const from = t.world.calls.length;
+    expect(await t.scan()).toBe(passId);
+    await t.settle();
+    expect((await t.rows(passId)).map((row) => [row.fanRef, row.status])).toEqual([[skewed, 'ready'], [ready, 'ready']]);
+    // The fan read again is the same row: its verdict, and the revision its draft rests on; nothing asked about them.
+    expect(await t.row(passId, ready)).toEqual(checked);
+    const asked = t.world.calls.slice(from);
+    expect(asked.filter((call) => call.route === 'group.create').map((call) => (call.body as { users: { userId: string }[] }).users[0]?.userId)).toEqual([skewed]);
+    expect(asked.some((call) => call.query?.['groupId'] === checked.groupId || call.path?.['group'] === checked.groupId)).toBe(false);
+
+    // ⟳ once more: nobody twice.
+    await vi.advanceTimersByTimeAsync(minutes(1));
+    expect(await t.scan()).toBe(passId);
+    await t.settle();
+    expect((await t.rows(passId)).map((row) => row.fanRef)).toEqual([skewed, ready]);
+  });
+
+  it('[NF-030] a follow Fansly dates more than a minute ahead of this machine’s clock is at the period’s end, never at 0: the list is read to its end with the follower in it; on the window opened again too', async () => {
+    const t = setup();
+    for (let n = 1; n <= 150; n += 1) t.world.follow(n, T0 - minutes(n));
+    // This machine 2 min slow: Fansly dates a follow made just now 2 min ahead of it.
+    const ahead = t.world.follow(999, T0 + minutes(2));
+    const passId = await t.scan(12);
+    await t.settle();
+    const read = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 500 });
+    expect([read.total, read.pass?.partial]).toEqual([151, false]);
+    expect(t.world.calls.filter((call) => call.route === 'followers.new')).toHaveLength(2);
+    expect(read.rows[0]).toMatchObject({ fanRef: ahead, followedAt: new Date(T0).toISOString() });
+
+    expect(await t.ask('fansly.followers.close', { passId })).toEqual({ recorded: true });
+    await vi.advanceTimersByTimeAsync(minutes(10));
+    const next = t.world.follow(1000, Date.now() + minutes(2));
+    const reopened = Date.now();
+    expect(await t.scan(12)).toBe(passId);
+    await t.settle();
+    const again = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 500 });
+    expect([again.total, again.pass?.partial, again.rows[0]?.fanRef, again.rows[0]?.followedAt]).toEqual([152, false, next, new Date(reopened).toISOString()]);
   });
 
   it('[FS-NEW-4] a row’s own failure (a 400, an answer that did not parse) is the row’s: seven odd fans do not stop the check, as in the old extension', async () => {
@@ -442,6 +496,40 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     const stopped = await fresh.scan();
     await fresh.settle();
     expect((await fresh.ask('fansly.followers.read', { passId: stopped, offset: 0, limit: 1 })).pass).toMatchObject({ state: 'stopped' });
+  });
+
+  it('[NF-033] the window opened again and ⟳ read the welcome texts again: the text of an automation edited meanwhile is automated, never «Уже писали»; a read that failed takes the kept ones', async () => {
+    const t = setup();
+    t.world.follow(1, T0 - minutes(5));
+    const passId = await t.scan();
+    await t.settle();
+    expect(await t.ask('fansly.followers.close', { passId })).toEqual({ recorded: true });
+
+    // The creator edits the welcome automation: the next follower gets its new text (type 1, no correlation id).
+    t.world.setWelcome('Hey babe,\n welcome to my page');
+    await vi.advanceTimersByTimeAsync(minutes(20));
+    const fresh = t.world.follow(2, Date.now() - minutes(1));
+    t.world.chat(fresh, [{ from: 'model', content: 'Hey babe, welcome to my page' }]);
+    const from = t.world.calls.length;
+    expect(await t.scan()).toBe(passId);
+    await t.settle();
+    expect(t.world.calls.slice(from).map((call) => call.route).filter((route) => route === 'followers.new' || route === 'message.automated')).toEqual(['message.automated', 'followers.new']);
+    expect(await t.row(passId, fresh)).toMatchObject({ status: 'ready', fanWrote: false });
+    expect(t.service.proof(passId, fresh)?.startProof).toMatchObject({ coveredCount: 1, personalCount: 0 });
+    // Nothing «Уже писали» was learned of them for the next window.
+    await vi.advanceTimersByTimeAsync(KNOWN_FLUSH_MS + 1);
+    const book = await t.kv.open().get([`${NEWCOMERS_KNOWN_PREFIX}${C}`]);
+    expect(book.ok && (book.value[`${NEWCOMERS_KNOWN_PREFIX}${C}`] as { fans: Record<string, { p?: unknown }> }).fans[fresh]?.p).toBeUndefined();
+
+    // ⟳ while Fansly does not answer the welcome texts: the kept ones (the new text among them) stand, the pass goes on.
+    t.world.failures.set('message.automated', new ApiError('network', 'CG-FAN-REQUEST'));
+    await vi.advanceTimersByTimeAsync(minutes(1));
+    const later = t.world.follow(3, Date.now() - 1000);
+    t.world.chat(later, [{ from: 'model', content: 'Hey babe, welcome to my page' }]);
+    expect(await t.scan()).toBe(passId);
+    await t.settle();
+    expect((await t.ask('fansly.followers.read', { passId, offset: 0, limit: 1 })).pass?.state).not.toBe('stopped');
+    expect(await t.row(passId, later)).toMatchObject({ status: 'ready', fanWrote: false });
   });
 });
 

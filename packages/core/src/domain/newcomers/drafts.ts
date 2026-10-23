@@ -3,7 +3,7 @@
 // — the source of Fix in a Spenders preview, a greeting draft in «Новые».
 // It never goes to ChatSpace by itself. Up to 5000 characters each, kept until
 // it is sent or cleared, at most 7 days (decision X47; it was 24 hours), at
-// most 100 drafts and one MiB together; the oldest go first. Kept
+// most 400 drafts and one MiB with the removal marks; the oldest go first. Kept
 // per hub, user, page, list and fan, so one person's draft never shows to
 // another. Pure: the controller reads and writes the store through its port.
 //
@@ -83,6 +83,8 @@ export function utf8Bytes(text: string): number {
 }
 
 const draftBytes = (draft: PreviewDraft): number => utf8Bytes(draft.text) + utf8Bytes(draft.key) + 96 + (draft.generation === undefined ? 0 : utf8Bytes(JSON.stringify(draft.generation)));
+/** A removal mark as JSON: its key, a revision and a moment. */
+const markBytes = (mark: DraftRemoval): number => utf8Bytes(mark.key) + 56;
 
 function isDraft(value: unknown): value is PreviewDraft {
   if (value === null || typeof value !== 'object') return false;
@@ -133,13 +135,14 @@ function fitRemovals(removed: readonly DraftRemoval[], now: number): DraftRemova
 }
 
 function storeOf(drafts: readonly PreviewDraft[], removed: readonly DraftRemoval[], now: number): DraftStore {
-  const kept = fit(drafts, now);
   const marks = fitRemovals(removed, now);
+  // The marks share the key's budget: the drafts take what they leave (a write past it is refused whole).
+  const kept = fit(drafts, now, marks.reduce((bytes, mark) => bytes + markBytes(mark), 0));
   return marks.length === 0 ? { v: DRAFT_STORE_VERSION, drafts: kept } : { v: DRAFT_STORE_VERSION, drafts: kept, removed: marks };
 }
 
-/** Drops drafts past their lifetime (7 days) and the oldest beyond the count and byte caps. */
-function fit(drafts: readonly PreviewDraft[], now: number): PreviewDraft[] {
+/** Drops drafts past their lifetime (7 days) and the oldest beyond the count and byte caps; `reserved` — bytes the marks take. */
+function fit(drafts: readonly PreviewDraft[], now: number, reserved: number): PreviewDraft[] {
   const fresh = drafts
     .filter((draft) => now - draft.updatedAt < STORAGE_LIMITS.previewDraftTtlMs && draft.updatedAt <= now + 60_000)
     .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -150,7 +153,7 @@ function fit(drafts: readonly PreviewDraft[], now: number): PreviewDraft[] {
     if (seen.has(draft.key)) continue;
     if (out.length >= STORAGE_LIMITS.previewDrafts) break;
     const size = draftBytes(draft);
-    if (bytes + size > STORAGE_LIMITS.previewDraftsTotalBytes - BYTES_HEADROOM) break;
+    if (reserved + bytes + size > STORAGE_LIMITS.previewDraftsTotalBytes - BYTES_HEADROOM) break;
     seen.add(draft.key);
     bytes += size;
     out.push(draft);

@@ -39,7 +39,8 @@
 // (`onHistory`): a receipt the echo never confirmed is confirmed by it.
 // Never: a request for another creator's session, a send of its own, a text in the log. The pass lives in the event
 // page's memory: an open window's port keeps the page awake; a pass nobody holds stands still, and the next `scan` of
-// its period takes it up again with what it found — only the followers since its end are read and checked (2026-10-23).
+// its period takes it up again with what it found — only the welcome texts and the followers since its end are read,
+// and the new ones checked (2026-10-23).
 // Its metadata journal is a separate port (P10b3, NF-029, FS-NEW-5): IDB with rotation and only a small memory tail.
 //
 // As the old extension (2.13.0), 2026-10-21 (audit regression 7):
@@ -194,6 +195,12 @@ interface KnownBook {
 
 /** A blip of Fansly's is asked again no sooner than this (the old extension's 2.4.3: live 404s came in runs of 2–3 s). */
 export const RECHECK_DELAY_MS = 3000;
+/**
+ * `refresh` reads the follows from this long before the period's end: the end is this machine's clock, a follow's moment
+ * Fansly's (its id), and a clock a few seconds ahead of Fansly's would skip a fan who followed right after the read —
+ * on every later refresh too. A fan already in the pass is never taken twice.
+ */
+const REFRESH_OVERLAP_MS = 5 * 60_000;
 
 /** What the greeting (P10c) takes of a checked row (FS-NEW-7): only a history walked to its empty page has one. */
 export interface PassRowProof {
@@ -592,10 +599,14 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   /**
    * A window opened again on a pass that stands, or ⟳ (the owner, 2026-10-23: closing and opening the window must not
-   * check everyone again): what the pass found stays — the followers since its end are read, the period moves to now,
-   * and the new fans, with those whose check failed, are checked as in the fast part.
+   * check everyone again): what the pass found stays — the welcome texts are read again (an automation edited meanwhile
+   * is the new followers' first message), the followers since its end are read, the period moves to now, and the new
+   * fans, with those whose check failed, are checked as in the fast part.
    */
   async function refresh(pass: Pass, work: Work): Promise<void> {
+    phase(pass, 'welcome');
+    pass.welcome = await welcomeTexts(pass, work);
+
     phase(pass, 'followers');
     await newFollowers(pass, work);
     await afterList(pass, work, true);
@@ -645,12 +656,16 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return answer;
   }
 
-  /** The rows of a page's follows from `from` to `to` the pass has not got yet; answers the moment of its oldest follow. */
+  /**
+   * The rows of a page's follows from `from` to `to` the pass has not got yet; answers the moment of its oldest follow.
+   * A follow Fansly dates more than a minute ahead of this machine (a slow clock) was made by the time it was read: it is
+   * at the period's end `to` — on `refresh`, now —, never at 0, which would end the list at this page as read to its end.
+   */
   function takeFollows(pass: Pass, answer: NonNullable<ReturnType<typeof readFollowersPage>>, from: number, to: number): number {
     const profiles = new Map(answer.profiles.map((profile) => [profile.fanRef, profile]));
     let oldest = Infinity;
     for (const follow of answer.follows) {
-      const at = snowflakeMs(follow.id, deps.now()) ?? 0;
+      const at = snowflakeMs(follow.id, deps.now()) ?? to;
       oldest = Math.min(oldest, at);
       if (at < from || at > to || pass.byFan.has(follow.fanRef) || follow.fanRef === pass.creator) continue;
       const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, proof: null, avatar: profiles.get(follow.fanRef)?.avatarUrl ?? null };
@@ -695,9 +710,12 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     touch(pass);
   }
 
-  /** `refresh`: the follows since the period's end, the newest first; then the period ends now and the fans before its new start leave it. */
+  /**
+   * `refresh`: the follows since the period's end, the newest first — from REFRESH_OVERLAP_MS before it, a fan already in
+   * the pass keeping their row —; then the period ends now and the fans before its new start leave it.
+   */
   async function newFollowers(pass: Pass, work: Work): Promise<void> {
-    const since = pass.startedAt;
+    const since = pass.startedAt - REFRESH_OVERLAP_MS;
     const until = deps.now();
     const cursors = new Set<string>();
     let before = '0';
@@ -1141,13 +1159,15 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   /**
    * The creator's welcome texts (NF-033): read from Fansly on each pass and joined with every text kept before
    * (`NEWCOMERS_WELCOME_PREFIX`). A read that failed takes the kept texts, as the old extension's cache did
-   * (2026-10-20 restrictions, item 17); only with none kept does the failure stop the pass, as before.
+   * (2026-10-20 restrictions, item 17); only with none kept does the failure stop the pass, as before. On `refresh` the
+   * texts the pass read before are kept too, whatever the store gave.
    */
   async function welcomeTexts(pass: Pass, work: Work): Promise<Set<string>> {
     const key = `${NEWCOMERS_WELCOME_PREFIX}${pass.creator}`;
     const stored = await deps.local.get([key]).catch(() => null);
     const value = stored?.ok === true ? (stored.value[key] as { readonly texts?: unknown } | undefined) : undefined;
-    const kept = Array.isArray(value?.texts) ? value.texts.filter((text): text is string => typeof text === 'string' && text !== '') : null;
+    const inStore = Array.isArray(value?.texts) ? value.texts.filter((text): text is string => typeof text === 'string' && text !== '') : null;
+    const kept = inStore === null && pass.welcome.size === 0 ? null : [...new Set([...(inStore ?? []), ...pass.welcome])];
     let read: Set<string> | null = null;
     let failure: CgAnyErrorWire = { code: 'CG-FAN-REQUEST' };
     try {
@@ -1252,8 +1272,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (!deps.tabOn(tab, creator)) return { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } };
     const open = passes.get(creator);
     // The window opened again, another tab, ⟳ (the owner, 2026-10-23): the creator's pass of this period goes on with
-    // what it found; a pass that stands reads the followers since its end and checks the new ones (`refresh`); a «Пауза»
-    // belongs to the window that was open and goes on too. Another period is another pass.
+    // what it found; a pass that stands reads the welcome texts and the followers since its end and checks the new ones
+    // (`refresh`); a «Пауза» belongs to the window that was open and goes on too. Another period is another pass.
     if (open !== undefined && open.windowHours === windowHours) {
       holds(open, tab);
       if (!running(open)) {
