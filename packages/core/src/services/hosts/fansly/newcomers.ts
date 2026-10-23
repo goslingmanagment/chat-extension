@@ -605,7 +605,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
    */
   async function refresh(pass: Pass, work: Work): Promise<void> {
     phase(pass, 'welcome');
-    pass.welcome = await welcomeTexts(pass, work);
+    // The texts read before stay: a fan in the queue who followed before the edit got the old one.
+    pass.welcome = new Set([...pass.welcome, ...(await welcomeTexts(pass, work))]);
 
     phase(pass, 'followers');
     await newFollowers(pass, work);
