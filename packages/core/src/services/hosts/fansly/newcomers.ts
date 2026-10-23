@@ -38,7 +38,8 @@
 // `greeted` (the card's greeting went: the row is «Уже писали»). Every walked history is told to the send
 // (`onHistory`): a receipt the echo never confirmed is confirmed by it.
 // Never: a request for another creator's session, a send of its own, a text in the log. The pass lives in the event
-// page's memory: an open window's port keeps the page awake; a pass nobody holds is let go by the next `scan`.
+// page's memory: an open window's port keeps the page awake; a pass nobody holds stands still, and the next `scan` of
+// its period takes it up again with what it found — only the followers since its end are read and checked (2026-10-23).
 // Its metadata journal is a separate port (P10b3, NF-029, FS-NEW-5): IDB with rotation and only a small memory tail.
 //
 // As the old extension (2.13.0), 2026-10-21 (audit regression 7):
@@ -289,9 +290,12 @@ interface Pass {
   readonly id: string;
   readonly creator: string;
   readonly windowHours: number;
-  readonly startedAt: number;
+  /** The end of the period: the scan's moment, moved to now when a window takes the pass up again (`refresh`). */
+  startedAt: number;
   readonly journal: PassJournalSink | undefined;
   base: Base;
+  /** The person's «Пауза»: a window that opens again leaves the queue standing (only «Проверить оставшихся» goes on). */
+  held: boolean;
   phase: Phase | null;
   partial: boolean;
   error: CgAnyErrorWire | null;
@@ -572,19 +576,36 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     pass.work.stop.abort();
   }
 
+  function phase(pass: Pass, next: Phase): void {
+    pass.phase = next;
+    note(pass, 'pass.phase', { phase: next });
+    touch(pass);
+  }
+
   /** The fast part (NF-030, NF-031, NF-032), then the queue (NF-039). */
   async function fastPart(pass: Pass, work: Work): Promise<void> {
-    const phase = (next: Phase): void => {
-      pass.phase = next;
-      note(pass, 'pass.phase', { phase: next });
-      touch(pass);
-    };
-    phase('welcome');
+    phase(pass, 'welcome');
     pass.welcome = await welcomeTexts(pass, work);
 
-    phase('followers');
+    phase(pass, 'followers');
+    await followers(pass, work, pass.startedAt - pass.windowHours * 3_600_000);
+    await afterList(pass, work, false);
+  }
+
+  /**
+   * A window opened again on a pass that stands, or ⟳ (the owner, 2026-10-23: closing and opening the window must not
+   * check everyone again): what the pass found stays — the followers since its end are read, the period moves to now,
+   * and the new fans, with those whose check failed, are checked as in the fast part.
+   */
+  async function refresh(pass: Pass, work: Work): Promise<void> {
+    phase(pass, 'followers');
+    await newFollowers(pass, work);
+    await afterList(pass, work, true);
+  }
+
+  /** What follows the list: what earlier passes proved, the inbox's leads, the profiles, the known chats, the queue. */
+  async function afterList(pass: Pass, work: Work, retry: boolean): Promise<void> {
     const cutoff = pass.startedAt - pass.windowHours * 3_600_000;
-    await followers(pass, work, cutoff);
     // What earlier passes proved: a fan written to needs no request; a known chat is a lead the inbox did not give.
     const book = await bookOf(pass.creator);
     if (work.stop.aborted) throw new Aborted();
@@ -592,9 +613,9 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
     await inbox(pass, work, cutoff);
     knownLeads(pass, book);
-    phase('profiles');
+    phase(pass, 'profiles');
     await profiles(pass, work);
-    phase('checking');
+    phase(pass, 'checking');
     let fails = 0;
     // The chats already known, newest first — the person's choice (a click on the row) before them, as it comes.
     const seen = new Set<string>();
@@ -610,8 +631,39 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     pass.phase = null;
     pass.base = 'queue';
     touch(pass);
-    await queue(pass, work, null);
+    await queue(pass, work, null, retry);
   }
+
+  /** A page of the creator's new followers, the newest first, before the follow `before` ('0' — from the newest). */
+  async function followersPage(pass: Pass, work: Work, before: string): Promise<NonNullable<ReturnType<typeof readFollowersPage>>> {
+    const answer = readFollowersPage(
+      await ask(pass, work, {
+        route: 'followers.new',
+        path: { account: pass.creator },
+        query: { before, after: '0', limit: String(PASS_BOUNDS.followerPage), offset: '0', search: '', lastSeenAfter: '' },
+      }),
+    );
+    if (answer === null) throw new PassFailure({ code: 'CG-FAN-REQUEST' });
+    return answer;
+  }
+
+  /** The rows of a page's follows from `from` to `to` the pass has not got yet; answers the moment of its oldest follow. */
+  function takeFollows(pass: Pass, answer: NonNullable<ReturnType<typeof readFollowersPage>>, from: number, to: number): number {
+    const profiles = new Map(answer.profiles.map((profile) => [profile.fanRef, profile]));
+    let oldest = Infinity;
+    for (const follow of answer.follows) {
+      const at = snowflakeMs(follow.id, deps.now()) ?? 0;
+      oldest = Math.min(oldest, at);
+      if (at < from || at > to || pass.byFan.has(follow.fanRef) || follow.fanRef === pass.creator) continue;
+      const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, proof: null, avatar: profiles.get(follow.fanRef)?.avatarUrl ?? null };
+      pass.rows.push(row);
+      pass.byFan.set(follow.fanRef, row);
+      touch(pass, row);
+    }
+    return oldest;
+  }
+
+  const byFollowed = (a: Row, b: Row): number => Date.parse(b.view.followedAt) - Date.parse(a.view.followedAt);
 
   async function followers(pass: Pass, work: Work, cutoff: number): Promise<void> {
     const progress = pass.followers;
@@ -619,27 +671,10 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     let complete = false;
     try {
       while (progress.pages < PASS_BOUNDS.followerPages) {
-        const answer = readFollowersPage(
-          await ask(pass, work, {
-            route: 'followers.new',
-            path: { account: pass.creator },
-            query: { before: progress.before, after: '0', limit: String(PASS_BOUNDS.followerPage), offset: '0', search: '', lastSeenAfter: '' },
-          }),
-        );
-        if (answer === null) throw new PassFailure({ code: 'CG-FAN-REQUEST' });
+        const answer = await followersPage(pass, work, progress.before);
         progress.pages += 1;
         note(pass, 'followers.page', { page: progress.pages, count: answer.follows.length });
-        const profiles = new Map(answer.profiles.map((profile) => [profile.fanRef, profile]));
-        let oldest = Infinity;
-        for (const follow of answer.follows) {
-          const at = snowflakeMs(follow.id, deps.now()) ?? 0;
-          oldest = Math.min(oldest, at);
-          if (at < cutoff || at > pass.startedAt || pass.byFan.has(follow.fanRef) || follow.fanRef === pass.creator) continue;
-          const row: Row = { view: rowView(follow.fanRef, at, profiles.get(follow.fanRef)), chat: null, kept: [], keptAll: false, proof: null, avatar: profiles.get(follow.fanRef)?.avatarUrl ?? null };
-          pass.rows.push(row);
-          pass.byFan.set(follow.fanRef, row);
-          touch(pass, row);
-        }
+        const oldest = takeFollows(pass, answer, cutoff, pass.startedAt);
         if (answer.follows.length < PASS_BOUNDS.followerPage || oldest < cutoff) {
           complete = true;
           break;
@@ -658,7 +693,36 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     progress.read = true;
     pass.partial = !complete;
     if (complete) pass.error = null;
-    pass.rows.sort((a, b) => Date.parse(b.view.followedAt) - Date.parse(a.view.followedAt));
+    pass.rows.sort(byFollowed);
+    touch(pass);
+  }
+
+  /** `refresh`: the follows since the period's end, the newest first; then the period ends now and the fans before its new start leave it. */
+  async function newFollowers(pass: Pass, work: Work): Promise<void> {
+    const since = pass.startedAt;
+    const until = deps.now();
+    const cursors = new Set<string>();
+    let before = '0';
+    let reached = false;
+    for (let page = 1; page <= PASS_BOUNDS.followerPages; page += 1) {
+      const answer = await followersPage(pass, work, before);
+      note(pass, 'followers.page', { page, count: answer.follows.length });
+      const oldest = takeFollows(pass, answer, since, until);
+      if (answer.follows.length < PASS_BOUNDS.followerPage || oldest < since) {
+        reached = true;
+        break;
+      }
+      const next = answer.follows.at(-1)?.id ?? before;
+      if (cursors.has(next)) break;
+      cursors.add(next);
+      before = next;
+    }
+    if (!reached) pass.partial = true;
+    pass.startedAt = until;
+    const cutoff = until - pass.windowHours * 3_600_000;
+    for (const row of pass.rows) if (Date.parse(row.view.followedAt) < cutoff) pass.byFan.delete(row.view.fanRef);
+    const kept = pass.rows.filter((row) => pass.byFan.get(row.view.fanRef) === row).sort(byFollowed);
+    pass.rows.splice(0, pass.rows.length, ...kept);
     touch(pass);
   }
 
@@ -1189,8 +1253,16 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     // The tab may have left the creator while the store was read.
     if (!deps.tabOn(tab, creator)) return { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } };
     const open = passes.get(creator);
-    if (open !== undefined && open.windowHours === windowHours && open.base !== 'done' && open.base !== 'stopped' && (open.watchers.has(tab) || running(open))) {
+    // The window opened again, another tab, ⟳ (the owner, 2026-10-23): the creator's pass of this period goes on with
+    // what it found; a pass that stands reads the followers since its end and checks the new ones (`refresh`) — unless
+    // the person stood it with «Пауза». Another period is another pass.
+    if (open !== undefined && open.windowHours === windowHours) {
       holds(open, tab);
+      if (!running(open) && !open.held) {
+        note(open, 'queue.resume', { state: open.base });
+        if (open.followers.read) begin(open, 'scanning', (work) => refresh(open, work));
+        else begin(open, 'scanning', (work) => fastPart(open, work));
+      }
       return { ok: true, pass: viewOf(open) };
     }
     const watchers = new Set(open?.watchers);
@@ -1203,6 +1275,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       startedAt: run.startedAt,
       journal: journalFor(run),
       base: 'scanning',
+      held: false,
       phase: 'welcome',
       partial: false,
       error: null,
@@ -1283,6 +1356,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     // While the list itself is read there is nothing to stand on: the pause waits for the profiles (the old rule).
     const listRead = pass.base === 'queue' || (pass.base === 'scanning' && (pass.phase === 'profiles' || pass.phase === 'checking'));
     if (listRead && running(pass)) {
+      pass.held = true;
       standStill(pass);
       touch(pass);
     }
@@ -1292,6 +1366,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   function resume(payload: Payload<'fansly.followers.resume'>, tab: string): Answer<'fansly.followers.resume'> {
     const pass = find(payload.passId, tab);
     if (pass === null) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
+    pass.held = false;
     if (pass.work !== null || (pass.followers.read && !pass.rows.some(needsCheck))) return { ok: true, pass: viewOf(pass) };
     note(pass, 'queue.resume', { state: pass.base });
     if (!pass.followers.read) {

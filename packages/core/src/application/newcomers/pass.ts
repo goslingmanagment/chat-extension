@@ -6,9 +6,10 @@
 // the source's cap (NF-009, NF-010), and gives the way into the fan's chat as an address the person opens in a new
 // tab, so the window stays (NF-011). A failed read is a failed list, never «nobody new» (FX-017).
 //
-// The identity guard (NF-026): another sign-in, hub, account or binding — the context's epoch —, a closed window and
-// another period end everything in flight: late answers and changes of the old pass are dropped, the pass is let go.
-// A pass of another account is nobody's here.
+// The identity guard (NF-026): another sign-in, hub, account or binding — the context's epoch — and another period end
+// everything in flight: late answers and changes of the old pass are dropped, the pass is let go. A pass of another
+// account is nobody's here. A closed window only lets the background's work stand: what it showed waits for the next
+// open, which goes on with the same pass (the owner, 2026-10-23).
 //
 // R20 P10b1, NF-038: the queue's buttons — «Пауза», «Проверить оставшихся» (`SetNewcomersPassRunning`), «Проверить
 // следующим» / «Проверить чат» (`CheckNewcomerNext`) — ask the source; what changed comes back as the pass's changes.
@@ -236,33 +237,41 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
 
   /**
    * Opens the pass of this tab's creator and period, then reads its first page (NF-004). `close` — the pass on screen
-   * is another period's: it is let go; a reload asks for the same pass again, which the background answers as it is.
+   * is another period's: it is let go. Without it — the window opened again, ⟳, a pass the background lost — what is
+   * on screen (the rows, the card, the batch's drafts) stays while the background answers (the owner, 2026-10-23): the
+   * same pass goes on with all of it, another one replaces it.
    * `chosen` (X59) — the period the person just chose; null — the one the site remembers (their last choice anywhere).
    */
   async function start(close = true, chosen: number | null = null): Promise<void> {
-    letGo(close);
+    const creator = context.current().account?.hostAccountId ?? null;
+    const kept = !close && stage === 'live' && pass !== null && creator !== null && creator === account ? pass.passId : null;
+    if (kept === null) letGo(close);
     const mine = run;
     if (disposed || !open() || !usable()) return changed();
-    const creator = context.current().account?.hostAccountId ?? null;
     account = creator;
     if (creator === null) {
       stage = 'failed';
       listFailure = { code: 'CG-HOST-NOT-READY', retryAt: null };
       return changed();
     }
-    stage = 'connecting';
-    changed();
+    if (kept === null) {
+      stage = 'connecting';
+      changed();
+    }
     const scanned = await source.scan(creator, chosen);
     if (disposed || mine !== run) return;
-    if (!scanned.ok) return fail(scanned.failure);
-    // NF-026: a pass of another creator is nobody's here.
-    if (scanned.value.hostAccountId !== creator) return fail({ code: 'CG-CONTEXT-CHANGED', retryAt: null });
+    if (!scanned.ok || scanned.value.hostAccountId !== creator) {
+      if (kept !== null) letGo(false);
+      // NF-026: a pass of another creator is nobody's here.
+      return fail(scanned.ok ? { code: 'CG-CONTEXT-CHANGED', retryAt: null } : scanned.failure);
+    }
+    if (kept !== null && scanned.value.passId !== kept) return replaced(scanned.value);
     pass = scanned.value;
     windowHours = clampHours(pass.windowHours);
     stage = 'live';
     changed();
     knownOutcomes(mine);
-    await firstPage(mine, Math.max(source.pageSize, 1));
+    await firstPage(mine, Math.max(source.pageSize, rows.length, 1));
   }
 
   /**
@@ -401,7 +410,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   }
 
   function heard(change: PassChange): void {
-    if (disposed || pass === null || change.pass.passId !== pass.passId) return;
+    if (disposed || !open() || pass === null || change.pass.passId !== pass.passId) return;
     // The pinned fan's row as the pass tells it, also once it is out of the list on screen.
     track(change.rows);
     if (reading || loadingMore) {
@@ -874,6 +883,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   const offs: (() => void)[] = [
     source.onChange(heard),
     source.onReconnect(() => {
+      // A closed window reads nothing (a read would hold the pass for it again): the next open reads what is on screen.
+      if (!open()) return;
       card?.refresh();
       if (pass !== null && stage === 'live' && !disposed) knownOutcomes(run);
       // The changes while the port was down are lost: what is on screen is read again.
@@ -899,10 +910,13 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       else changed();
     }),
     surfaces.subscribe((state, previous) => {
-      if (state.newcomers && !previous.newcomers) void start();
+      if (state.newcomers && !previous.newcomers) void start(false);
       else if (!state.newcomers && previous.newcomers) {
-        // Closing the window lets the pass go (NF-026): it keeps what it found, nothing new starts for this window.
-        letGo(true);
+        // Closing the window lets the background's work stand (FS-NEW-4); what the window shows — the rows, the card,
+        // the batch's drafts — stays for the next open of the same pass (the owner, 2026-10-23). A window that showed
+        // no pass lets everything go.
+        if (pass !== null && stage === 'live') source.close(pass.passId);
+        else letGo(true);
         if (searchTimer !== null) clock.clearTimer(searchTimer);
         searchTimer = null;
         applied = typed;
