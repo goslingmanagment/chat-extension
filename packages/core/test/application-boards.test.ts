@@ -1324,6 +1324,8 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     // The queue refused it: nothing went, the pick is back for the next click.
     expect(pv(h).media).toMatchObject({ picks: 1 });
     expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'rejected', canRetry: true });
+    // Nothing went, so no second of pause rests behind the click (SEND_PACE_MS): what holds the other part is the picks' check.
+    expect(partsOf(h, 'spenders')[1]?.send).not.toMatchObject({ reason: { key: 'send.reason.pace' } });
     // A send that may have gone keeps its picks: an uncertain outcome gives nothing back.
     const second = await withReply({ media: VAULT, answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
     await second.h.dispatch({ type: 'SetMediaOpen', targetHandle: second.handle, open: true });

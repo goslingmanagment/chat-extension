@@ -1937,14 +1937,34 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   const paced = (): boolean => clock.now() < pacedUntil;
 
-  /** A send was clicked: every «Отправить» of the tab rests SEND_PACE_MS; the cards and a batch's rows say so, then lift it. */
-  function pace(): void {
+  /**
+   * A send was clicked: every «Отправить» of the tab rests SEND_PACE_MS; the cards and a batch's rows say so, then lift it.
+   * Returns the deadline, so the click can lift its own pause when it went nowhere (`unpace`).
+   */
+  function pace(): number {
     pacedUntil = clock.now() + SEND_PACE_MS;
+    armPace();
+    paceChanged();
+    return pacedUntil;
+  }
+
+  function armPace(): void {
     if (paceTimer !== null) clock.clearTimer(paceTimer);
-    paceTimer = clock.setTimer(SEND_PACE_MS, () => {
+    // A timer may fire a hair before the clock reaches the deadline: then it waits out the rest, or the rows stay off.
+    paceTimer = clock.setTimer(Math.max(1, pacedUntil - clock.now()), () => {
       paceTimer = null;
-      if (!disposed) paceChanged();
+      if (disposed) return;
+      if (paced()) armPace();
+      else paceChanged();
     });
+  }
+
+  /** The click that set `until` reached no queue of ChatSpace's: nothing went, so nothing rests behind it. */
+  function unpace(until: number): void {
+    if (pacedUntil !== until) return;
+    pacedUntil = 0;
+    if (paceTimer !== null) clock.clearTimer(paceTimer);
+    paceTimer = null;
     paceChanged();
   }
 
@@ -1986,7 +2006,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const taken = attached.kind === 'media' ? media.take(chat) : null;
     // The button is off from the first click, before anything answers (§6.7.7, lock 1).
     track.clicked.add(key);
-    pace();
+    const until = pace();
     reportProgress(track);
     changed();
     const settle = (): void => {
@@ -1995,6 +2015,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const issued = await issueCause(rpc, 'send', track.surface);
     if (!issued.ok) {
       settle();
+      unpace(until);
       if (taken !== null) media.restore(chat, taken);
       reportProgress(track);
       changed();
@@ -2027,6 +2048,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       answered = await sender.send(click);
     } catch {
       settle();
+      unpace(until);
       if (taken !== null) media.restore(chat, taken);
       reportProgress(track);
       changed();
@@ -2042,6 +2064,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // inside its ticket, a busy queue): the row keeps the unknown outcome, and the click's answer says why.
     const before = track.attempts.get(key);
     if (latest.state === 'held' && before !== undefined && before.view.state === 'uncertain') {
+      unpace(until);
       if (taken !== null) media.restore(chat, taken);
       reportProgress(track);
       changed();
@@ -2056,6 +2079,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       uncertainSince: latest.state === 'uncertain' ? nowIso() : null,
     });
     afterAttempt(track, latest);
+    // Held before ChatSpace's queue, or refused by it: nothing went, the next click (this fan's or another's) is free.
+    if (latest.state === 'held' || latest.state === 'notEnqueued') unpace(until);
     return done(type, 'started', { attemptId: latest.attemptId });
   }
 
