@@ -309,8 +309,9 @@ export class VoiceService<S> {
       if (!this.deps.redeem(tab, cause)) return fail('CG-UI-FAILED', session);
       if (session.script === null) return fail('CG-CONTEXT-CHANGED', session);
       if (session.writing !== null) return fail('CG-OP-CHAT-BUSY', session);
-      // One take on its way at a time (the studio waits for it too): a click of another tab, or one whose answer got lost.
-      if (session.takes.some((take) => take.state === 'creating' || take.state === 'working')) return fail('CG-OP-CHAT-BUSY', session);
+      // One create of a session at a time (the studio waits for its answer too): a click of another tab, or one whose
+      // answer got lost. A take the hub admitted renders on its own and holds nothing.
+      if (session.takes.some((take) => take.state === 'creating')) return fail('CG-OP-CHAT-BUSY', session);
       if (session.takes.length >= VOICE_LIMITS.takesPerSession) return fail('CG-UI-FAILED', session);
       const canonical = canonicalVoiceScript(script);
       // What the hub refuses for certain is not asked at all; its own cap of characters is its to say (a setting).

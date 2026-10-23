@@ -1,7 +1,7 @@
 // The voice studio's controller (application/voice/controller.ts) over the real desk and the real background service,
 // the tab's requests handed straight to it: one click is one paid render — a second «Озвучить» or «Ещё вариант» while
-// a take of the chat is on its way does nothing, the button says so, and whatever became of the take (ready, refused,
-// uncertain, a click that was refused) the next click counts again; a take handed over without its outcome seen is
+// a create of the chat is unanswered does nothing, the button says so, and whatever became of the create (admitted,
+// refused, uncertain, a click that was refused) the next click counts again; a take handed over without its outcome seen is
 // still the person's money — a new draft in the field waits for «Новый войс», which asks first.
 
 import { chatKeyOf, type ActionReceipt, type TabRequestPayload, type Target, type UiAction, type VoiceNoteView, type VoiceSession, type VoiceTake, type VoiceVM } from '@cg/contracts';
@@ -83,8 +83,6 @@ interface Rig {
   readonly creates: string[];
   /** Settles the oldest create still waiting for the hub: its note, or a failure. */
   answer(outcome: VoiceNoteView | VoiceFailure): Promise<void>;
-  /** Runs the background's status reads that are due (the hub says the note is rendered). */
-  poll(): Promise<void>;
   /** The sessions in storage. */
   stored(): readonly VoiceSession[];
   /** Whether the next click's token is issued. */
@@ -112,13 +110,12 @@ async function rig(takes: readonly VoiceTake[], draft = ''): Promise<Rig> {
     onChanged: () => () => undefined,
   };
   const waiting: { resolve(view: VoiceNoteView): void; reject(error: Failed): void }[] = [];
-  const timers: (() => void)[] = [];
   const listeners = new Map<string, (payload: unknown) => void>();
   const creates: string[] = [];
   const service = new VoiceService<string>({
     now: () => NOW,
     ids: { uuid: nextId },
-    timers: { set: (callback) => timers.push(callback), clear: () => undefined },
+    timers: { set: () => 0, clear: () => undefined },
     store,
     hub: {
       create: (request) => {
@@ -230,10 +227,6 @@ async function rig(takes: readonly VoiceTake[], draft = ''): Promise<Rig> {
       else next.reject(new Failed(outcome));
       await settle();
     },
-    async poll() {
-      for (const run of timers.splice(0)) run();
-      await settle();
-    },
     stored: () => (values.get(VOICE_SESSIONS_KEY) as { readonly sessions: readonly VoiceSession[] }).sessions,
   });
 }
@@ -261,25 +254,21 @@ describe('the voice studio: one click, one render', () => {
     expect(r.stored()[0]!.takes).toHaveLength(1);
   });
 
-  it('«Ещё вариант» waits while the new take renders: a press then does nothing; once it is ready it counts again', async () => {
+  it('«Ещё вариант» waits while the new take’s create is unanswered: a press then does nothing; once the hub admitted it, it counts again', async () => {
     const r = await rig([take(1)]);
     const again = makeButton(r.vm());
     expect(again).toMatchObject({ enabled: true, label: { key: 'voice.makeAgain' } });
     await r.dispatch(again.action);
     await settle();
-    expect(r.vm().takes.map((one) => one.state)).toEqual(['ready', 'working']);
-    // The hub has not answered the create yet, then it has and the take renders: either way one more press is nothing.
-    expect(makeButton(r.vm())).toMatchObject({ enabled: false, reason: { id: 'voice-working' } });
-    expect(await r.dispatch(again.action)).toMatchObject({ ok: true, outcome: 'noop' });
-    await r.answer(note());
-    expect(r.stored()[0]!.takes[1]!.state).toBe('working');
-    expect(makeButton(r.vm()).enabled).toBe(false);
+    // Written, the hub asked, no answer yet: one more press is nothing.
+    expect(r.stored()[0]!.takes[1]!.state).toBe('creating');
+    expect(makeButton(r.vm())).toMatchObject({ enabled: false, reason: { id: 'voice-creating' } });
     expect(await r.dispatch(again.action)).toMatchObject({ ok: true, outcome: 'noop' });
     expect(r.creates).toHaveLength(1);
-    // Rendered: another take is the person's choice again.
-    await r.poll();
-    expect(r.vm().takes.map((one) => one.state)).toEqual(['ready', 'ready']);
-    expect(makeButton(r.vm()).enabled).toBe(true);
+    // The hub admitted it and it renders on its own: another take beside it is the person's choice again (the old extension's way).
+    await r.answer(note());
+    expect(r.stored()[0]!.takes[1]!.state).toBe('working');
+    expect(makeButton(r.vm())).toMatchObject({ enabled: true, reason: null });
     expect(await r.dispatch(again.action)).toMatchObject({ ok: true, outcome: 'started' });
     expect(r.creates).toHaveLength(2);
   });

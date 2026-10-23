@@ -218,10 +218,11 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       primary = button('voice.empty.write', { type: 'WriteVoiceScript', targetHandle: handle, tone: ui.tone, from: again ? 'session' : 'field' }, !again && draftEmpty ? { enabled: false, reason: ws.ports.catalog.reason('needs-draft') } : {});
     } else if (stage === 'ready' && session !== null) {
       const full = session.takes.length >= VOICE_LIMITS.takesPerSession;
-      // One click, one render: while a take of the chat is on its way — this tab's click not answered yet, or one the
-      // background creates or renders — no other is asked.
-      const rendering = ui.making || session.takes.some((take) => take.state === 'creating' || take.state === 'working');
-      const blocked = issue !== null ? ws.ports.catalog.reason('voice-issue') : full ? ws.ports.catalog.reason('voice-takes-full', { max: VOICE_LIMITS.takesPerSession }) : rendering ? ws.ports.catalog.reason('voice-working') : null;
+      // One click, one render (the old extension's pending create): while a create of the chat is not answered yet —
+      // this tab's click, or a take the background is creating — no other is asked. One the hub admitted renders on its
+      // own: another take beside it is the person's choice again.
+      const creating = ui.making || session.takes.some((take) => take.state === 'creating');
+      const blocked = issue !== null ? ws.ports.catalog.reason('voice-issue') : full ? ws.ports.catalog.reason('voice-takes-full', { max: VOICE_LIMITS.takesPerSession }) : creating ? ws.ports.catalog.reason('voice-creating') : null;
       const fresh = session.takes.filter((take) => !takeIsStale(take, text));
       // This tab's click asked for a take of the text now in the editor.
       const freshWorking = ui.making || fresh.some((take) => take.state === 'creating' || take.state === 'working');
@@ -615,13 +616,14 @@ export function createVoiceController(ws: AiWorkspace): VoiceController {
       const state = desk.session(ready.page.pageId, chat.conversationRef);
       const session = state.state === 'ready' ? state.session : null;
       if (session === null || session.script === null || session.writing !== null) return done(action.type, 'noop');
-      // One click, one render (the old extension's pending create): while a take of the chat is on its way — this tab's
-      // click not answered yet, or one the background creates or renders — another click (a double click) does nothing.
-      if (ui.making || session.takes.some((take) => take.state === 'creating' || take.state === 'working')) return done(action.type, 'noop');
+      // One click, one render (the old extension's pending create): while a create of the chat is not answered yet —
+      // this tab's click, or a take the background is creating — another click (a double click) does nothing.
+      if (ui.making || session.takes.some((take) => take.state === 'creating')) return done(action.type, 'noop');
       const text = textOf(session, ui) ?? '';
       const issue = voiceScriptIssue(canonicalVoiceScript(text), VOICE_LIMITS.scriptMaxChars);
       if (issue !== null) return studioError(chat.key, action.type, { code: 'CG-VOICE-SCRIPT' });
-      // Claimed before the first wait; let go whatever the answer (the take the background keeps holds the button then).
+      // Claimed before the first wait; let go whatever the answer (a take the background is still creating holds the
+      // button then).
       ui.making = true;
       ws.bump();
       try {

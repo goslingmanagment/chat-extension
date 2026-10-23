@@ -41,7 +41,7 @@ export interface DeskUi {
   attach: DeskAttach | null;
   /**
    * A take this tab asked for and the background has not answered yet: claimed by the click before its first wait, so
-   * a second click of a double click finds it (one click, one render); let go whatever the answer.
+   * the second click of a double click finds it (one click, one render); let go whatever the answer.
    */
   making: boolean;
   confirm: DeskConfirm | null;

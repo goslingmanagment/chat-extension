@@ -316,20 +316,18 @@ describe('voice notes in the background', () => {
     expect(w.store.stored()[0]!.takes).toHaveLength(1);
   });
 
-  it('another take while one is on its way is refused, whoever asks (another tab, a click whose answer got lost); once it settles it is asked', async () => {
+  it('another take while a create of the session is unanswered is refused, whoever asks (another tab, a click whose answer got lost); once the hub admitted it, it is asked', async () => {
     const w = world();
     const session = await withScript(w);
     let answer: (view: VoiceNoteView) => void = () => undefined;
     w.hub.create = () => new Promise((resolve) => (answer = resolve));
     await w.service.take(TAB, session.sessionId, uuid(0x80c), SCRIPT, CAUSE);
     expect(await w.service.take(TAB, session.sessionId, uuid(0x80d), SCRIPT, CAUSE)).toMatchObject({ ok: false, error: { code: 'CG-OP-CHAT-BUSY' } });
-    // Admitted and rendering: still on its way.
+    expect(w.creates).toHaveLength(1);
+    // Admitted: it renders on its own and holds nothing.
     answer(note());
     await flush();
-    expect(await w.service.take(TAB, session.sessionId, uuid(0x80d), SCRIPT, CAUSE)).toMatchObject({ ok: false, error: { code: 'CG-OP-CHAT-BUSY' } });
-    expect(w.creates).toHaveLength(1);
-    await w.tick();
-    expect(w.store.stored()[0]!.takes[0]!.state).toBe('ready');
+    expect(w.store.stored()[0]!.takes[0]!.state).toBe('working');
     expect(await w.service.take(TAB, session.sessionId, uuid(0x80d), SCRIPT, CAUSE)).toMatchObject({ ok: true });
     await flush();
     expect(w.creates.map((create) => create.clientRequestId)).toEqual([uuid(0x80c), uuid(0x80d)]);

@@ -161,6 +161,8 @@ export const UNAVAILABLE_REASONS = {
   'voice-issue': { key: 'voice.reason.issue', code: 'CG-VOICE-SCRIPT' },
   /** «Прикрепить» of a take that still renders. */
   'voice-working': { key: 'voice.reason.working', code: null },
+  /** «Озвучить» / «Ещё вариант» while a take's create is not answered yet: one click, one render. */
+  'voice-creating': { key: 'voice.reason.creating', code: null },
   /** «Прикрепить» where the site takes no file now (`fileAttach` off): «Скачать MP3» is the way. */
   'voice-attach-off': { key: 'voice.reason.attachOff', code: 'CG-VOICE-ATTACH' },
   /** «Ещё вариант» when the session holds as many takes as it may. */

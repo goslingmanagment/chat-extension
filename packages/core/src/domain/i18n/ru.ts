@@ -1859,6 +1859,7 @@ export const RU: I18nCatalog<'ru'> = {
   'voice.reason.noScript': 'нет скрипта',
   'voice.reason.issue': 'скрипт не пройдёт проверку',
   'voice.reason.working': 'вариант ещё озвучивается',
+  'voice.reason.creating': 'вариант ещё создаётся',
   'voice.reason.attachOff': 'сайт сейчас не принимает файл — скачайте MP3',
   'voice.reason.takesFull': 'вариантов уже {max} — начните новый войс',
   'voice.reason.attaching': 'войс уже передаётся в поле',
