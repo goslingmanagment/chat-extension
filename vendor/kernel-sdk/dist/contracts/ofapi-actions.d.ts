@@ -92,6 +92,7 @@ export declare const ofapiActionSchema: z.ZodUnion<readonly [z.ZodObject<{
     fanId: z.ZodString;
 }, z.core.$strict>, z.ZodObject<{
     previews: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    priceCents: z.ZodOptional<z.ZodNumber>;
     labelIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
     rfTag: z.ZodOptional<z.ZodArray<z.ZodString>>;
     expireDays: z.ZodOptional<z.ZodNumber>;
@@ -146,6 +147,16 @@ export declare const ofapiActionSchema: z.ZodUnion<readonly [z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"post_delete">;
     postId: z.ZodString;
+    pageId: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"post_get">;
+    postId: z.ZodString;
+    pageId: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"posts_list">;
+    limit: z.ZodOptional<z.ZodNumber>;
+    offset: z.ZodOptional<z.ZodNumber>;
+    minimumPublishDate: z.ZodOptional<z.ZodISODate>;
     pageId: z.ZodNumber;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"post_archive">;
@@ -239,6 +250,13 @@ export declare const ofapiActionSchema: z.ZodUnion<readonly [z.ZodObject<{
     questionHeight: z.ZodOptional<z.ZodNumber>;
     canvasWidth: z.ZodOptional<z.ZodNumber>;
     canvasHeight: z.ZodOptional<z.ZodNumber>;
+    pageId: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"story_get">;
+    storyId: z.ZodString;
+    pageId: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
+    action: z.ZodLiteral<"stories_list">;
     pageId: z.ZodNumber;
 }, z.core.$strict>, z.ZodObject<{
     action: z.ZodLiteral<"story_delete">;
@@ -636,6 +654,7 @@ export declare const ofapiActionIntentSchema: z.ZodObject<{
         fanId: z.ZodString;
     }, z.core.$strict>, z.ZodObject<{
         previews: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        priceCents: z.ZodOptional<z.ZodNumber>;
         labelIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
         rfTag: z.ZodOptional<z.ZodArray<z.ZodString>>;
         expireDays: z.ZodOptional<z.ZodNumber>;
@@ -690,6 +709,16 @@ export declare const ofapiActionIntentSchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         action: z.ZodLiteral<"post_delete">;
         postId: z.ZodString;
+        pageId: z.ZodNumber;
+    }, z.core.$strict>, z.ZodObject<{
+        action: z.ZodLiteral<"post_get">;
+        postId: z.ZodString;
+        pageId: z.ZodNumber;
+    }, z.core.$strict>, z.ZodObject<{
+        action: z.ZodLiteral<"posts_list">;
+        limit: z.ZodOptional<z.ZodNumber>;
+        offset: z.ZodOptional<z.ZodNumber>;
+        minimumPublishDate: z.ZodOptional<z.ZodISODate>;
         pageId: z.ZodNumber;
     }, z.core.$strict>, z.ZodObject<{
         action: z.ZodLiteral<"post_archive">;
@@ -783,6 +812,13 @@ export declare const ofapiActionIntentSchema: z.ZodObject<{
         questionHeight: z.ZodOptional<z.ZodNumber>;
         canvasWidth: z.ZodOptional<z.ZodNumber>;
         canvasHeight: z.ZodOptional<z.ZodNumber>;
+        pageId: z.ZodNumber;
+    }, z.core.$strict>, z.ZodObject<{
+        action: z.ZodLiteral<"story_get">;
+        storyId: z.ZodString;
+        pageId: z.ZodNumber;
+    }, z.core.$strict>, z.ZodObject<{
+        action: z.ZodLiteral<"stories_list">;
         pageId: z.ZodNumber;
     }, z.core.$strict>, z.ZodObject<{
         action: z.ZodLiteral<"story_delete">;
@@ -1083,8 +1119,8 @@ export declare const ofapiActionIntentSchema: z.ZodObject<{
     }, z.core.$strict>]>;
     state: z.ZodEnum<{
         cancelled: "cancelled";
-        partial: "partial";
         rejected: "rejected";
+        partial: "partial";
         prepared: "prepared";
         dispatching: "dispatching";
         confirmed: "confirmed";

@@ -122,9 +122,22 @@ function checkQueueWindow(value, ctx) {
 }
 /** Closed schemas are also the form and SDK contract; no provider path/body passthrough. */
 export const ofapiPublishingActionOptions = [
-    z.strictObject({ ...base, action: z.literal("post_create"), ...post, previews: media.optional() }).superRefine((v, ctx) => { checkPost(v, ctx); checkPreviews(v, ctx); }),
+    // A price at creation is not in OnlyFansAPI's documented schema (wall posts
+    // spec §6, §12). Until it is verified, a priced post is saved for later only:
+    // if OnlyFans dropped the price, a post fans see would be free.
+    z.strictObject({ ...base, action: z.literal("post_create"), ...post, previews: media.optional(), priceCents: wholeDollarCents.max(10000).refine(value => value >= 300).optional() }).superRefine((v, ctx) => {
+        checkPost(v, ctx);
+        checkPreviews(v, ctx);
+        checkPrice(v, ctx);
+        if (v.priceCents !== undefined && v.saveForLater !== true)
+            ctx.addIssue({ code: "custom", path: ["priceCents"], message: "Until a price at creation is verified, a priced post is saved for later only" });
+    }),
     z.strictObject({ ...base, action: z.literal("post_update"), postId: id, ...post, priceCents: wholeDollarCents.max(10000).refine(value => value === 0 || value >= 300).optional() }).superRefine((v, ctx) => { checkPost(v, ctx); checkPrice(v, ctx); }),
     z.strictObject({ ...base, action: z.literal("post_delete"), postId: id }),
+    // Reads of the account's own posts and stories: "did it go out" for wall
+    // posts (docs/plans/2026-10-23-wall-posts, plan PR 5), and the owner's checks.
+    z.strictObject({ ...base, action: z.literal("post_get"), postId: id }),
+    z.strictObject({ ...base, action: z.literal("posts_list"), limit: z.number().int().min(1).max(50).optional(), offset: z.number().int().min(0).max(1_000_000).optional(), minimumPublishDate: z.iso.date().optional() }),
     z.strictObject({ ...base, action: z.literal("post_archive"), postId: id }),
     z.strictObject({ ...base, action: z.literal("post_unarchive"), postId: id }),
     z.strictObject({ ...base, action: z.literal("post_toggle_pin"), postId: id }),
@@ -139,6 +152,8 @@ export const ofapiPublishingActionOptions = [
         if (!v.questionText && [v.questionColor, v.questionLeft, v.questionTop, v.questionWidth, v.questionHeight].some(item => item !== undefined))
             ctx.addIssue({ code: "custom", path: ["questionText"], message: "Sticker styling requires question text" });
     }),
+    z.strictObject({ ...base, action: z.literal("story_get"), storyId: id }),
+    z.strictObject({ ...base, action: z.literal("stories_list") }),
     z.strictObject({ ...base, action: z.literal("story_delete"), storyId: id }),
     z.strictObject({ ...base, action: z.literal("story_mark_watched"), storyId: id }),
     z.strictObject({ ...base, action: z.literal("highlight_create"), ...highlight }),

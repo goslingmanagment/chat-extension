@@ -33,6 +33,7 @@ export declare const agentKeyCapabilityEnum: z.ZodEnum<{
     "read:observations_envelope": "read:observations_envelope";
     "read:datasets": "read:datasets";
     "request:hydration": "request:hydration";
+    "write:publication_drafts": "write:publication_drafts";
 }>;
 /** The sliding default; the hard ceiling lives with the repository. */
 export declare const AGENT_KEY_DEFAULT_LIFETIME_DAYS = 90;
@@ -51,6 +52,7 @@ export declare const agentKeyItemSchema: z.ZodObject<{
         "read:observations_envelope": "read:observations_envelope";
         "read:datasets": "read:datasets";
         "request:hydration": "request:hydration";
+        "write:publication_drafts": "write:publication_drafts";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresAt: z.ZodString;
@@ -67,6 +69,7 @@ export declare const agentKeyCreateBodySchema: z.ZodObject<{
         "read:observations_envelope": "read:observations_envelope";
         "read:datasets": "read:datasets";
         "request:hydration": "request:hydration";
+        "write:publication_drafts": "write:publication_drafts";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -83,6 +86,7 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
             "read:observations_envelope": "read:observations_envelope";
             "read:datasets": "read:datasets";
             "request:hydration": "request:hydration";
+            "write:publication_drafts": "write:publication_drafts";
         }>>;
         pageLabels: z.ZodArray<z.ZodString>;
         expiresAt: z.ZodString;
@@ -115,6 +119,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "read:observations_envelope": "read:observations_envelope";
                 "read:datasets": "read:datasets";
                 "request:hydration": "request:hydration";
+                "write:publication_drafts": "write:publication_drafts";
             }>>;
             pageLabels: z.ZodArray<z.ZodString>;
             expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -132,6 +137,7 @@ export declare const agentKeyAdminRouteSchemas: {
                         "read:observations_envelope": "read:observations_envelope";
                         "read:datasets": "read:datasets";
                         "request:hydration": "request:hydration";
+                        "write:publication_drafts": "write:publication_drafts";
                     }>>;
                     pageLabels: z.ZodArray<z.ZodString>;
                     expiresAt: z.ZodString;
@@ -195,6 +201,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "read:observations_envelope": "read:observations_envelope";
                     "read:datasets": "read:datasets";
                     "request:hydration": "request:hydration";
+                    "write:publication_drafts": "write:publication_drafts";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;
