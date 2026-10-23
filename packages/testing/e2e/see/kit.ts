@@ -28,9 +28,10 @@ import { fakeHubOrigin } from '../support/fake-hub';
 import { setFanslyNeighbor } from '../support/fansly-neighbor';
 import { startFanslyShift } from '../support/fansly-shift';
 import { fakeFansly } from '../support/fansly-stand';
-import { allOurs, ours, oursExists, oursText, pressOurs, readOurs, waitOursText, type Where } from '../support/ours';
+import { allOurs, ours, oursExists, oursText, pressOurs, readOurs, waitOursByText, waitOursText, type Where } from '../support/ours';
 import { dockIs, startShift, type ShiftOptions } from '../support/shift';
 import { callStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
+import { blockedWrites, LIVE, startLiveShift } from './live';
 
 export type Site = 'chatspace' | 'fansly';
 
@@ -91,12 +92,12 @@ export interface See {
   readonly stand: typeof standServer;
   /** Saves `NN-name.png` of what the tab in front shows (once it stands still); returns its path. */
   shot(name: string): Promise<string>;
-  /** The dock of the open chat is ready: Reply is on. */
-  ready(timeout?: number): Promise<DockReport>;
+  /** The dock of the open chat is ready: Reply is on. Its report; null with --live (the real site gets none). */
+  ready(timeout?: number): Promise<DockReport | null>;
   /** Presses a button of ours by its text — the dock's strip by default (`s.press(/^Reply/, 'modal', '.cg-pv button')`); the extension's UI speaks Russian, so most labels are matched in Russian. */
   press(text: string | RegExp, where?: Where, selector?: string): Promise<void>;
-  /** The generation started by the last press ended (done, failed, canceled); returns the dock. */
-  done(timeout?: number): Promise<DockReport>;
+  /** The generation started by the last press ended (done, failed, canceled); returns the dock. With --live: the dock stood still for 1.5 s; null. */
+  done(timeout?: number): Promise<DockReport | null>;
   /** What the dock shows now (the test build's own report). */
   dock(): Promise<DockReport | null>;
   /** The test build's whole report of the tab (dock, timings, toasts, errors). */
@@ -170,6 +171,7 @@ function pickSite(options: SeeOptions): Site {
   if (wanted === undefined || wanted === '') return sites[0] ?? 'chatspace';
   if (wanted !== 'chatspace' && wanted !== 'fansly') throw new Error(`CG_SEE_SITE: «${wanted}» is neither chatspace nor fansly`);
   if (!sites.includes(wanted)) throw new Error(`this scenario runs on ${sites.join(', ')}, not on ${wanted}`);
+  if (LIVE && wanted !== 'fansly') throw new Error('--live is Fansly\'s only (the test model on fansly.com)');
   return wanted;
 }
 
@@ -261,8 +263,8 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
     browser.on('log.entryAdded', (entry) => logs.push({ level: entry.level, text: entry.text, source: entry.source?.context ?? null }));
     await hub.command({ op: 'reset' });
     hubSince = await hub.mark();
-    await standServer.reset();
-    if (site === 'fansly') {
+    if (!LIVE) await standServer.reset();
+    if (site === 'fansly' && !LIVE) {
       await setFanslyNeighbor(null);
       await fakeFansly().command({ op: 'reset' });
     }
@@ -272,7 +274,14 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
     let toChat: () => Promise<void>;
     let toPages: () => Promise<void>;
     let rpc: See['rpc'];
-    if (site === 'fansly') {
+    if (LIVE) {
+      const generation = options.settings?.generation as Partial<SettingsV1['generation']> | undefined;
+      const group = process.env['CG_SEE_LIVE_GROUP'];
+      const shift = await startLiveShift(hub, { viewport, ...(group === undefined || group === '' ? {} : { group }), ...(generation === undefined ? {} : { generation }) });
+      toChat = () => shift.toFansly();
+      toPages = () => shift.toPages();
+      rpc = (type, payload) => shift.rpc(type, payload);
+    } else if (site === 'fansly') {
       // Fansly's shift takes the generation section only, as whole sub-sections.
       const generation = options.settings?.generation as Partial<SettingsV1['generation']> | undefined;
       const shift = await startFanslyShift(hub, { path: `/messages/${options.fanslyGroup ?? WORLD.fansly.chats.a.group}`, viewport, ...(generation === undefined ? {} : { settings: { generation } }) });
@@ -313,6 +322,7 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
     await frames?.stop();
     write('shots.json', notes);
     write('console.json', logs);
+    if (LIVE) write('blocked.json', blockedWrites);
     try {
       write('report.json', await readReport());
     } catch (error) {
@@ -393,12 +403,31 @@ function makeSee(parts: Parts): See {
       lap(`shot ${file}${dock === null ? '' : ` — ${dock}`}`);
       return join(OUT, file);
     },
-    ready: (timeout = 20_000) => dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the dock is ready (Reply on)', timeout),
+    // The real site gets no report of ours (composition/tab/probe.ts): --live reads the dock as a person does.
+    ready: async (timeout = 20_000) => {
+      if (!LIVE) return dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the dock is ready (Reply on)', timeout);
+      await waitOursByText('dock', '.cg-strip button', /^Reply/, 'the dock is ready (Reply)', timeout);
+      return null;
+    },
     async press(text, where = 'dock', selector) {
       if (where === 'dock' && selector === undefined) lastOp = (await readReport())?.dock?.result?.opId ?? null;
       await pressOurs(where, selector ?? (where === 'dock' ? '.cg-strip button' : 'button'), text);
     },
     async done(timeout = 30_000) {
+      if (LIVE) {
+        let last = '';
+        let still = Date.now();
+        await browser.waitUntil(
+          async () => {
+            const now = await oursText('dock');
+            if (now !== last) [last, still] = [now, Date.now()];
+            return Date.now() - still >= 1500;
+          },
+          { timeout, interval: 300, timeoutMsg: 'the dock did not stand still' },
+        );
+        lap('result: the dock stands still');
+        return null;
+      }
       const dock = await dockIs((d) => d.result !== null && d.result.opId !== lastOp && ['done', 'failed', 'canceled', 'interrupted'].includes(d.result.state), 'the generation ended', timeout);
       lastOp = dock.result?.opId ?? lastOp;
       lap(`result ${dock.result?.feature ?? '?'} ${dock.result?.state ?? '?'}${dock.result?.error ? ` (${dock.result.error})` : ''}`);

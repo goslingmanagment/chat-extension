@@ -12,9 +12,9 @@ assert nothing, and a scenario fails only when a step cannot be done.
 | Command | What it does | Time |
 |---|---|---|
 | `pnpm see` | lists the scenarios | — |
-| `pnpm see <scenario\|file> [--site fansly] [--gif] [--no-build]` | rebuilds only what is stale; runs the scenario; prints the folder, the PNG paths and `index.html` (a contact sheet) | 6–10 s; +5 s test build, +1.5 s stand when changed |
+| `pnpm see <scenario\|file> [--site fansly \| --live [--chat <n>]] [--gif] [--no-build]` | rebuilds only what is stale; runs the scenario; prints the folder, the PNG paths and `index.html` (a contact sheet) | 6–10 s; +5 s test build, +1.5 s stand when changed |
 | `pnpm see --new <name>` | a scenario of your own in `packages/testing/e2e/see/scratch/` (not committed) | — |
-| `pnpm see:session [chatspace\|fansly]` | holds a shift open; the port is the worktree's own and is printed. An agent runs it in the background. Stops after 30 min idle (`--idle <min>`) | ~5 s to ready |
+| `pnpm see:session [chatspace\|fansly] [--live [--chat <n>]]` | holds a shift open; the port is the worktree's own and is printed. An agent runs it in the background. Stops after 30 min idle (`--idle <min>`) | ~5 s to ready |
 | `pnpm see:do '<js>'` | one step in the session: async JS with `s` (the verbs below) and `browser`; prints the result and the path of a picture taken after the step. Also: `--name x`, `--no-shot`, `--file f.js`, `-` (stdin), `--shot <name>`, `--status`, `--stop` | 0.3–1.5 s |
 | `pnpm see:gallery` | the UI galleries (kit, dock, boards, pages) on vite with hot reload, prints their URLs; Ctrl+C stops | < 1 s |
 
@@ -76,6 +76,36 @@ journals hold records); `hub-calls.json` — the fake hub's calls;
 `egress.json` — attempts to reach the network; on a failure `error.txt` and
 `99-failed.png`; `wdio.log`; `index.html`.
 
+## Live: fansly.com (`--live`)
+
+`pnpm see <scenario> --live [--chat <n>]` and `pnpm see:session fansly --live [--chat <n>]`
+run the same verbs on the real fansly.com: the test build in a headless Firefox
+signed in as the agency's test model, against the fake hub (no money, no
+production hub). A scenario takes ~15 s.
+
+- **The model's sign-in** stays in a durable profile,
+  `~/.cache/chatgoose/fansly-live-profile` (`CG_SEE_LIVE_PROFILE` names
+  another). A signed-out run signs in with `FANSLY_TEST_MODEL_EMAIL` /
+  `FANSLY_TEST_MODEL_PASSWORD`: `set -a; . ~/.config/agency/secrets.env; set +a`
+  first.
+- **Its chats are real fans.** Every write of the browser's pages to Fansly but
+  the sign-in is failed before it leaves (a BiDi intercept) and listed in
+  `blocked.json` and the `blocked …` lines: no read mark when a chat opens, no
+  «печатает», no send, no post, no upload, none of the site's telemetry.
+  Service workers are off in that profile: Fansly's own would carry a write
+  past the guard.
+- **The extension's own writes still leave**: WebDriver does not see its event
+  page — notes («Заметки»), `group.create`. X8's send needs the fake hub's
+  `previewSend`, which `--live` never switches on. No notes in a real fan's chat.
+- **No report on the real site** (`composition/tab/probe.ts`): `s.ready()` waits
+  for Reply on the dock, `s.done()` for the dock to stand still 1.5 s,
+  `s.dock()` and `s.report()` are null, captions have no dock line. Read the
+  pictures and `s.text(…)`.
+- `--chat` opens `fansly.com/messages/<n>`, without it the list of chats. A
+  chat's number never goes into the repo (`pnpm archive-check`).
+- The fake hub has no archive of a live chat: Reply says «Ответ мог не учесть
+  последние сообщения чата», the texts are the mockup's.
+
 ## Limits
 
 - The stand is synthetic: layout, data and timings are our imitation of
@@ -83,8 +113,8 @@ journals hold records); `hub-calls.json` — the fake hub's calls;
   show here.
 - The test build is not the release build: the stand's hosts and the
   `data-cg-spike` report exist only in the test build.
-- The live site is not covered; a guarded live mode (the owner's test chat
-  only, no sending) is a later step.
+- The live site: Fansly only, with `--live` (below). ChatSpace's live checks
+  stay X9's (`pnpm dev`).
 - Headless Firefox only: an agent never starts a windowed Firefox from its
   shell on macOS (AGENTS.md).
 - The AI texts are the mockup's lines (`SEE_AI_TEXTS` in `kit.ts`);

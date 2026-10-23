@@ -25,7 +25,8 @@ pnpm monorepo, TypeScript strict, WXT, Preact.
 - `pnpm install --frozen-lockfile` — Node 26, pnpm 10.33.1.
 - `pnpm dev` — the test build in its own Firefox profile, rebuilt on change. The owner's profile:
   `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev --debugger-port 6111`.
-- See a change: `pnpm see <scenario>` — tools/see/README.md.
+- See a change: `pnpm see <scenario>` — tools/see/README.md; on the real fansly.com — `--live` (the agency's test model,
+  every write of the page to Fansly failed).
 - Locally only `pnpm typecheck`, lint and `pnpm vitest run <paths>` of what you touched.
 - `pnpm check` (types, lint, tests, build, webext-lint, gates, archives) runs in CI on a PR, in four parallel parts on
   GitHub-hosted runners; never run it whole locally.
@@ -72,6 +73,8 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
   message that lands between the two reads gets marked read: it is shown to the chatter, never hidden. No other
   history read of a chat the person has not opened, no background sweep, no mark-read/unread.
 - **Fansly** — Chrome DevTools MCP, read-only: opening a conversation marks it read, typing sends typing events.
+  `pnpm see … --live` — only the test model (`FANSLY_TEST_MODEL_*` in `~/.config/agency/secrets.env`); its fans are
+  real, the tool fails every write of the page, but the extension's own (notes) still leave: none in a real fan's chat.
 - **The hub's prod** (`agency-de`) — read-only. AI, keys and prompts live only in the hub.
 - **Announcements to chatters** (Telegram) — the owner's call, never automatic; the channel starts at 3.0.0.
 

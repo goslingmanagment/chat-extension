@@ -66,6 +66,10 @@ claude mcp add --scope user chrome-devtools -- npx --yes chrome-devtools-mcp@1.1
    Не обходить отказ инструмента другим транспортом; при недоступном браузере работать
    с локальным бандлом и назвать точную ошибку, а не объявлять весь Fansly недоступным.
 
+Само расширение на настоящем fansly.com агент видит без чужого браузера: `pnpm see … --live`
+(тестовая сборка в Firefox без окна, тестовая модель агентства, подставной хаб; любая запись страницы
+в Fansly отклоняется) — [tools/see/README.md](../../tools/see/README.md#live-fanslycom---live).
+
 Чтение уже открытой страницы для разработки разрешено запросом владельца (X38 / E162).
 Отправка сообщения, изменение заметки/аккаунта, загрузка файла, ввод в composer — действия
 с живой сессией, которые должны входить в задачу владельца. Даже переход в другой чат
@@ -88,6 +92,7 @@ Firefox MV3, isolated/MAIN bridge, выдачи прав или сборки р�
 | Подробное исследование чата S2 | [s2-fansly-page.md](/Users/dmitriy/Documents/Codex/r20-detail-2026-10-12/research/s2-fansly-page.md): Angular, lifecycle, API, сокет, CSS, вложения; первичные ссылки на строки бандла |
 | Остальные исследования R20 | `/Users/dmitriy/Documents/Codex/r20-detail-2026-10-12/research/`: `s1a-extension-contracts-host.md`, `s1b-extension-core-ui-testing.md`, `s3-old-extension.md`, `s4-hub.md`, `s5-fbuddy.md`, `s6-firefox.md`. Контракты нового клиента, старый клиент, хаб, соседнее расширение и Firefox |
 | Сведённая справка сайта | [fansly-web.md](../project-unite/fansly-web.md) — проверенные факты S2, сеть, сокет, встраивание, замеры; [спецификация](../project-unite/spec.md), [архитектура](../project-unite/architecture.md), [план R20](../project-unite/plan.md) — требования и порядок реализации |
+| Выкладка поста, живой захват 2026-10-24 | [2026-10-24-fansly-post-flow.md](/Users/dmitriy/code/8-docs/2026-10-24-fansly-post-flow.md): загрузка медиа (`mediav2` → S3 → `complete` → опрос), `POST /account/media` с правами доступа, тело `POST /post`, отложенный пост и его отмена |
 | Технический снимок открытого Chrome, 2026-10-13 | [JSON](fansly/chat-dom-2026-10-13.json) и [пробник](fansly/chat-dom-probe.js.txt); метод и границы в §3 |
 | Предыдущий бандл, 2026-10-08 | [README хаба](/Users/dmitriy/code/1-platform/hub/artifacts/fansly-app-bundle-2026-10-08/README.md). `raw/` и `analysis/*.pretty.js`; полезен для сравнения сборок. Нумерация строк этого форматирования отличается от `pretty/` снимка 12 октября |
 | API, контракты и примеры хаба | [fansly_api_spec.md](/Users/dmitriy/code/1-platform/hub/reference/fansly_api_spec.md), [types.ts](/Users/dmitriy/code/1-platform/hub/packages/fansly/src/types.ts), [response-contracts.ts](/Users/dmitriy/code/1-platform/hub/packages/fansly/src/response-contracts.ts), `hub/tests/fixtures/fansly/messaging_groups*.json`. Проверять текущий код, а не предполагать полное покрытие API по старому справочнику |

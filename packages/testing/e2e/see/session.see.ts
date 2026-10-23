@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { browser } from '@wdio/globals';
 
 import { lap, OUT, recordFrames, useSee, type See } from './kit';
+import { blockedWrites, LIVE } from './live';
 
 const PORT = Number(process.env['CG_SEE_PORT'] ?? 47811);
 const IDLE_MS = Number(process.env['CG_SEE_IDLE_MIN'] ?? 30) * 60_000;
@@ -23,7 +24,7 @@ type Run = (s: See, b: WebdriverIO.Browser) => Promise<unknown>;
 /** The constructor of async functions: `new AsyncFunction('s', 'browser', body)` compiles a command of `see:do`. */
 const AsyncFunction = (Object.getPrototypeOf(async function () {}) as { constructor: new (...args: string[]) => Run }).constructor;
 
-const LIVE_PAGE = `<!doctype html><meta charset="utf-8"><title>ChatGoose · stand</title>
+const LIVE_PAGE = `<!doctype html><meta charset="utf-8"><title>ChatGoose · ${LIVE ? 'fansly.com' : 'stand'}</title>
 <style>body{margin:0;background:#111;color:#bbb;font:13px system-ui}img{display:block;width:100%;height:auto}#s{padding:6px 10px}</style>
 <div id="s">…</div><img id="f" alt="">
 <script>
@@ -46,11 +47,14 @@ function answer(response: ServerResponse, status: number, body: unknown, type = 
   response.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' }).end(text);
 }
 
-describe('see: a held session', () => {
+describe('see: a held session', function (this: Mocha.Suite) {
+  // On the suite, not in the test: wdio's wrapper reads the test's limit before its body runs (a `this.timeout(0)`
+  // there came too late, and every session ended at the config's 2 minutes); 0 would be a limit of 0 to it. The idle
+  // stop below ends a session long before this.
+  this.timeout(12 * 60 * 60_000);
   const run = useSee({ sites: ['chatspace', 'fansly'] });
 
-  it('serves commands until /stop', async function (this: Mocha.Context) {
-    this.timeout(0);
+  it('serves commands until /stop', async function () {
     const s = run.see();
     let latest: Buffer = Buffer.from(await browser.takeScreenshot(), 'base64');
     let stopped = false;
@@ -102,7 +106,7 @@ describe('see: a held session', () => {
           } else if (url.pathname === '/live' || url.pathname === '/') {
             answer(response, 200, LIVE_PAGE, 'text/html; charset=utf-8');
           } else if (url.pathname === '/status') {
-            answer(response, 200, { site: s.site, out: OUT, port: PORT, shots, last, idleMinutes: IDLE_MS / 60_000 });
+            answer(response, 200, { site: s.site, live: LIVE, blockedWrites: blockedWrites.length, out: OUT, port: PORT, shots, last, idleMinutes: IDLE_MS / 60_000 });
           } else if (url.pathname === '/stop') {
             stopped = true;
             answer(response, 200, { ok: true, stopping: true });
