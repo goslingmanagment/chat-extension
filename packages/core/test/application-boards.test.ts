@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { CHAT_READ_LIMITS, DEFAULT_SETTINGS, type Bootstrap, type CgCode, type ChatReadRead, type ChatRef, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type NewcomerRowVM, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
 import { type BoardHandover } from '@cg/core/application/preview';
-import { FEED_PAGE_SIZE } from '@cg/core/application/preview';
+import { FEED_PAGE_SIZE, SEND_PACE_MS } from '@cg/core/application/preview';
 import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
 import { PreviewSendDriver } from '@cg/core/services';
 import { createFakeHub, hubCall, type FakeHub, type FakeHubConfigPatch } from '@cg/testing/fake-hub';
@@ -605,6 +605,12 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     [first, second] = partsOf(h, 'spenders');
     expect(first?.send).toEqual({ s: 'sent', at: iso(h.clock.now()) });
     expect(first?.collapsed).toBe(true);
+    // A send was clicked a moment ago: every «Отправить» rests SEND_PACE_MS, so a batch never goes in one burst.
+    expect(second?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-BUSY', reason: { key: 'send.reason.pace' } });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 })).toMatchObject({ ok: false, code: 'CG-SEND-BUSY' });
+    expect(h.host.calls.commits).toHaveLength(1);
+    await h.advance(SEND_PACE_MS);
+    second = partsOf(h, 'spenders')[1];
     expect(second?.send).toEqual({ s: 'available' });
     expect(second?.sendOrder).toBeNull();
     expect(second?.next).toBe(true);
@@ -648,8 +654,10 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     const { h, opId } = await withReply({ answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
     const attemptId = uuid(0x500);
+    const since = iso(h.clock.now());
+    await h.advance(SEND_PACE_MS);
     const [first, second] = partsOf(h, 'spenders');
-    expect(first?.send).toEqual({ s: 'uncertain', since: iso(h.clock.now()), attemptId });
+    expect(first?.send).toEqual({ s: 'uncertain', since, attemptId });
     expect(first?.openInsert).toEqual({ s: 'hidden' });
     expect(second?.sendOrder).toBeNull();
     expect(second?.send).toEqual({ s: 'available' });
@@ -1145,6 +1153,7 @@ describe('[NF-019] a greeting is sent part by part, under the lease, and counts 
     expect(count(h, 'op.start')).toBe(1);
     expect(h.boards.preview.getSnapshot(preview('newcomers')).result?.opId).toBe(opId);
     // The owner still sends the rest of the group.
+    await h.advance(SEND_PACE_MS);
     expect(partsOf(h, 'newcomers')[1]?.send).toEqual({ s: 'available' });
     await h.dispatch({ type: 'SendPart', operationId: opId, variant: 0, part: 1 });
     h.sendState({ attemptId: uuid(0x501), state: 'nativeAccepted', platformMessageId: '4101' });
@@ -1223,6 +1232,9 @@ describe('X59 on ChatSpace: a batch draft of «Новые» is sent by its row�
     h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
     h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
     await h.flush();
+    // A second's pause after the click: the row says it is the pause, not this draft.
+    expect(row()?.send).toEqual({ can: false, refused: null, paused: true });
+    await h.advance(SEND_PACE_MS);
     expect(row()?.send?.can).toBe(true);
     expect(await h.dispatch({ type: 'SendNewcomerGreeting', targetHandle: newcomer('2010') })).toMatchObject({ ok: true });
     expect(h.clicks).toHaveLength(2);
@@ -1297,6 +1309,7 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     await h.flush();
     expect(pv(h).media).toMatchObject({ open: false, picks: 0, attached: null });
     // The next part goes as text alone.
+    await h.advance(SEND_PACE_MS);
     expect(partsOf(h, 'spenders')[1]?.send?.s).not.toBe('unavailable');
   });
 

@@ -100,6 +100,11 @@ export const RESYNC_RETRY_MS = 2_000;
  * view carries no deadline of its own, so the hold is one such minute.
  */
 export const RATE_LIMIT_HOLD_MS = 60_000;
+/**
+ * After a click of «Отправить» on a card or a row, every other one of the tab is off this long: the drafts of a batch
+ * never go to the fans in one burst of clicks (the owner, 2026-10-24).
+ */
+export const SEND_PACE_MS = 1_000;
 
 const SOURCES = ['spenders', 'newcomers', 'palette'] as const satisfies readonly PreviewSource[];
 const DRAFT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
@@ -342,6 +347,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   let epoch = context.current().epoch;
   let persona = context.current().persona;
   let disposed = false;
+  /** Until when every «Отправить» rests after the last click (SEND_PACE_MS), and the timer that lifts it. */
+  let pacedUntil = 0;
+  let paceTimer: number | null = null;
   let saveChain: Promise<void> = Promise.resolve();
   /**
    * Decision X53: the media picker of the previews — the vault's media a part takes along. Its changes draw every
@@ -1273,6 +1281,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (row.s === 'unavailable' && row.code === 'CG-SEND-PART' && otherVariantStarted(track, v)) row = { ...row, reason: msg('send.reason.otherVariant') };
     // A part of another result on its way: one part of the fan goes at a time (an unknown outcome holds nothing, row 2).
     if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
+    // A send was clicked a moment ago (SEND_PACE_MS): the drafts of a batch never go out in one burst of clicks.
+    if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && paced()) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg('send.reason.pace') };
     // Decision X53: picked media that cannot go yet (the price, the release forms) hold the part's «Отправить».
     if (row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') {
       const attached = media.attachment(track.target.chat);
@@ -1863,7 +1873,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const send = next?.rows.send;
     if (next === null || send === undefined) return null;
     // Only what the card would send by one plain click: a warning («фан написал новое») or a part in work is the card's.
-    return { can: send.s === 'available' && next.rows.order === null, refused: send.s === 'rejected' && !send.canRetry ? { code: send.code, retryAt: null } : null };
+    const can = send.s === 'available' && next.rows.order === null;
+    const refusedNow = send.s === 'rejected' && !send.canRetry ? { code: send.code, retryAt: null } : null;
+    // The pause after a send (SEND_PACE_MS) is no fault of this draft: the row says so, not «откройте фана».
+    return send.s === 'unavailable' && send.reason.key === 'send.reason.pace' ? { can, refused: refusedNow, paused: true } : { can, refused: refusedNow };
   }
 
   /** A row of a batch follows its fan's result only when what it shows changes — never on every streamed word. */
@@ -1872,7 +1885,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (last === undefined) return;
     const live = batchLive(handle);
     const send = batchSend(handle);
-    const now = live === null ? '' : `${live.sent ? 1 : 0}${send === null ? '-' : `${send.can ? 1 : 0}${send.refused?.code ?? ''}`}${live.text ?? ''}`;
+    const now = live === null ? '' : `${live.sent ? 1 : 0}${send === null ? '-' : `${send.can ? 1 : 0}${send.paused === true ? 'p' : ''}${send.refused?.code ?? ''}`}${live.text ?? ''}`;
     if (now === last) return;
     batched.set(handle, now);
     for (const listener of [...batchListeners]) listener();
@@ -1922,6 +1935,24 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
 
   // ── actions: send ──
 
+  const paced = (): boolean => clock.now() < pacedUntil;
+
+  /** A send was clicked: every «Отправить» of the tab rests SEND_PACE_MS; the cards and a batch's rows say so, then lift it. */
+  function pace(): void {
+    pacedUntil = clock.now() + SEND_PACE_MS;
+    if (paceTimer !== null) clock.clearTimer(paceTimer);
+    paceTimer = clock.setTimer(SEND_PACE_MS, () => {
+      paceTimer = null;
+      if (!disposed) paceChanged();
+    });
+    paceChanged();
+  }
+
+  function paceChanged(): void {
+    changed();
+    for (const handle of [...batched.keys()]) batchChanged(handle);
+  }
+
   /** `anyway` — «Отправить всё равно» on a freshness warning (2026-10-20 audit, rows 3–4). */
   async function sendPart(type: UiActionType, track: OpTrack, variant: number, index: number, anyway = false): Promise<ActionReceipt> {
     const sender = deps.sender;
@@ -1945,6 +1976,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // Sent anyway, a result restored after a reload goes with a checkpoint taken now: the page's own document and chat.
     const checkpoint = track.checkpoint ?? (accept ? await host.checkpoint(track.target.chat).catch(() => null) : null);
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
+    // One «Отправить» a SEND_PACE_MS, a retry too: checked after the last wait, so two quick clicks never both pass.
+    if (paced()) return refused(type, localError('CG-SEND-BUSY', i18n));
     // Decision X53: the picked media go with this part, as they are at the click. They leave the picker with it: what the
     // person does in the picker meanwhile neither changes nor repeats what goes.
     const chat = track.target.chat;
@@ -1953,6 +1986,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const taken = attached.kind === 'media' ? media.take(chat) : null;
     // The button is off from the first click, before anything answers (§6.7.7, lock 1).
     track.clicked.add(key);
+    pace();
     reportProgress(track);
     changed();
     const settle = (): void => {
@@ -2211,6 +2245,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   async function sendDraft(type: UiActionType, state: TargetState): Promise<ActionReceipt> {
     const sha256 = deps.sha256;
     if (sha256 === undefined || deps.sender === null || deps.previewSend === false) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
+    // A send was clicked a moment ago (SEND_PACE_MS): no result is made for a click that cannot go.
+    if (paced()) return refused(type, localError('CG-SEND-BUSY', i18n));
     const text = draftText(state).trim();
     const why = draftSendBlock(state, shownTrackOf(state));
     if (why !== null) return refused(type, localError(why.id === 'draft-empty' ? 'CG-SEND-PART' : why.id === 'chat-open' ? 'CG-SEND-ACTIVE-CHAT' : reasonCode(why), i18n));
@@ -2663,6 +2699,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       pruneTimer = null;
       if (resyncTimer !== null) clock.clearTimer(resyncTimer);
       resyncTimer = null;
+      if (paceTimer !== null) clock.clearTimer(paceTimer);
+      paceTimer = null;
       if (pendingInsert !== null) {
         pendingInsert.abort.abort();
         if (pendingInsert.timer !== null) clock.clearTimer(pendingInsert.timer);
