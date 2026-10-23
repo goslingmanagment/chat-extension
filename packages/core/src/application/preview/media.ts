@@ -13,7 +13,12 @@
 //   tab no vault, and the next opening reads it again.
 // - The picks, the price and the open panel are the fan's (account and fan):
 //   another fan's preview shows its own, and nothing picked for one fan ever
-//   goes to another. Closing the preview drops them.
+//   goes to another. The picks and the price stay the chat's for the tab's
+//   life, in memory only, until they are sent or the person clears them
+//   (2026-10-23, the owner: closing a window never throws away the chatter's
+//   work): the last card of the chat closed, its panel closes, and the next
+//   card of the chat shows them again. At most `KEPT_MAX` chats with no card
+//   open keep them; past that, the one closed the longest ago is let go.
 // - What the fan already got of a medium (bought, sent unbought, sent free)
 //   is asked for the media a page shows, once per medium and fan.
 // - The release forms of the picks (the creators a message with them is
@@ -35,6 +40,9 @@ import { errorOf, msg } from '../boards/views';
 
 /** The release forms are asked this long after the last change of the picks. */
 export const MEDIA_TAGS_DEBOUNCE_MS = 300;
+
+/** Chats whose picks are kept with no card of theirs open, at most (a pick is a few short fields and a thumbnail's address). */
+const KEPT_MAX = 50;
 
 /** No co-creator tags: what the picks go with when their release forms could not be read. */
 const NO_TAGS: MediaTags = { users: [], guests: [] };
@@ -88,6 +96,8 @@ export interface MediaDeskDeps {
   readonly i18n: I18n;
   /** The picker of this chat changed: the previews of its fan are drawn again. */
   readonly changed: (chat: ChatRef) => void;
+  /** Whether a card of this chat is open: its picks are never let go to bound the memory. */
+  readonly shown: (chat: ChatRef) => boolean;
 }
 
 /** What a part's «Отправить» takes along now: nothing, the media, or why the picks cannot go yet. */
@@ -207,23 +217,48 @@ export class MediaDesk {
   }
 
   /**
-   * The send never reached the platform: its picks come back — to the same card, and only if the person has picked
-   * nothing since (their new picks stand). A closed card gets nothing back.
+   * The send never reached the platform: its picks come back to the chat — also when its card was closed meanwhile (the
+   * next card of the chat shows them) — unless the person has picked something since (their new picks stand).
    */
   restore(chat: ChatRef, taken: Attachment): void {
-    const picker = this.pickers.get(keyOf(chat));
-    if (picker === undefined || picker.attachment.picks.length > 0) return;
+    if ((this.pickers.get(keyOf(chat))?.attachment.picks.length ?? 0) > 0) return;
+    const picker = this.picker(chat);
     picker.attachment = taken;
     this.picksChanged(picker);
+    this.trim();
   }
 
-  /** The preview of this chat closed: its picks are dropped. */
-  drop(chat: ChatRef): void {
-    const picker = this.pickers.get(keyOf(chat));
-    const timer = picker?.tags?.timer ?? null;
+  /**
+   * The last card of this chat closed: its panel closes (the vault goes once no panel of the account is open); the picks
+   * and the price stay for the next card of the chat. A picker with nothing in it is let go.
+   */
+  leave(chat: ChatRef): void {
+    const key = keyOf(chat);
+    const picker = this.pickers.get(key);
+    if (picker === undefined) return;
+    picker.open = false;
+    this.release(picker);
+    if (picker.attachment.picks.length === 0 && picker.attachment.price === '') {
+      this.forget(key);
+      return;
+    }
+    // Put last (its release forms' read goes on): the chats kept are let go in that order, the one closed first first.
+    this.pickers.delete(key);
+    this.pickers.set(key, picker);
+    this.trim();
+  }
+
+  /** Past `KEPT_MAX` chats kept with no card open, the ones closed the longest ago are let go. */
+  private trim(): void {
+    const idle = [...this.pickers.entries()].filter(([, picker]) => !this.deps.shown(picker.chat));
+    for (const [key] of idle.slice(0, Math.max(0, idle.length - KEPT_MAX))) this.forget(key);
+  }
+
+  /** The chat's picker is let go, with the read of its release forms still to go. */
+  private forget(key: string): void {
+    const timer = this.pickers.get(key)?.tags?.timer ?? null;
     if (timer !== null) this.deps.clock.clearTimer(timer);
-    this.pickers.delete(keyOf(chat));
-    if (picker !== undefined) this.release(picker);
+    this.pickers.delete(key);
   }
 
   /** A panel closed: what the fan got is let go, and the vault with it once no panel of the account is open. */
@@ -386,7 +421,8 @@ export class MediaDesk {
       const batch = ids.slice(at, at + MEDIA_LIMITS.idsPerRequest);
       for (const id of batch) picker.asked.add(id);
       void port.fanStates(picker.chat, batch).then((read) => {
-        if (!read.ok || this.pickers.get(keyOf(picker.chat)) !== picker) return;
+        // A panel closed meanwhile let what the fan got go: a late answer does not bring it back.
+        if (!read.ok || !picker.open || this.pickers.get(keyOf(picker.chat)) !== picker) return;
         for (const state of read.value) picker.states.set(state.id, state);
         this.deps.changed(picker.chat);
       });

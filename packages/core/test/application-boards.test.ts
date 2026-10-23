@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_SETTINGS, type Bootstrap, type CgCode, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type NewcomerRowVM, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type UiAction, type ViewSelector } from '@cg/contracts';
+import { CHAT_READ_LIMITS, DEFAULT_SETTINGS, type Bootstrap, type CgCode, type ChatReadRead, type ChatRef, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type NewcomerRowVM, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
 import { type BoardHandover } from '@cg/core/application/preview';
 import { FEED_PAGE_SIZE } from '@cg/core/application/preview';
@@ -59,6 +59,8 @@ interface Options {
   readonly fanPanelBesideHost?: boolean;
   /** 1.30.0 (X53): the vault the media picker reads; absent — the host has none. */
   readonly media?: FakeMediaVault;
+  /** ChatSpace's read of whether the fan read our newest message (HostPort.chatReadState); absent — the host has none. */
+  readonly chatReadState?: (chat: ChatRef, username: string) => Promise<ChatReadRead>;
 }
 
 interface Harness {
@@ -176,11 +178,12 @@ async function harness(options: Options = {}): Promise<Harness> {
       waiting.push(entry);
     });
   const port: HostPort =
-    options.slowNavigate !== true
+    options.slowNavigate !== true && options.chatReadState === undefined
       ? host
       : new Proxy(host, {
           get(target, property) {
-            if (property === 'navigate') return slowNavigate;
+            if (property === 'navigate' && options.slowNavigate === true) return slowNavigate;
+            if (property === 'chatReadState' && options.chatReadState !== undefined) return options.chatReadState;
             const value: unknown = Reflect.get(target, property, target);
             return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
           },
@@ -424,6 +427,61 @@ describe('[SP-050] [SP-051] [SP-052] [SP-056] [DB-026] a preview shows the hub a
     expect(board.shelves[0]?.rows.find((row) => row.selected)?.handle).toBe(spender('5001'));
     // Nothing was done to ChatSpace.
     expect(h.host.calls).toMatchObject({ navigations: [], inserts: [], checkpoints: [], preflights: [], commits: [] });
+  });
+});
+
+describe('the read mark on ChatSpace: a fan message the check marked read is said until the person opens the chat', () => {
+  const fanLast: ChatReadRead = { ok: true, last: { messageId: '20', direction: 'fan', sentAt: null, read: null, readAt: null } };
+  const route = (platformFanId: string, epoch: number): HostEvent => ({ type: 'route', route: { epoch, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId } } });
+
+  it('the warning outlives the card left at once, a later read that finds the fan last and a failed one; only the fan’s chat opened ends it', async () => {
+    const reads: { readonly fan: string; resolve(read: ChatReadRead): void }[] = [];
+    const h = await harness({ chatReadState: (chat) => new Promise((resolve) => reads.push({ fan: chat.platformFanId, resolve })) });
+    const of = (fan: string) => reads.filter((read) => read.fan === fan);
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    const handle = spender('5001');
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    await h.advance(CHAT_READ_LIMITS.settleMs);
+    expect(of('5001')).toHaveLength(1);
+    // J: the person walked on while the read loaded the chat's history; the fan wrote meanwhile and that load marked it read.
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+    of('5001')[0]?.resolve({ ...fanLast, raced: true });
+    await h.flush();
+    expect(pv(h).unread).toBe('kept');
+    // Back on the fan once the answer is old: the new read finds the fan's message the last (no history read, no race).
+    await h.advance(CHAT_READ_LIMITS.freshMs + 1000);
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    await h.advance(CHAT_READ_LIMITS.settleMs);
+    expect(of('5001')).toHaveLength(2);
+    of('5001')[1]?.resolve(fanLast);
+    await h.flush();
+    expect(pv(h).unread).toBe('read-by-check');
+    // «Обновить» whose read failed: the mark it knew is gone, the warning is not.
+    await h.dispatch({ type: 'RefreshArchive', targetHandle: handle });
+    of('5001')[2]?.resolve({ ok: false, reason: 'unavailable' });
+    await h.flush();
+    expect(pv(h).unread).toBe('read-by-check');
+    // Another fan's chat opened changes nothing; the fan's own chat opened shows the person what the fan wrote.
+    h.hostEvent(route('5009', 6));
+    await h.flush();
+    expect(pv(h).unread).toBe('read-by-check');
+    h.hostEvent(route('5001', 7));
+    await h.flush();
+    expect(pv(h).unread).toBe('kept');
+  });
+
+  it('a race of a read that went before the fan’s chat was opened is no news: the warning is not raised again', async () => {
+    const reads: { readonly fan: string; resolve(read: ChatReadRead): void }[] = [];
+    const h = await harness({ chatReadState: (chat) => new Promise((resolve) => reads.push({ fan: chat.platformFanId, resolve })) });
+    await h.dispatch(open('spenders'));
+    await h.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5001') });
+    await h.advance(CHAT_READ_LIMITS.settleMs);
+    h.hostEvent(route('5001', 6));
+    reads[0]?.resolve({ ...fanLast, raced: true });
+    await h.flush();
+    expect(pv(h).unread).toBe('kept');
   });
 });
 
@@ -1262,6 +1320,61 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     await second.h.dispatch({ type: 'SendPart', operationId: second.opId, part: 0 });
     await second.h.flush();
     expect(pv(second.h).media).toMatchObject({ picks: 0 });
+  });
+
+  it('closing the card keeps the picks and the price of the chat (2026-10-23): K and J back shows them, the part takes them; another fan never gets them', async () => {
+    const { h, handle, opId } = await withReply({ media: VAULT });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '13' });
+    await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '$25' });
+    await h.advance(300);
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5001') });
+    expect(pv(h).media).toMatchObject({ open: false, picks: 0, attached: null });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    // The panel closed with the card (no vault is held for it); its line says what goes with the next part.
+    expect(pv(h).media).toMatchObject({ open: false, picks: 2, price: { text: '$25', problem: null }, attached: { count: 2, priceCents: 2500 } });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
+    expect(h.clicks.at(-1)?.media).toMatchObject({ items: [{ id: '12' }, { id: '13' }], priceCents: 2500 });
+    // Sent: the picks are gone, a card opened again shows none.
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5001') });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    expect(pv(h).media).toMatchObject({ picks: 0, attached: null });
+  });
+
+  it('a send that never reached the platform gives its picks back after the card was left; picks made meanwhile stand', async () => {
+    const { h, handle, opId } = await withReply({ media: VAULT });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
+    await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '$25' });
+    await h.advance(300);
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
+    const attemptId = h.host.calls.commits[0]!.request.attemptId;
+    // The person walked on while the part was in ChatSpace's queue; the platform refused it.
+    await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5001') });
+    h.sendState({ attemptId, state: 'rejected', code: 'CG-SEND-REJECTED' });
+    await h.flush();
+    expect(pv(h).media).toMatchObject({ picks: 0 });
+    await h.dispatch({ type: 'OpenPreview', targetHandle: handle });
+    await h.advance(300);
+    expect(pv(h).media).toMatchObject({ picks: 1, price: { text: '$25' }, attached: { count: 1, priceCents: 2500 } });
+    // A refusal after the person picked again: their new pick stands.
+    const second = await withReply({ media: VAULT });
+    await second.h.dispatch({ type: 'SetMediaOpen', targetHandle: second.handle, open: true });
+    await second.h.flush();
+    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '12' });
+    await second.h.advance(300);
+    await second.h.dispatch({ type: 'SendPart', operationId: second.opId, part: 0 });
+    await second.h.dispatch({ type: 'OpenPreview', targetHandle: spender('5001') });
+    await second.h.dispatch({ type: 'OpenPreview', targetHandle: second.handle });
+    await second.h.dispatch({ type: 'SetMediaOpen', targetHandle: second.handle, open: true });
+    await second.h.flush();
+    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '11' });
+    second.h.sendState({ attemptId: second.h.host.calls.commits[0]!.request.attemptId, state: 'rejected', code: 'CG-SEND-REJECTED' });
+    await second.h.advance(300);
+    expect(pv(second.h).media?.grid.items.filter((cell) => cell.order !== null).map((cell) => cell.id)).toEqual(['11']);
   });
 
   it('a failed read is a card with «Повторить»; failed release forms are a warning: the part goes with its media, without tags (2026-10-22)', async () => {
