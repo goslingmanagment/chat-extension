@@ -54,7 +54,7 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [STORAGE_KEYS.telemetryQueue]: 1 * MiB,
   /** No text: ids, states, times; open entries are never dropped. */
   [STORAGE_KEYS.sendJournal]: 1 * MiB,
-  /** «Новые» drafts: up to 100 and 1 MiB (§9.4). */
+  /** «Новые» drafts: up to 400 and 1 MiB with their removal marks (§9.4). */
   [STORAGE_KEYS.newcomersDrafts]: STORAGE_LIMITS.previewDraftsTotalBytes,
   /** 500 models × 16 ids of up to 30 digits, plus canonical keys and JSON. */
   [LOCAL_KEYS.soundAccounts]: 320 * KiB,

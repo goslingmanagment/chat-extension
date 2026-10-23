@@ -67,7 +67,12 @@ export const STORAGE_LIMITS = {
   previewFeedsTotalBytes: 2 * MiB,
   /** Visible rows of any list; the rest stays behind the server cursor, marked "truncated". */
   listVisibleRows: 1000,
-  previewDrafts: 100,
+  /**
+   * Drafts of all lists in the one store, the oldest go first: several whole batches of «Новые» (`BATCH_LIMITS.picks`
+   * each) with room for the previews — at 100 a second batch dropped the first one's unsent greetings.
+   */
+  previewDrafts: 400,
+  /** The store's key whole, its removal marks too; the oldest drafts go first past it. */
   previewDraftsTotalBytes: 1 * MiB,
   /**
    * 1.20.0 (decision X47): a draft of a greeting or a preview stays until it is sent or cleared, at most 7 days
