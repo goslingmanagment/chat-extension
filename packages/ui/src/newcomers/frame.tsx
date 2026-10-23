@@ -311,6 +311,7 @@ function sameRow(a: RowProps, b: RowProps): boolean {
     x.batch?.text === y.batch?.text &&
     x.batch?.failure?.code === y.batch?.failure?.code &&
     x.send?.can === y.send?.can &&
+    x.send?.paused === y.send?.paused &&
     x.send?.refused?.code === y.send?.refused?.code
   );
 }
@@ -319,10 +320,12 @@ export const NewcomerRow = pure(RowView, sameRow);
 
 /**
  * The row's own «Отправить» of its batch draft (X59): the card's send by one click in the list — it never opens the card,
- * no key presses it; off with `blocked` when the card's checks do not let the draft go as it is.
+ * no key presses it; off with `blocked` when the card's checks do not let the draft go as it is, and with its own words
+ * for the second after a send (`paused`).
  */
 export function RowSendButton({ row, label, tooltip, blocked }: { readonly row: NewcomerRowVM; readonly label: string; readonly tooltip: string; readonly blocked: string }): JSX.Element | null {
   const dispatch = useDispatch();
+  const i18n = useI18n();
   const send = row.send;
   if (send === undefined || row.greeting.s === 'greeted') return null;
   const sending = row.greeting.s === 'sending';
@@ -335,7 +338,7 @@ export function RowSendButton({ row, label, tooltip, blocked }: { readonly row: 
       busy={sending}
       tabIndex={-1}
       tooltip={tooltip}
-      reason={send.can || sending ? null : blocked}
+      reason={send.can || sending ? null : send.paused === true ? i18n.t('newcomers.row.sendPaused') : blocked}
       onClick={(event) => {
         event.stopPropagation();
         if (send.can && !sending) void dispatch({ type: 'SendNewcomerGreeting', targetHandle: row.handle });

@@ -84,6 +84,8 @@ export interface NewcomerRowSendVM {
   readonly can: boolean;
   /** The last click was refused and nothing went: why; null — it was not. */
   readonly refused: NewcomersFailureVM | null;
+  /** 1.53.0: off only for the second after a send of the tab (the pause between sends), not for anything of this draft. */
+  readonly paused?: boolean;
 }
 
 export interface NewcomersVM {
