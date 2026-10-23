@@ -40,7 +40,7 @@ const ACTIONS: Readonly<Record<string, string>> = {
   SetSpendersPeriod: 'период Spenders', SetSpendersFilter: 'фильтр Spenders', SetSpendersSort: 'сортировка Spenders', ResetFilters: '«Сбросить фильтры»',
   Search: 'поиск', SetNewcomersTab: 'вкладка «Новых»', SetNewcomersFilter: 'фильтр «Новых»', SetNewcomersCheckFilter: 'фильтр проверки «Новых»',
   SetNewcomersPassRunning: 'пауза/продолжение проверки', CheckNewcomerNext: '«Проверить следующим»', ExcludeNewcomer: 'исключение из очереди',
-  SendNewcomerGreeting: '«Отправить» приветствие', InsertNewcomerGreeting: '«Открыть и вставить» приветствие', SetNewcomersWindow: 'окно «Новых»',
+  SendNewcomerGreeting: '«Отправить» приветствие', InsertNewcomerGreeting: '«Открыть и вставить» приветствие', GreetNewcomer: '«Hi» из напоминания', SetNewcomersWindow: 'окно «Новых»',
   LoadMore: '«Ещё»', SetBatchPick: 'отметка фанов', GenerateBatch: '«Сгенерировать для N»', StopBatch: '«Остановить» пакет', ClearBatch: '«Очистить» пакет',
   RenewClaim: 'продление брони', ReleaseClaim: 'снятие брони', DismissToast: 'закрытие тоста', Navigate: 'переход', OpenSettings: 'настройки',
   SetPreference: 'настройка', ChoosePersona: 'выбор персоны', SignIn: 'вход', SignOut: 'выход', RecheckStatus: '«Обновить статус»', ReloadView: '«Повторить»',

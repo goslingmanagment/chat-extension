@@ -924,6 +924,7 @@ export const EN: I18nCatalog<'en'> = {
   'cheatsheet.note':
     '? opens or closes this sheet, Esc closes it. When the message field is narrow, buttons show no keys: hover a button and its tooltip names the key. Send in the preview works only with the mouse: nothing goes to the fan from the keyboard.',
   'toast.aiReady': 'AI ready · {fan}',
+  'toast.greetDue': 'Waiting for a greeting · {fan}',
   'toast.closeAria': 'Close',
   'toast.hubSettingsUpdating': 'Hub settings are updating…',
   'toast.splitOn': 'Split is on: the answer comes in parts',

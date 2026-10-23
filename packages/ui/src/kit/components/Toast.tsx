@@ -94,7 +94,7 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
       {toast.actions.length > 0 || copyCode !== null || counting ? (
         <div class="cg-toast__acts">
           {toast.actions.map((vm, index) => (
-            <ActionButton key={index} vm={vm} variant={vm.action.type === 'Navigate' ? 'line' : 'plain'} />
+            <ActionButton key={index} vm={vm} variant={vm.action.type === 'Navigate' || vm.action.type === 'GreetNewcomer' ? 'line' : 'plain'} />
           ))}
           {counting ? <span class="cg-count cg-toast__count">{`${i18n.t('common.retry')} ${i18n.t('cg.retryIn', { n: Math.ceil(remaining / 1000) })}`}</span> : null}
           {copyCode === null ? null : <CopyCodeButton code={copyCode} />}

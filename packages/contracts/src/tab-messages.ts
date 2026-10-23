@@ -119,6 +119,11 @@ export const BackgroundToastSchema = z.strictObject({
    */
   conversationRef: z.optional(NativeIdSchema),
   fanLabel: z.nullable(displayText(256)),
+  /**
+   * 1.54.0: a fan of «Новые» nobody greeted ten minutes after subscribing (the greeting reminder). The toast stays
+   * until it is closed, and its «Hi» opens the fan's card in «Новые» and starts Hi there, by that click.
+   */
+  greet: z.optional(z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema })),
 });
 export type BackgroundToast = z.infer<typeof BackgroundToastSchema>;
 

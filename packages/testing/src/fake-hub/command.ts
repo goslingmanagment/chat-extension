@@ -99,7 +99,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   archiveRebuild: PAGE_FAN,
   grantPages: { username: isString, userId: isNumber, pages: isStringArray },
   pageAccount: { pageLabel: isString, platformAccountId: either(isString, oneOf(null)) },
-  audienceEvent: { ...PAGE_FAN, kind: oneOf('new', 'returning'), trial: isBoolean, fanWrote: isBoolean, handSent: isBoolean },
+  audienceEvent: { ...PAGE_FAN, kind: oneOf('new', 'returning'), trial: isBoolean, fanWrote: isBoolean, handSent: isBoolean, agoMs: isNumber },
   spenderFans: { fans: isSpenderSeeds },
   status: {},
 };

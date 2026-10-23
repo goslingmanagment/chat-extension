@@ -1,7 +1,8 @@
 // core/services/sound — the background's sound: the one arbiter of the
 // extension, the subscriber poll and the protocol handlers (architecture.md
-// §9.8). Ports only: the audio player, presence, settings and the hub come
-// from the background's composition root.
+// §9.8), and the greeting reminder that reads the same poll. Ports only: the
+// audio player, presence, settings and the hub come from the background's
+// composition root.
 //
 // Wiring for the integrator (background composition root):
 // 1. player = platform createAudioPlayer(); arbiter = new SoundArbiter({
@@ -44,3 +45,4 @@ export {
 } from './arbiter';
 export { SUBSCRIBER_POLL_BACKOFF_MAX, SUBSCRIBER_POLL_JITTER, createSubscriberPoller, type SubscriberPage, type SubscriberPoller, type SubscriberPollerDeps } from './subscribers';
 export { soundRequestHandlers } from './handlers';
+export { GREET_SESSION_KEY, createGreetReminder, type GreetReminder, type GreetReminderDeps } from './greetings';
