@@ -6,10 +6,11 @@
 //   pnpm see <scenario|file> [--site fansly] [--gif] [--no-build]
 //   pnpm see --new <name>            a scenario of one's own (packages/testing/e2e/see/scratch, not committed)
 //   pnpm see:session [chatspace|fansly]   a shift held open; pnpm see:do drives it
+//   … --live [--chat <group>]       Fansly for real: the test model on fansly.com, every write to Fansly failed (e2e/see/live.ts)
 //   pnpm see:do '<js>' | --file f.js | --shot <name> | --stop
 //   pnpm see:gallery                 the UI galleries (vite, hot reload)
 //
-// Not CI and not a test: nothing here asserts. Headless Firefox only (AGENTS.md: never a windowed one from an
+// Not CI and not a test: nothing here asserts. --live alone leaves loopback. Headless Firefox only (AGENTS.md: never a windowed one from an
 // agent's shell on macOS).
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
@@ -109,13 +110,22 @@ function ensure(build: Build): void {
   say(`${build.name}: built in ${secs(started)}`);
 }
 
-function ensureBuilds(skip: boolean): void {
+function ensureBuilds(skip: boolean, live = false): void {
   if (skip) {
     say('builds: skipped (--no-build)');
     return;
   }
   ensure(TEST_BUILD);
-  ensure(STAND_BUILD);
+  if (!live) ensure(STAND_BUILD);
+}
+
+/** The environment of a `--live` run (fansly.com, the test model): null without the switch. */
+function liveEnv(flags: Flags): Record<string, string> | null {
+  if (!flags.switches.has('--live')) return null;
+  if (flags.site !== null && flags.site !== 'fansly') fail('see: --live is Fansly\'s only');
+  const chat = flags.values.get('--chat') ?? '';
+  if (chat !== '' && !/^\d+$/.test(chat)) fail(`see: --chat ${chat}: a chat's number (fansly.com/messages/<number>)`);
+  return { CG_SEE_LIVE: '1', CG_SEE_SITE: 'fansly', ...(chat === '' ? {} : { CG_SEE_LIVE_GROUP: chat }) };
 }
 
 // ── scenarios ──────────────────────────────────────────────────────────────
@@ -133,7 +143,7 @@ function describeScenario(file: string): string {
 }
 
 function listScenarios(): void {
-  console.log('pnpm see <scenario> [--site fansly] [--gif] [--no-build]   (tools/see/README.md)\n');
+  console.log('pnpm see <scenario> [--site fansly | --live [--chat <group>]] [--gif] [--no-build]   (tools/see/README.md)\n');
   for (const [title, dir] of [
     ['scenarios', SCENARIOS],
     ['scratch (yours, not committed)', SCRATCH],
@@ -256,7 +266,7 @@ function contactSheet(out: string, title: string, status: string): string {
     })
     .join('\n');
   const gif = existsSync(join(out, 'see.gif')) ? '<figure><img src="see.gif" alt="see.gif"><figcaption>see.gif</figcaption></figure>' : '';
-  const files = ['report.json', 'diagnostics.json', 'journals.json', 'hub-calls.json', 'console.json', 'egress.json', 'violations.txt', 'error.txt', 'wdio.log']
+  const files = ['report.json', 'diagnostics.json', 'journals.json', 'hub-calls.json', 'console.json', 'egress.json', 'blocked.json', 'violations.txt', 'error.txt', 'wdio.log']
     .filter((file) => existsSync(join(out, file)))
     .map((file) => `<a href="${file}">${file}</a>`)
     .join(' · ');
@@ -342,7 +352,7 @@ function parse(args: readonly string[]): Flags {
   const positional: string[] = [];
   const values = new Map<string, string>();
   const switches = new Set<string>();
-  const valued = new Set(['--site', '--new', '--file', '--shot', '--name', '--idle']);
+  const valued = new Set(['--site', '--new', '--file', '--shot', '--name', '--idle', '--chat']);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index] ?? '';
     if (arg === '--') continue;
@@ -363,12 +373,13 @@ async function run(flags: Flags): Promise<void> {
   const [arg] = flags.positional;
   if (arg === undefined) return listScenarios();
   const spec = resolveScenario(arg);
-  ensureBuilds(flags.noBuild);
+  const live = liveEnv(flags);
+  ensureBuilds(flags.noBuild, live !== null);
   const built = Date.now();
-  const name = `${scenarioName(spec)}${flags.site === null ? '' : `-${flags.site}`}`;
+  const name = `${scenarioName(spec)}${live !== null ? '-live' : flags.site === null ? '' : `-${flags.site}`}`;
   const out = outDir(name);
-  say(`${relative(REPO_ROOT, spec)} → headless Firefox on the stand…`);
-  const env: Record<string, string> = { ...(flags.site === null ? {} : { CG_SEE_SITE: flags.site }), ...(flags.gif ? { CG_SEE_GIF: '1' } : {}) };
+  say(`${relative(REPO_ROOT, spec)} → headless Firefox ${live !== null ? 'on fansly.com (the test model; writes to Fansly failed)' : 'on the stand'}…`);
+  const env: Record<string, string> = { ...(flags.site === null ? {} : { CG_SEE_SITE: flags.site }), ...live, ...(flags.gif ? { CG_SEE_GIF: '1' } : {}) };
   const code = await wdio(spec, out, env).exit;
   if (flags.gif) makeGif(out);
   printResult(out, name, code === 0, `${secs()} (builds ${((built - t0) / 1000).toFixed(1)} s, Firefox and the scenario ${secs(built)})`);
@@ -401,15 +412,18 @@ function readSession(): SessionInfo | null {
 }
 
 async function session(flags: Flags): Promise<void> {
-  const site = flags.positional[0] ?? flags.site ?? 'chatspace';
+  const live = liveEnv(flags);
+  const site = flags.positional[0] ?? flags.site ?? (live !== null ? 'fansly' : 'chatspace');
   if (site !== 'chatspace' && site !== 'fansly') fail(`see: pnpm see:session [chatspace|fansly], not «${site}»`);
+  if (live !== null && site !== 'fansly') fail('see: --live is Fansly\'s only');
   const running = readSession();
   if (running !== null) fail(`see: a session (${running.site}) already runs on http://127.0.0.1:${running.port}/live — pnpm see:do --stop`);
-  ensureBuilds(flags.noBuild);
-  const out = outDir(`session-${site}`);
+  ensureBuilds(flags.noBuild, live !== null);
+  const label = live !== null ? 'fansly-live' : site;
+  const out = outDir(`session-${label}`);
   const idle = flags.values.get('--idle') ?? process.env['CG_SEE_IDLE_MIN'] ?? '30';
-  say(`starting a ${site} session (headless Firefox; stops after ${idle} min without a request)…`);
-  const { child, exit } = wdio(join(SEE_DIR, 'session.see.ts'), out, { CG_SEE_SITE: site, CG_SEE_PORT: String(SESSION_PORT), CG_SEE_IDLE_MIN: idle }, (line) => {
+  say(`starting a ${live !== null ? 'live fansly.com (the test model; writes to Fansly failed)' : site} session (headless Firefox; stops after ${idle} min without a request)…`);
+  const { child, exit } = wdio(join(SEE_DIR, 'session.see.ts'), out, { CG_SEE_SITE: site, ...live, CG_SEE_PORT: String(SESSION_PORT), CG_SEE_IDLE_MIN: idle }, (line) => {
     if (!line.includes('cg-see session ready')) return;
     console.log('');
     say(`session ready in ${secs()} — live view: http://127.0.0.1:${SESSION_PORT}/live`);
@@ -417,7 +431,7 @@ async function session(flags: Flags): Promise<void> {
     say(`stop it:  pnpm see:do --stop   ·   pictures: ${out}`);
   });
   mkdirSync(CACHE, { recursive: true });
-  writeFileSync(SESSION_FILE, `${JSON.stringify({ pid: process.pid, port: SESSION_PORT, site, out } satisfies SessionInfo)}\n`);
+  writeFileSync(SESSION_FILE, `${JSON.stringify({ pid: process.pid, port: SESSION_PORT, site: label, out } satisfies SessionInfo)}\n`);
   const stop = (): void => {
     void fetch(`http://127.0.0.1:${SESSION_PORT}/stop`, { method: 'POST' }).catch(() => child.kill('SIGINT'));
   };
@@ -425,7 +439,7 @@ async function session(flags: Flags): Promise<void> {
   process.on('SIGTERM', stop);
   const code = await exit;
   rmSync(SESSION_FILE, { force: true });
-  printResult(out, `session-${site}`, code === 0, secs());
+  printResult(out, `session-${label}`, code === 0, secs());
   process.exitCode = code;
 }
 

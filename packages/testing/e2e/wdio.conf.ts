@@ -11,12 +11,17 @@
 // FIREFOX_BIN overrides the browser binary (default: the macOS app path, or
 // whatever geckodriver finds on PATH elsewhere).
 //
+// CG_SEE_LIVE=1 (`pnpm see … --live`, e2e/see/live.ts) is the one run that leaves loopback: no stand and no egress
+// sink, the real fansly.com in a durable profile (CG_SEE_LIVE_PROFILE, default ~/.cache/chatgoose/fansly-live-profile:
+// the test model's sign-in stays there), the fake hub as ever.
+//
 // CG_E2E_SHARD=<k>/<n> runs part k of n of the spec files (src/e2e-shards.ts:
 // the CI job runs the parts side by side); unset, every spec file runs. The
 // launcher prints a `cg-e2e-time:` line for each spec file a worker finished —
 // what the parts are weighed by.
 
 import { existsSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,6 +48,10 @@ const firefoxBinary = process.env['FIREFOX_BIN'] ?? (existsSync(macFirefox) ? ma
 // with this in its environment, else remote settings keep calling Mozilla.
 // Firefox inherits it through the worker and geckodriver.
 process.env['MOZ_REMOTE_SETTINGS_DEVTOOLS'] = '1';
+
+const live = process.env['CG_SEE_LIVE'] === '1';
+const liveProfile = process.env['CG_SEE_LIVE_PROFILE'] || join(homedir(), '.cache/chatgoose/fansly-live-profile');
+if (live) mkdirSync(liveProfile, { recursive: true });
 
 let stand: StandServer | null = null;
 let egress: EgressSink | null = null;
@@ -110,7 +119,7 @@ export const config: WebdriverIO.Config = {
       'wdio:geckodriverOptions': { allowSystemAccess: true, host: '127.0.0.1' } as WebdriverIO.GeckodriverOptions,
       'moz:firefoxOptions': {
         ...(firefoxBinary ? { binary: firefoxBinary } : {}),
-        args: ['-headless'],
+        args: live ? ['-headless', '-profile', liveProfile] : ['-headless'],
         prefs: {
           // Fixed moz-extension:// UUIDs so the e2e can open our own pages.
           'extensions.webextensions.uuids': JSON.stringify({ [TEST_GECKO_ID]: E2E_ADDON_UUID, [RELEASE_GECKO_ID]: E2E_RELEASE_ADDON_UUID }),
@@ -135,6 +144,10 @@ export const config: WebdriverIO.Config = {
           'browser.download.always_ask_before_handling_new_types': false,
           'browser.download.alwaysOpenPanel': false,
           'browser.helperApps.neverAsk.saveToDisk': 'text/plain,application/json',
+          // --live: no service workers. Fansly's own (Angular's) fetches whatever a page asks without `ngsw-bypass`
+          // itself, and BiDi neither sees nor intercepts a worker's requests — a write would pass the guard
+          // (e2e/see/live.ts). Measured 2026-10-24: a POST without the flag left, with it it was failed.
+          ...(live ? { 'dom.serviceWorkers.enabled': false } : {}),
         },
       },
     },
@@ -149,12 +162,19 @@ export const config: WebdriverIO.Config = {
   // The safety net, not the fix: a spec file that fails runs once more, after the rest of the part (deferred). Every
   // retry is printed (`cg-e2e-retry:`) and one that passes on it is a GitHub warning at the end of the run, so a flaky
   // spec stays visible; the cause is fixed in the spec.
-  specFileRetries: 1,
+  // Not for `pnpm see` (CG_SEE_OUT): a run there asserts nothing to be flaky about, and a retry would start the
+  // scenario — or a held session, with its sign-in — once more.
+  specFileRetries: process.env['CG_SEE_OUT'] === undefined ? 1 : 0,
   specFileRetriesDeferred: true,
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: { ui: 'bdd', timeout: 120_000 },
   onPrepare: async (_config, capabilities) => {
+    if (live) {
+      hub = await startFakeHub({ streamBodySchema: routeSchemas.aiFeatureStream.body, routeSchemas });
+      process.env['CG_FAKE_HUB_ORIGIN'] = hub.origin;
+      return;
+    }
     if (shard !== null && shardFiles !== null) {
       console.log(`e2e: part ${shard.part}/${shard.of} of the suite, ${shardFiles.length} spec file(s): ${shardFiles.join(' ')}`);
     }
