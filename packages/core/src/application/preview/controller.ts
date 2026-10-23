@@ -345,9 +345,15 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   let saveChain: Promise<void> = Promise.resolve();
   /**
    * Decision X53: the media picker of the previews — the vault's media a part takes along. Its changes draw every
-   * open card again (a fan's picks show on each of its cards).
+   * open card again (a fan's picks show on each of its cards); a chat's picks outlive its cards (2026-10-23).
    */
-  const media = new MediaDesk({ port: host.media, clock, i18n, changed: () => changed() });
+  const media = new MediaDesk({
+    port: host.media,
+    clock,
+    i18n,
+    changed: () => changed(),
+    shown: (chat) => [...targets.values()].some((target) => target.fanRef === chat.platformFanId && chatOf(target)?.hostAccountId === chat.hostAccountId),
+  });
   /**
    * Sends that took media, by attempt: the picks left the picker with the click, and come back to it only when the send
    * proved it never reached the platform (held, not queued, refused).
@@ -701,9 +707,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (![...targets.values()].some((other) => other !== state && other.pageId === state.pageId && other.fanRef === state.fanRef)) seen.leave(fanKey(state.pageId, state.fanRef));
     if (state.feed !== null && state.feedConversation !== null) kept = keepFeed(kept, { key: handle, conversationRef: state.feedConversation.conversationRef ?? state.fanRef, first: state.feed, keptAt: state.feedLoadedAt ?? clock.now() });
     targets.delete(handle);
-    // Decision X53: the picks are the open card's; another card of the same fan keeps them.
+    // Decision X53, the owner's rule of 2026-10-23 (it was «the picks are the open card's»): closing a window never
+    // throws away the chatter's work. The last card of the fan closed, the panel closes; the picks and the price stay the
+    // chat's until they are sent or cleared, and the next card of the chat shows them.
     const chat = chatOf(state);
-    if (chat !== null && ![...targets.values()].some((other) => other.pageId === state.pageId && other.fanRef === state.fanRef)) media.drop(chat);
+    if (chat !== null && ![...targets.values()].some((other) => other.pageId === state.pageId && other.fanRef === state.fanRef)) media.leave(chat);
     // The person closed the preview before the chat opened: the pending insert is given up (§6.5).
     if (pendingInsert !== null && pendingInsert.track.handle === handle && !closingForNavigation) cancelInsert('preview-closed');
     // What the journal listed for the fan is read again when a card of the fan opens.
@@ -1375,8 +1383,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   function afterAttempt(track: OpTrack, view: SendAttemptView): void {
-    // Decision X53: picks that went with this send are given back only when it proved it never reached the platform; a
-    // send that did, or may have, keeps them — they never go twice.
+    // Decision X53: picks that went with this send are given back only when it proved it never reached the platform — also
+    // to a chat whose card was closed meanwhile; a send that did, or may have, keeps them — they never go twice.
     const picked = mediaAttempts.get(view.attemptId);
     if (picked !== undefined && (view.state === 'rejected' || view.state === 'held' || view.state === 'notEnqueued')) {
       mediaAttempts.delete(view.attemptId);
@@ -2538,6 +2546,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
           if (chatKeyOf(event.route.chat) === chatKeyOf(pending.track.target.chat)) closeForNavigation();
           else cancelInsert('human-navigation');
         }
+        // A fan's chat opened: the person sees what the fan wrote, and a read's race of that fan is told no more.
+        const binding = context.current().binding;
+        const opened = event.route.chat;
+        if (opened !== null && binding !== null && opened.host === binding.host && opened.hostAccountId === binding.hostAccountId) seen.open(fanKey(binding.pageId, opened.platformFanId));
         // Only a result on an open card asks MAIN again: a closed card costs no bridge call.
         for (const track of tracks.values()) if (track.mirror.done !== null && shownOn(track) !== null) void refreshPreflight(track);
         changed();

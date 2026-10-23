@@ -3,7 +3,9 @@
 // the fan's username, then, only when its last message is ours and nothing in the chat is unread, the history's
 // newest messages (OnlyFans' `isNew`; every fan message is read already, so nothing new is marked read); on Fansly
 // the group's last message (the fan's `readAt`), which marks nothing read. A fan message that came between
-// ChatSpace's two reads is marked read by the second: the answer says so (`raced`) and the card says it to the person.
+// ChatSpace's two reads is marked read by the second: the answer says so (`raced`), and every card of the fan says it
+// to the person until they open the fan's chat — no later read takes it back (it finds the fan's message the last and
+// reads no history), nor a failed one, nor the card left before the answer came (audit 2026-10-23).
 //
 // - A walk through the list (J / K, ← →) asks nothing of the fans it passes: the read goes once the card has rested
 //   on a fan for `settleMs`. An answer is shown again for `freshMs` without a new read; «Обновить» reads again at once.
@@ -47,8 +49,16 @@ export function hostChatReadPort(host: Pick<HostPort, 'chatReadState'>): ChatRea
   };
 }
 
-/** Answers kept at most: the fans of one long walk. */
+/** Answers kept at most: the fans of one long walk (also the races told and the chats opened). */
 const KEPT_MAX = 500;
+
+/** Lets the oldest entries go past `KEPT_MAX` (a Map and a Set keep the order things were put in). */
+function trim(entries: Map<string, unknown> | Set<string>): void {
+  for (const old of entries.keys()) {
+    if (entries.size <= KEPT_MAX) break;
+    entries.delete(old);
+  }
+}
 
 type Target = () => ChatReadTarget | null;
 
@@ -56,7 +66,11 @@ type Target = () => ChatReadTarget | null;
 const unread = (last: ChatReadState | null): boolean => last !== null && last.direction === 'model' && last.read === false;
 
 export class SeenDesk {
-  private readonly kept = new Map<string, { readonly at: number; readonly last: ChatReadState | null; readonly raced: boolean }>();
+  private readonly kept = new Map<string, { readonly at: number; readonly last: ChatReadState | null }>();
+  /** Fans a read's race marked a message of read: told on their cards until the person opens the fan's chat. */
+  private readonly marked = new Set<string>();
+  /** The fan's run when the person last opened the fan's chat: a race of a read that went before it is no news. */
+  private readonly opened = new Map<string, number>();
   private readonly timers = new Map<string, number>();
   private readonly runs = new Map<string, number>();
   /** Until when the open card of the fan reads again while it says «не прочитано». */
@@ -107,6 +121,14 @@ export class SeenDesk {
     this.timers.delete(key);
   }
 
+  /** The person opened the fan's chat: they see what the fan wrote; a race of a read that went before is told no more. */
+  open(key: string): void {
+    this.opened.delete(key);
+    this.opened.set(key, this.runs.get(key) ?? 0);
+    trim(this.opened);
+    if (this.marked.delete(key)) this.deps.changed(key);
+  }
+
   /** What the card says of the fan's newest message, over the feed it shows (oldest first). */
   vm(key: string, items: readonly FeedItemVM[]): PreviewVM['seen'] {
     const last = this.kept.get(key)?.last ?? null;
@@ -119,9 +141,9 @@ export class SeenDesk {
     return { messageId: last.messageId, read: last.read, readAt: last.readAt, inFeed: index >= 0 };
   }
 
-  /** The fan wrote while the last read loaded the chat's history: that read marked the fan's message read. */
+  /** The fan wrote while a read loaded the chat's history, and the chat was not opened since: that read marked it read. */
   raced(key: string): boolean {
-    return this.kept.get(key)?.raced === true;
+    return this.marked.has(key);
   }
 
   /** Another sign-in, hub or account: nothing of the old one is kept or asked. */
@@ -129,6 +151,8 @@ export class SeenDesk {
     for (const key of [...this.timers.keys()]) this.leave(key);
     this.polls.clear();
     this.kept.clear();
+    this.marked.clear();
+    this.opened.clear();
     this.runs.clear();
     this.generation += 1;
   }
@@ -159,17 +183,26 @@ export class SeenDesk {
     const generation = this.generation;
     this.runs.set(key, run);
     void port.read(asked).then((answer) => {
-      if (this.disposed || this.generation !== generation || this.runs.get(key) !== run) return;
+      if (this.disposed || this.generation !== generation) return;
+      // The race marked the fan's message read whether the answer is still heard or not (a newer read, our send): it is
+      // told from now on — unless the person opened the fan's chat since the read went, and sees the message.
+      const raced = answer.ok && answer.raced === true && (this.opened.get(key) ?? -1) < run;
+      if (raced) {
+        this.marked.delete(key);
+        this.marked.add(key);
+        trim(this.marked);
+      }
+      if (this.runs.get(key) !== run) {
+        if (raced) this.deps.changed(key);
+        return;
+      }
       if (!answer.ok) {
         if (this.kept.delete(key)) this.deps.changed(key);
         return;
       }
       this.kept.delete(key);
-      this.kept.set(key, { at: clock.now(), last: answer.last, raced: answer.raced === true });
-      for (const old of this.kept.keys()) {
-        if (this.kept.size <= KEPT_MAX) break;
-        this.kept.delete(old);
-      }
+      this.kept.set(key, { at: clock.now(), last: answer.last });
+      trim(this.kept);
       this.deps.changed(key);
       if (unread(answer.last) && !this.timers.has(key)) this.poll(key, target);
     });

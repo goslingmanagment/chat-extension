@@ -68,7 +68,7 @@ export interface PreviewVM {
   /**
    * «Чат не открыт, останется непрочитанным»; after the first started send — «…ChatSpace показывает его прочитанным»
    * (§6.7.12); `read-by-check` — the fan wrote while the read mark's check loaded the chat's history, so OnlyFans marked
-   * that message read.
+   * that message read: said on every card of the fan until the person opens the fan's chat.
    */
   readonly unread: 'kept' | 'read-after-send' | 'read-by-check';
   readonly archive: {
