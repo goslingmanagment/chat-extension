@@ -670,7 +670,7 @@ export const RU: I18nCatalog<'ru'> = {
   'send.buttonMediaPaid': 'Отправить + {media} за {price}',
   'send.buttonMediaTooltip': 'Часть и медиа уйдут фану одним сообщением через {site}',
   'send.reason.media': 'медиа ещё не готово к отправке.',
-  'send.reason.pace': 'секунда паузы между отправками.',
+  'send.reason.pace': 'полсекунды паузы между отправками.',
 
   // ── New subscribers ──
   'newcomers.title': 'Новые',
@@ -755,7 +755,7 @@ export const RU: I18nCatalog<'ru'> = {
   'newcomers.row.send': 'Отправить',
   'newcomers.row.sendTooltip': 'Отправить этот черновик фану сейчас — как «Отправить →» в карточке',
   'newcomers.row.sendBlocked': 'Так этот черновик не уйдёт — откройте фана: в карточке сказано почему',
-  'newcomers.row.sendPaused': 'Секунда паузы после отправки — кнопка сейчас вернётся',
+  'newcomers.row.sendPaused': 'Полсекунды паузы после отправки — кнопка сейчас вернётся',
   'newcomers.row.failed': 'Не отправлено: {reason}',
 
   // ── Fan panel and Coach ──

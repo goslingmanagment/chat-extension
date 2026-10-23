@@ -102,9 +102,9 @@ export const RESYNC_RETRY_MS = 2_000;
 export const RATE_LIMIT_HOLD_MS = 60_000;
 /**
  * After a click of «Отправить» on a card or a row, every other one of the tab is off this long: the drafts of a batch
- * never go to the fans in one burst of clicks (the owner, 2026-10-24).
+ * never go to the fans in one burst of clicks (the owner, 2026-10-24: half a second is enough for ChatSpace).
  */
-export const SEND_PACE_MS = 1_000;
+export const SEND_PACE_MS = 500;
 
 const SOURCES = ['spenders', 'newcomers', 'palette'] as const satisfies readonly PreviewSource[];
 const DRAFT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
