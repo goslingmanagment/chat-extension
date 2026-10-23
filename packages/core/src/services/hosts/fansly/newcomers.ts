@@ -294,8 +294,6 @@ interface Pass {
   startedAt: number;
   readonly journal: PassJournalSink | undefined;
   base: Base;
-  /** The person's «Пауза»: a window that opens again leaves the queue standing (only «Проверить оставшихся» goes on). */
-  held: boolean;
   phase: Phase | null;
   partial: boolean;
   error: CgAnyErrorWire | null;
@@ -1254,11 +1252,11 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (!deps.tabOn(tab, creator)) return { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } };
     const open = passes.get(creator);
     // The window opened again, another tab, ⟳ (the owner, 2026-10-23): the creator's pass of this period goes on with
-    // what it found; a pass that stands reads the followers since its end and checks the new ones (`refresh`) — unless
-    // the person stood it with «Пауза». Another period is another pass.
+    // what it found; a pass that stands reads the followers since its end and checks the new ones (`refresh`); a «Пауза»
+    // belongs to the window that was open and goes on too. Another period is another pass.
     if (open !== undefined && open.windowHours === windowHours) {
       holds(open, tab);
-      if (!running(open) && !open.held) {
+      if (!running(open)) {
         note(open, 'queue.resume', { state: open.base });
         if (open.followers.read) begin(open, 'scanning', (work) => refresh(open, work));
         else begin(open, 'scanning', (work) => fastPart(open, work));
@@ -1275,7 +1273,6 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       startedAt: run.startedAt,
       journal: journalFor(run),
       base: 'scanning',
-      held: false,
       phase: 'welcome',
       partial: false,
       error: null,
@@ -1356,7 +1353,6 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     // While the list itself is read there is nothing to stand on: the pause waits for the profiles (the old rule).
     const listRead = pass.base === 'queue' || (pass.base === 'scanning' && (pass.phase === 'profiles' || pass.phase === 'checking'));
     if (listRead && running(pass)) {
-      pass.held = true;
       standStill(pass);
       touch(pass);
     }
@@ -1366,7 +1362,6 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   function resume(payload: Payload<'fansly.followers.resume'>, tab: string): Answer<'fansly.followers.resume'> {
     const pass = find(payload.passId, tab);
     if (pass === null) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
-    pass.held = false;
     if (pass.work !== null || (pass.followers.read && !pass.rows.some(needsCheck))) return { ok: true, pass: viewOf(pass) };
     note(pass, 'queue.resume', { state: pass.base });
     if (!pass.followers.read) {
