@@ -26,9 +26,9 @@ export interface MediaCellVM {
   readonly thumb: string | null;
   /** The platform finished it and the account may send it; a cell that is not is shown, never picked. */
   readonly ready: boolean;
-  /** 1-based place among the picks; null — not picked. */
+  /** 1-based place in the message (the previews first); null — not picked. */
   readonly order: number | null;
-  /** Its free-preview mark (a picked medium of a priced message). */
+  /** Picked as a free preview (it means one in a priced message). */
   readonly free: boolean;
   /** What this fan already got of it; null — never sent to the fan, or not known yet. */
   readonly fan: MediaFanState['state'] | null;
@@ -48,6 +48,8 @@ export interface MediaPickerVM {
   readonly folders: MediaListVM<MediaFolderVM>;
   readonly grid: MediaListVM<MediaCellVM>;
   readonly picks: number;
+  /** The picks made as free previews (the picker's «Превью» step), whether or not a price makes them mean one. */
+  readonly previews: number;
   /** The price field as typed and what is wrong with it. */
   readonly price: { readonly text: string; readonly problem: Msg | null };
   /** The typed price is a valid PPV price: the picks' free-preview marks mean something. */

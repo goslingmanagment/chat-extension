@@ -40,6 +40,7 @@ const picker = (patch: Partial<MediaPickerVM> = {}): MediaPickerVM => ({
     error: null,
   },
   picks: 2,
+  previews: 1,
   price: { text: '25', problem: null },
   priced: true,
   summary: msg('preview.media.summaryPaidPreviews', { media: '2 медиа', previews: '1 бесплатное превью', price: '$25' }),

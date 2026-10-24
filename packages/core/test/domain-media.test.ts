@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { MEDIA_LIMITS, SendMediaSchema, type MediaItem } from '@cg/contracts';
 
-import { EMPTY_ATTACHMENT, attachmentProblem, attachmentSummary, parsePrice, sendMediaOf, toggleFree, togglePick } from '../src/domain/media/attachment';
+import { EMPTY_ATTACHMENT, attachmentProblem, attachmentSummary, parsePrice, sendMediaOf, togglePick } from '../src/domain/media/attachment';
 
 const item = (id: string, extra: Partial<MediaItem> = {}): MediaItem => ({ id, type: 'photo', duration: 0, ready: true, thumb: null, createdAt: null, ...extra });
 const NO_TAGS = { users: [], guests: [] };
@@ -32,16 +32,40 @@ describe('parsePrice', () => {
 });
 
 describe('picks', () => {
-  it('keeps the order of the clicks; a second click drops the pick with its preview mark', () => {
+  it('puts the previews first and the paid media after them, each in the order of the clicks', () => {
     let a = togglePick(EMPTY_ATTACHMENT, item('3'));
     a = togglePick(a, item('1'));
+    a = togglePick(a, item('5'), true);
     a = togglePick(a, item('2'));
-    a = toggleFree(a, '1');
-    expect(a.picks.map((pick) => pick.id)).toEqual(['3', '1', '2']);
+    a = togglePick(a, item('4'), true);
+    expect(a.picks.map((pick) => [pick.id, pick.free])).toEqual([
+      ['5', true],
+      ['4', true],
+      ['3', false],
+      ['1', false],
+      ['2', false],
+    ]);
+  });
+  it('drops a pick clicked again as the same, turns it when clicked as the other', () => {
+    let a = togglePick(togglePick(togglePick(EMPTY_ATTACHMENT, item('3')), item('1')), item('2'));
+    // A paid pick clicked at «Превью» becomes the preview, first in the message.
+    a = togglePick(a, item('1'), true);
+    expect(a.picks.map((pick) => [pick.id, pick.free])).toEqual([
+      ['1', true],
+      ['3', false],
+      ['2', false],
+    ]);
+    // Back at «Платное» it goes behind the price, at the end.
     a = togglePick(a, item('1'));
-    expect(a.picks.map((pick) => pick.id)).toEqual(['3', '2']);
-    a = togglePick(a, item('1'));
-    expect(a.picks.find((pick) => pick.id === '1')?.free).toBe(false);
+    expect(a.picks.map((pick) => [pick.id, pick.free])).toEqual([
+      ['3', false],
+      ['2', false],
+      ['1', false],
+    ]);
+    a = togglePick(a, item('3'));
+    expect(a.picks.map((pick) => pick.id)).toEqual(['2', '1']);
+    a = togglePick(togglePick(a, item('6'), true), item('6'), true);
+    expect(a.picks.map((pick) => pick.id)).toEqual(['2', '1']);
   });
   it('never picks a medium that is not ready, nor more than one message takes', () => {
     expect(togglePick(EMPTY_ATTACHMENT, item('1', { ready: false })).picks).toEqual([]);
@@ -59,12 +83,12 @@ describe('sendMediaOf', () => {
     expect(sendMediaOf(a, NO_TAGS)).toBeNull();
   });
   it('refuses a priced message whose every medium is a free preview', () => {
-    const a = { ...toggleFree(togglePick(EMPTY_ATTACHMENT, item('1')), '1'), price: '10' };
+    const a = { ...togglePick(EMPTY_ATTACHMENT, item('1'), true), price: '10' };
     expect(attachmentProblem(a)).toEqual({ kind: 'all-free' });
     expect(sendMediaOf(a, NO_TAGS)).toBeNull();
   });
   it('drops the preview marks of a free message, keeps them in a priced one', () => {
-    const picked = toggleFree(togglePick(togglePick(EMPTY_ATTACHMENT, item('1')), item('2', { type: 'video', duration: 75 })), '1');
+    const picked = togglePick(togglePick(EMPTY_ATTACHMENT, item('2', { type: 'video', duration: 75 })), item('1'), true);
     const free = sendMediaOf(picked, NO_TAGS);
     expect(free?.priceCents).toBe(0);
     expect(free?.items.every((media) => !media.free)).toBe(true);

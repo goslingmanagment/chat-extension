@@ -417,12 +417,12 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     // A medium the platform has not finished is shown and never picked.
     await ours('modal', '[data-cg-media="660000007"] .cg-pvm__pick').click();
     expect(await oursText('modal', '[data-cg-media="660000007"]')).not.toMatch(/^\d/);
-    // The order of the clicks is the message's.
+    // «Платное»: a click picks behind the price; the price; «Превью»: a click picks the free preview, first in the message.
     await ours('modal', '[data-cg-media="660000004"] .cg-pvm__pick').click();
-    await ours('modal', '[data-cg-media="660000001"] .cg-pvm__pick').click();
     await ours('modal', '.cg-pvm__price input').setValue('24.99');
-    await waitOursText('modal', /^1$/, 'the first pick is the message’s first', { selector: '[data-cg-media="660000004"] .cg-pvm__order' });
-    await ours('modal', '[data-cg-media="660000001"] .cg-pvm__free').click();
+    await ours('modal', '.cg-pvm [data-cg-step="preview"]').click();
+    await ours('modal', '[data-cg-media="660000001"] .cg-pvm__pick').click();
+    await waitOursText('modal', /^1$/, 'the preview is the message’s first', { selector: '[data-cg-media="660000001"] .cg-pvm__order' });
     // The panel can scroll with the picker open; the send action must remain reachable without closing it.
     await ours('modal', `${part(0)} .cg-pvs__send`).scrollIntoView({ block: 'center' });
     await waitOursText('modal', 'Отправить + 2 медиа за $24.99', 'the part’s button names what goes with it', { selector: `${part(0)} .cg-pvs__send` });
@@ -430,7 +430,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await waitSend(0, 'sent', 'the part with its media is sent');
     const sends = sendsOf(await serverSince(standMark));
     expect(sends.map((entry) => [entry.origin, entry.chatId, entry.detail?.['plain']])).toEqual([['native', a2, reply(a2)[0]]]);
-    expect(sends[0]?.detail?.['platformMetadata']).toEqual({ mediaFiles: [660000004, 660000001], rfTag: ['7700001'], price: 24.99, previews: [660000001] });
+    expect(sends[0]?.detail?.['platformMetadata']).toEqual({ mediaFiles: [660000001, 660000004], rfTag: ['7700001'], price: 24.99, previews: [660000001] });
     expect(queueAdds(await pageJournal(mark))).toHaveLength(1);
     await expectCustody(hubMark, a2, ['dispatch:200', 'sent:200']);
     // Who sent it: the hub is told the message with its price and media (X48).

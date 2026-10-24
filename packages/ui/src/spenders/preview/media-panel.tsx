@@ -1,14 +1,16 @@
 // The media panel of a preview (decision X53): the vault's folders as chips,
-// one folder's media as a grid of thumbnails, the picks numbered in the order
-// of the clicks, a free-preview mark on a pick of a priced message, what the
-// fan already got of a medium, the price and what goes — and, once closed with
-// picks, the one line of what goes with the next part sent. A chunk of its own
+// one folder's media as a grid of thumbnails, the picks numbered in the
+// message's order, what the fan already got of a medium, and the three steps
+// at its foot (2026-10-24, the owner): «Платное» — clicks pick media behind
+// the price, «Цена», «Превью» — clicks pick their free preview; then what
+// goes — and, once closed with picks, the one line of what goes with the next
+// part sent. A chunk of its own
 // (MediaPicker.tsx loads it on the first «Медиа» click; the extension's lazy
 // entry `preview-send`): Spenders, «Новые» and the preview window carry only
 // the toggle. Nothing here sends.
 
 import { type JSX } from 'preact';
-import { useRef } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 
 import { type I18n, type MediaCellVM, type MediaPickerVM, type TargetHandle } from '@cg/contracts/vm';
 
@@ -21,6 +23,9 @@ export interface MediaPanelProps {
   /** `window` — «Рассылка»'s own media window: the folders wrap, the grid is large and fills the window. */
   readonly variant?: 'window';
 }
+
+/** What a click on a medium picks: one behind the price, or a free preview. */
+type Step = 'paid' | 'preview';
 
 const duration = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
@@ -55,16 +60,21 @@ function Notes({ vm, handle }: MediaPanelProps): JSX.Element | null {
   return notes.length === 0 ? null : <div class="cg-pvm__notes">{notes}</div>;
 }
 
-function Cell({ cell, handle, priced }: { readonly cell: MediaCellVM; readonly handle: TargetHandle; readonly priced: boolean }): JSX.Element {
+function Cell({ cell, handle, priced, step }: { readonly cell: MediaCellVM; readonly handle: TargetHandle; readonly priced: boolean; readonly step: Step }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const fanTip = useTooltip(cell.fan === null ? null : i18n.t(`preview.media.fanTip.${cell.fan}`));
-  const freeTip = useTooltip(i18n.t(cell.free ? 'preview.media.freeTooltip' : 'preview.media.lockedTooltip'));
-  const words = [typeWords(i18n, cell), cell.fan === null ? null : i18n.t(`preview.media.fan.${cell.fan}`), cell.order === null ? null : i18n.t('preview.media.pickedAria', { n: cell.order })]
+  const picked = cell.order !== null;
+  const words = [
+    typeWords(i18n, cell),
+    cell.fan === null ? null : i18n.t(`preview.media.fan.${cell.fan}`),
+    picked ? i18n.t('preview.media.pickedAria', { n: cell.order }) : null,
+    picked ? i18n.t(cell.free ? 'preview.media.preview' : 'preview.media.locked') : null,
+  ]
     .filter((word) => word !== null)
     .join(', ');
   return (
-    <div class={`cg-pvm__cell${cell.order === null ? '' : ' is-picked'}${cell.ready ? '' : ' is-wait'}`} data-cg-media={cell.id}>
+    <div class={`cg-pvm__cell${picked ? ' is-picked' : ''}${picked && cell.free ? ' is-preview' : ''}${cell.ready ? '' : ' is-wait'}`} data-cg-media={cell.id}>
       <button
         type="button"
         class="cg-pvm__pick"
@@ -72,7 +82,7 @@ function Cell({ cell, handle, priced }: { readonly cell: MediaCellVM; readonly h
         aria-label={words}
         {...(cell.ready || cell.order !== null ? {} : { 'aria-disabled': 'true' as const })}
         onClick={() => {
-          if (cell.ready || cell.order !== null) void dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: cell.id });
+          if (cell.ready || picked) void dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: cell.id, free: step === 'preview' });
         }}
       >
         {cell.thumb === null ? <span class="cg-pvm__blank">{typeWords(i18n, cell)}</span> : <img class="cg-pvm__img" src={cell.thumb} alt="" loading="lazy" decoding="async" draggable={false} />}
@@ -98,18 +108,82 @@ function Cell({ cell, handle, priced }: { readonly cell: MediaCellVM; readonly h
           {i18n.t(`preview.media.fan.${cell.fan}`)}
         </span>
       )}
-      {cell.order !== null && priced ? (
-        <button
-          type="button"
-          class={`cg-pvm__free${cell.free ? ' is-free' : ''}`}
-          aria-pressed={cell.free}
-          {...freeTip.props}
-          onClick={() => void dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: cell.id })}
-        >
-          {cell.free ? i18n.t('preview.media.free') : <Icon name="lock" size={12} />}
-          {cell.free ? null : <span class="cg-pvm__sr">{i18n.t('preview.media.locked')}</span>}
-        </button>
+      {picked && cell.free ? (
+        <span class="cg-pvm__mark is-preview" aria-hidden="true">
+          {i18n.t('preview.media.preview')}
+        </span>
+      ) : picked && priced ? (
+        <span class="cg-pvm__mark" aria-hidden="true">
+          <Icon name="lock" size={12} />
+        </span>
       ) : null}
+    </div>
+  );
+}
+
+/** One of the steps a click on a medium follows: pressed — the clicks pick so; `next` — what to press now; its count of picks. */
+function StepButton(props: {
+  readonly step: Step;
+  readonly n: number;
+  readonly label: string;
+  readonly count: number;
+  readonly done: boolean;
+  readonly on: boolean;
+  readonly next?: boolean;
+  readonly tooltip: string;
+  readonly onClick: () => void;
+}): JSX.Element {
+  const { step, n, label, count, done, on, next = false, tooltip, onClick } = props;
+  const tip = useTooltip(tooltip);
+  return (
+    <button type="button" class={`cg-pvm__step${on ? ' is-on' : ''}${next ? ' is-next' : ''}`} data-cg-step={step} aria-pressed={on} {...tip.props} onClick={onClick}>
+      <StepNumber n={n} done={done} />
+      {label}
+      {count > 0 ? <span class="cg-pvm__stepc cg-num">{count}</span> : null}
+      {tip.description}
+    </button>
+  );
+}
+
+const StepNumber = ({ n, done }: { readonly n: number; readonly done: boolean }): JSX.Element => (
+  <span class={`cg-pvm__stepn cg-num${done ? ' is-done' : ''}`} aria-hidden="true">
+    {done ? <Icon name="check" size={12} /> : n}
+  </span>
+);
+
+/** The foot's steps (2026-10-24, the owner): the paid media, their price, their free preview. */
+function Steps({ vm, handle, step, onStep }: MediaPanelProps & { readonly step: Step; readonly onStep: (step: Step) => void }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const paid = vm.picks - vm.previews;
+  // The paid media and their price are there: their preview is what comes next.
+  const previewNext = step === 'paid' && paid > 0 && vm.priced && vm.previews === 0;
+  return (
+    <div class="cg-pvm__steps">
+      <StepButton step="paid" n={1} label={i18n.t('preview.media.step.paid')} count={paid} done={paid > 0} on={step === 'paid'} tooltip={i18n.t('preview.media.step.paidTooltip')} onClick={() => onStep('paid')} />
+      <label class="cg-pvm__price">
+        <StepNumber n={2} done={vm.priced} />
+        <span>{i18n.t('preview.media.price')}</span>
+        <TextField
+          value={vm.price.text}
+          label={i18n.t('preview.media.price')}
+          placeholder={i18n.t('preview.media.pricePlaceholder')}
+          maxLength={16}
+          {...(vm.price.problem === null ? {} : { class: 'is-bad' })}
+          onValue={(text) => void dispatch({ type: 'SetMediaPrice', targetHandle: handle, text })}
+        />
+      </label>
+      <StepButton
+        step="preview"
+        n={3}
+        label={i18n.t('preview.media.preview')}
+        count={vm.previews}
+        done={vm.previews > 0 && vm.priced}
+        on={step === 'preview'}
+        next={previewNext}
+        tooltip={i18n.t('preview.media.step.previewTooltip')}
+        onClick={() => onStep('preview')}
+      />
     </div>
   );
 }
@@ -119,6 +193,8 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const gridRef = useRef<HTMLDivElement>(null);
+  // Each opening starts at «Платное»: a preview is free to the fan, so it is never what a click picks unasked.
+  const [step, setStep] = useState<Step>('paid');
   const { folders, grid } = vm;
   const onScroll = (): void => {
     const node = gridRef.current;
@@ -157,9 +233,9 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
           <Button label={i18n.t('preview.media.retry')} size="sm" variant="line" onClick={() => void dispatch({ type: 'RetryMedia', targetHandle: handle })} />
         </div>
       ) : null}
-      <div ref={gridRef} class="cg-pvm__grid" onScroll={onScroll}>
+      <div ref={gridRef} class={`cg-pvm__grid is-${step}`} onScroll={onScroll}>
         {grid.items.map((cell) => (
-          <Cell key={cell.id} cell={cell} handle={handle} priced={vm.priced} />
+          <Cell key={cell.id} cell={cell} handle={handle} priced={vm.priced} step={step} />
         ))}
         {grid.loading ? (
           <div class="cg-pvm__note">
@@ -171,19 +247,19 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
         ) : null}
       </div>
       <div class="cg-pvm__foot">
-        <label class="cg-pvm__price">
-          <span>{i18n.t('preview.media.price')}</span>
-          <TextField
-            value={vm.price.text}
-            label={i18n.t('preview.media.price')}
-            placeholder={i18n.t('preview.media.pricePlaceholder')}
-            maxLength={16}
-            {...(vm.price.problem === null ? {} : { class: 'is-bad' })}
-            onValue={(text) => void dispatch({ type: 'SetMediaPrice', targetHandle: handle, text })}
-          />
-        </label>
+        <Steps vm={vm} handle={handle} step={step} onStep={setStep} />
         <span class="cg-pvm__sum">{vm.summary === null ? i18n.t('preview.media.hint') : i18n.text(vm.summary)}</span>
-        {vm.picks > 0 ? <Button label={i18n.t('preview.media.clear')} size="sm" variant="quiet" onClick={() => void dispatch({ type: 'ClearMedia', targetHandle: handle })} /> : null}
+        {vm.picks > 0 ? (
+          <Button
+            label={i18n.t('preview.media.clear')}
+            size="sm"
+            variant="quiet"
+            onClick={() => {
+              setStep('paid');
+              void dispatch({ type: 'ClearMedia', targetHandle: handle });
+            }}
+          />
+        ) : null}
         <OutreachMediaButton vm={vm} handle={handle} />
       </div>
       <Notes vm={vm} handle={handle} />
@@ -245,6 +321,10 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm__img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cg-pvm__blank { display: flex; align-items: center; justify-content: center; height: 100%; font-size: var(--cg-text-2xs); color: var(--cg-ink-muted); }
 .cg-pvm__cell.is-picked .cg-pvm__pick { box-shadow: 0 0 0 2px var(--cg-ink-strong); }
+.cg-pvm__cell.is-preview .cg-pvm__pick { box-shadow: 0 0 0 2px var(--cg-clay-ink); }
+/* The ring a click would draw: the ink's behind the price, the clay's for a free preview. */
+.cg-pvm__grid.is-paid .cg-pvm__cell:not(.is-picked, .is-wait) .cg-pvm__pick:hover { box-shadow: 0 0 0 2px var(--cg-ink-muted); }
+.cg-pvm__grid.is-preview .cg-pvm__cell:not(.is-picked, .is-wait) .cg-pvm__pick:hover { box-shadow: 0 0 0 2px var(--cg-clay-ink); }
 .cg-pvm__cell.is-wait .cg-pvm__pick { cursor: default; }
 .cg-pvm__cell.is-wait .cg-pvm__img { opacity: .45; }
 .cg-pvm__order {
@@ -262,15 +342,32 @@ const MEDIA_PANEL_CSS = `
 }
 .cg-pvm__fan.is-paid { background: var(--cg-money); }
 .cg-pvm__fan.is-unpaid { background: var(--cg-clay-ink); }
-.cg-pvm__free {
-  position: absolute; top: 4px; right: 4px; display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border: 0; border-radius: 9px;
-  background: rgb(0 0 0 / .6); color: #fff; font: inherit; font-size: var(--cg-text-2xs); cursor: pointer;
+.cg-pvm__cell.is-preview .cg-pvm__order { background: var(--cg-clay-ink); }
+.cg-pvm__mark {
+  position: absolute; top: 4px; right: 4px; display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: rgb(0 0 0 / .6); color: #fff; font-size: var(--cg-text-2xs); pointer-events: none;
 }
-.cg-pvm__free.is-free { background: var(--cg-surface); color: var(--cg-ink-strong); box-shadow: 0 0 0 1px var(--cg-ink-strong); font-weight: 500; }
-.cg-pvm__sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cg-pvm__mark.is-preview { background: var(--cg-clay-ink); color: var(--cg-surface); font-weight: 600; }
 .cg-pvm__note { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-height: 28px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-pvm__foot { display: flex; align-items: center; gap: 8px; padding: 2px 8px 6px 16px; min-height: 32px; }
-.cg-pvm__price { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
+.cg-pvm__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 2px 8px 6px 12px; min-height: 32px; }
+.cg-pvm__steps { flex: none; display: inline-flex; align-items: center; gap: 2px; }
+.cg-pvm__step {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px 0 4px; border: 0; border-radius: 13px; background: none;
+  font: inherit; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; cursor: pointer; box-shadow: inset 0 0 0 1px var(--cg-rule);
+}
+.cg-pvm__step:hover { color: var(--cg-ink-strong); box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
+.cg-pvm__step.is-next { color: var(--cg-clay-ink); box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
+.cg-pvm__step.is-next .cg-pvm__stepn { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); color: var(--cg-clay-ink); }
+.cg-pvm__step.is-on { background: var(--cg-seg-on); color: var(--cg-ink-strong); font-weight: 500; box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
+.cg-pvm__stepn {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 9px;
+  box-shadow: inset 0 0 0 1px var(--cg-rule-2); font-size: var(--cg-text-2xs); font-weight: 600; color: var(--cg-ink-muted);
+}
+.cg-pvm__stepn.is-done { color: var(--cg-ink-strong); }
+.cg-pvm__step.is-on .cg-pvm__stepn { background: var(--cg-ink-strong); color: var(--cg-surface); box-shadow: none; }
+.cg-pvm__step[data-cg-step="preview"].is-on .cg-pvm__stepn { background: var(--cg-clay-ink); }
+.cg-pvm__stepc { color: var(--cg-ink-muted); font-weight: 500; }
+.cg-pvm__price { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 0 6px 0 4px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; }
 .cg-pvm__price .cg-field { width: 92px; height: 26px; }
 .cg-pvm__price .cg-field.is-bad { border-color: var(--cg-danger); }
 .cg-pvm__sum b { color: var(--cg-ink-strong); font-weight: 600; }
@@ -287,9 +384,13 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm--window .cg-pvm__grid { flex: 1; min-height: 0; max-height: none; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; padding: 4px 20px 12px; align-content: start; }
 .cg-pvm--window .cg-pvm__cell { aspect-ratio: 3 / 4; }
 .cg-pvm--window .cg-pvm__order { top: 6px; left: 6px; min-width: 22px; height: 22px; border-radius: 11px; line-height: 22px; font-size: var(--cg-text-xs); }
-.cg-pvm--window .cg-pvm__free { top: 6px; right: 6px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: var(--cg-text-xs); }
-.cg-pvm--window .cg-pvm__foot { gap: 12px; padding: 10px 20px; border-top: 1px solid var(--cg-rule); background: var(--cg-sunk); min-height: 48px; }
-.cg-pvm--window .cg-pvm__price .cg-field { width: 150px; height: 30px; }
+.cg-pvm--window .cg-pvm__mark { top: 6px; right: 6px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: var(--cg-text-xs); }
+.cg-pvm--window .cg-pvm__foot { gap: 12px; padding: 10px 20px 10px 16px; border-top: 1px solid var(--cg-rule); background: var(--cg-sunk); min-height: 48px; }
+.cg-pvm--window .cg-pvm__steps { gap: 6px; }
+.cg-pvm--window .cg-pvm__step { height: 32px; padding: 0 12px 0 6px; border-radius: 16px; font-size: var(--cg-text-sm2); gap: 7px; }
+.cg-pvm--window .cg-pvm__stepn { width: 20px; height: 20px; border-radius: 10px; font-size: var(--cg-text-xs); }
+.cg-pvm--window .cg-pvm__price { font-size: var(--cg-text-sm2); padding: 0 8px 0 6px; gap: 7px; }
+.cg-pvm--window .cg-pvm__price .cg-field { width: 110px; height: 30px; }
 .cg-pvm--window .cg-pvm__foot .cg-pvm__or { margin-left: auto; }
 /* In the window's column a 100% basis is the window's whole height: the notes would push the grid out of sight. */
 .cg-pvm--window .cg-pvm__notes { flex: none; padding: 0 20px 10px; background: var(--cg-sunk); }
