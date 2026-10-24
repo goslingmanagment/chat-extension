@@ -59,6 +59,8 @@ type RowState = { state: 'sending' | 'sent' | 'uncertain' | 'failed'; code: stri
 
 export interface OutreachDeps {
   readonly port: OutreachPort;
+  /** The hub rewrites a mass message for one fan (`outreach-fix-v1`): «Подстроить под фана» is offered. */
+  readonly canAdapt: () => boolean;
   readonly rpc: TabRpc;
   readonly clock: BoardsClock;
   readonly i18n: I18n;
@@ -70,6 +72,8 @@ export function createOutreach(deps: OutreachDeps) {
   const { port, rpc, clock, i18n } = deps;
   let open = false;
   let text = '';
+  /** «Подстроить под фана», on by default where the hub can. */
+  let adapt = true;
   let items: readonly OutreachItem[] = [];
   /** Picked by default: every «Copied Bundle» of the list as read; the person's own ticks after that. */
   const picked = new Set<string>();
@@ -96,10 +100,21 @@ export function createOutreach(deps: OutreachDeps) {
     });
   }
 
+  /** The batch's Fix writes each fan's whole message from the common text. */
+  const adapting = (): boolean => adapt && deps.canAdapt();
+
   function vm(): OutreachVM {
     const list: OutreachItemVM[] = items.map((item) => ({ ...item, picked: picked.has(keyOf(item)) }));
-    return { open, text, items: list, sent: [...rows.values()].filter((row) => row.state === 'sent').length };
+    return { open, text, adapt: deps.canAdapt() ? adapt : null, items: list, sent: [...rows.values()].filter((row) => row.state === 'sent').length };
   }
+
+  /** What the board's batch writes for a fan while the bar is open: the Fix of the common text, or null — its own Reply / Ping. */
+  function batchFix(): { readonly draft: string } | null {
+    return open && adapting() ? { draft: text } : null;
+  }
+
+  /** Why the batch cannot start now: the Fix has no common text to rewrite. */
+  const needsText = (): boolean => open && adapting() && text.trim().length === 0;
 
   /** The row's «Отправить»: only while the bar is open and the fan's line is ready, or once a send of it began. */
   function row(handle: string, lineReady: boolean): OutreachRowVM | undefined {
@@ -117,7 +132,8 @@ export function createOutreach(deps: OutreachDeps) {
     if (own !== undefined && own.state !== 'failed') return refused(type, localError(own.state === 'sending' ? 'CG-SEND-BUSY' : 'CG-SEND-PART', i18n));
     if (target.line === null || target.line.trim().length === 0) return refused(type, localError('CG-SEND-PART', i18n));
     if (paced() || sending()) return refused(type, localError('CG-SEND-BUSY', i18n));
-    const body = outreachText(target.line, text);
+    // «Подстроить под фана»: the line IS the fan's whole message (the Fix of the common text); else the line, then the text.
+    const body = adapting() ? target.line.trim() : outreachText(target.line, text);
     const attachments = items.filter((item) => picked.has(keyOf(item)));
     // The button is off from the click on, before anything answers.
     rows.set(handle, { state: 'sending', code: null });
@@ -154,6 +170,10 @@ export function createOutreach(deps: OutreachDeps) {
       moved = true;
     }
     const rowsMoved = moved;
+    if (action.adapt !== undefined && action.adapt !== adapt) {
+      adapt = action.adapt;
+      moved = true;
+    }
     if (action.text !== undefined && action.text !== text) {
       text = action.text;
       moved = true;
@@ -173,6 +193,8 @@ export function createOutreach(deps: OutreachDeps) {
 
   return {
     vm,
+    batchFix,
+    needsText,
     row,
     set,
     send,
@@ -181,6 +203,7 @@ export function createOutreach(deps: OutreachDeps) {
       epoch += 1;
       open = false;
       text = '';
+      adapt = true;
       items = [];
       picked.clear();
       rows.clear();

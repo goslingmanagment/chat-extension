@@ -324,6 +324,11 @@ export const StartOpSchema = z
      */
     recap: z.optional(z.literal('off')),
     /**
+     * «Рассылка» of Spenders: a Fix whose draft is the model's mass message, made personal for this fan (hub
+     * `draftPurpose: 'outreach'`, sent to a hub that lists `outreach-fix-v1`). Fix only.
+     */
+    draftPurpose: z.optional(z.literal('outreach')),
+    /**
      * 1.20.0 (decision X47): the fan as the starting surface already names them (the site's header or memory, the
      * hub's page alias of a board row) — for the refusal list, the toasts and the pages' «Идут сейчас». Display only:
      * not part of the request's identity, never sent to the hub, never logged.
@@ -344,6 +349,7 @@ export const StartOpSchema = z
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),
     z.refine((op) => op.recap === undefined || (op.feature !== 'recap' && op.feature !== 'recap-short'), { message: 'a Recap build reads no Recap switch' }),
     z.refine((op) => op.feature !== 'fix' || op.draft !== undefined, { message: 'fix needs the draft' }),
+    z.refine((op) => op.draftPurpose === undefined || op.feature === 'fix', { message: 'draftPurpose only for fix' }),
     z.refine((op) => op.variantCount === undefined || op.feature === 'hi', { message: 'variantCount only for hi' }),
     z.refine((op) => op.tone === null || op.feature === 'reply', { message: 'a tone belongs to reply only (§8.4 replyTone)' }),
     z.refine((op) => op.checkpoint === undefined || op.surface === 'preview' || op.surface === 'newcomers', {

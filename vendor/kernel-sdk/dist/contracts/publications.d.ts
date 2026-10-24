@@ -56,10 +56,13 @@ export declare const publicationContentSchema: z.ZodObject<{
         fileId: z.ZodNumber;
     }, z.core.$strict>], "source">>>;
     publishAt: z.ZodISODateTime;
+    /** When the post leaves the wall; null = never. */
     expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
     wallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+    /** Fansly subscription tiers that see a subscriber post; empty = every subscriber. */
     tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
     priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+    /** "Перезалив": the person or agent says the file is posted again on purpose. */
     repost: z.ZodDefault<z.ZodBoolean>;
 }, z.core.$strict>;
 export type PublicationContentBody = z.infer<typeof publicationContentSchema>;
@@ -635,6 +638,7 @@ export declare const publicationIdParamsSchema: z.ZodObject<{
     id: z.ZodCoercedNumber<unknown>;
 }, z.core.$strip>;
 export declare const publicationApproveBodySchema: z.ZodObject<{
+    /** One or many; each with the version the person saw. Approved in this order. */
     items: z.ZodArray<z.ZodObject<{
         id: z.ZodNumber;
         version: z.ZodNumber;
@@ -1016,6 +1020,7 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
         rejected: "rejected";
         withdrawn: "withdrawn";
         refused: "refused";
+        accepted: "accepted";
         not_sent: "not_sent";
     }>;
     reason: z.ZodNullable<z.ZodString>;
@@ -1130,6 +1135,7 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
             rejected: "rejected";
             withdrawn: "withdrawn";
             refused: "refused";
+            accepted: "accepted";
             not_sent: "not_sent";
         }>;
         reason: z.ZodNullable<z.ZodString>;
@@ -1249,6 +1255,10 @@ export declare const publicationQueueEntrySchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const publicationQueueSnapshotSchema: z.ZodObject<{
     pageLabel: z.ZodString;
+    platform: z.ZodEnum<{
+        fansly: "fansly";
+        onlyfans: "onlyfans";
+    }>;
     readAt: z.ZodNullable<z.ZodString>;
     windowFrom: z.ZodNullable<z.ZodString>;
     windowTo: z.ZodNullable<z.ZodString>;
@@ -1272,6 +1282,10 @@ export type PublicationQueueSnapshotWire = z.infer<typeof publicationQueueSnapsh
 export declare const publicationQueueListResponseSchema: z.ZodObject<{
     pages: z.ZodArray<z.ZodObject<{
         pageLabel: z.ZodString;
+        platform: z.ZodEnum<{
+            fansly: "fansly";
+            onlyfans: "onlyfans";
+        }>;
         readAt: z.ZodNullable<z.ZodString>;
         windowFrom: z.ZodNullable<z.ZodString>;
         windowTo: z.ZodNullable<z.ZodString>;

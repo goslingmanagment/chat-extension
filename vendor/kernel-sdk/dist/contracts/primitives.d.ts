@@ -69,7 +69,7 @@ export declare const fanSearchMatchKindEnum: z.ZodEnum<{
  * `"false"` text through, so the coercion happens here rather than at each use;
  * anything else is left alone and fails the boolean check with a real message.
  */
-export declare const queryBooleanSchema: z.ZodPreprocess<z.ZodBoolean, unknown>;
+export declare const queryBooleanSchema: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>;
 /** The error body is EXACTLY these three fields; there are no structural extensions. */
 export declare const errorResponseSchema: z.ZodObject<{
     error: z.ZodString;

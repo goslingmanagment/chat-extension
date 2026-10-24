@@ -72,6 +72,9 @@ export const LIVE_IMAGES_CAPABILITY = 'live-images-v1';
 /** 1.48.0: the bootstrap capability under which the hub takes `recap: 'off'` — «с Recap» unticked for the chat. */
 export const RECAP_OFF_CAPABILITY = 'recap-off-v1';
 
+/** «Рассылка»: the bootstrap capability under which Fix takes `draftPurpose: 'outreach'` — a mass message made personal. */
+export const OUTREACH_FIX_CAPABILITY = 'outreach-fix-v1';
+
 /**
  * 1.15.0 (R20 P9d): the page's switches the hub admits a greeting's custody `dispatch` under, by platform (hub HF-3,
  * admission by platform, purpose and action). OnlyFans' greeting leaves through the preview's queue (X8): `previewSend`

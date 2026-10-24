@@ -286,7 +286,7 @@ export interface PreviewController extends SurfaceController<'preview'> {
    * 1.32.0: one fan of a list's batch — the preview's own Generate on the fan's card, open or not; resolves when the
    * generation ended (or did not start). The result stays on the fan's card, for the person's own «Отправить».
    */
-  batchStart(source: 'spenders' | 'newcomers', handle: TargetHandle, feature: PreviewActionId): Promise<BatchOutcome>;
+  batchStart(source: 'spenders' | 'newcomers', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }): Promise<BatchOutcome>;
   /** The fan's result as the preview has it now: its first part, and whether it all went out; null — none. */
   batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null;
   /** A result a batch made moved on (it ended, a part went out). */
@@ -1482,7 +1482,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return null;
   }
 
-  function gateReason(state: TargetState, feature: PreviewActionId, otherRunning: boolean): ReasonVM | null {
+  /** `draftSource` — the text a Fix rewrites when it is not the card's draft («Рассылка»: the common text). */
+  function gateReason(state: TargetState, feature: PreviewActionId, otherRunning: boolean, draftSource?: string): ReasonVM | null {
     const ctx = context.current();
     if (ctx.phase !== 'ready') {
       const code = ctx.blocker?.code;
@@ -1498,7 +1499,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // unknown outcome holds nothing (2026-10-20 audit, row 2): the person looks at the chat and goes on.
     const sends = fanSends(state.pageId, state.fanRef, currentOp.get(state.handle) ?? null);
     if (sends.inFlight) return reason('parts-sending');
-    if (feature === 'fix' && draftText(state).trim().length === 0) return reason('needs-draft');
+    if (feature === 'fix' && (draftSource ?? draftText(state)).trim().length === 0) return reason('needs-draft');
     // Hi has no message limit (the owner, 2026-10-21): only the fan's greeting holds it.
     if (feature === 'hi' && state.source === 'newcomers') {
       const blocked = deps.greeting?.hiBlocked(state.fanRef) ?? null;
@@ -1714,7 +1715,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     }));
   }
 
-  async function generate(type: UiActionType, state: TargetState, feature: FeatureId, options: UserOptions, regenerateOf: OpTrack | null): Promise<ActionReceipt> {
+  /**
+   * `outreach` — «Рассылка»'s Fix of a batch: the common text is the draft (the card's own draft stays as it is), the hub
+   * makes it personal for this fan (`draftPurpose: 'outreach'`), one message, never split.
+   */
+  async function generate(type: UiActionType, state: TargetState, feature: FeatureId, options: UserOptions, regenerateOf: OpTrack | null, outreach: { readonly draft: string } | null = null): Promise<ActionReceipt> {
     // §6.7.8: a part with an unknown outcome holds the fan even when this tab does not remember it (a reload) or never
     // made it (another tab). So every Generate asks the background's journal for the fan's sends first — one local read —
     // and nothing is generated for a fan whose sends it did not tell.
@@ -1735,7 +1740,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       }
       return refused(type, localError('CG-OP-CHAT-BUSY', i18n));
     }
-    const why = gateReason(state, known, false);
+    const why = gateReason(state, known, false, outreach?.draft);
     if (why !== null) return refused(type, localError(reasonCode(why), i18n));
     const binding = ctx.binding;
     const settings = ctx.settings;
@@ -1771,9 +1776,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (disposed || atEpoch !== epoch) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     if (!issued.ok) return refusedAfterLease(refused(type, localError(issued.code, i18n)));
 
-    const source = draftText(state);
+    const source = outreach?.draft ?? draftText(state);
     const tone = feature === 'reply' ? (regenerateOf !== null ? regenerateOf.toneUsed : options.tone !== undefined ? options.tone : state.tone) : null;
-    const split = regenerateOf !== null ? regenerateOf.splitRequested : (options.split ?? settings.generation.split);
+    const split = outreach !== null ? false : regenerateOf !== null ? regenerateOf.splitRequested : (options.split ?? settings.generation.split);
     const start: StartOp = {
       feature,
       surface: surfaceOf(state.source),
@@ -1783,6 +1788,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       split,
       window: options.window ?? messageWindowFor(feature, settings.generation.windows, bootstrap.limits.deepMax),
       ...(feature === 'fix' ? { draft: { text: source, revision: draftRevision(state), digest: digestHex(source) } } : {}),
+      ...(feature === 'fix' && outreach !== null ? { draftPurpose: 'outreach' as const } : {}),
       ...(feature === 'hi' ? { variantCount: state.source === 'newcomers' ? (1 as const) : (options.variants ?? 3) } : {}),
       ...(checkpoint === null ? {} : { checkpoint }),
       ...(regenerateOf === null ? {} : { regenerateOf: regenerateOf.opId, force: true }),
@@ -1891,7 +1897,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     for (const listener of [...batchListeners]) listener();
   }
 
-  async function batchStart(source: 'spenders' | 'newcomers', handle: TargetHandle, feature: PreviewActionId): Promise<BatchOutcome> {
+  async function batchStart(source: 'spenders' | 'newcomers', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }): Promise<BatchOutcome> {
     if (disposed) return { s: 'failed', code: 'CG-CONTEXT-CHANGED' };
     const shown = (): boolean => SOURCES.some((s) => surfaces.current().preview[s] === handle);
     let state = targets.get(handle) ?? null;
@@ -1912,7 +1918,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     try {
       // NF-015: a dialogue gets no Hi — the archive's count is read first, as an open card has it.
       if (feature === 'hi' && state.feed === null) await loadFeed(state);
-      receipt = await generate('GenerateBatch', state, feature, {}, null);
+      receipt = await generate('GenerateBatch', state, feature, {}, null, outreach ?? null);
     } finally {
       if (shadow !== null && targets.get(handle) === shadow && !shown()) closeTarget(handle);
       shadows.delete(handle);

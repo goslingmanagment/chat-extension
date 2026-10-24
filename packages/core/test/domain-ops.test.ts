@@ -185,6 +185,17 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     expect(built.request.body.replyMode).toBeUndefined();
   });
 
+  it('«Рассылка»: a Fix of the mass message carries draftPurpose to a hub that lists outreach-fix-v1, and only a Fix', () => {
+    const draft = { text: 'ok this one is SPECIAL', revision: 1, digest: 'abcdef12' };
+    const served = { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: [...BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'outreach-fix-v1'), 'outreach-fix-v1'] } };
+    const built = buildStreamRequest(startOf({ feature: 'fix', draft, draftPurpose: 'outreach' }), served);
+    expect(built.ok && built.request.body).toMatchObject({ draftText: 'ok this one is SPECIAL', draftPurpose: 'outreach' });
+    // A hub that does not list it is never sent the field (its body is strict).
+    const older = buildStreamRequest(startOf({ feature: 'fix', draft, draftPurpose: 'outreach' }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'outreach-fix-v1') } });
+    expect(older.ok && 'draftPurpose' in older.request.body).toBe(false);
+    expect(StartOpSchema.safeParse(startOf({ feature: 'reply', draftPurpose: 'outreach' })).success).toBe(false);
+  });
+
   it('[X54] the open chat’s PPV state goes as livePpvContext only where fresh text may go, to a hub that lists live-ppv-v1', () => {
     const livePpv = { capturedAt: '2026-10-17T06:00:00.000Z', items: [{ platformMessageId: '9002', priceUsd: 25, purchased: true }] };
     // The pilot's hub before its deploy does not list it; a hub that does:

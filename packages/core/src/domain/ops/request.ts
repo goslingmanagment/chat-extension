@@ -30,7 +30,7 @@
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
-import { HI_BY_START_PROOF, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, RECAP_OFF_CAPABILITY } from '@cg/contracts/ids';
+import { HI_BY_START_PROOF, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, OUTREACH_FIX_CAPABILITY, RECAP_OFF_CAPABILITY } from '@cg/contracts/ids';
 import {
   HUB_FEATURE_MAP,
   HubStreamRequestSchema,
@@ -143,6 +143,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   if (spec.replyMode !== null && split) body.replyMode = start.split ? 'preferSplit' : 'default';
   if (start.feature === 'reply') body.replyTone = start.tone ?? 'none';
   if (start.feature === 'fix' && start.draft !== undefined) body.draftText = start.draft.text;
+  if (start.feature === 'fix' && start.draftPurpose === 'outreach' && hasCapability(ctx.bootstrap.capabilities, OUTREACH_FIX_CAPABILITY)) body.draftPurpose = 'outreach';
   if (start.feature === 'hi' && start.variantCount !== undefined) body.variantCount = start.variantCount;
   // The proof of the start, its count and the fan's avatar (FX-018) ride only on that lane: ids and an address, no text.
   if (hiByProof && start.startProof !== undefined) body.startProof = start.startProof;

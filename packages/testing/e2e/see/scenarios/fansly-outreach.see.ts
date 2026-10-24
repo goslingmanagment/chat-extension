@@ -1,13 +1,16 @@
-// Fansly: «Рассылка» of Spenders — the bar with the common text and the page's own «Copied Bundle» items (Fansly's
-// localStorage list, seeded here as «Copy» on a post leaves it), a batch of personal lines for two whales, then one
-// row's «Отправить»: one `POST /message` with both bundles (`fansly-journal.json` of the run).
+// Fansly: «Рассылка» of Spenders — the bar with the outreach text and the page's own «Copied Bundle» items (Fansly's
+// localStorage list, seeded here as «Copy» on a post leaves it), «Подстроить под фана» on: a batch of Fix rewrites the
+// text for each of two whales, the first fan's preview shows their whole version, then that row's «Отправить»: one
+// `POST /message` with both bundles (the `message.send` line of the run).
 
 import { WORLD } from '../../../src/scenarios/hub';
 import { fakeFansly } from '../../support/fansly-stand';
-import { scenario } from '../kit';
+import { SEE_AI_TEXTS, scenario } from '../kit';
 
 const { a, b } = WORLD.fansly.chats;
 const BUNDLES = ['700000000000000011', '700000000000000012'];
+/** What the hub's Fix of the mass message reads like for one whale (the mockup's: the stand's hub writes no prose). */
+const ADAPTED = 'hey Gordon 🐉 had to show you this one first. first time with a dragon and it got SO intense 😳 6 minutes, it is right here with this message. tell me when you get to the end 😈';
 
 scenario(
   'fansly-outreach',
@@ -21,11 +24,17 @@ scenario(
     await s.press(/^Рассылка/, 'modal', '.cg-or__toggle');
     await s.see('modal', 'Copied Bundle');
     await s.press(/^/, 'modal', '.cg-or textarea');
-    await s.browser.keys(Array.from('new video is up, the dragon one, just for you'));
+    // Key by key, as a person types: one action of many keys holds them all down to its end, and Firefox drops a letter
+    // pressed again while it is still down.
+    for (const key of Array.from('ok this one is SPECIAL, first time with a DRAGON. 6 minutes, tell me when you get to the end')) await s.browser.keys(key);
     await s.press(/^/, 'modal', '.cg-bd__head .cg-bt__check');
-    await s.press(/^Написать личные строки/, 'modal');
+    await s.press(/^Подстроить под каждого/, 'modal');
     await s.see('modal', /Отправить/, 60_000);
     await s.shot('outreach-ready');
+    // The fan's whole version, in their preview under the row.
+    await s.press(/^Hub Whale/, 'modal', '[data-cg-key^="fan:"]');
+    await s.see('modal', 'had to show you this one first', 20_000);
+    await s.shot('outreach-preview');
     await s.press(/^Отправить/, 'modal', '.cg-or__send');
     await s.see('modal', 'Отправлено', 20_000);
     await s.shot('outreach-sent');
@@ -35,6 +44,7 @@ scenario(
   {
     sites: ['fansly'],
     before: async ({ hub }) => {
+      await hub.command({ op: 'config', patch: { aiTexts: { ...SEE_AI_TEXTS, 'improve-draft': ADAPTED } } });
       await hub.command({
         op: 'spenderFans',
         fans: [

@@ -83,6 +83,8 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   noteFields: ['fan-notes-fill'],
   /** 1.16.0 (R20 P11b2): the merge mode — the questionnaire's values (`NoteValuesSchema`; empty only before 1.28.0). */
   noteValues: ['fan-notes-fill'],
+  /** «Рассылка»: Fix rewrites the model's mass message for one fan (hub `outreach-fix-v1`). */
+  draftPurpose: ['improve-draft'],
 } as const satisfies Record<string, readonly HubAiFeature[]>;
 
 export interface HubFeatureSpec {
@@ -268,6 +270,8 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   fanAvatarUrl: z.optional(HiFanAvatarUrlSchema),
   /** 1.48.0: «с Recap» unticked for the chat (`StartOp.recap`) — only to a hub that lists `recap-off-v1`. */
   recap: z.optional(z.literal('off')),
+  /** «Рассылка» (`StartOp.draftPurpose`): Fix of a mass message for one fan — only to a hub that lists `outreach-fix-v1`. */
+  draftPurpose: z.optional(z.literal('outreach')),
 });
 export type AiFeatureStreamBody = z.infer<typeof AiFeatureStreamBodySchema>;
 

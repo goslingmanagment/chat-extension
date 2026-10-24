@@ -105,7 +105,7 @@ function PanelSplit({ panelRef, height, onResize }: { readonly panelRef: RefObje
  * черновик каждому — отправляете вы сами»; a batch already on its way says how far it got and can be stopped. The
  * batch never sends: each result waits on its fan's card for the person's own click (X8).
  */
-function PickedBar({ batch, picked, outreach }: { readonly batch: BatchVM; readonly picked: readonly string[]; readonly outreach: boolean }): JSX.Element {
+function PickedBar({ batch, picked, outreach }: { readonly batch: BatchVM; readonly picked: readonly string[]; readonly outreach: 'adapt' | 'lines' | null }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const total = batch.queued + batch.generating + batch.ready + batch.sent + batch.failed;
@@ -114,11 +114,11 @@ function PickedBar({ batch, picked, outreach }: { readonly batch: BatchVM; reado
     <div class="cg-sp__picked" role="group" aria-label={i18n.t('batch.pickAll')} data-cg-batch={running ? 'running' : 'picked'}>
       <b class="cg-sp__pickedn cg-num">{i18n.t('spenders.batch.picked', { n: batch.picked })}</b>
       <Button
-        label={i18n.t(outreach ? 'outreach.writeLines' : 'spenders.batch.write')}
+        label={i18n.t(outreach === 'adapt' ? 'outreach.adaptLines' : outreach === 'lines' ? 'outreach.writeLines' : 'spenders.batch.write')}
         size="sm"
         class="cg-sp__solid"
         reason={batch.reason === null ? null : i18n.text(batch.reason)}
-        tooltip={i18n.t('batch.generateTooltip')}
+        tooltip={i18n.t(outreach === 'adapt' ? 'outreach.adaptBatchTooltip' : 'batch.generateTooltip')}
         onClick={() => void dispatch({ type: 'GenerateBatch', list: 'spenders' })}
       />
       <Button
@@ -340,7 +340,7 @@ export function SpendersWindow(): JSX.Element {
             </header>
             {ticking && board.batch !== undefined ? (
               <div class="cg-sp__bar is-batch">
-                <PickedBar batch={board.batch} picked={picked} outreach={board.outreach?.open === true} />
+                <PickedBar batch={board.batch} picked={picked} outreach={board.outreach?.open !== true ? null : board.outreach.adapt === true ? 'adapt' : 'lines'} />
               </div>
             ) : (
               <div class="cg-sp__bar">

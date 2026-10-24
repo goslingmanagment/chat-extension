@@ -227,7 +227,8 @@ export function createBatch(deps: BatchDeps): Batch {
 
 /** What a list's batch asks of the preview (its controller, bound late: the preview is made after the lists). */
 export interface BatchPreviewPort {
-  batchStart(source: 'spenders' | 'newcomers', handle: string, feature: 'reply' | 'ping' | 'hi'): Promise<BatchOutcome>;
+  /** `outreach` — «Рассылка»: a Fix of the common text made personal for the fan (the card's draft stays as it is). */
+  batchStart(source: 'spenders' | 'newcomers', handle: string, feature: 'reply' | 'ping' | 'hi' | 'fix', outreach?: { readonly draft: string }): Promise<BatchOutcome>;
   batchLive(handle: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** X59 on a hub's «Новые»: the row's own «Отправить» of the fan's greeting; null — no part waits (absent — none here). */
   batchSend?(handle: string): NewcomerRowSendVM | null;

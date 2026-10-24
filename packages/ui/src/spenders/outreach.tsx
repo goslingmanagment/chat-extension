@@ -61,14 +61,33 @@ export function OutreachBar({ outreach, started }: { readonly outreach: Outreach
   const i18n = useI18n();
   const dispatch = useDispatch();
   const media = outreach.items.some((item) => item.contentType === 1);
+  const adapt = outreach.adapt === true;
+  const adaptTip = useTooltip(i18n.t('outreach.adaptTooltip'));
   return (
-    <section class="cg-or" aria-label={i18n.t('outreach.title')} data-cg-outreach="open">
+    <section class="cg-or" aria-label={i18n.t('outreach.title')} data-cg-outreach="open" data-cg-adapt={adapt ? 'on' : 'off'}>
       <div class="cg-or__col">
-        <span class="cg-or__label">{i18n.t('outreach.text')}</span>
+        <span class="cg-or__label">
+          {i18n.t(adapt ? 'outreach.textAdapt' : 'outreach.text')}
+          {/* «Подстроить под фана»: only where the hub can rewrite a mass message for one fan. */}
+          {outreach.adapt === null ? null : (
+            <button
+              type="button"
+              role="switch"
+              class="cg-or__adapt"
+              aria-checked={adapt ? 'true' : 'false'}
+              {...adaptTip.props}
+              onClick={() => void dispatch({ type: 'SetOutreach', adapt: !adapt })}
+            >
+              <CheckGlyph on={adapt} />
+              {i18n.t('outreach.adapt')}
+              {adaptTip.description}
+            </button>
+          )}
+        </span>
         <TextField
           value={outreach.text}
-          label={i18n.t('outreach.text')}
-          placeholder={i18n.t('outreach.textPlaceholder')}
+          label={i18n.t(adapt ? 'outreach.textAdapt' : 'outreach.text')}
+          placeholder={i18n.t(adapt ? 'outreach.textAdaptPlaceholder' : 'outreach.textPlaceholder')}
           multiline
           minHeight={64}
           maxHeight={140}
@@ -93,19 +112,23 @@ export function OutreachBar({ outreach, started }: { readonly outreach: Outreach
         )}
         {media ? <span class="cg-or__note">{i18n.t('outreach.mediaHint')}</span> : null}
         {/* How it goes, until a batch wrote the lines: then the batch's own line says what is left. */}
-        {started ? null : <span class="cg-or__note">{i18n.t('outreach.hint')}</span>}
+        {started ? null : <span class="cg-or__note">{i18n.t(adapt ? 'outreach.hintAdapt' : 'outreach.hint')}</span>}
       </div>
       <Button label={i18n.t('outreach.close')} icon="x" iconOnly variant="quiet" size="sm" class="cg-or__close cg-or__icon" onClick={() => void dispatch({ type: 'SetOutreach', open: false })} />
     </section>
   );
 }
 
-/** What goes after the row's personal line: «+ общий текст и 2 вложения»; null — nothing but the line. */
+/**
+ * What goes after the row's line: «+ общий текст и 2 вложения»; with «Подстроить под фана» the line is the fan's whole
+ * version, so only «+ 2 вложения»; null — nothing but the line.
+ */
 export function useOutreachAdds(outreach: OutreachVM | undefined): string | null {
   const i18n = useI18n();
   if (outreach === undefined) return null;
   const items = outreach.items.filter((item) => item.picked).length;
-  const parts = [outreach.text.trim() === '' ? null : i18n.t('outreach.plusText'), items === 0 ? null : i18n.plural('outreach.plusItems', items)].filter((part) => part !== null);
+  const text = outreach.adapt !== true && outreach.text.trim() !== '';
+  const parts = [text ? i18n.t('outreach.plusText') : null, items === 0 ? null : i18n.plural('outreach.plusItems', items)].filter((part) => part !== null);
   return parts.length === 0 ? null : i18n.t('outreach.plus', { what: parts.join(` ${i18n.t('outreach.and')} `) });
 }
 
@@ -175,6 +198,13 @@ export const OUTREACH_CSS = `
 .cg-or__item .cg-ico { width: 12px; height: 12px; }
 .cg-or__id { color: var(--cg-ink-faint); font-size: var(--cg-text-xs); }
 .cg-or__item[aria-checked="true"] .cg-or__id { color: var(--cg-ink-muted); }
+.cg-or__adapt {
+  display: inline-flex; align-items: center; gap: 5px; height: 20px; margin-left: auto; padding: 0 8px; border-radius: var(--cg-r-sm);
+  color: var(--cg-ink-muted); font-size: var(--cg-text-xs); font-weight: 500;
+}
+.cg-or__adapt:hover { color: var(--cg-ink-strong); }
+.cg-or__adapt[aria-checked="true"] { background: var(--cg-clay-bg); color: var(--cg-clay-ink); }
+.cg-or__adapt .cg-ico { width: 11px; height: 11px; }
 .cg-or__note { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 1.4; white-space: normal; }
 .cg-spw .cg-sp__head .cg-or__toggle.cg-btn[aria-pressed="true"] { background: var(--cg-seg-on); color: var(--cg-ink-strong); }
 /* A row of the outreach: «Отправить» always shown in the action cell; the personal line under it is a draft. */
