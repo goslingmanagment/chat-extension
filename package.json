@@ -25,6 +25,7 @@
     "see:session": "node tools/see/index.ts session",
     "see:do": "node tools/see/index.ts do",
     "see:gallery": "node tools/see/index.ts gallery",
+    "fansly:bundle": "node tools/fansly-bundle/index.ts",
     "sign:dry-run": "node tools/sign-dry-run/index.ts",
     "release": "node tools/release/index.ts"
   },

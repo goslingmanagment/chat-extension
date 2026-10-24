@@ -111,6 +111,7 @@ export default defineConfig({
     zipSources: flavor === 'release',
     sourcesRoot: repoRoot,
     includeSources: ['**/*', ...SOURCE_DOTFILES],
-    excludeSources: ['docs/**', 'changes/**', 'AGENTS.md', '**/.output/**', '**/.wxt/**', '**/.tsbuild/**', '**/coverage/**', '**/*.tsbuildinfo', ...STAND_SOURCE_GLOBS],
+    // tools/fansly-bundle reads fansly.com's own code: not needed to rebuild the XPI, and its folder names are markers.
+    excludeSources: ['docs/**', 'changes/**', 'AGENTS.md', 'tools/fansly-bundle/**', '**/.output/**', '**/.wxt/**', '**/.tsbuild/**', '**/coverage/**', '**/*.tsbuildinfo', ...STAND_SOURCE_GLOBS],
   },
 });
