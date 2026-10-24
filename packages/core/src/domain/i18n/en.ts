@@ -1545,6 +1545,8 @@ export const EN: I18nCatalog<'en'> = {
   'cg.personaChanged.body': 'The persona changed during generation. Run the generation again.',
   'cg.featureDisabled.title': 'Feature turned off',
   'cg.featureDisabled.body': 'This feature is turned off for the page.',
+  'cg.siteOff.title': '{site} is off in the extension',
+  'cg.siteOff.body': 'ChatGoose {onSite} is turned off in this browser. Turn {site} on in the extension window: open tabs reload by themselves.',
   'cg.contextChanged.title': 'The chat changed',
   'cg.contextChanged.body': 'The chat or the fan’s data changed during generation. Run it again.',
   'cg.contextConflict.title': 'The conversation changed',

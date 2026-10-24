@@ -117,7 +117,7 @@ const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? o
 
 /**
  * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
- * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself.
+ * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself with `CG-SITE-OFF`.
  */
 const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState']);
 
@@ -249,7 +249,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
     const relayed = relay.handle(type, payload, sender);
     if (relayed !== null) return relayed;
     if (!active()) {
-      if (type === 'fansly.ops.start') return unreachable('Fansly is off');
+      if (type === 'fansly.ops.start') return { ok: false, error: { code: 'CG-SITE-OFF' } };
       if (BEGINS.has(type)) return ok({ ok: false, error: { code: 'CG-FAN-OFF' } });
     }
     if (type === 'fansly.spenders.names' || type === 'fansly.spenders.resolve' || type === 'fansly.spenders.outreach') {

@@ -15,6 +15,10 @@
 // - The extension itself was reloaded or updated under the tab: the runtime
 //   is gone for good — `reloaded`, everything ends with CG-RUNTIME-RELOADED
 //   (the «перезагрузите вкладку» banner, UP-009).
+// - The site is off in this browser (its switch, or its rights taken back):
+//   the background refuses `tab.register` with CG-SITE-OFF. The client is
+//   `closed` for good, everything ends with that code, and `onSiteOff` lets
+//   the tab take its UI off the page.
 // - Light: the request registry is injected (`validate`), so the early
 //   isolated bundle decides when to load it.
 
@@ -41,6 +45,8 @@ export interface TabRpcClientOptions {
   readonly registerTimeoutMs?: number;
   readonly reconnectDelaysMs?: readonly number[];
   readonly isContextAlive?: () => boolean;
+  /** The background refused the tab: its site is off in this browser (`CG-SITE-OFF`). The client is closed by then. */
+  readonly onSiteOff?: () => void;
 }
 
 export type TabClientRequestType = Exclude<TabRequestType, 'tab.register'>;
@@ -107,7 +113,7 @@ export function createTabRpcClient(options: TabRpcClientOptions): TabRpcClient {
     pending.resolve(result);
   };
 
-  const endAll = (list: Iterable<Pending>, code: 'CG-RUNTIME-UNREACHABLE' | 'CG-RUNTIME-RELOADED', detail: string): void => {
+  const endAll = (list: Iterable<Pending>, code: 'CG-RUNTIME-UNREACHABLE' | 'CG-RUNTIME-RELOADED' | 'CG-SITE-OFF', detail: string): void => {
     for (const pending of [...list]) finish(pending, rpcError(code, detail));
   };
 
@@ -189,6 +195,11 @@ export function createTabRpcClient(options: TabRpcClientOptions): TabRpcClient {
     if (envelope.kind !== 'res') return;
     if (envelope.id === registerId && envelope.type === 'tab.register') {
       clearRegister();
+      if (!envelope.ok && envelope.error.code === 'CG-SITE-OFF') {
+        end('CG-SITE-OFF', 'site disabled');
+        options.onSiteOff?.();
+        return;
+      }
       const checked = envelope.ok ? options.validate('res', 'tab.register', envelope.payload) : { ok: false as const };
       const tabSessionId = checked.ok ? (checked.payload as { tabSessionId: string }).tabSessionId : null;
       if (tabSessionId === null) {
@@ -244,6 +255,18 @@ export function createTabRpcClient(options: TabRpcClientOptions): TabRpcClient {
     }
   }
 
+  /** The client ends for good: what was sent or waits ends with `code`. */
+  function end(code: 'CG-RUNTIME-UNREACHABLE' | 'CG-SITE-OFF', detail: string): void {
+    if (retryTimer !== null) clearTimeout(retryTimer);
+    retryTimer = null;
+    const sent = [...inflight.values()];
+    inflight.clear();
+    dropPort();
+    endAll(sent, code, detail);
+    endAll(waiting.splice(0), code, detail);
+    setState('closed');
+  }
+
   connect();
 
   return {
@@ -292,14 +315,7 @@ export function createTabRpcClient(options: TabRpcClientOptions): TabRpcClient {
     },
     close() {
       if (state === 'closed') return;
-      if (retryTimer !== null) clearTimeout(retryTimer);
-      retryTimer = null;
-      const sent = [...inflight.values()];
-      inflight.clear();
-      dropPort();
-      endAll(sent, 'CG-RUNTIME-UNREACHABLE', 'closed');
-      endAll(waiting.splice(0), 'CG-RUNTIME-UNREACHABLE', 'closed');
-      setState('closed');
+      end('CG-RUNTIME-UNREACHABLE', 'closed');
     },
   };
 }

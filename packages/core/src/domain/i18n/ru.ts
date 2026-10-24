@@ -1614,6 +1614,8 @@ export const RU: I18nCatalog<'ru'> = {
   'cg.personaChanged.body': 'Персону изменили во время генерации. Запустите генерацию ещё раз.',
   'cg.featureDisabled.title': 'Функция выключена',
   'cg.featureDisabled.body': 'Эта функция выключена для страницы.',
+  'cg.siteOff.title': '{site} выключен в расширении',
+  'cg.siteOff.body': 'ChatGoose {onSite} выключен в этом браузере. Включите {site} в окне расширения — открытые вкладки перезагрузятся сами.',
   'cg.contextChanged.title': 'Чат изменился',
   'cg.contextChanged.body': 'Пока шла генерация, сменился чат или данные фана. Запустите заново.',
   'cg.contextConflict.title': 'Переписка изменилась',

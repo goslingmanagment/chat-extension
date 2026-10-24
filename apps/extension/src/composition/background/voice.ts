@@ -115,7 +115,7 @@ export function createBackgroundVoice(deps: BackgroundVoiceDeps) {
   }
 
   const refuseSwitchedOff = (sender: KitSender): RpcResult<never> | null =>
-    sender.kind === 'tab' && !deps.siteActive(sender.tabSessionId) ? { ok: false, error: { code: 'CG-FEATURE-DISABLED' } } : null;
+    sender.kind === 'tab' && !deps.siteActive(sender.tabSessionId) ? { ok: false, error: { code: 'CG-SITE-OFF' } } : null;
   const ok = <T>(payload: T): RpcResult<T> => ({ ok: true, payload });
 
   const handlers: {

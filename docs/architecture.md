@@ -3342,6 +3342,7 @@ M2–M6 — не строгая очередь, а точки сборки. По
 | CG-PERSONA-UNAVAILABLE | персона в архиве или не найдена — выберите замену | — | PAGE-06 / — |
 | CG-PERSONA-CHANGED | персона изменилась во время генерации | клик | PAGE-07 / PERSONA-CHANGED |
 | CG-FEATURE-DISABLED | функция выключена для страницы | — | PAGE-08 / — |
+| CG-SITE-OFF | сайт (Fansly) выключен в расширении этого браузера: выключатель или снятое право на сайт | — | — / — |
 | CG-CONTEXT-CHANGED | идентичность или данные цели изменились | клик | — / CONTEXT-CHANGED |
 | CG-CONTEXT-CONFLICT | свежий текст не принят хабом (`context_conflict`) | клик | GEN-11 / CONTEXT-CONFLICT |
 | CG-QUOTA-DAILY | дневная квота AI исчерпана (`quota_denied`), обновится в 00:00 UTC | срок | GEN-01 / QUOTA-DAILY |

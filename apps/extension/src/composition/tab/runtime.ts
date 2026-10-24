@@ -154,6 +154,12 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     validate,
     register: { host: env.kind, lateInjection: env.lateInjection, contractsVersion: CONTRACTS_VERSION },
     ...(api === undefined ? {} : { api }),
+    // The site is off in this browser (its switch, or its rights taken back): nothing of ours stays on the page — the
+    // dock with its buttons would only answer every click with a refusal. Turned on again, the tab reloads or says so.
+    onSiteOff() {
+      env.abort('site-off');
+      probe?.set('runtime', 'site-off');
+    },
   });
   life.addEventListener('abort', () => rpc.close());
   host.background?.connect(rpc, life);
