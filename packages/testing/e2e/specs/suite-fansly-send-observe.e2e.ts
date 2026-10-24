@@ -147,6 +147,8 @@ describe('Fansly’s human send on its stand and its `sent` (R20 P7f)', () => {
           platformMessageId: await newestId(),
           textDigest: record.contentDigest,
           draft: { revision: expect.any(Number) as unknown, provenance: 'our-insert', insertIntentId: record.intentId, editedSinceInsert: false },
+          // Chat Memory week 1: the chat's group, for the hub's record of who sent the message.
+          conversationRef: group,
         });
         // The page sent its model, and cleared its field — no text of ours went anywhere but into the field.
         expect(await mainComposer()).toMatchObject({ value: '', model: '' });

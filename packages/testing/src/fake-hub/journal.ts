@@ -37,6 +37,8 @@ export const JOURNAL_KEPT_STRING_KEYS: ReadonlySet<string> = new Set([
   'cursor', 'period', 'scope', 'sortBy', 'sortDir', 'retentionStatus', 'from', 'to', 'date', 'timeZone',
   // ingest envelope, acceptance and health payloads (health codes and metric names)
   'kind', 'clientEventId', 'observedAt', 'lifecycle', 'opId', 'surface', 'via', 'metric', 'missing', 'disabled',
+  // who sent each message (Chat Memory week 1): how the text was written — a word of a closed list, never the text
+  'composedWith',
 ]);
 const KEPT_MAX_CHARS = 200;
 const KEPT_VALUE = new RegExp(`^\\S{0,${KEPT_MAX_CHARS}}$`, 'u');
