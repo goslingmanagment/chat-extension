@@ -47,7 +47,7 @@ import {
 import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
 import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
-import { type FanCard, type FanCardQuery, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
+import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
 import { type VoiceAllowance, type VoiceAllowanceQuery, type VoiceNoteCreateRequest, type VoiceNoteRef, type VoiceNoteView } from '../voice';
@@ -195,6 +195,10 @@ export interface HubFacade {
   fanLinkDecide(request: FanLinkDecideRequest): Promise<FanLinkDecideResult>;
   /** A chatter deletes or corrects a fact; never repeated by itself. */
   fanFactChange(request: FanFactChangeRequest): Promise<FanFactChangeResult>;
+  /** Chat Memory week 4: a custom written into the fan's card; refused without `fan-customs-v1`. Never repeated by itself. */
+  fanCustomCreate(request: FanCustomCreateRequest): Promise<FanFactChangeResult>;
+  /** A custom marked paid, delivered, cancelled or edited, by the card's suggestions; never repeated by itself. */
+  fanCustomChange(request: FanCustomChangeRequest): Promise<FanFactChangeResult>;
   /** Chat Memory week 3: the win-back list of a page; refused without `win-back-v1`. */
   winBack(query: WinBackQuery): Promise<WinBackList>;
   /** A chatter's approach pick for a fan of the list; never repeated by itself. */

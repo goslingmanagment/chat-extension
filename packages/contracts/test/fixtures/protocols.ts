@@ -97,6 +97,9 @@ const HANDOFF = {
   serverNow: '2026-10-24T10:00:00.000Z',
 };
 
+/** Chat Memory week 4: a paid custom with a delivery Hub suggests. */
+const CUSTOM = { id: 3, pageLabel: 'model-two-fansly', granted: true, description: 'A 5-minute video in red', priceMills: 120_000, state: 'paid', paymentMills: 120_000, paidAt: '2026-10-22T10:00:00.000Z', deliveredMessageRef: null, deliveredAt: null, createdBy: 'Nikita', createdAt: '2026-10-22T10:05:00.000Z', deliveryCandidates: [{ messageRef: '930000000000000078', at: '2026-10-23T10:00:00.000Z', mediaCount: 1, priceMills: null }] };
+
 /** Chat Memory week 2: a fan's card as the hub answers it. */
 const MEMORY_CARD = { pageLabel: 'model-two-fansly', fanRef: '920000000000000003', known: true, accounts: [{ platform: 'fansly', fanRef: '920000000000000003', username: 'kai_38', displayName: 'Kai', gone: false, linkedBy: null }], pages: [{ pageLabel: 'model-two-fansly', platform: 'fansly', modelName: 'Model Two', fanRef: '920000000000000003', granted: true, alias: '💵Kai/Canada/38', subscribed: true, subscribedSince: '2026-09-01T10:00:00.000Z', subscriptionEndsAt: null, spentMills: 120000, last30Mills: { tip: 20000 }, lastPurchaseAt: '2026-10-20T10:00:00.000Z' }], suggestions: [], facts: [{ id: 7, kind: 'about', text: 'Lives in Toronto, works nights', pageLabel: 'model-two-fansly', granted: true, conversationRef: '810000000000000001', messageRef: '930000000000000001', messageAt: '2026-10-20T10:00:00.000Z', source: 'ai', author: null, createdAt: '2026-10-20T10:20:00.000Z' }], serverNow: '2026-10-24T10:00:00.000Z' };
 
@@ -384,6 +387,20 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
       invalid: [{ ...pageFan, factId: 7, action: 'correct', text: '   ' }, { ...pageFan, factId: 7, action: 'correct', text: 'x'.repeat(501) }, { ...pageFan, factId: 0, action: 'delete' }],
     },
     res: { valid: [{ changed: true, card: MEMORY_CARD }, { changed: false, card: MEMORY_CARD }], invalid: [{ changed: true }] },
+  },
+  'fan.memory.custom': {
+    req: {
+      valid: [
+        { ...pageFan, action: 'create', description: 'A 5-minute video in red', priceMills: 120_000, paymentRef: '930000000000000077' },
+        { ...pageFan, action: 'create', description: 'A photo set' },
+        { ...pageFan, customId: 3, action: 'paid', paymentRef: '930000000000000077' },
+        { ...pageFan, customId: 3, action: 'delivered', messageRef: '930000000000000078' },
+        { ...pageFan, customId: 3, action: 'cancel' },
+      ],
+      // Something ordered, a suggestion named whole; no edit from the extension.
+      invalid: [{ ...pageFan, action: 'create', description: '  ' }, { ...pageFan, customId: 3, action: 'paid' }, { ...pageFan, customId: 3, action: 'edit', description: 'x', priceMills: null }],
+    },
+    res: { valid: [{ changed: true, card: { ...MEMORY_CARD, customs: [CUSTOM], customPayments: [{ paymentRef: '930000000000000077', amountMills: 120_000, at: '2026-10-22T10:00:00.000Z', note: 'for my video' }] } }], invalid: [{ changed: true, card: { ...MEMORY_CARD, customs: [{ id: 3 }] } }] },
   },
   'newcomers.list': {
     req: { valid: [{ pageId: 11, windowHours: 48, cursor: null }], invalid: [{ pageId: 11, windowHours: 721, cursor: null }] },

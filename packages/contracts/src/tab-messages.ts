@@ -41,7 +41,7 @@ import { BootstrapSchema } from './hub/bootstrap';
 import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
-import { FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
+import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
 import { HandoffSchema, WinBackAttemptResultSchema, WinBackListSchema } from './hub/queue';
 import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
@@ -564,6 +564,20 @@ export const TAB_REQUESTS = {
     req: z.union([
       z.strictObject({ ...PageFan, factId: HubIntIdSchema, action: z.literal('delete') }),
       z.strictObject({ ...PageFan, factId: HubIntIdSchema, action: z.literal('correct'), text: z.string().check(z.trim(), z.minLength(1), z.maxLength(FAN_FACT_MAX_CHARS)) }),
+    ]),
+    res: FanFactChangeResultSchema,
+    from: TAB,
+  },
+  /**
+   * Chat Memory week 4: a custom written into the fan's card (`create`, paid by a suggested tip or not yet), or marked
+   * paid / delivered by the card's suggestion, or cancelled. One call, never repeated; answered with the card as it stands.
+   */
+  'fan.memory.custom': {
+    req: z.union([
+      z.strictObject({ ...PageFan, action: z.literal('create'), description: z.string().check(z.trim(), z.minLength(1), z.maxLength(FAN_CUSTOM_MAX_CHARS)), priceMills: z.optional(z.int().check(z.gte(0))), paymentRef: z.optional(NativeIdSchema) }),
+      z.strictObject({ ...PageFan, customId: HubIntIdSchema, action: z.literal('paid'), paymentRef: NativeIdSchema }),
+      z.strictObject({ ...PageFan, customId: HubIntIdSchema, action: z.literal('delivered'), messageRef: NativeIdSchema }),
+      z.strictObject({ ...PageFan, customId: HubIntIdSchema, action: z.literal('cancel') }),
     ]),
     res: FanFactChangeResultSchema,
     from: TAB,

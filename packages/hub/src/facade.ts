@@ -76,6 +76,8 @@ import {
   type InConversationResult,
   type FanCard,
   type FanCardQuery,
+  type FanCustomChangeRequest,
+  type FanCustomCreateRequest,
   type Handoff,
   type HandoffQuery,
   type WinBackAttemptRequest,
@@ -924,6 +926,16 @@ export class ChatExtensionHub implements HubFacade {
   /** A chatter deletes or corrects a fact. Never repeated here. */
   async fanFactChange(request: FanFactChangeRequest): Promise<FanFactChangeResult> {
     return (await this.client('clientFanFactChange', request, request.pageLabel)) as FanFactChangeResult;
+  }
+
+  /** Chat Memory week 4: a custom written into the fan's card. Never repeated here. */
+  async fanCustomCreate(request: FanCustomCreateRequest): Promise<FanFactChangeResult> {
+    return (await this.client('clientFanCustomCreate', request, request.pageLabel)) as FanFactChangeResult;
+  }
+
+  /** A custom marked paid, delivered, cancelled or edited. Never repeated here. */
+  async fanCustomChange(request: FanCustomChangeRequest): Promise<FanFactChangeResult> {
+    return (await this.client('clientFanCustomChange', request, request.pageLabel)) as FanFactChangeResult;
   }
 
   /** Chat Memory week 3: the win-back list of a page granted by this bootstrap; refused without `win-back-v1`. */

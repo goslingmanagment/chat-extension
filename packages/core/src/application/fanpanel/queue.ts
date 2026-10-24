@@ -10,7 +10,7 @@
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { hasCapability, type Handoff, type QueuePage, type WinBackList } from '@cg/contracts/hub';
-import { type ActionReceipt, type I18n, type QueueFanVM, type QueueTab, type QueueVM, type QueueWaitingVM, type UiAction, type VmView } from '@cg/contracts/vm';
+import { type ActionReceipt, type I18n, type QueueCustomVM, type QueueFanVM, type QueueTab, type QueueVM, type QueueWaitingVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { queueName, winBackReason } from '../../domain/fanpanel/queue';
 import { POLL_OPEN_MS, nextPollDelay } from '../../domain/newcomers/poll';
@@ -197,6 +197,15 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
     const handoffWaiting = (handoff.data?.waiting.head ?? []).map((row) => ({ ...fanOf(row, row.lifetimeGrossMills), since: row.lastFanMessageAt }));
     // A promise names its fan when a row of the handoff does.
     const names = new Map([...handoffWaiting, ...recent].map((row) => [row.key, row.name]));
+    const customs = handoff.data?.customs?.map((custom): QueueCustomVM => ({
+      key: `${custom.fanRef}:${custom.createdAt}`,
+      description: custom.description,
+      state: custom.state === 'ordered' || custom.state === 'paid' ? custom.state : null,
+      paidAt: custom.paidAt,
+      createdAt: custom.createdAt,
+      name: names.get(custom.fanRef) ?? null,
+      open: openOf(custom.fanRef, custom.conversationRef),
+    }));
     const promises = (handoff.data?.promises ?? []).map((promise) => ({
       key: `${promise.fanRef}:${promise.messageRef}`,
       text: promise.text,
@@ -221,7 +230,7 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
       view: shownView,
       waiting: waiting.data === null ? null : { total: waiting.data.total, rows: waitingRows },
       winBack: winBack.data === null ? null : { rows: winBackRows, picked },
-      handoff: handoff.data === null ? null : { recent, waitingTotal: handoff.data.waiting.total, waiting: handoffWaiting, promises },
+      handoff: handoff.data === null ? null : { recent, waitingTotal: handoff.data.waiting.total, waiting: handoffWaiting, promises, ...(customs === undefined ? {} : { customs }) },
       error: pickError === null ? null : errorOf(pickError, i18n),
     };
   }

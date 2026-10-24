@@ -11985,9 +11985,9 @@ export declare const routeAuthPolicySchema: z.ZodObject<{
         apiKey: "apiKey";
         agentKey: "agentKey";
         monitoring: "monitoring";
+        "any-session": "any-session";
         public: "public";
         hmac: "hmac";
-        "any-session": "any-session";
         "device-token": "device-token";
         "pending-device-token": "pending-device-token";
     }>;

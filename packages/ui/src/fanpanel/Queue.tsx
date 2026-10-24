@@ -4,7 +4,7 @@
 // - «Вернуть»: why the fan is listed, the owner's approaches as chips — a tap records the pick and the fan leaves the
 //   list with «Подход выбран» and his chat to open. The chatter writes himself: nothing is sent from here.
 // - «Передача»: whom the team wrote to in 12 hours (who, how many, who is still «в разговоре»), who waits, the open
-//   promises — none known is «не знаю».
+//   promises — none known is «не знаю» — and the page's open customs (Chat Memory week 4).
 // A row opens the fan's chat; the panel stays where it is.
 
 import { type ComponentChildren, type JSX } from 'preact';
@@ -108,6 +108,32 @@ function Handoff({ queue }: { readonly queue: QueueVM }): JSX.Element | null {
           <FanRow key={row.key} fan={row} meta={i18n.t('queue.waiting.since', { age: i18n.formatAge(row.since) })} />
         ))}
       </div>
+      {handoff.customs === undefined ? null : (
+        <div class="cg-fp__sec" data-cg-queue-customs="1">
+          <div class="cg-fp__cap">{i18n.t('queue.handoff.customs')}</div>
+          {handoff.customs.length === 0 ? <div class="cg-fp__none">{i18n.t('fanPanel.memory.custom.none')}</div> : null}
+          {handoff.customs.map((custom) => (
+            <div key={custom.key} class="cg-q__promise">
+              <div class="cg-q__text">{custom.description}</div>
+              <div class="cg-q__meta">
+                <span>
+                  {[
+                    custom.name,
+                    custom.state === 'paid' && custom.paidAt !== null
+                      ? i18n.t('fanPanel.memory.custom.paid', { age: i18n.formatAge(custom.paidAt) })
+                      : custom.state === 'ordered'
+                        ? i18n.t('fanPanel.memory.custom.ordered', { age: i18n.formatAge(custom.createdAt) })
+                        : i18n.t('fanPanel.memory.custom.unknown'),
+                  ]
+                    .filter((part) => part !== null)
+                    .join(' · ')}
+                </span>
+                {custom.open === null ? null : <Button label={i18n.t('common.openChat')} variant="quiet" size="sm" onClick={() => void dispatch(custom.open!)} />}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div class="cg-fp__sec">
         <div class="cg-fp__cap">{i18n.t('queue.handoff.promises')}</div>
         {handoff.promises.length === 0 ? <div class="cg-fp__none">{i18n.t('fanPanel.memory.unknown')}</div> : null}

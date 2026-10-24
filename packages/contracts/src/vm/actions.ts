@@ -421,6 +421,13 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('DecideFanLink', { otherPlatform: boundedText(64), otherFanRef: NativeIdSchema, decision: z.enum(['same', 'different']) }),
   /** A fact of a page the person works: «Удалить», or «Исправить» with the text they wrote (≤ 500). One hub call. */
   act('ChangeFanFact', { factId: z.int().check(z.gte(1)), action: z.enum(['delete', 'correct']), text: z.optional(z.string().check(z.maxLength(500))) }),
+  /**
+   * Chat Memory week 4, «Кастомы» of «Память»: «Записать кастом» — what was ordered (≤ 500), the price, and optionally
+   * one of the tips the card suggests as its payment. One hub call, never repeated by itself.
+   */
+  act('RecordFanCustom', { description: z.string().check(z.maxLength(500)), priceMills: z.optional(z.int().check(z.gte(0))), paymentRef: z.optional(NativeIdSchema) }),
+  /** An open custom: «Оплачен» by a suggested tip (`ref`), «Отдали» by a suggested message (`ref`), «Отменить». One hub call. */
+  act('ChangeFanCustom', { customId: z.int().check(z.gte(1)), action: z.enum(['paid', 'delivered', 'cancel']), ref: z.optional(NativeIdSchema) }),
 
   // ── toasts ──
   act('DismissToast', { toastId: HandleSchema }),

@@ -42,6 +42,9 @@ import {
   type FanFactChangeResult,
   type FanLinkDecideRequest,
   type FanLinkDecideResult,
+  type FanCardCustom,
+  type FanCustomChangeRequest,
+  type FanCustomCreateRequest,
   type Handoff,
   type WinBackAttemptRequest,
   type WinBackAttemptResult,
@@ -1150,6 +1153,60 @@ export class DataModel {
       promises: [],
       serverNow: iso(now),
     };
+  }
+
+  /** As the hub's `clientFanCustomCreate`: paid by a tip of `customPayments` (else 409 `not_suggested`) or waiting for it. */
+  fanCustomCreate(page: FakePage, request: FanCustomCreateRequest, by: string, now: number): Read<FanFactChangeResult> {
+    const card = this.fanCard(page, request.fanRef, now);
+    const payments = card.customPayments ?? [];
+    const payment = request.paymentRef === undefined ? null : (payments.find((item) => item.paymentRef === request.paymentRef) ?? null);
+    if (request.paymentRef !== undefined && payment === null) return no('conflict', 'not_suggested');
+    const customs = card.customs ?? [];
+    const custom: FanCardCustom = {
+      id: Math.max(0, ...customs.map((item) => item.id)) + 1,
+      pageLabel: page.pageLabel,
+      granted: true,
+      description: request.description.trim(),
+      priceMills: request.priceMills ?? null,
+      state: payment === null ? 'ordered' : 'paid',
+      paymentMills: payment?.amountMills ?? null,
+      paidAt: payment?.at ?? null,
+      deliveredMessageRef: null,
+      deliveredAt: null,
+      createdBy: by,
+      createdAt: iso(now),
+      deliveryCandidates: [],
+    };
+    const next = { ...card, customs: [custom, ...customs], customPayments: payments.filter((item) => item !== payment) };
+    this.setFanCard(page.pageLabel, request.fanRef, next);
+    return ok({ changed: true, card: next });
+  }
+
+  /** As the hub's `clientFanCustomChange`: only by the card's suggestions (409 `not_suggested`); delivered or cancelled is final. */
+  fanCustomChange(page: FakePage, request: FanCustomChangeRequest, now: number): Read<FanFactChangeResult> {
+    const card = this.fanCard(page, request.fanRef, now);
+    const customs = card.customs ?? [];
+    const custom = customs.find((item) => item.id === request.customId);
+    if (custom === undefined) return no('not_found', 'custom_not_found');
+    if (!custom.granted) return no('client_feature_disabled', 'not_granted');
+    if (custom.state === 'delivered' || custom.state === 'cancelled') return ok({ changed: false, card });
+    const payments = card.customPayments ?? [];
+    let changed: FanCardCustom;
+    let left = payments;
+    if (request.action === 'paid') {
+      const payment = payments.find((item) => item.paymentRef === request.paymentRef);
+      if (payment === undefined) return no('conflict', 'not_suggested');
+      changed = { ...custom, state: 'paid', paymentMills: payment.amountMills, paidAt: payment.at };
+      left = payments.filter((item) => item !== payment);
+    } else if (request.action === 'delivered') {
+      const candidate = custom.deliveryCandidates.find((item) => item.messageRef === request.messageRef);
+      if (candidate === undefined) return no('conflict', 'not_suggested');
+      changed = { ...custom, state: 'delivered', deliveredMessageRef: candidate.messageRef, deliveredAt: candidate.at, deliveryCandidates: [] };
+    } else if (request.action === 'cancel') changed = { ...custom, state: 'cancelled', deliveryCandidates: [] };
+    else changed = { ...custom, description: request.description.trim(), priceMills: request.priceMills };
+    const next = { ...card, customs: customs.map((item) => (item === custom ? changed : item)), customPayments: left };
+    this.setFanCard(page.pageLabel, request.fanRef, next);
+    return ok({ changed: true, card: next });
   }
 
   /** A scenario's «в разговоре»: `name` (another chatter) wrote to the fan `agoMs` before now. */

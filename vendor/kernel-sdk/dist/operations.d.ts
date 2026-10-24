@@ -1,4 +1,16 @@
 export declare const kernelOperations: {
+    readonly accountShiftReport: {
+        readonly method: "GET";
+        readonly path: "/api/v1/account/shift-report";
+    };
+    readonly accountShiftReportConfirm: {
+        readonly method: "POST";
+        readonly path: "/api/v1/account/shift-report/confirm";
+    };
+    readonly accountShiftReportMark: {
+        readonly method: "POST";
+        readonly path: "/api/v1/account/shift-report/marks";
+    };
     readonly adminAiAccountUpdate: {
         readonly method: "PATCH";
         readonly path: "/api/v1/admin/ai/accounts/:accountId";
@@ -674,6 +686,14 @@ export declare const kernelOperations: {
     readonly clientFanClaimStatus: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/claim";
+    };
+    readonly clientFanCustomChange: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/customs/:customId";
+    };
+    readonly clientFanCustomCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/customs";
     };
     readonly clientFanFactChange: {
         readonly method: "POST";
@@ -1378,6 +1398,22 @@ export declare const kernelOperations: {
     readonly teamAuthorship: {
         readonly method: "GET";
         readonly path: "/api/v1/team/authorship";
+    };
+    readonly teamCustoms: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/customs";
+    };
+    readonly teamShiftDisputes: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/shift-reports/disputes";
+    };
+    readonly teamShiftExport: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/shift-reports/export";
+    };
+    readonly teamShiftResolve: {
+        readonly method: "POST";
+        readonly path: "/api/v1/team/shift-reports/disputes/:saleRef";
     };
     readonly teamShifts: {
         readonly method: "GET";

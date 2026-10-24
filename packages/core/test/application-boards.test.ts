@@ -1552,6 +1552,66 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
     await h.flush();
     expect(h.boards.fanPanel.getSnapshot(PANEL).memory?.facts[0]?.items).toEqual([]);
   });
+
+  it('«Кастомы»: written paid by a suggested tip, delivered by a suggested message; only the asked page’s tips pay; an ended one has no buttons', async () => {
+    const h = await harness();
+    const page = h.bootstrap.pages.find((candidate) => candidate.platformAccountId === hostAccount.platformAccountId)!;
+    const custom = (id: number, pageLabel: string, state: string, candidates: number) => ({
+      id,
+      pageLabel,
+      granted: true,
+      description: `custom ${String(id)}`,
+      priceMills: 120_000,
+      state,
+      paymentMills: state === 'ordered' ? null : 120_000,
+      paidAt: state === 'ordered' ? null : iso(NOW_MS - 2 * 86_400_000),
+      deliveredMessageRef: null,
+      deliveredAt: null,
+      createdBy: 'Nikita',
+      createdAt: iso(NOW_MS - 3 * 86_400_000),
+      deliveryCandidates: Array.from({ length: candidates }, (_, n) => ({ messageRef: String(9100 + n), at: iso(NOW_MS - 3_600_000), mediaCount: 1, priceMills: null })),
+    });
+    h.hub.control({
+      op: 'fanCard',
+      pageLabel: page.pageLabel,
+      fanRef: '5000',
+      card: {
+        pageLabel: page.pageLabel,
+        fanRef: '5000',
+        known: true,
+        accounts: [],
+        pages: [],
+        suggestions: [],
+        facts: [],
+        // An ordered custom of another page the person works: the tips of this page do not pay it.
+        customs: [custom(1, page.pageLabel, 'paid', 1), custom(2, 'lora-1', 'ordered', 0), custom(3, page.pageLabel, 'cancelled', 0)],
+        customPayments: [{ paymentRef: '8001', amountMills: 50_000, at: iso(NOW_MS - 86_400_000), note: 'for my video' }],
+        serverNow: iso(NOW_MS),
+      },
+    });
+    h.hostEvent({ type: 'route', route: { epoch: 6, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } } });
+    await h.dispatch(open('fan-panel'));
+    await h.dispatch({ type: 'SetFanPanelTab', tab: 'memory' });
+    await h.flush();
+    let customs = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!;
+    expect(customs.items.map((item) => [item.id, item.state, item.payWith.length, item.deliveredBy.length, item.cancel !== null])).toEqual([
+      [1, 'paid', 0, 1, true],
+      [2, 'ordered', 0, 0, true],
+      [3, 'cancelled', 0, 0, false],
+    ]);
+    // «Записать кастом» with the suggested tip: written paid, the tip taken.
+    await h.dispatch({ type: 'RecordFanCustom', description: '  A photo set  ', priceMills: 50_000, paymentRef: '8001' });
+    await h.flush();
+    customs = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!;
+    expect(customs.items[0]).toMatchObject({ description: 'A photo set', state: 'paid', paid: 50_000, createdBy: WORLD.user.username });
+    expect(customs.payments).toEqual([]);
+    // «Отдали» by the suggested message: final, no buttons left.
+    await h.dispatch(customs.items.find((item) => item.id === 1)!.deliveredBy[0]!.action);
+    await h.flush();
+    const delivered = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!.items.find((item) => item.id === 1)!;
+    expect([delivered.state, delivered.deliveredBy, delivered.cancel]).toEqual(['delivered', [], null]);
+    expect(h.hub.read().entries.filter((entry) => entry.route === 'clientFanCustomCreate' || entry.route === 'clientFanCustomChange').length).toBe(2);
+  });
 });
 
 describe('Chat Memory week 3: «Очередь» of the fan panel', () => {

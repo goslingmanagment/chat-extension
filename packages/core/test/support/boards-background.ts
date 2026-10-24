@@ -419,6 +419,16 @@ export class BoardsBackground {
       const { pageId: _pageId, ...change } = request;
       return this.read('clientFanFactChange', { ...change, pageLabel });
     },
+    'fan.memory.custom': (request) => {
+      const pageLabel = this.pageLabel(request.pageId);
+      if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
+      if (request.action === 'create') {
+        const { pageId: _pageId, action: _action, ...custom } = request;
+        return this.read('clientFanCustomCreate', { ...custom, pageLabel });
+      }
+      const { pageId: _pageId, ...change } = request;
+      return this.read('clientFanCustomChange', { ...change, pageLabel });
+    },
     'newcomers.list': ({ pageId, windowHours, cursor }) => {
       const pageLabel = this.pageLabel(pageId);
       if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));

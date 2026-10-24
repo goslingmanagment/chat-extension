@@ -93,6 +93,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   ReleaseClaim: { type: 'ReleaseClaim', targetHandle: 'newcomers:f2' },
   SetFanPanelTab: { type: 'SetFanPanelTab', tab: 'recap' },
   SetQueueTab: { type: 'SetQueueTab', tab: 'winback' },
+  RecordFanCustom: { type: 'RecordFanCustom', description: 'A 5-minute video in red', priceMills: 120_000, paymentRef: '930000000000000077' },
+  ChangeFanCustom: { type: 'ChangeFanCustom', customId: 3, action: 'delivered', ref: '930000000000000078' },
   PickWinBack: { type: 'PickWinBack', fanRef: '920000000000000031', approachId: 2 },
   DecideFanLink: { type: 'DecideFanLink', otherPlatform: 'fansly', otherFanRef: '920000000000000032', decision: 'same' },
   ChangeFanFact: { type: 'ChangeFanFact', factId: 7, action: 'correct', text: 'Lives in Montreal' },
