@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { admit } from './allowlist';
 import type { FanslyAnswer, FanslyCall } from './client';
 import { FanslyApiError } from './errors';
-import { createSpendersLookup, RESOLVE_BUDGET_MS, sendOutreach } from './spenders';
+import { copiedBundles, createSpendersLookup, RESOLVE_BUDGET_MS, sendOutreach } from './spenders';
 
 const ACCOUNT = '700000000000000001';
 const FAN = '700000000000000002';
@@ -107,5 +107,14 @@ describe('[host:fansly] «Рассылка»: what goes to the fan', () => {
     const lost = world(() => { throw new FanslyApiError('network', { sent: true }); });
     await expect(sendOutreach({ call: lost.call }, ACCOUNT, { groupId: GROUP, text: 'hey', attachments: [] })).rejects.toBeInstanceOf(FanslyApiError);
     expect(lost.call).toHaveBeenCalledTimes(1);
+  });
+  it('which copied ids are bundles: one GET of them all, the bundles Fansly found; a media id is not among them', async () => {
+    const MEDIA = '700000000000000014';
+    const w = world(() => [{ id: PREVIEW, accountMediaIds: [] }, { id: BUNDLE, accountMediaIds: [] }]);
+    expect(await copiedBundles({ call: w.call }, ACCOUNT, [BUNDLE, MEDIA, PREVIEW, BUNDLE])).toEqual([BUNDLE, PREVIEW]);
+    expect(w.call).toHaveBeenCalledTimes(1);
+    expect(w.call.mock.calls[0]?.[0]).toEqual({ purpose: 'outreach', route: 'media.bundles', account: ACCOUNT, query: { ids: `${BUNDLE},${MEDIA},${PREVIEW}` } });
+    await expect(copiedBundles({ call: w.call }, ACCOUNT, [])).rejects.toMatchObject({ kind: 'not-admitted', sent: false });
+    await expect(copiedBundles({ call: world(() => ({})).call }, ACCOUNT, [BUNDLE])).rejects.toMatchObject({ kind: 'malformed' });
   });
 });

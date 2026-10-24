@@ -77,6 +77,12 @@ export interface OutreachVM {
   readonly adapt: boolean | null;
   /** The page's «Copied …» list as it was last read (opening the bar or «Обновить»), in its own order. */
   readonly items: readonly OutreachItemVM[];
+  /**
+   * `reading` — the list is being read and Fansly asked which «Copied Media» are bundles (its own reload files copied
+   * bundles there); `checked` — the kinds are Fansly's word; `unchecked` — it did not answer: a «Copied Media» may be a
+   * bundle, which reaches the fan as nothing.
+   */
+  readonly itemsState: 'reading' | 'checked' | 'unchecked';
   /** Fans the outreach reached in this tab. */
   readonly sent: number;
   /**

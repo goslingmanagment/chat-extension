@@ -187,6 +187,8 @@ export class FanslyWorld {
   readonly media = new Map<string, FakeMedia>();
   /** Paid attachments by content id (the `ppv` command), and the fans' orders of them. */
   readonly paid = new Map<string, FakePaidContent>();
+  /** The creator's bundles a post holds (the stand's `bundles` command): what «Copy» on a post puts in the «Copied …» list. */
+  readonly bundles = new Set<string>();
   readonly orders: FakeOrder[] = [];
   /** The creator's mass-send group: the parents of its mass sends live there. */
   readonly broadcastGroupId = BROADCAST_GROUP_ID;

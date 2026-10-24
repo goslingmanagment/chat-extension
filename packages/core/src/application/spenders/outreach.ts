@@ -32,6 +32,15 @@ export interface OutreachRequest {
 
 export type OutreachAnswer = { readonly ok: true; readonly messageId: string } | { readonly ok: false; readonly code: string };
 
+/**
+ * The page's «Copied …» list as read. `checked` — Fansly said which ids are bundles (its own reload files copied
+ * bundles as «Copied Media», and a bundle sent as media reaches the fan as nothing); false — as the page stored them.
+ */
+export interface OutreachCopied {
+  readonly items: readonly OutreachItem[];
+  readonly checked: boolean;
+}
+
 /** The site's half: the page's «Copied …» list and the background's send. */
 export interface OutreachPort {
   /**
@@ -39,7 +48,8 @@ export interface OutreachPort {
    * fan's card's send of its batch result with the outreach's vault media (OnlyFans, X8 and X53), handled by the preview.
    */
   readonly channel?: 'own' | 'preview';
-  copied(): readonly OutreachItem[];
+  /** The creator's list; `hostAccountId` null — the board is bound to no account, nothing is asked of Fansly. */
+  copied(hostAccountId: string | null): Promise<OutreachCopied>;
   send(request: OutreachRequest): Promise<OutreachAnswer>;
 }
 
@@ -64,6 +74,8 @@ type RowState = { state: 'sending' | 'sent' | 'uncertain' | 'failed'; code: stri
 
 export interface OutreachDeps {
   readonly port: OutreachPort;
+  /** The creator the board is bound to (the platform's account id); null — none. */
+  readonly account: () => string | null;
   /** The hub rewrites a mass message for one fan (`outreach-fix-v1`): «Подстроить под фана» is offered. */
   readonly canAdapt: () => boolean;
   /** `preview` channel: the vault media every fan takes, as the preview has them; null — none set. */
@@ -84,6 +96,9 @@ export function createOutreach(deps: OutreachDeps) {
   /** «Подстроить под фана», on by default where the hub can. */
   let adapt = true;
   let items: readonly OutreachItem[] = [];
+  let itemsState: OutreachVM['itemsState'] = 'checked';
+  /** The latest read: an answer of an earlier one is dropped. */
+  let reads = 0;
   /** Picked by default: every «Copied Bundle» of the list as read; the person's own ticks after that. */
   const picked = new Set<string>();
   const rows = new Map<string, RowState>();
@@ -93,10 +108,25 @@ export function createOutreach(deps: OutreachDeps) {
 
   function read(): void {
     if (channel === 'preview') return;
-    const next = port.copied();
-    const known = new Set(items.map(keyOf));
-    for (const item of next) if (!known.has(keyOf(item)) && item.contentType === 2) picked.add(keyOf(item));
-    items = next;
+    const at = ++reads;
+    const atEpoch = epoch;
+    itemsState = 'reading';
+    const current = (): boolean => at === reads && atEpoch === epoch;
+    void port.copied(deps.account()).then(
+      (next) => {
+        if (!current()) return;
+        const known = new Set(items.map(keyOf));
+        for (const item of next.items) if (!known.has(keyOf(item)) && item.contentType === 2) picked.add(keyOf(item));
+        items = next.items;
+        itemsState = next.checked ? 'checked' : 'unchecked';
+        deps.changed(true);
+      },
+      () => {
+        if (!current()) return;
+        itemsState = 'unchecked';
+        deps.changed(true);
+      },
+    );
   }
 
   const paced = (): boolean => clock.now() < pacedUntil;
@@ -121,6 +151,7 @@ export function createOutreach(deps: OutreachDeps) {
       text,
       adapt: deps.canAdapt() ? channel === 'preview' || adapt : null,
       items: list,
+      itemsState,
       sent: [...rows.values()].filter((row) => row.state === 'sent').length,
       channel,
       media: channel === 'preview' ? (deps.media?.() ?? null) : null,
@@ -226,6 +257,7 @@ export function createOutreach(deps: OutreachDeps) {
       text = '';
       adapt = true;
       items = [];
+      itemsState = 'checked';
       picked.clear();
       rows.clear();
     },

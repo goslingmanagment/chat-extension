@@ -152,6 +152,24 @@ export function createSpendersLookup(client: Pick<FanslyClient, 'call'>, now: ()
   };
 }
 
+/** Far above a real «Copied …» list (the tab's reader keeps 50); the page itself asks up to 100 bundles at once. */
+export const COPIED_CHECK_MAX = 50;
+
+/**
+ * Which of these ids are the creator's bundles (`GET /account/media/bundle?ids=`, FS-NET-1 `outreach`, once, by the
+ * person's opening the bar or «Обновить»): Fansly's own loader files the copied bundles as «Copied Media» after any
+ * reload of a tab (main:30348-30349, seen live 2026-10-24), and a bundle sent as media reaches the fan as nothing.
+ * The answer is the bundles found; an id of account media is simply not among them.
+ */
+export async function copiedBundles(client: Pick<FanslyClient, 'call'>, account: string, ids: readonly string[]): Promise<string[]> {
+  const asked = [...new Set(ids)];
+  if (!ID.test(account) || asked.length === 0 || asked.length > COPIED_CHECK_MAX || asked.some((item) => !ID.test(item))) throw new FanslyApiError('not-admitted', { sent: false });
+  const answer = await client.call({ purpose: 'outreach', route: 'media.bundles', account, query: { ids: asked.join(',') } });
+  if (!Array.isArray(answer.response)) throw malformed();
+  const found = new Set(list(answer.response).map((entry) => id(record(entry)?.['id'])));
+  return asked.filter((item) => found.has(item));
+}
+
 /** An item of Fansly's «Copied …» list as a message takes it: 2 — «Copied Bundle», 1 — «Copied Media». */
 export interface OutreachAttachment { readonly contentType: 1 | 2; readonly contentId: string }
 export interface OutreachMessage { readonly groupId: string; readonly text: string; readonly attachments: readonly OutreachAttachment[] }

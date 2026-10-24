@@ -103,6 +103,8 @@ export type FakeFanslyCommand =
    * the history pages and by `/media/orderhistory`).
    */
   | { readonly op: 'ppv'; readonly groupId: string; readonly kind: 'media' | 'bundle'; readonly priceUsd: number; readonly purchased?: boolean; readonly text?: string; readonly silent?: boolean }
+  /** The creator's bundles of posts: `GET /account/media/bundle?ids=` finds them (Spenders' «Рассылка»). No frame. */
+  | { readonly op: 'bundles'; readonly ids: readonly string[] }
   /** The group's fan buys a paid attachment: its order appears; no frame. */
   | { readonly op: 'purchase'; readonly groupId: string; readonly contentId: string }
   /** Deletes a message: ONE `5/10` frame, for it; the copies of a `type 3` parent go with it on the server. */

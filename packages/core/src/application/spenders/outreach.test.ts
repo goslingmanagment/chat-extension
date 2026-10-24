@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createI18n } from '../../domain/i18n';
 import { type TabRpc } from '../boards';
-import { OUTREACH_PACE_MS, createOutreach, type OutreachAnswer, type OutreachItem, type OutreachRequest, type OutreachTarget } from './outreach';
+import { OUTREACH_PACE_MS, createOutreach, type OutreachAnswer, type OutreachCopied, type OutreachItem, type OutreachRequest, type OutreachTarget } from './outreach';
 
 const CREATOR = '700000000000000001';
 const BUNDLE = '700000000000000011';
@@ -10,13 +10,14 @@ const PREVIEW = '700000000000000012';
 const OTHER_MEDIA = '700000000000000013';
 const TOKEN = 'token-of-the-click-0001';
 
-function world(copied: readonly OutreachItem[], answer: (request: OutreachRequest) => OutreachAnswer = () => ({ ok: true, messageId: '700000000000000099' }), canAdapt = false) {
+function world(copied: readonly OutreachItem[] | ((account: string | null) => Promise<OutreachCopied>), answer: (request: OutreachRequest) => OutreachAnswer = () => ({ ok: true, messageId: '700000000000000099' }), canAdapt = false) {
   let now = 1_000;
   const timers = new Map<number, () => void>();
   let next = 1;
   const sent: OutreachRequest[] = [];
   const rpc = { request: async () => ({ ok: true, payload: { actionToken: TOKEN, expiresAt: now + 10_000 } }), onEvent: () => () => undefined } as unknown as TabRpc;
   const outreach = createOutreach({
+    account: () => CREATOR,
     canAdapt: () => canAdapt,
     rpc,
     i18n: createI18n({ language: 'ru', now: () => now, timeZone: 'Europe/Moscow' }),
@@ -29,7 +30,7 @@ function world(copied: readonly OutreachItem[], answer: (request: OutreachReques
       clearTimer: (handle) => void timers.delete(handle),
     },
     port: {
-      copied: () => copied,
+      copied: typeof copied === 'function' ? copied : async () => ({ items: copied, checked: true }),
       async send(request) {
         sent.push(request);
         return answer(request);
@@ -50,13 +51,18 @@ function world(copied: readonly OutreachItem[], answer: (request: OutreachReques
       fn();
     }
   };
-  return { outreach, sent, fan, later };
+  /** The list's read answered (the port's promise and the read's own step). */
+  const settle = async (): Promise<void> => {
+    for (let i = 0; i < 3; i++) await Promise.resolve();
+  };
+  return { outreach, sent, fan, later, settle };
 }
 
 describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => {
   it('each fan gets their own line, the common text and the picked copied items — in its own group, by its own click', async () => {
     const w = world([{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }, { contentType: 1, contentId: OTHER_MEDIA }]);
     w.outreach.set({ type: 'SetOutreach', open: true, text: 'new video is up — the dragon one 🐉' });
+    await w.settle();
     // Every «Copied Bundle» goes by default; a «Copied Media» only when ticked.
     expect(w.outreach.vm().items).toEqual([
       { contentType: 2, contentId: BUNDLE, picked: true },
@@ -95,6 +101,7 @@ describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => 
   it('a fan reached, or maybe reached, never gets it again from here; a fan with no line or no chat gets nothing', async () => {
     const w = world([{ contentType: 2, contentId: BUNDLE }], (request) => (request.fanRef.endsWith('2') ? { ok: false, code: 'CG-SEND-UNCERTAIN' } : { ok: true, messageId: '700000000000000099' }));
     w.outreach.set({ type: 'SetOutreach', open: true, text: 'new video' });
+    await w.settle();
     await w.outreach.send('SendOutreach', 'spenders:42:1', w.fan(1));
     w.later(OUTREACH_PACE_MS);
     expect((await w.outreach.send('SendOutreach', 'spenders:42:1', w.fan(1))).ok).toBe(false);
@@ -111,6 +118,7 @@ describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => 
   it('two clicks inside a second send one message: the second rests until the pause is over', async () => {
     const w = world([]);
     w.outreach.set({ type: 'SetOutreach', open: true });
+    await w.settle();
     await w.outreach.send('SendOutreach', 'spenders:42:1', w.fan(1));
     expect(w.outreach.row('spenders:42:2', true)).toEqual({ state: 'ready', can: false, code: null });
     expect((await w.outreach.send('SendOutreach', 'spenders:42:2', w.fan(2))).ok).toBe(false);
@@ -126,6 +134,7 @@ describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => 
   it('«Подстроить под фана»: the batch is a Fix of the common text, and the fan gets their own version alone, with the items', async () => {
     const w = world([{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }], undefined, true);
     w.outreach.set({ type: 'SetOutreach', open: true });
+    await w.settle();
     expect(w.outreach.vm().adapt).toBe(true);
     // No common text yet: nothing to rewrite, the batch waits for it.
     expect(w.outreach.needsText()).toBe(true);
@@ -140,5 +149,31 @@ describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => 
     w.outreach.set({ type: 'SetOutreach', adapt: false });
     expect(w.outreach.batchFix()).toBeNull();
     expect(world([]).outreach.vm().adapt).toBeNull();
+  });
+
+  it('a bundle Fansly\'s reload filed as «Copied Media» goes as a bundle once Fansly named it; an earlier read\'s late answer is dropped', async () => {
+    const answers: ((copied: OutreachCopied) => void)[] = [];
+    const accounts: (string | null)[] = [];
+    const w = world((account) => {
+      accounts.push(account);
+      return new Promise((done) => answers.push(done));
+    });
+    w.outreach.set({ type: 'SetOutreach', open: true });
+    expect(w.outreach.vm()).toMatchObject({ items: [], itemsState: 'reading' });
+    // As stored after a reload, unchecked: the person ticks it, and it would reach the fan as nothing.
+    answers[0]?.({ items: [{ contentType: 1, contentId: BUNDLE }], checked: false });
+    await w.settle();
+    expect(w.outreach.vm()).toMatchObject({ items: [{ contentType: 1, contentId: BUNDLE, picked: false }], itemsState: 'unchecked' });
+    w.outreach.set({ type: 'SetOutreach', item: { contentType: 1, contentId: BUNDLE, picked: true } });
+    // «Обновить» twice: the first read answers last and changes nothing.
+    w.outreach.set({ type: 'SetOutreach', refresh: true });
+    w.outreach.set({ type: 'SetOutreach', refresh: true });
+    answers[2]?.({ items: [{ contentType: 2, contentId: BUNDLE }, { contentType: 1, contentId: OTHER_MEDIA }], checked: true });
+    answers[1]?.({ items: [{ contentType: 1, contentId: BUNDLE }], checked: false });
+    await w.settle();
+    expect(accounts).toEqual([CREATOR, CREATOR, CREATOR]);
+    expect(w.outreach.vm()).toMatchObject({ items: [{ contentType: 2, contentId: BUNDLE, picked: true }, { contentType: 1, contentId: OTHER_MEDIA, picked: false }], itemsState: 'checked' });
+    await w.outreach.send('SendOutreach', 'spenders:42:1', w.fan(1));
+    expect(w.sent.map((request) => request.attachments)).toEqual([[{ contentType: 2, contentId: BUNDLE }]]);
   });
 });
