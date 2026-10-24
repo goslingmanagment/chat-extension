@@ -75,7 +75,9 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
 - **Fansly** — Chrome DevTools MCP, read-only: opening a conversation marks it read, typing sends typing events.
   `pnpm see … --live` — only the test model (`FANSLY_TEST_MODEL_*` in `~/.config/agency/secrets.env`). Nothing is
   blocked there, its fans are real: a message sent, a post or a story published, anything with money — only after the
-  owner's «да» in the chat; the rest (chats opened, uploads, notes, a scheduled post taken off) is free.
+  owner's «да» in the chat; the rest (chats opened, uploads, notes, a scheduled post taken off) is free. The test
+  chat, `--chat $FANSLY_TEST_MODEL_CHAT` (a real fan, silent since 2024-12): sends there are allowed once and for all
+  (the owner, 2026-10-24) — texts like the model's own, never a burst.
 - **The hub's prod** (`agency-de`) — read-only. AI, keys and prompts live only in the hub.
 - **Announcements to chatters** (Telegram) — the owner's call, never automatic; the channel starts at 3.0.0.
 

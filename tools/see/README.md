@@ -93,6 +93,10 @@ production hub). A scenario takes ~15 s.
   message sent, a post or a story published, anything with money — only after
   the owner's «да» in the chat (AGENTS.md). Opening chats, reading, uploading to
   the vault, notes, a scheduled post taken off again: free.
+- **The test chat** — `--chat $FANSLY_TEST_MODEL_CHAT` (secrets.env; a real fan,
+  silent since 2024-12): sending there is allowed (the owner, 2026-10-24), with
+  texts like the model's own and never in a burst. A send, a read mark and
+  «печатает» of the extension can be checked end to end only there.
 - **Every write of the browser's pages to Fansly** is listed as it leaves in
   `writes.json` and the `write …` lines (a read mark, «печатает», a send, a
   post, an upload, the site's telemetry). Service workers are off in that
