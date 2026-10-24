@@ -275,7 +275,8 @@ export const PART_CSS = `
 .cg-part__state { display: inline-flex; align-items: center; gap: 5px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); padding: 0 6px; white-space: nowrap; }
 .cg-part__again { display: none; }
 .cg-part.is-done:hover .cg-part__again, .cg-part.is-done:focus-within .cg-part__again { display: inline-flex; }
-.cg-part.can-again:hover .cg-part__state, .cg-part.can-again:focus-within .cg-part__state { display: none; }
+/* A kept part shows «вставлено» and «Вставить ещё раз» side by side: hiding the mark on hover would widen its text, rewrap it and make the card jump. */
+.cg-part.can-again:not(.is-kept):hover .cg-part__state, .cg-part.can-again:not(.is-kept):focus-within .cg-part__state { display: none; }
 .cg-part__card { grid-column: 2 / 4; margin-top: 8px; min-width: 0; }
 .cg-part__card .cg-card__text { font-size: var(--cg-text-base); }
 .cg-part__extra { grid-column: 2 / 4; min-width: 0; }
