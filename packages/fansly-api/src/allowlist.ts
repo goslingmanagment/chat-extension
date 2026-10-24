@@ -89,6 +89,8 @@ export const FANSLY_ROUTES = {
     checkFamily: 'media',
     pace: 'GET /media/orderhistory',
   },
+  // The creator's bundles by id (the page's `getAccountMediaBundles`, main:29512): which of the copied items are bundles.
+  'media.bundles': { method: 'GET', path: 'account/media/bundle', query: ['ids'], write: false, checkFamily: 'account', pace: 'GET /account/media/bundle' },
   'notes.create': { method: 'POST', path: 'notes', query: [], write: true, checkFamily: null, pace: 'POST /notes' },
   // decision 170 of the Fansly extension: Fansly's window takes `success` alone as an edit's confirmation.
   'notes.edit': { method: 'POST', path: 'notes/edit', query: [], write: true, checkFamily: null, pace: 'POST /notes', emptyAnswer: true },
@@ -166,8 +168,9 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   // preview rests on the fan, once, and not at all while the creator cools down.
   preview: { 'group.detail': CLICK_READ },
   // «Рассылка» of Spenders: a fan's personal message with the copied bundles, by the person's click on its row — one
-  // `POST /message`, one attempt (the fan's group is found by Spenders' own `spenders` reads before it).
-  outreach: { 'message.send': WRITE },
+  // `POST /message`, one attempt (the fan's group is found by Spenders' own `spenders` reads before it). Opening the
+  // bar or «Обновить» asks once which copied items are bundles: Fansly's own reload files them as media.
+  outreach: { 'message.send': WRITE, 'media.bundles': CLICK_READ },
 };
 
 const has = (record: object, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);

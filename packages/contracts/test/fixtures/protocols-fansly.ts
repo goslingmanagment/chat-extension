@@ -114,6 +114,10 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     req: { valid: [{ hostAccountId: F.creator, fanRef: F.fan, displayName: 'Fan', username: null }], invalid: [{ hostAccountId: F.creator, fanRef: 123, displayName: null, username: null }, { fanRef: F.fan }] },
     res: { valid: [{ ok: true, groupId: F.group }, { ok: true, groupId: null }, failure], invalid: [{ ok: true, groupId: Number(F.group) }, unknownFailure] },
   },
+  'fansly.spenders.copied': {
+    req: { valid: [{ hostAccountId: F.creator, ids: ['700000000000000011', '700000000000000012'] }], invalid: [{ hostAccountId: F.creator, ids: [] }, { hostAccountId: F.creator, ids: [11] }, { hostAccountId: F.creator, ids: Array.from({ length: FANSLY_TAB_LIMITS.copiedCheckMax + 1 }, () => '700000000000000011') }] },
+    res: { valid: [{ ok: true, bundleIds: ['700000000000000011'] }, { ok: true, bundleIds: [] }, failure], invalid: [{ ok: true }, { ok: true, bundleIds: [11] }, unknownFailure] },
+  },
   'fansly.spenders.outreach': {
     req: {
       valid: [

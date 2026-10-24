@@ -77,6 +77,10 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
       const wire = world.wireMessage(message);
       return { ok: true, message: wire, sent: command.silent === true ? 0 : hub.emit([messageCreatedFrame(wire)], '5/1') };
     }
+    case 'bundles': {
+      for (const id of command.ids) world.bundles.add(id);
+      return { ok: true };
+    }
     case 'purchase': {
       const group = groupOf(state, command.groupId);
       const content = world.paid.get(command.contentId);

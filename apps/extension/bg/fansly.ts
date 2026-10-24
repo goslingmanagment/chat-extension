@@ -98,7 +98,7 @@ import { createFanslyGreeting, type FanslyGreeting } from '@cg/core/services/hos
 import { freshForSend, verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
 import { createFanslyApi, createFanslyClient, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
-import { createSpendersLookup } from '@cg/fansly-api/spenders';
+import { copiedBundles, createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
 import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
@@ -119,7 +119,7 @@ const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? o
  * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
  * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself with `CG-SITE-OFF`.
  */
-const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState']);
+const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.copied', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState']);
 
 /** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
 async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, type: string, payload: unknown): Promise<HostAnswer> {
@@ -252,7 +252,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       if (type === 'fansly.ops.start') return { ok: false, error: { code: 'CG-SITE-OFF' } };
       if (BEGINS.has(type)) return ok({ ok: false, error: { code: 'CG-FAN-OFF' } });
     }
-    if (type === 'fansly.spenders.names' || type === 'fansly.spenders.resolve' || type === 'fansly.spenders.outreach') {
+    if (type === 'fansly.spenders.names' || type === 'fansly.spenders.resolve' || type === 'fansly.spenders.copied' || type === 'fansly.spenders.outreach') {
       if (spenders === null) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
       const account = (payload as { hostAccountId: string }).hostAccountId;
       const owns = (): boolean => {
@@ -265,6 +265,13 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       // «Рассылка»: the row's «Отправить», one request of the click (bg/fansly/outreach.ts).
       if (type === 'fansly.spenders.outreach') return ok(await outreach(payload as FanslyTabRequestPayload<'fansly.spenders.outreach'>, tab));
       try {
+        // «Рассылка»: which of the page's «Copied Media» are bundles (Fansly's reload files them there), once by the person's open or «Обновить».
+        if (type === 'fansly.spenders.copied') {
+          const request = payload as FanslyTabRequestPayload<'fansly.spenders.copied'>;
+          const client = await clientNow();
+          if (client === null) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
+          return ok({ ok: true, bundleIds: await copiedBundles(client, request.hostAccountId, request.ids) });
+        }
         if (type === 'fansly.spenders.names') {
           const request = payload as FanslyTabRequestPayload<'fansly.spenders.names'>;
           return ok({ ok: true, names: await spenders.names(request.hostAccountId, request.fanRefs) });

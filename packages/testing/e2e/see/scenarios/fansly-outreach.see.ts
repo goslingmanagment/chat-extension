@@ -1,7 +1,8 @@
-// Fansly: «Рассылка» of Spenders — the bar with the outreach text and the page's own «Copied Bundle» items (Fansly's
-// localStorage list, seeded here as «Copy» on a post leaves it), «Подстроить под фана» on: a batch of Fix rewrites the
-// text for each of two whales, the first fan's preview shows their whole version, then that row's «Отправить»: one
-// `POST /message` with both bundles (the `message.send` line of the run).
+// Fansly: «Рассылка» of Spenders — the bar with the outreach text and the page's own «Copied …» items (Fansly's
+// localStorage list, seeded here as Fansly's own reload leaves it: the copied bundles filed as «Copied Media»; the bar
+// asks Fansly and shows them as «Copied Bundle»), «Подстроить под фана» on: a batch of Fix rewrites the text for each
+// of two whales, the first fan's preview shows their whole version, then that row's «Отправить»: one `POST /message`
+// with both bundles as bundles (the `message.send` line of the run).
 
 import { WORLD } from '../../../src/scenarios/hub';
 import { fakeFansly } from '../../support/fansly-stand';
@@ -16,7 +17,8 @@ scenario(
   'fansly-outreach',
   async (s) => {
     await s.ready();
-    await s.browser.execute((ids: string[]) => localStorage.setItem('media_service_copied_media', JSON.stringify({ copiedAccountMediaIds: [], copiedAccountMediaBundleIds: ids })), BUNDLES);
+    await fakeFansly().command({ op: 'bundles', ids: BUNDLES });
+    await s.browser.execute((ids: string[]) => localStorage.setItem('media_service_copied_media', JSON.stringify({ copiedAccountMediaIds: ids, copiedAccountMediaBundleIds: [] })), BUNDLES);
     // Out of Fansly's field: our key is a command there, not text.
     await s.browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
     await s.keys(...s.PANEL, 'm');
@@ -43,6 +45,8 @@ scenario(
     await s.shot('outreach-sent');
     const sends = (await fakeFansly().journal()).entries.filter((entry) => entry.route === 'message.send');
     console.log('see: message.send', JSON.stringify(sends.map((entry) => entry.detail)));
+    const checks = (await fakeFansly().journal()).entries.filter((entry) => entry.route === 'media.bundles').map((entry) => entry.path);
+    console.log('see: media.bundles', JSON.stringify(checks));
   },
   {
     sites: ['fansly'],

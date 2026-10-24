@@ -53,7 +53,8 @@ export type FanslyRoute =
   | 'vault.addMedia'
   | 'vault.albumMedia'
   | 'media.create'
-  | 'media.orderhistory';
+  | 'media.orderhistory'
+  | 'media.bundles';
 
 /**
  * FS-NET-1 (spec.md §4): the only calls our background may make — the pass of «Новые» (`followersnew`, the start of
@@ -76,6 +77,7 @@ export const FS_NET_1: ReadonlySet<FanslyRoute> = new Set<FanslyRoute>([
   'notes.edit',
   'notes.delete',
   'media.orderhistory',
+  'media.bundles',
 ]);
 
 export type FanslyViolationReason =

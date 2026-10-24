@@ -110,6 +110,8 @@ export const FANSLY_TAB_LIMITS = {
   /** «Рассылка» of Spenders: the message's text (a personal line and the common text) and the copied items it takes along. */
   outreachTextMaxChars: 5_000,
   outreachAttachmentsMax: 10,
+  /** The ids of «Copied Media» checked for bundles at once (the tab's reader keeps 50 items). */
+  copiedCheckMax: 50,
 } as const;
 
 /**
@@ -553,6 +555,16 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.spenders.resolve': {
     req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, displayName: z.nullable(displayText(1000)), username: z.nullable(displayText(1000)) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), groupId: z.nullable(NativeIdSchema) }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
+   * «Рассылка» (Spenders on Fansly): which ids of the page's «Copied Media» are the creator's bundles — Fansly's own
+   * reload files copied bundles there, and a bundle sent as media reaches the fan as nothing. One
+   * `GET /account/media/bundle?ids=` (FS-NET-1 `outreach`), by the person's opening the bar or «Обновить».
+   */
+  'fansly.spenders.copied': {
+    req: z.strictObject({ hostAccountId: NativeIdSchema, ids: z.array(NativeIdSchema).check(z.minLength(1), z.maxLength(FANSLY_TAB_LIMITS.copiedCheckMax)) }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), bundleIds: z.array(NativeIdSchema).check(z.maxLength(FANSLY_TAB_LIMITS.copiedCheckMax)) }), Failure]),
     from: TAB, hosts: FANSLY,
   },
   /**

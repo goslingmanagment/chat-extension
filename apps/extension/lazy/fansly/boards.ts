@@ -10,7 +10,7 @@ import { createSpendersController as create, type SpendersControllerDeps } from 
 import type { HostPort } from '@cg/contracts/host';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanslyRequest } from '../../src/composition/tab/hosts/fansly/requests';
-import { readCopiedMedia } from '@cg/host-fansly/isolated/copied-media';
+import { asBundles, readCopiedMedia } from '@cg/host-fansly/isolated/copied-media';
 import type * as SharedBoards from '../entries/boards';
 import { createFanslyNewcomersController } from '../../src/composition/tab/hosts/fansly/newcomers';
 
@@ -19,12 +19,24 @@ export const createNewcomersController: typeof SharedBoards.createNewcomersContr
 
 /** Above the background's own wait for Fansly (30 s) and for its module; a send that outlives it is told «unknown», never resent. */
 const OUTREACH_TIMEOUT_MS = 45_000;
+/** Above the background's own wait for Fansly's answer to the bundle check. */
+const COPIED_TIMEOUT_MS = 35_000;
 
 export function createSpendersController(deps: SpendersControllerDeps & { readonly host: HostPort }) {
   const host = deps.host as FanslyPort;
   return create({ ...deps, outreach: {
     // «Рассылка»: the page's own «Copied …» list (its localStorage, read in this content script) and the background's send.
-    copied: () => readCopiedMedia(window),
+    // Fansly's own reload files copied bundles as «Copied Media» (copied-media.ts): the background asks Fansly which
+    // of those ids are bundles, and they go as bundles. No answer — the list as stored, said so on the bar.
+    async copied(account) {
+      const stored = readCopiedMedia(window);
+      const media = stored.filter((item) => item.contentType === 1).map((item) => item.contentId);
+      if (media.length === 0) return { items: stored, checked: true };
+      if (account === null) return { items: stored, checked: false };
+      const answer = await fanslyRequest(deps.rpc, 'fansly.spenders.copied', { hostAccountId: account, ids: media }, COPIED_TIMEOUT_MS);
+      if (!answer.ok || !answer.payload.ok) return { items: stored, checked: false };
+      return { items: asBundles(stored, answer.payload.bundleIds), checked: true };
+    },
     async send(request) {
       const answer = await fanslyRequest(deps.rpc, 'fansly.spenders.outreach', { ...request, attachments: [...request.attachments] }, OUTREACH_TIMEOUT_MS);
       // The port or the answer failed: the request may have reached the background and left — never «not sent».

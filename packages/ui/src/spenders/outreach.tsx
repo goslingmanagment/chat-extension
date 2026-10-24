@@ -61,7 +61,8 @@ function Item({ item }: { readonly item: OutreachVM['items'][number] }): JSX.Ele
 export function OutreachBar({ outreach, batch }: { readonly outreach: OutreachVM; readonly batch: BatchVM | undefined }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const media = outreach.items.some((item) => item.contentType === 1);
+  // A «Copied Media» Fansly was not asked about may be a bundle filed there by its own reload.
+  const unchecked = outreach.itemsState === 'unchecked' && outreach.items.some((item) => item.contentType === 1);
   const adapt = outreach.adapt === true;
   const adaptTip = useTooltip(i18n.t('outreach.adaptTooltip'));
   return (
@@ -123,7 +124,7 @@ export function OutreachBar({ outreach, batch }: { readonly outreach: OutreachVM
           <Button label={i18n.t('outreach.refresh')} icon="refresh" iconOnly variant="quiet" size="sm" class="cg-or__icon" onClick={() => void dispatch({ type: 'SetOutreach', refresh: true })} />
         </span>
         {outreach.items.length === 0 ? (
-          <span class="cg-or__note">{i18n.t('outreach.noItems')}</span>
+          <span class="cg-or__note">{i18n.t(outreach.itemsState === 'reading' ? 'outreach.reading' : 'outreach.noItems')}</span>
         ) : (
           <div class="cg-or__items" role="group" aria-label={i18n.t('outreach.items')}>
             {outreach.items.map((item) => (
@@ -131,7 +132,7 @@ export function OutreachBar({ outreach, batch }: { readonly outreach: OutreachVM
             ))}
           </div>
         )}
-        {media ? <span class="cg-or__note">{i18n.t('outreach.mediaHint')}</span> : null}
+        {unchecked ? <span class="cg-or__note">{i18n.t('outreach.mediaHint')}</span> : null}
       </div>
       )}
       <Steps outreach={outreach} batch={batch} />

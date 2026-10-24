@@ -195,6 +195,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   const outreach = deps.outreach === undefined ? null : createOutreach({
     port: deps.outreach,
+    account: () => context.current().binding?.platformAccountId ?? null,
     canAdapt: () => context.current().bootstrap?.capabilities.includes(OUTREACH_FIX_CAPABILITY) === true,
     media: () => batchPort?.outreachMedia?.() ?? null,
     picker: () => batchPort?.outreachPicker?.() ?? null,

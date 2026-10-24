@@ -13,4 +13,4 @@ import { createSpendersController as create, type SpendersControllerDeps } from 
 // «Рассылка» on ChatSpace: the row's «Отправить» is the fan's card's send (X8) with the outreach's vault media (X53), so
 // the port has no copied items and no send of its own.
 export const createSpendersController = (deps: SpendersControllerDeps & { readonly host: HostPort }) =>
-  create({ ...deps, outreach: { channel: 'preview', copied: () => [], send: () => Promise.resolve({ ok: false, code: 'CG-SEND-PART' }) } });
+  create({ ...deps, outreach: { channel: 'preview', copied: () => Promise.resolve({ items: [], checked: true }), send: () => Promise.resolve({ ok: false, code: 'CG-SEND-PART' }) } });

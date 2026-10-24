@@ -237,7 +237,7 @@ const ROUTES: readonly Route[] = [
       const { echo: order, receiptDelayMs, echoDelayMs } = state.send;
       return {
         response: wire,
-        journal: { messageId: message.id, groupId: group.id, senderId: world.creatorId, attachments: (Array.isArray(sent.attachments) ? sent.attachments : []).length },
+        journal: { messageId: message.id, groupId: group.id, senderId: world.creatorId, attachments: (Array.isArray(sent.attachments) ? sent.attachments : []).length, contents: (Array.isArray(sent.attachments) ? sent.attachments : []).map((item: { contentType?: unknown; contentId?: unknown }) => `${String(item.contentType)}:${String(item.contentId)}`) },
         delayMs: receiptDelayMs,
         ...(order === 'before' ? { before: echo } : {}),
         ...(order === 'after' ? { after: () => (echoDelayMs > 0 ? void setTimeout(echo, echoDelayMs) : echo()) } : {}),
@@ -273,6 +273,13 @@ const ROUTES: readonly Route[] = [
       if ((media === null) === (bundle === null)) return bad('accountMediaId or accountMediaBundleId');
       return { response: world.wireOrderHistory((media ?? bundle) as string, media !== null ? 'media' : 'bundle', idList(params.get('accountIds'))) };
     },
+  },
+  {
+    // The creator's bundles by id (`getAccountMediaBundles`): an id of account media, or anything else, is not among them.
+    name: 'media.bundles',
+    method: 'GET',
+    path: /^\/account\/media\/bundle$/,
+    run: ({ world, params }) => ({ response: idList(params.get('ids')).filter((id) => world.bundles.has(id) || world.paid.get(id)?.kind === 'bundle').map((id) => ({ id, accountId: world.creatorId, accountMediaIds: [] })) }),
   },
   {
     name: 'notes.create',
