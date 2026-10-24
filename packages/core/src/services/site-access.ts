@@ -24,6 +24,8 @@ export interface SiteAccessDeps {
   readonly observe: { attach(): void; detach(): void };
   readonly setCaptureEnabled: (value: boolean) => Promise<void>;
   readonly startModule: () => Promise<unknown>;
+  /** The site went off (its switch, or its rights taken back) while it was on: the tabs open on it let go of it. */
+  readonly turnedOff?: () => void;
   readonly failed: () => void;
 }
 export function createSiteAccess(deps: SiteAccessDeps) {
@@ -49,6 +51,7 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     let nextEnabled = await deps.settings.enabled();
     if (grant && nextGranted && !nextEnabled) { await deps.settings.setEnabled(true); nextEnabled = true; }
     const changed = !synced || enabled !== nextEnabled || granted !== nextGranted;
+    const wasActive = enabled && granted && registered;
     enabled = nextEnabled;
     granted = nextGranted;
     const active = enabled && granted;
@@ -62,6 +65,7 @@ export function createSiteAccess(deps: SiteAccessDeps) {
       registered = active;
       synced = true;
     }
+    if (wasActive && !active) deps.turnedOff?.();
     if (!active && waiting.size > 0) { waiting.clear(); await save(); }
     // A startup sync can discover a grant before onAdded after event-page
     // sleep. Announce the actual registration in that same queued operation;

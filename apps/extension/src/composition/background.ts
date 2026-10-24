@@ -385,7 +385,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     ready: barrier.ready,
     contractsVersion: CONTRACTS_VERSION,
     testBuild,
-    allowTab: siteActive,
+    allowTab: siteOn,
     // R20 P14b1: the settings page speaks to Fansly's module (its part of `settings.ext`, its sessions and tabs) while
     // Fansly is on; the module comes up for it. Off — the page hears so at once.
     pageSite: {
@@ -876,6 +876,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     tabs: scriptTabs, observe: observation,
     setCaptureEnabled: (enabled) => networkSession.setEnabled(enabled),
     startModule: async () => { await barrier.ready; return hostModules.ensure(OPTIONAL_HOST); },
+    // Its open tabs connect again at once and hear that the site is off (`allowTab`): they take our UI off the page.
+    turnedOff: () => rpc.dropTabs(OPTIONAL_HOST),
     failed: accessFailed,
   });
   // Starts immediately, independent of the hub's readiness/availability.
@@ -892,6 +894,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   /** The same activity port shared starts and tokens use as the site's own module; sites without a switch stay on. */
   function siteActive(host: HostKind | null): boolean {
     return host !== OPTIONAL_HOST || siteAccess.active();
+  }
+  /**
+   * The same, as the site's access stands once a change of it in flight is over (a forced sync after an update reads
+   * as off while it runs): what refuses a tab, a start or a token with `CG-SITE-OFF`, never a passing state.
+   */
+  async function siteOn(host: HostKind | null): Promise<boolean> {
+    if (host !== OPTIONAL_HOST) return true;
+    await siteAccess.state().catch(() => undefined);
+    return siteAccess.active();
   }
   /**
    * A site's slice of the feature manifest (§1.4): the core's own (ChatSpace's), else the one the site's running module
@@ -1317,8 +1328,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // The start is judged by the slice of its chat's site: a site whose slice its module brings has it up first.
     const site = start.target.binding.host;
     const tabSite = hostOfTab(sender.tabSessionId);
+    if (!(await siteOn(tabSite))) return fail('CG-SITE-OFF');
     if (featuresOf(site) === null && tabSite === site && !(await moduleUnderSameSignIn(site))) return fail('CG-CONTEXT-CHANGED', 'the sign-in changed');
-    if (!siteActive(tabSite)) return fail('CG-FEATURE-DISABLED');
+    // Still no slice: the site's module did not start (it is tried again after a pause, `host-modules.ts`). Its services
+    // do not answer, as every other request of the site hears then — not «выключено для страницы», which no switch says.
+    if (featuresOf(site) === null) return fail('CG-RUNTIME-UNREACHABLE', `${site} services`);
     // The fan's name is display only (1.20.0): it rides beside the start, never inside the request.
     const { fanLabel, ...op } = start;
     const shown = presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId);
@@ -1581,14 +1595,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // An insert is admitted by the feature manifest of the site the tab is on.
     // Only an insert reads the site's slice; a site whose slice its module brings has the module up first.
     const site = hostOfTab(sender.tabSessionId);
+    if (!(await siteOn(site))) return fail('CG-SITE-OFF');
     if (kind === 'insert' && site !== null && featuresOf(site) === null && !(await moduleUnderSameSignIn(site))) return fail('CG-CONTEXT-CHANGED', 'the sign-in changed');
+    // The module of the site did not start: its services do not answer (op.start says the same).
+    if (kind === 'insert' && site !== null && featuresOf(site) === null) return fail('CG-RUNTIME-UNREACHABLE', `${site} services`);
     const siteFeatures = site === null ? null : featuresOf(site);
     const refusal = hubInstance === null ? (kind === 'insert' ? { code: 'CG-HUB-UNAVAILABLE' as const } : null) : await tokenRefusal(kind, surface, hubInstance, wireOf, siteFeatures);
     if (refusal !== null) {
       logger.warn('bg.tokens', 'action token not issued', { code: refusal.code, fields: { kind, surface, reason: refusal.detail ?? null }, ctx: { tabSessionId: sender.tabSessionId } });
       return { ok: false, error: refusal };
     }
-    if (!siteActive(site)) return fail('CG-FEATURE-DISABLED');
     return ok(tokens.issue(sender.tabSessionId, kind, surface));
   });
   rpc.handle('token.redeem', ({ kind, surface, actionToken }, sender) => {

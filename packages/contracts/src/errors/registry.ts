@@ -60,6 +60,7 @@ const SPECS = {
   'CG-PERSONA-UNAVAILABLE': { kind: 'page', severity: 'warn', recovery: 'open-settings', retry: 'none', telemetry: 'count', settings: 'personas' },
   'CG-PERSONA-CHANGED': { kind: 'page', severity: 'info', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
   'CG-FEATURE-DISABLED': { kind: 'page', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count', settings: 'status' },
+  'CG-SITE-OFF': { kind: 'page', severity: 'info', recovery: 'open-settings', retry: 'none', telemetry: 'count', settings: 'status' },
   'CG-CONTEXT-CHANGED': { kind: 'context', severity: 'info', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
   'CG-CONTEXT-CONFLICT': { kind: 'context', severity: 'warn', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
   'CG-QUOTA-DAILY': { kind: 'quota', severity: 'warn', recovery: 'wait-until', retry: 'after-deadline', telemetry: 'count', settings: 'status' },

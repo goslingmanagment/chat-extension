@@ -147,7 +147,11 @@ export interface BackgroundRpcOptions {
   readonly testBuild: boolean;
   readonly mintSessionId?: () => string;
   readonly now?: () => number;
-  readonly allowTab?: (host: TabHostKind) => boolean;
+  /**
+   * Whether a site's tab may register now; false — the site is off in this browser, and the tab hears `CG-SITE-OFF`
+   * (it lets go of the site). A promise: the answer may wait for a change of the site's access in flight.
+   */
+  readonly allowTab?: (host: TabHostKind) => boolean | Promise<boolean>;
   readonly onTabRegistered?: (info: TabSessionInfo) => void;
   readonly onTabGone?: (info: TabSessionInfo) => void;
   /** A refused message: the reason and the type only, never the payload. */
@@ -167,6 +171,11 @@ export interface BackgroundRpc {
    */
   emitSite(host: TabHostKind, type: string, payload: unknown, target?: { readonly tabSessionId: string }): number;
   tabs(): readonly TabSessionInfo[];
+  /**
+   * Lets go of a site's tabs: their ports close, as if the tabs went away. Each tab connects again at once, and
+   * `allowTab` decides its new registration (the site went off: the tab hears `CG-SITE-OFF`).
+   */
+  dropTabs(host: TabHostKind): void;
   pagePorts(): number;
   counters(): Readonly<Record<RpcRejectReason, number>>;
   dispose(): void;
@@ -307,7 +316,7 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       reject('origin', 'tab.register', 'tab');
       return null;
     }
-    if (options.allowTab?.(state.host) === false) return rpcError('CG-RUNTIME-UNREACHABLE', 'site disabled');
+    if ((await options.allowTab?.(state.host)) === false) return rpcError('CG-SITE-OFF', 'site disabled');
     if (!tabPorts.has(state)) return rpcError('CG-RUNTIME-UNREACHABLE', 'port closed');
     // One session per port: a repeated register answers the same session.
     if (!state.session) {
@@ -447,6 +456,18 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     });
   }
 
+  /** A tab's document is gone (its port closed): its relay frames go with it, and the background hears of it. */
+  function tabGone(state: TabPortState): void {
+    if (!tabPorts.delete(state)) return;
+    // Its relay frames belong to this document: they go with it (a port closed on this side hears no onDisconnect).
+    for (const relay of [...relayPorts]) {
+      if (relay.owner !== state) continue;
+      relay.port.disconnect();
+      relayGone(relay);
+    }
+    if (state.session) options.onTabGone?.(state.session);
+  }
+
   const onConnect = (port: PortApi): void => {
     if (disposed) return;
     if (port.name === TAB_PORT_NAME) {
@@ -459,16 +480,7 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       const state: TabPortState = { port, host: verdict.host, tabId: verdict.tabId, url: verdict.url, session: null };
       tabPorts.add(state);
       port.onMessage.addListener((message) => onTabMessage(state, message));
-      port.onDisconnect.addListener(() => {
-        tabPorts.delete(state);
-        // Its relay frames belong to this document: they go with it (a port closed on this side hears no onDisconnect).
-        for (const relay of [...relayPorts]) {
-          if (relay.owner !== state) continue;
-          relay.port.disconnect();
-          relayGone(relay);
-        }
-        if (state.session) options.onTabGone?.(state.session);
-      });
+      port.onDisconnect.addListener(() => tabGone(state));
       return;
     }
     if (port.name === RELAY_PORT_NAME) {
@@ -573,6 +585,18 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
     },
     tabs() {
       return [...tabPorts].flatMap((state) => (state.session ? [state.session] : []));
+    },
+    dropTabs(host) {
+      for (const state of [...tabPorts]) {
+        if (state.host !== host) continue;
+        // A port closed on this side hears no onDisconnect: the tab is let go here.
+        try {
+          state.port.disconnect();
+        } catch {
+          // already gone
+        }
+        tabGone(state);
+      }
     },
     pagePorts() {
       return pagePorts.size;

@@ -172,6 +172,28 @@ describe('[host:fansly] a Fansly tab and the background (R20 P7i)', () => {
     expect(callsTo(w.hub.read().entries, 'aiFeatureStream')).toHaveLength(1);
   });
 
+  it('[host:fansly] Fansly switched off under an open tab: the background lets the tab go, its registration hears CG-SITE-OFF and the tab takes our UI off — no dock left to answer «функция выключена для страницы»', async () => {
+    const w = world();
+    w.start();
+    await switchFanslyOn(w);
+    await signIn(w);
+    const url = `${FANSLY_ORIGIN}/messages/${group}`;
+    const context = w.fake.context(tabSender(w.fake, { url, origin: FANSLY_ORIGIN, tab: { id: 21, url } }));
+    let siteOff = 0;
+    const client = createTabRpcClient({
+      api: context.api,
+      validate: fanslyProtocol,
+      register: { host: 'fansly-web', lateInjection: false, contractsVersion: CONTRACTS_VERSION },
+      reconnectDelaysMs: [5, 10, 20],
+      onSiteOff: () => { siteOff += 1; },
+    });
+    await until(() => client.state() === 'ready', 'the Fansly tab registered');
+    expect(await w.page().request('site.access', { host: 'fansly-web', enabled: false })).toMatchObject({ ok: true, payload: { enabled: false } });
+    await until(() => siteOff === 1, 'the tab heard that Fansly is off');
+    expect(client.state()).toBe('closed');
+    expect(await client.request('token.issue', { kind: 'generate', surface: 'dock' })).toMatchObject({ ok: false });
+  });
+
   it('[host:fansly] a start and an insert token that waited for Fansly’s module are refused when the sign-in changed meanwhile', async () => {
     const held = gate();
     const w = world(held);
