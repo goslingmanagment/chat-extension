@@ -32,6 +32,7 @@ import { allOurs, ours, oursExists, oursText, pressOurs, readOurs, waitOursByTex
 import { dockIs, startShift, type ShiftOptions } from '../support/shift';
 import { callStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 import { fanslyWrites, LIVE, netRecords, startLiveShift, type NetRecord } from './live';
+import { makeSite, type SiteVerbs } from './site';
 
 export type Site = 'chatspace' | 'fansly';
 
@@ -130,6 +131,8 @@ export interface See {
   readonly console: readonly ConsoleEntry[];
   /** --live: the page's requests and socket frames so far, with bodies (live.ts `NetRecord`); [] on the stand. */
   readonly net: readonly NetRecord[];
+  /** The site itself, not our UI: clicks by text, fields, files, Fansly's API, the traffic cut and saved (site.ts). */
+  readonly web: SiteVerbs;
   readonly MOD: string;
   readonly PANEL: readonly string[];
   readonly Key: typeof Key;
@@ -481,6 +484,7 @@ function makeSee(parts: Parts): See {
       return parts.logs;
     },
     net: netRecords,
+    web: makeSite(OUT),
     MOD,
     PANEL,
     Key,

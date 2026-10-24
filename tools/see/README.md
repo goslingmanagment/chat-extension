@@ -126,6 +126,42 @@ production hub). A scenario takes ~15 s.
 - The fake hub has no archive of a live chat: Reply says «Ответ мог не учесть
   последние сообщения чата», the texts are the mockup's.
 
+## Recipes on fansly.com (`s.web`)
+
+`s.web` acts on the site itself, not on our UI (`e2e/see/site.ts`): `go(path)`
+(a load that never ends is fine, popups dismissed), `click(text)` / `maybe(text)`,
+`icon('fa-clock')` (Fansly's icon-only buttons), `fill(selector, text)` (emoji
+and all), `pick(selector, value)` (its styled selects), `attach(paths, selector?)`
+(its hidden file inputs), `api(path, {method, body})` (the API with the page's
+own session), `mark()` / `since(mark, /url/)` / `waitNet(mark, /url/, test)` /
+`save(name, mark, /url/)`, and `headers` (request and answer headers of
+Fansly's hosts and S3, preflights included, secrets blanked). A send, a post, a
+story or money still needs the owner's «да» (above).
+
+```js
+// A post put in the schedule and taken off again — nothing reaches a fan.
+await s.web.go('/home');
+const m = s.web.mark();
+await s.web.fill('textarea', 'good morning 🌸');
+await s.web.attach(['/abs/path/photo.jpg']);            // the upload window opens
+await s.web.click('Upload');
+await s.web.waitNet(m, /media\/upload\/\d+/, (r) => /"mediaId":"\d+"/.test(r.response ?? ''));
+await s.web.icon('fa-clock'); await s.web.click('+30d'); await s.web.click('Confirm Date');
+await s.web.click('Schedule'); await s.web.maybe('Post');  // «FYP Tips» asks once more
+const post = await s.web.waitNet(m, /\/api\/v1\/post\?/, (r) => r.method === 'POST');
+const { postId } = JSON.parse(post.response).response;
+await s.web.api(`/post/scheduled/${postId}/cancel`, { method: 'POST' });
+return s.web.save('scheduled-post', m, /fansly\.com|amazonaws/);
+```
+
+- A preview: `attach([file], '.modal .media-container input[type=file]')` —
+  its media's own input; the editor that opens wants `click('Save Changes')`.
+- From the vault: the image icon (`icon('fa-image')`), `click('From Vault')`,
+  `click('All')`, then the tile's circle (a pointer action at its corner).
+- Escape closes the whole upload window and drops its files.
+- The site's code: `pnpm fansly:bundle` (docs/research/fansly.md §2); what
+  Fansly does with a post — `docs/plans/2026-10-23-wall-posts/fansly-publish-contract.md` in hub.
+
 ## Limits
 
 - The stand is synthetic: layout, data and timings are our imitation of

@@ -169,11 +169,43 @@ async function recordNet(): Promise<void> {
   await browser.scriptAddPreloadScript({ functionDeclaration, arguments: [{ type: 'channel', value: { channel: 'cg-net' } }] });
 }
 
-/** Writes down every request of the browser's pages to Fansly that is not a read; nothing is held or failed. */
+/** One request's or answer's headers on Fansly's hosts or its storage (`s.web.headers`); secrets blanked. */
+export interface HeaderRecord {
+  readonly at: string;
+  readonly phase: 'request' | 'response';
+  readonly method: string;
+  /** Without the query: a storage URL's query is its signature. */
+  readonly url: string;
+  readonly status?: number;
+  readonly headers: readonly string[];
+}
+
+/** The latest 3000 header records of the session (`s.web.headers`). */
+export const headerRecords: HeaderRecord[] = [];
+
+const HEADER_HOSTS = /(?:^|\.)fansly\.com$|\.amazonaws\.com$/;
+const SECRET_HEADERS = /^(?:authorization|cookie|set-cookie|fansly-session-id)$/i;
+
+function keepHeaders(phase: HeaderRecord['phase'], method: string, url: string, headers: ReadonlyArray<{ name: string; value: { value?: string } }>, status?: number): void {
+  if (!HEADER_HOSTS.test(new URL(url).hostname)) return;
+  headerRecords.push({
+    at: new Date().toISOString(),
+    phase,
+    method,
+    url: url.split('?')[0] ?? url,
+    ...(status === undefined ? {} : { status }),
+    headers: headers.map((header) => `${header.name}: ${SECRET_HEADERS.test(header.name) ? '<redacted>' : (header.value.value ?? '')}`),
+  });
+  if (headerRecords.length > 3000) headerRecords.splice(0, headerRecords.length - 3000);
+}
+
+/** Writes down every request of the browser's pages to Fansly that is not a read; nothing is held or failed. Keeps headers. */
 async function journalWrites(): Promise<void> {
-  await browser.sessionSubscribe({ events: ['network.beforeRequestSent'] });
+  await browser.sessionSubscribe({ events: ['network.beforeRequestSent', 'network.responseCompleted'] });
+  browser.on('network.responseCompleted', (event) => keepHeaders('response', event.request.method, event.request.url, event.response.headers, event.response.status));
   browser.on('network.beforeRequestSent', (event) => {
     const { method, url } = event.request;
+    keepHeaders('request', method, url, event.request.headers);
     if (READS.has(method) || !/(?:^|\.)fansly\.com$/.test(new URL(url).hostname)) return;
     const write = { at: new Date().toISOString(), method, url: url.split('?')[0] ?? url };
     fanslyWrites.push(write);
