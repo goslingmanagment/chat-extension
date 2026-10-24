@@ -196,6 +196,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   const outreach = deps.outreach === undefined ? null : createOutreach({
     port: deps.outreach,
     canAdapt: () => context.current().bootstrap?.capabilities.includes(OUTREACH_FIX_CAPABILITY) === true,
+    media: () => batchPort?.outreachMedia?.() ?? null,
     rpc,
     clock,
     i18n,
@@ -297,10 +298,27 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       ...(chat === undefined ? {} : { chat }),
       ...(batchPort === null ? {} : { batch: batch.row(handleOf(row.fanRef)) }),
     };
-    const sends = outreach?.row(base.handle, base.batch?.state === 'ready' && base.batch.text !== null);
+    const sends = outreach === null ? undefined : outreach.channel === 'preview' ? previewSend(base) : outreach.row(base.handle, base.batch?.state === 'ready' && base.batch.text !== null);
     if (sends !== undefined) return cents ? { ...base, lifetimeCents: true, outreach: sends } : { ...base, outreach: sends };
     return cents ? { ...base, lifetimeCents: true } : base;
   }
+
+  /**
+   * «Рассылка» from the card (X8): the row's «Отправить» is the fan's card's send of its batch result — whether it may go
+   * now, why the last click was refused, and whether it all went out, as the preview says.
+   */
+  function previewSend(row: SpenderRowVM): SpenderRowVM['outreach'] {
+    if (outreach === null || !outreach.vm().open || batchPort === null || (row.batch?.state !== 'ready' && row.batch?.state !== 'sent')) return undefined;
+    if (row.batch.state === 'sent') return { state: 'sent', can: false, code: null };
+    const send = batchPort.batchSend?.(row.handle) ?? null;
+    if (send === null) return undefined;
+    const can = send.can || send.anyway === true;
+    const warned = send.anyway === true ? { anyway: true } : {};
+    return send.refused === null ? { state: 'ready', can, code: null, ...warned } : { state: 'failed', can, code: send.refused.code, ...warned };
+  }
+
+  /** Outreach is offered where its send exists: Fansly's own; the card's (X8) only with Fix for each fan. */
+  const outreachUsable = (): boolean => outreach !== null && (outreach.channel === 'own' || (outreach.vm().adapt !== null && batchPort?.setOutreach !== undefined));
 
   const boardRetry: UiAction = { type: 'ReloadView', selector: BOARD_SELECTOR };
   const statsRetry: UiAction = { type: 'ReloadView', selector: STATS_SELECTOR };
@@ -408,7 +426,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       ],
       waitingFallback: queueFailed === null ? null : { error: errorOf(queueFailed, i18n), retry: boardRetry },
       ...(batchPort === null ? {} : { batch: batch.vm(!pageFlag(ctx, 'preview') ? flagReasonVm(pageFlagOf(ctx, 'preview')).text : outreach?.needsText() === true ? msg('outreach.needText') : null) }),
-      ...(outreach === null ? {} : { outreach: outreach.vm() }),
+      // From the card (X8) the fans the outreach reached are the batch's rows whose version went out.
+      ...(outreach === null || !outreachUsable() ? {} : { outreach: outreach.channel === 'preview' ? { ...outreach.vm(), sent: batch.vm(null).sent } : outreach.vm() }),
     };
   }
 
@@ -828,11 +847,19 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       }
       return null;
     }
-    if (action.type === 'SetOutreach') return outreach === null ? null : Promise.resolve(outreach.set(action));
+    if (action.type === 'SetOutreach') {
+      if (outreach === null || !outreachUsable()) return null;
+      const receipt = outreach.set(action);
+      // From the card: the preview's rows and pickers follow the bar.
+      if (outreach.channel === 'preview') batchPort?.setOutreach?.(outreach.vm().open);
+      return Promise.resolve(receipt);
+    }
     if (action.type === 'SendOutreach') {
       const fanRef = own(action.targetHandle);
       const binding = context.current().binding;
       if (outreach === null || fanRef === null) return null;
+      // From the card the preview sends (it answers first); here only what it could not take.
+      if (outreach.channel === 'preview') return Promise.resolve(refused(action.type, localError('CG-SEND-PART', i18n)));
       if (binding === null) return Promise.resolve(refused(action.type, localError('CG-BINDING-MISSING', i18n)));
       return outreach.send(action.type, action.targetHandle, {
         hostAccountId: binding.platformAccountId,

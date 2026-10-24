@@ -10,4 +10,7 @@ export { createNewcomersController } from '@cg/core/application/newcomers';
 export { createPaletteDirectory } from '@cg/core/application/preview';
 import type { HostPort } from '@cg/contracts/host';
 import { createSpendersController as create, type SpendersControllerDeps } from '@cg/core/application/spenders';
-export const createSpendersController = (deps: SpendersControllerDeps & { readonly host: HostPort }) => create(deps);
+// «Рассылка» on ChatSpace: the row's «Отправить» is the fan's card's send (X8) with the outreach's vault media (X53), so
+// the port has no copied items and no send of its own.
+export const createSpendersController = (deps: SpendersControllerDeps & { readonly host: HostPort }) =>
+  create({ ...deps, outreach: { channel: 'preview', copied: () => [], send: () => Promise.resolve({ ok: false, code: 'CG-SEND-PART' }) } });

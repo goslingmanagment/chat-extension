@@ -181,6 +181,7 @@ function Panel({ vm, handle }: MediaPanelProps): JSX.Element {
         </label>
         <span class="cg-pvm__sum">{vm.summary === null ? i18n.t('preview.media.hint') : i18n.text(vm.summary)}</span>
         {vm.picks > 0 ? <Button label={i18n.t('preview.media.clear')} size="sm" variant="quiet" onClick={() => void dispatch({ type: 'ClearMedia', targetHandle: handle })} /> : null}
+        <OutreachMediaButton vm={vm} handle={handle} />
       </div>
       <Notes vm={vm} handle={handle} />
     </section>
@@ -198,10 +199,20 @@ function Closed({ vm, handle }: MediaPanelProps): JSX.Element {
         {vm.summary === null ? null : <b>{i18n.text(vm.summary)}</b>} · {i18n.t('preview.media.attachedHint')}
       </span>
       <Button label={i18n.t('preview.media.button')} size="sm" variant="quiet" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true })} />
+      <OutreachMediaButton vm={vm} handle={handle} />
       <Button label={i18n.t('preview.media.clear')} icon="x" iconOnly size="sm" variant="quiet" onClick={() => void dispatch({ type: 'ClearMedia', targetHandle: handle })} />
       <Notes vm={vm} handle={handle} />
     </div>
   );
+}
+
+/** «Рассылка» open: these picks go to every fan of the outreach («Для всей рассылки»), or already are its media. */
+function OutreachMediaButton({ vm, handle }: MediaPanelProps): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  if (vm.outreach === undefined) return null;
+  if (vm.outreach === 'set') return <span class="cg-pvm__or" data-cg-outreach-media="set">{i18n.t('outreach.media.set')}</span>;
+  return <Button label={i18n.t('outreach.media.take')} size="sm" variant="line" class="cg-pvm__or" tooltip={i18n.t('outreach.media.takeTooltip')} onClick={() => void dispatch({ type: 'SetOutreachMedia', targetHandle: handle })} />;
 }
 
 const MediaView = (props: MediaPanelProps): JSX.Element => (props.vm.open ? <Panel {...props} /> : <Closed {...props} />);

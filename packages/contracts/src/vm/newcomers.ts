@@ -86,6 +86,11 @@ export interface NewcomerRowSendVM {
   readonly refused: NewcomersFailureVM | null;
   /** 1.53.0: off only for the second after a send of the tab (the pause between sends), not for anything of this draft. */
   readonly paused?: boolean;
+  /**
+   * «Рассылка»: the card could not check whether the fan wrote anything new since the result (its «Отправить всё
+   * равно»); the row's click may pass that warning, as the card's does. Absent — no such warning.
+   */
+  readonly anyway?: boolean;
 }
 
 export interface NewcomersVM {

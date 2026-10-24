@@ -76,7 +76,7 @@ import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type Draft
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
-import { type Attachment } from '../../domain/media/attachment';
+import { attachmentSummary, type Attachment } from '../../domain/media/attachment';
 import { MediaDesk } from './media';
 import { SeenDesk, hostChatReadPort, type ChatReadPort } from './seen';
 import { partsOfResult, previewResult, type PartRows } from './result';
@@ -298,6 +298,13 @@ export interface PreviewController extends SurfaceController<'preview'> {
    * the card's own send, and why the last click on it was refused; null — no part of a «Новые» result waits.
    */
   batchSend(handle: TargetHandle): NewcomerRowSendVM | null;
+  /**
+   * «Рассылка» of Spenders on a site that sends from the card (X8): open — the rows of its batch send their fan's result
+   * («SendOutreach») and the fans' media pickers offer «Для всей рассылки». False on a site without that send.
+   */
+  setOutreach(on: boolean): boolean;
+  /** The vault media every fan of the outreach takes, as its bar says it; null — none set. */
+  outreachMedia(): { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
 }
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
@@ -341,6 +348,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const shadows = new Set<TargetHandle>();
   const batchWaiters = new Map<string, (outcome: BatchOutcome) => void>();
   const batchListeners = new Set<() => void>();
+  /** «Рассылка» is open on Spenders (X8 sites only): the rows of its batch send their fan's result. */
+  let outreachOn = false;
+  /** The vault media every fan of the outreach takes, and whose card they were picked in. */
+  let outreachMedia: { readonly attachment: Attachment; readonly from: string | null } | null = null;
+  /** What the outreach gave each fan, by chat: replaced when its media change, never a fan's own picks. */
+  const adopted = new Map<string, Attachment>();
   const batchOps = new Set<string>();
   /** The boards are closing because a chat is being opened by us: not the person closing the preview. */
   let closingForNavigation = false;
@@ -1554,7 +1567,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   function mediaVm(state: TargetState): PreviewVM['media'] {
     const chat = chatOf(state);
     if (chat === null || deps.sender === null || deps.previewSend === false || !media.available || !pageFlag(context.current(), 'previewSend')) return null;
-    return media.vm(chat);
+    const vm = media.vm(chat);
+    // «Рассылка»: a whale's valid picks may become the outreach's («Для всей рассылки»), or already are.
+    const copy = vm === null || !outreachOn || state.source !== 'spenders' ? null : media.copyOf(chat);
+    return vm === null || copy === null ? vm : { ...vm, outreach: outreachMedia?.attachment === copy ? 'set' : 'offer' };
   }
 
   function build(source: PreviewSource): PreviewVM {
@@ -1849,7 +1865,26 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const view = track.mirror.done;
     if (settle === undefined || (outcome === undefined && view === null)) return;
     batchWaiters.delete(track.opId);
+    // «Рассылка»: a whale whose version is ready takes the outreach's media now, so its release forms are read before the click.
+    if (view?.state === 'done' && track.source === 'spenders') adoptOutreach(track.target.chat);
     settle(outcome ?? (view?.state === 'done' ? { s: 'ready', text: firstPart(view) } : { s: 'failed', code: view?.error?.code ?? 'CG-OP-INTERRUPTED' }));
+  }
+
+  /** The outreach's media into this fan's picker, unless the person picked the fan's own there. */
+  function adoptOutreach(chat: ChatRef): void {
+    if (outreachMedia === null || !outreachOn) return;
+    const key = chatKeyOf(chat);
+    if (media.adopt(chat, outreachMedia.attachment, adopted.get(key) ?? null)) adopted.set(key, outreachMedia.attachment);
+  }
+
+  /** The outreach's media go to every whale of the batch whose version is ready; the rows and the bar say so. */
+  function outreachChanged(): void {
+    for (const handle of batched.keys()) {
+      const track = tracks.get(currentOp.get(handle) ?? '');
+      if (track !== undefined && track.source === 'spenders' && track.mirror.done?.state === 'done') adoptOutreach(track.target.chat);
+    }
+    changed();
+    for (const listener of [...batchListeners]) listener();
   }
 
   function batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null {
@@ -1865,7 +1900,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    */
   function rowPart(handle: TargetHandle): { readonly track: OpTrack; readonly index: number; readonly rows: PartRows } | null {
     const track = tracks.get(currentOp.get(handle) ?? '');
-    if (track === undefined || track.source !== 'newcomers' || track.hidden || track.mirror.done?.state !== 'done') return null;
+    // X59 on a hub's «Новые»; «Рассылка» of Spenders while its bar is open.
+    if (track === undefined || (track.source !== 'newcomers' && !(outreachOn && track.source === 'spenders')) || track.hidden || track.mirror.done?.state !== 'done') return null;
     const parts = partsOfResult(track.mirror.done.result, 0) ?? [];
     for (let index = 0; index < parts.length; index += 1) {
       const rows = rowsOf(track, 0, index);
@@ -1880,9 +1916,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (next === null || send === undefined) return null;
     // Only what the card would send by one plain click: a warning («фан написал новое») or a part in work is the card's.
     const can = send.s === 'available' && next.rows.order === null;
+    // «Рассылка»: a version made with the chat closed is unverified; its row may pass that, as the card's «Отправить всё равно».
+    const anyway = next.track.source === 'spenders' && send.s === 'unverified' && next.rows.order === null && !paced();
     const refusedNow = send.s === 'rejected' && !send.canRetry ? { code: send.code, retryAt: null } : null;
     // The pause after a send (SEND_PACE_MS) is no fault of this draft: the row says so, not «откройте фана».
-    return send.s === 'unavailable' && send.reason.key === 'send.reason.pace' ? { can, refused: refusedNow, paused: true } : { can, refused: refusedNow };
+    const base = anyway ? { can, refused: refusedNow, anyway: true } : { can, refused: refusedNow };
+    return send.s === 'unavailable' && send.reason.key === 'send.reason.pace' ? { ...base, paused: true } : base;
   }
 
   /** A row of a batch follows its fan's result only when what it shows changes — never on every streamed word. */
@@ -1891,7 +1930,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (last === undefined) return;
     const live = batchLive(handle);
     const send = batchSend(handle);
-    const now = live === null ? '' : `${live.sent ? 1 : 0}${send === null ? '-' : `${send.can ? 1 : 0}${send.paused === true ? 'p' : ''}${send.refused?.code ?? ''}`}${live.text ?? ''}`;
+    const now = live === null ? '' : `${live.sent ? 1 : 0}${send === null ? '-' : `${send.can ? 1 : 0}${send.paused === true ? 'p' : ''}${send.anyway === true ? 'a' : ''}${send.refused?.code ?? ''}`}${live.text ?? ''}`;
     if (now === last) return;
     batched.set(handle, now);
     for (const listener of [...batchListeners]) listener();
@@ -2476,6 +2515,33 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const state = stateOf(action.targetHandle);
       return state === null ? null : sendDraft(type, state);
     }
+    if (action.type === 'SetOutreachMedia') {
+      const state = stateOf(action.targetHandle);
+      const chat = state === null ? null : chatOf(state);
+      if (!outreachOn || deps.sender === null || state === null || chat === null) return null;
+      const copy = media.copyOf(chat);
+      if (copy === null) return Promise.resolve(refused(type, localError('CG-SEND-MEDIA', i18n)));
+      outreachMedia = { attachment: copy, from: fanLabelOf(state.info) };
+      adopted.set(chatKeyOf(chat), copy);
+      outreachChanged();
+      return Promise.resolve(done(type));
+    }
+    if (action.type === 'ClearOutreachMedia') {
+      if (!outreachOn || deps.sender === null) return null;
+      outreachMedia = null;
+      adopted.clear();
+      outreachChanged();
+      return Promise.resolve(done(type));
+    }
+    if (action.type === 'SendOutreach') {
+      // «Рассылка» on a site that sends from the card: the row's «Отправить» is the card's own send of the fan's version,
+      // with the fan's media (the outreach's, unless the person picked the fan's own), by this click.
+      if (deps.sender === null || !outreachOn) return null;
+      const next = rowPart(action.targetHandle);
+      if (next === null) return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
+      adoptOutreach(next.track.target.chat);
+      return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index, action.anyway === true);
+    }
     if (action.type === 'SendNewcomerGreeting') {
       // X59 on a hub's «Новые»: the row's «Отправить» is the card's own send of the greeting's next part, by this click.
       const next = rowPart(action.targetHandle);
@@ -2684,6 +2750,19 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     batchStart,
     batchLive,
     batchSend,
+    setOutreach(on) {
+      if (deps.sender === null) return false;
+      if (on !== outreachOn) {
+        outreachOn = on;
+        outreachChanged();
+      }
+      return true;
+    },
+    outreachMedia() {
+      if (outreachMedia === null) return null;
+      const summary = attachmentSummary(outreachMedia.attachment);
+      return { count: summary.count, previews: summary.previews, priceCents: summary.priceCents ?? 0, from: outreachMedia.from };
+    },
     fromBatch: (opId) => batchOps.has(opId),
     onBatch(listener) {
       batchListeners.add(listener);

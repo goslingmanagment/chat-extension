@@ -216,6 +216,28 @@ export class MediaDesk {
     return taken;
   }
 
+  /** «Рассылка»: this chat's picks as they stand, when valid — what every fan of the outreach then takes; null — none. */
+  copyOf(chat: ChatRef): Attachment | null {
+    const picker = this.pickers.get(keyOf(chat));
+    if (picker === undefined || picker.attachment.picks.length === 0 || attachmentProblem(picker.attachment) !== null) return null;
+    return picker.attachment;
+  }
+
+  /**
+   * «Рассылка»: the outreach's picks go to this fan, as if picked in their card — unless the person picked something of
+   * the fan's own (`previous` — what the outreach gave this fan before: those are replaced). Their release forms and what
+   * the fan already got of them are read as for any picks. True — the fan's picks are the outreach's now.
+   */
+  adopt(chat: ChatRef, attachment: Attachment, previous: Attachment | null = null): boolean {
+    const picker = this.picker(chat);
+    if (picker.attachment === attachment) return true;
+    if (picker.attachment.picks.length > 0 && picker.attachment !== previous) return false;
+    picker.attachment = attachment;
+    this.picksChanged(picker);
+    this.trim();
+    return true;
+  }
+
   /**
    * The send never reached the platform: its picks come back to the chat — also when its card was closed meanwhile (the
    * next card of the chat shows them) — unless the person has picked something since (their new picks stand).

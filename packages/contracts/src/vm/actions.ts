@@ -389,7 +389,14 @@ export const UiActionSchema = z.discriminatedUnion('type', [
     item: z.optional(z.strictObject({ contentType: z.union([z.literal(1), z.literal(2)]), contentId: z.string().check(z.regex(/^[1-9][0-9]{0,23}$/)), picked: z.boolean() })),
   }),
   /** The row's «Отправить» of the outreach: the fan's personal line, the common text and the picked items — one click, one attempt. */
-  act('SendOutreach', { targetHandle: HandleSchema }),
+  act('SendOutreach', { targetHandle: HandleSchema, anyway: z.optional(z.literal(true)) }),
+  /**
+   * «Рассылка» on OnlyFans: «Для всей рассылки» in a fan's media picker — that fan's valid picks and price go to every fan
+   * of the outreach whose card has no picks of its own. Nothing is sent.
+   */
+  act('SetOutreachMedia', { targetHandle: HandleSchema }),
+  /** «Убрать» of the outreach's media: the fans keep what they have, new fans of the batch get none. Nothing is sent. */
+  act('ClearOutreachMedia', {}),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),

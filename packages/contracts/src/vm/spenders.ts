@@ -78,6 +78,14 @@ export interface OutreachVM {
   readonly items: readonly OutreachItemVM[];
   /** Fans the outreach reached in this tab. */
   readonly sent: number;
+  /**
+   * How a row's «Отправить» sends: `own` — the site's own message with the copied items (Fansly); `preview` — the fan's
+   * card's send of its batch result with the outreach's media from the vault (OnlyFans, X8 and X53): there the result is
+   * always the fan's own version (`adapt`), and `items` are empty.
+   */
+  readonly channel: 'own' | 'preview';
+  /** `preview`: the vault media every fan of the outreach takes («Для всей рассылки» in a fan's picker); null — none set. */
+  readonly media: { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
 }
 
 /** A row's «Отправить» of the outreach. */
@@ -88,6 +96,8 @@ export interface OutreachRowVM {
   readonly can: boolean;
   /** `failed` and `uncertain`: the code. */
   readonly code: string | null;
+  /** From the card (X8): whether the fan wrote anything new could not be checked — the click is «Отправить всё равно». */
+  readonly anyway?: boolean;
 }
 
 export interface ShelfVM {
