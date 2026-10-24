@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { CHAT_READ_LIMITS, DEFAULT_SETTINGS, type Bootstrap, type CgCode, type ChatReadRead, type ChatRef, type HostContractReport, type HostEvent, type HostPort, type HubFrame, type NavigateOptions, type NavigationIntent, type NavigationReceipt, type NewcomerRowVM, type PartVM, type PersonaCatalog, type PreviewSource, type SendAttemptView, type SessionIdentity, type SettingsV1, type SpendersBoardVM, type UiAction, type ViewSelector } from '@cg/contracts';
 import { createBoardsControllers, fanHandle, type BoardsControllers, type PreviewSendClick } from '@cg/core/application/boards';
+import { chatHandle } from '@cg/core/application/navigation';
 import { type BoardHandover } from '@cg/core/application/preview';
 import { FEED_PAGE_SIZE, SEND_PACE_MS } from '@cg/core/application/preview';
 import { createI18n, type LiveI18n } from '@cg/core/domain/i18n';
@@ -1550,5 +1551,56 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
     await h.dispatch({ type: 'ChangeFanFact', factId: 7, action: 'delete' });
     await h.flush();
     expect(h.boards.fanPanel.getSnapshot(PANEL).memory?.facts[0]?.items).toEqual([]);
+  });
+});
+
+describe('Chat Memory week 3: «Очередь» of the fan panel', () => {
+  it('is the page’s: read on its tab, stays when a chat opens; a row opens its chat; a pick takes the fan off «Вернуть»', async () => {
+    const h = await harness();
+    const page = h.bootstrap.pages.find((candidate) => candidate.platformAccountId === hostAccount.platformAccountId)!;
+    const fan = (fanRef: string, username: string, mills: number, reason: string, reasonAt: string | null) => ({ fanRef, conversationRef: null, username, displayName: null, alias: null, lifetimeGrossMills: mills, reason, reasonAt });
+    h.hub.control({
+      op: 'queue',
+      pageLabel: page.pageLabel,
+      waiting: [{ fanRef: '5000', conversationRef: '7000', alias: '💵Kai/Canada/38', username: 'kai38', displayName: 'Kai', lifetimeGrossMills: 0, lastFanMessageAt: iso(NOW_MS - 600_000), lastModelMessageAt: null, unreadCount: 1, readState: 'unread' }],
+      winBack: {
+        pageLabel: page.pageLabel,
+        approaches: [{ id: 1, label: 'Скучала' }, { id: 2, label: 'Новое видео' }],
+        // Ends in 30 hours — «через 2 дн»; silent 16.5 days — «16 дн»; a reason this build does not know — none.
+        items: [fan('5001', 'leo', 300_000, 'expiring', iso(NOW_MS + 30 * 3_600_000)), fan('5002', 'max', 50_000, 'silent', iso(NOW_MS - 16.5 * 86_400_000)), fan('5003', 'ann', 10_000, 'loyal', null)],
+        serverNow: iso(NOW_MS),
+      },
+    });
+    await h.dispatch(open('fan-panel'));
+    await h.flush();
+    const reads = () => h.hub.read().entries.filter((entry) => entry.route === 'clientSpenderAwaitingReply').length;
+    expect(h.boards.fanPanel.getSnapshot(PANEL).queue?.tabs).toEqual(['waiting', 'winback', 'handoff']);
+    expect(reads()).toBe(0);
+    await h.dispatch({ type: 'SetFanPanelTab', tab: 'queue' });
+    await h.flush();
+    expect(reads()).toBe(1);
+    let queue = h.boards.fanPanel.getSnapshot(PANEL).queue!;
+    // The team's alias as it is, the username beside it; nothing spent is no money; the chat by its own id.
+    expect(queue.waiting?.rows.map((row) => [row.name, row.username, row.spent, row.open])).toEqual([['💵Kai/Canada/38', '@kai38', null, { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: HOST_IDS.acc, platformFanId: '5000' }, '7000') } }]]);
+    // A chat opens: the panel stays on «Очередь», nothing of it is read again before its time.
+    h.hostEvent({ type: 'route', route: { epoch: 7, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } } });
+    await h.flush();
+    expect(h.boards.fanPanel.getSnapshot(PANEL).tab).toBe('queue');
+    expect(reads()).toBe(1);
+
+    await h.dispatch({ type: 'SetQueueTab', tab: 'winback' });
+    await h.flush();
+    queue = h.boards.fanPanel.getSnapshot(PANEL).queue!;
+    expect(queue.winBack?.rows.map((row) => [row.key, row.reason])).toEqual([
+      ['5001', { key: 'queue.reason.expiring', params: { days: 2 } }],
+      ['5002', { key: 'queue.reason.silent', params: { days: 16 } }],
+      ['5003', null],
+    ]);
+    await h.dispatch(queue.winBack!.rows[0]!.approaches[1]!.pick);
+    await h.flush();
+    queue = h.boards.fanPanel.getSnapshot(PANEL).queue!;
+    expect(queue.winBack?.rows.map((row) => row.key)).toEqual(['5002', '5003']);
+    expect(queue.winBack?.picked).toEqual({ name: '@leo', approach: 'Новое видео', open: { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: HOST_IDS.acc, platformFanId: '5001' }) } } });
+    expect(h.hub.read().entries.filter((entry) => entry.route === 'clientWinBackAttempt').length).toBe(1);
   });
 });

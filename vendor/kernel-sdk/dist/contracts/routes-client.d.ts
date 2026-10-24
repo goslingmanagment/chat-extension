@@ -89,7 +89,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -691,9 +691,15 @@ export type ClientSpenderAwaitingReplyReadState = (typeof CLIENT_SPENDER_AWAITIN
 export declare const clientSpenderAwaitingReplyQuerySchema: z.ZodObject<{
     cursor: z.ZodOptional<z.ZodString>;
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    everyone: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+        true: "true";
+        false: "false";
+    }>, z.ZodTransform<boolean, "true" | "false">>>;
 }, z.core.$strict>;
 export declare const clientSpenderAwaitingReplyItemSchema: z.ZodObject<{
     fanRef: z.ZodString;
+    conversationRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    alias: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     username: z.ZodNullable<z.ZodString>;
     displayName: z.ZodNullable<z.ZodString>;
     lifetimeGrossMills: z.ZodNumber;
@@ -705,6 +711,8 @@ export declare const clientSpenderAwaitingReplyItemSchema: z.ZodObject<{
 export declare const clientSpenderAwaitingReplyResponseSchema: z.ZodObject<{
     items: z.ZodArray<z.ZodObject<{
         fanRef: z.ZodString;
+        conversationRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        alias: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         username: z.ZodNullable<z.ZodString>;
         displayName: z.ZodNullable<z.ZodString>;
         lifetimeGrossMills: z.ZodNumber;
@@ -1791,6 +1799,125 @@ export declare const clientFanLinkDecideResponseSchema: z.ZodObject<{
         serverNow: z.ZodString;
     }, z.core.$strip>;
 }, z.core.$strip>;
+export declare const CLIENT_WIN_BACK_REASONS: readonly ["expiring", "new_unattended", "silent"];
+/** Fans one read lists: a few per shift, never crowding out the ones who wait. */
+export declare const CLIENT_WIN_BACK_MAX_ITEMS = 10;
+export declare const clientWinBackApproachSchema: z.ZodObject<{
+    id: z.ZodNumber;
+    label: z.ZodString;
+}, z.core.$strip>;
+export declare const clientWinBackResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    approaches: z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    items: z.ZodArray<z.ZodObject<{
+        fanRef: z.ZodString;
+        conversationRef: z.ZodNullable<z.ZodString>;
+        username: z.ZodNullable<z.ZodString>;
+        displayName: z.ZodNullable<z.ZodString>;
+        alias: z.ZodNullable<z.ZodString>;
+        lifetimeGrossMills: z.ZodNumber;
+        reason: z.ZodString;
+        reasonAt: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export declare const clientWinBackAttemptBodySchema: z.ZodObject<{
+    fanRef: z.ZodString;
+    approachId: z.ZodNumber;
+}, z.core.$strict>;
+export declare const clientWinBackAttemptResponseSchema: z.ZodObject<{
+    attemptId: z.ZodNumber;
+    list: z.ZodObject<{
+        pageLabel: z.ZodString;
+        approaches: z.ZodArray<z.ZodObject<{
+            id: z.ZodNumber;
+            label: z.ZodString;
+        }, z.core.$strip>>;
+        items: z.ZodArray<z.ZodObject<{
+            fanRef: z.ZodString;
+            conversationRef: z.ZodNullable<z.ZodString>;
+            username: z.ZodNullable<z.ZodString>;
+            displayName: z.ZodNullable<z.ZodString>;
+            alias: z.ZodNullable<z.ZodString>;
+            lifetimeGrossMills: z.ZodNumber;
+            reason: z.ZodString;
+            reasonAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        serverNow: z.ZodString;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+export declare const teamWinBackResultsQuerySchema: z.ZodObject<{
+    days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+}, z.core.$strip>;
+export declare const teamWinBackResultsResponseSchema: z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    rows: z.ZodArray<z.ZodObject<{
+        approachId: z.ZodNumber;
+        approach: z.ZodString;
+        userId: z.ZodNumber;
+        username: z.ZodString;
+        attempts: z.ZodNumber;
+        sent: z.ZodNumber;
+        matured72h: z.ZodNumber;
+        replied72h: z.ZodNumber;
+        matured7d: z.ZodNumber;
+        bought7d: z.ZodNumber;
+        matured30d: z.ZodNumber;
+        spent30dMills: z.ZodNumber;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export declare const teamWinBackApproachesResponseSchema: z.ZodObject<{
+    approaches: z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        label: z.ZodString;
+        sortOrder: z.ZodNumber;
+        active: z.ZodBoolean;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const teamWinBackApproachSaveBodySchema: z.ZodObject<{
+    id: z.ZodOptional<z.ZodNumber>;
+    label: z.ZodString;
+    sortOrder: z.ZodDefault<z.ZodNumber>;
+    active: z.ZodDefault<z.ZodBoolean>;
+}, z.core.$strict>;
+export declare const CLIENT_HANDOFF_HOURS = 12;
+export declare const clientHandoffResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    recent: z.ZodArray<z.ZodObject<{
+        fanRef: z.ZodString;
+        conversationRef: z.ZodNullable<z.ZodString>;
+        username: z.ZodNullable<z.ZodString>;
+        alias: z.ZodNullable<z.ZodString>;
+        lastSentAt: z.ZodString;
+        messages: z.ZodNumber;
+        chatters: z.ZodArray<z.ZodString>;
+        inConversation: z.ZodArray<z.ZodString>;
+    }, z.core.$strip>>;
+    waiting: z.ZodObject<{
+        total: z.ZodNumber;
+        head: z.ZodArray<z.ZodObject<{
+            fanRef: z.ZodString;
+            conversationRef: z.ZodNullable<z.ZodString>;
+            username: z.ZodNullable<z.ZodString>;
+            alias: z.ZodNullable<z.ZodString>;
+            lifetimeGrossMills: z.ZodNumber;
+            lastFanMessageAt: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>;
+    promises: z.ZodArray<z.ZodObject<{
+        fanRef: z.ZodString;
+        conversationRef: z.ZodString;
+        text: z.ZodString;
+        messageRef: z.ZodString;
+        messageAt: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
 export declare const clientRouteSchemas: {
     readonly clientBootstrap: {
         readonly auth: {
@@ -2373,11 +2500,17 @@ export declare const clientRouteSchemas: {
         readonly querystring: z.ZodObject<{
             cursor: z.ZodOptional<z.ZodString>;
             limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+            everyone: z.ZodOptional<z.ZodPipe<z.ZodEnum<{
+                true: "true";
+                false: "false";
+            }>, z.ZodTransform<boolean, "true" | "false">>>;
         }, z.core.$strict>;
         readonly response: {
             readonly 200: z.ZodObject<{
                 items: z.ZodArray<z.ZodObject<{
                     fanRef: z.ZodString;
+                    conversationRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                    alias: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                     username: z.ZodNullable<z.ZodString>;
                     displayName: z.ZodNullable<z.ZodString>;
                     lifetimeGrossMills: z.ZodNumber;
@@ -3358,6 +3491,357 @@ export declare const clientRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly clientWinBack: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "A few fans of the page to win back now, with the owner's approaches";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                approaches: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    label: z.ZodString;
+                }, z.core.$strip>>;
+                items: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    conversationRef: z.ZodNullable<z.ZodString>;
+                    username: z.ZodNullable<z.ZodString>;
+                    displayName: z.ZodNullable<z.ZodString>;
+                    alias: z.ZodNullable<z.ZodString>;
+                    lifetimeGrossMills: z.ZodNumber;
+                    reason: z.ZodString;
+                    reasonAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientWinBackAttempt: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "A chatter picks a win-back approach for a fan of the list";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            fanRef: z.ZodString;
+            approachId: z.ZodNumber;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                attemptId: z.ZodNumber;
+                list: z.ZodObject<{
+                    pageLabel: z.ZodString;
+                    approaches: z.ZodArray<z.ZodObject<{
+                        id: z.ZodNumber;
+                        label: z.ZodString;
+                    }, z.core.$strip>>;
+                    items: z.ZodArray<z.ZodObject<{
+                        fanRef: z.ZodString;
+                        conversationRef: z.ZodNullable<z.ZodString>;
+                        username: z.ZodNullable<z.ZodString>;
+                        displayName: z.ZodNullable<z.ZodString>;
+                        alias: z.ZodNullable<z.ZodString>;
+                        lifetimeGrossMills: z.ZodNumber;
+                        reason: z.ZodString;
+                        reasonAt: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    serverNow: z.ZodString;
+                }, z.core.$strip>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamWinBackResults: {
+        readonly auth: {
+            readonly kind: "session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Win-back results by approach and chatter";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodString;
+                rows: z.ZodArray<z.ZodObject<{
+                    approachId: z.ZodNumber;
+                    approach: z.ZodString;
+                    userId: z.ZodNumber;
+                    username: z.ZodString;
+                    attempts: z.ZodNumber;
+                    sent: z.ZodNumber;
+                    matured72h: z.ZodNumber;
+                    replied72h: z.ZodNumber;
+                    matured7d: z.ZodNumber;
+                    bought7d: z.ZodNumber;
+                    matured30d: z.ZodNumber;
+                    spent30dMills: z.ZodNumber;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamWinBackApproaches: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The owner's list of win-back approaches, retired ones included";
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                approaches: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    label: z.ZodString;
+                    sortOrder: z.ZodNumber;
+                    active: z.ZodBoolean;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamWinBackApproachSave: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The owner adds, renames, reorders or retires a win-back approach";
+        readonly description: "A retired approach (`active: false`) leaves the chatters' list and keeps its results.";
+        readonly body: z.ZodObject<{
+            id: z.ZodOptional<z.ZodNumber>;
+            label: z.ZodString;
+            sortOrder: z.ZodDefault<z.ZodNumber>;
+            active: z.ZodDefault<z.ZodBoolean>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                approaches: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    label: z.ZodString;
+                    sortOrder: z.ZodNumber;
+                    active: z.ZodBoolean;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientHandoff: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The shift handoff of a page: who is in a conversation, whom the team wrote to, who waits, open promises";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                recent: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    conversationRef: z.ZodNullable<z.ZodString>;
+                    username: z.ZodNullable<z.ZodString>;
+                    alias: z.ZodNullable<z.ZodString>;
+                    lastSentAt: z.ZodString;
+                    messages: z.ZodNumber;
+                    chatters: z.ZodArray<z.ZodString>;
+                    inConversation: z.ZodArray<z.ZodString>;
+                }, z.core.$strip>>;
+                waiting: z.ZodObject<{
+                    total: z.ZodNumber;
+                    head: z.ZodArray<z.ZodObject<{
+                        fanRef: z.ZodString;
+                        conversationRef: z.ZodNullable<z.ZodString>;
+                        username: z.ZodNullable<z.ZodString>;
+                        alias: z.ZodNullable<z.ZodString>;
+                        lifetimeGrossMills: z.ZodNumber;
+                        lastFanMessageAt: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                promises: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    conversationRef: z.ZodString;
+                    text: z.ZodString;
+                    messageRef: z.ZodString;
+                    messageAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly clientAudienceNew: {
         readonly auth: {
             readonly kind: "apiKey";
@@ -3769,6 +4253,14 @@ export type TeamShiftsResponse = z.infer<typeof teamShiftsResponseSchema>;
 export type ClientInConversationResponse = z.infer<typeof clientInConversationResponseSchema>;
 export type TeamAuthorshipQuery = z.infer<typeof teamAuthorshipQuerySchema>;
 export type TeamAuthorshipResponse = z.infer<typeof teamAuthorshipResponseSchema>;
+export type ClientHandoffResponse = z.infer<typeof clientHandoffResponseSchema>;
+export type ClientWinBackResponse = z.infer<typeof clientWinBackResponseSchema>;
+export type ClientWinBackAttemptBody = z.infer<typeof clientWinBackAttemptBodySchema>;
+export type ClientWinBackAttemptResponse = z.infer<typeof clientWinBackAttemptResponseSchema>;
+export type TeamWinBackResultsQuery = z.infer<typeof teamWinBackResultsQuerySchema>;
+export type TeamWinBackResultsResponse = z.infer<typeof teamWinBackResultsResponseSchema>;
+export type TeamWinBackApproachesResponse = z.infer<typeof teamWinBackApproachesResponseSchema>;
+export type TeamWinBackApproachSaveBody = z.infer<typeof teamWinBackApproachSaveBodySchema>;
 export type ClientFanCardPage = z.infer<typeof clientFanCardPageSchema>;
 export type ClientFanCardResponse = z.infer<typeof clientFanCardResponseSchema>;
 export type ClientFanLinkDecideBody = z.infer<typeof clientFanLinkDecideBodySchema>;

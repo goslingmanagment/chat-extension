@@ -92,6 +92,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   RenewClaim: { type: 'RenewClaim', targetHandle: 'newcomers:f2' },
   ReleaseClaim: { type: 'ReleaseClaim', targetHandle: 'newcomers:f2' },
   SetFanPanelTab: { type: 'SetFanPanelTab', tab: 'recap' },
+  SetQueueTab: { type: 'SetQueueTab', tab: 'winback' },
+  PickWinBack: { type: 'PickWinBack', fanRef: '920000000000000031', approachId: 2 },
   DecideFanLink: { type: 'DecideFanLink', otherPlatform: 'fansly', otherFanRef: '920000000000000032', decision: 'same' },
   ChangeFanFact: { type: 'ChangeFanFact', factId: 7, action: 'correct', text: 'Lives in Montreal' },
   DismissToast: { type: 'DismissToast', toastId: 'toast-1' },

@@ -1,2 +1,2 @@
 /** sha256 over the normalized OpenAPI document actually served by this build. */
-export declare const KERNEL_CONTRACT_HASH = "34c742e6792b289ea0201f87fe8c844a51bb2352abe9b00226982ba1a2b31c7b";
+export declare const KERNEL_CONTRACT_HASH = "ab7f0d6c037e9067cffbc43f5e48a6769f5d01420f64a20d63a70a5a57a06c25";

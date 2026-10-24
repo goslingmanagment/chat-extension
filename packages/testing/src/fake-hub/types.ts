@@ -210,6 +210,11 @@ export type FakeHubCommand =
    * Chat Memory week 1: another chatter (`name`, a userId of nobody signed in here) wrote to the fan `agoMs` before now
    * (default 3 minutes): «в разговоре» answers it for the next 15 minutes.
    */
+  /**
+   * Chat Memory week 3, «Очередь» of a page: «Ждут» rows in place of the seeded ones (with aliases and chats), the
+   * «Вернуть» list and the «Передача» as the hub answers them. Each one left out stays as it was.
+   */
+  | { readonly op: 'queue'; readonly pageLabel: string; readonly waiting?: readonly Record<string, unknown>[]; readonly winBack?: Record<string, unknown>; readonly handoff?: Record<string, unknown> }
   | { readonly op: 'talking'; readonly pageLabel: string; readonly fanRef: string; readonly conversationRef?: string; readonly name: string; readonly agoMs?: number }
   /** Chat Memory week 2: the fan's card as the hub answers it (`clientFanCard`), until a decision or a fact change moves it. */
   | { readonly op: 'fanCard'; readonly pageLabel: string; readonly fanRef: string; readonly card: Record<string, unknown> }

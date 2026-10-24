@@ -4596,6 +4596,12 @@ export declare const adminChatterUsageResponseSchema: z.ZodObject<{
         regenerateRatePct: z.ZodNumber;
         warning: z.ZodBoolean;
     }, z.core.$strip>>;
+    systemLanes: z.ZodArray<z.ZodObject<{
+        feature: z.ZodString;
+        requestCount: z.ZodNumber;
+        costMicroUsd: z.ZodNumber;
+        costApproximate: z.ZodBoolean;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const authMyUsageDailyRowSchema: z.ZodObject<{
     date: z.ZodString;
@@ -13736,6 +13742,12 @@ declare const baseRouteSchemas: {
                     }, z.core.$strip>>;
                     regenerateRatePct: z.ZodNumber;
                     warning: z.ZodBoolean;
+                }, z.core.$strip>>;
+                systemLanes: z.ZodArray<z.ZodObject<{
+                    feature: z.ZodString;
+                    requestCount: z.ZodNumber;
+                    costMicroUsd: z.ZodNumber;
+                    costApproximate: z.ZodBoolean;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{

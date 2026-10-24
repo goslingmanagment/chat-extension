@@ -124,6 +124,10 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     "in-conversation-v1",
     // Chat Memory week 2: the fan's card across pages and the «same person» decision.
     "fan-card-v1",
+    // Chat Memory week 3: the win-back list and the approach pick.
+    "win-back-v1",
+    // Chat Memory week 3: the shift handoff of a page.
+    "handoff-v1",
 ];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
@@ -783,16 +787,28 @@ export const clientSpenderAwaitingReplyQuerySchema = z.object({
     cursor: clientCursorSchema.optional(),
     limit: z.coerce.number().int()
         .min(1).max(CLIENT_SPENDER_AWAITING_REPLY_MAX_LIMIT).default(CLIENT_SPENDER_AWAITING_REPLY_DEFAULT_LIMIT),
+    /**
+     * Chat Memory week 3: every fan who wrote in the last 30 days, not only payers (non-payers sort after them,
+     * by their wait). A cursor walks the mode it was made in.
+     */
+    everyone: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
 }).strict();
 export const clientSpenderAwaitingReplyItemSchema = z.object({
     /** The platform's fan id: on OnlyFans also the chat id; a Fansly chat is a group apart from its fan. */
     fanRef: clientFanRefSchema,
+    /** The fan's primary chat: on Fansly the group, on OnlyFans the fan. Absent from an older hub. */
+    conversationRef: clientConversationRefSchema.nullable().optional(),
+    /** The team's name for the fan on the page (Fansly «Custom Username», with its 💵/❌ marks). Absent from an older hub. */
+    alias: z.string().nullable().optional(),
     username: z.string().nullable(),
     displayName: z.string().nullable(),
     /** What the fan paid on the page in all. */
     lifetimeGrossMills: mills,
     lastFanMessageAt: isoTimestamp,
-    /** Null when the page never wrote to the fan. */
+    /**
+     * The page's last PERSONAL message to the fan (Chat Memory week 3: a mass message — Fansly's, or one text to
+     * 5+ chats within an hour — is not an answer); null when the page never wrote to him personally.
+     */
     lastModelMessageAt: isoTimestamp.nullable(),
     /** Null when `readState` is `unknown`: an unknown count is never 0. */
     unreadCount: count.nullable(),
@@ -1784,6 +1800,124 @@ export const clientFanLinkDecideResponseSchema = z.object({
     recorded: z.boolean(),
     card: clientFanCardResponseSchema,
 });
+// ── Chat Memory week 3: win back (clientWinBack, clientWinBackAttempt) ──────
+//
+// A few fans per page to win back now, most paid first: a subscription ending
+// without renewal, a new subscriber nobody wrote to personally, a payer silent
+// for two weeks. Fans «в разговоре» and fans someone picked an approach for in
+// the last week are left out. The chatter picks one of the owner's approaches
+// with one tap and writes in their own words; Hub records the pick and counts
+// the result (teamWinBackResults). Hub assigns nothing and credits no sale.
+export const CLIENT_WIN_BACK_REASONS = ["expiring", "new_unattended", "silent"];
+/** Fans one read lists: a few per shift, never crowding out the ones who wait. */
+export const CLIENT_WIN_BACK_MAX_ITEMS = 10;
+export const clientWinBackApproachSchema = z.object({ id: intId, label: z.string() });
+export const clientWinBackResponseSchema = z.object({
+    pageLabel: z.string(),
+    /** The owner's approaches, in their order. */
+    approaches: z.array(clientWinBackApproachSchema),
+    items: z.array(z.object({
+        fanRef: clientFanRefSchema,
+        conversationRef: clientConversationRefSchema.nullable(),
+        username: z.string().nullable(),
+        displayName: z.string().nullable(),
+        /** The team's name for the fan on the page, with its marks. */
+        alias: z.string().nullable(),
+        lifetimeGrossMills: mills,
+        /** Open token; known values: CLIENT_WIN_BACK_REASONS. */
+        reason: clientOpenToken,
+        /** When the reason began: the subscription's end, its start, the fan's last message. */
+        reasonAt: isoTimestamp.nullable(),
+    })),
+    serverNow: isoTimestamp,
+});
+export const clientWinBackAttemptBodySchema = z.object({
+    fanRef: clientFanRefSchema,
+    approachId: intId,
+}).strict();
+export const clientWinBackAttemptResponseSchema = z.object({
+    attemptId: intId,
+    /** The fan leaves the list for a week; the next read shows the rest. */
+    list: clientWinBackResponseSchema,
+});
+export const teamWinBackResultsQuerySchema = z.object({
+    /** Picks of the last `days` Moscow days, today included. */
+    days: z.coerce.number().int().min(1).max(90).default(30),
+});
+export const teamWinBackResultsResponseSchema = z.object({
+    from: isoTimestamp,
+    to: isoTimestamp,
+    rows: z.array(z.object({
+        approachId: intId,
+        approach: z.string(),
+        userId: intId,
+        username: z.string(),
+        attempts: count,
+        /** Picks followed by a message of the chatter to the fan within 48 hours. */
+        sent: count,
+        /** A result is counted once its window is over: `matured*` is the denominator. */
+        matured72h: count,
+        replied72h: count,
+        matured7d: count,
+        bought7d: count,
+        matured30d: count,
+        spent30dMills: mills,
+    })),
+    serverNow: isoTimestamp,
+});
+export const teamWinBackApproachesResponseSchema = z.object({
+    approaches: z.array(clientWinBackApproachSchema.extend({ sortOrder: z.number().int(), active: z.boolean() })),
+});
+export const teamWinBackApproachSaveBodySchema = z.object({
+    /** Absent — a new approach. */
+    id: intId.optional(),
+    label: z.string().trim().min(1).max(80),
+    sortOrder: z.number().int().min(0).max(1000).default(0),
+    active: z.boolean().default(true),
+}).strict();
+// ── Chat Memory week 3: the shift handoff (clientHandoff) ───────────────────
+//
+// What the next chatter of a page needs at the start of the shift, with no
+// «кого оставить?»: who is still in a conversation, whom the team wrote to in
+// the last hours, who waits for a reply, and the open promises. Open customs
+// come with week 4.
+export const CLIENT_HANDOFF_HOURS = 12;
+export const clientHandoffResponseSchema = z.object({
+    pageLabel: z.string(),
+    /** Fans someone wrote to in the last CLIENT_HANDOFF_HOURS, the latest first. */
+    recent: z.array(z.object({
+        fanRef: clientFanRefSchema,
+        conversationRef: clientConversationRefSchema.nullable(),
+        username: z.string().nullable(),
+        alias: z.string().nullable(),
+        lastSentAt: isoTimestamp,
+        messages: count,
+        chatters: z.array(z.string()),
+        /** Someone is still «в разговоре» with the fan: their names. */
+        inConversation: z.array(z.string()),
+    })),
+    /** Fans waiting for a reply (everyone who wrote in 30 days): the queue's total and its head. */
+    waiting: z.object({
+        total: count,
+        head: z.array(z.object({
+            fanRef: clientFanRefSchema,
+            conversationRef: clientConversationRefSchema.nullable(),
+            username: z.string().nullable(),
+            alias: z.string().nullable(),
+            lifetimeGrossMills: mills,
+            lastFanMessageAt: isoTimestamp,
+        })),
+    }),
+    /** Open promises from the facts of the page's chats, the newest first; empty — «не знаю». */
+    promises: z.array(z.object({
+        fanRef: clientFanRefSchema,
+        conversationRef: clientConversationRefSchema,
+        text: z.string(),
+        messageRef: clientNumericIdSchema,
+        messageAt: isoTimestamp.nullable(),
+    })),
+    serverNow: isoTimestamp,
+});
 export const clientRouteSchemas = {
     clientBootstrap: {
         auth: { kind: "apiKey" },
@@ -1947,8 +2081,12 @@ export const clientRouteSchemas = {
         summary: "The payers of one page whose fan waits for a reply, biggest spender first, a page at a time",
         description: "Read-only and database-only: no platform request, no queued work, so no chat is marked read on "
             + "the platform. A payer waits when the last fan message of the chat is later than the page's last "
-            + "message there, or the page never wrote; the payers and the rule are those of `queueSummary` in the "
-            + "Spenders statistics. Rows come by lifetime gross, largest first, then the fan waiting longest, "
+            + "PERSONAL message there, or the page never wrote to him personally: a Fansly mass message, or one text "
+            + "sent to 5 or more chats of the page within an hour (the last 30 days are sorted; an older message of "
+            + "the page counts as personal), is not an answer. `everyone=true` takes every fan who wrote in the last "
+            + "30 days, not only payers. The payers and the rule are those of `queueSummary` in the Spenders "
+            + "statistics. Each row names the fan's primary chat (`conversationRef`) and the team's alias. Rows come "
+            + "by lifetime gross, largest first, then the fan waiting longest, "
             + "`limit` (1 to 100, 50 by default) a page. `readState` is `unread`, `read` or `unknown`: a fan whose "
             + "read state the hub cannot tell is its own category, with a null `unreadCount`. `total` and "
             + "`unknown` count the whole queue at `asOf`; `loaded` counts the rows the walk has served so far. "
@@ -2233,6 +2371,101 @@ export const clientRouteSchemas = {
         response: {
             200: clientFanFactChangeResponseSchema,
             400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    clientWinBack: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["client"],
+        summary: "A few fans of the page to win back now, with the owner's approaches",
+        description: "Read-only and database-only: no platform request. A device token's, for an active page granted to "
+            + "the caller (else 409 `client_feature_disabled` / `not_granted`). Up to 10 fans, most paid first, each with "
+            + "the most urgent reason: `expiring` (a current subscription without renewal ends within 3 days), "
+            + "`new_unattended` (subscribed within 7 days, no personal message since), `silent` (paid and silent for 14 "
+            + "days). Fans someone wrote to in the last 15 minutes and fans with a pick in the last 7 days are left out.",
+        params: clientPageParamsSchema,
+        response: {
+            200: clientWinBackResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    clientWinBackAttempt: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["client"],
+        summary: "A chatter picks a win-back approach for a fan of the list",
+        description: "Database-only; the hub sends nothing. A device token's, for an active page granted to the caller. "
+            + "The fan must be on the page's list right now and the approach active (else 409 `not_listed` / "
+            + "`approach_inactive`). The pick is journaled, then recorded under the token's user with the reason the fan "
+            + "was listed; its result is counted from the chatter's next message to the fan. Answers the list after it.",
+        params: clientPageParamsSchema,
+        body: clientWinBackAttemptBodySchema,
+        response: {
+            200: clientWinBackAttemptResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    teamWinBackResults: {
+        auth: { kind: "session" },
+        tags: ["client"],
+        summary: "Win-back results by approach and chatter",
+        description: "A cabinet route for the owner and team leads; read-only. For the picks of the last `days` on the "
+            + "pages the viewer reaches: attempts, those followed by the chatter's message within 48 hours, and — once "
+            + "each window is over — replies within 72 hours, purchases within 7 days and spend in 30 days.",
+        querystring: teamWinBackResultsQuerySchema,
+        response: {
+            200: teamWinBackResultsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    teamWinBackApproaches: {
+        auth: { kind: "owner-session" },
+        tags: ["client"],
+        summary: "The owner's list of win-back approaches, retired ones included",
+        response: {
+            200: teamWinBackApproachesResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+        },
+    },
+    teamWinBackApproachSave: {
+        auth: { kind: "owner-session" },
+        tags: ["client"],
+        summary: "The owner adds, renames, reorders or retires a win-back approach",
+        description: "A retired approach (`active: false`) leaves the chatters' list and keeps its results.",
+        body: teamWinBackApproachSaveBodySchema,
+        response: {
+            200: teamWinBackApproachesResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    clientHandoff: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["client"],
+        summary: "The shift handoff of a page: who is in a conversation, whom the team wrote to, who waits, open promises",
+        description: "Read-only and database-only: no platform request. A device token's, for an active page granted to "
+            + "the caller (else 409 `client_feature_disabled` / `not_granted`). `recent`: fans with a message with an "
+            + "author in the last 12 hours (up to 50), who wrote and whether someone is still «в разговоре»; `waiting`: "
+            + "the awaiting-reply queue of every fan who wrote in 30 days (a mass message is not an answer), its total and "
+            + "first 10; `promises`: the active `promise` facts of the page's chats (up to 30).",
+        params: clientPageParamsSchema,
+        response: {
+            200: clientHandoffResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
             404: errorResponseSchema,

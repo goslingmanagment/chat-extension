@@ -47,6 +47,9 @@ export const HUB_ROUTE_PATHS = {
   clientFanCard: '/api/v1/client/pages/:pageLabel/fans/:fanRef/card',
   clientFanLinkDecide: '/api/v1/client/pages/:pageLabel/fans/:fanRef/links',
   clientFanFactChange: '/api/v1/client/pages/:pageLabel/fans/:fanRef/facts/:factId',
+  clientWinBack: '/api/v1/client/pages/:pageLabel/win-back',
+  clientWinBackAttempt: '/api/v1/client/pages/:pageLabel/win-back/attempts',
+  clientHandoff: '/api/v1/client/pages/:pageLabel/handoff',
   // 1.47.0: the voice-notes lane (`:id` is the note's integer id).
   voiceNoteCreate: '/api/v1/pages/:pageLabel/voice-notes',
   voiceNoteStatus: '/api/v1/pages/:pageLabel/voice-notes/:id',

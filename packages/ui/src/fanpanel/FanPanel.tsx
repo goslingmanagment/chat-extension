@@ -5,7 +5,8 @@
 // it already holds them, the bio and lists, the Recap tab, and how old and
 // how complete the data is. Beside a site's own fan panel (ChatSpace 0.195,
 // decision X47) only what that one lacks: the hub's money by kind, the churn
-// risk, the hub's profile by its sections, Recap. With no chat open it says «Выберите чат». It does
+// risk, the hub's profile by its sections, Recap. «Очередь» (Chat Memory week 3) is the page's, not the chat's: it
+// shows with no chat open too, and stays when a row opens one. With no chat open the fan's tabs say «Выберите чат». It does
 // not hold focus; Esc inside closes it. Avatars are initials: no remote
 // images. What no source knows is not drawn — no row of «—» or «нет данных»
 // (2026-10-22, the old Fansly panel) — and a known zero stays; never a guess.
@@ -18,6 +19,7 @@ import { type FanPanelVM, type I18n, type RecapLength, type RecapViewVM } from '
 import { StaleRow } from '../dock/Result';
 import { STALE_ROW_CSS, STALE_ROW_NARROW_CSS } from '../dock/stale-row.css';
 import { MEMORY_CSS, MemoryTab } from './Memory';
+import { QUEUE_CSS, QueueTab } from './Queue';
 import { Button, Markdown, Money, OverlayLayer, Segmented, SidePanel, StageLine, Tabs, ViewState, hotkeyText, useDispatch, useHints, useI18n, useMinuteClock, useView } from '../kit';
 
 type Kind = NonNullable<FanPanelVM['spent']>['byKind'][number]['kind'];
@@ -258,7 +260,27 @@ export function FanPanel(): JSX.Element {
   const fan = vm.fan;
   const close = (): void => void dispatch(vm.close);
   const sub = fan === null ? vm.personaLabel : presence(i18n, fan);
-  const body = vm.view.s === 'error' || vm.view.s === 'forbidden' || (vm.view.s === 'loading' && fan === null);
+  const queue = vm.queue;
+  // «Очередь» has a state of its own: the open chat's (none, loading, failed) is not hers.
+  const onQueue = vm.tab === 'queue' && queue !== undefined;
+  const body = !onQueue && (vm.view.s === 'error' || vm.view.s === 'forbidden' || (vm.view.s === 'loading' && fan === null));
+  const tabs = (
+    <div class="cg-fp__tabs">
+      <Tabs<FanPanelVM['tab']>
+        label={i18n.t('fanPanel.label')}
+        idPrefix={TABS_ID}
+        value={vm.tab}
+        tabs={[
+          { value: 'fan', label: i18n.t('fanPanel.tab.fan') },
+          { value: 'recap', label: i18n.t('fanPanel.tab.recap') },
+          // Chat Memory week 2: «Память» only where the hub serves the fan's card.
+          ...(vm.memory === undefined ? [] : [{ value: 'memory' as const, label: i18n.t('fanPanel.tab.memory') }]),
+          ...(queue === undefined ? [] : [{ value: 'queue' as const, label: i18n.t('fanPanel.tab.queue') }]),
+        ]}
+        onChange={(tab) => void dispatch({ type: 'SetFanPanelTab', tab })}
+      />
+    </div>
+  );
 
   return (
     <OverlayLayer>
@@ -275,40 +297,38 @@ export function FanPanel(): JSX.Element {
           </div>
           <Button label={i18n.t('common.close')} icon="x" iconOnly variant="quiet" onClick={close} />
         </div>
-        {vm.view.s === 'empty' ? (
-          // No chat is open: «Выберите чат» (CS-038).
-          <div class="cg-fp__empty" role="status">
-            <b>{i18n.t('fanPanel.empty.title')}</b>
-            {i18n.t('fanPanel.empty.body')}
-          </div>
+        {vm.view.s === 'empty' && !onQueue ? (
+          // No chat is open: «Выберите чат» (CS-038) — «Очередь» stays a tab away.
+          <>
+            {queue === undefined ? null : tabs}
+            <div class="cg-fp__empty" role="status">
+              <b>{i18n.t('fanPanel.empty.title')}</b>
+              {i18n.t('fanPanel.empty.body')}
+            </div>
+          </>
         ) : body ? (
           <div class="cg-fp__body">
             <ViewState view={vm.view} />
           </div>
         ) : (
           <>
-            <div class="cg-fp__tabs">
-              <Tabs<FanPanelVM['tab']>
-                label={i18n.t('fanPanel.label')}
-                idPrefix={TABS_ID}
-                value={vm.tab}
-                tabs={[
-                  { value: 'fan', label: i18n.t('fanPanel.tab.fan') },
-                  { value: 'recap', label: i18n.t('fanPanel.tab.recap') },
-                  // Chat Memory week 2: «Память» only where the hub serves the fan's card.
-                  ...(vm.memory === undefined ? [] : [{ value: 'memory' as const, label: i18n.t('fanPanel.tab.memory') }]),
-                ]}
-                onChange={(tab) => void dispatch({ type: 'SetFanPanelTab', tab })}
-              />
-            </div>
+            {tabs}
             <div class="cg-fp__body" role="tabpanel" id={`${TABS_ID}-${vm.tab}`} aria-labelledby={`${TABS_ID}-tab-${vm.tab}`} tabIndex={0}>
-              {vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
-              {vm.tab === 'fan' ? <FanTab vm={vm} /> : vm.tab === 'memory' && vm.memory !== undefined ? <MemoryTab memory={vm.memory} /> : <RecapTab archive={vm.footer.stamp.coverage} />}
+              {onQueue ? (
+                <QueueTab queue={queue} />
+              ) : (
+                <>
+                  {vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
+                  {vm.tab === 'fan' ? <FanTab vm={vm} /> : vm.tab === 'memory' && vm.memory !== undefined ? <MemoryTab memory={vm.memory} /> : <RecapTab archive={vm.footer.stamp.coverage} />}
+                </>
+              )}
             </div>
-            <div class="cg-fp__foot">
-              <span>{vm.footer.stamp.asOf === null ? '' : i18n.t('common.dataAsOfCap', { time: { time: vm.footer.stamp.asOf } })}</span>
-              <span>{footerArchive(i18n, vm)}</span>
-            </div>
+            {onQueue ? null : (
+              <div class="cg-fp__foot">
+                <span>{vm.footer.stamp.asOf === null ? '' : i18n.t('common.dataAsOfCap', { time: { time: vm.footer.stamp.asOf } })}</span>
+                <span>{footerArchive(i18n, vm)}</span>
+              </div>
+            )}
           </>
         )}
       </SidePanel>
@@ -319,6 +339,7 @@ export function FanPanel(): JSX.Element {
 export const FAN_PANEL_CSS = `
 ${STALE_ROW_CSS}
 ${MEMORY_CSS}
+${QUEUE_CSS}
 @container cg (max-width: 420px) {
 ${STALE_ROW_NARROW_CSS}
 }

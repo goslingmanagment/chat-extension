@@ -37,6 +37,7 @@ import {
 } from './spenders';
 import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
 import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
+import { HandoffQuerySchema, HandoffSchema, WinBackAttemptRequestSchema, WinBackAttemptResultSchema, WinBackListSchema, WinBackQuerySchema } from './queue';
 import { FanCardQuerySchema, FanCardSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
 import { PageFanParamsSchema, PageParamsSchema } from './wire';
@@ -79,6 +80,9 @@ export const HUB_ROUTE_SCHEMAS = {
   clientFanCard: { request: FanCardQuerySchema, response: FanCardSchema },
   clientFanLinkDecide: { request: FanLinkDecideRequestSchema, response: FanLinkDecideResultSchema },
   clientFanFactChange: { request: FanFactChangeRequestSchema, response: FanFactChangeResultSchema },
+  clientWinBack: { request: WinBackQuerySchema, response: WinBackListSchema },
+  clientWinBackAttempt: { request: WinBackAttemptRequestSchema, response: WinBackAttemptResultSchema },
+  clientHandoff: { request: HandoffQuerySchema, response: HandoffSchema },
   voiceNoteCreate: { request: VoiceNoteCreateRequestSchema, response: VoiceNoteViewSchema },
   voiceNoteStatus: { request: VoiceNoteRefSchema, response: VoiceNoteViewSchema },
   voiceNoteAudio: { request: VoiceNoteRefSchema, response: VoiceNoteAudioBytesSchema },

@@ -46,6 +46,7 @@ import {
 } from './spenders';
 import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
+import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
 import { type FanCard, type FanCardQuery, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
@@ -194,6 +195,12 @@ export interface HubFacade {
   fanLinkDecide(request: FanLinkDecideRequest): Promise<FanLinkDecideResult>;
   /** A chatter deletes or corrects a fact; never repeated by itself. */
   fanFactChange(request: FanFactChangeRequest): Promise<FanFactChangeResult>;
+  /** Chat Memory week 3: the win-back list of a page; refused without `win-back-v1`. */
+  winBack(query: WinBackQuery): Promise<WinBackList>;
+  /** A chatter's approach pick for a fan of the list; never repeated by itself. */
+  winBackAttempt(request: WinBackAttemptRequest): Promise<WinBackAttemptResult>;
+  /** Chat Memory week 3: the shift handoff of a page; refused without `handoff-v1`. */
+  handoff(query: HandoffQuery): Promise<Handoff>;
   /**
    * 1.47.0: the paid voicing of a script (`voiceNoteCreate`): idempotent per `clientRequestId` at the hub, never
    * repeated by the facade — the caller wrote the take before it asked. Needs the page's `voice` and `voice-notes-v1`.

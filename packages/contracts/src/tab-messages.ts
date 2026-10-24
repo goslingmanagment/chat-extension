@@ -42,6 +42,7 @@ import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
 import { FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
+import { HandoffSchema, WinBackAttemptResultSchema, WinBackListSchema } from './hub/queue';
 import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
@@ -524,10 +525,17 @@ export const TAB_REQUESTS = {
     from: TAB,
   },
   'spenders.queue': {
-    req: z.strictObject({ pageId: HubIntIdSchema, cursor: CursorSchema, limit: z.int().check(z.gte(1), z.lte(100)) }),
+    /** `everyone` — Chat Memory week 3, «Ждут» of «Очередь»: every fan who wrote in 30 days, not only payers. */
+    req: z.strictObject({ pageId: HubIntIdSchema, cursor: CursorSchema, limit: z.int().check(z.gte(1), z.lte(100)), everyone: z.optional(z.boolean()) }),
     res: QueuePageSchema,
     from: TAB,
   },
+  /** Chat Memory week 3, «Вернуть» of «Очередь»: a few fans of the page to win back and the owner's approaches. */
+  'queue.winback': { req: z.strictObject({ pageId: HubIntIdSchema }), res: WinBackListSchema, from: TAB },
+  /** A chatter's approach pick for a fan of the list: one call, never repeated; answered with the list after it. Nothing is sent to the fan. */
+  'queue.winback.pick': { req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema, approachId: HubIntIdSchema }), res: WinBackAttemptResultSchema, from: TAB },
+  /** Chat Memory week 3, «Передача» of «Очередь»: whom the team wrote to, who waits, the open promises. */
+  'queue.handoff': { req: z.strictObject({ pageId: HubIntIdSchema }), res: HandoffSchema, from: TAB },
   'feed.read': {
     req: z.strictObject({
       ...PageFanConversation,

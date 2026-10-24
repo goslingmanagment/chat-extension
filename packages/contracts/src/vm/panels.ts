@@ -6,10 +6,10 @@
 import { type CgCode, type CgErrorView } from '../errors';
 import { type SPENDER_RETENTION_STATUSES } from '../hub/spenders';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
-import { type UiAction } from './actions';
+import { type QueueTab, type UiAction } from './actions';
 import { type HotkeyLabel, type HotkeyPlatform, type ReasonVM } from './catalog';
 import { type Msg } from './i18n';
-import { type ToastId } from './selectors';
+import { type TargetHandle, type ToastId } from './selectors';
 import { type ActionButtonVM, type DataStamp, type VmView } from './view';
 
 /**
@@ -95,14 +95,90 @@ export interface FanMemoryVM {
   readonly error: CgErrorView | null;
 }
 
+/**
+ * Chat Memory week 3, «Очередь» of the fan panel: a fan of the page of the open tab. `handle` finds the «в разговоре»
+ * mark (TalkingMark); `open` opens the fan's chat and leaves the panel as it is.
+ */
+export interface QueueFanVM {
+  readonly key: string;
+  readonly handle: TargetHandle;
+  /** The team's alias as it is (with 💵 / ❌), else the name, else @username. */
+  readonly name: string;
+  /** «@username» beside a name that is not it; null — none to add. */
+  readonly username: string | null;
+  /** Spent on the page in all; null — not said (a known zero is not drawn either). */
+  readonly spent: MoneyMills | null;
+  readonly open: UiAction | null;
+}
+
+/** «Ждут»: the fan wrote last, at `since`; a mass message is no answer. */
+export interface QueueWaitingVM extends QueueFanVM {
+  readonly since: IsoTimestamp;
+}
+
+/** «Вернуть»: why the fan is listed, and the owner's approaches as chips of one tap. */
+export interface QueueWinBackVM extends QueueFanVM {
+  /** «подписка кончается через 2 дн», «новый, никто не написал», «молчит 16 дн»; null — a reason this build does not know. */
+  readonly reason: Msg | null;
+  readonly approaches: readonly { readonly id: number; readonly label: string; readonly pick: UiAction }[];
+  /** A pick is on its way: the chips rest. */
+  readonly busy: boolean;
+}
+
+/** «Передача»: a fan the team wrote to in the last hours — how many messages, by whom, who is still «в разговоре». */
+export interface QueueRecentVM extends QueueFanVM {
+  readonly lastSentAt: IsoTimestamp;
+  readonly messages: number;
+  readonly chatters: readonly string[];
+  readonly inConversation: readonly string[];
+}
+
+/** «Передача»: an open promise from a chat of the page. */
+export interface QueuePromiseVM {
+  readonly key: string;
+  readonly text: string;
+  readonly at: IsoTimestamp | null;
+  /** The fan, when a row of the queue names him; null — unknown here. */
+  readonly name: string | null;
+  readonly open: UiAction | null;
+}
+
+export interface QueueVM {
+  readonly tab: QueueTab;
+  /** The tabs the hub serves, in order: «Ждут» always, «Вернуть» with `win-back-v1`, «Передача» with `handoff-v1`. */
+  readonly tabs: readonly QueueTab[];
+  /** The shown tab's state; `empty` — nobody there. */
+  readonly view: VmView;
+  readonly waiting: { readonly total: number; readonly rows: readonly QueueWaitingVM[] } | null;
+  readonly winBack: {
+    readonly rows: readonly QueueWinBackVM[];
+    /** The last pick of this panel: «Подход выбран» with the fan's chat to open. */
+    readonly picked: { readonly name: string; readonly approach: string; readonly open: UiAction | null } | null;
+  } | null;
+  readonly handoff: {
+    readonly recent: readonly QueueRecentVM[];
+    readonly waitingTotal: number;
+    readonly waiting: readonly QueueWaitingVM[];
+    /** Empty — «не знаю»: no fact of a promise, which is not «nobody promised anything». */
+    readonly promises: readonly QueuePromiseVM[];
+  } | null;
+  /** The last pick failed: said once, the list stays as it was. */
+  readonly error: CgErrorView | null;
+}
+
 export interface FanPanelVM {
   /** 1.15.0 P11a: locally known account registration; absent when this host/owner does not offer it. */
   readonly registration?: { readonly label: string; readonly at: IsoTimestamp };
   /** `empty` — «Выберите чат»; `partial` — some blocks unknown (no dossier, host scores not loaded). */
   readonly view: VmView;
-  readonly tab: 'fan' | 'recap' | 'memory';
+  readonly tab: 'fan' | 'recap' | 'memory' | 'queue';
   /** Chat Memory week 2: «Память» — the person across pages; absent — the hub does not serve the card (no tab). */
   readonly memory?: FanMemoryVM;
+  /**
+   * Chat Memory week 3: «Очередь» — the page of the open tab, whatever chat is open: who waits, whom to win back, the
+   * shift handoff. Absent — the page has no owner switch for the panel (no tab).
+   */
+  readonly queue?: QueueVM;
   /** Header when no chat is open: «ChatGoose» and the persona label. */
   readonly personaLabel: string | null;
   readonly fan: {

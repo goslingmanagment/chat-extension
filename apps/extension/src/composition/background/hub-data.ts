@@ -50,6 +50,9 @@ type DataRequest =
   | 'fan.memory'
   | 'fan.memory.link'
   | 'fan.memory.fact'
+  | 'queue.winback'
+  | 'queue.winback.pick'
+  | 'queue.handoff'
   | 'newcomers.list'
   | 'usage.get';
 
@@ -92,7 +95,7 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
       onPage(request.pageId, sender, (page) => deps.hub().spendersStats({ pageLabel: page.pageLabel, windowDays: request.windowDays, timeZone: request.timeZone })),
     'spenders.queue': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
-        deps.hub().awaitingReply({ pageLabel: page.pageLabel, limit: request.limit, ...(request.cursor === null ? {} : { cursor: request.cursor }) }),
+        deps.hub().awaitingReply({ pageLabel: page.pageLabel, limit: request.limit, ...(request.cursor === null ? {} : { cursor: request.cursor }), ...(request.everyone === true ? { everyone: 'true' as const } : {}) }),
       ),
     'feed.read': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
@@ -124,6 +127,11 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
         const { pageId: _pageId, ...change } = request;
         return deps.hub().fanFactChange({ ...change, pageLabel: page.pageLabel });
       }),
+    // Chat Memory week 3, «Очередь»: the win-back list, a chatter's approach pick (one call, never repeated; nothing is sent to the fan), the handoff.
+    'queue.winback': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().winBack({ pageLabel: page.pageLabel })),
+    'queue.winback.pick': (request, sender) =>
+      onPage(request.pageId, sender, (page) => deps.hub().winBackAttempt({ pageLabel: page.pageLabel, fanRef: request.fanRef, approachId: request.approachId })),
+    'queue.handoff': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().handoff({ pageLabel: page.pageLabel })),
     'newcomers.list': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
         deps.hub().audienceNew({ pageLabel: page.pageLabel, windowHours: request.windowHours, ...(request.cursor === null ? {} : { cursor: request.cursor }) }),

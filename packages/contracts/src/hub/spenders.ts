@@ -404,6 +404,8 @@ export const QueueQuerySchema = z.strictObject({
   pageLabel: PageLabelSchema,
   cursor: z.optional(HubCursorSchema),
   limit: z.optional(z.int().check(z.gte(1), z.lte(100))),
+  /** Chat Memory week 3: every fan who wrote in 30 days, not only payers (a query string: only ever `true`). */
+  everyone: z.optional(z.literal('true')),
 });
 export type QueueQuery = z.infer<typeof QueueQuerySchema>;
 
@@ -413,6 +415,9 @@ export const QueuePageSchema = z.object({
   items: z.array(
     z.object({
       fanRef: NativeIdSchema,
+      /** Chat Memory week 3: the fan's chat (Fansly's group, OnlyFans' fan) and the team's alias; absent from an older hub. */
+      conversationRef: z.optional(z.nullable(z.string())),
+      alias: z.optional(z.nullable(z.string())),
       username: z.nullable(z.string()),
       displayName: z.nullable(z.string()),
       lifetimeGrossMills: Mills,

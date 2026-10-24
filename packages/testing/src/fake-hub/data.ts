@@ -42,6 +42,10 @@ import {
   type FanFactChangeResult,
   type FanLinkDecideRequest,
   type FanLinkDecideResult,
+  type Handoff,
+  type WinBackAttemptRequest,
+  type WinBackAttemptResult,
+  type WinBackList,
   type SharedRecaps,
   type SpenderBatch,
   type SpenderBatchQuery,
@@ -261,6 +265,9 @@ export class DataModel {
   private readonly beats: FakeActivityBeat[] = [];
   /** Chat Memory week 2: the fans' cards a scenario set (`fanCard`), by `page|fan`. */
   private readonly cards = new Map<string, FanCard>();
+  /** Chat Memory week 3: «Очередь» a scenario set (`queue`), by page. */
+  private readonly queues = new Map<string, { waiting?: QueuePage['items']; winBack?: WinBackList; handoff?: Handoff }>();
+  private winBackAttempts = 0;
   /** Chat Memory week 1: another chatter's message to a fan, set by a scenario (`talking`): «в разговоре» without a send. */
   private readonly talking: FakeTalking[] = [];
   /**
@@ -556,7 +563,8 @@ export class DataModel {
   // ── «ждут ответа» ──
 
   private queue(page: FakePage, now: number): QueuePage['items'] {
-    void page;
+    const set = this.queues.get(page.pageLabel)?.waiting;
+    if (set !== undefined) return set;
     if (this.seeds.length > 0) {
       return this.seeds
         .filter((seed) => seed.awaiting === true)
@@ -1107,6 +1115,41 @@ export class DataModel {
     const next = { ...card, facts };
     this.setFanCard(page.pageLabel, request.fanRef, next);
     return ok({ changed: true, card: next });
+  }
+
+  setQueue(pageLabel: string, set: { readonly waiting?: QueuePage['items']; readonly winBack?: WinBackList; readonly handoff?: Handoff }): void {
+    this.queues.set(pageLabel, { ...this.queues.get(pageLabel), ...set });
+  }
+
+  /** As the hub's `clientWinBack`: the list a scenario set, else nobody to win back. */
+  winBack(page: FakePage, now: number): WinBackList {
+    const set = this.queues.get(page.pageLabel)?.winBack;
+    return set === undefined ? { pageLabel: page.pageLabel, approaches: [], items: [], serverNow: iso(now) } : { ...set, serverNow: iso(now) };
+  }
+
+  /** As the hub's `clientWinBackAttempt`: only a fan on the list and an approach of it (409 `not_listed` / `approach_inactive`); the fan leaves the list. */
+  winBackAttempt(page: FakePage, request: WinBackAttemptRequest, now: number): Read<WinBackAttemptResult> {
+    const list = this.winBack(page, now);
+    if (!list.items.some((item) => item.fanRef === request.fanRef)) return no('conflict', 'not_listed');
+    if (!list.approaches.some((approach) => approach.id === request.approachId)) return no('conflict', 'approach_inactive');
+    const next = { ...list, items: list.items.filter((item) => item.fanRef !== request.fanRef) };
+    this.setQueue(page.pageLabel, { winBack: next });
+    this.winBackAttempts += 1;
+    return ok({ attemptId: this.winBackAttempts, list: next });
+  }
+
+  /** As the hub's `clientHandoff`: the handoff a scenario set, else nobody written to and the awaiting queue's head. */
+  handoff(page: FakePage, now: number): Handoff {
+    const set = this.queues.get(page.pageLabel)?.handoff;
+    if (set !== undefined) return { ...set, serverNow: iso(now) };
+    const waiting = this.queue(page, now);
+    return {
+      pageLabel: page.pageLabel,
+      recent: [],
+      waiting: { total: waiting.length, head: waiting.slice(0, 10).map((item) => ({ fanRef: item.fanRef, conversationRef: item.conversationRef ?? null, username: item.username, alias: item.alias ?? null, lifetimeGrossMills: item.lifetimeGrossMills, lastFanMessageAt: item.lastFanMessageAt })) },
+      promises: [],
+      serverNow: iso(now),
+    };
   }
 
   /** A scenario's «в разговоре»: `name` (another chatter) wrote to the fan `agoMs` before now. */
