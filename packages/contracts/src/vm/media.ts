@@ -34,6 +34,16 @@ export interface MediaCellVM {
   readonly fan: MediaFanState['state'] | null;
 }
 
+/** A pick in the picker's «Платное» or «Превью» (2026-10-24): what its square shows, wherever its folder is. */
+export interface MediaChosenVM {
+  readonly id: string;
+  readonly type: MediaType;
+  readonly duration: number;
+  readonly thumb: string | null;
+  /** In «Превью»: a free preview; else behind the price. */
+  readonly free: boolean;
+}
+
 /** A list read from the host's API: what it has, whether more pages exist, the read in flight, its failure. */
 export interface MediaListVM<T> {
   readonly items: readonly T[];
@@ -48,8 +58,8 @@ export interface MediaPickerVM {
   readonly folders: MediaListVM<MediaFolderVM>;
   readonly grid: MediaListVM<MediaCellVM>;
   readonly picks: number;
-  /** The picks made as free previews (the picker's «Превью» step), whether or not a price makes them mean one. */
-  readonly previews: number;
+  /** The picks in the message's order (the previews first): the squares of «Платное» and «Превью». */
+  readonly chosen: readonly MediaChosenVM[];
   /** The price field as typed and what is wrong with it. */
   readonly price: { readonly text: string; readonly problem: Msg | null };
   /** The typed price is a valid PPV price: the picks' free-preview marks mean something. */

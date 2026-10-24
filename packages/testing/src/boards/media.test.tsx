@@ -40,7 +40,10 @@ const picker = (patch: Partial<MediaPickerVM> = {}): MediaPickerVM => ({
     error: null,
   },
   picks: 2,
-  previews: 1,
+  chosen: [
+    { id: '12', type: 'video', duration: 75, thumb: 'https://pw365.ompcdn.com/12.jpg', free: true },
+    { id: '11', type: 'photo', duration: 0, thumb: 'https://pw365.ompcdn.com/11.jpg', free: false },
+  ],
   price: { text: '25', problem: null },
   priced: true,
   summary: msg('preview.media.summaryPaidPreviews', { media: '2 медиа', previews: '1 бесплатное превью', price: '$25' }),

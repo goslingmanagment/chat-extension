@@ -332,7 +332,7 @@ export class MediaDesk {
       folders: { items: folderItems, hasMore: folders?.hasMore ?? false, loading: folders?.loading ?? false, error: folders?.error ? errorOf(folders.error, i18n) : null },
       grid: { items: cells, hasMore: media?.hasMore ?? false, loading: media?.loading ?? false, error: media?.error ? errorOf(media.error, i18n) : null },
       picks: summary.count,
-      previews: attachment.picks.filter((pick) => pick.free).length,
+      chosen: attachment.picks.map(({ id, type, duration, thumb, free }) => ({ id, type, duration, thumb, free })),
       price: { text: attachment.price, problem: problem?.kind === 'price' ? msg(PRICE_PROBLEM_KEYS[problem.problem]) : null },
       priced: summary.priceCents !== null && summary.priceCents > 0,
       summary: summary.count === 0 ? null : summaryMsg(i18n, summary.count, summary.previews, summary.priceCents),

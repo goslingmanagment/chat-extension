@@ -34,7 +34,7 @@ scenario(
     await s.press(/^/, 'modal', '.cg-or-mw .cg-pvm__price input');
     for (const key of Array.from('25')) await s.browser.keys(key);
     await s.shot('outreach-of-paid');
-    await s.press(/Превью/, 'modal', '.cg-or-mw [data-cg-step="preview"]');
+    await s.press(/Добавить/, 'modal', '.cg-or-mw [data-cg-slot="preview"] .cg-pvm__add');
     await s.press(/^/, 'modal', '.cg-or-mw [data-cg-media="660000001"] .cg-pvm__pick');
     await s.shot('outreach-of-window');
     await s.press(/^Для всей рассылки/, 'modal', '.cg-pvm__or');

@@ -1,10 +1,10 @@
-// The media panel of a preview (decision X53): the vault's folders as chips,
-// one folder's media as a grid of thumbnails, the picks numbered in the
-// message's order, what the fan already got of a medium, and the three steps
-// at its foot (2026-10-24, the owner): «Платное» — clicks pick media behind
-// the price, «Цена», «Превью» — clicks pick their free preview; then what
-// goes — and, once closed with picks, the one line of what goes with the next
-// part sent. A chunk of its own
+// The media panel of a preview (decision X53). On top (2026-10-24, the
+// owner): «Платное» and «Превью» with their picks as squares and the price
+// between them — a click on one makes the grid's clicks land there. Under
+// them the vault's folders as chips, one folder's media as a grid of
+// thumbnails, the picks numbered in the message's order, what the fan
+// already got of a medium; at the foot what goes — and, once closed with
+// picks, the one line of what goes with the next part sent. A chunk of its own
 // (MediaPicker.tsx loads it on the first «Медиа» click; the extension's lazy
 // entry `preview-send`): Spenders, «Новые» and the preview window carry only
 // the toggle. Nothing here sends.
@@ -12,7 +12,7 @@
 import { type JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 
-import { type I18n, type MediaCellVM, type MediaPickerVM, type TargetHandle } from '@cg/contracts/vm';
+import { type I18n, type MediaCellVM, type MediaChosenVM, type MediaPickerVM, type TargetHandle } from '@cg/contracts/vm';
 
 import { type LazyPart } from '../../dock/lazy-part';
 import { Button, ErrorCard, Icon, Spinner, TextField, useDispatch, useI18n, useTooltip, type StyleSource } from '../../kit';
@@ -24,14 +24,14 @@ export interface MediaPanelProps {
   readonly variant?: 'window';
 }
 
-/** What a click on a medium picks: one behind the price, or a free preview. */
+/** Where a click on a medium lands: «Платное» (behind the price) or «Превью» (free). */
 type Step = 'paid' | 'preview';
 
 const duration = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 const TYPE_KEYS = { photo: 'preview.media.type.photo', video: 'preview.media.type.video', gif: 'preview.media.type.anim', audio: 'preview.media.type.audio' } as const;
 
-function typeWords(i18n: I18n, cell: MediaCellVM): string {
+function typeWords(i18n: I18n, cell: Pick<MediaCellVM, 'type' | 'duration'>): string {
   return i18n.t(TYPE_KEYS[cell.type], { duration: duration(cell.duration) });
 }
 
@@ -121,74 +121,103 @@ function Cell({ cell, handle, priced, step }: { readonly cell: MediaCellVM; read
   );
 }
 
-/** One of the steps a click on a medium follows: pressed — the clicks pick so; `next` — what to press now; its count of picks. */
-function StepButton(props: {
-  readonly step: Step;
-  readonly n: number;
-  readonly label: string;
-  readonly count: number;
-  readonly done: boolean;
-  readonly on: boolean;
-  readonly next?: boolean;
-  readonly tooltip: string;
-  readonly onClick: () => void;
-}): JSX.Element {
-  const { step, n, label, count, done, on, next = false, tooltip, onClick } = props;
-  const tip = useTooltip(tooltip);
+/** A square of «Платное» or «Превью»: the pick's thumbnail and the «×» that takes it out. */
+function Chosen({ pick, handle }: { readonly pick: MediaChosenVM; readonly handle: TargetHandle }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
   return (
-    <button type="button" class={`cg-pvm__step${on ? ' is-on' : ''}${next ? ' is-next' : ''}`} data-cg-step={step} aria-pressed={on} {...tip.props} onClick={onClick}>
-      <StepNumber n={n} done={done} />
-      {label}
-      {count > 0 ? <span class="cg-pvm__stepc cg-num">{count}</span> : null}
-      {tip.description}
-    </button>
+    <span class="cg-pvm__sq" data-cg-chosen={pick.id}>
+      {pick.thumb === null ? <span class="cg-pvm__blank">{typeWords(i18n, pick)}</span> : <img class="cg-pvm__img" src={pick.thumb} alt="" decoding="async" draggable={false} />}
+      {pick.type === 'video' || pick.type === 'audio' ? (
+        <span class="cg-pvm__len cg-num" aria-hidden="true">
+          {duration(pick.duration)}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        class="cg-pvm__unpick"
+        aria-label={`${i18n.t('preview.media.unpick')}: ${typeWords(i18n, pick)}`}
+        // The same click as in the grid: a pick clicked again as what it is goes out.
+        onClick={() => void dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: pick.id, free: pick.free })}
+      >
+        <Icon name="x" size={12} />
+      </button>
+    </span>
   );
 }
 
-const StepNumber = ({ n, done }: { readonly n: number; readonly done: boolean }): JSX.Element => (
-  <span class={`cg-pvm__stepn cg-num${done ? ' is-done' : ''}`} aria-hidden="true">
-    {done ? <Icon name="check" size={12} /> : n}
-  </span>
-);
-
-/** The foot's steps (2026-10-24, the owner): the paid media, their price, their free preview. */
-function Steps({ vm, handle, step, onStep }: MediaPanelProps & { readonly step: Step; readonly onStep: (step: Step) => void }): JSX.Element {
+/**
+ * «Платное» or «Превью» (2026-10-24, the owner): its picks as small tiles, and the tile that makes the grid's clicks land
+ * here — a click anywhere on the card does too. `next` — the paid media and their price are there: their preview is
+ * what comes next. `children` — what its head carries on the right (the price of «Платное»).
+ */
+function Slot(props: {
+  readonly slot: Step;
+  readonly picks: readonly MediaChosenVM[];
+  readonly on: boolean;
+  readonly next: boolean;
+  readonly handle: TargetHandle;
+  readonly onSlot: (slot: Step) => void;
+  readonly children?: JSX.Element;
+}): JSX.Element {
+  const { slot, picks, on, next, handle, onSlot, children } = props;
   const i18n = useI18n();
-  const dispatch = useDispatch();
-  const paid = vm.picks - vm.previews;
-  // The paid media and their price are there: their preview is what comes next.
-  const previewNext = step === 'paid' && paid > 0 && vm.priced && vm.previews === 0;
+  const tip = useTooltip(i18n.t(slot === 'paid' ? 'preview.media.step.paidTooltip' : 'preview.media.step.previewTooltip'));
+  const meta = slot === 'preview' ? i18n.t('preview.media.slot.free') : picks.length === 0 ? null : i18n.plural('preview.media.count', picks.length, { n: picks.length });
   return (
-    <div class="cg-pvm__steps">
-      <StepButton step="paid" n={1} label={i18n.t('preview.media.step.paid')} count={paid} done={paid > 0} on={step === 'paid'} tooltip={i18n.t('preview.media.step.paidTooltip')} onClick={() => onStep('paid')} />
-      <label class="cg-pvm__price">
-        <StepNumber n={2} done={vm.priced} />
-        <span>{i18n.t('preview.media.price')}</span>
-        <TextField
-          value={vm.price.text}
-          label={i18n.t('preview.media.price')}
-          placeholder={i18n.t('preview.media.pricePlaceholder')}
-          maxLength={16}
-          {...(vm.price.problem === null ? {} : { class: 'is-bad' })}
-          onValue={(text) => void dispatch({ type: 'SetMediaPrice', targetHandle: handle, text })}
-        />
-      </label>
-      <StepButton
-        step="preview"
-        n={3}
-        label={i18n.t('preview.media.preview')}
-        count={vm.previews}
-        done={vm.previews > 0 && vm.priced}
-        on={step === 'preview'}
-        next={previewNext}
-        tooltip={i18n.t('preview.media.step.previewTooltip')}
-        onClick={() => onStep('preview')}
-      />
+    <div class={`cg-pvm__slot${on ? ' is-on' : ''}${next ? ' is-next' : ''}`} data-cg-slot={slot} onClick={() => onSlot(slot)}>
+      <div class="cg-pvm__slothead">
+        <button type="button" class="cg-pvm__slotname" aria-pressed={on} {...tip.props}>
+          <b>{i18n.t(slot === 'paid' ? 'preview.media.step.paid' : 'preview.media.preview')}</b>
+          {meta === null ? null : <span>{meta}</span>}
+          {tip.description}
+        </button>
+        {children}
+      </div>
+      <div class="cg-pvm__sqs">
+        {picks.map((pick) => (
+          <Chosen key={pick.id} pick={pick} handle={handle} />
+        ))}
+        <button type="button" class="cg-pvm__add" aria-pressed={on}>
+          <span class="cg-pvm__plus" aria-hidden="true">
+            +
+          </span>
+          {i18n.t(on ? 'preview.media.slot.pickInGrid' : 'preview.media.slot.add')}
+        </button>
+      </div>
     </div>
   );
 }
 
-/** The open panel: folders, the grid, the price and what goes. */
+/** Over the folders: «Платное» with its price, «Превью» — and, in a fan's preview, the panel's «×». */
+function Slots({ vm, handle, variant, step, onStep }: MediaPanelProps & { readonly step: Step; readonly onStep: (step: Step) => void }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const paid = vm.chosen.filter((pick) => !pick.free);
+  const previews = vm.chosen.filter((pick) => pick.free);
+  return (
+    <div class="cg-pvm__slots">
+      <Slot slot="paid" picks={paid} on={step === 'paid'} next={false} handle={handle} onSlot={onStep}>
+        <label class="cg-pvm__price">
+          <span>{i18n.t('preview.media.price')}</span>
+          <TextField
+            value={vm.price.text}
+            label={i18n.t('preview.media.price')}
+            placeholder={i18n.t('preview.media.pricePlaceholder')}
+            maxLength={16}
+            {...(vm.price.problem === null ? {} : { class: 'is-bad' })}
+            onValue={(text) => void dispatch({ type: 'SetMediaPrice', targetHandle: handle, text })}
+          />
+        </label>
+      </Slot>
+      <Slot slot="preview" picks={previews} on={step === 'preview'} next={step === 'paid' && paid.length > 0 && vm.priced && previews.length === 0} handle={handle} onSlot={onStep} />
+      {/* The window has its own «Закрыть Esc». */}
+      {variant === 'window' ? null : <Button label={i18n.t('preview.media.close')} icon="x" iconOnly size="sm" variant="quiet" class="cg-pvm__close" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: false })} />}
+    </div>
+  );
+}
+
+/** The open panel: «Платное», the price, «Превью», the folders, the grid and what goes. */
 function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
@@ -205,6 +234,7 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
   };
   return (
     <section class={`cg-pvm${variant === 'window' ? ' cg-pvm--window' : ''}`} aria-label={i18n.t('preview.media.label')} data-cg-media-panel="open">
+      <Slots vm={vm} handle={handle} {...(variant === undefined ? {} : { variant })} step={step} onStep={setStep} />
       <div class="cg-pvm__head">
         <div class="cg-pvm__folders" role="tablist" aria-label={i18n.t('preview.media.label')}>
           {folders.items.map((folder) => (
@@ -224,8 +254,6 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
             <Button label={i18n.t('preview.media.foldersMore')} size="sm" variant="quiet" busy={folders.loading} onClick={() => void dispatch({ type: 'LoadMoreMedia', targetHandle: handle, what: 'folders' })} />
           ) : null}
         </div>
-        {/* The window has its own «Закрыть Esc». */}
-        {variant === 'window' ? null : <Button label={i18n.t('preview.media.close')} icon="x" iconOnly size="sm" variant="quiet" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: false })} />}
       </div>
       {folders.error !== null || grid.error !== null ? (
         <div class="cg-pvm__error">
@@ -247,7 +275,6 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
         ) : null}
       </div>
       <div class="cg-pvm__foot">
-        <Steps vm={vm} handle={handle} step={step} onStep={setStep} />
         <span class="cg-pvm__sum">{vm.summary === null ? i18n.t('preview.media.hint') : i18n.text(vm.summary)}</span>
         {vm.picks > 0 ? (
           <Button
@@ -349,27 +376,50 @@ const MEDIA_PANEL_CSS = `
 }
 .cg-pvm__mark.is-preview { background: var(--cg-clay-ink); color: var(--cg-surface); font-weight: 600; }
 .cg-pvm__note { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-height: 28px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
-.cg-pvm__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 2px 8px 6px 12px; min-height: 32px; }
-.cg-pvm__steps { flex: none; display: inline-flex; align-items: center; gap: 2px; }
-.cg-pvm__step {
-  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px 0 4px; border: 0; border-radius: 13px; background: none;
-  font: inherit; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; cursor: pointer; box-shadow: inset 0 0 0 1px var(--cg-rule);
+.cg-pvm__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 2px 8px 6px 16px; min-height: 32px; }
+/*
+ * «Платное» (its price on the right of its head) and «Превью» on top. The card the grid's clicks land in is lifted and
+ * ringed — the ink's, the clay's for a preview: the clay is what goes free, as on the grid's tiles.
+ */
+.cg-pvm__slots { display: flex; align-items: stretch; gap: 8px; padding: 8px 6px 4px 12px; }
+.cg-pvm__slot {
+  flex: 3 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 7px 10px 9px; border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--cg-rule); cursor: pointer;
 }
-.cg-pvm__step:hover { color: var(--cg-ink-strong); box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
-.cg-pvm__step.is-next { color: var(--cg-clay-ink); box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
-.cg-pvm__step.is-next .cg-pvm__stepn { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); color: var(--cg-clay-ink); }
-.cg-pvm__step.is-on { background: var(--cg-seg-on); color: var(--cg-ink-strong); font-weight: 500; box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
-.cg-pvm__stepn {
-  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 9px;
-  box-shadow: inset 0 0 0 1px var(--cg-rule-2); font-size: var(--cg-text-2xs); font-weight: 600; color: var(--cg-ink-muted);
+.cg-pvm__slot[data-cg-slot="preview"] { flex-grow: 2; }
+.cg-pvm__slot:hover { box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
+.cg-pvm__slot.is-on { background: var(--cg-seg-on); box-shadow: inset 0 0 0 1px var(--cg-ink-muted); }
+.cg-pvm__slot[data-cg-slot="preview"].is-on { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
+.cg-pvm__slothead { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.cg-pvm__slotname {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 0; border: 0; background: none; font: inherit;
+  font-size: var(--cg-text-base); color: var(--cg-ink-muted); text-align: left; white-space: nowrap; cursor: pointer;
 }
-.cg-pvm__stepn.is-done { color: var(--cg-ink-strong); }
-.cg-pvm__step.is-on .cg-pvm__stepn { background: var(--cg-ink-strong); color: var(--cg-surface); box-shadow: none; }
-.cg-pvm__step[data-cg-step="preview"].is-on .cg-pvm__stepn { background: var(--cg-clay-ink); }
-.cg-pvm__stepc { color: var(--cg-ink-muted); font-weight: 500; }
-.cg-pvm__price { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 0 6px 0 4px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; }
-.cg-pvm__price .cg-field { width: 92px; height: 26px; }
+.cg-pvm__slotname b { font-weight: 600; color: var(--cg-ink-strong); }
+.cg-pvm__slotname span { overflow: hidden; text-overflow: ellipsis; font-size: var(--cg-text-xs); }
+.cg-pvm__slot[data-cg-slot="preview"] .cg-pvm__slotname b { color: var(--cg-clay-ink); }
+.cg-pvm__sqs { display: flex; align-items: flex-end; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
+.cg-pvm__sq { position: relative; flex: none; width: 42px; height: 56px; border-radius: 6px; overflow: hidden; background: var(--cg-rule); cursor: default; }
+.cg-pvm__sq .cg-pvm__blank { font-size: var(--cg-text-2xs); }
+.cg-pvm__sq .cg-pvm__len { left: 3px; bottom: 3px; height: 14px; padding: 0 3px; line-height: 14px; }
+.cg-pvm__unpick {
+  position: absolute; top: 3px; right: 3px; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+  padding: 0; border: 0; border-radius: 9px; background: rgb(0 0 0 / .6); color: #fff; cursor: pointer;
+}
+.cg-pvm__unpick:hover { background: rgb(0 0 0 / .85); }
+.cg-pvm__add {
+  flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 56px;
+  padding: 0 6px; border: 1px dashed var(--cg-rule-2); border-radius: 6px; background: none;
+  font: inherit; font-size: var(--cg-text-xs); line-height: 1.2; color: var(--cg-ink-muted); text-align: center; text-wrap: balance; cursor: pointer;
+}
+.cg-pvm__plus { font-size: 18px; font-weight: 300; line-height: 1; }
+.cg-pvm__slot:hover .cg-pvm__add { color: var(--cg-ink-2); }
+.cg-pvm__slot.is-on .cg-pvm__add { border-style: solid; border-color: var(--cg-ink-muted); color: var(--cg-ink-strong); }
+.cg-pvm__slot[data-cg-slot="preview"].is-on .cg-pvm__add, .cg-pvm__slot.is-next .cg-pvm__add { border-color: var(--cg-clay-ink); color: var(--cg-clay-ink); }
+.cg-pvm__price { flex: none; display: inline-flex; align-items: center; gap: 8px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; cursor: default; }
+.cg-pvm__price .cg-field { width: 92px; height: 28px; }
 .cg-pvm__price .cg-field.is-bad { border-color: var(--cg-danger); }
+.cg-pvm__slots .cg-pvm__close { align-self: flex-start; }
 .cg-pvm__sum b { color: var(--cg-ink-strong); font-weight: 600; }
 .cg-pvm__notes { flex-basis: 100%; display: flex; flex-direction: column; gap: 2px; padding: 0 12px 6px 16px; font-size: var(--cg-text-sm); }
 .cg-pvm__line .cg-pvm__notes { padding: 0 0 4px; }
@@ -386,11 +436,16 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm--window .cg-pvm__order { top: 6px; left: 6px; min-width: 22px; height: 22px; border-radius: 11px; line-height: 22px; font-size: var(--cg-text-xs); }
 .cg-pvm--window .cg-pvm__mark { top: 6px; right: 6px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: var(--cg-text-xs); }
 .cg-pvm--window .cg-pvm__foot { gap: 12px; padding: 10px 20px 10px 16px; border-top: 1px solid var(--cg-rule); background: var(--cg-sunk); min-height: 48px; }
-.cg-pvm--window .cg-pvm__steps { gap: 6px; }
-.cg-pvm--window .cg-pvm__step { height: 32px; padding: 0 12px 0 6px; border-radius: 16px; font-size: var(--cg-text-sm2); gap: 7px; }
-.cg-pvm--window .cg-pvm__stepn { width: 20px; height: 20px; border-radius: 10px; font-size: var(--cg-text-xs); }
-.cg-pvm--window .cg-pvm__price { font-size: var(--cg-text-sm2); padding: 0 8px 0 6px; gap: 7px; }
-.cg-pvm--window .cg-pvm__price .cg-field { width: 110px; height: 30px; }
+.cg-pvm--window .cg-pvm__slots { gap: 12px; padding: 16px 20px 6px; }
+.cg-pvm--window .cg-pvm__slot { gap: 10px; padding: 10px 14px 14px; border-radius: 12px; }
+.cg-pvm--window .cg-pvm__slothead { min-height: 32px; }
+.cg-pvm--window .cg-pvm__slotname { font-size: var(--cg-text-md); }
+.cg-pvm--window .cg-pvm__sqs { gap: 8px; }
+.cg-pvm--window .cg-pvm__sq { width: 60px; height: 80px; border-radius: 8px; }
+.cg-pvm--window .cg-pvm__add { width: 104px; height: 80px; border-radius: 8px; font-size: var(--cg-text-sm); gap: 4px; }
+.cg-pvm--window .cg-pvm__plus { font-size: 22px; }
+.cg-pvm--window .cg-pvm__price { font-size: var(--cg-text-sm2); }
+.cg-pvm--window .cg-pvm__price .cg-field { width: 108px; height: 32px; }
 .cg-pvm--window .cg-pvm__foot .cg-pvm__or { margin-left: auto; }
 /* In the window's column a 100% basis is the window's whole height: the notes would push the grid out of sight. */
 .cg-pvm--window .cg-pvm__notes { flex: none; padding: 0 20px 10px; background: var(--cg-sunk); }
