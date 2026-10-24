@@ -162,6 +162,8 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientWinBack: { params: PAGE },
   clientWinBackAttempt: { params: PAGE, body: 'merge' },
   clientHandoff: { params: PAGE },
+  clientFanCustomCreate: { params: { pageLabel: 'pageLabel', fanRef: 'fanRef' }, body: 'merge' },
+  clientFanCustomChange: { params: { pageLabel: 'pageLabel', fanRef: 'fanRef', customId: 'customId' }, body: 'merge', integers: ['customId'] },
   voiceNoteCreate: { params: PAGE, body: 'nest' },
   voiceNoteStatus: { params: VOICE_NOTE, integers: ['voiceNoteId'] },
   voiceNoteAudio: { params: VOICE_NOTE, integers: ['voiceNoteId'] },

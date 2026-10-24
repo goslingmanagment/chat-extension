@@ -1,10 +1,13 @@
 // «Память» of the fan panel (Chat Memory week 2): the hub's card of the person across pages as the panel shows it.
 // Pure. Pages most paid first; suggestions with why Hub thinks so and the person's «Да» / «Нет»; facts by kind, an empty
 // kind said as «не знаю» (the roadmap's rule: where the chat says nothing, the card says so instead of guessing).
+// Chat Memory week 4: the customs, open first; on a page the person works an open one offers the card's suggestions —
+// «Оплачен» by a tip no custom took (a custom of the asked page only: the tips are that page's), «Отдали» by media the
+// page sent since — and «Отменить». Hub sets nothing by itself.
 
 import { PLATFORM_TITLES } from '@cg/contracts/hosts';
-import { FAN_FACT_KINDS, type FanCard, type FanCardPage } from '@cg/contracts/hub';
-import { type FanMemoryFactVM, type FanMemoryPageVM, type FanMemorySuggestionVM, type FanMemoryVM, type Msg, type UiAction } from '@cg/contracts/vm';
+import { FAN_CUSTOM_STATES, FAN_FACT_KINDS, type FanCard, type FanCardCustom, type FanCardPage } from '@cg/contracts/hub';
+import { type FanCustomPaymentVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemorySuggestionVM, type FanMemoryVM, type Msg, type UiAction } from '@cg/contracts/vm';
 
 /** Every page of the person as the panel shows it. */
 export function memoryPage(page: FanCardPage): FanMemoryPageVM {
@@ -40,9 +43,43 @@ export interface MemoryInput {
   readonly busy: ReadonlySet<string>;
   /** The chat of a fact's page in this tab, to open; null — not in this tab, or the one open now. */
   readonly openOf: (pageLabel: string) => UiAction | null;
+  /** The hub serves customs (`fan-customs-v1`). */
+  readonly customs?: boolean;
 }
 
-export function memoryModel({ card, busy, openOf }: MemoryInput): Omit<FanMemoryVM, 'view' | 'error'> {
+const OPEN_CUSTOM: readonly string[] = ['ordered', 'paid'];
+
+/** «Кастомы» of the card: `busy` keys are `custom:<id>` and `custom:new` (a record on its way). */
+export function customsModel(card: FanCard, busy: ReadonlySet<string>): FanMemoryCustomsVM {
+  const payments: FanCustomPaymentVM[] = (card.customPayments ?? []).map((payment) => ({ ref: payment.paymentRef, amount: payment.amountMills, at: payment.at, note: payment.note }));
+  const custom = (item: FanCardCustom): FanCustomVM => {
+    const open = item.granted && OPEN_CUSTOM.includes(item.state);
+    const state = (FAN_CUSTOM_STATES as readonly string[]).includes(item.state) ? (item.state as FanCustomVM['state']) : null;
+    return {
+      id: item.id,
+      description: item.description,
+      pageLabel: item.pageLabel,
+      state,
+      price: item.priceMills,
+      paid: item.paymentMills,
+      paidAt: item.paidAt,
+      deliveredAt: item.deliveredAt,
+      createdBy: item.createdBy,
+      createdAt: item.createdAt,
+      payWith: open && item.state === 'ordered' && item.pageLabel === card.pageLabel ? payments.map((payment) => ({ ...payment, action: { type: 'ChangeFanCustom', customId: item.id, action: 'paid', ref: payment.ref } })) : [],
+      deliveredBy: open ? item.deliveryCandidates.map((candidate) => ({ ref: candidate.messageRef, at: candidate.at, mediaCount: candidate.mediaCount, price: candidate.priceMills, action: { type: 'ChangeFanCustom', customId: item.id, action: 'delivered', ref: candidate.messageRef } })) : [],
+      cancel: open ? { type: 'ChangeFanCustom', customId: item.id, action: 'cancel' } : null,
+      busy: busy.has(`custom:${String(item.id)}`),
+    };
+  };
+  const items = card.customs ?? [];
+  // The open first, as the hub sends them; the ended after.
+  const ordered = [...items.filter((item) => OPEN_CUSTOM.includes(item.state)), ...items.filter((item) => !OPEN_CUSTOM.includes(item.state))];
+  const asked = card.pages.find((page) => page.pageLabel === card.pageLabel);
+  return { items: ordered.map(custom), payments, record: asked === undefined || asked.granted ? { busy: busy.has('custom:new') } : null };
+}
+
+export function memoryModel({ card, busy, openOf, customs }: MemoryInput): Omit<FanMemoryVM, 'view' | 'error'> {
   const suggestions: FanMemorySuggestionVM[] = card.suggestions.map((suggestion) => {
     const key = `link:${suggestion.platform}:${suggestion.fanRef}`;
     const decide = (decision: 'same' | 'different'): UiAction => ({ type: 'DecideFanLink', otherPlatform: suggestion.platform, otherFanRef: suggestion.fanRef, decision });
@@ -84,5 +121,6 @@ export function memoryModel({ card, busy, openOf }: MemoryInput): Omit<FanMemory
     pages: [...card.pages].sort((a, b) => b.spentMills - a.spentMills).map(memoryPage),
     suggestions,
     facts,
+    ...(customs === true ? { customs: customsModel(card, busy) } : {}),
   };
 }

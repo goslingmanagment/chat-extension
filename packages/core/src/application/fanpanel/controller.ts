@@ -216,6 +216,11 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     const bootstrap = context.current().bootstrap;
     return bootstrap !== null && hasCapability(bootstrap.capabilities, 'fan-card-v1');
   };
+  /** Chat Memory week 4: the card carries the customs (`fan-customs-v1`). */
+  const customsServed = (): boolean => {
+    const bootstrap = context.current().bootstrap;
+    return bootstrap !== null && hasCapability(bootstrap.capabilities, 'fan-customs-v1');
+  };
 
   async function loadMemory(chat: ChatRef): Promise<void> {
     const pageId = context.current().binding?.pageId ?? null;
@@ -296,7 +301,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       return { ...nothing, view: loadingView(memory?.since ?? null), error: null };
     }
     const card = memory.card;
-    const model = memoryModel({ card, busy: memory.busy, openOf: (pageLabel) => openOf(card, pageLabel) });
+    const model = memoryModel({ card, busy: memory.busy, openOf: (pageLabel) => openOf(card, pageLabel), customs: customsServed() });
     // A fan Hub holds nothing about yet: said once, not as three «не знаю».
     const view: VmView = !card.known ? { s: 'empty', why: msg('fanPanel.memory.nobody') } : memory.error !== null ? failureView(memory.error, i18n, retry, memory.loadedAt) : dataView(memory.loading ? [{ kind: 'stale-cache', asOf: new Date(memory.loadedAt ?? clock.now()).toISOString() }] : []);
     return { ...model, view, error };
@@ -420,6 +425,29 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       if (action.action === 'correct' && text === '') return Promise.resolve(done(action.type, 'noop'));
       return changeMemory(action.type, `fact:${String(factId)}`, (pageId, fanRef) =>
         rpc.request('fan.memory.fact', action.action === 'delete' ? { pageId, fanRef, factId, action: 'delete' } : { pageId, fanRef, factId, action: 'correct', text }),
+      );
+    }
+    // Chat Memory week 4: «Записать кастом»; «Оплачен» / «Отдали» by the card's suggestion, «Отменить».
+    if (action.type === 'RecordFanCustom') {
+      const description = action.description.trim();
+      if (description === '' || !customsServed()) return Promise.resolve(done(action.type, 'noop'));
+      const { priceMills, paymentRef } = action;
+      return changeMemory(action.type, 'custom:new', (pageId, fanRef) =>
+        rpc.request('fan.memory.custom', { pageId, fanRef, action: 'create', description, ...(priceMills === undefined ? {} : { priceMills }), ...(paymentRef === undefined ? {} : { paymentRef }) }),
+      );
+    }
+    if (action.type === 'ChangeFanCustom') {
+      const { customId, ref } = action;
+      if (!customsServed() || (action.action !== 'cancel' && ref === undefined)) return Promise.resolve(done(action.type, 'noop'));
+      return changeMemory(action.type, `custom:${String(customId)}`, (pageId, fanRef) =>
+        rpc.request(
+          'fan.memory.custom',
+          action.action === 'cancel'
+            ? { pageId, fanRef, customId, action: 'cancel' }
+            : action.action === 'paid'
+              ? { pageId, fanRef, customId, action: 'paid', paymentRef: ref ?? '' }
+              : { pageId, fanRef, customId, action: 'delivered', messageRef: ref ?? '' },
+        ),
       );
     }
     if (action.type === 'ReloadView') {

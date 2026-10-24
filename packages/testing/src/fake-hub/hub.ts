@@ -48,6 +48,8 @@ import {
   type SendAttributionsRequest,
   type ActivityBeatRequest,
   type FanCard,
+  type FanCustomChangeRequest,
+  type FanCustomCreateRequest,
   type Handoff,
   type WinBackAttemptRequest,
   type WinBackList,
@@ -1119,6 +1121,10 @@ export class FakeHub {
         return read(s.data.fanLinkDecide(need(page), request as FanLinkDecideRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
       case 'clientFanFactChange':
         return read(s.data.fanFactChange(need(page), request as FanFactChangeRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
+      case 'clientFanCustomCreate':
+        return read(s.data.fanCustomCreate(need(page), request as FanCustomCreateRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
+      case 'clientFanCustomChange':
+        return read(s.data.fanCustomChange(need(page), request as FanCustomChangeRequest, now));
       case 'clientWinBack':
         return { kind: 'json', status: 200, body: s.data.winBack(need(page), now) };
       case 'clientWinBackAttempt':

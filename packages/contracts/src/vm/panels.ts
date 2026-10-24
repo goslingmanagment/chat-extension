@@ -83,6 +83,45 @@ export interface FanMemoryFactVM {
   readonly busy: boolean;
 }
 
+/** Chat Memory week 4: a tip of the fan Hub suggests as a custom's payment — «$120 · 2 дня назад · «for my video»». */
+export interface FanCustomPaymentVM {
+  readonly ref: string;
+  readonly amount: MoneyMills;
+  readonly at: IsoTimestamp;
+  readonly note: string | null;
+}
+
+/** Chat Memory week 4: a custom of the person. Buttons only on a page the person works, while it is open. */
+export interface FanCustomVM {
+  readonly id: number;
+  readonly description: string;
+  readonly pageLabel: string;
+  /** null — a state this build does not know. */
+  readonly state: 'ordered' | 'paid' | 'delivered' | 'cancelled' | null;
+  readonly price: MoneyMills | null;
+  /** What the payment the chatter took for it was. */
+  readonly paid: MoneyMills | null;
+  readonly paidAt: IsoTimestamp | null;
+  readonly deliveredAt: IsoTimestamp | null;
+  readonly createdBy: string;
+  readonly createdAt: IsoTimestamp;
+  /** «Оплачен»: a suggested tip each. */
+  readonly payWith: readonly (FanCustomPaymentVM & { readonly action: UiAction })[];
+  /** «Отдали»: «это он? 1 видео · вчера» — a suggested message each. */
+  readonly deliveredBy: readonly { readonly ref: string; readonly at: IsoTimestamp; readonly mediaCount: number; readonly price: MoneyMills | null; readonly action: UiAction }[];
+  readonly cancel: UiAction | null;
+  readonly busy: boolean;
+}
+
+export interface FanMemoryCustomsVM {
+  /** The open first (ordered, then paid, the oldest payment first), then the ended ones of 30 days. */
+  readonly items: readonly FanCustomVM[];
+  /** Tips of the fan on this page no custom took: what «Записать кастом» may name as the payment. */
+  readonly payments: readonly FanCustomPaymentVM[];
+  /** «Записать кастом» is offered: a page the person works; a record is on its way — it rests. */
+  readonly record: { readonly busy: boolean } | null;
+}
+
 export interface FanMemoryVM {
   readonly view: VmView;
   readonly accounts: readonly FanMemoryAccountVM[];
@@ -91,6 +130,8 @@ export interface FanMemoryVM {
   readonly suggestions: readonly FanMemorySuggestionVM[];
   /** «О себе», «Обещали», «Договорились» in this order; an empty kind is «не знаю». */
   readonly facts: readonly { readonly kind: 'about' | 'promise' | 'agreement'; readonly items: readonly FanMemoryFactVM[] }[];
+  /** Chat Memory week 4: «Кастомы»; absent — the hub does not serve them (`fan-customs-v1`). */
+  readonly customs?: FanMemoryCustomsVM;
   /** The last «Да / Нет» or fact change failed: said once, the card stays as it was. */
   readonly error: CgErrorView | null;
 }
@@ -143,6 +184,18 @@ export interface QueuePromiseVM {
   readonly open: UiAction | null;
 }
 
+/** «Передача»: an open custom of the page — what, ordered or paid since when. */
+export interface QueueCustomVM {
+  readonly key: string;
+  readonly description: string;
+  readonly state: 'ordered' | 'paid' | null;
+  readonly paidAt: IsoTimestamp | null;
+  readonly createdAt: IsoTimestamp;
+  /** The fan, when a row of the handoff names him; null — unknown here. */
+  readonly name: string | null;
+  readonly open: UiAction | null;
+}
+
 export interface QueueVM {
   readonly tab: QueueTab;
   /** The tabs the hub serves, in order: «Ждут» always, «Вернуть» with `win-back-v1`, «Передача» with `handoff-v1`. */
@@ -161,6 +214,8 @@ export interface QueueVM {
     readonly waiting: readonly QueueWaitingVM[];
     /** Empty — «не знаю»: no fact of a promise, which is not «nobody promised anything». */
     readonly promises: readonly QueuePromiseVM[];
+    /** Chat Memory week 4: the page's open customs; absent — the hub does not serve them. */
+    readonly customs?: readonly QueueCustomVM[];
   } | null;
   /** The last pick failed: said once, the list stays as it was. */
   readonly error: CgErrorView | null;

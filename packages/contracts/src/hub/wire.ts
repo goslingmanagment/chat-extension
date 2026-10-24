@@ -197,6 +197,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'win-back-v1',
   /** Chat Memory week 3: «Передача» of «Очередь» — whom the team wrote to, who waits, open promises. */
   'handoff-v1',
+  /** Chat Memory week 4: customs in the fan's card (`customs`, `customPayments`), their record and changes, and in the handoff. */
+  'fan-customs-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
