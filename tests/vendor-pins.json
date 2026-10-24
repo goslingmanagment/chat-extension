@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "efa423b3ba0241dc1db43435572a8304dccd0f4bfded24a7ca14c4a59bf7bb15",
-    "sourceCommit": "efb5a90312fe74c29affde4c323d13d7eaa05026",
-    "note": "Vendored on 2026-10-24 from hub main efb5a903 (#813–#815) with scripts/vendor-sdk.mjs: clientActivity (the beat of the hub's shift) and clientInConversation («в разговоре»), Chat Memory week 1; the rest of the client routes is unchanged. Registered as a candidate for 0.9.0. Re-vendor with the same script and update this pin together."
+    "contractHash": "34c742e6792b289ea0201f87fe8c844a51bb2352abe9b00226982ba1a2b31c7b",
+    "sourceCommit": "5bb222527635fa1d5465f4ea61bbad6ddcecaa4f",
+    "note": "Vendored on 2026-10-24 from hub main 5bb22252 (#819, #821) with scripts/vendor-sdk.mjs: clientFanCard, clientFanLinkDecide and clientFanFactChange (Chat Memory week 2, «Память»), on top of clientActivity and clientInConversation; the rest of the client routes is unchanged. Registered as a candidate for 0.9.0. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

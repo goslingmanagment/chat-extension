@@ -38,7 +38,20 @@ export interface HubDataDeps {
   readonly debugEnabled: () => boolean;
 }
 
-type DataRequest = 'recap.status' | 'recap.read' | 'spenders.board' | 'spenders.stats' | 'spenders.queue' | 'feed.read' | 'fan.card' | 'fan.dossier' | 'newcomers.list' | 'usage.get';
+type DataRequest =
+  | 'recap.status'
+  | 'recap.read'
+  | 'spenders.board'
+  | 'spenders.stats'
+  | 'spenders.queue'
+  | 'feed.read'
+  | 'fan.card'
+  | 'fan.dossier'
+  | 'fan.memory'
+  | 'fan.memory.link'
+  | 'fan.memory.fact'
+  | 'newcomers.list'
+  | 'usage.get';
 
 export type HubDataHandlers = { readonly [T in DataRequest]: TabRequestHandler<T> };
 
@@ -100,6 +113,17 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
       }),
     'fan.dossier': (request, sender) =>
       onPage(request.pageId, sender, async (page) => ({ dossier: await deps.hub().dossier({ pageLabel: page.pageLabel, fanRef: request.fanRef }) })),
+    // Chat Memory week 2: the fan's card, a chatter's «Да / Нет», a fact deleted or corrected — each one call, never repeated.
+    'fan.memory': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().fanCard({ pageLabel: page.pageLabel, fanRef: request.fanRef })),
+    'fan.memory.link': (request, sender) =>
+      onPage(request.pageId, sender, (page) =>
+        deps.hub().fanLinkDecide({ pageLabel: page.pageLabel, fanRef: request.fanRef, otherPlatform: request.otherPlatform, otherFanRef: request.otherFanRef, decision: request.decision }),
+      ),
+    'fan.memory.fact': (request, sender) =>
+      onPage(request.pageId, sender, (page) => {
+        const { pageId: _pageId, ...change } = request;
+        return deps.hub().fanFactChange({ ...change, pageLabel: page.pageLabel });
+      }),
     'newcomers.list': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
         deps.hub().audienceNew({ pageLabel: page.pageLabel, windowHours: request.windowHours, ...(request.cursor === null ? {} : { cursor: request.cursor }) }),

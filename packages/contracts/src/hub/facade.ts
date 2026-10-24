@@ -46,6 +46,7 @@ import {
 } from './spenders';
 import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
+import { type FanCard, type FanCardQuery, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
 import { type VoiceAllowance, type VoiceAllowanceQuery, type VoiceNoteCreateRequest, type VoiceNoteRef, type VoiceNoteView } from '../voice';
@@ -187,6 +188,12 @@ export interface HubFacade {
   activityBeat(request: ActivityBeatRequest): Promise<ActivityBeatResult>;
   /** Chat Memory week 1: «в разговоре» of a page — refused without `in-conversation-v1` and for a page not granted. */
   inConversation(query: InConversationQuery): Promise<InConversationResult>;
+  /** Chat Memory week 2: the fan's card across pages — refused without `fan-card-v1` and for a page not granted. */
+  fanCard(query: FanCardQuery): Promise<FanCard>;
+  /** A chatter's «Да» or «Нет» on a suggested account; never repeated by itself. */
+  fanLinkDecide(request: FanLinkDecideRequest): Promise<FanLinkDecideResult>;
+  /** A chatter deletes or corrects a fact; never repeated by itself. */
+  fanFactChange(request: FanFactChangeRequest): Promise<FanFactChangeResult>;
   /**
    * 1.47.0: the paid voicing of a script (`voiceNoteCreate`): idempotent per `clientRequestId` at the hub, never
    * repeated by the facade — the caller wrote the take before it asked. Needs the page's `voice` and `voice-notes-v1`.

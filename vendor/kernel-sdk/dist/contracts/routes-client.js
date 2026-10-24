@@ -122,6 +122,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     // Chat Memory: the extension's beat (`clientActivity`) and «в разговоре» (`clientInConversation`).
     "chatter-activity-v1",
     "in-conversation-v1",
+    // Chat Memory week 2: the fan's card across pages and the «same person» decision.
+    "fan-card-v1",
 ];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
@@ -1668,6 +1670,120 @@ export const teamAuthorshipResponseSchema = z.object({
     })),
     serverNow: isoTimestamp,
 });
+// ── Chat Memory week 2: the fan's card (clientFanCard, clientFanLinkDecide) ──
+//
+// One card per person across pages: every account of the person (a Fansly fan
+// is one account on every page; a new account or the other platform's joins by
+// a chatter's «Да»), and on each page the team's alias with its marks (💵, ❌),
+// the subscription and the money; and the facts from the chats. Pages the
+// caller is not granted show only that: never a message or a note of theirs.
+// Hub suggests accounts that may be the same person; a chatter decides.
+/** «Same person» suggestions in one card. */
+export const CLIENT_FAN_CARD_MAX_SUGGESTIONS = 5;
+/** Why Hub suggests a pair; open on the wire. */
+export const CLIENT_FAN_LINK_REASONS = ["same_alias", "same_username", "replaced_account"];
+export const CLIENT_FAN_LINK_DECISIONS = ["same", "different"];
+export const clientFanCardPageSchema = z.object({
+    pageLabel: z.string(),
+    platform: clientOpenToken,
+    modelName: z.string().nullable(),
+    /** The account of the person this row is about. */
+    fanRef: clientFanRefSchema,
+    /** The caller works this page. */
+    granted: z.boolean(),
+    /** The team's name for the fan on this page (Fansly «Custom Username»), with its marks. */
+    alias: z.string().nullable(),
+    subscribed: z.boolean(),
+    subscribedSince: isoTimestamp.nullable(),
+    subscriptionEndsAt: isoTimestamp.nullable(),
+    /** Everything the fan paid on this page, gross. */
+    spentMills: mills,
+    /** The last 30 days, gross, by kind (subscription, tip, message_purchase, post_purchase, other). */
+    last30Mills: z.record(z.string(), mills),
+    lastPurchaseAt: isoTimestamp.nullable(),
+});
+const clientFanCardAccountSchema = z.object({
+    platform: clientOpenToken,
+    fanRef: clientFanRefSchema,
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    /** Gone or hidden on the platform, as far as Hub saw. */
+    gone: z.boolean(),
+});
+/** The kinds of a fact from the chat; open on the wire. */
+export const CLIENT_FAN_FACT_KINDS = ["about", "promise", "agreement"];
+/** The longest fact a chatter may write. */
+export const CLIENT_FAN_FACT_MAX_CHARS = 500;
+export const clientFanFactSchema = z.object({
+    id: intId,
+    /** Open token; known values: CLIENT_FAN_FACT_KINDS. */
+    kind: clientOpenToken,
+    text: z.string(),
+    pageLabel: z.string(),
+    /** The caller works the fact's page: only then the message can be opened and the fact changed. */
+    granted: z.boolean(),
+    conversationRef: clientConversationRefSchema,
+    /** The message the fact comes from. */
+    messageRef: clientNumericIdSchema,
+    messageAt: isoTimestamp.nullable(),
+    /** `ai` — written by the facts lane; `chatter` — a chatter's correction. */
+    source: clientOpenToken,
+    /** The chatter who wrote it; null for the AI's. */
+    author: z.string().nullable(),
+    createdAt: isoTimestamp,
+});
+export const clientFanCardResponseSchema = z.object({
+    pageLabel: z.string(),
+    fanRef: clientFanRefSchema,
+    /** Hub holds this fan; false — nothing is known yet and the lists are empty. */
+    known: z.boolean(),
+    /** The person's accounts, the asked one first. */
+    accounts: z.array(clientFanCardAccountSchema.extend({
+        /** Who said «Да» to this account; null for the asked one. */
+        linkedBy: z.string().nullable(),
+    })),
+    /** Every page of every account, most paid first. */
+    pages: z.array(clientFanCardPageSchema),
+    /** Accounts that may be the same person, most paid first. */
+    suggestions: z.array(clientFanCardAccountSchema.extend({
+        /** Open token; known values: CLIENT_FAN_LINK_REASONS. */
+        reason: clientOpenToken,
+        /** The alias, username or name both share. */
+        shared: z.string(),
+        /** Where the shared alias or name is, when it is on a page. */
+        sharedOn: z.string().nullable(),
+        pages: z.array(clientFanCardPageSchema),
+    })),
+    /** What the person told and what was promised and agreed, on every page, the newest message first. Empty — «не знаю». */
+    facts: z.array(clientFanFactSchema),
+    serverNow: isoTimestamp,
+});
+export const clientFanFactChangeBodySchema = z.discriminatedUnion("action", [
+    z.object({ action: z.literal("delete") }).strict(),
+    z.object({ action: z.literal("correct"), text: z.string().trim().min(1).max(CLIENT_FAN_FACT_MAX_CHARS) }).strict(),
+]);
+export const clientFanFactChangeParamsSchema = z.object({
+    pageLabel: pageLabelSchema,
+    fanRef: clientFanRefSchema,
+    factId: z.coerce.number().int().positive(),
+});
+export const clientFanFactChangeResponseSchema = z.object({
+    /** false — the fact was no longer active (changed by someone else first): nothing changed. */
+    changed: z.boolean(),
+    card: clientFanCardResponseSchema,
+});
+export const clientFanLinkDecideBodySchema = z.object({
+    otherPlatform: clientOpenToken,
+    otherFanRef: clientFanRefSchema,
+    decision: z.enum(CLIENT_FAN_LINK_DECISIONS),
+}).strict();
+export const clientFanLinkDecideResponseSchema = z.object({
+    /** The pair's decision as it stands: the first one wins. */
+    decision: z.enum(CLIENT_FAN_LINK_DECISIONS),
+    /** This request recorded it; false — the pair was decided before. */
+    recorded: z.boolean(),
+    card: clientFanCardResponseSchema,
+});
 export const clientRouteSchemas = {
     clientBootstrap: {
         auth: { kind: "apiKey" },
@@ -2061,6 +2177,66 @@ export const clientRouteSchemas = {
             400: errorResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
+        },
+    },
+    clientFanCard: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["client"],
+        summary: "The fan's card across pages: the person's accounts, the team's alias and the money on every page, and accounts that may be the same person",
+        description: "Read-only and database-only: no platform request, no queued work. A device token's, for an active "
+            + "page granted to the caller (else 409 `client_feature_disabled` / `not_granted`); a cookie session is 403. "
+            + "The person is the fan and every account a chatter linked to it. Each page row shows the team's alias with "
+            + "its marks, the subscription and the money, also for pages the caller does not work (`granted: false`); "
+            + "`facts` lists Hub's facts from the chats of every page, the newest first (empty means «не знаю»). Never a "
+            + "message or a note of another page. Suggestions come from what Hub holds (the same «nick/country/age» "
+            + "alias on a page of the same model, the same username on the other platform, a gone account that shares a "
+            + "name and paid); a pair decided before is not suggested again. An unknown fan answers `known: false`.",
+        params: clientPageFanParamsSchema,
+        response: {
+            200: clientFanCardResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    clientFanLinkDecide: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["client"],
+        summary: "A chatter decides whether a suggested account is the same person as the fan",
+        description: "Database-only. A device token's, for an active page granted to the caller. Only a pair the fan's "
+            + "card suggests right now is taken (else 409 `not_suggested`). `same` links the two accounts into one "
+            + "person, `different` keeps the suggestion from coming back; the first decision of a pair stands and a "
+            + "repeat reads `recorded: false`. The decider is the token's user. Answers the card as it is after it.",
+        params: clientPageFanParamsSchema,
+        body: clientFanLinkDecideBodySchema,
+        response: {
+            200: clientFanLinkDecideResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    clientFanFactChange: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["client"],
+        summary: "A chatter deletes or corrects a fact from the chat in one click",
+        description: "Database-only. A device token's, for an active page granted to the caller; the fact must be one of "
+            + "the fan's card and of a page the caller works (else 409 `client_feature_disabled` / `not_granted`, or "
+            + "404 for a fact of another fan). `delete` removes it from the card; `correct` writes the chatter's text as "
+            + "a new fact on the same message, which the facts lane never rewrites. A fact already changed by someone "
+            + "else answers `changed: false`. Answers the card as it is after it.",
+        params: clientFanFactChangeParamsSchema,
+        body: clientFanFactChangeBodySchema,
+        response: {
+            200: clientFanFactChangeResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
         },
     },
     clientAudienceNew: {

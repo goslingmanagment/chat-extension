@@ -17,6 +17,7 @@ import { type FanPanelVM, type I18n, type RecapLength, type RecapViewVM } from '
 
 import { StaleRow } from '../dock/Result';
 import { STALE_ROW_CSS, STALE_ROW_NARROW_CSS } from '../dock/stale-row.css';
+import { MEMORY_CSS, MemoryTab } from './Memory';
 import { Button, Markdown, Money, OverlayLayer, Segmented, SidePanel, StageLine, Tabs, ViewState, hotkeyText, useDispatch, useHints, useI18n, useMinuteClock, useView } from '../kit';
 
 type Kind = NonNullable<FanPanelVM['spent']>['byKind'][number]['kind'];
@@ -294,13 +295,15 @@ export function FanPanel(): JSX.Element {
                 tabs={[
                   { value: 'fan', label: i18n.t('fanPanel.tab.fan') },
                   { value: 'recap', label: i18n.t('fanPanel.tab.recap') },
+                  // Chat Memory week 2: «Память» only where the hub serves the fan's card.
+                  ...(vm.memory === undefined ? [] : [{ value: 'memory' as const, label: i18n.t('fanPanel.tab.memory') }]),
                 ]}
                 onChange={(tab) => void dispatch({ type: 'SetFanPanelTab', tab })}
               />
             </div>
             <div class="cg-fp__body" role="tabpanel" id={`${TABS_ID}-${vm.tab}`} aria-labelledby={`${TABS_ID}-tab-${vm.tab}`} tabIndex={0}>
               {vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
-              {vm.tab === 'fan' ? <FanTab vm={vm} /> : <RecapTab archive={vm.footer.stamp.coverage} />}
+              {vm.tab === 'fan' ? <FanTab vm={vm} /> : vm.tab === 'memory' && vm.memory !== undefined ? <MemoryTab memory={vm.memory} /> : <RecapTab archive={vm.footer.stamp.coverage} />}
             </div>
             <div class="cg-fp__foot">
               <span>{vm.footer.stamp.asOf === null ? '' : i18n.t('common.dataAsOfCap', { time: { time: vm.footer.stamp.asOf } })}</span>
@@ -315,6 +318,7 @@ export function FanPanel(): JSX.Element {
 
 export const FAN_PANEL_CSS = `
 ${STALE_ROW_CSS}
+${MEMORY_CSS}
 @container cg (max-width: 420px) {
 ${STALE_ROW_NARROW_CSS}
 }

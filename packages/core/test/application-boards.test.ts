@@ -1469,3 +1469,86 @@ describe('1.32.0 a batch of the Spenders board', () => {
     expect(h.host.calls.inserts).toEqual([]);
   });
 });
+
+describe('Chat Memory week 2: «Память» of the fan panel', () => {
+  const MEMORY_PAGE = (pageLabel: string, granted: boolean, alias: string, spentMills: number, fanRef = '5000') => ({
+    pageLabel,
+    platform: 'onlyfans',
+    modelName: 'Model One',
+    fanRef,
+    granted,
+    alias,
+    subscribed: true,
+    subscribedSince: null,
+    subscriptionEndsAt: null,
+    spentMills,
+    last30Mills: { tip: 10_000, message_purchase: 5_000 },
+    lastPurchaseAt: null,
+  });
+
+  it('read only on its tab; «Да, это он» joins the account with its pages; a fact corrected, then deleted; a fact of a page not yours has no buttons', async () => {
+    const h = await harness();
+    const page = h.bootstrap.pages.find((candidate) => candidate.platformAccountId === hostAccount.platformAccountId)!;
+    const card = {
+      pageLabel: page.pageLabel,
+      fanRef: '5000',
+      known: true,
+      accounts: [{ platform: 'onlyfans', fanRef: '5000', username: 'kai38', displayName: 'Kai', gone: false, linkedBy: null }],
+      pages: [MEMORY_PAGE(page.pageLabel, true, '💵Kai/Canada/38', 120_000), MEMORY_PAGE('lora-1', false, '❌ПОКА НЕТ ДЕНЕГ❌ kai', 300_000)],
+      suggestions: [{ platform: 'onlyfans', fanRef: '5001', username: 'kai_new', displayName: 'Kai', gone: false, reason: 'same_alias', shared: 'Kai/Canada/38', sharedOn: 'lora-2', pages: [MEMORY_PAGE('lora-2', false, '💵Kai/Canada/38', 40_000, '5001')] }],
+      facts: [
+        { id: 7, kind: 'about', text: 'Lives in Toronto', pageLabel: page.pageLabel, granted: true, conversationRef: '5000', messageRef: '9001', messageAt: iso(NOW_MS - 3_600_000), source: 'ai', author: null, createdAt: iso(NOW_MS) },
+        { id: 8, kind: 'promise', text: 'A custom video on Friday', pageLabel: 'lora-1', granted: false, conversationRef: '5000', messageRef: '9002', messageAt: null, source: 'ai', author: null, createdAt: iso(NOW_MS) },
+      ],
+      serverNow: iso(NOW_MS),
+    };
+    h.hub.control({ op: 'fanCard', pageLabel: page.pageLabel, fanRef: '5000', card });
+    h.hostEvent({ type: 'route', route: { epoch: 6, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } } });
+    await h.dispatch(open('fan-panel'));
+    await h.flush();
+    const reads = () => h.hub.read().entries.filter((entry) => entry.route === 'clientFanCard').length;
+    // The tab is there, its card is not read until it is shown.
+    expect(h.boards.fanPanel.getSnapshot(PANEL).memory).toBeDefined();
+    expect(reads()).toBe(0);
+    await h.dispatch({ type: 'SetFanPanelTab', tab: 'memory' });
+    await h.flush();
+    expect(reads()).toBe(1);
+    let memory = h.boards.fanPanel.getSnapshot(PANEL).memory!;
+    expect(memory.view.s).toBe('ready');
+    // Most paid first, the other page «не ваша» with the team's alias as it is.
+    expect(memory.pages.map((row) => [row.pageLabel, row.mine, row.alias, row.spent, row.last30])).toEqual([
+      ['lora-1', false, '❌ПОКА НЕТ ДЕНЕГ❌ kai', 300_000, 15_000],
+      [page.pageLabel, true, '💵Kai/Canada/38', 120_000, 15_000],
+    ]);
+    expect(memory.suggestions[0]?.why).toEqual({ key: 'fanPanel.memory.why.alias', params: { shared: 'Kai/Canada/38', on: 'lora-2' } });
+    // «не знаю» is the UI's: an empty kind is there, with no items.
+    expect(memory.facts.map((group) => [group.kind, group.items.map((fact) => [fact.id, fact.mine, fact.remove !== null, fact.correctable])])).toEqual([
+      ['about', [[7, true, true, true]]],
+      ['promise', [[8, false, false, false]]],
+      ['agreement', []],
+    ]);
+
+    await h.dispatch(memory.suggestions[0]!.same);
+    await h.flush();
+    memory = h.boards.fanPanel.getSnapshot(PANEL).memory!;
+    expect(memory.suggestions).toEqual([]);
+    expect(memory.accounts.map((account) => [account.key, account.linkedBy])).toEqual([
+      ['onlyfans:5000', null],
+      ['onlyfans:5001', WORLD.user.username],
+    ]);
+    expect(memory.pages.map((row) => row.pageLabel)).toEqual(['lora-1', page.pageLabel, 'lora-2']);
+    // The same decision again: the pair is no longer suggested — said, and the card stays.
+    expect((await h.dispatch({ type: 'DecideFanLink', otherPlatform: 'onlyfans', otherFanRef: '5001', decision: 'same' })).ok).toBe(false);
+    await h.flush();
+    expect(h.boards.fanPanel.getSnapshot(PANEL).memory?.error).not.toBeNull();
+
+    await h.dispatch({ type: 'ChangeFanFact', factId: 7, action: 'correct', text: '  Lives in Montreal  ' });
+    await h.flush();
+    memory = h.boards.fanPanel.getSnapshot(PANEL).memory!;
+    expect(memory.error).toBeNull();
+    expect(memory.facts[0]?.items.map((fact) => [fact.text, fact.author])).toEqual([['Lives in Montreal', WORLD.user.username]]);
+    await h.dispatch({ type: 'ChangeFanFact', factId: 7, action: 'delete' });
+    await h.flush();
+    expect(h.boards.fanPanel.getSnapshot(PANEL).memory?.facts[0]?.items).toEqual([]);
+  });
+});

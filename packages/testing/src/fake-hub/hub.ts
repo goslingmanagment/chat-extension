@@ -47,6 +47,10 @@ import {
   type IngestBatch,
   type SendAttributionsRequest,
   type ActivityBeatRequest,
+  type FanCard,
+  type FanCardQuery,
+  type FanFactChangeRequest,
+  type FanLinkDecideRequest,
   type PersonaCatalogItem,
   type ProfileFromGenerationRequest,
   type QueueQuery,
@@ -450,6 +454,10 @@ export class FakeHub {
       case 'spenderFans':
         s.data.useSpenderFans(command.fans);
         return { ok: true, fans: command.fans.length };
+      case 'fanCard':
+        this.page(command.pageLabel);
+        s.data.setFanCard(command.pageLabel, command.fanRef, command.card as unknown as FanCard);
+        return { ok: true };
       case 'talking':
         this.page(command.pageLabel);
         s.data.addTalking({ pageLabel: command.pageLabel, fanRef: command.fanRef, conversationRef: command.conversationRef ?? null, userId: 9_000_001, name: command.name, at: now - (command.agoMs ?? 3 * 60_000) });
@@ -1093,6 +1101,12 @@ export class FakeHub {
         const who = need(principal).user.userId;
         return read(s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now));
       }
+      case 'clientFanCard':
+        return { kind: 'json', status: 200, body: s.data.fanCard(need(page), (request as FanCardQuery).fanRef, now) };
+      case 'clientFanLinkDecide':
+        return read(s.data.fanLinkDecide(need(page), request as FanLinkDecideRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
+      case 'clientFanFactChange':
+        return read(s.data.fanFactChange(need(page), request as FanFactChangeRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
       case 'clientInConversation':
         return read(s.data.inConversation(need(page), need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now));
       case 'voiceNoteCreate':

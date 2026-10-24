@@ -4,3 +4,4 @@
 // decoration only. The controller of core/application applies it.
 
 export * from './model';
+export * from './memory';

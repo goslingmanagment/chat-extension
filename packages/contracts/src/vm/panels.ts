@@ -3,7 +3,7 @@
 // something carries the UiAction the controller prepared; the UI dispatches
 // it unchanged.
 
-import { type CgCode } from '../errors';
+import { type CgCode, type CgErrorView } from '../errors';
 import { type SPENDER_RETENTION_STATUSES } from '../hub/spenders';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type UiAction } from './actions';
@@ -34,12 +34,75 @@ export const CHURN_RISK_BY_RETENTION = {
  * which); the footer's archive coverage — the hub archive of the thread. A
  * missing source is null, never a guess.
  */
+/** Chat Memory week 2, «Память»: one page of the person, as the card tells it. */
+export interface FanMemoryPageVM {
+  readonly pageLabel: string;
+  readonly model: string | null;
+  /** The person works this page; false — «не ваша»: only the alias, the money and the subscription. */
+  readonly mine: boolean;
+  /** The team's name for the fan on the page, with its marks (💵, ❌), as it is. */
+  readonly alias: string | null;
+  readonly spent: MoneyMills;
+  readonly last30: MoneyMills;
+  readonly subscribed: boolean;
+}
+
+/** An account of the person; `linkedBy` — who said «Да» to it (null for the open chat's own). */
+export interface FanMemoryAccountVM {
+  readonly key: string;
+  readonly platform: string;
+  readonly name: string | null;
+  readonly username: string | null;
+  readonly gone: boolean;
+  readonly linkedBy: string | null;
+}
+
+/** «Похоже, это тот же человек»: an account Hub suggests, why, its pages, and the person's «Да» / «Нет». */
+export interface FanMemorySuggestionVM extends FanMemoryAccountVM {
+  readonly why: Msg;
+  readonly pages: readonly FanMemoryPageVM[];
+  readonly same: UiAction;
+  readonly different: UiAction;
+  /** The decision is on its way: both buttons rest. */
+  readonly busy: boolean;
+}
+
+/** A fact from the chat. `remove` and `correct` only on a page the person works; `open` — its chat's archive. */
+export interface FanMemoryFactVM {
+  readonly id: number;
+  readonly text: string;
+  readonly pageLabel: string;
+  readonly at: IsoTimestamp | null;
+  /** The chatter who corrected it; null — the AI's. */
+  readonly author: string | null;
+  readonly mine: boolean;
+  readonly open: UiAction | null;
+  readonly remove: UiAction | null;
+  /** «Исправить» is offered (the UI sends `ChangeFanFact` with the text written). */
+  readonly correctable: boolean;
+  readonly busy: boolean;
+}
+
+export interface FanMemoryVM {
+  readonly view: VmView;
+  readonly accounts: readonly FanMemoryAccountVM[];
+  /** Every page of the person, most paid first. */
+  readonly pages: readonly FanMemoryPageVM[];
+  readonly suggestions: readonly FanMemorySuggestionVM[];
+  /** «О себе», «Обещали», «Договорились» in this order; an empty kind is «не знаю». */
+  readonly facts: readonly { readonly kind: 'about' | 'promise' | 'agreement'; readonly items: readonly FanMemoryFactVM[] }[];
+  /** The last «Да / Нет» or fact change failed: said once, the card stays as it was. */
+  readonly error: CgErrorView | null;
+}
+
 export interface FanPanelVM {
   /** 1.15.0 P11a: locally known account registration; absent when this host/owner does not offer it. */
   readonly registration?: { readonly label: string; readonly at: IsoTimestamp };
   /** `empty` — «Выберите чат»; `partial` — some blocks unknown (no dossier, host scores not loaded). */
   readonly view: VmView;
-  readonly tab: 'fan' | 'recap';
+  readonly tab: 'fan' | 'recap' | 'memory';
+  /** Chat Memory week 2: «Память» — the person across pages; absent — the hub does not serve the card (no tab). */
+  readonly memory?: FanMemoryVM;
   /** Header when no chat is open: «ChatGoose» and the persona label. */
   readonly personaLabel: string | null;
   readonly fan: {

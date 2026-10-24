@@ -87,6 +87,9 @@ const fuseState = { fuse: { trippedAt: T0, reason: 'text', where: 'echo', build:
 /** A hub DTO answer: the sample and a broken copy of it. */
 const dto = (valid: object, invalid: object) => ({ valid: [valid], invalid: [invalid, { any: 'shape' }] }) as const;
 
+/** Chat Memory week 2: a fan's card as the hub answers it. */
+const MEMORY_CARD = { pageLabel: 'model-two-fansly', fanRef: '920000000000000003', known: true, accounts: [{ platform: 'fansly', fanRef: '920000000000000003', username: 'kai_38', displayName: 'Kai', gone: false, linkedBy: null }], pages: [{ pageLabel: 'model-two-fansly', platform: 'fansly', modelName: 'Model Two', fanRef: '920000000000000003', granted: true, alias: '💵Kai/Canada/38', subscribed: true, subscribedSince: '2026-09-01T10:00:00.000Z', subscriptionEndsAt: null, spentMills: 120000, last30Mills: { tip: 20000 }, lastPurchaseAt: '2026-10-20T10:00:00.000Z' }], suggestions: [], facts: [{ id: 7, kind: 'about', text: 'Lives in Toronto, works nights', pageLabel: 'model-two-fansly', granted: true, conversationRef: '810000000000000001', messageRef: '930000000000000001', messageAt: '2026-10-20T10:00:00.000Z', source: 'ai', author: null, createdAt: '2026-10-20T10:20:00.000Z' }], serverNow: '2026-10-24T10:00:00.000Z' };
+
 export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixtures } = {
   'tab.register': {
     req: { valid: [{ host: 'chatspace', lateInjection: true, contractsVersion: '1.0.0' }], invalid: [{ host: 'chatspace', lateInjection: true }] },
@@ -340,6 +343,25 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'fan.dossier': {
     req: { valid: [pageFan], invalid: [{ pageId: 11 }, fanslyPageGroup] },
     res: { valid: [{ dossier: H.dossier }, { dossier: null }], invalid: [{}, { dossier: { ...H.dossier, fan: null } }] },
+  },
+  'fan.memory': {
+    req: { valid: [pageFan], invalid: [{ pageId: 11 }] },
+    res: { valid: [MEMORY_CARD], invalid: [{ ...MEMORY_CARD, facts: [{ id: 7 }] }, { ...MEMORY_CARD, known: 'yes' }] },
+  },
+  'fan.memory.link': {
+    req: {
+      valid: [{ ...pageFan, otherPlatform: 'fansly', otherFanRef: '920000000000000032', decision: 'same' }],
+      // Only «same» or «different», and the other account named whole.
+      invalid: [{ ...pageFan, otherPlatform: 'fansly', otherFanRef: '920000000000000032', decision: 'maybe' }, { ...pageFan, decision: 'same' }],
+    },
+    res: { valid: [{ decision: 'same', recorded: true, card: MEMORY_CARD }], invalid: [{ decision: 'same', recorded: true }] },
+  },
+  'fan.memory.fact': {
+    req: {
+      valid: [{ ...pageFan, factId: 7, action: 'delete' }, { ...pageFan, factId: 7, action: 'correct', text: 'Lives in Montreal' }],
+      invalid: [{ ...pageFan, factId: 7, action: 'correct', text: '   ' }, { ...pageFan, factId: 7, action: 'correct', text: 'x'.repeat(501) }, { ...pageFan, factId: 0, action: 'delete' }],
+    },
+    res: { valid: [{ changed: true, card: MEMORY_CARD }, { changed: false, card: MEMORY_CARD }], invalid: [{ changed: true }] },
   },
   'newcomers.list': {
     req: { valid: [{ pageId: 11, windowHours: 48, cursor: null }], invalid: [{ pageId: 11, windowHours: 721, cursor: null }] },

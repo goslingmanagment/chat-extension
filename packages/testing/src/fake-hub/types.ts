@@ -211,6 +211,8 @@ export type FakeHubCommand =
    * (default 3 minutes): «в разговоре» answers it for the next 15 minutes.
    */
   | { readonly op: 'talking'; readonly pageLabel: string; readonly fanRef: string; readonly conversationRef?: string; readonly name: string; readonly agoMs?: number }
+  /** Chat Memory week 2: the fan's card as the hub answers it (`clientFanCard`), until a decision or a fact change moves it. */
+  | { readonly op: 'fanCard'; readonly pageLabel: string; readonly fanRef: string; readonly card: Record<string, unknown> }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
 

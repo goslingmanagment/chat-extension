@@ -74,6 +74,12 @@ import {
   type ActivityBeatResult,
   type InConversationQuery,
   type InConversationResult,
+  type FanCard,
+  type FanCardQuery,
+  type FanFactChangeRequest,
+  type FanFactChangeResult,
+  type FanLinkDecideRequest,
+  type FanLinkDecideResult,
   type SessionIdentity,
   type SharedRecaps,
   type SharedRecapsQuery,
@@ -897,6 +903,21 @@ export class ChatExtensionHub implements HubFacade {
   /** Chat Memory week 1: «в разговоре» of a page granted by this bootstrap; refused without `in-conversation-v1`. */
   async inConversation(query: InConversationQuery): Promise<InConversationResult> {
     return (await this.client('clientInConversation', query, query.pageLabel)) as InConversationResult;
+  }
+
+  /** Chat Memory week 2: the fan's card across pages, of a page granted by this bootstrap; refused without `fan-card-v1`. */
+  async fanCard(query: FanCardQuery): Promise<FanCard> {
+    return (await this.client('clientFanCard', query, query.pageLabel)) as FanCard;
+  }
+
+  /** A chatter's «Да» or «Нет» on a suggested account. Never repeated here: a lost answer is the person's to ask again. */
+  async fanLinkDecide(request: FanLinkDecideRequest): Promise<FanLinkDecideResult> {
+    return (await this.client('clientFanLinkDecide', request, request.pageLabel)) as FanLinkDecideResult;
+  }
+
+  /** A chatter deletes or corrects a fact. Never repeated here. */
+  async fanFactChange(request: FanFactChangeRequest): Promise<FanFactChangeResult> {
+    return (await this.client('clientFanFactChange', request, request.pageLabel)) as FanFactChangeResult;
   }
 
   /**

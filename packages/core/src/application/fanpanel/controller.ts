@@ -9,15 +9,21 @@
 // own, as a named gap. Nothing is read from ChatSpace's network, and nothing
 // is read at all while the panel is closed. Without an open chat it says
 // «Выберите чат».
+//
+// Chat Memory week 2, «Память» (a hub with `fan-card-v1`): the hub's card of the person across pages — the pages and
+// the team's alias on each, the accounts Hub suggests are the same person with «Да» / «Нет», the facts from the chats
+// with «Исправить» / «Удалить». Read only while that tab is shown; a decision or a change is one call, never repeated,
+// and the card comes back with its answer.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
-import { type Dossier, type SpenderDetail } from '@cg/contracts/hub';
+import { hasCapability, type Dossier, type FanCard, type SpenderDetail } from '@cg/contracts/hub';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { CHAT_IS_FAN, chatKeyOf, type ChatRef } from '@cg/contracts/ids';
 import { type CoverageLevel } from '@cg/contracts/ops';
 import { type ActionReceipt, type FanPanelVM, type I18n, type PartialGap, type UiAction, type VmView } from '@cg/contracts/vm';
 
+import { memoryModel } from '../../domain/fanpanel/memory';
 import { fanPanelModel } from '../../domain/fanpanel/model';
 import { recapBlocks, recapHeadingText, recapText } from '../../domain/output/recap';
 import { type SpenderRow } from '../../domain/spenders/rows';
@@ -25,8 +31,8 @@ import { coverageLevel } from '../../domain/spenders/stats';
 import { type PageContextPort, flagFailure, pageFlag } from '../boards/context';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type Surfaces } from '../boards/shared';
-import { ViewCell, done, type SurfaceController } from '../boards/surface';
-import { dataView, failureClass, failureView, loadingView, msg, stamp } from '../boards/views';
+import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
+import { dataView, errorOf, failureClass, failureView, loadingView, msg, stamp } from '../boards/views';
 
 /** A card is read again after this long, or on «Повторить». */
 export const FAN_CARD_FRESH_MS = 60_000;
@@ -54,6 +60,21 @@ interface Card {
   since: number | null;
   loadedAt: number | null;
   run: number;
+  /** Chat Memory week 2: «Память» — the hub's card of the person, read while that tab is shown. */
+  memory: MemoryCard;
+}
+
+interface MemoryCard {
+  card: FanCard | null;
+  error: CgErrorWire | null;
+  loading: boolean;
+  since: number | null;
+  loadedAt: number | null;
+  run: number;
+  /** Decisions and fact changes on their way (`link:<platform>:<fanRef>`, `fact:<id>`). */
+  readonly busy: Set<string>;
+  /** The last decision or change failed: said once, until the next one. */
+  actionError: CgErrorWire | null;
 }
 
 export interface FanPanelControllerDeps {
@@ -118,7 +139,21 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     const key = chatKeyOf(chat);
     let card = cards.get(key);
     if (card === undefined) {
-      card = { lifetime: null, last30: null, error: null, error30: null, dossier: null, dossierError: null, archive: null, archiveError: null, loading: false, since: null, loadedAt: null, run: 0 };
+      card = {
+        lifetime: null,
+        last30: null,
+        error: null,
+        error30: null,
+        dossier: null,
+        dossierError: null,
+        archive: null,
+        archiveError: null,
+        loading: false,
+        since: null,
+        loadedAt: null,
+        run: 0,
+        memory: { card: null, error: null, loading: false, since: null, loadedAt: null, run: 0, busy: new Set(), actionError: null },
+      };
       cards.set(key, card);
       if (cards.size > CARDS_KEPT) {
         const oldest = cards.keys().next().value;
@@ -169,6 +204,55 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     changed();
   }
 
+  /** Chat Memory week 2: the hub serves the fan's card (`fan-card-v1`). */
+  const memoryServed = (): boolean => {
+    const bootstrap = context.current().bootstrap;
+    return bootstrap !== null && hasCapability(bootstrap.capabilities, 'fan-card-v1');
+  };
+
+  async function loadMemory(chat: ChatRef): Promise<void> {
+    const pageId = context.current().binding?.pageId ?? null;
+    if (pageId === null || !usable() || !memoryServed()) return;
+    const memory = cardOf(chat).memory;
+    const run = ++memory.run;
+    const atEpoch = epoch;
+    memory.loading = true;
+    memory.since = clock.now();
+    changed();
+    const answer = await rpc.request('fan.memory', { pageId, fanRef: chat.platformFanId });
+    if (disposed || atEpoch !== epoch || memory.run !== run) return;
+    memory.loading = false;
+    memory.since = null;
+    memory.loadedAt = clock.now();
+    memory.card = answer.ok ? answer.payload : memory.card;
+    memory.error = answer.ok ? null : answer.error;
+    changed();
+  }
+
+  type MemoryAnswer = { readonly ok: true; readonly payload: { readonly card: FanCard } } | { readonly ok: false; readonly error: CgErrorWire };
+
+  /** A «Да / Нет» or a fact change of the open chat's fan: one call, never repeated; the card comes back with the answer. */
+  async function changeMemory(type: UiAction['type'], key: string, send: (pageId: number, fanRef: string) => Promise<MemoryAnswer>): Promise<ActionReceipt> {
+    const chat = openChat();
+    const pageId = context.current().binding?.pageId ?? null;
+    if (chat === null || pageId === null || !memoryServed()) return done(type, 'noop');
+    const memory = cardOf(chat).memory;
+    if (memory.busy.has(key)) return done(type, 'noop');
+    memory.busy.add(key);
+    memory.actionError = null;
+    changed();
+    const atEpoch = epoch;
+    const answer = await send(pageId, chat.platformFanId);
+    memory.busy.delete(key);
+    if (disposed || atEpoch !== epoch) return done(type, 'noop');
+    if (answer.ok) {
+      memory.card = answer.payload.card;
+      memory.loadedAt = clock.now();
+    } else memory.actionError = answer.error;
+    changed();
+    return answer.ok ? done(type) : refused(type, errorOf(answer.error, i18n));
+  }
+
   /** Reads the open chat's card when the panel is open and has none, or an old one. */
   function ensure(): void {
     if (!surfaces.current().fanPanel || !usable()) return;
@@ -177,12 +261,46 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     const card = cardOf(chat);
     const stale = card.loadedAt === null || clock.now() - card.loadedAt >= FAN_CARD_FRESH_MS;
     if (!card.loading && stale && card.error === null) void load(chat);
+    // «Память» is read only while its tab is shown.
+    const memory = card.memory;
+    const memoryStale = memory.loadedAt === null || clock.now() - memory.loadedAt >= FAN_CARD_FRESH_MS;
+    if (tab === 'memory' && memoryServed() && !memory.loading && memoryStale && memory.error === null) void loadMemory(chat);
+  }
+
+  /** The chat of a fact's page in this tab, to open (the chat, not the message: the hub has no read around a message). */
+  function openOf(card: FanCard, pageLabel: string): UiAction | null {
+    const ctx = context.current();
+    if (ctx.page?.pageLabel === pageLabel) return null;
+    const page = ctx.bootstrap?.pages.find((candidate) => candidate.pageLabel === pageLabel);
+    const fanRef = card.pages.find((candidate) => candidate.pageLabel === pageLabel)?.fanRef;
+    const account = page === undefined ? undefined : host.current().accounts.find((candidate) => candidate.platformAccountId === page.platformAccountId);
+    if (account === undefined || fanRef === undefined) return null;
+    return { type: 'Navigate', to: { kind: 'chat', targetHandle: `dock:${account.host}:${account.hostAccountId}:${fanRef}` } };
+  }
+
+  /** «Память» of the open chat's fan; absent — the hub does not serve the card. */
+  function memoryView(memory: MemoryCard | null): FanPanelVM['memory'] {
+    if (!memoryServed()) return undefined;
+    const retry: UiAction = { type: 'ReloadView', selector: SELECTOR };
+    const nothing = { accounts: [], pages: [], suggestions: [], facts: [] };
+    const error = memory?.actionError === null || memory?.actionError === undefined ? null : errorOf(memory.actionError, i18n);
+    if (memory === null || memory.card === null) {
+      if (memory?.error !== null && memory?.error !== undefined) return { ...nothing, view: failureView(memory.error, i18n, retry), error: null };
+      return { ...nothing, view: loadingView(memory?.since ?? null), error: null };
+    }
+    const card = memory.card;
+    const model = memoryModel({ card, busy: memory.busy, openOf: (pageLabel) => openOf(card, pageLabel) });
+    // A fan Hub holds nothing about yet: said once, not as three «не знаю».
+    const view: VmView = !card.known ? { s: 'empty', why: msg('fanPanel.memory.nobody') } : memory.error !== null ? failureView(memory.error, i18n, retry, memory.loadedAt) : dataView(memory.loading ? [{ kind: 'stale-cache', asOf: new Date(memory.loadedAt ?? clock.now()).toISOString() }] : []);
+    return { ...model, view, error };
   }
 
   function build(): FanPanelVM {
     const ctx = context.current();
     const chat = openChat();
-    const base = { tab, personaLabel: ctx.persona?.label ?? null, close: CLOSE };
+    // «Память» without the hub's card is no tab: the panel shows «Фан».
+    const shown = tab === 'memory' && !memoryServed() ? 'fan' : tab;
+    const base = { tab: shown, personaLabel: ctx.persona?.label ?? null, close: CLOSE };
     const nothing = { fan: null, spent: null, subscription: null, host: null, bio: null, lists: [], footer: { stamp: stamp(null, 'unknown'), archiveMessages: null } } as const;
     const retry: UiAction = { type: 'ReloadView', selector: SELECTOR };
 
@@ -232,6 +350,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     }
 
     const registration = pageFlag(ctx, 'registration') ? deps.registrationOf?.(chat.platformFanId, i18n) : undefined;
+    const memory = memoryView(card?.memory ?? null);
     // Beside the site's own panel (X47) ChatSpace's own data is its panel's: no scores, lists or «О себе» of it here.
     const lean = deps.besideHostPanel === true;
     const bioSource = lean && model.bioSource === 'host' ? null : model.bioSource;
@@ -249,6 +368,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       ...(bioSource === null ? {} : { bioSource }),
       ...(blocks === null ? {} : { bioBlocks: blocks }),
       ...(lean ? { besideHostPanel: true as const } : {}),
+      ...(memory === undefined ? {} : { memory }),
       lists: lean ? [] : model.lists,
       footer: { stamp: stamp(model.asOf, model.coverage), archiveMessages: model.archiveMessages },
     };
@@ -275,15 +395,29 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       if (tab !== action.tab) {
         tab = action.tab;
         changed();
+        ensure();
       }
       return Promise.resolve(done(action.type));
+    }
+    // Chat Memory week 2: «Да, это он» / «Нет» on a suggested account; «Удалить» / «Исправить» of a fact.
+    if (action.type === 'DecideFanLink') {
+      const { otherPlatform, otherFanRef, decision } = action;
+      return changeMemory(action.type, `link:${otherPlatform}:${otherFanRef}`, (pageId, fanRef) => rpc.request('fan.memory.link', { pageId, fanRef, otherPlatform, otherFanRef, decision }));
+    }
+    if (action.type === 'ChangeFanFact') {
+      const { factId } = action;
+      const text = action.text?.trim() ?? '';
+      if (action.action === 'correct' && text === '') return Promise.resolve(done(action.type, 'noop'));
+      return changeMemory(action.type, `fact:${String(factId)}`, (pageId, fanRef) =>
+        rpc.request('fan.memory.fact', action.action === 'delete' ? { pageId, fanRef, factId, action: 'delete' } : { pageId, fanRef, factId, action: 'correct', text }),
+      );
     }
     if (action.type === 'ReloadView') {
       if (action.selector.of !== 'fan-panel') return null;
       const reads = context.current().phase === 'ready' ? Promise.resolve() : context.refresh();
       return reads.then(async () => {
         const chat = openChat();
-        if (chat !== null) await load(chat);
+        if (chat !== null) await Promise.all([load(chat), tab === 'memory' ? loadMemory(chat) : Promise.resolve()]);
         return done(action.type);
       });
     }

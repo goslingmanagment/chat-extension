@@ -1530,6 +1530,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('feed.read', data['feed.read']);
   rpc.handle('fan.card', data['fan.card']);
   rpc.handle('fan.dossier', data['fan.dossier']);
+  rpc.handle('fan.memory', data['fan.memory']);
+  rpc.handle('fan.memory.link', data['fan.memory.link']);
+  rpc.handle('fan.memory.fact', data['fan.memory.fact']);
   // 1.47.0: voice notes, both sites.
   rpc.handle('voice.read', voice.handlers['voice.read']);
   rpc.handle('voice.allowance', voice.handlers['voice.allowance']);
