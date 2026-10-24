@@ -147,34 +147,49 @@ function Chosen({ pick, handle }: { readonly pick: MediaChosenVM; readonly handl
 }
 
 /**
- * «Платное» or «Превью» (2026-10-24, the owner): its picks as squares, and the grey square that makes the grid's clicks
- * land here. `next` — the paid media and their price are there: their preview is what comes next.
+ * «Платное» or «Превью» (2026-10-24, the owner): its picks as small tiles, and the tile that makes the grid's clicks land
+ * here — a click anywhere on the card does too. `next` — the paid media and their price are there: their preview is
+ * what comes next. `children` — what its head carries on the right (the price of «Платное»).
  */
-function Slot(props: { readonly slot: Step; readonly picks: readonly MediaChosenVM[]; readonly on: boolean; readonly next: boolean; readonly handle: TargetHandle; readonly onSlot: (slot: Step) => void }): JSX.Element {
-  const { slot, picks, on, next, handle, onSlot } = props;
+function Slot(props: {
+  readonly slot: Step;
+  readonly picks: readonly MediaChosenVM[];
+  readonly on: boolean;
+  readonly next: boolean;
+  readonly handle: TargetHandle;
+  readonly onSlot: (slot: Step) => void;
+  readonly children?: JSX.Element;
+}): JSX.Element {
+  const { slot, picks, on, next, handle, onSlot, children } = props;
   const i18n = useI18n();
   const tip = useTooltip(i18n.t(slot === 'paid' ? 'preview.media.step.paidTooltip' : 'preview.media.step.previewTooltip'));
-  const count = picks.length === 0 ? null : slot === 'paid' ? i18n.plural('preview.media.count', picks.length, { n: picks.length }) : i18n.t('preview.media.slot.free');
+  const meta = slot === 'preview' ? i18n.t('preview.media.slot.free') : picks.length === 0 ? null : i18n.plural('preview.media.count', picks.length, { n: picks.length });
   return (
-    <div class={`cg-pvm__slot${on ? ' is-on' : ''}${next ? ' is-next' : ''}`} data-cg-slot={slot}>
-      <button type="button" class="cg-pvm__slothead" aria-pressed={on} {...tip.props} onClick={() => onSlot(slot)}>
-        <b>{i18n.t(slot === 'paid' ? 'preview.media.step.paid' : 'preview.media.preview')}</b>
-        {count === null ? null : <span>{count}</span>}
-        {tip.description}
-      </button>
+    <div class={`cg-pvm__slot${on ? ' is-on' : ''}${next ? ' is-next' : ''}`} data-cg-slot={slot} onClick={() => onSlot(slot)}>
+      <div class="cg-pvm__slothead">
+        <button type="button" class="cg-pvm__slotname" aria-pressed={on} {...tip.props}>
+          <b>{i18n.t(slot === 'paid' ? 'preview.media.step.paid' : 'preview.media.preview')}</b>
+          {meta === null ? null : <span>{meta}</span>}
+          {tip.description}
+        </button>
+        {children}
+      </div>
       <div class="cg-pvm__sqs">
         {picks.map((pick) => (
           <Chosen key={pick.id} pick={pick} handle={handle} />
         ))}
-        <button type="button" class="cg-pvm__add" aria-pressed={on} onClick={() => onSlot(slot)}>
-          {on ? i18n.t('preview.media.slot.clickBelow') : i18n.t(slot === 'paid' ? 'preview.media.slot.addPaid' : 'preview.media.slot.addPreview')}
+        <button type="button" class="cg-pvm__add" aria-pressed={on}>
+          <span class="cg-pvm__plus" aria-hidden="true">
+            +
+          </span>
+          {i18n.t(on ? 'preview.media.slot.pickInGrid' : 'preview.media.slot.add')}
         </button>
       </div>
     </div>
   );
 }
 
-/** Over the folders: «Платное», «Цена», «Превью» — and, in a fan's preview, the panel's «×». */
+/** Over the folders: «Платное» with its price, «Превью» — and, in a fan's preview, the panel's «×». */
 function Slots({ vm, handle, variant, step, onStep }: MediaPanelProps & { readonly step: Step; readonly onStep: (step: Step) => void }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
@@ -182,18 +197,19 @@ function Slots({ vm, handle, variant, step, onStep }: MediaPanelProps & { readon
   const previews = vm.chosen.filter((pick) => pick.free);
   return (
     <div class="cg-pvm__slots">
-      <Slot slot="paid" picks={paid} on={step === 'paid'} next={false} handle={handle} onSlot={onStep} />
-      <label class="cg-pvm__price">
-        <span>{i18n.t('preview.media.price')}</span>
-        <TextField
-          value={vm.price.text}
-          label={i18n.t('preview.media.price')}
-          placeholder={i18n.t('preview.media.pricePlaceholder')}
-          maxLength={16}
-          {...(vm.price.problem === null ? {} : { class: 'is-bad' })}
-          onValue={(text) => void dispatch({ type: 'SetMediaPrice', targetHandle: handle, text })}
-        />
-      </label>
+      <Slot slot="paid" picks={paid} on={step === 'paid'} next={false} handle={handle} onSlot={onStep}>
+        <label class="cg-pvm__price">
+          <span>{i18n.t('preview.media.price')}</span>
+          <TextField
+            value={vm.price.text}
+            label={i18n.t('preview.media.price')}
+            placeholder={i18n.t('preview.media.pricePlaceholder')}
+            maxLength={16}
+            {...(vm.price.problem === null ? {} : { class: 'is-bad' })}
+            onValue={(text) => void dispatch({ type: 'SetMediaPrice', targetHandle: handle, text })}
+          />
+        </label>
+      </Slot>
       <Slot slot="preview" picks={previews} on={step === 'preview'} next={step === 'paid' && paid.length > 0 && vm.priced && previews.length === 0} handle={handle} onSlot={onStep} />
       {/* The window has its own «Закрыть Esc». */}
       {variant === 'window' ? null : <Button label={i18n.t('preview.media.close')} icon="x" iconOnly size="sm" variant="quiet" class="cg-pvm__close" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: false })} />}
@@ -361,41 +377,47 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm__mark.is-preview { background: var(--cg-clay-ink); color: var(--cg-surface); font-weight: 600; }
 .cg-pvm__note { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-height: 28px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-pvm__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 2px 8px 6px 16px; min-height: 32px; }
-/* «Платное», «Цена», «Превью» on top: the slot a click on the grid lands in is outlined — the ink's, the clay's for a preview. */
-.cg-pvm__slots { display: flex; align-items: stretch; gap: 8px; padding: 8px 6px 2px 12px; }
-.cg-pvm__slot, .cg-pvm__price {
-  display: flex; flex-direction: column; gap: 6px; padding: 6px 8px 8px; border-radius: 8px; background: var(--cg-surface);
-  box-shadow: inset 0 0 0 1px var(--cg-rule);
+/*
+ * «Платное» (its price on the right of its head) and «Превью» on top. The card the grid's clicks land in is lifted and
+ * ringed — the ink's, the clay's for a preview: the clay is what goes free, as on the grid's tiles.
+ */
+.cg-pvm__slots { display: flex; align-items: stretch; gap: 8px; padding: 8px 6px 4px 12px; }
+.cg-pvm__slot {
+  flex: 3 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 7px 10px 9px; border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--cg-rule); cursor: pointer;
 }
-.cg-pvm__slot { flex: 1; min-width: 0; }
-.cg-pvm__slot.is-on { box-shadow: inset 0 0 0 2px var(--cg-ink-strong); }
-.cg-pvm__slot[data-cg-slot="preview"].is-on { box-shadow: inset 0 0 0 2px var(--cg-clay-ink); }
-.cg-pvm__slothead {
-  display: flex; align-items: baseline; gap: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--cg-text-sm);
-  color: var(--cg-ink-2); text-align: left; white-space: nowrap; cursor: pointer;
+.cg-pvm__slot[data-cg-slot="preview"] { flex-grow: 2; }
+.cg-pvm__slot:hover { box-shadow: inset 0 0 0 1px var(--cg-rule-2); }
+.cg-pvm__slot.is-on { background: var(--cg-seg-on); box-shadow: inset 0 0 0 1px var(--cg-ink-muted); }
+.cg-pvm__slot[data-cg-slot="preview"].is-on { box-shadow: inset 0 0 0 1px var(--cg-clay-ink); }
+.cg-pvm__slothead { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.cg-pvm__slotname {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 0; border: 0; background: none; font: inherit;
+  font-size: var(--cg-text-base); color: var(--cg-ink-muted); text-align: left; white-space: nowrap; cursor: pointer;
 }
-.cg-pvm__slothead b { font-weight: 600; color: var(--cg-ink-strong); }
-.cg-pvm__slothead span { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); }
-.cg-pvm__slot.is-next .cg-pvm__slothead b { color: var(--cg-clay-ink); }
-.cg-pvm__sqs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
-.cg-pvm__sq { position: relative; flex: none; width: 48px; height: 48px; border-radius: 6px; overflow: hidden; background: var(--cg-rule); }
-.cg-pvm__sq .cg-pvm__len { left: 2px; bottom: 2px; }
+.cg-pvm__slotname b { font-weight: 600; color: var(--cg-ink-strong); }
+.cg-pvm__slotname span { overflow: hidden; text-overflow: ellipsis; font-size: var(--cg-text-xs); }
+.cg-pvm__slot[data-cg-slot="preview"] .cg-pvm__slotname b { color: var(--cg-clay-ink); }
+.cg-pvm__sqs { display: flex; align-items: flex-end; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
+.cg-pvm__sq { position: relative; flex: none; width: 42px; height: 56px; border-radius: 6px; overflow: hidden; background: var(--cg-rule); cursor: default; }
+.cg-pvm__sq .cg-pvm__blank { font-size: var(--cg-text-2xs); }
+.cg-pvm__sq .cg-pvm__len { left: 3px; bottom: 3px; height: 14px; padding: 0 3px; line-height: 14px; }
 .cg-pvm__unpick {
-  position: absolute; top: 2px; right: 2px; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+  position: absolute; top: 3px; right: 3px; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
   padding: 0; border: 0; border-radius: 9px; background: rgb(0 0 0 / .6); color: #fff; cursor: pointer;
 }
 .cg-pvm__unpick:hover { background: rgb(0 0 0 / .85); }
 .cg-pvm__add {
-  flex: none; width: 88px; height: 48px; padding: 2px 4px; border: 1px dashed var(--cg-rule-2); border-radius: 6px; background: var(--cg-sunk);
-  font: inherit; font-size: var(--cg-text-2xs); line-height: 1.25; color: var(--cg-ink-muted); cursor: pointer;
+  flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 84px; height: 56px;
+  padding: 0 6px; border: 1px dashed var(--cg-rule-2); border-radius: 6px; background: none;
+  font: inherit; font-size: var(--cg-text-xs); line-height: 1.2; color: var(--cg-ink-muted); text-align: center; text-wrap: balance; cursor: pointer;
 }
-.cg-pvm__add:hover { color: var(--cg-ink-strong); border-color: var(--cg-ink-muted); }
-.cg-pvm__slot.is-on .cg-pvm__add { border-style: solid; border-color: var(--cg-ink-strong); color: var(--cg-ink-strong); }
-.cg-pvm__slot[data-cg-slot="preview"].is-on .cg-pvm__add { border-color: var(--cg-clay-ink); color: var(--cg-clay-ink); }
-/* What comes next, quieter than the slot the clicks land in: its grey square in the clay's colour. */
-.cg-pvm__slot.is-next .cg-pvm__add { border-color: var(--cg-clay-ink); color: var(--cg-clay-ink); }
-.cg-pvm__price { flex: none; justify-content: space-between; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; }
-.cg-pvm__price .cg-field { width: 96px; height: 28px; }
+.cg-pvm__plus { font-size: 18px; font-weight: 300; line-height: 1; }
+.cg-pvm__slot:hover .cg-pvm__add { color: var(--cg-ink-2); }
+.cg-pvm__slot.is-on .cg-pvm__add { border-style: solid; border-color: var(--cg-ink-muted); color: var(--cg-ink-strong); }
+.cg-pvm__slot[data-cg-slot="preview"].is-on .cg-pvm__add, .cg-pvm__slot.is-next .cg-pvm__add { border-color: var(--cg-clay-ink); color: var(--cg-clay-ink); }
+.cg-pvm__price { flex: none; display: inline-flex; align-items: center; gap: 8px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); white-space: nowrap; cursor: default; }
+.cg-pvm__price .cg-field { width: 92px; height: 28px; }
 .cg-pvm__price .cg-field.is-bad { border-color: var(--cg-danger); }
 .cg-pvm__slots .cg-pvm__close { align-self: flex-start; }
 .cg-pvm__sum b { color: var(--cg-ink-strong); font-weight: 600; }
@@ -414,14 +436,16 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm--window .cg-pvm__order { top: 6px; left: 6px; min-width: 22px; height: 22px; border-radius: 11px; line-height: 22px; font-size: var(--cg-text-xs); }
 .cg-pvm--window .cg-pvm__mark { top: 6px; right: 6px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: var(--cg-text-xs); }
 .cg-pvm--window .cg-pvm__foot { gap: 12px; padding: 10px 20px 10px 16px; border-top: 1px solid var(--cg-rule); background: var(--cg-sunk); min-height: 48px; }
-.cg-pvm--window .cg-pvm__slots { gap: 12px; padding: 14px 20px 4px; }
-.cg-pvm--window .cg-pvm__slot, .cg-pvm--window .cg-pvm__price { gap: 8px; padding: 10px 12px 12px; border-radius: 10px; }
-.cg-pvm--window .cg-pvm__slothead { font-size: var(--cg-text-sm2); }
+.cg-pvm--window .cg-pvm__slots { gap: 12px; padding: 16px 20px 6px; }
+.cg-pvm--window .cg-pvm__slot { gap: 10px; padding: 10px 14px 14px; border-radius: 12px; }
+.cg-pvm--window .cg-pvm__slothead { min-height: 32px; }
+.cg-pvm--window .cg-pvm__slotname { font-size: var(--cg-text-md); }
 .cg-pvm--window .cg-pvm__sqs { gap: 8px; }
-.cg-pvm--window .cg-pvm__sq { width: 72px; height: 72px; border-radius: 8px; }
-.cg-pvm--window .cg-pvm__add { width: 96px; height: 72px; border-radius: 8px; font-size: var(--cg-text-xs); }
-.cg-pvm--window .cg-pvm__price { font-size: var(--cg-text-sm2); justify-content: flex-start; }
-.cg-pvm--window .cg-pvm__price .cg-field { width: 120px; height: 32px; }
+.cg-pvm--window .cg-pvm__sq { width: 60px; height: 80px; border-radius: 8px; }
+.cg-pvm--window .cg-pvm__add { width: 104px; height: 80px; border-radius: 8px; font-size: var(--cg-text-sm); gap: 4px; }
+.cg-pvm--window .cg-pvm__plus { font-size: 22px; }
+.cg-pvm--window .cg-pvm__price { font-size: var(--cg-text-sm2); }
+.cg-pvm--window .cg-pvm__price .cg-field { width: 108px; height: 32px; }
 .cg-pvm--window .cg-pvm__foot .cg-pvm__or { margin-left: auto; }
 /* In the window's column a 100% basis is the window's whole height: the notes would push the grid out of sight. */
 .cg-pvm--window .cg-pvm__notes { flex: none; padding: 0 20px 10px; background: var(--cg-sunk); }
