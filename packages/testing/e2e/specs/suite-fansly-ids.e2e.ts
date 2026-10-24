@@ -160,7 +160,8 @@ describe('groupId on every Fansly surface: the dock, the fan panel, the toast, t
     expect(reads.filter((call) => call.route === 'clientConversationFeed').map((call) => [call.fan, call.conversation])).toEqual([[A.fan, A.group]]);
 
     // The Recap tab: the group's Recap, made in full and saved to the hub as the group's — the pair the hub checks.
-    await ours('panel', '.cg-fp__tabs [role="tab"]:last-child').click();
+    // By its name: «Память» (Chat Memory week 2) stands after it where the hub serves the fan's card.
+    await pressOurs('panel', '.cg-fp__tabs [role="tab"]', /^Recap$/);
     await pressOurs('panel', '.cg-fp button', /^Полностью$/);
     await pressOurs('panel', '.cg-fp button', /^Обновить Recap/);
     await browser.waitUntil(async () => (await calls(mark, ['clientFanProfileFromGeneration'])).some((call) => call.status === 200), {
