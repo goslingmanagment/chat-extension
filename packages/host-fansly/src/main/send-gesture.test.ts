@@ -16,6 +16,7 @@ import {
   OTHER_GROUP,
   FakeElement,
   composer,
+  group,
   connect as connectTo,
   controls,
   newMessage,
@@ -205,5 +206,32 @@ describe('[FS-SEND-2] [UI-033] [host:fansly] the person’s send, attributed by 
     echo(socket, '700000000000000391');
     await settle();
     expect(sents(c)).toEqual([sentOf('700000000000000391')]);
+  });
+
+  it('Chat Memory week 1: every message the creator sent from this tab to a direct chat is fx.pageSent — media and no gesture too; another sender, a group chat, the creator’s other device — nothing', async () => {
+    const { c, win, socket } = await onChat();
+    request(win, `${API}/group/${GROUP}/`).respond(200, ok(group(GROUP, [CREATOR, FAN])));
+    request(win, `${API}/group/${OTHER_GROUP}/`).respond(200, ok(group(OTHER_GROUP, [CREATOR, FAN, '700000000000000099'])));
+    await settle();
+    // A file sent after its upload: no gesture proves it, the receipt says who sent it.
+    receipt(post(win), '700000000000000401', { attachments: [{ contentType: 1, contentId: '700000000000000501' }] });
+    // A typed send of the person's Enter: both its fx.sent and its fx.pageSent.
+    let xhr: FakeXMLHttpRequest | null = null;
+    await controls(win).deliver(enter, { target: [() => (xhr = post(win))] });
+    receipt(xhr as unknown as FakeXMLHttpRequest, '700000000000000402');
+    echo(socket, '700000000000000402');
+    // Not the creator's; a group chat; the creator writing from another device (an echo with no request of this tab).
+    receipt(post(win), '700000000000000403', { senderId: FAN });
+    receipt(post(win), '700000000000000404', { groupId: OTHER_GROUP });
+    echo(socket, '700000000000000405');
+    await settle();
+    const pageSents = c.events().filter((e) => e.t === 'fx.pageSent').map((e) => e.p);
+    expect(pageSents).toEqual([
+      { groupId: GROUP, msgId: '700000000000000401', fanId: FAN, accountId: CREATOR, media: true },
+      { groupId: GROUP, msgId: '700000000000000402', fanId: FAN, accountId: CREATOR, media: false },
+    ]);
+    expect(sents(c)).toEqual([sentOf('700000000000000402')]);
+    expect(JSON.stringify(c.batches)).not.toContain('Привет');
+    expect(c.client.stats()).toMatchObject({ invalidEvents: 0, invalidAnswers: 0 });
   });
 });

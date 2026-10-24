@@ -539,6 +539,13 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // The person's send, proven by MAIN: linked to the draft read at its gesture (P7f).
       case 'fx.sent':
         return sends.sent(event.p);
+      // Chat Memory week 1: any message the page sent from this tab — who sent it. Under the creator of its answer only.
+      case 'fx.pageSent': {
+        const p = event.p;
+        if (creator === null || p.accountId !== creator || p.fanId === creator) return;
+        emit({ type: 'pageSent', fact: { chat: { host: FANSLY_KIND, hostAccountId: creator, platformFanId: p.fanId }, conversationRef: p.groupId, platformMessageId: p.msgId, media: p.media } });
+        return;
+      }
       // Sound facts stay together until the end of this MAIN batch (P14a).
       case 'fx.incoming': {
         const p = event.p;

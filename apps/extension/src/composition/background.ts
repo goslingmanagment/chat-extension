@@ -67,6 +67,7 @@ import {
   type HubRouteKey,
   type PersonaCatalog,
   type ResolveHubError,
+  type SendAttributionComposedWith,
   type SettingsState,
   type SettingsV1,
 } from '@cg/contracts';
@@ -81,6 +82,7 @@ import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
 import { currentPersona, flagsOnSomePage, followedPersonas, type OpsEnvironment, type PersonaChoice } from '@cg/core/domain/ops';
 import { profileRequestOf, recapSaveAnswer } from '@cg/core/domain/recap';
+import { composedWithOf, composedWithOfFeature } from '@cg/core/domain/send';
 import {
   ActionTokens,
   NativeSendRegistrar,
@@ -137,7 +139,7 @@ import {
 
 import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS, type PerHost, type RuntimeHostKind } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
-import { attributionTarget } from './background/attribution';
+import { ComposedWithMemory, attributionTarget } from './background/attribution';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { type BackgroundKit, type HostRequestType, type KitSender, type SiteTabsPort, type VerifiedTabMessage } from './background/host-module';
@@ -678,6 +680,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // composer (`attribution.report` of a tab) or from a preview (`kit.attributions` of the site's module) — goes to the
   // hub under their sign-in. What the hub has not answered is owed and journaled (storage.local, ids only): the next
   // instance of the event page and the next word of the hub deliver it again; the hub takes a repeat as `duplicate`.
+  /** Chat Memory week 1: the button behind a message, for the who-sent fact of the same send. */
+  const composed = new ComposedWithMemory(CLOCK);
   const attributions = new SendAttributionReporter({
     clock: CLOCK,
     hub: { sendAttributions: (request) => hub().sendAttributions(request) },
@@ -695,7 +699,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const attribute = (
     host: HostKind,
     pageId: number | null,
-    fact: { readonly platformMessageId: string; readonly fanRef: string; readonly observedAt: string; readonly priced: boolean; readonly withMedia: boolean },
+    fact: {
+      readonly platformMessageId: string;
+      readonly fanRef: string;
+      readonly observedAt: string;
+      readonly priced: boolean;
+      readonly withMedia: boolean;
+      readonly conversationRef?: string;
+      readonly composedWith?: SendAttributionComposedWith;
+      readonly edited?: boolean;
+    },
   ): { readonly queued: boolean; readonly reason?: string } => {
     const target = attributionTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
     const outcome = target.ok ? attributions.report({ pageLabel: target.pageLabel, source: target.source, ...fact }) : null;
@@ -828,7 +841,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // R20 P14c: switched off or its rights taken back, the module's tabs finish what they started and begin nothing (FS-PERM-5).
     siteActive: () => siteActive(host),
     // 1.21.0 (X48): who sent a message the site's module proved — a preview's send the person clicked.
-    attributions: { sent: ({ pageId, fanRef, platformMessageId, priced, withMedia }) => void attribute(host, pageId, { platformMessageId, fanRef, observedAt: new Date(CLOCK.now()).toISOString(), priced, withMedia }) },
+    // Chat Memory week 1: Fansly's sends of a person's click too («Новые», «Рассылка»), with their chat and button.
+    attributions: {
+      sent: ({ pageId, hostAccountId, platformMessageId, ...rest }) =>
+        void attribute(host, pageId ?? (hostAccountId === undefined ? null : boundPageOf(host, hostAccountId)), { platformMessageId, observedAt: new Date(CLOCK.now()).toISOString(), ...rest }),
+    },
   });
   /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */
   function siteTabsOf(host: HostKind): SiteTabsPort {
@@ -1362,6 +1379,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   rpc.handle('op.reportSent', async ({ opId, part, platformMessageId, edited }, sender) => {
     let view = scheduler.view(opId);
+    // Chat Memory week 1: the button behind this very message, for the hub's record of who sent it.
+    if (view !== null) composed.learn(platformMessageId, { composedWith: composedWithOfFeature(view.feature), edited });
     // How a human send is seen is the operation's site's, its slice of the manifest says when (`human-send`): on
     // ChatSpace its socket tells it, and whose socket may be listened to is the PAGE's own `wsTap` (the tab keeps one
     // tap while any page has it); Fansly's MAIN sees it with no switch. Not observable on the operation's page: the
@@ -1403,7 +1422,20 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     if (hostOfTab(sender.tabSessionId) !== fact.chat.host) return ok({ queued: false, reason: 'site' });
     await tabAccounts.known(sender.tabSessionId);
-    return ok(attribute(fact.chat.host, boundPageOf(fact.chat.host, fact.chat.hostAccountId), { platformMessageId: fact.platformMessageId, fanRef: fact.chat.platformFanId, observedAt: fact.observedAt, priced: fact.priced, withMedia: fact.media }));
+    // How the text was written: a draft of ours names its button once `op.reportSent` of the same message is heard.
+    const learned = fact.wrote === 'ours' ? await composed.wait(fact.platformMessageId) : null;
+    return ok(
+      attribute(fact.chat.host, boundPageOf(fact.chat.host, fact.chat.hostAccountId), {
+        platformMessageId: fact.platformMessageId,
+        fanRef: fact.chat.platformFanId,
+        observedAt: fact.observedAt,
+        priced: fact.priced,
+        withMedia: fact.media,
+        ...(fact.conversationRef === undefined ? {} : { conversationRef: fact.conversationRef }),
+        composedWith: composedWithOf(fact.wrote, learned?.composedWith ?? null),
+        ...(learned === null ? {} : { edited: learned.edited }),
+      }),
+    );
   });
 
   // a site's own requests: its module answers them (X8 and the greeting leases of «Новые» — bg/chatspace)

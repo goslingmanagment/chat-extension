@@ -41,6 +41,11 @@ export const FEATURES_COMMON = {
    * hub's registration of a greeting sent by hand): how the site sees it is the site's — its requirement says when.
    */
   'human-send': { kind: 'service' },
+  /**
+   * 1.21.0 (decision X48): who sent each message, told to the hub (`send-attribution-v1`). ChatSpace since 1.21.0;
+   * Fansly since Chat Memory week 1. How the site sees a send is the site's requirement.
+   */
+  'send-attribution': { kind: 'service' },
 } as const satisfies Readonly<Record<string, FeatureCommon>>;
 
 export type CommonFeatureKey = keyof typeof FEATURES_COMMON;

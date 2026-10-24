@@ -67,6 +67,9 @@ const FEATURES = {
   // Fansly's MAIN sees a send by hand — the trusted gesture, the receipt of `POST /api/v1/message`, the echo (§5.9) —
   // with the site switched on: no owner switch decides it (its observation of the page is on by itself, FS-WS-4).
   'human-send': { base: { flags: [], hostCapabilities: ['sendObserve'] }, actions: {}, surfaces: [], source: 'page' },
+  // Chat Memory week 1: who sent each message, told to the hub (`send-attribution-v1`): every message the page sent from
+  // this tab (its own `POST /api/v1/message`), and the background's sends of a person's click. No owner switch.
+  'send-attribution': { base: { flags: [], hostCapabilities: ['sendObserve'], clientNeeds: ['send-attribution-v1'] }, actions: {}, surfaces: [], source: 'page' },
 
   // A script from the draft and its paid voicing (the hub, HF-4); the MP3 goes into the field of this chat through
   // Fansly's own input and upload modal (§7.10, HostPort.attachFile).

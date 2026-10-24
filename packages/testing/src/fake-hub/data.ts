@@ -1019,12 +1019,15 @@ export class DataModel {
 
   /**
    * 1.21.0 (X48), as the hub's `clientSendAttributions` does: the person is the token's, OnlyFans takes the extension
-   * on ChatSpace and Fansly nothing yet, one row per message of a page — the first report wins, a repeat of the same
-   * person and fan is `duplicate`, anything else `conflict` — and a time more than 5 minutes ahead or 30 days back
-   * is `out_of_range`, stored nowhere.
+   * on ChatSpace and Fansly the extension on fansly.com (Chat Memory week 1; every Fansly fact names its group, else
+   * 400), one row per message of a page — the first report wins, a repeat of the same person, fan and chat is
+   * `duplicate`, anything else `conflict` — and a time more than 5 minutes ahead or 30 days back is `out_of_range`,
+   * stored nowhere.
    */
   sendAttributions(page: FakePage, userId: number, request: SendAttributionsRequest, now: number): Read<SendAttributionsResult> {
-    if (page.platform !== 'onlyfans' || request.source !== 'chatspace-extension') return no('client_feature_disabled', 'platform_unsupported');
+    const admitted = page.platform === 'onlyfans' ? 'chatspace-extension' : page.platform === 'fansly' ? 'fansly-extension' : null;
+    if (request.source !== admitted) return no('client_feature_disabled', 'platform_unsupported');
+    if (admitted === 'fansly-extension' && request.facts.some((fact) => fact.conversationRef === undefined)) return no('bad_request', 'conversation_ref_required');
     const results = request.facts.map((fact) => {
       const at = Date.parse(fact.observedAt);
       if (at > now + 5 * 60_000 || at < now - 30 * DAY_MS) return { platformMessageId: fact.platformMessageId, outcome: 'out_of_range' };
@@ -1034,7 +1037,7 @@ export class DataModel {
         this.attributions.set(key, { pageLabel: page.pageLabel, userId, source: request.source, ...fact });
         return { platformMessageId: fact.platformMessageId, outcome: 'recorded' };
       }
-      return { platformMessageId: fact.platformMessageId, outcome: known.userId === userId && known.fanRef === fact.fanRef ? 'duplicate' : 'conflict' };
+      return { platformMessageId: fact.platformMessageId, outcome: known.userId === userId && known.fanRef === fact.fanRef && known.conversationRef === fact.conversationRef ? 'duplicate' : 'conflict' };
     });
     return ok({ pageLabel: page.pageLabel, results, serverNow: iso(now) });
   }
@@ -1044,14 +1047,17 @@ export class DataModel {
   }
 }
 
-/** One recorded send (X48): ids, the person, a time and two marks; never a text. */
+/** One recorded send (X48): ids, the person, a time, two marks and how the text was written; never a text. */
 export interface FakeSendAttribution {
   readonly pageLabel: string;
   readonly userId: number;
   readonly source: string;
   readonly platformMessageId: string;
   readonly fanRef: string;
+  readonly conversationRef?: string | undefined;
   readonly observedAt: string;
   readonly priced: boolean;
   readonly withMedia: boolean;
+  readonly composedWith?: string | undefined;
+  readonly edited?: boolean | undefined;
 }

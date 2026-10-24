@@ -40,7 +40,7 @@ export declare const PUBLICATION_EDITABLE_STATUSES: readonly PublicationStatus[]
  */
 export declare const PUBLICATION_ACTIVE_STATUSES: readonly PublicationStatus[];
 /** The codes of the draft checks (spec §8.1). Severity is decided per finding. */
-export declare const PUBLICATION_FINDING_CODES: readonly ["publish_time_past", "file_of_another_model", "file_deleted", "media_not_on_page", "repost_within_threshold", "posted_before", "price_range_not_set", "price_out_of_range", "paid_post_off_on_onlyfans", "volume_high", "daily_limit_exceeded", "wall_not_on_page", "wall_default_unknown", "tier_not_on_page", "onlyfans_file_upload_unsupported", "onlyfans_file_too_large", "fansly_file_upload_unsupported"];
+export declare const PUBLICATION_FINDING_CODES: readonly ["publish_time_past", "file_of_another_model", "file_deleted", "media_not_on_page", "repost_within_threshold", "posted_before", "price_range_not_set", "price_out_of_range", "paid_post_off_on_onlyfans", "volume_high", "daily_limit_exceeded", "wall_not_on_page", "wall_default_unknown", "tier_not_on_page", "onlyfans_file_upload_unsupported", "onlyfans_file_too_large", "fansly_file_upload_unsupported", "fansly_several_tiers_unsupported"];
 export type PublicationFindingCode = (typeof PUBLICATION_FINDING_CODES)[number];
 export declare const PUBLICATION_FINDING_SEVERITIES: readonly ["blocking", "warning", "info"];
 export type PublicationFindingSeverity = (typeof PUBLICATION_FINDING_SEVERITIES)[number];
@@ -60,11 +60,11 @@ export declare const PUBLICATION_VOLUME_BASELINE_DAYS = 30;
  */
 export declare const ONLYFANS_PAID_POSTS_ENABLED = false;
 /**
- * New files on Fansly: the page's browser uploads them (plan PR 8), which has
- * not landed. Until it does, a Fansly publication goes out with vault media
- * only, and a new file is a blocking finding (`fansly_file_upload_unsupported`).
+ * New files on Fansly: the page's browser uploads them (plan PR 8, the
+ * contract §2) — no blocking finding `fansly_file_upload_unsupported` any
+ * more; the code stays so findings saved before still read.
  */
-export declare const FANSLY_FILE_UPLOAD_ENABLED = false;
+export declare const FANSLY_FILE_UPLOAD_ENABLED = true;
 /** Limits of a draft's shape; the platforms' own limits are tighter or unknown. */
 export declare const PUBLICATION_TEXT_MAX_LENGTH = 5000;
 export declare const PUBLICATION_MEDIA_MAX = 20;

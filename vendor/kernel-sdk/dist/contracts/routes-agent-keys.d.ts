@@ -99,6 +99,23 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
 export declare const agentKeyParamsSchema: z.ZodObject<{
     id: z.ZodCoercedNumber<unknown>;
 }, z.core.$strict>;
+/**
+ * The WHOLE new capability set of a live key, not a diff: what the owner sees
+ * ticked is what the key holds afterwards. Empty is allowed (a key that keeps
+ * its pages but may read nothing); a repeated name is a 400 rather than folded,
+ * like an unknown one. The page grant is not part of this body: pages are still
+ * widened only by issuing a new key.
+ */
+export declare const agentKeyUpdateBodySchema: z.ZodObject<{
+    capabilities: z.ZodArray<z.ZodEnum<{
+        "read:messages": "read:messages";
+        "read:money": "read:money";
+        "read:observations_envelope": "read:observations_envelope";
+        "read:datasets": "read:datasets";
+        "request:hydration": "request:hydration";
+        "write:publication_drafts": "write:publication_drafts";
+    }>>;
+}, z.core.$strict>;
 export declare const agentKeyRevokeResponseSchema: z.ZodObject<{
     id: z.ZodNumber;
     revoked: z.ZodBoolean;
@@ -226,6 +243,82 @@ export declare const agentKeyAdminRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly agentKeyUpdate: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: "Replace a live agent key's capabilities (takes effect on its next request; audited)";
+        readonly params: z.ZodObject<{
+            id: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strict>;
+        readonly body: z.ZodObject<{
+            capabilities: z.ZodArray<z.ZodEnum<{
+                "read:messages": "read:messages";
+                "read:money": "read:money";
+                "read:observations_envelope": "read:observations_envelope";
+                "read:datasets": "read:datasets";
+                "request:hydration": "request:hydration";
+                "write:publication_drafts": "write:publication_drafts";
+            }>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                id: z.ZodNumber;
+                name: z.ZodString;
+                keyPrefix: z.ZodString;
+                capabilities: z.ZodArray<z.ZodEnum<{
+                    "read:messages": "read:messages";
+                    "read:money": "read:money";
+                    "read:observations_envelope": "read:observations_envelope";
+                    "read:datasets": "read:datasets";
+                    "request:hydration": "request:hydration";
+                    "write:publication_drafts": "write:publication_drafts";
+                }>>;
+                pageLabels: z.ZodArray<z.ZodString>;
+                expiresAt: z.ZodString;
+                createdAt: z.ZodString;
+                revokedAt: z.ZodNullable<z.ZodString>;
+                lastUsedAt: z.ZodNullable<z.ZodString>;
+                isActive: z.ZodBoolean;
+            }, z.core.$strict>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly agentKeyRevoke: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -268,4 +361,5 @@ export declare const agentKeyAdminRouteSchemas: {
 export type AgentKeyItem = z.infer<typeof agentKeyItemSchema>;
 export type AgentKeyCreateBody = z.infer<typeof agentKeyCreateBodySchema>;
 export type AgentKeyCreateResponse = z.infer<typeof agentKeyCreateResponseSchema>;
+export type AgentKeyUpdateBody = z.infer<typeof agentKeyUpdateBodySchema>;
 export type AgentKeyRevokeResponse = z.infer<typeof agentKeyRevokeResponseSchema>;

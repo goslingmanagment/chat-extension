@@ -65,6 +65,7 @@ import {
   EVT_FOLLOW,
   EVT_IDENTITY,
   EVT_INCOMING,
+  EVT_PAGE_SENT,
   EVT_SENT,
   EVT_VAULT,
   EVT_VAULT_LOADED,
@@ -479,6 +480,11 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         // receipt of the person's gesture (§5.9 п. 3).
         const m = frameMessage(r);
         if (m !== null) observation.sent(m, stamp, { epoch, confirmed });
+        // Chat Memory week 1: any message the creator sent from this tab to a direct chat's fan — who sent it.
+        const fanId = m === null ? null : identity.fan(m.groupId);
+        if (m !== null && fanId !== null && identity.creator !== null && m.senderId === identity.creator) {
+          emitter.event(EVT_PAGE_SENT, { groupId: m.groupId, msgId: m.id, fanId, accountId: identity.creator, media: m.media });
+        }
         if (stamp?.gesture) sends.receipt(stamp.gesture, r);
         return;
       }

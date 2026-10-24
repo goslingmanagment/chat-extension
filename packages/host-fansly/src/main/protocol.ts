@@ -29,6 +29,8 @@ export const EVT_INCOMING = 'fx.incoming';
 export const EVT_FOLLOW = 'fx.follow';
 /** The person's send, attributed (P7f, §5.9). */
 export const EVT_SENT = 'fx.sent';
+/** The page's own send from this tab, any (Chat Memory week 1): who sent the message. */
+export const EVT_PAGE_SENT = 'fx.pageSent';
 export const EVT_COVERAGE = 'fx.coverage';
 export const EVT_DELETED = 'fx.deleted';
 export const EVT_VAULT = 'fx.vaultAdded';

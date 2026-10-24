@@ -270,6 +270,11 @@ describe('§12 п. 4 on the wired extension — the person’s own Send: `sent` 
       expect(fact).toMatchObject({ fanRef: expected.get(fact.platformMessageId), priced: false, withMedia: false });
       expect(Number.isNaN(Date.parse(fact.observedAt))).toBe(false);
     }
+    // Chat Memory week 1: how each text was written — our Reply as it was, our Reply the person changed, their own.
+    const factOf = (fan: string) => facts.find((each) => expected.get(each.fact.platformMessageId) === fan)?.fact;
+    expect(factOf(a1)).toMatchObject({ composedWith: 'reply', edited: false });
+    expect(factOf(a2)).toMatchObject({ composedWith: 'reply', edited: true });
+    expect(factOf(a4)).toMatchObject({ composedWith: 'hand' });
     // Once each, and never a text.
     expect(facts.filter((each) => expected.has(each.fact.platformMessageId))).toHaveLength(expected.size);
     expect(JSON.stringify(facts)).not.toMatch(/typed by the person|Hey you|holds the queue/);

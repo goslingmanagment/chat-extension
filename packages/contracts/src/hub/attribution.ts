@@ -17,8 +17,19 @@ import { NativeIdSchema, OpenTokenSchema, boundedText } from '../primitives';
 import { PageLabelSchema } from './wire';
 
 /** The clients a report may name, by the page they observe (hub CLIENT_SEND_ATTRIBUTION_SOURCES); open on the wire. */
-export const SEND_ATTRIBUTION_SOURCES = ['chatspace-extension'] as const;
+export const SEND_ATTRIBUTION_SOURCES = ['chatspace-extension', 'fansly-extension'] as const;
 export type SendAttributionSource = (typeof SEND_ATTRIBUTION_SOURCES)[number];
+
+/** The sources whose facts name their chat (`conversationRef`, Fansly's group): the hub refuses such a fact without it. */
+export const SEND_ATTRIBUTION_CHAT_SOURCES: readonly SendAttributionSource[] = ['fansly-extension'];
+
+/**
+ * How the text of a send was written (hub CLIENT_SEND_ATTRIBUTION_COMPOSED_WITH, Chat Memory week 1): `hand` — typed,
+ * or put there by something other than our buttons; `reply`, `fix`, `hi`, `ping`, `coach` — inserted by that button of
+ * ours; `unknown` — the send could not be linked to its draft (on Fansly a send with media).
+ */
+export const SEND_ATTRIBUTION_COMPOSED_WITH = ['hand', 'reply', 'fix', 'hi', 'ping', 'coach', 'unknown'] as const;
+export type SendAttributionComposedWith = (typeof SEND_ATTRIBUTION_COMPOSED_WITH)[number];
 
 /**
  * What the hub did with one fact (hub CLIENT_SEND_ATTRIBUTION_OUTCOMES). Every one is final: `recorded` — the first
@@ -43,9 +54,14 @@ export const SendAttributionHubFactSchema = z.strictObject({
   platformMessageId: NativeIdSchema,
   /** The fan the message went to (on OnlyFans the fan id, which is the chat id). */
   fanRef: NativeIdSchema,
+  /** The chat where a platform's chats have ids of their own: Fansly's group, required from `fansly-extension`. */
+  conversationRef: z.optional(NativeIdSchema),
   observedAt: z.string().check(z.regex(SEND_ATTRIBUTION_TIMESTAMP_PATTERN)),
   priced: z.boolean(),
   withMedia: z.boolean(),
+  composedWith: z.optional(z.enum(SEND_ATTRIBUTION_COMPOSED_WITH)),
+  /** A text one of our buttons inserted was changed before the send. */
+  edited: z.optional(z.boolean()),
 });
 export type SendAttributionHubFact = z.infer<typeof SendAttributionHubFactSchema>;
 

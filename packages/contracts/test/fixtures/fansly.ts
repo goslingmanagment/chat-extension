@@ -352,6 +352,18 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
       { groupId: group, msgId: newer, contentDigest: DIGEST, gestureAt: '15123.456' },
     ],
   },
+  'fx.pageSent': {
+    valid: [
+      { groupId: group, msgId: newer, fanId: '700000000000000002', accountId: '700000000000000001', media: false },
+      { groupId: group, msgId: newer, fanId: '700000000000000002', accountId: '700000000000000001', media: true },
+    ],
+    invalid: [
+      // Never a text, and the creator at the answer always.
+      { groupId: group, msgId: newer, fanId: '700000000000000002', accountId: '700000000000000001', media: false, content: 'hey' },
+      { groupId: group, msgId: newer, fanId: '700000000000000002', media: false },
+      { groupId: group, msgId: newer, fanId: null, accountId: '700000000000000001', media: false },
+    ],
+  },
   'fx.coverage': {
     valid: [
       { groupIds: 'all', state: 'unknown', reason: 'socket' },

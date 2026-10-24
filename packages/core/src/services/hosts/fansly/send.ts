@@ -170,6 +170,11 @@ export interface FanslySendDeps {
   readonly echoWaitMs?: number;
   /** Fansly is on and its rights granted (FS-PERM-5), read synchronously; false — nothing new leaves. Absent — on. */
   readonly active?: () => boolean;
+  /**
+   * Chat Memory week 1: Fansly made the message of a person's click (its receipt) — who sent it goes to the hub's
+   * record. Ids and the admission only; never the text.
+   */
+  readonly onReceipted?: (fact: { readonly pageId: number; readonly fanRef: string; readonly groupId: string; readonly platformMessageId: string; readonly admission: FanslyGreetingRequest['admission'] }) => void;
 }
 
 /**
@@ -873,6 +878,7 @@ export function createFanslySend(deps: FanslySendDeps): FanslySend {
     // The receipt: journaled (a restart keeps waiting for its echo); an echo that came first proves it at once.
     step(attempt, outcome);
     const id = outcome.platformMessageId;
+    deps.onReceipted?.({ pageId: page.pageId, fanRef: request.fanRef, groupId: request.groupId, platformMessageId: id, admission: request.admission });
     if (takeEcho(request.groupId, id)) {
       await end(attempt, { state: 'sent', proof: 'echo', platformMessageId: id });
       return viewOf(attempt);
