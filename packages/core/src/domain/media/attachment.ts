@@ -4,8 +4,12 @@
 // SendMedia only when every rule holds — the same rules SendMediaSchema
 // checks at every boundary after it.
 //
-// - A pick goes to the end; picking it again drops it, and with it its free
-//   preview mark. A medium that is not ready is never picked.
+// - A click picks a medium as what the picker's step says (2026-10-24, the
+//   owner: the paid media first, the price, then their free preview): behind
+//   the price or a free preview. The previews lead the message, the paid
+//   media follow, each in the order of the clicks. Clicked again as the same,
+//   a pick is dropped; as the other, it becomes that. A medium that is not
+//   ready is never picked.
 // - The price is what the person typed: empty, «0» or «free» — free media;
 //   otherwise dollars with at most two decimals, a leading «$» allowed, in
 //   OnlyFans' $3…$200. It becomes cents without floating-point arithmetic.
@@ -30,16 +34,20 @@ export interface Attachment {
 
 export const EMPTY_ATTACHMENT: Attachment = { picks: [], price: '' };
 
-/** Picks the medium at the end, or drops it when picked; a full attachment and a medium not ready stay as they are. */
-export function togglePick(attachment: Attachment, item: MediaItem): Attachment {
-  if (attachment.picks.some((pick) => pick.id === item.id)) return { ...attachment, picks: attachment.picks.filter((pick) => pick.id !== item.id) };
-  if (!item.ready || attachment.picks.length >= MEDIA_LIMITS.maxMedia) return attachment;
-  return { ...attachment, picks: [...attachment.picks, { id: item.id, type: item.type, duration: item.duration, thumb: item.thumb, free: false }] };
-}
-
-/** Turns a pick's free-preview mark on or off. */
-export function toggleFree(attachment: Attachment, id: string): Attachment {
-  return { ...attachment, picks: attachment.picks.map((pick) => (pick.id === id ? { ...pick, free: !pick.free } : pick)) };
+/**
+ * Picks the medium as a free preview (`free`) or behind the price — a preview after the last preview, a paid one at the
+ * end —, drops it when picked as that already, makes it that when picked as the other. A full attachment and a medium
+ * not ready stay as they are.
+ */
+export function togglePick(attachment: Attachment, item: MediaItem, free = false): Attachment {
+  const picked = attachment.picks.find((pick) => pick.id === item.id);
+  const rest = attachment.picks.filter((pick) => pick.id !== item.id);
+  if (picked?.free === free) return { ...attachment, picks: rest };
+  if (picked === undefined && (!item.ready || attachment.picks.length >= MEDIA_LIMITS.maxMedia)) return attachment;
+  const pick: PickedMedia = picked === undefined ? { id: item.id, type: item.type, duration: item.duration, thumb: item.thumb, free } : { ...picked, free };
+  const paidAt = rest.findIndex((other) => !other.free);
+  const at = free && paidAt >= 0 ? paidAt : rest.length;
+  return { ...attachment, picks: [...rest.slice(0, at), pick, ...rest.slice(at)] };
 }
 
 export type PriceProblem = 'format' | 'decimals' | 'min' | 'max';

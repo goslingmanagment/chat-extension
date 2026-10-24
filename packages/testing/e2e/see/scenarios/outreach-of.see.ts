@@ -29,12 +29,13 @@ scenario(
     // «Выбрать медиа»: the outreach's own window over the list — the vault, a large grid, the price.
     await s.press(/Выбрать медиа/, 'modal', '.cg-or__pick');
     await s.see('modal', 'Stand set & one', 15_000);
+    // «Платное»: the video behind the price; the price; «Превью»: its free preview, first in the message.
     await s.press(/^/, 'modal', '.cg-or-mw [data-cg-media="660000004"] .cg-pvm__pick');
-    await s.press(/^/, 'modal', '.cg-or-mw [data-cg-media="660000001"] .cg-pvm__pick');
     await s.press(/^/, 'modal', '.cg-or-mw .cg-pvm__price input');
     for (const key of Array.from('25')) await s.browser.keys(key);
-    // A free preview means something only under a price: its mark shows once the price is there.
-    await s.press(/^/, 'modal', '.cg-or-mw [data-cg-media="660000001"] .cg-pvm__free');
+    await s.shot('outreach-of-paid');
+    await s.press(/Превью/, 'modal', '.cg-or-mw [data-cg-step="preview"]');
+    await s.press(/^/, 'modal', '.cg-or-mw [data-cg-media="660000001"] .cg-pvm__pick');
     await s.shot('outreach-of-window');
     await s.press(/^Для всей рассылки/, 'modal', '.cg-pvm__or');
     await s.see('modal', '2 медиа · 1 бесплатное превью · $25', 10_000);

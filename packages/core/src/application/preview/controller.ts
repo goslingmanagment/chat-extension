@@ -2403,13 +2403,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return state !== undefined && SOURCES.some((s) => surfaces.current().preview[s] === handle) ? state : null;
   };
 
-  type MediaAction = Extract<UiAction, { type: 'SetMediaOpen' | 'ChooseMediaFolder' | 'LoadMoreMedia' | 'PickMedia' | 'ToggleMediaFree' | 'SetMediaPrice' | 'ClearMedia' | 'RetryMedia' }>;
+  type MediaAction = Extract<UiAction, { type: 'SetMediaOpen' | 'ChooseMediaFolder' | 'LoadMoreMedia' | 'PickMedia' | 'SetMediaPrice' | 'ClearMedia' | 'RetryMedia' }>;
   const isMediaAction = (action: UiAction): action is MediaAction =>
     action.type === 'SetMediaOpen' ||
     action.type === 'ChooseMediaFolder' ||
     action.type === 'LoadMoreMedia' ||
     action.type === 'PickMedia' ||
-    action.type === 'ToggleMediaFree' ||
     action.type === 'SetMediaPrice' ||
     action.type === 'ClearMedia' ||
     action.type === 'RetryMedia';
@@ -2427,9 +2426,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         media.more(chat, action.what);
         return true;
       case 'PickMedia':
-        return media.pick(chat, action.mediaId);
-      case 'ToggleMediaFree':
-        return media.toggleFree(chat, action.mediaId);
+        return media.pick(chat, action.mediaId, action.free);
       case 'SetMediaPrice':
         media.setPrice(chat, action.text);
         return true;

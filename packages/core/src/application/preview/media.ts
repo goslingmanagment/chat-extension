@@ -34,7 +34,7 @@ import { type MediaFanState, type MediaFolder, type MediaItem, type MediaPort, t
 import { MEDIA_ALL_FOLDER, type MediaFolderId, type MediaTags, type SendMedia } from '@cg/contracts/send-media';
 import { type I18n, type MediaCellVM, type MediaFolderVM, type MediaPickerVM, type Msg } from '@cg/contracts/vm';
 
-import { EMPTY_ATTACHMENT, attachmentProblem, attachmentSummary, sendMediaOf, toggleFree, togglePick, type Attachment, type PriceProblem } from '../../domain/media/attachment';
+import { EMPTY_ATTACHMENT, attachmentProblem, attachmentSummary, sendMediaOf, togglePick, type Attachment, type PriceProblem } from '../../domain/media/attachment';
 import { type BoardsClock } from '../boards/ports';
 import { errorOf, msg } from '../boards/views';
 
@@ -143,24 +143,17 @@ export class MediaDesk {
     else void this.readMedia(picker);
   }
 
-  pick(chat: ChatRef, mediaId: string): boolean {
+  /** A click on a medium at the picker's step: behind the price, or a free preview (`free`). */
+  pick(chat: ChatRef, mediaId: string, free: boolean): boolean {
     const picker = this.picker(chat);
     const item = this.findItem(chat.hostAccountId, mediaId) ?? null;
     const picked = picker.attachment.picks.some((pick) => pick.id === mediaId);
-    // A pick is dropped by its id; a new one needs the medium as the vault shows it.
+    // A pick is dropped or turned by its id; a new one needs the medium as the vault shows it.
     if (!picked && item === null) return false;
-    const next = picked ? togglePick(picker.attachment, { id: mediaId, type: 'photo', duration: 0, ready: true, thumb: null, createdAt: null }) : togglePick(picker.attachment, item as MediaItem);
+    const next = togglePick(picker.attachment, item ?? { id: mediaId, type: 'photo', duration: 0, ready: true, thumb: null, createdAt: null }, free);
     if (next === picker.attachment) return false;
     picker.attachment = next;
     this.picksChanged(picker);
-    return true;
-  }
-
-  toggleFree(chat: ChatRef, mediaId: string): boolean {
-    const picker = this.picker(chat);
-    if (!picker.attachment.picks.some((pick) => pick.id === mediaId)) return false;
-    picker.attachment = toggleFree(picker.attachment, mediaId);
-    this.deps.changed(chat);
     return true;
   }
 
@@ -339,6 +332,7 @@ export class MediaDesk {
       folders: { items: folderItems, hasMore: folders?.hasMore ?? false, loading: folders?.loading ?? false, error: folders?.error ? errorOf(folders.error, i18n) : null },
       grid: { items: cells, hasMore: media?.hasMore ?? false, loading: media?.loading ?? false, error: media?.error ? errorOf(media.error, i18n) : null },
       picks: summary.count,
+      previews: attachment.picks.filter((pick) => pick.free).length,
       price: { text: attachment.price, problem: problem?.kind === 'price' ? msg(PRICE_PROBLEM_KEYS[problem.problem]) : null },
       priced: summary.priceCents !== null && summary.priceCents > 0,
       summary: summary.count === 0 ? null : summaryMsg(i18n, summary.count, summary.previews, summary.priceCents),

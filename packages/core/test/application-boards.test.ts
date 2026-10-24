@@ -1248,9 +1248,9 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     const { h, handle, opId } = await withReply({ media: VAULT });
     await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
     await h.flush();
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11' });
-    expect(await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '14' })).toMatchObject({ ok: true, outcome: 'noop' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12', free: false });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11', free: false });
+    expect(await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '14', free: false })).toMatchObject({ ok: true, outcome: 'noop' });
     // The release forms are being read: the parts wait for them.
     expect(pv(h).media).toMatchObject({ picks: 2, tags: 'loading', attached: null, blocked: { key: 'preview.media.blocked.tagsLoading' } });
     expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'unavailable', code: 'CG-SEND-MEDIA', reason: { key: 'preview.media.blocked.tagsLoading' } });
@@ -1269,21 +1269,27 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
 
     // A priced message whose every medium is a free preview cannot go either.
     await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '24.99' });
-    await h.dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: '12' });
-    await h.dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: '11' });
-    expect(pv(h).media).toMatchObject({ priced: true, allFree: true, blocked: { key: 'preview.media.blocked.allFree' } });
-    await h.dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: '11' });
-    expect(pv(h).media).toMatchObject({ allFree: false, attached: { count: 2, priceCents: 2499 }, blocked: null });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12', free: true });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11', free: true });
+    expect(pv(h).media).toMatchObject({ priced: true, previews: 2, allFree: true, blocked: { key: 'preview.media.blocked.allFree' } });
+    // At «Платное» a preview goes behind the price, after the preview: the release forms are read for the new order.
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11', free: false });
+    await h.advance(300);
+    expect(pv(h).media).toMatchObject({ previews: 1, allFree: false, attached: { count: 2, priceCents: 2499 }, blocked: null });
+    expect(pv(h).media?.grid.items.slice(0, 2).map((cell) => [cell.order, cell.free])).toEqual([
+      [2, false],
+      [1, true],
+    ]);
   });
 
   it('«Отправить» of a part takes the picks: one click, one message — the text, the media in order, the price, the previews, the tags; once the platform took it they are gone', async () => {
     const { h, handle, opId } = await withReply({ media: VAULT });
     await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
     await h.flush();
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '13' });
+    // «Платное» first, the price, then «Превью»: the preview leads the message.
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '13', free: false });
     await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '$25' });
-    await h.dispatch({ type: 'ToggleMediaFree', targetHandle: handle, mediaId: '12' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12', free: true });
     await h.advance(300);
     expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
     await h.flush();
@@ -1317,7 +1323,7 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     const { h, handle, opId } = await withReply({ media: VAULT, answers: { commit: [{ state: 'notEnqueued', code: 'CG-SEND-QUEUE' }] } });
     await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
     await h.flush();
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12', free: false });
     await h.advance(300);
     expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
     await h.flush();
@@ -1330,7 +1336,7 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     const second = await withReply({ media: VAULT, answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
     await second.h.dispatch({ type: 'SetMediaOpen', targetHandle: second.handle, open: true });
     await second.h.flush();
-    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '12' });
+    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '12', free: false });
     await second.h.advance(300);
     await second.h.dispatch({ type: 'SendPart', operationId: second.opId, part: 0 });
     await second.h.flush();
@@ -1341,8 +1347,8 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     const { h, handle, opId } = await withReply({ media: VAULT });
     await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
     await h.flush();
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '13' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12', free: false });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '13', free: false });
     await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '$25' });
     await h.advance(300);
     await h.dispatch({ type: 'OpenPreview', targetHandle: spender('5001') });
@@ -1362,7 +1368,7 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     const { h, handle, opId } = await withReply({ media: VAULT });
     await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
     await h.flush();
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12', free: false });
     await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '$25' });
     await h.advance(300);
     expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: true });
@@ -1379,14 +1385,14 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     const second = await withReply({ media: VAULT });
     await second.h.dispatch({ type: 'SetMediaOpen', targetHandle: second.handle, open: true });
     await second.h.flush();
-    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '12' });
+    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '12', free: false });
     await second.h.advance(300);
     await second.h.dispatch({ type: 'SendPart', operationId: second.opId, part: 0 });
     await second.h.dispatch({ type: 'OpenPreview', targetHandle: spender('5001') });
     await second.h.dispatch({ type: 'OpenPreview', targetHandle: second.handle });
     await second.h.dispatch({ type: 'SetMediaOpen', targetHandle: second.handle, open: true });
     await second.h.flush();
-    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '11' });
+    await second.h.dispatch({ type: 'PickMedia', targetHandle: second.handle, mediaId: '11', free: false });
     second.h.sendState({ attemptId: second.h.host.calls.commits[0]!.request.attemptId, state: 'rejected', code: 'CG-SEND-REJECTED' });
     await second.h.advance(300);
     expect(pv(second.h).media?.grid.items.filter((cell) => cell.order !== null).map((cell) => cell.id)).toEqual(['11']);
@@ -1398,7 +1404,7 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     await h.flush();
     expect(pv(h).media?.folders.error).toMatchObject({ code: 'CG-HOST-SESSION' });
     expect(pv(h).media?.grid.items).toHaveLength(4);
-    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11' });
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11', free: false });
     await h.advance(300);
     expect(pv(h).media).toMatchObject({ tags: 'failed', blocked: null, attached: { count: 1 } });
     const before = h.host.calls.media.length;
