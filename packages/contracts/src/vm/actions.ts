@@ -262,7 +262,10 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * the «Развернуть ↗» window; `panel` — asked from the fan panel's Recap tab, which shows it itself: no window over it.
    */
   act('ShowRecap', { length: z.enum(RECAP_LENGTHS), panel: z.optional(z.literal(true)) }),
-  /** «↻ Обновить»: a new Recap from the fresh archive, bypassing the cache. `panel` (1.26.0, X55) — as for ShowRecap. */
+  /**
+   * «↻ Обновить»: a new Recap from the fresh archive, bypassing the cache. `panel` (1.26.0, X55) — asked from the fan
+   * panel's Recap tab or Coach's Recap line, which show it themselves: no window over them, no sheet of the dock behind.
+   */
   act('RefreshRecap', { length: z.enum(RECAP_LENGTHS), panel: z.optional(z.literal(true)) }),
   act('NewCoachDialog', {}),
   /** CG-RECAP-SAVE «Сохранить ещё раз»: the idempotent dossier reference write only, never a new generation. */

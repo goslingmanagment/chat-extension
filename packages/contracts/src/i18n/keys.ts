@@ -215,6 +215,8 @@ export const UI_TEXT_KEYS = [
   'coach.recap.use', 'coach.recap.age', 'coach.recap.ageBoth', 'coach.recap.ageShort', 'coach.turn.recapOff', 'result.meta.recapOff',
   'recap.tick', 'recap.tick.onHint', 'recap.tick.offHint', 'recap.usedBy.off', 'result.recap.onHint', 'result.recap.offHint', 'coach.recap.noneSome', 'coach.recap.ahead', 'coach.recap.aheadShort',
   'coach.recap.aheadRefresh', 'coach.recap.building', 'coach.recap.build', 'coach.recap.refresh', 'coach.recap.buildFull',
+  // 2026-10-24: a Recap built from Coach opens no sheet of the dock behind the window; a failed build is said in Coach.
+  'coach.recap.failed',
   'coach.turn.recap', 'coach.turn.recapBoth', 'coach.turn.recapShort', 'coach.turn.noRecap', 'result.meta.recap',
   'recap.usedBy.full', 'recap.usedBy.short', 'recap.usedBy.one', 'recap.usedBy.some', 'recap.picker.explain', 'coach.newDialog.confirm', 'coach.newDialog.keep',
   // The old card's line under a Coach draft in Cyrillic for a fan who does not write Cyrillic: neither Insert nor Copy.

@@ -891,6 +891,7 @@ export const EN: I18nCatalog<'en'> = {
   'coach.recap.build': 'Build the Recap',
   'coach.recap.refresh': 'Refresh the Recap',
   'coach.recap.buildFull': 'Build the full one',
+  'coach.recap.failed': 'The Recap was not built',
   'coach.turn.recap': 'with the Recap · {age} ago',
   'coach.turn.recapBoth': 'with the Recap · {full} ago and the short one · {short} ago',
   'coach.turn.recapShort': 'with the short Recap · {age} ago',

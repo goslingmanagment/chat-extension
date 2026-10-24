@@ -243,7 +243,8 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
  * attaches to every question, unfolding into their texts; the tick is the dock's «с Recap» of the chat, and unticked
  * the next question goes without them — or «Recap нет — Coach видит только последние
  * 100 сообщений»; one button by it builds or refreshes the full Recap (the one Reply and Ping use too), as the dock's
- * Recap sheet builds it. While one is built: «Собираю Recap — обычно около полутора минут».
+ * Recap sheet builds it. While one is built: «Собираю Recap — обычно около полутора минут»; one that failed: «Recap не
+ * собрался · CG-…» by that button.
  */
 function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
   const i18n = useI18n();
@@ -254,8 +255,22 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
   const full = vm.recaps.find((recap) => recap.length === 'full') ?? null;
   const short = vm.recaps.find((recap) => recap.length === 'short') ?? null;
   const build = picker.build.full;
+  // The full Recap's last build (from here or the dock) that failed: said here, by the button that builds it again.
+  const followed = useSteadyView(useView({ of: 'recap.view' })).value;
+  const failure =
+    followed.length === 'full' && (followed.state === 'failed' || followed.state === 'interrupted') ? (followed.refreshFailed?.error ?? (followed.view.s === 'error' ? followed.view.error : null)) : null;
+  const failed =
+    failure === null ? null : (
+      <span class="cg-co__recap-fail" role="status" title={failure.title}>
+        <Dot kind="danger" />
+        <span>
+          {i18n.t('coach.recap.failed')} · <span class="cg-co__recap-code">{failure.code}</span>
+        </span>
+      </span>
+    );
   const age = (at: string): string => i18n.formatAge(at, now());
-  // Built from here, the Recap opens no window over Coach: this line follows it and says when it is done.
+  // Built from here, the Recap opens no window over Coach and no sheet of the dock behind it: this line follows it and
+  // says when it is done or that it failed.
   const action = (label: string): JSX.Element => (
     <Button
       label={label}
@@ -286,6 +301,7 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
       <span class="cg-co__recap is-none">
         <Icon name="dossier" size={14} />
         <span>{said}</span>
+        {failed}
         {action(i18n.t('coach.recap.build'))}
       </span>
     );
@@ -330,6 +346,7 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
           ))}
         </div>
       </details>
+      {failed}
       {action(i18n.t(full === null ? 'coach.recap.buildFull' : 'coach.recap.refresh'))}
     </span>
   );
@@ -717,6 +734,8 @@ ${/* ── topbar: the Recap Coach stands on at the left with its one button; t
 .cg-co__recap.is-off summary, .cg-co__recap.is-off .cg-co__recap-chev { color: var(--cg-ink-muted); }
 .cg-co__recap-ahead { font-weight: 400; color: var(--cg-clay-ink); }
 .cg-co__recap-btn { flex: none; }
+.cg-co__recap-fail { display: inline-flex; align-items: center; gap: 6px; flex: none; color: var(--cg-ink-strong); font-weight: 500; white-space: nowrap; }
+.cg-co__recap-code { color: var(--cg-ink-2); }
 .cg-co__used { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); }
 .cg-co__used .cg-ico { color: var(--cg-ink-muted); }
 .cg-co__asof { display: inline-flex; align-items: center; gap: 2px; flex: none; white-space: nowrap; color: var(--cg-ink-muted); }
