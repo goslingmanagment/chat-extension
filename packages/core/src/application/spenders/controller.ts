@@ -10,7 +10,7 @@
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type QueuePage, type SpendersStats } from '@cg/contracts/hub';
-import { CHAT_IS_FAN } from '@cg/contracts/ids';
+import { CHAT_IS_FAN, OUTREACH_FIX_CAPABILITY } from '@cg/contracts/ids';
 import { type ActionReceipt, type I18n, type PartialGap, type PreviewSource, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type SpendersStatsVM, type TargetHandle, type UiAction, type ViewMap, type VmView } from '@cg/contracts/vm';
 import { type I18nKey } from '@cg/contracts/errors';
 
@@ -179,6 +179,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     start(handle) {
       const parsed = parseFanHandle(handle);
       if (batchPort === null || parsed === null || parsed.pageId !== pageId()) return Promise.resolve({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
+      // «Рассылка» with «Подстроить под фана»: each fan's own version of the common text (Fix), not a Reply or a Ping.
+      const fix = outreach?.batchFix() ?? null;
+      if (fix !== null) return batchPort.batchStart('spenders', handle, 'fix', fix);
       const known = rowOf(parsed.fanRef);
       const waiting = known === null ? queueMode() : known.waiting;
       return batchPort.batchStart('spenders', handle, waiting ? 'reply' : 'ping');
@@ -192,6 +195,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   const outreach = deps.outreach === undefined ? null : createOutreach({
     port: deps.outreach,
+    canAdapt: () => context.current().bootstrap?.capabilities.includes(OUTREACH_FIX_CAPABILITY) === true,
     rpc,
     clock,
     i18n,
@@ -403,7 +407,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         { label: msg('common.close'), hotkey: localKey('Esc', 'Escape') },
       ],
       waitingFallback: queueFailed === null ? null : { error: errorOf(queueFailed, i18n), retry: boardRetry },
-      ...(batchPort === null ? {} : { batch: batch.vm(pageFlag(ctx, 'preview') ? null : flagReasonVm(pageFlagOf(ctx, 'preview')).text) }),
+      ...(batchPort === null ? {} : { batch: batch.vm(!pageFlag(ctx, 'preview') ? flagReasonVm(pageFlagOf(ctx, 'preview')).text : outreach?.needsText() === true ? msg('outreach.needText') : null) }),
       ...(outreach === null ? {} : { outreach: outreach.vm() }),
     };
   }

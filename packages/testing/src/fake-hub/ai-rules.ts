@@ -50,6 +50,8 @@ type StreamRuleBody = Partial<AiFeatureStreamBody> & { readonly clientContext?: 
 
 export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabilities: readonly string[] = []): StreamBodyRefusal | null {
   if (REQUIRES_DRAFT.includes(feature) && blank(body.draftText)) return { error: 'gate_draft_required', message: `${feature} requires draftText` };
+  // «Рассылка» (`outreach-fix-v1`): Fix alone rewrites a mass message (hub assertDraftPurposeRequestShape).
+  if (body.draftPurpose !== undefined && feature !== 'improve-draft') return { error: 'bad_request', message: `${feature} does not accept draftPurpose` };
   // Coach feature isolation: coach-chat needs a question — its own, or the preset's, which lives on the hub.
   if (feature === 'coach-chat') {
     if (body.preset !== undefined) {

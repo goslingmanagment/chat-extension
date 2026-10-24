@@ -1335,6 +1335,7 @@ export declare const publicationRouteSchemas: {
                         rejected: "rejected";
                         withdrawn: "withdrawn";
                         refused: "refused";
+                        accepted: "accepted";
                         not_sent: "not_sent";
                     }>;
                     reason: import("zod").ZodNullable<import("zod").ZodString>;
@@ -1496,6 +1497,7 @@ export declare const publicationRouteSchemas: {
                         rejected: "rejected";
                         withdrawn: "withdrawn";
                         refused: "refused";
+                        accepted: "accepted";
                         not_sent: "not_sent";
                     }>;
                     reason: import("zod").ZodNullable<import("zod").ZodString>;
@@ -1797,6 +1799,10 @@ export declare const publicationRouteSchemas: {
             readonly 200: import("zod").ZodObject<{
                 pages: import("zod").ZodArray<import("zod").ZodObject<{
                     pageLabel: import("zod").ZodString;
+                    platform: import("zod").ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                    }>;
                     readAt: import("zod").ZodNullable<import("zod").ZodString>;
                     windowFrom: import("zod").ZodNullable<import("zod").ZodString>;
                     windowTo: import("zod").ZodNullable<import("zod").ZodString>;

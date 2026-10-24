@@ -689,7 +689,7 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
   const adds = useOutreachAdds(board.outreach);
   return (
     <section class={`cg-bd${tierColumn ? ' has-tier' : ''}${narrow ? ' is-narrow' : ''}`} aria-label={i18n.t('spenders.boardLabel')} data-cg-board={board.view.s} data-cg-sort={board.sort}>
-      {progress && board.batch !== undefined ? <BatchBar list="spenders" batch={board.batch} {...(board.outreach?.open === true ? { hint: i18n.t('outreach.batchHint') } : {})} /> : null}
+      {progress && board.batch !== undefined ? <BatchBar list="spenders" batch={board.batch} {...(board.outreach?.open === true ? { hint: i18n.t(board.outreach.adapt === true ? 'outreach.batchHintAdapt' : 'outreach.batchHint') } : {})} /> : null}
       {board.view.s === 'offline' ? (
         <div class="cg-bd__banner">
           <ViewState view={board.view} />

@@ -385,6 +385,7 @@ export const UiActionSchema = z.discriminatedUnion('type', [
     open: z.optional(z.boolean()),
     refresh: z.optional(z.literal(true)),
     text: z.optional(z.string().check(z.maxLength(5_000))),
+    adapt: z.optional(z.boolean()),
     item: z.optional(z.strictObject({ contentType: z.union([z.literal(1), z.literal(2)]), contentId: z.string().check(z.regex(/^[1-9][0-9]{0,23}$/)), picked: z.boolean() })),
   }),
   /** The row's «Отправить» of the outreach: the fan's personal line, the common text and the picked items — one click, one attempt. */

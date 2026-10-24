@@ -10,13 +10,14 @@ const PREVIEW = '700000000000000012';
 const OTHER_MEDIA = '700000000000000013';
 const TOKEN = 'token-of-the-click-0001';
 
-function world(copied: readonly OutreachItem[], answer: (request: OutreachRequest) => OutreachAnswer = () => ({ ok: true, messageId: '700000000000000099' })) {
+function world(copied: readonly OutreachItem[], answer: (request: OutreachRequest) => OutreachAnswer = () => ({ ok: true, messageId: '700000000000000099' }), canAdapt = false) {
   let now = 1_000;
   const timers = new Map<number, () => void>();
   let next = 1;
   const sent: OutreachRequest[] = [];
   const rpc = { request: async () => ({ ok: true, payload: { actionToken: TOKEN, expiresAt: now + 10_000 } }), onEvent: () => () => undefined } as unknown as TabRpc;
   const outreach = createOutreach({
+    canAdapt: () => canAdapt,
     rpc,
     i18n: createI18n({ language: 'ru', now: () => now, timeZone: 'Europe/Moscow' }),
     clock: {
@@ -120,5 +121,24 @@ describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => 
       ['hey 1, missed you 😳', []],
       ['hey 2, missed you 😳', []],
     ]);
+  });
+
+  it('«Подстроить под фана»: the batch is a Fix of the common text, and the fan gets their own version alone, with the items', async () => {
+    const w = world([{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }], undefined, true);
+    w.outreach.set({ type: 'SetOutreach', open: true });
+    expect(w.outreach.vm().adapt).toBe(true);
+    // No common text yet: nothing to rewrite, the batch waits for it.
+    expect(w.outreach.needsText()).toBe(true);
+    w.outreach.set({ type: 'SetOutreach', text: 'ok this one is SPECIAL, first time with a DRAGON' });
+    expect(w.outreach.needsText()).toBe(false);
+    expect(w.outreach.batchFix()).toEqual({ draft: 'ok this one is SPECIAL, first time with a DRAGON' });
+    await w.outreach.send('SendOutreach', 'spenders:42:1', w.fan(1, 'hey Gordon, made something new and you were the first one I thought of'));
+    expect(w.sent.map((request) => [request.fanRef, request.text, request.attachments])).toEqual([
+      ['700000000000000201', 'hey Gordon, made something new and you were the first one I thought of', [{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }]],
+    ]);
+    // Switched off, the batch goes back to its Reply / Ping, and a hub without the mode never offers it.
+    w.outreach.set({ type: 'SetOutreach', adapt: false });
+    expect(w.outreach.batchFix()).toBeNull();
+    expect(world([]).outreach.vm().adapt).toBeNull();
   });
 });

@@ -109,6 +109,8 @@ export function generationText(request: HubStreamRequest, splitAllFlag: boolean)
     const variants = ['Hi and welcome!', 'Hey, glad you are here!', 'Welcome in, nice to meet you!'].slice(0, body.variantCount ?? 1);
     return variants.map((variant) => (splitAllowed ? `${variant} ${SPLIT_MARKERS.next} Ask me anything.` : variant)).join(SPLIT_MARKERS.variant);
   }
+  // «Рассылка»: the mass message, made personal for this fan (the hub's Fix with `draftPurpose: 'outreach'`).
+  if (feature === 'improve-draft' && body.draftPurpose === 'outreach') return 'hey you, made something new and you were the first one I thought of. it is the dragon one, 6 minutes, tell me when you get to the end';
   const text = TEXTS[feature] ?? { single: 'Synthetic answer.', split: '' };
   return splitAllowed && text.split !== '' ? text.split : text.single;
 }

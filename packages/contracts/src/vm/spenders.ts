@@ -67,8 +67,13 @@ export interface OutreachItemVM {
 export interface OutreachVM {
   /** The bar over the list is shown; the rows offer «Отправить» only then. */
   readonly open: boolean;
-  /** The common text after each fan's personal line. */
+  /** The common text: after each fan's personal line, or (`adapt`) the text each fan's own version is rewritten from. */
   readonly text: string;
+  /**
+   * «Подстроить под фана»: the batch's Fix rewrites the common text for each fan, and that version goes alone; false —
+   * the batch's Reply / Ping line, then the common text. null — the hub cannot (no `outreach-fix-v1`).
+   */
+  readonly adapt: boolean | null;
   /** The page's «Copied …» list as it was last read (opening the bar or «Обновить»), in its own order. */
   readonly items: readonly OutreachItemVM[];
   /** Fans the outreach reached in this tab. */

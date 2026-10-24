@@ -172,6 +172,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * lists it.
    */
   'recap-off-v1',
+  /**
+   * «Рассылка»: Fix takes `draftPurpose: 'outreach'` — the model's mass message rewritten for one fan. A hub without it
+   * refuses the field (400), so «Подстроить под фана» shows only for a hub that lists it.
+   */
+  'outreach-fix-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
