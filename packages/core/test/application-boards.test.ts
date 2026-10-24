@@ -1271,11 +1271,19 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
     await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '24.99' });
     await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '12', free: true });
     await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11', free: true });
-    expect(pv(h).media).toMatchObject({ priced: true, previews: 2, allFree: true, blocked: { key: 'preview.media.blocked.allFree' } });
+    expect(pv(h).media).toMatchObject({ priced: true, allFree: true, blocked: { key: 'preview.media.blocked.allFree' } });
+    expect(pv(h).media?.chosen.map((pick) => [pick.id, pick.free])).toEqual([
+      ['12', true],
+      ['11', true],
+    ]);
     // At «Платное» a preview goes behind the price, after the preview: the release forms are read for the new order.
     await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '11', free: false });
     await h.advance(300);
-    expect(pv(h).media).toMatchObject({ previews: 1, allFree: false, attached: { count: 2, priceCents: 2499 }, blocked: null });
+    expect(pv(h).media).toMatchObject({ allFree: false, attached: { count: 2, priceCents: 2499 }, blocked: null });
+    expect(pv(h).media?.chosen.map((pick) => [pick.id, pick.free])).toEqual([
+      ['12', true],
+      ['11', false],
+    ]);
     expect(pv(h).media?.grid.items.slice(0, 2).map((cell) => [cell.order, cell.free])).toEqual([
       [2, false],
       [1, true],

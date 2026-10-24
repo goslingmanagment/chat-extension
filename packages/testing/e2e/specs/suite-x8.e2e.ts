@@ -420,7 +420,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     // «Платное»: a click picks behind the price; the price; «Превью»: a click picks the free preview, first in the message.
     await ours('modal', '[data-cg-media="660000004"] .cg-pvm__pick').click();
     await ours('modal', '.cg-pvm__price input').setValue('24.99');
-    await ours('modal', '.cg-pvm [data-cg-step="preview"]').click();
+    await ours('modal', '.cg-pvm [data-cg-slot="preview"] .cg-pvm__add').click();
     await ours('modal', '[data-cg-media="660000001"] .cg-pvm__pick').click();
     await waitOursText('modal', /^1$/, 'the preview is the message’s first', { selector: '[data-cg-media="660000001"] .cg-pvm__order' });
     // The panel can scroll with the picker open; the send action must remain reachable without closing it.
