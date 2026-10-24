@@ -21,7 +21,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/ho
 
 import { type I18n, type PaletteItemVM, type PaletteVM } from '@cg/contracts/vm';
 
-import { Dialog, Icon, OverlayLayer, Spinner, ViewState, VirtualList, hotkeyText, isComposing, useDispatch, useGeometry, useI18n, useNowFn, useRenderAfter, useView, type VirtualListHandle } from '../kit';
+import { Dialog, Icon, OverlayLayer, Spinner, TalkingMark, ViewState, VirtualList, hotkeyText, isComposing, useDispatch, useGeometry, useI18n, useNowFn, useRenderAfter, useView, type VirtualListHandle } from '../kit';
 import { useOwnEchoes } from '../spenders/ownEchoes';
 
 const GROUP_HEIGHT = 32;
@@ -139,6 +139,7 @@ function Item({ row, selected, id, onPick, onRun }: { readonly row: Extract<Pale
           {running && item.sublabel !== null ? text : matchPieces(label, item.match).map((piece, index) => (piece.hit ? <mark key={index}>{piece.text}</mark> : piece.text))}
         </b>
         {!running && item.sublabel !== null ? <span class="cg-pal__sub">{item.sublabel}</span> : null}
+        {item.action.type === 'Navigate' && item.action.to.kind === 'chat' ? <TalkingMark handle={item.action.to.targetHandle} /> : null}
       </span>
       <span class="cg-pal__right cg-num">{right}</span>
     </div>

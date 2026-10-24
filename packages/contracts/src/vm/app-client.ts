@@ -15,6 +15,7 @@ import { type PreviewVM } from './preview';
 import { type ViewName, type ViewSelector } from './selectors';
 import { type SpendersBoardVM, type SpendersStatsVM } from './spenders';
 import { type RunningOpVM, type VmViewState } from './view';
+import { type TalkingVM } from './talking';
 import { type VoiceVM } from './voice';
 
 export interface ViewMap {
@@ -37,6 +38,8 @@ export interface ViewMap {
   readonly journal: JournalVM;
   /** 1.47.0: the voice studio of the open chat (the dock's sheet of the Voice chip). */
   readonly voice: VoiceVM;
+  /** Chat Memory week 1: «в разговоре» of every fan, by chat. */
+  readonly talking: TalkingVM;
 }
 
 /** The view model of a selector; an options selector narrows to its section. */
@@ -61,6 +64,8 @@ export const VM_STATE_SUPPORT = {
   'debug-prompt': ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   journal: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   voice: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
+  /** Marks or none: nothing to be offline or forbidden about — no capability, no marks. */
+  talking: ['loading', 'ready'],
   /**
    * Host-only views: ChatSpace's cached chat list and the vendored key
    * scheme. Neither needs a hub right nor the hub at all, so they have no

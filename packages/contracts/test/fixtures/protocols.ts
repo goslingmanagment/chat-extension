@@ -259,6 +259,17 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     },
     res: { valid: [fuseState, { fuse: null, resetAt: null }], invalid: [{ fuse: null }, { ...fuseState, fuse: { ...fuseState.fuse, reason: 'other' } }] },
   },
+  'talk.read': {
+    req: empty,
+    res: {
+      valid: [{ marks: [] }, { marks: [{ pageId: 3, fanRef: '700000000000000002', chatKeys: ['fansly-web:700000000000000001:700000000000000002'], names: ['Nikita'], lastSentAt: '2026-10-24T10:00:00.000Z' }] }],
+      // A mark names at least one chatter, its page and fan, and its chats by key.
+      invalid: [
+        { marks: [{ pageId: 3, fanRef: '700000000000000002', chatKeys: [], names: [], lastSentAt: '2026-10-24T10:00:00.000Z' }] },
+        { marks: [{ pageId: 3, fanRef: '700000000000000002', chatKeys: ['nikita'], names: ['Nikita'], lastSentAt: '2026-10-24T10:00:00.000Z' }] },
+      ],
+    },
+  },
   'send.fuseState': {
     req: empty,
     res: { valid: [fuseState, { fuse: null, resetAt: T0 }], invalid: [{ fuse: { ...fuseState.fuse, trippedAt: -1 }, resetAt: null }] },
@@ -576,6 +587,13 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
 };
 
 export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
+  'talk.changed': {
+    valid: [{ marks: [] }, { marks: [{ pageId: 3, fanRef: '518588958', chatKeys: ['chatspace:74001001:518588958'], names: ['Nikita', 'Ivan'], lastSentAt: '2026-10-24T10:00:00.000Z' }] }],
+    invalid: [
+      { marks: [{ pageId: 3, fanRef: '518588958', chatKeys: ['chatspace:74001001:518588958'], names: ['Nikita'], lastSentAt: 'now' }] },
+      { marks: [{ pageId: 3, fanRef: '518588958', chatKeys: ['chatspace:74001001:518588958'], names: ['Nikita'], lastSentAt: '2026-10-24T10:00:00.000Z', isMe: false }] },
+    ],
+  },
   'op.update': {
     valid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming', phase: { name: 'streaming', since: T0 }, firstChunkAt: T0 + 900 }],
     invalid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming' }],

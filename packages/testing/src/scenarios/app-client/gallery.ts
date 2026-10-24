@@ -149,6 +149,9 @@ export function galleryEntry(ctx: ScenarioCtx, selector: ViewSelector, state: Vm
       return entry(selector, cheatsheet(ctx, view));
     case 'toasts':
       return entry(selector, toasts(view, state === 'ready' ? [toast(ctx, 'toast-info', 'info', { title: ctx.lang === 'ru' ? 'Split включён: ответ придёт частями' : 'Split is on: the answer comes in parts' })] : []));
+    // Chat Memory week 1: «в разговоре» has marks or none; the gallery's other states show none.
+    case 'talking':
+      return entry(selector, { view, marks: {} });
     case 'popup':
       return entry(selector, popup(ctx, view));
     case 'options':

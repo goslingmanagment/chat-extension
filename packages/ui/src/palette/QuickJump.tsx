@@ -9,7 +9,7 @@ import { type JSX } from 'preact';
 
 import { type QuickJumpVM } from '@cg/contracts/vm';
 
-import { OverlayLayer, ViewState, useDispatch, useI18n, useView } from '../kit';
+import { OverlayLayer, TalkingMark, ViewState, useDispatch, useI18n, useView } from '../kit';
 
 function Row({ item }: { readonly item: QuickJumpVM['items'][number] }): JSX.Element {
   const i18n = useI18n();
@@ -22,6 +22,7 @@ function Row({ item }: { readonly item: QuickJumpVM['items'][number] }): JSX.Ele
           <b>{item.name ?? i18n.t('common.unknown')}</b>
           {item.username === null ? null : <span class="cg-pal__sub">@{item.username}</span>}
           {unread === null ? null : <span class="cg-pal__sub cg-num">{i18n.plural('quickJump.unread', unread)}</span>}
+          {item.action.type === 'Navigate' && item.action.to.kind === 'chat' ? <TalkingMark handle={item.action.to.targetHandle} /> : null}
         </span>
         <span class="cg-pal__right">
           <kbd>{item.slot}</kbd>

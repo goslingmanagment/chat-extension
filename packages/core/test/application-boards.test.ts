@@ -59,6 +59,8 @@ interface Options {
   readonly fanPanelBesideHost?: boolean;
   /** 1.30.0 (X53): the vault the media picker reads; absent — the host has none. */
   readonly media?: FakeMediaVault;
+  /** Chat Memory week 1: «в разговоре» marks by chat key; absent — none. */
+  readonly talking?: Map<string, { readonly names: readonly string[]; readonly lastSentAt: string }>;
   /** ChatSpace's read of whether the fan read our newest message (HostPort.chatReadState); absent — the host has none. */
   readonly chatReadState?: (chat: ChatRef, username: string) => Promise<ChatReadRead>;
 }
@@ -227,6 +229,7 @@ async function harness(options: Options = {}): Promise<Harness> {
     host: port,
     i18n,
     clock,
+    ...(options.talking === undefined ? {} : { talking: { mark: (key: string) => options.talking?.get(key) ?? null, onChange: () => () => undefined } }),
     ids: sequentialIds(0x9000),
     sender: {
       send: (click) => {
@@ -623,6 +626,21 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 });
     expect(h.host.calls.commits).toHaveLength(2);
     expect(h.host.calls.commits[1]?.request).toMatchObject({ attemptId: uuid(0x501), plainText: 'Missed me?' });
+  });
+
+  it('Chat Memory week 1: another chatter is talking to the fan — «Отправить» warns with their name; «Отправить всё равно» passes it and sends, never a block', async () => {
+    const talking = new Map([[`chatspace:${HOST_IDS.acc}:5000`, { names: ['Nikita'], lastSentAt: iso(NOW_MS - 4 * 60_000) }]]);
+    const { h, opId } = await withReply({ talking });
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual({ s: 'held-talking', names: ['Nikita'], at: iso(NOW_MS - 4 * 60_000) });
+    // A plain click does not send through the warning.
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: false });
+    expect(h.host.calls.commits).toHaveLength(0);
+    // «Отправить всё равно»: the warning is passed for this result, and the part goes by the same click.
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0, anyway: true })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.flush();
+    expect(h.host.calls.commits).toHaveLength(1);
+    // Passed means passed: the freshness rules still stand, nothing else of the warning holds the next part.
+    expect(h.host.calls.commits[0]?.request).not.toHaveProperty('acceptFreshness');
   });
 
   it('[X8-03] [DB-031] no chat opened since the page loaded: «Отправить» says to open any chat (CG-SEND-HOST) and sends nothing; with the store the first chat brings, the part can be sent', async () => {

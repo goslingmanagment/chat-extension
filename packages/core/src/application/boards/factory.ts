@@ -11,7 +11,7 @@ import { type ActionReceipt, type I18n } from '@cg/contracts/vm';
 import { type BoardHandover } from '../board-handover';
 import { createFanPanelController, type FanPanelController } from '../fanpanel/controller';
 import { createNewcomersController, type NewcomersController } from '../newcomers/controller';
-import { createPreviewController, type PreviewController } from '../preview/controller';
+import { createPreviewController, type PreviewController, type PreviewControllerDeps } from '../preview/controller';
 import { createPaletteDirectory, openOnlinePreview, type OnlineChat, type PaletteDirectory } from '../preview/palette';
 import { createSpendersController, type SpendersController } from '../spenders/controller';
 import { createPageContext, type PageContextPort } from './context';
@@ -38,6 +38,8 @@ export interface BoardsDeps {
   readonly handover?: ((handover: BoardHandover) => void) | null;
   /** sha256 of a text, lower-case hex: «Отправить» of a preview's draft field (PreviewControllerDeps.sha256). */
   readonly sha256?: (text: string) => Promise<string>;
+  /** Chat Memory week 1: «в разговоре» marks for the preview's X8 warning (PreviewControllerDeps.talking). */
+  readonly talking?: PreviewControllerDeps['talking'];
   readonly connectivity?: Connectivity | null;
   readonly random?: RandomSource;
   /** IANA zone of the statistics' calendar; the browser's own when absent. */
@@ -131,6 +133,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     notifier: deps.notifier ?? null,
     handover: deps.handover ?? null,
     ...(deps.sha256 === undefined ? {} : { sha256: deps.sha256 }),
+    ...(deps.talking === undefined ? {} : { talking: deps.talking }),
   });
   late.preview = preview;
   // 1.32.0: a batch of a list starts its generations through the preview's own Generate.

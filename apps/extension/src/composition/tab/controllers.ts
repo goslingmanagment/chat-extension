@@ -153,6 +153,8 @@ export function startAnalysis(ai: TabAi, analysis: typeof AnalysisChunk, coach: 
 
 export interface TabNavigation {
   readonly navigation: NavigationChunk.NavigationController;
+  /** Chat Memory week 1: «в разговоре» of every fan the tab names (the `talking` view; the preview's X8 warning). */
+  readonly talking: NavigationChunk.TalkingController;
   /** Where the early dispatcher's commands go; connected once every controller a key may need is in. */
   readonly sink: HotkeySink;
   dispose(): void;
@@ -200,6 +202,8 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
   });
   const quickJump = chunk.createQuickJumpController({ host, i18n, overlays, clock });
   const cheatsheet = chunk.createCheatsheetController({ catalog, features: world.features });
+  const talking = chunk.createTalkingController({ rpc: world.rpc });
+  offs.push(() => talking.dispose());
 
   /**
    * What no package answers for, because it lies between two of them:
@@ -224,7 +228,7 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
       return null;
     },
   };
-  for (const controller of [navigation, palette, quickJump, cheatsheet, bridges] as LooseController[]) offs.push(router.register(adopt(controller)));
+  for (const controller of [navigation, palette, quickJump, cheatsheet, talking, bridges] as LooseController[]) offs.push(router.register(adopt(controller)));
 
   const runner = chunk.createHotkeyRunner({
     client,
@@ -271,6 +275,7 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
 
   return {
     navigation,
+    talking,
     sink,
     dispose() {
       keys.dispatcher.disconnect();
@@ -315,6 +320,8 @@ export interface BoardsDock {
   bind(results: PreviewChunk.BoardResults | null): void;
   /** The chat is open: the dock takes the result (and asks the Б2 question when the composer holds the person's text). */
   handover(handover: PreviewChunk.BoardHandover): void;
+  /** Chat Memory week 1: «в разговоре» of the tab (the navigation family's): the preview's X8 warning reads it. */
+  readonly talking?: NavigationChunk.TalkingController;
 }
 
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
@@ -431,6 +438,7 @@ export async function startBoards(
     // A message from a surface that has just closed («Вставка отменена», «Чат не готов…»).
     notifier: { notify: (code: CgCode, scope: string) => void toasts.show({ kind: toastKindOf(code), code, scope, title: { key: CG_REGISTRY[code].title }, body: { key: CG_REGISTRY[code].body } }) },
     handover: (handover) => dock.handover(handover),
+    ...(dock.talking === undefined ? {} : { talking: dock.talking }),
     // The hub's key of the person's own text (a manual group): sha256 of its UTF-8 bytes, lower-case hex.
     sha256: async (text) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))].map((byte) => byte.toString(16).padStart(2, '0')).join(''),
   });

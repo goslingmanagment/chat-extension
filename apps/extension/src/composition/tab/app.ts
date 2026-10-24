@@ -767,6 +767,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       ([, chunk, preview]) =>
         startBoards(world, chunk, preview, facts, {
           bind: (results) => ai.workspace.bindBoards(results),
+          talking: navigation.talking,
           // §6.5: the chat is open — its dock goes on with the result. What the dock could not take is said aloud.
           handover(handover) {
             void ai.workspace.adoptBoardResult(handover).then(

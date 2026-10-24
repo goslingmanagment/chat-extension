@@ -45,6 +45,7 @@ import {
   type StatsQuery,
 } from './spenders';
 import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
+import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
 import { type VoiceAllowance, type VoiceAllowanceQuery, type VoiceNoteCreateRequest, type VoiceNoteRef, type VoiceNoteView } from '../voice';
@@ -179,6 +180,13 @@ export interface HubFacade {
    * repeated by the facade: the caller's journal owns what is owed.
    */
   sendAttributions(request: SendAttributionsRequest): Promise<SendAttributionsResult>;
+  /**
+   * Chat Memory week 1: the beat of the person signed in. Refused here without `chatter-activity-v1`; no page grant is
+   * checked (the hub skips a page that is not theirs). Never repeated: a lost beat is just lost.
+   */
+  activityBeat(request: ActivityBeatRequest): Promise<ActivityBeatResult>;
+  /** Chat Memory week 1: «в разговоре» of a page — refused without `in-conversation-v1` and for a page not granted. */
+  inConversation(query: InConversationQuery): Promise<InConversationResult>;
   /**
    * 1.47.0: the paid voicing of a script (`voiceNoteCreate`): idempotent per `clientRequestId` at the hub, never
    * repeated by the facade — the caller wrote the take before it asked. Needs the page's `voice` and `voice-notes-v1`.

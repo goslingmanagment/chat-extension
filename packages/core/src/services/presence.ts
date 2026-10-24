@@ -40,6 +40,8 @@ export interface TabPresenceReport {
   /** 1.20.0: the open chat's fan as the tab names it; null or absent — no name (display only, memory alone). */
   readonly fanLabel?: string | null | undefined;
   readonly fanUsername?: string | null | undefined;
+  /** Chat Memory week 1: the person's last key, click or scroll in the tab; null or absent — none since it opened. */
+  readonly lastInputAt?: number | null | undefined;
 }
 
 export interface TabPresence {
@@ -61,6 +63,8 @@ export interface TabPresence {
   readonly fanLabel: string | null;
   /** The open chat's fan's @handle as the tab knows it (without «@»); null — none. */
   readonly fanUsername: string | null;
+  /** Chat Memory week 1: the person's last input in the tab (the tab's clock, this browser's); null — none since it opened. */
+  readonly lastInputAt: number | null;
   readonly updatedAt: number;
 }
 
@@ -211,6 +215,8 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         routeAccount: report.routeAccount ? hostAccountKeyOf(report.routeAccount.host, report.routeAccount.hostAccountId) : null,
         fanLabel: report.chat !== null && typeof report.fanLabel === 'string' && report.fanLabel.trim() !== '' ? report.fanLabel.trim() : null,
         fanUsername: report.chat !== null && typeof report.fanUsername === 'string' && report.fanUsername.trim().replace(/^@/, '') !== '' ? report.fanUsername.trim().replace(/^@/, '') : null,
+        // A report without it (an older tab) keeps what the tab said before: input never goes back in time.
+        lastInputAt: Math.max(report.lastInputAt ?? -1, previous?.lastInputAt ?? -1) < 0 ? null : Math.max(report.lastInputAt ?? -1, previous?.lastInputAt ?? -1),
         updatedAt: now,
       });
       notify();

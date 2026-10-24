@@ -172,7 +172,7 @@ export const UI_TEXT_KEYS = [
   'preview.media.summaryPaid', 'preview.media.summaryPaidPreviews', 'send.buttonMedia', 'send.buttonMediaPaid', 'send.buttonMediaTooltip', 'send.reason.media', 'send.reason.pace',
   'send.button', 'send.buttonTooltip', 'send.openAndInsert', 'send.openAndInsertTooltip', 'send.openAndInsertWaiting', 'send.openAndInsertCancel',
   'send.unavailable', 'send.unavailableReason', 'send.queued', 'send.sending', 'send.accepted', 'send.sent', 'send.rejected', 'send.retry', 'send.retryTooltip',
-  'send.rejectedTail', 'send.uncertain', 'send.openToVerify', 'send.uncertainTail', 'send.uncertainRetryTooltip', 'send.heldStale', 'send.heldStaleTail', 'send.unverified', 'send.unverifiedTail', 'send.anyway', 'send.anywayTooltip', 'send.after',
+  'send.rejectedTail', 'send.uncertain', 'send.openToVerify', 'send.uncertainTail', 'send.uncertainRetryTooltip', 'send.heldStale', 'send.heldStaleTail', 'send.unverified', 'send.unverifiedTail', 'send.talking', 'talking.mark', 'talking.notice', 'talking.ok', 'send.anyway', 'send.anywayTooltip', 'send.after',
   'send.codeLine', 'send.reason.off', 'send.reason.host', 'send.reason.hostNotYet', 'send.reason.receipt', 'send.reason.activeChat',
   'send.reason.permission', 'send.reason.fan', 'send.reason.mimic', 'send.reason.translator', 'send.reason.freshness', 'send.reason.busy',
   'send.reason.queue', 'send.reason.part', 'send.reason.otherVariant', 'send.reason.guard',

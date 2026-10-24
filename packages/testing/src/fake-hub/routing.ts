@@ -154,6 +154,8 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientAudienceNew: { params: PAGE, query: true, integers: ['windowHours', 'limit'] },
   clientAiUsageDaily: { params: PAGE, query: true, integers: ['days'] },
   clientSendAttributions: { params: PAGE, body: 'merge' },
+  clientActivity: { body: 'merge' },
+  clientInConversation: { params: PAGE },
   voiceNoteCreate: { params: PAGE, body: 'nest' },
   voiceNoteStatus: { params: VOICE_NOTE, integers: ['voiceNoteId'] },
   voiceNoteAudio: { params: VOICE_NOTE, integers: ['voiceNoteId'] },

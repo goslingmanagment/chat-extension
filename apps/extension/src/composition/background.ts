@@ -51,6 +51,7 @@ import { SPEND_REPORT_FEATURES_MAX } from '@cg/contracts/diagnostics';
 import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { hostAccountKeyOf } from '@cg/contracts/settings';
 import {
+  ACTIVITY_LIMITS,
   CONTRACTS_VERSION,
   FAN_LABELS_MAX,
   HUB_CLIENT_CHECK_CODES,
@@ -88,6 +89,9 @@ import {
   NativeSendRegistrar,
   OpScheduler,
   SendAttributionReporter,
+  ActivityBeat,
+  TalkingMarksService,
+  type TalkingPage,
   RecapProfileSaver,
   WsTapSwitch,
   createConsentState,
@@ -205,6 +209,8 @@ const ALARMS = {
   telemetry: { name: 'cg.telemetry.flush', periodMs: 5 * 60_000 },
   /** The `client_health` window: 15 minutes (§9.6). */
   health: { name: 'cg.telemetry.health', periodMs: HEALTH_TICK_MS },
+  /** Chat Memory week 1: the beat of the hub's shift, once a minute while a tab is open. */
+  activity: { name: 'cg.activity.beat', periodMs: ACTIVITY_LIMITS.beatMs },
 } as const;
 
 /**
@@ -695,6 +701,56 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const resolution = seen === undefined ? null : (hubInstance?.resolveBinding(seen.account) ?? null);
     return resolution?.state === 'bound' ? resolution.binding.pageId : null;
   };
+  // Chat Memory week 1: the beat of the hub's shift (core/services/activity-beat.ts) — every bound page of the open tabs
+  // and the person's last input there, once a minute; `closed` when the last such tab goes or the person signs out.
+  const pageOfAccount = (key: string | null): { readonly pageId: number; readonly pageLabel: string } | null => {
+    const cut = key === null ? -1 : key.indexOf(':');
+    if (key === null || cut < 0) return null;
+    const host = key.slice(0, cut) as HostKind;
+    const pageId = HOST_PLATFORM[host] === undefined ? null : boundPageOf(host, key.slice(cut + 1));
+    const page = pageId === null ? undefined : hubInstance?.cachedBootstrap()?.bootstrap.pages.find((candidate) => candidate.pageId === pageId);
+    return page === undefined ? null : { pageId: page.pageId, pageLabel: page.pageLabel };
+  };
+  const pageLabelOfAccount = (key: string | null): string | null => pageOfAccount(key)?.pageLabel ?? null;
+  const servesNow = (capability: 'chatter-activity-v1' | 'in-conversation-v1'): boolean => {
+    const bootstrap = hubInstance?.session() ? (hubInstance.cachedBootstrap()?.bootstrap ?? null) : null;
+    return bootstrap !== null && hasCapability(bootstrap.capabilities, capability);
+  };
+  const activity = new ActivityBeat({
+    clock: CLOCK,
+    hub: () => hubInstance,
+    enabled: () => servesNow('chatter-activity-v1'),
+    instanceId: () => instanceId,
+    tabs: () => presence.tabs().map((tab) => ({ pageLabel: pageLabelOfAccount(tab.routeAccount), lastInputAt: tab.lastInputAt })),
+    log: coreLog,
+  });
+  // «В разговоре» (core/services/talking.ts): the hub's answer for every page an open tab shows, others only, to the tabs.
+  const talkingPages = (): TalkingPage[] => {
+    const pages = new Map<string, { readonly pageId: number; readonly accounts: Map<string, { host: string; hostAccountId: string }> }>();
+    for (const tab of presence.tabs()) {
+      for (const key of new Set([tab.routeAccount, ...tab.accounts])) {
+        const page = pageOfAccount(key);
+        if (key === null || page === null) continue;
+        const cut = key.indexOf(':');
+        const known = pages.get(page.pageLabel) ?? { pageId: page.pageId, accounts: new Map<string, { host: string; hostAccountId: string }>() };
+        known.accounts.set(key, { host: key.slice(0, cut), hostAccountId: key.slice(cut + 1) });
+        pages.set(page.pageLabel, known);
+      }
+    }
+    return [...pages.entries()].map(([pageLabel, page]) => ({ pageLabel, pageId: page.pageId, accounts: [...page.accounts.values()] }));
+  };
+  const talking = new TalkingMarksService({
+    clock: CLOCK,
+    hub: () => hubInstance,
+    enabled: () => servesNow('in-conversation-v1'),
+    pages: talkingPages,
+    emit: (marks) => rpc.emit('talk.changed', marks),
+    log: coreLog,
+  });
+  presence.onChange(() => {
+    void activity.tabsChanged();
+    talking.tabsChanged();
+  });
   /** One send for the hub's record (background/attribution.ts); the reason when there is nothing to owe. */
   const attribute = (
     host: HostKind,
@@ -1084,6 +1140,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         case ALARMS.health.name:
           telemetry.health.tick();
           break;
+        case ALARMS.activity.name:
+          await activity.beat();
+          break;
         default:
           break;
       }
@@ -1164,6 +1223,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   function wireHub(instance: ChatExtensionHub): void {
     instance.onSessionChange((change) => {
       rpc.emit('session.changed', { session: change.session, reason: change.reason });
+      // Another person, or nobody: no mark of the old sign-in stays; the next tab report asks again.
+      talking.stop();
       // §8.2 «Любая смена входа увеличивает эпоху и отменяет операции»: the old sign-in's results go with them.
       scheduler.environmentChanged({ kind: 'session', next: change.session });
       // The queue drops what was bound to the old sign-in (§9.6); a sign-out also the links and the health window.
@@ -1273,6 +1334,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   }
   const fanLabelsSignature = (): string => JSON.stringify(fanLabels());
 
+  rpc.handle('talk.read', () => ok(talking.current()));
   rpc.handle('tab.presence', async (report, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UNKNOWN', 'tab only');
     // «Focus» is a tab gaining it. A focused tab repeats its report every few seconds — its keepalive of
@@ -1304,7 +1366,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       return { ok: false, error: wire };
     }
   });
-  rpc.handle('session.signOut', () => hubCall(async () => { const outcome = await hub().signOut(); await clearPassJournals(); return outcome; }));
+  rpc.handle('session.signOut', () =>
+    hubCall(async () => {
+      // Chat Memory week 1: the shift ends here — the closing beat goes while the token still works.
+      await activity.close();
+      const outcome = await hub().signOut();
+      await clearPassJournals();
+      return outcome;
+    }),
+  );
   rpc.handle('bootstrap.get', ({ force }) => hubCall(() => hub().bootstrap(force === true ? { force: true } : undefined)));
   rpc.handle('binding.resolve', ({ account }) => {
     const resolution = hub().resolveBinding(account);

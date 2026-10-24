@@ -89,7 +89,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "recap-off-v1", "outreach-fix-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -1412,6 +1412,125 @@ export declare const clientSendAttributionsResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
+/** How often the extension beats while a tab of a granted page is open. */
+export declare const CLIENT_ACTIVITY_BEAT_SECONDS = 60;
+/** Pages one beat may name. */
+export declare const CLIENT_ACTIVITY_MAX_PAGES = 20;
+/** The longest idle a beat may report: older activity is not news. */
+export declare const CLIENT_ACTIVITY_MAX_IDLE_MS: number;
+/** An install silent this long is gone: its shift ended at its last beat. */
+export declare const CLIENT_ACTIVITY_LOST_MINUTES = 3;
+/** Idle minutes that still count as work; from this one on it is a pause. */
+export declare const CHATTER_SHIFT_IDLE_PAUSE_MINUTES = 10;
+/** Idle minutes that end a shift, the extension open or not. */
+export declare const CHATTER_SHIFT_END_IDLE_MINUTES = 60;
+/** The longest window `teamShifts` reads. */
+export declare const CHATTER_SHIFTS_MAX_WINDOW_DAYS = 7;
+export declare const clientActivityBodySchema: z.ZodObject<{
+    instanceId: z.ZodString;
+    pages: z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        idleMs: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strict>>;
+    closed: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strict>;
+export declare const clientActivityResponseSchema: z.ZodObject<{
+    recorded: z.ZodNumber;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export declare const teamShiftsQuerySchema: z.ZodObject<{
+    from: z.ZodOptional<z.ZodString>;
+    to: z.ZodOptional<z.ZodString>;
+    pageLabel: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+export declare const teamShiftSchema: z.ZodObject<{
+    userId: z.ZodNumber;
+    username: z.ZodString;
+    startedAt: z.ZodString;
+    endedAt: z.ZodString;
+    ongoing: z.ZodBoolean;
+    workedMinutes: z.ZodNumber;
+    pauses: z.ZodArray<z.ZodObject<{
+        from: z.ZodString;
+        to: z.ZodString;
+    }, z.core.$strip>>;
+    pages: z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        activeMinutes: z.ZodNumber;
+    }, z.core.$strip>>;
+    authoredMessages: z.ZodNumber;
+}, z.core.$strip>;
+export declare const teamShiftsResponseSchema: z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    shifts: z.ZodArray<z.ZodObject<{
+        userId: z.ZodNumber;
+        username: z.ZodString;
+        startedAt: z.ZodString;
+        endedAt: z.ZodString;
+        ongoing: z.ZodBoolean;
+        workedMinutes: z.ZodNumber;
+        pauses: z.ZodArray<z.ZodObject<{
+            from: z.ZodString;
+            to: z.ZodString;
+        }, z.core.$strip>>;
+        pages: z.ZodArray<z.ZodObject<{
+            pageLabel: z.ZodString;
+            activeMinutes: z.ZodNumber;
+        }, z.core.$strip>>;
+        authoredMessages: z.ZodNumber;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+/** How long a message keeps its author «в разговоре» with the fan. */
+export declare const IN_CONVERSATION_MINUTES = 15;
+export declare const clientInConversationResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    fans: z.ZodArray<z.ZodObject<{
+        fanRef: z.ZodString;
+        conversationRef: z.ZodNullable<z.ZodString>;
+        chatters: z.ZodArray<z.ZodObject<{
+            userId: z.ZodNumber;
+            name: z.ZodString;
+            isMe: z.ZodBoolean;
+            lastSentAt: z.ZodString;
+            until: z.ZodString;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+/** One text (with its price and files) sent to this many chats of a page within an hour is a mass message. */
+export declare const MASS_SEND_MIN_CHATS = 5;
+export declare const teamAuthorshipQuerySchema: z.ZodObject<{
+    days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+}, z.core.$strip>;
+export declare const teamAuthorshipResponseSchema: z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    pages: z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        platform: z.ZodString;
+        total: z.ZodObject<{
+            personal: z.ZodNumber;
+            authored: z.ZodNumber;
+            inShift: z.ZodNumber;
+            inShiftAuthored: z.ZodNumber;
+        }, z.core.$strip>;
+        days: z.ZodArray<z.ZodObject<{
+            personal: z.ZodNumber;
+            authored: z.ZodNumber;
+            inShift: z.ZodNumber;
+            inShiftAuthored: z.ZodNumber;
+            day: z.ZodString;
+        }, z.core.$strip>>;
+        authors: z.ZodArray<z.ZodObject<{
+            userId: z.ZodNumber;
+            username: z.ZodString;
+            messages: z.ZodNumber;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
 export declare const clientRouteSchemas: {
     readonly clientBootstrap: {
         readonly auth: {
@@ -2390,6 +2509,232 @@ export declare const clientRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly clientActivity: {
+        readonly auth: {
+            readonly kind: "apiKey";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The chat extension's beat: the pages it has open and how long ago the person was active on them";
+        readonly description: string;
+        readonly body: z.ZodObject<{
+            instanceId: z.ZodString;
+            pages: z.ZodArray<z.ZodObject<{
+                pageLabel: z.ZodString;
+                idleMs: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strict>>;
+            closed: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                recorded: z.ZodNumber;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamShifts: {
+        readonly auth: {
+            readonly kind: "session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The actual shifts of the team, from the chat extension's activity";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            from: z.ZodOptional<z.ZodString>;
+            to: z.ZodOptional<z.ZodString>;
+            pageLabel: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodString;
+                shifts: z.ZodArray<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    username: z.ZodString;
+                    startedAt: z.ZodString;
+                    endedAt: z.ZodString;
+                    ongoing: z.ZodBoolean;
+                    workedMinutes: z.ZodNumber;
+                    pauses: z.ZodArray<z.ZodObject<{
+                        from: z.ZodString;
+                        to: z.ZodString;
+                    }, z.core.$strip>>;
+                    pages: z.ZodArray<z.ZodObject<{
+                        pageLabel: z.ZodString;
+                        activeMinutes: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    authoredMessages: z.ZodNumber;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientInConversation: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Who is talking to which fan of the page now: whoever wrote to him in the last 15 minutes";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                fans: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    conversationRef: z.ZodNullable<z.ZodString>;
+                    chatters: z.ZodArray<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        name: z.ZodString;
+                        isMe: z.ZodBoolean;
+                        lastSentAt: z.ZodString;
+                        until: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamAuthorship: {
+        readonly auth: {
+            readonly kind: "session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "How many of each page's outgoing messages have an author, per day";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodString;
+                pages: z.ZodArray<z.ZodObject<{
+                    pageLabel: z.ZodString;
+                    platform: z.ZodString;
+                    total: z.ZodObject<{
+                        personal: z.ZodNumber;
+                        authored: z.ZodNumber;
+                        inShift: z.ZodNumber;
+                        inShiftAuthored: z.ZodNumber;
+                    }, z.core.$strip>;
+                    days: z.ZodArray<z.ZodObject<{
+                        personal: z.ZodNumber;
+                        authored: z.ZodNumber;
+                        inShift: z.ZodNumber;
+                        inShiftAuthored: z.ZodNumber;
+                        day: z.ZodString;
+                    }, z.core.$strip>>;
+                    authors: z.ZodArray<z.ZodObject<{
+                        userId: z.ZodNumber;
+                        username: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly clientAudienceNew: {
         readonly auth: {
             readonly kind: "apiKey";
@@ -2793,6 +3138,14 @@ export type ClientSendCustodyListItem = z.infer<typeof clientSendCustodyListItem
 export type ClientSendCustodyListResponse = z.infer<typeof clientSendCustodyListResponseSchema>;
 export type ClientSendAttributionFact = z.infer<typeof clientSendAttributionFactSchema>;
 export type ClientSendAttributionsBody = z.infer<typeof clientSendAttributionsBodySchema>;
+export type ClientActivityBody = z.infer<typeof clientActivityBodySchema>;
+export type ClientActivityResponse = z.infer<typeof clientActivityResponseSchema>;
+export type TeamShiftsQuery = z.infer<typeof teamShiftsQuerySchema>;
+export type TeamShift = z.infer<typeof teamShiftSchema>;
+export type TeamShiftsResponse = z.infer<typeof teamShiftsResponseSchema>;
+export type ClientInConversationResponse = z.infer<typeof clientInConversationResponseSchema>;
+export type TeamAuthorshipQuery = z.infer<typeof teamAuthorshipQuerySchema>;
+export type TeamAuthorshipResponse = z.infer<typeof teamAuthorshipResponseSchema>;
 export type ClientSendAttributionsResponse = z.infer<typeof clientSendAttributionsResponseSchema>;
 export type ClientAudienceNewQuery = z.infer<typeof clientAudienceNewQuerySchema>;
 export type ClientClaimSummary = z.infer<typeof clientClaimSummarySchema>;

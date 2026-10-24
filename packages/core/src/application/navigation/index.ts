@@ -58,3 +58,4 @@ export {
 } from './palette-controller';
 export { codeView, failedReceipt, type IdPort, type NavRequestType, type RpcAnswer, type SurfaceController, type TabClock, type TabRpc } from './ports';
 export { createQuickJumpController, type QuickJumpControllerDeps } from './quick-jump-controller';
+export { createTalkingController, type TalkingController, type TalkingRpc } from './talking-controller';

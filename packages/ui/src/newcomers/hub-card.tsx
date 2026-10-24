@@ -138,6 +138,12 @@ function partSend(i18n: I18n, opId: string, part: PartVM, label: string, last: b
         send: { ...base, label: i18n.t('send.anyway'), tooltip: i18n.t('send.anywayTooltip'), action: go(true), reason: null },
         state: <GreetingState mark={<Dot kind="accent" use="send-held-stale" />} words={i18n.t('send.unverified')} />,
       };
+    // Chat Memory week 1: another chatter is talking to the fan — a warning, «Отправить всё равно» passes it.
+    case 'held-talking':
+      return {
+        send: { ...base, label: i18n.t('send.anyway'), tooltip: i18n.t('send.anywayTooltip'), action: go(true), reason: null },
+        state: <GreetingState mark={<Dot kind="accent" use="send-held-stale" />} words={i18n.t('send.talking', { names: send.names.join(', ') })} />,
+      };
   }
 }
 

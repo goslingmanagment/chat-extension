@@ -16,7 +16,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { type UiTextSize } from '@cg/contracts/settings';
 import { type BatchVM, type I18n, type NewcomerRowVM, type NewcomersVM, type UiAction, type ValueSignal } from '@cg/contracts/vm';
 
-import { Button, Dialog, Icon, OverlayLayer, Spinner, isComposing, pure, rovingIndex, useDispatch, useI18n, useKit, useValueSignal } from '../kit';
+import { Button, Dialog, Icon, OverlayLayer, Spinner, TalkingMark, isComposing, pure, rovingIndex, useDispatch, useI18n, useKit, useValueSignal } from '../kit';
 import { useRowFocus } from '../spenders/rowFocus';
 import { ChoiceMenu, isPlainKey, type ChoiceItem } from '../spenders/window';
 
@@ -272,6 +272,7 @@ function RowView({ row, index, count, active, parts, onPick }: RowProps): JSX.El
           {custom === null ? null : <span class="cg-nw__custom"> ({custom})</span>}
           {tag === null ? null : <span class="cg-nw__tag">{tag}</span>}
         </span>
+        <TalkingMark handle={row.handle} />
         <span class="cg-nw__meta cg-num">{parts.meta(i18n, row)}</span>
         <Status row={row} />
       </span>

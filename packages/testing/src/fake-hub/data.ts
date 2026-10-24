@@ -34,6 +34,9 @@ import {
   type RecapStatus,
   type SendAttributionsRequest,
   type SendAttributionsResult,
+  type ActivityBeatRequest,
+  type ActivityBeatResult,
+  type InConversationResult,
   type SharedRecaps,
   type SpenderBatch,
   type SpenderBatchQuery,
@@ -249,6 +252,10 @@ export class DataModel {
   private readonly ingested = new Map<string, IngestBatch['events'][number]>();
   /** 1.21.0 (X48): who sent each message, by `page|message`; the first report wins (hub client_send_attributions). */
   private readonly attributions = new Map<string, FakeSendAttribution>();
+  /** Chat Memory week 1: every beat, in order (tests read them; ids and idle only). */
+  private readonly beats: FakeActivityBeat[] = [];
+  /** Chat Memory week 1: another chatter's message to a fan, set by a scenario (`talking`): «в разговоре» without a send. */
+  private readonly talking: FakeTalking[] = [];
   /**
    * R20 P6c1: the page's capture of its chats (`page_dm_threads`), by page and conversation: the fan the thread
    * names, or null — a thread whose fan the hub does not know. A conversation without a thread is not here.
@@ -1045,6 +1052,72 @@ export class DataModel {
   sendAttributionRows(): readonly FakeSendAttribution[] {
     return [...this.attributions.values()];
   }
+
+  /** Chat Memory week 1, as the hub's `clientActivity`: each named page granted to the caller is recorded, others skipped. */
+  activity(userId: number, request: ActivityBeatRequest, granted: (pageLabel: string) => boolean, now: number): Read<ActivityBeatResult> {
+    const pages = request.pages.filter((page) => granted(page.pageLabel));
+    this.beats.push({ userId, instanceId: request.instanceId, pages, closed: request.closed === true, at: now });
+    return ok({ recorded: pages.length, serverNow: iso(now) });
+  }
+
+  activityBeats(): readonly FakeActivityBeat[] {
+    return [...this.beats];
+  }
+
+  /** A scenario's «в разговоре»: `name` (another chatter) wrote to the fan `agoMs` before now. */
+  addTalking(entry: FakeTalking): void {
+    this.talking.push(entry);
+  }
+
+  /**
+   * Chat Memory week 1, as the hub's `clientInConversation`: whoever wrote to a fan of the page (an attribution, or a
+   * scenario's `talking`) less than 15 minutes ago, unless their install closed after it; the caller is `isMe`.
+   */
+  inConversation(page: FakePage, userId: number, names: (userId: number) => string, now: number): Read<InConversationResult> {
+    const since = now - 15 * 60_000;
+    const closedAt = (who: number): number => Math.max(-Infinity, ...this.beats.filter((beat) => beat.userId === who && beat.closed).map((beat) => beat.at));
+    const sends = [
+      ...[...this.attributions.values()].filter((row) => row.pageLabel === page.pageLabel).map((row) => ({ userId: row.userId, name: names(row.userId), fanRef: row.fanRef, conversationRef: row.conversationRef ?? null, at: Date.parse(row.observedAt) })),
+      ...this.talking.filter((row) => row.pageLabel === page.pageLabel).map((row) => ({ userId: row.userId, name: row.name, fanRef: row.fanRef, conversationRef: row.conversationRef, at: row.at })),
+    ].filter((send) => send.at > since && send.at <= now && closedAt(send.userId) < send.at);
+    const fans = new Map<string, { conversationRef: string | null; chatters: Map<number, { name: string; at: number }> }>();
+    for (const send of sends) {
+      const fan = fans.get(send.fanRef) ?? { conversationRef: send.conversationRef, chatters: new Map() };
+      const known = fan.chatters.get(send.userId);
+      if (known === undefined || known.at < send.at) fan.chatters.set(send.userId, { name: send.name, at: send.at });
+      fans.set(send.fanRef, fan);
+    }
+    return ok({
+      pageLabel: page.pageLabel,
+      fans: [...fans.entries()].map(([fanRef, fan]) => ({
+        fanRef,
+        conversationRef: fan.conversationRef,
+        chatters: [...fan.chatters.entries()]
+          .sort((a, b) => b[1].at - a[1].at)
+          .map(([who, chatter]) => ({ userId: who, name: chatter.name, isMe: who === userId, lastSentAt: iso(chatter.at), until: iso(chatter.at + 15 * 60_000) })),
+      })),
+      serverNow: iso(now),
+    });
+  }
+}
+
+/** Chat Memory week 1: one beat as the hub got it — the pages granted to the caller, never a content. */
+export interface FakeActivityBeat {
+  readonly userId: number;
+  readonly instanceId: string;
+  readonly pages: ActivityBeatRequest['pages'];
+  readonly closed: boolean;
+  readonly at: number;
+}
+
+/** A scenario's «в разговоре»: another chatter's message to the fan at `at`. */
+export interface FakeTalking {
+  readonly pageLabel: string;
+  readonly fanRef: string;
+  readonly conversationRef: string | null;
+  readonly userId: number;
+  readonly name: string;
+  readonly at: number;
 }
 
 /** One recorded send (X48): ids, the person, a time, two marks and how the text was written; never a text. */

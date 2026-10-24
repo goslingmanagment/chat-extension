@@ -129,6 +129,8 @@ function ofSend(part: PartVM, say: Say): Availability | null {
       return off('held-stale', 'CG-SEND-FRESHNESS', null);
     case 'unverified':
       return off('unverified', null, null);
+    case 'held-talking':
+      return off('held-talking', null, null);
     case 'rejected':
       return off('rejected', send.code, null);
     case 'uncertain':

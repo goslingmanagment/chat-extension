@@ -206,6 +206,11 @@ export type FakeHubCommand =
    * to the synthetic board.
    */
   | { readonly op: 'spenderFans'; readonly fans: readonly SpenderSeed[] }
+  /**
+   * Chat Memory week 1: another chatter (`name`, a userId of nobody signed in here) wrote to the fan `agoMs` before now
+   * (default 3 minutes): «в разговоре» answers it for the next 15 minutes.
+   */
+  | { readonly op: 'talking'; readonly pageLabel: string; readonly fanRef: string; readonly conversationRef?: string; readonly name: string; readonly agoMs?: number }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
 

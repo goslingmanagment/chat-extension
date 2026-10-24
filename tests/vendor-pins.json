@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "552db4f131be9a35a7c78951c7cb0eba8fd05712dd0218e2ad24074f17780c15",
-    "sourceCommit": "c7c9d95c0192e21d12fec1cd906a20fd97612918",
-    "note": "Vendored on 2026-10-24 from hub main c7c9d95c (#812) with scripts/vendor-sdk.mjs: clientSendAttributions takes source fansly-extension, conversationRef, composedWith and edited (Chat Memory week 1); the rest of the client routes is unchanged. Registered as a candidate for 0.8.5 (hub #816) and served by prod since f29de6fd. Re-vendor with the same script and update this pin together."
+    "contractHash": "efa423b3ba0241dc1db43435572a8304dccd0f4bfded24a7ca14c4a59bf7bb15",
+    "sourceCommit": "efb5a90312fe74c29affde4c323d13d7eaa05026",
+    "note": "Vendored on 2026-10-24 from hub main efb5a903 (#813–#815) with scripts/vendor-sdk.mjs: clientActivity (the beat of the hub's shift) and clientInConversation («в разговоре»), Chat Memory week 1; the rest of the client routes is unchanged. Registered as a candidate for 0.9.0. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
