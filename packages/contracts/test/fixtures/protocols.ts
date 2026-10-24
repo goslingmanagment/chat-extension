@@ -588,10 +588,10 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
 
 export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
   'talk.changed': {
-    valid: [{ marks: [] }, { marks: [{ pageId: 3, fanRef: '518588958', chatKeys: ['chatspace:74001001:518588958'], names: ['Nikita', 'Ivan'], lastSentAt: '2026-10-24T10:00:00.000Z' }] }],
+    valid: [{ marks: [] }, { marks: [{ pageId: 3, fanRef: '74001002', chatKeys: ['chatspace:910101:74001002'], names: ['Nikita', 'Ivan'], lastSentAt: '2026-10-24T10:00:00.000Z' }] }],
     invalid: [
-      { marks: [{ pageId: 3, fanRef: '518588958', chatKeys: ['chatspace:74001001:518588958'], names: ['Nikita'], lastSentAt: 'now' }] },
-      { marks: [{ pageId: 3, fanRef: '518588958', chatKeys: ['chatspace:74001001:518588958'], names: ['Nikita'], lastSentAt: '2026-10-24T10:00:00.000Z', isMe: false }] },
+      { marks: [{ pageId: 3, fanRef: '74001002', chatKeys: ['chatspace:910101:74001002'], names: ['Nikita'], lastSentAt: 'now' }] },
+      { marks: [{ pageId: 3, fanRef: '74001002', chatKeys: ['chatspace:910101:74001002'], names: ['Nikita'], lastSentAt: '2026-10-24T10:00:00.000Z', isMe: false }] },
     ],
   },
   'op.update': {
