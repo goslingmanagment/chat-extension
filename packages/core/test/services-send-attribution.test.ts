@@ -77,6 +77,24 @@ describe('the report', () => {
     expect(reporter.pending).toBe(0);
   });
 
+  it('Chat Memory week 1: a Fansly fact goes with its chat and how its text was written, through the journal; one without its chat is never taken', async () => {
+    const { clock, hub, reporter, store } = world();
+    const fansly = send({ source: 'fansly-extension', conversationRef: '810000000000000001', composedWith: 'reply', edited: true });
+    expect(reporter.report(fansly)).toBe('queued');
+    expect(reporter.report(send({ source: 'fansly-extension' }))).toBe('invalid');
+    // The journal keeps the new fields: the next event page delivers them as they were taken.
+    const successor = world({ now: OWNER }, { store, hub, clock });
+    await settle();
+    expect(await successor.reporter.restore()).toBe(1);
+    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
+    await reporter.idle();
+    await successor.reporter.idle();
+    expect(hub.calls[0]?.facts).toEqual([
+      { platformMessageId: fansly.platformMessageId, fanRef: fansly.fanRef, conversationRef: '810000000000000001', observedAt: fansly.observedAt, priced: false, withMedia: false, composedWith: 'reply', edited: true },
+    ]);
+    expect(SendAttributionsRequestSchema.safeParse(hub.calls[0]).success).toBe(true);
+  });
+
   it('the same message of a page is one fact: reported twice, it is asked once; answered, it is never asked again', async () => {
     const { clock, hub, reporter } = world();
     const one = send();

@@ -1347,10 +1347,19 @@ export declare const clientAudienceNewResponseSchema: z.ZodObject<{
  * The clients that observe a send, by the page they run on: the `source` of a
  * report. Open on the wire; a platform admits its own (the hub's
  * CLIENT_SEND_ATTRIBUTION_ADMISSIONS): OnlyFans `chatspace-extension`, the
- * extension on OnlyMonster ChatSpace. Another one is 409
- * `client_feature_disabled` / `platform_unsupported`.
+ * extension on OnlyMonster ChatSpace; Fansly `fansly-extension`, the extension
+ * on fansly.com. Another one is 409 `client_feature_disabled` /
+ * `platform_unsupported`.
  */
-export declare const CLIENT_SEND_ATTRIBUTION_SOURCES: readonly ["chatspace-extension"];
+export declare const CLIENT_SEND_ATTRIBUTION_SOURCES: readonly ["chatspace-extension", "fansly-extension"];
+/**
+ * How the text of a send was written (Chat Memory week 1): `hand` — typed, or
+ * pasted by something other than our buttons; `reply`, `fix`, `hi`, `ping`,
+ * `coach` — inserted by that AI button of the extension; `unknown` — the client
+ * could not tell (a send it could not link to the draft). Open on the wire: a
+ * value the hub does not know is stored as `unknown`.
+ */
+export declare const CLIENT_SEND_ATTRIBUTION_COMPOSED_WITH: readonly ["hand", "reply", "fix", "hi", "ping", "coach", "unknown"];
 /**
  * What the hub did with one fact; every one is final, nothing is retried:
  * - `recorded`: the first report of this message; it is stored.
@@ -1370,22 +1379,29 @@ export declare const CLIENT_SEND_ATTRIBUTION_MAX_AGE_DAYS = 30;
 /** RFC 3339 with a zone, as `Date.prototype.toISOString` writes it. */
 export declare const CLIENT_SEND_ATTRIBUTION_TIMESTAMP_PATTERN: RegExp;
 export type ClientSendAttributionSource = (typeof CLIENT_SEND_ATTRIBUTION_SOURCES)[number];
+export type ClientSendAttributionComposedWith = (typeof CLIENT_SEND_ATTRIBUTION_COMPOSED_WITH)[number];
 export type ClientSendAttributionOutcome = (typeof CLIENT_SEND_ATTRIBUTION_OUTCOMES)[number];
 export declare const clientSendAttributionFactSchema: z.ZodObject<{
     platformMessageId: z.ZodString;
     fanRef: z.ZodString;
+    conversationRef: z.ZodOptional<z.ZodString>;
     observedAt: z.ZodString;
     priced: z.ZodBoolean;
     withMedia: z.ZodBoolean;
+    composedWith: z.ZodOptional<z.ZodString>;
+    edited: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 export declare const clientSendAttributionsBodySchema: z.ZodObject<{
     source: z.ZodString;
     facts: z.ZodArray<z.ZodObject<{
         platformMessageId: z.ZodString;
         fanRef: z.ZodString;
+        conversationRef: z.ZodOptional<z.ZodString>;
         observedAt: z.ZodString;
         priced: z.ZodBoolean;
         withMedia: z.ZodBoolean;
+        composedWith: z.ZodOptional<z.ZodString>;
+        edited: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
 }, z.core.$strict>;
 export declare const clientSendAttributionsResponseSchema: z.ZodObject<{
@@ -2310,7 +2326,7 @@ export declare const clientRouteSchemas: {
             readonly scope: "page";
         };
         readonly tags: readonly ["client"];
-        readonly summary: "Report who sent outgoing messages: the caller sent these messages of the page from the platform page's own composer";
+        readonly summary: "Report who sent outgoing messages: the caller sent these messages of the page from their browser";
         readonly description: string;
         readonly params: z.ZodObject<{
             pageLabel: z.ZodString;
@@ -2320,9 +2336,12 @@ export declare const clientRouteSchemas: {
             facts: z.ZodArray<z.ZodObject<{
                 platformMessageId: z.ZodString;
                 fanRef: z.ZodString;
+                conversationRef: z.ZodOptional<z.ZodString>;
                 observedAt: z.ZodString;
                 priced: z.ZodBoolean;
                 withMedia: z.ZodBoolean;
+                composedWith: z.ZodOptional<z.ZodString>;
+                edited: z.ZodOptional<z.ZodBoolean>;
             }, z.core.$strict>>;
         }, z.core.$strict>;
         readonly response: {

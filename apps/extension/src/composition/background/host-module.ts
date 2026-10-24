@@ -27,7 +27,7 @@ import type { PassJournal } from '@cg/core/services/logs';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
-import type { Bootstrap, HubFacade, HubRouteKey, ResolveHubError } from '@cg/contracts/hub';
+import type { Bootstrap, HubFacade, HubRouteKey, ResolveHubError, SendAttributionComposedWith } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { ChatKey } from '@cg/contracts/ids';
 import type { StartOutcome, SiteOperations } from '@cg/core/services';
@@ -176,8 +176,23 @@ export interface NativeSendPort {
  * so here; the core owes it to the hub under their sign-in.
  */
 export interface AttributionPort {
-  /** 1.30.0 (X53): `priced`, `withMedia` — what the part took along. */
-  sent(fact: { readonly pageId: number; readonly fanRef: string; readonly platformMessageId: string; readonly priced: boolean; readonly withMedia: boolean }): void;
+  /**
+   * 1.30.0 (X53): `priced`, `withMedia` — what the part took along. Chat Memory week 1: `pageId` null — the page the
+   * creator `hostAccountId` is bound to (Fansly's «Рассылка» knows its account, not its page); `conversationRef` —
+   * the chat's group where the site has one (Fansly, required there); `composedWith`, `edited` — how the text was
+   * written (the operation's button, else `unknown`).
+   */
+  sent(fact: {
+    readonly pageId: number | null;
+    readonly hostAccountId?: string;
+    readonly fanRef: string;
+    readonly platformMessageId: string;
+    readonly priced: boolean;
+    readonly withMedia: boolean;
+    readonly conversationRef?: string;
+    readonly composedWith?: SendAttributionComposedWith;
+    readonly edited?: boolean;
+  }): void;
 }
 
 /**

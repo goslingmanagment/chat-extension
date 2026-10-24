@@ -129,6 +129,7 @@ export declare const publicationRouteSchemas: {
                             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                         }>;
                         severity: import("zod").ZodEnum<{
                             info: "info";
@@ -305,6 +306,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -453,6 +455,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -676,6 +679,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -835,6 +839,7 @@ export declare const publicationRouteSchemas: {
                                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                             }>;
                             severity: import("zod").ZodEnum<{
                                 info: "info";
@@ -985,6 +990,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -1144,6 +1150,7 @@ export declare const publicationRouteSchemas: {
                             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                         }>;
                         severity: import("zod").ZodEnum<{
                             info: "info";
@@ -1245,6 +1252,7 @@ export declare const publicationRouteSchemas: {
                             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                         }>;
                         severity: import("zod").ZodEnum<{
                             info: "info";
@@ -1406,6 +1414,7 @@ export declare const publicationRouteSchemas: {
                                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                             }>;
                             severity: import("zod").ZodEnum<{
                                 info: "info";
@@ -1568,6 +1577,7 @@ export declare const publicationRouteSchemas: {
                                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                             }>;
                             severity: import("zod").ZodEnum<{
                                 info: "info";
@@ -1718,6 +1728,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -2163,6 +2174,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -2346,6 +2358,7 @@ export declare const publicationRouteSchemas: {
                             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                         }>;
                         severity: import("zod").ZodEnum<{
                             info: "info";
@@ -2629,6 +2642,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -2866,6 +2880,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";

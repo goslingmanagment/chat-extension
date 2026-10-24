@@ -479,6 +479,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/keys/:id/revoke";
     };
+    readonly agentKeyUpdate: {
+        readonly method: "PATCH";
+        readonly path: "/api/v1/agent/keys/:id";
+    };
     readonly agentObservationPayload: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/observations/:observationRef/payload";

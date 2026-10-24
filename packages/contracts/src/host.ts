@@ -842,8 +842,32 @@ export const HumanSendFactSchema = z.strictObject({
   draft: SentDraftSchema,
   /** 1.21.0 (X48): absent — not observed (an older MAIN). */
   cargo: z.optional(SendCargoSchema),
+  /** Chat Memory week 1: the chat's own id where the site has one (Fansly's group); absent on ChatSpace. */
+  conversationRef: z.optional(NativeIdSchema),
 });
 export type HumanSendFact = z.infer<typeof HumanSendFactSchema>;
+
+/**
+ * Chat Memory week 1: Fansly's page itself sent a message from this tab — any 2xx answer of its own
+ * `POST /api/v1/message` whose sender is the creator, in a direct chat: typed, with media, a PPV, a voice note. Not
+ * proven to be a gesture's (that is `humanSend`, which links the draft); it says only that the message left from this
+ * browser. Ids and a mark; never a text.
+ */
+export const PageSentFactSchema = z.strictObject({
+  chat: ChatRefSchema,
+  conversationRef: NativeIdSchema,
+  platformMessageId: NativeIdSchema,
+  media: z.boolean(),
+});
+export type PageSentFact = z.infer<typeof PageSentFactSchema>;
+
+/**
+ * Chat Memory week 1: how the text of a send was written, as the tab knows it from the draft — `ours` (it descends
+ * from an insert of ours; which button is the background's to tell), `hand` (the person's own text), `unknown` (no
+ * draft linked: an empty draft, or Fansly's send seen only by its receipt).
+ */
+export const SEND_WROTE = ['hand', 'ours', 'unknown'] as const;
+export type SendWrote = (typeof SEND_WROTE)[number];
 
 /**
  * 1.21.0 (decision X48): who sent a message — the tab's word to the background (`attribution.report`) after a
@@ -857,6 +881,10 @@ export const SendAttributionFactSchema = z.strictObject({
   observedAt: IsoTimestampSchema,
   priced: z.boolean(),
   media: z.boolean(),
+  /** Chat Memory week 1: Fansly's group of the chat; absent on ChatSpace. */
+  conversationRef: z.optional(NativeIdSchema),
+  /** Chat Memory week 1: how the draft was written; absent — `unknown`. */
+  wrote: z.optional(z.enum(SEND_WROTE)),
 });
 export type SendAttributionFact = z.infer<typeof SendAttributionFactSchema>;
 
@@ -898,6 +926,8 @@ export type HostEvent =
   | { readonly type: 'incoming'; readonly fact: IncomingFact }
   | { readonly type: 'coverage'; readonly coverage: CoverageEvent }
   | { readonly type: 'humanSend'; readonly fact: HumanSendFact }
+  /** Chat Memory week 1: Fansly's page sent a message from this tab (PageSentFact); ChatSpace never says it. */
+  | { readonly type: 'pageSent'; readonly fact: PageSentFact }
   /**
    * 1.11.0 (decision X25): MAIN saw, after an X8 send, what trips the fuse. The port has already turned X8 off in
    * this document; the tab tells the background, which keeps the fuse for the browser.

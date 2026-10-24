@@ -99,6 +99,8 @@ describe('[FS-SEND-2] [TL-004] [host:fansly] the person’s send linked to our d
       platformMessageId: MSG,
       textDigest: digest(normalize(text)),
       draft: { revision: expect.any(Number) as number, provenance: 'our-insert', insertIntentId: intentId, editedSinceInsert: false },
+      // Chat Memory week 1: the chat's group, for the hub's record of who sent the message.
+      conversationRef: GROUP,
     });
     expect(sendLog(world)).toEqual([{ link: 'linked', ours: true, edited: false }]);
     expect(JSON.stringify([world.events, world.diagnostics])).not.toContain('Привет');

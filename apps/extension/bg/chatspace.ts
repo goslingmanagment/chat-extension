@@ -28,6 +28,7 @@
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import { narrowPlatform } from '@cg/contracts/ids';
 import { sendLockKey } from '@cg/contracts/send';
+import { composedWithOfFeature } from '@cg/core/domain/send';
 import { READINESS_STEP_TIMEOUT_MS } from '@cg/core/services';
 import { GreetingLeases, SendCoordinator, SendFuseKeeper, createSendJournal } from '@cg/core/services/custody';
 
@@ -72,7 +73,8 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
       // Decision X48: the person clicked «Отправить» of the preview — the hub records who sent the message. Only while
       // the operation is still theirs: another sign-in since (an attempt outlives a sign-out) took the operation away,
       // and the send is not the next person's to report.
-      if (ops.view(fact.opId) !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId, priced: fact.priced, withMedia: fact.withMedia });
+      const view = ops.view(fact.opId);
+      if (view !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId, priced: fact.priced, withMedia: fact.withMedia, composedWith: composedWithOfFeature(view.feature) });
     },
   });
 

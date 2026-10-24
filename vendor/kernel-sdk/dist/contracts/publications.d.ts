@@ -56,13 +56,10 @@ export declare const publicationContentSchema: z.ZodObject<{
         fileId: z.ZodNumber;
     }, z.core.$strict>], "source">>>;
     publishAt: z.ZodISODateTime;
-    /** When the post leaves the wall; null = never. */
     expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
     wallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
-    /** Fansly subscription tiers that see a subscriber post; empty = every subscriber. */
     tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
     priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
-    /** "Перезалив": the person or agent says the file is posted again on purpose. */
     repost: z.ZodDefault<z.ZodBoolean>;
 }, z.core.$strict>;
 export type PublicationContentBody = z.infer<typeof publicationContentSchema>;
@@ -178,6 +175,7 @@ export declare const publicationFindingSchema: z.ZodObject<{
         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
         onlyfans_file_too_large: "onlyfans_file_too_large";
         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
     }>;
     severity: z.ZodEnum<{
         info: "info";
@@ -271,6 +269,7 @@ export declare const publicationSchema: z.ZodObject<{
             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
             onlyfans_file_too_large: "onlyfans_file_too_large";
             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
         }>;
         severity: z.ZodEnum<{
             info: "info";
@@ -412,6 +411,7 @@ export declare const publicationDetailSchema: z.ZodObject<{
             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
             onlyfans_file_too_large: "onlyfans_file_too_large";
             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
         }>;
         severity: z.ZodEnum<{
             info: "info";
@@ -599,6 +599,7 @@ export declare const publicationListResponseSchema: z.ZodObject<{
                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                 onlyfans_file_too_large: "onlyfans_file_too_large";
                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
             }>;
             severity: z.ZodEnum<{
                 info: "info";
@@ -638,7 +639,6 @@ export declare const publicationIdParamsSchema: z.ZodObject<{
     id: z.ZodCoercedNumber<unknown>;
 }, z.core.$strip>;
 export declare const publicationApproveBodySchema: z.ZodObject<{
-    /** One or many; each with the version the person saw. Approved in this order. */
     items: z.ZodArray<z.ZodObject<{
         id: z.ZodNumber;
         version: z.ZodNumber;
@@ -719,6 +719,7 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                     onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                     onlyfans_file_too_large: "onlyfans_file_too_large";
                     fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                    fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                 }>;
                 severity: z.ZodEnum<{
                     info: "info";
@@ -834,6 +835,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                 onlyfans_file_too_large: "onlyfans_file_too_large";
                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
             }>;
             severity: z.ZodEnum<{
                 info: "info";
@@ -935,6 +937,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                 onlyfans_file_too_large: "onlyfans_file_too_large";
                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
             }>;
             severity: z.ZodEnum<{
                 info: "info";
@@ -1091,6 +1094,7 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                 onlyfans_file_too_large: "onlyfans_file_too_large";
                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
             }>;
             severity: z.ZodEnum<{
                 info: "info";
@@ -1206,6 +1210,7 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
                     onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                     onlyfans_file_too_large: "onlyfans_file_too_large";
                     fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                    fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                 }>;
                 severity: z.ZodEnum<{
                     info: "info";

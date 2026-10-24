@@ -32,11 +32,19 @@
 // more than a minute is learned from it and corrects every time sent after,
 // and a fact the hub found ahead of its clock is sent once more, corrected —
 // a computer whose clock runs fast must not lose every send of its person.
+//
+// Chat Memory week 1: a fact also carries its chat's own id where the site has
+// one (Fansly's group — the hub refuses a Fansly fact without it, so such a
+// fact is never taken) and how its text was written (`composedWith`,
+// `edited`).
 
 import {
+  SEND_ATTRIBUTION_CHAT_SOURCES,
+  SEND_ATTRIBUTION_COMPOSED_WITH,
   SEND_ATTRIBUTION_LIMITS,
   SEND_ATTRIBUTION_OUTCOMES,
   SendAttributionHubFactSchema,
+  type SendAttributionComposedWith,
   type HubFacade,
   type HubFailure,
   type SendAttributionsRequest,
@@ -70,6 +78,10 @@ export interface SendAttributionInput {
   readonly observedAt: string;
   readonly priced: boolean;
   readonly withMedia: boolean;
+  /** The chat's own id where the site has one (Fansly's group); required by the sources that name their chat. */
+  readonly conversationRef?: string;
+  readonly composedWith?: SendAttributionComposedWith;
+  readonly edited?: boolean;
 }
 
 export type SendAttributionOutcome =
@@ -119,7 +131,10 @@ function isOwed(value: unknown): value is Owed {
     typeof item.withMedia === 'boolean' &&
     typeof item.at === 'number' &&
     Number.isFinite(item.at) &&
-    (item.ahead === undefined || item.ahead === true)
+    (item.ahead === undefined || item.ahead === true) &&
+    (item.conversationRef === undefined || isText(item.conversationRef, 64)) &&
+    (item.composedWith === undefined || (SEND_ATTRIBUTION_COMPOSED_WITH as readonly unknown[]).includes(item.composedWith)) &&
+    (item.edited === undefined || typeof item.edited === 'boolean')
   );
 }
 
@@ -128,6 +143,21 @@ function failureOf(error: unknown): HubFailure | null {
   if (typeof error !== 'object' || error === null) return null;
   const failure = (error as { readonly name?: unknown; readonly failure?: unknown }).failure;
   return (error as { readonly name?: unknown }).name === 'HubCallError' && typeof failure === 'object' && failure !== null ? (failure as HubFailure) : null;
+}
+
+/** The hub's fact of a send: its fields only, an absent one left out (the hub's body is strict). */
+function hubFactOf(input: Omit<SendAttributionInput, 'pageLabel' | 'source'>): SendAttributionsRequest['facts'][number] {
+  const { platformMessageId, fanRef, observedAt, priced, withMedia, conversationRef, composedWith, edited } = input;
+  return {
+    platformMessageId,
+    fanRef,
+    observedAt,
+    priced,
+    withMedia,
+    ...(conversationRef === undefined ? {} : { conversationRef }),
+    ...(composedWith === undefined ? {} : { composedWith }),
+    ...(edited === undefined ? {} : { edited }),
+  };
 }
 
 export class SendAttributionReporter {
@@ -176,9 +206,12 @@ export class SendAttributionReporter {
   report(input: SendAttributionInput): SendAttributionOutcome {
     const owner = this.deps.owner();
     if (owner === null) return 'signed-out';
-    const { platformMessageId, fanRef, observedAt, priced, withMedia } = input;
-    if (!SendAttributionHubFactSchema.safeParse({ platformMessageId, fanRef, observedAt, priced, withMedia }).success) {
+    if (!SendAttributionHubFactSchema.safeParse(hubFactOf(input)).success) {
       this.log.write({ level: 'warn', scope: 'bg.attribution', msg: 'send attribution not taken: not a fact the hub takes' });
+      return 'invalid';
+    }
+    if (input.conversationRef === undefined && (SEND_ATTRIBUTION_CHAT_SOURCES as readonly string[]).includes(input.source)) {
+      this.log.write({ level: 'warn', scope: 'bg.attribution', msg: 'send attribution not taken: its chat is not known', fields: { source: input.source } });
       return 'invalid';
     }
     const key = keyOf(owner, input);
@@ -252,7 +285,7 @@ export class SendAttributionReporter {
       const request: SendAttributionsRequest = {
         pageLabel: first.pageLabel,
         source: first.source,
-        facts: batch.map(({ platformMessageId, fanRef, observedAt, priced, withMedia }) => ({ platformMessageId, fanRef, observedAt: this.corrected(observedAt), priced, withMedia })),
+        facts: batch.map((owed) => hubFactOf({ ...owed, observedAt: this.corrected(owed.observedAt) })),
       };
       const outcome = await this.send(first.owner, request);
       if (outcome === 'owed') return;

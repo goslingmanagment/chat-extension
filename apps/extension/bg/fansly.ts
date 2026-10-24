@@ -171,6 +171,18 @@ function greetingSend(kit: BackgroundKit, api: FanslyApi, live: FanslySendLive, 
       countUncertain: () => kit.telemetry.countCode('CG-SEND-UNCERTAIN'),
       // FS-PERM-5: switched off or its rights taken back — no new attempt; one not yet requested is refused.
       active: () => kit.siteActive?.() !== false,
+      // Chat Memory week 1: who sent the greeting — the person's own text, or Hi's (changed or not).
+      onReceipted: ({ pageId, fanRef, groupId, platformMessageId, admission }) =>
+        kit.attributions.sent({
+          pageId,
+          fanRef,
+          platformMessageId,
+          priced: false,
+          withMedia: false,
+          conversationRef: groupId,
+          composedWith: admission.kind === 'own' ? 'hand' : 'hi',
+          ...(admission.kind === 'own' ? {} : { edited: admission.kind === 'ai-edited' }),
+        }),
     }),
   );
 }

@@ -16,10 +16,10 @@ export const HOST_PLATFORM = { chatspace: 'onlyfans', 'fansly-web': 'fansly' } a
 
 /**
  * 1.21.0 (decision X48): how a host names itself as the observer of a send in the hub's record of who sent each
- * message (`clientSendAttributions` `source`). null — the host reports no sends yet (Fansly: a later task adds its
- * value here and the hub its admission).
+ * message (`clientSendAttributions` `source`). null — the host reports no sends. Chat Memory week 1: Fansly reports
+ * as `fansly-extension`, each fact with its chat's group.
  */
-export const HOST_SEND_ATTRIBUTION_SOURCE = { chatspace: 'chatspace-extension', 'fansly-web': null } as const satisfies Readonly<Record<HostKind, string | null>>;
+export const HOST_SEND_ATTRIBUTION_SOURCE = { chatspace: 'chatspace-extension', 'fansly-web': 'fansly-extension' } as const satisfies Readonly<Record<HostKind, string | null>>;
 
 /** 2026-10-21 (the chatter's log file): how a person names the site — «ChatSpace чат 74001001». */
 export const HOST_TITLES = { chatspace: 'ChatSpace', 'fansly-web': 'Fansly' } as const satisfies Readonly<Record<HostKind, string>>;

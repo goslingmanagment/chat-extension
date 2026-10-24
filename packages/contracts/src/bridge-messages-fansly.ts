@@ -265,6 +265,13 @@ export const FROM_MAIN_FANSLY = {
    * side links the send only to the draft it read at that very gesture.
    */
   'fx.sent': z.strictObject({ groupId: NativeIdSchema, msgId: NativeIdSchema, contentDigest: DigestSchema, gestureAt: z.number().check(z.gte(0)) }),
+  /**
+   * Chat Memory week 1: the page sent a message from this tab — a 2xx answer of its own `POST /api/v1/message` whose
+   * sender is the creator, in a direct chat whose fan MAIN knows: typed, with media, a PPV, a voice note. No gesture is
+   * proven (that is `fx.sent`); it says who sent the message, never that a part of ours was sent. `accountId` — the
+   * creator at the answer: a queued fact must not move to the next login. `media` — the message carries attachments.
+   */
+  'fx.pageSent': z.strictObject({ groupId: NativeIdSchema, msgId: NativeIdSchema, fanId: NativeIdSchema, accountId: NativeIdSchema, media: z.boolean() }),
   /** The completeness of chats changed (§5.6): `complete` only by a certificate of one chat; `all` only ever lowers it. */
   'fx.coverage': z
     .strictObject({
@@ -307,6 +314,7 @@ export const FanslyBatchEventSchema = z.discriminatedUnion('t', [
   batchEvent('fx.incoming'),
   batchEvent('fx.follow'),
   batchEvent('fx.sent'),
+  batchEvent('fx.pageSent'),
   batchEvent('fx.coverage'),
   batchEvent('fx.deleted'),
   batchEvent('fx.vaultAdded'),

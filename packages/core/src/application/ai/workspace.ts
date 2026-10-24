@@ -370,8 +370,10 @@ export class AiWorkspace {
           case 'coverage':
             this.bump();
             break;
-          // The fuse of decision X25 is the tab's to report (the background logs it); it turns nothing off.
+          // The fuse of decision X25 is the tab's to report (the background logs it); it turns nothing off. Who sent a
+          // message the page sent (Chat Memory week 1) is the tab's host facts' to report: nothing here.
           case 'sendFuse':
+          case 'pageSent':
             break;
         }
       }),

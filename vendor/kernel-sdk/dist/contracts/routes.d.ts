@@ -594,14 +594,14 @@ export declare const subscriberListQuerySchema: z.ZodObject<{
     query: z.ZodOptional<z.ZodString>;
     expiringWithinDays: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     startedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-    autoRenew: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+    autoRenew: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
 }, z.core.$strip>;
 export declare const followerListQuerySchema: z.ZodObject<{
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     offset: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     query: z.ZodOptional<z.ZodString>;
     followedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-    subscriber: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+    subscriber: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
     dmStatus: z.ZodOptional<z.ZodEnum<{
         none: "none";
         has_dm: "has_dm";
@@ -779,7 +779,7 @@ export declare const pageSpenderAutoListQuerySchema: z.ZodObject<{
     }>>;
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
-    excludeNonFollowers: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+    excludeNonFollowers: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
 }, z.core.$strip>;
 export declare const fansSearchQuerySchema: z.ZodObject<{
     scope: z.ZodEnum<{
@@ -3039,7 +3039,7 @@ export declare const revenueDailyQuerySchema: z.ZodObject<{
     }>>;
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
-    groupByType: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+    groupByType: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
 }, z.core.$strip>;
 export declare const revenueDailyItemSchema: z.ZodObject<{
     businessDate: z.ZodString;
@@ -3184,7 +3184,7 @@ export declare const crossPageTransactionListQuerySchema: z.ZodObject<{
     }>>;
     from: z.ZodOptional<z.ZodISODateTime>;
     to: z.ZodOptional<z.ZodISODateTime>;
-    reportableOnly: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+    reportableOnly: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
 }, z.core.$strip>;
 export declare const crossPageTransactionListResponseSchema: z.ZodObject<{
     items: z.ZodArray<z.ZodObject<{
@@ -4322,10 +4322,10 @@ export declare const aiRestrictedGenerationsResponseSchema: z.ZodObject<{
 export declare const aiRestrictedAcceptanceEventSchema: z.ZodObject<{
     lifecycle: z.ZodEnum<{
         sent: "sent";
+        edited: "edited";
         shown: "shown";
         copied: "copied";
         inserted: "inserted";
-        edited: "edited";
     }>;
     userId: z.ZodNullable<z.ZodNumber>;
     occurredAt: z.ZodString;
@@ -4350,10 +4350,10 @@ export declare const aiRestrictedGenerationDetailResponseSchema: z.ZodObject<{
     acceptance: z.ZodArray<z.ZodObject<{
         lifecycle: z.ZodEnum<{
             sent: "sent";
+            edited: "edited";
             shown: "shown";
             copied: "copied";
             inserted: "inserted";
-            edited: "edited";
         }>;
         userId: z.ZodNullable<z.ZodNumber>;
         occurredAt: z.ZodString;
@@ -13610,10 +13610,10 @@ declare const baseRouteSchemas: {
                 acceptance: z.ZodArray<z.ZodObject<{
                     lifecycle: z.ZodEnum<{
                         sent: "sent";
+                        edited: "edited";
                         shown: "shown";
                         copied: "copied";
                         inserted: "inserted";
-                        edited: "edited";
                     }>;
                     userId: z.ZodNullable<z.ZodNumber>;
                     occurredAt: z.ZodString;
@@ -23894,7 +23894,7 @@ declare const baseRouteSchemas: {
             query: z.ZodOptional<z.ZodString>;
             expiringWithinDays: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
             startedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-            autoRenew: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            autoRenew: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -24061,7 +24061,7 @@ declare const baseRouteSchemas: {
             offset: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
             query: z.ZodOptional<z.ZodString>;
             followedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
-            subscriber: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            subscriber: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
             dmStatus: z.ZodOptional<z.ZodEnum<{
                 none: "none";
                 has_dm: "has_dm";
@@ -24578,7 +24578,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            excludeNonFollowers: z.ZodOptional<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            excludeNonFollowers: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -29194,7 +29194,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            groupByType: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            groupByType: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -29301,7 +29301,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            groupByType: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            groupByType: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -29365,7 +29365,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
-            groupByType: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            groupByType: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -29446,7 +29446,7 @@ declare const baseRouteSchemas: {
             }>>;
             from: z.ZodOptional<z.ZodISODateTime>;
             to: z.ZodOptional<z.ZodISODateTime>;
-            reportableOnly: z.ZodDefault<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodBoolean>>;
+            reportableOnly: z.ZodDefault<z.ZodPreprocess<z.ZodBoolean, unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -30688,6 +30688,7 @@ declare const baseRouteSchemas: {
                             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                         }>;
                         severity: z.ZodEnum<{
                             info: "info";
@@ -30864,6 +30865,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -31012,6 +31014,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -31235,6 +31238,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -31394,6 +31398,7 @@ declare const baseRouteSchemas: {
                                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                             }>;
                             severity: z.ZodEnum<{
                                 info: "info";
@@ -31544,6 +31549,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -31703,6 +31709,7 @@ declare const baseRouteSchemas: {
                             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                         }>;
                         severity: z.ZodEnum<{
                             info: "info";
@@ -31804,6 +31811,7 @@ declare const baseRouteSchemas: {
                             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                         }>;
                         severity: z.ZodEnum<{
                             info: "info";
@@ -31965,6 +31973,7 @@ declare const baseRouteSchemas: {
                                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                             }>;
                             severity: z.ZodEnum<{
                                 info: "info";
@@ -32127,6 +32136,7 @@ declare const baseRouteSchemas: {
                                 onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                             }>;
                             severity: z.ZodEnum<{
                                 info: "info";
@@ -32277,6 +32287,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -32722,6 +32733,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -32905,6 +32917,7 @@ declare const baseRouteSchemas: {
                             onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                            fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                         }>;
                         severity: z.ZodEnum<{
                             info: "info";
@@ -33188,6 +33201,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -33425,6 +33439,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                        fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";

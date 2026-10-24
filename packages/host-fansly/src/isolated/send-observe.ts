@@ -200,7 +200,7 @@ export function createSendObserver(options: SendObserverOptions): SendObserver {
       }
       stats.linked += 1;
       report('linked', reading.draft);
-      options.said({ chat: reading.chat, pendingId: `g${String(reading.serial)}`, platformMessageId: payload.msgId, textDigest: payload.contentDigest, draft: reading.draft });
+      options.said({ chat: reading.chat, pendingId: `g${String(reading.serial)}`, platformMessageId: payload.msgId, textDigest: payload.contentDigest, draft: reading.draft, conversationRef: payload.groupId });
     },
     reset() {
       // What was noted under the old creator names nothing of the new one's: those names are poisoned, not forgotten.
