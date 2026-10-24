@@ -44,6 +44,9 @@ export const HUB_ROUTE_PATHS = {
   clientSendAttributions: '/api/v1/client/pages/:pageLabel/send-attributions',
   clientActivity: '/api/v1/client/activity',
   clientInConversation: '/api/v1/client/pages/:pageLabel/in-conversation',
+  clientFanCard: '/api/v1/client/pages/:pageLabel/fans/:fanRef/card',
+  clientFanLinkDecide: '/api/v1/client/pages/:pageLabel/fans/:fanRef/links',
+  clientFanFactChange: '/api/v1/client/pages/:pageLabel/fans/:fanRef/facts/:factId',
   // 1.47.0: the voice-notes lane (`:id` is the note's integer id).
   voiceNoteCreate: '/api/v1/pages/:pageLabel/voice-notes',
   voiceNoteStatus: '/api/v1/pages/:pageLabel/voice-notes/:id',

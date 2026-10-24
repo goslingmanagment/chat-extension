@@ -389,6 +389,23 @@ export class BoardsBackground {
       if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
       return this.read('spenderDetail', { platform: 'onlyfans', platformUserId: fanRef, scope: 'page', pageLabel, period }, true);
     },
+    // Chat Memory week 2: the fan's card, «Да / Нет», a fact changed — as the background's hub-data routes.
+    'fan.memory': ({ pageId, fanRef }) => {
+      const pageLabel = this.pageLabel(pageId);
+      if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
+      return this.read('clientFanCard', { pageLabel, fanRef });
+    },
+    'fan.memory.link': ({ pageId, fanRef, otherPlatform, otherFanRef, decision }) => {
+      const pageLabel = this.pageLabel(pageId);
+      if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
+      return this.read('clientFanLinkDecide', { pageLabel, fanRef, otherPlatform, otherFanRef, decision });
+    },
+    'fan.memory.fact': (request) => {
+      const pageLabel = this.pageLabel(request.pageId);
+      if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
+      const { pageId: _pageId, ...change } = request;
+      return this.read('clientFanFactChange', { ...change, pageLabel });
+    },
     'newcomers.list': ({ pageId, windowHours, cursor }) => {
       const pageLabel = this.pageLabel(pageId);
       if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));

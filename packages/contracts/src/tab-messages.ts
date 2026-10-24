@@ -41,6 +41,7 @@ import { BootstrapSchema } from './hub/bootstrap';
 import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
+import { FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
 import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
@@ -542,6 +543,23 @@ export const TAB_REQUESTS = {
   'fan.card': { req: z.strictObject({ ...PageFan, period: SpendersPeriodSchema }), res: SpenderDetailSchema, from: TAB },
   /** The fan panel's dossier (D-29: `pageConversationProfile` / `pageFanProfile`); null — the hub knows no profile. */
   'fan.dossier': { req: z.strictObject(PageFan), res: z.strictObject({ dossier: z.nullable(DossierSchema) }), from: TAB },
+  /** Chat Memory week 2: the fan's card across pages («Память» of the fan panel). */
+  'fan.memory': { req: z.strictObject(PageFan), res: FanCardSchema, from: TAB },
+  /** A chatter's «Да, это он» / «Нет» on a suggested account; answered with the card as it stands. */
+  'fan.memory.link': {
+    req: z.strictObject({ ...PageFan, otherPlatform: OpenTokenSchema, otherFanRef: NativeIdSchema, decision: z.enum(['same', 'different']) }),
+    res: FanLinkDecideResultSchema,
+    from: TAB,
+  },
+  /** A chatter deletes or corrects a fact of a page they work; answered with the card as it stands. */
+  'fan.memory.fact': {
+    req: z.union([
+      z.strictObject({ ...PageFan, factId: HubIntIdSchema, action: z.literal('delete') }),
+      z.strictObject({ ...PageFan, factId: HubIntIdSchema, action: z.literal('correct'), text: z.string().check(z.trim(), z.minLength(1), z.maxLength(FAN_FACT_MAX_CHARS)) }),
+    ]),
+    res: FanFactChangeResultSchema,
+    from: TAB,
+  },
   /** Tabs, and the popup for its newcomer count (§9.9). */
   'newcomers.list': {
     req: z.strictObject({ pageId: HubIntIdSchema, windowHours: z.int().check(z.gte(1), z.lte(720)), cursor: CursorSchema }),

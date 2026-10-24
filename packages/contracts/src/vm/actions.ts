@@ -403,7 +403,14 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),
-  act('SetFanPanelTab', { tab: z.enum(['fan', 'recap']) }),
+  act('SetFanPanelTab', { tab: z.enum(['fan', 'recap', 'memory']) }),
+  /**
+   * Chat Memory week 2, «Память»: «Да, это он» / «Нет» on an account Hub suggests is the same person as the open
+   * chat's fan. One hub call, never repeated by itself; the card is answered as it stands.
+   */
+  act('DecideFanLink', { otherPlatform: boundedText(64), otherFanRef: NativeIdSchema, decision: z.enum(['same', 'different']) }),
+  /** A fact of a page the person works: «Удалить», or «Исправить» with the text they wrote (≤ 500). One hub call. */
+  act('ChangeFanFact', { factId: z.int().check(z.gte(1)), action: z.enum(['delete', 'correct']), text: z.optional(z.string().check(z.maxLength(500))) }),
 
   // ── toasts ──
   act('DismissToast', { toastId: HandleSchema }),

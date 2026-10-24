@@ -37,6 +37,11 @@ import {
   type ActivityBeatRequest,
   type ActivityBeatResult,
   type InConversationResult,
+  type FanCard,
+  type FanFactChangeRequest,
+  type FanFactChangeResult,
+  type FanLinkDecideRequest,
+  type FanLinkDecideResult,
   type SharedRecaps,
   type SpenderBatch,
   type SpenderBatchQuery,
@@ -254,6 +259,8 @@ export class DataModel {
   private readonly attributions = new Map<string, FakeSendAttribution>();
   /** Chat Memory week 1: every beat, in order (tests read them; ids and idle only). */
   private readonly beats: FakeActivityBeat[] = [];
+  /** Chat Memory week 2: the fans' cards a scenario set (`fanCard`), by `page|fan`. */
+  private readonly cards = new Map<string, FanCard>();
   /** Chat Memory week 1: another chatter's message to a fan, set by a scenario (`talking`): «в разговоре» without a send. */
   private readonly talking: FakeTalking[] = [];
   /**
@@ -1062,6 +1069,44 @@ export class DataModel {
 
   activityBeats(): readonly FakeActivityBeat[] {
     return [...this.beats];
+  }
+
+  /** A scenario's card of a fan (Chat Memory week 2). */
+  setFanCard(pageLabel: string, fanRef: string, card: FanCard): void {
+    this.cards.set(`${pageLabel}|${fanRef}`, card);
+  }
+
+  /** As the hub's `clientFanCard`: the card a scenario set, else a fan nobody knows yet. */
+  fanCard(page: FakePage, fanRef: string, now: number): FanCard {
+    const card = this.cards.get(`${page.pageLabel}|${fanRef}`);
+    return card === undefined ? { pageLabel: page.pageLabel, fanRef, known: false, accounts: [], pages: [], suggestions: [], facts: [], serverNow: iso(now) } : { ...card, serverNow: iso(now) };
+  }
+
+  /** As the hub's `clientFanLinkDecide`: only a pair the card suggests (409 `not_suggested`); `same` joins its account and pages. */
+  fanLinkDecide(page: FakePage, request: FanLinkDecideRequest, by: string, now: number): Read<FanLinkDecideResult> {
+    const card = this.fanCard(page, request.fanRef, now);
+    const suggestion = card.suggestions.find((item) => item.platform === request.otherPlatform && item.fanRef === request.otherFanRef);
+    if (suggestion === undefined) return no('conflict', 'not_suggested');
+    const { reason: _reason, shared: _shared, sharedOn: _on, pages, ...account } = suggestion;
+    const next: FanCard = {
+      ...card,
+      suggestions: card.suggestions.filter((item) => item !== suggestion),
+      ...(request.decision === 'same' ? { accounts: [...card.accounts, { ...account, linkedBy: by }], pages: [...card.pages, ...pages].sort((a, b) => b.spentMills - a.spentMills) } : {}),
+    };
+    this.setFanCard(page.pageLabel, request.fanRef, next);
+    return ok({ decision: request.decision, recorded: true, card: next });
+  }
+
+  /** As the hub's `clientFanFactChange`: a fact of a page the caller works; a fact no longer there changes nothing. */
+  fanFactChange(page: FakePage, request: FanFactChangeRequest, by: string, now: number): Read<FanFactChangeResult> {
+    const card = this.fanCard(page, request.fanRef, now);
+    const fact = card.facts.find((item) => item.id === request.factId);
+    if (fact === undefined) return ok({ changed: false, card });
+    if (!fact.granted) return no('client_feature_disabled', 'not_granted');
+    const facts = request.action === 'delete' ? card.facts.filter((item) => item !== fact) : card.facts.map((item) => (item === fact ? { ...item, text: request.text, source: 'chatter', author: by } : item));
+    const next = { ...card, facts };
+    this.setFanCard(page.pageLabel, request.fanRef, next);
+    return ok({ changed: true, card: next });
   }
 
   /** A scenario's «в разговоре»: `name` (another chatter) wrote to the fan `agoMs` before now. */

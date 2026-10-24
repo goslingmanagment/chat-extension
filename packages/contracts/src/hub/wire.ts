@@ -188,6 +188,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * minutes. A hub without it is never asked, and no mark or warning shows.
    */
   'in-conversation-v1',
+  /**
+   * Chat Memory week 2: the fan's card across pages (`clientFanCard`), «тот же человек» decided by a chatter
+   * (`clientFanLinkDecide`), a fact deleted or corrected (`clientFanFactChange`). A hub without it shows no «Память».
+   */
+  'fan-card-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

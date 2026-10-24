@@ -457,6 +457,9 @@ export class FakePageBackground implements PageRpc {
       case 'spenders.stats':
       case 'tab.presence':
       case 'talk.read':
+      case 'fan.memory':
+      case 'fan.memory.link':
+      case 'fan.memory.fact':
       case 'token.issue':
       case 'token.redeem':
       case 'voice.read':

@@ -663,6 +663,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/conversations/:fanRef/recaps";
     };
+    readonly clientFanCard: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/card";
+    };
     readonly clientFanClaim: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/claim";
@@ -670,6 +674,14 @@ export declare const kernelOperations: {
     readonly clientFanClaimStatus: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/claim";
+    };
+    readonly clientFanFactChange: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/facts/:factId";
+    };
+    readonly clientFanLinkDecide: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/links";
     };
     readonly clientFanProfileFromGeneration: {
         readonly method: "POST";

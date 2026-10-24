@@ -67,6 +67,10 @@ export const HUB_ROUTES = {
   clientActivity: { method: 'POST', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['chatter-activity-v1'], narrowToken: true },
   /** Chat Memory week 1: «в разговоре» — who wrote to which fan of the page in the last 15 minutes. No owner switch. */
   clientInConversation: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['in-conversation-v1'], narrowToken: true },
+  /** Chat Memory week 2: the fan's card, «Да / Нет» of a suggested account, a fact deleted or corrected. No owner switch. */
+  clientFanCard: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
+  clientFanLinkDecide: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
+  clientFanFactChange: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
   /**
    * 1.47.0: the voice notes (the hub's voice-notes lane, HF-4б), on both sites: the paid create (idempotent per
    * `clientRequestId`, never repeated by itself), its status, its MP3 (`fetchVoiceNoteAudio` of the SDK, raw bytes).
