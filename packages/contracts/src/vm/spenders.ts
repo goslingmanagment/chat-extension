@@ -6,6 +6,7 @@
 import { type CgErrorView } from '../errors';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type BatchRowVM, type BatchVM } from './batch';
+import { type MediaPickerVM } from './media';
 import { type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from './actions';
 import { type HotkeyLabel } from './catalog';
 import { type Msg } from './i18n';
@@ -86,7 +87,15 @@ export interface OutreachVM {
   readonly channel: 'own' | 'preview';
   /** `preview`: the vault media every fan of the outreach takes («Для всей рассылки» in a fan's picker); null — none set. */
   readonly media: { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
+  /**
+   * `preview`: the outreach's own media window, open («Выбрать медиа»): the vault, the picks, the price — its media
+   * actions name `OUTREACH_MEDIA_HANDLE`; null — closed.
+   */
+  readonly picker: MediaPickerVM | null;
 }
+
+/** The target of the outreach's own media window: the media actions with it pick for the whole outreach, for no fan. */
+export const OUTREACH_MEDIA_HANDLE = 'outreach:media';
 
 /** A row's «Отправить» of the outreach. */
 export interface OutreachRowVM {

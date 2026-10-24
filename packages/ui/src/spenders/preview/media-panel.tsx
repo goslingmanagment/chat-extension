@@ -18,6 +18,8 @@ import { Button, ErrorCard, Icon, Spinner, TextField, useDispatch, useI18n, useT
 export interface MediaPanelProps {
   readonly vm: MediaPickerVM;
   readonly handle: TargetHandle;
+  /** `window` — «Рассылка»'s own media window: the folders wrap, the grid is large and fills the window. */
+  readonly variant?: 'window';
 }
 
 const duration = (seconds: number): string => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -113,7 +115,7 @@ function Cell({ cell, handle, priced }: { readonly cell: MediaCellVM; readonly h
 }
 
 /** The open panel: folders, the grid, the price and what goes. */
-function Panel({ vm, handle }: MediaPanelProps): JSX.Element {
+function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const gridRef = useRef<HTMLDivElement>(null);
@@ -126,7 +128,7 @@ function Panel({ vm, handle }: MediaPanelProps): JSX.Element {
     }
   };
   return (
-    <section class="cg-pvm" aria-label={i18n.t('preview.media.label')} data-cg-media-panel="open">
+    <section class={`cg-pvm${variant === 'window' ? ' cg-pvm--window' : ''}`} aria-label={i18n.t('preview.media.label')} data-cg-media-panel="open">
       <div class="cg-pvm__head">
         <div class="cg-pvm__folders" role="tablist" aria-label={i18n.t('preview.media.label')}>
           {folders.items.map((folder) => (
@@ -146,7 +148,8 @@ function Panel({ vm, handle }: MediaPanelProps): JSX.Element {
             <Button label={i18n.t('preview.media.foldersMore')} size="sm" variant="quiet" busy={folders.loading} onClick={() => void dispatch({ type: 'LoadMoreMedia', targetHandle: handle, what: 'folders' })} />
           ) : null}
         </div>
-        <Button label={i18n.t('preview.media.close')} icon="x" iconOnly size="sm" variant="quiet" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: false })} />
+        {/* The window has its own «Закрыть Esc». */}
+        {variant === 'window' ? null : <Button label={i18n.t('preview.media.close')} icon="x" iconOnly size="sm" variant="quiet" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: false })} />}
       </div>
       {folders.error !== null || grid.error !== null ? (
         <div class="cg-pvm__error">
@@ -215,7 +218,7 @@ function OutreachMediaButton({ vm, handle }: MediaPanelProps): JSX.Element | nul
   return <Button label={i18n.t('outreach.media.take')} size="sm" variant="line" class="cg-pvm__or" tooltip={i18n.t('outreach.media.takeTooltip')} onClick={() => void dispatch({ type: 'SetOutreachMedia', targetHandle: handle })} />;
 }
 
-const MediaView = (props: MediaPanelProps): JSX.Element => (props.vm.open ? <Panel {...props} /> : <Closed {...props} />);
+const MediaView = (props: MediaPanelProps): JSX.Element => (props.vm.open || props.variant === 'window' ? <Panel {...props} /> : <Closed {...props} />);
 
 const MEDIA_PANEL_CSS = `
 .cg-pvm { display: flex; flex-direction: column; min-width: 0; border-top: 1px solid var(--cg-rule); }
@@ -276,6 +279,20 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm__bad { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-danger); }
 .cg-pvm__wait-line { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-ink-muted); }
 .cg-pvm__warn { display: inline-flex; align-items: center; gap: 6px; color: var(--cg-warn-ink); }
+/* «Рассылка»'s media window: every folder in sight, a large grid that fills the window, the price and «Для всей рассылки» at its foot. */
+.cg-pvm--window { flex: 1; min-height: 0; border-top: 0; }
+.cg-pvm--window .cg-pvm__head { align-items: flex-start; padding: 10px 12px 8px 20px; }
+.cg-pvm--window .cg-pvm__folders { flex-wrap: wrap; overflow: visible; gap: 6px; }
+.cg-pvm--window .cg-pvm__folder { max-width: 260px; height: 28px; padding: 0 12px; border-radius: 14px; font-size: var(--cg-text-sm2); }
+.cg-pvm--window .cg-pvm__grid { flex: 1; min-height: 0; max-height: none; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; padding: 4px 20px 12px; align-content: start; }
+.cg-pvm--window .cg-pvm__cell { aspect-ratio: 3 / 4; }
+.cg-pvm--window .cg-pvm__order { top: 6px; left: 6px; min-width: 22px; height: 22px; border-radius: 11px; line-height: 22px; font-size: var(--cg-text-xs); }
+.cg-pvm--window .cg-pvm__free { top: 6px; right: 6px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: var(--cg-text-xs); }
+.cg-pvm--window .cg-pvm__foot { gap: 12px; padding: 10px 20px; border-top: 1px solid var(--cg-rule); background: var(--cg-sunk); min-height: 48px; }
+.cg-pvm--window .cg-pvm__price .cg-field { width: 150px; height: 30px; }
+.cg-pvm--window .cg-pvm__foot .cg-pvm__or { margin-left: auto; }
+/* In the window's column a 100% basis is the window's whole height: the notes would push the grid out of sight. */
+.cg-pvm--window .cg-pvm__notes { flex: none; padding: 0 20px 10px; background: var(--cg-sunk); }
 `;
 
 export const MEDIA_PANEL_STYLES: StyleSource = { id: 'cg-preview-media', css: MEDIA_PANEL_CSS };

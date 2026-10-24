@@ -50,8 +50,7 @@ import {
   type UiAction,
   type UiActionType,
   type UserOptions,
-  type VmView,
-} from '@cg/contracts/vm';
+  type VmView, OUTREACH_MEDIA_HANDLE, type MediaPickerVM } from '@cg/contracts/vm';
 
 import { MIN_MESSAGES_FOR_PING } from '../../domain/features/policy';
 import { DeferredInsertSlot, type DeferredOutcome } from '../../domain/insert/deferred';
@@ -77,7 +76,7 @@ import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type 
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
 import { attachmentSummary, type Attachment } from '../../domain/media/attachment';
-import { MediaDesk } from './media';
+import { MediaDesk, OUTREACH_PICKER_FAN } from './media';
 import { SeenDesk, hostChatReadPort, type ChatReadPort } from './seen';
 import { partsOfResult, previewResult, type PartRows } from './result';
 import { clickable, fanAttempts, fanSendsOf, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type FanSendFact, type FanSends, type PartAttempt } from './send-rows';
@@ -305,6 +304,8 @@ export interface PreviewController extends SurfaceController<'preview'> {
   setOutreach(on: boolean): boolean;
   /** The vault media every fan of the outreach takes, as its bar says it; null — none set. */
   outreachMedia(): { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
+  /** The outreach's own media window while it is open; null — closed (or no such send here). */
+  outreachPicker(): MediaPickerVM | null;
 }
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
@@ -372,9 +373,19 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     port: host.media,
     clock,
     i18n,
-    changed: () => changed(),
-    shown: (chat) => [...targets.values()].some((target) => target.fanRef === chat.platformFanId && chatOf(target)?.hostAccountId === chat.hostAccountId),
+    changed: (chat) => {
+      changed();
+      // The outreach's own media window is drawn by the Spenders board: it hears of it as of its batch.
+      if (chat.platformFanId === OUTREACH_PICKER_FAN) for (const listener of [...batchListeners]) listener();
+    },
+    shown: (chat) => (chat.platformFanId === OUTREACH_PICKER_FAN ? outreachOn : [...targets.values()].some((target) => target.fanRef === chat.platformFanId && chatOf(target)?.hostAccountId === chat.hostAccountId)),
   });
+
+  /** The outreach's own media window picks in this «chat»: the page's account, no fan. */
+  const outreachChat = (): ChatRef | null => {
+    const binding = context.current().binding;
+    return binding === null ? null : { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: OUTREACH_PICKER_FAN };
+  };
   /**
    * Sends that took media, by attempt: the picks left the picker with the click, and come back to it only when the send
    * proved it never reached the platform (held, not queued, refused).
@@ -2489,6 +2500,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       }
       return generate(type, state, action.feature, action.options, null);
     }
+    if (isMediaAction(action) && action.targetHandle === OUTREACH_MEDIA_HANDLE) {
+      // «Выбрать медиа» of the outreach: its own window, for no fan.
+      const chat = outreachChat();
+      if (!outreachOn || deps.sender === null || chat === null || !media.available) return Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n)));
+      return Promise.resolve(mediaAction(action, chat) ? done(type) : done(type, 'noop'));
+    }
     if (isMediaAction(action)) {
       if (parseFanHandle(action.targetHandle) === null) return null;
       const state = stateOf(action.targetHandle);
@@ -2514,6 +2531,17 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (action.type === 'SendDraft') {
       const state = stateOf(action.targetHandle);
       return state === null ? null : sendDraft(type, state);
+    }
+    if (action.type === 'SetOutreachMedia' && action.targetHandle === OUTREACH_MEDIA_HANDLE) {
+      const chat = outreachChat();
+      if (!outreachOn || deps.sender === null || chat === null) return null;
+      const copy = media.copyOf(chat);
+      if (copy === null) return Promise.resolve(refused(type, localError('CG-SEND-MEDIA', i18n)));
+      outreachMedia = { attachment: copy, from: null };
+      // The window has done its job: it closes, and the picks stay in it for «Изменить».
+      media.setOpen(chat, false);
+      outreachChanged();
+      return Promise.resolve(done(type));
     }
     if (action.type === 'SetOutreachMedia') {
       const state = stateOf(action.targetHandle);
@@ -2757,6 +2785,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         outreachChanged();
       }
       return true;
+    },
+    outreachPicker() {
+      const chat = outreachChat();
+      if (!outreachOn || deps.sender === null || chat === null || !pageFlag(context.current(), 'previewSend')) return null;
+      const vm = media.vm(chat);
+      if (vm === null || !vm.open) return null;
+      const copy = media.copyOf(chat);
+      return copy === null ? vm : { ...vm, outreach: outreachMedia?.attachment === copy ? 'set' : 'offer' };
     },
     outreachMedia() {
       if (outreachMedia === null) return null;

@@ -6,10 +6,10 @@
 
 import { type JSX } from 'preact';
 
-import { type OutreachRowVM, type OutreachVM } from '@cg/contracts/vm';
+import { OUTREACH_MEDIA_HANDLE, type BatchVM, type MediaPickerVM, type OutreachRowVM, type OutreachVM } from '@cg/contracts/vm';
 
 import { Button, CheckGlyph, Icon, TextField, useDispatch, useI18n, useTooltip } from '../kit';
-import { priceText } from './preview/MediaPicker';
+import { MediaPicker, priceText } from './preview/MediaPicker';
 
 const TEXT_MAX = 5_000;
 
@@ -58,7 +58,7 @@ function Item({ item }: { readonly item: OutreachVM['items'][number] }): JSX.Ele
 }
 
 /** The bar under the window's chips while the outreach is open. */
-export function OutreachBar({ outreach, started }: { readonly outreach: OutreachVM; readonly started: boolean }): JSX.Element {
+export function OutreachBar({ outreach, batch }: { readonly outreach: OutreachVM; readonly batch: BatchVM | undefined }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const media = outreach.items.some((item) => item.contentType === 1);
@@ -101,16 +101,20 @@ export function OutreachBar({ outreach, started }: { readonly outreach: Outreach
         <div class="cg-or__col">
           <span class="cg-or__label">{i18n.t('outreach.media.title')}</span>
           {outreach.media === null ? (
-            <span class="cg-or__note">{i18n.t('outreach.media.none')}</span>
+            <>
+              {/* The outreach's own media window: the vault, the picks, the price — for no fan in particular. */}
+              <Button label={i18n.t('outreach.media.pick')} icon="media" variant="line" size="sm" class="cg-or__pick" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: OUTREACH_MEDIA_HANDLE, open: true })} />
+              <span class="cg-or__note">{i18n.t('outreach.media.none')}</span>
+            </>
           ) : (
             <span class="cg-or__media" data-cg-outreach-media="on">
               <Icon name="media" />
               <b>{mediaText(i18n, outreach.media)}</b>
               {outreach.media.from === null ? null : <span class="cg-or__id">{i18n.t('outreach.media.from', { name: outreach.media.from })}</span>}
+              <Button label={i18n.t('outreach.media.change')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: OUTREACH_MEDIA_HANDLE, open: true })} />
               <Button label={i18n.t('outreach.media.clear')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'ClearOutreachMedia' })} />
             </span>
           )}
-          {started ? null : <span class="cg-or__note">{i18n.t('outreach.hintPreview')}</span>}
         </div>
       ) : (
       <div class="cg-or__col">
@@ -128,12 +132,72 @@ export function OutreachBar({ outreach, started }: { readonly outreach: Outreach
           </div>
         )}
         {media ? <span class="cg-or__note">{i18n.t('outreach.mediaHint')}</span> : null}
-        {/* How it goes, until a batch wrote the lines: then the batch's own line says what is left. */}
-        {started ? null : <span class="cg-or__note">{i18n.t(adapt ? 'outreach.hintAdapt' : 'outreach.hint')}</span>}
       </div>
       )}
+      <Steps outreach={outreach} batch={batch} />
       <Button label={i18n.t('outreach.close')} icon="x" iconOnly variant="quiet" size="sm" class="cg-or__close cg-or__icon" onClick={() => void dispatch({ type: 'SetOutreach', open: false })} />
     </section>
+  );
+}
+
+/**
+ * How the outreach goes, the step at hand lit: the text, the ticks in the list, the batch's button over the list, the
+ * row's «Отправить». Without «Подстроить» the common text may stay empty, so it never holds the way.
+ */
+function Steps({ outreach, batch }: { readonly outreach: OutreachVM; readonly batch: BatchVM | undefined }): JSX.Element {
+  const i18n = useI18n();
+  const adapting = outreach.adapt === true || outreach.channel === 'preview';
+  const started = batch !== undefined && batch.queued + batch.generating + batch.ready + batch.sent + batch.failed > 0;
+  const steps = [
+    { key: 'text', label: i18n.t(adapting ? 'outreach.step.text' : 'outreach.step.textOptional'), done: outreach.text.trim() !== '', holds: adapting },
+    { key: 'pick', label: i18n.t('outreach.step.pick'), done: started || (batch?.picked ?? 0) > 0, holds: true },
+    { key: 'run', label: i18n.t('outreach.step.run', { button: i18n.t(adapting ? 'outreach.adaptLines' : 'outreach.writeLines') }), done: started, holds: true },
+    { key: 'send', label: i18n.t('outreach.step.send'), done: started && batch.sent > 0 && batch.ready + batch.queued + batch.generating === 0, holds: true },
+  ];
+  const now = steps.findIndex((step) => step.holds && !step.done);
+  return (
+    <ol class="cg-or__steps" aria-label={i18n.t('outreach.steps')}>
+      {steps.map((step, index) => (
+        <li key={step.key} class={`cg-or__step${step.done ? ' is-done' : ''}${index === now ? ' is-now' : ''}`} {...(index === now ? { 'aria-current': 'step' as const } : {})}>
+          <span class="cg-or__stepn cg-num" aria-hidden="true">
+            {step.done ? <Icon name="check" size={12} /> : index + 1}
+          </span>
+          {step.label}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * «Выбрать медиа»: the outreach's own media window over the list — the vault's folders, a large grid, the picks in
+ * order with their free previews, the price, and «Для всей рассылки». Esc or × closes it; the picks stay for «Изменить».
+ */
+export function OutreachMediaWindow({ picker }: { readonly picker: MediaPickerVM }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const close = (): void => void dispatch({ type: 'SetMediaOpen', targetHandle: OUTREACH_MEDIA_HANDLE, open: false });
+  return (
+    <div
+      class="cg-or-mw"
+      role="dialog"
+      aria-label={i18n.t('outreach.media.window')}
+      data-cg-outreach-window="media"
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      }}
+    >
+      <div class="cg-or-mw__head">
+        <b class="cg-or-mw__title">{i18n.t('outreach.media.window')}</b>
+        <span class="cg-or__note">{i18n.t('outreach.media.windowHint')}</span>
+        <span class="cg-sp__grow" />
+        <Button label={i18n.t('common.close')} variant="quiet" size="sm" hotkey="Esc" onClick={close} />
+      </div>
+      <MediaPicker vm={picker} handle={OUTREACH_MEDIA_HANDLE} variant="window" />
+    </div>
   );
 }
 
@@ -233,8 +297,31 @@ export const OUTREACH_CSS = `
 .cg-or__adapt .cg-ico { width: 11px; height: 11px; }
 .cg-or__media { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 32px; padding: 0 4px 0 10px; border-radius: var(--cg-r-md); background: var(--cg-surface); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-strong); font-size: var(--cg-text-sm2); }
 .cg-or__media .cg-ico { width: 14px; height: 14px; color: var(--cg-ink-muted); }
+.cg-spw .cg-or__pick.cg-btn { align-self: flex-start; }
+.cg-or-mw {
+  position: absolute; inset: 64px 16px 40px; z-index: 30; display: flex; flex-direction: column; min-height: 0;
+  border-radius: 12px; background: var(--cg-surface); box-shadow: var(--cg-shadow), 0 0 0 1px var(--cg-rule-2); overflow: hidden;
+}
+.cg-or-mw__head { flex: none; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--cg-rule); }
+.cg-or-mw__title { font-weight: 600; font-size: var(--cg-text-lg, 15px); color: var(--cg-ink-strong); white-space: nowrap; }
+.cg-or-mw .cg-pvm { flex: 1; min-height: 0; }
 .cg-or__media b { font-weight: 500; }
 .cg-or__note { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 1.4; white-space: normal; }
+.cg-or__steps {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; margin: 0; padding: 0; list-style: none;
+  color: var(--cg-ink-muted); font-size: var(--cg-text-sm2);
+}
+.cg-or__step { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.cg-or__step + .cg-or__step::before { content: ''; width: 24px; height: 1px; margin: 0 12px; background: var(--cg-rule-2); }
+.cg-or__stepn {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--cg-rule-2); font-size: var(--cg-text-xs); font-weight: 600;
+}
+.cg-or__stepn .cg-ico { width: 12px; height: 12px; }
+.cg-or__step.is-done { color: var(--cg-ink-2); }
+.cg-or__step.is-done .cg-or__stepn { background: var(--cg-surface); color: var(--cg-ink-strong); }
+.cg-or__step.is-now { color: var(--cg-ink-strong); font-weight: 500; }
+.cg-or__step.is-now .cg-or__stepn { background: var(--cg-clay-ink); color: var(--cg-surface); box-shadow: none; }
 .cg-spw .cg-sp__head .cg-or__toggle.cg-btn[aria-pressed="true"] { background: var(--cg-seg-on); color: var(--cg-ink-strong); }
 /* A row of the outreach: «Отправить» always shown in the action cell; the personal line under it is a draft. */
 .cg-bd__act.cg-or__act { gap: 6px; }

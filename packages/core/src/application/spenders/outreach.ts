@@ -68,6 +68,8 @@ export interface OutreachDeps {
   readonly canAdapt: () => boolean;
   /** `preview` channel: the vault media every fan takes, as the preview has them; null — none set. */
   readonly media?: () => OutreachVM['media'];
+  /** `preview` channel: the outreach's own media window while open. */
+  readonly picker?: () => OutreachVM['picker'];
   readonly rpc: TabRpc;
   readonly clock: BoardsClock;
   readonly i18n: I18n;
@@ -122,6 +124,7 @@ export function createOutreach(deps: OutreachDeps) {
       sent: [...rows.values()].filter((row) => row.state === 'sent').length,
       channel,
       media: channel === 'preview' ? (deps.media?.() ?? null) : null,
+      picker: channel === 'preview' ? (deps.picker?.() ?? null) : null,
     };
   }
 
