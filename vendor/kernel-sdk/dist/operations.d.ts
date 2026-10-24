@@ -687,6 +687,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/profile/from-generation";
     };
+    readonly clientHandoff: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/handoff";
+    };
     readonly clientInConversation: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/in-conversation";
@@ -710,6 +714,14 @@ export declare const kernelOperations: {
     readonly clientSpenderStats: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/spenders/stats";
+    };
+    readonly clientWinBack: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/win-back";
+    };
+    readonly clientWinBackAttempt: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/win-back/attempts";
     };
     readonly contentComments: {
         readonly method: "GET";
@@ -1370,6 +1382,18 @@ export declare const kernelOperations: {
     readonly teamShifts: {
         readonly method: "GET";
         readonly path: "/api/v1/team/shifts";
+    };
+    readonly teamWinBackApproachSave: {
+        readonly method: "POST";
+        readonly path: "/api/v1/team/win-back/approaches";
+    };
+    readonly teamWinBackApproaches: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/win-back/approaches";
+    };
+    readonly teamWinBackResults: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/win-back/results";
     };
     readonly upsertFanProfile: {
         readonly method: "PUT";

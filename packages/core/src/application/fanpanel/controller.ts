@@ -14,6 +14,9 @@
 // the team's alias on each, the accounts Hub suggests are the same person with «Да» / «Нет», the facts from the chats
 // with «Исправить» / «Удалить». Read only while that tab is shown; a decision or a change is one call, never repeated,
 // and the card comes back with its answer.
+//
+// Chat Memory week 3, «Очередь» (./queue.ts): the page of the open tab — who waits, whom to win back, the handoff. It
+// does not follow the open chat: a row opens a chat and the panel stays on the queue.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
@@ -32,6 +35,7 @@ import { type PageContextPort, flagFailure, pageFlag } from '../boards/context';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
+import { createQueuePanel } from './queue';
 import { dataView, errorOf, failureClass, failureView, loadingView, msg, stamp } from '../boards/views';
 
 /** A card is read again after this long, or on «Повторить». */
@@ -110,6 +114,9 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
   const changed = (): void => {
     if (!disposed) cell.invalidate();
   };
+  const queue = createQueuePanel({ rpc, clock, context, i18n, changed });
+  /** «Очередь» is read and polled only while the panel shows it. */
+  const followQueue = (): void => queue.setActive(surfaces.current().fanPanel && tab === 'queue');
 
   /** The open chat, when it belongs to the account the context is bound to. */
   function openChat(): ChatRef | null {
@@ -298,9 +305,10 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
   function build(): FanPanelVM {
     const ctx = context.current();
     const chat = openChat();
-    // «Память» without the hub's card is no tab: the panel shows «Фан».
-    const shown = tab === 'memory' && !memoryServed() ? 'fan' : tab;
-    const base = { tab: shown, personaLabel: ctx.persona?.label ?? null, close: CLOSE };
+    const queueView = queue.view();
+    // «Память» without the hub's card is no tab, nor «Очередь» without the panel's page: the panel shows «Фан».
+    const shown = (tab === 'memory' && !memoryServed()) || (tab === 'queue' && queueView === undefined) ? 'fan' : tab;
+    const base = { tab: shown, personaLabel: ctx.persona?.label ?? null, close: CLOSE, ...(queueView === undefined ? {} : { queue: queueView }) };
     const nothing = { fan: null, spent: null, subscription: null, host: null, bio: null, lists: [], footer: { stamp: stamp(null, 'unknown'), archiveMessages: null } } as const;
     const retry: UiAction = { type: 'ReloadView', selector: SELECTOR };
 
@@ -396,9 +404,11 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
         tab = action.tab;
         changed();
         ensure();
+        followQueue();
       }
       return Promise.resolve(done(action.type));
     }
+    if (action.type === 'SetQueueTab' || action.type === 'PickWinBack') return queue.dispatch(action);
     // Chat Memory week 2: «Да, это он» / «Нет» on a suggested account; «Удалить» / «Исправить» of a fact.
     if (action.type === 'DecideFanLink') {
       const { otherPlatform, otherFanRef, decision } = action;
@@ -414,6 +424,10 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     }
     if (action.type === 'ReloadView') {
       if (action.selector.of !== 'fan-panel') return null;
+      if (tab === 'queue') {
+        queue.reload();
+        return Promise.resolve(done(action.type));
+      }
       const reads = context.current().phase === 'ready' ? Promise.resolve() : context.refresh();
       return reads.then(async () => {
         const chat = openChat();
@@ -429,14 +443,17 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       if (state.epoch !== epoch) {
         epoch = state.epoch;
         cards = new Map();
+        queue.reset();
       }
       changed();
       ensure();
+      followQueue();
     }),
     surfaces.subscribe((state, previous) => {
       if (state.fanPanel === previous.fanPanel) return;
       changed();
       ensure();
+      followQueue();
     }),
     host.subscribe((event: HostEvent) => {
       // The open chat changed, or ChatSpace loaded something about the fan: the panel follows.
@@ -455,6 +472,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     dispatch,
     dispose() {
       disposed = true;
+      queue.dispose();
       for (const off of offs) off();
       cell.clear();
     },

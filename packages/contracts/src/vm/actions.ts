@@ -132,6 +132,9 @@ export const SPENDERS_SORTS = ['sum', 'waiting', 'we-wrote', 'period'] as const;
 export type SpendersSort = (typeof SPENDERS_SORTS)[number];
 
 export const NEWCOMERS_TABS = ['todo', 'all'] as const;
+/** Chat Memory week 3, «Очередь» of the fan panel: «Ждут», «Вернуть», «Передача». */
+export const QUEUE_TABS = ['waiting', 'winback', 'handoff'] as const;
+export type QueueTab = (typeof QUEUE_TABS)[number];
 export type NewcomersTab = (typeof NEWCOMERS_TABS)[number];
 /** Greeting status filters with counters (NF-008). */
 export const GREETING_FILTERS = ['any', 'none', 'sending', 'stopped', 'greeted', 'replied'] as const;
@@ -403,7 +406,14 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),
-  act('SetFanPanelTab', { tab: z.enum(['fan', 'recap', 'memory']) }),
+  act('SetFanPanelTab', { tab: z.enum(['fan', 'recap', 'memory', 'queue']) }),
+  /** Chat Memory week 3, «Очередь» of the fan panel: «Ждут» / «Вернуть» / «Передача». */
+  act('SetQueueTab', { tab: z.enum(QUEUE_TABS) }),
+  /**
+   * «Вернуть» of «Очередь»: the chatter picks one of the owner's approaches for a fan of the list. One hub call, never
+   * repeated by itself; the fan leaves the list. Nothing is sent: the chatter writes himself.
+   */
+  act('PickWinBack', { fanRef: NativeIdSchema, approachId: z.int().check(z.positive()) }),
   /**
    * Chat Memory week 2, «Память»: «Да, это он» / «Нет» on an account Hub suggests is the same person as the open
    * chat's fan. One hub call, never repeated by itself; the card is answered as it stands.

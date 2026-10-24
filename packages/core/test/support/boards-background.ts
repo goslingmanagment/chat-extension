@@ -364,9 +364,22 @@ export class BoardsBackground {
       const pageLabel = this.pageLabel(pageId);
       return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientSpenderStats', { pageLabel, windowDays, timeZone });
     },
-    'spenders.queue': ({ pageId, cursor, limit }) => {
+    'spenders.queue': ({ pageId, cursor, limit, everyone }) => {
       const pageLabel = this.pageLabel(pageId);
-      return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientSpenderAwaitingReply', cursor === null ? { pageLabel, limit } : { pageLabel, cursor, limit });
+      const all = everyone === true ? { everyone: 'true' as const } : {};
+      return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientSpenderAwaitingReply', cursor === null ? { pageLabel, limit, ...all } : { pageLabel, cursor, limit, ...all });
+    },
+    'queue.winback': ({ pageId }) => {
+      const pageLabel = this.pageLabel(pageId);
+      return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientWinBack', { pageLabel });
+    },
+    'queue.winback.pick': ({ pageId, fanRef, approachId }) => {
+      const pageLabel = this.pageLabel(pageId);
+      return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientWinBackAttempt', { pageLabel, fanRef, approachId });
+    },
+    'queue.handoff': ({ pageId }) => {
+      const pageLabel = this.pageLabel(pageId);
+      return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientHandoff', { pageLabel });
     },
     'feed.read': ({ pageId, fanRef, cursor, limit, summaryWindow, conversationRef }) => {
       const pageLabel = this.pageLabel(pageId);

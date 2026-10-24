@@ -48,11 +48,15 @@ import {
   type SendAttributionsRequest,
   type ActivityBeatRequest,
   type FanCard,
+  type Handoff,
+  type WinBackAttemptRequest,
+  type WinBackList,
   type FanCardQuery,
   type FanFactChangeRequest,
   type FanLinkDecideRequest,
   type PersonaCatalogItem,
   type ProfileFromGenerationRequest,
+  type QueuePage,
   type QueueQuery,
   type RecapStatusQuery,
   type SharedRecapsQuery,
@@ -457,6 +461,14 @@ export class FakeHub {
       case 'fanCard':
         this.page(command.pageLabel);
         s.data.setFanCard(command.pageLabel, command.fanRef, command.card as unknown as FanCard);
+        return { ok: true };
+      case 'queue':
+        this.page(command.pageLabel);
+        s.data.setQueue(command.pageLabel, {
+          ...(command.waiting === undefined ? {} : { waiting: command.waiting as unknown as QueuePage['items'] }),
+          ...(command.winBack === undefined ? {} : { winBack: command.winBack as unknown as WinBackList }),
+          ...(command.handoff === undefined ? {} : { handoff: command.handoff as unknown as Handoff }),
+        });
         return { ok: true };
       case 'talking':
         this.page(command.pageLabel);
@@ -1107,6 +1119,12 @@ export class FakeHub {
         return read(s.data.fanLinkDecide(need(page), request as FanLinkDecideRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
       case 'clientFanFactChange':
         return read(s.data.fanFactChange(need(page), request as FanFactChangeRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
+      case 'clientWinBack':
+        return { kind: 'json', status: 200, body: s.data.winBack(need(page), now) };
+      case 'clientWinBackAttempt':
+        return read(s.data.winBackAttempt(need(page), request as WinBackAttemptRequest, now));
+      case 'clientHandoff':
+        return { kind: 'json', status: 200, body: s.data.handoff(need(page), now) };
       case 'clientInConversation':
         return read(s.data.inConversation(need(page), need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now));
       case 'voiceNoteCreate':

@@ -103,6 +103,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   spenderFans: { fans: isSpenderSeeds },
   talking: { ...PAGE_FAN, conversationRef: isNativeId, name: isString, agoMs: isNumber },
   fanCard: { ...PAGE_FAN, card: isObject },
+  queue: { pageLabel: isString, waiting: isArray, winBack: isObject, handoff: isObject },
   status: {},
 };
 
@@ -129,6 +130,7 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   spenderFans: ['fans'],
   talking: ['pageLabel', 'fanRef', 'name'],
   fanCard: ['pageLabel', 'fanRef', 'card'],
+  queue: ['pageLabel'],
 };
 
 /** Keys of a config patch (FakeHubConfigPatch). */

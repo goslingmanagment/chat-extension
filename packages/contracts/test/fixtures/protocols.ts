@@ -87,6 +87,16 @@ const fuseState = { fuse: { trippedAt: T0, reason: 'text', where: 'echo', build:
 /** A hub DTO answer: the sample and a broken copy of it. */
 const dto = (valid: object, invalid: object) => ({ valid: [valid], invalid: [invalid, { any: 'shape' }] }) as const;
 
+/** Chat Memory week 3: «Вернуть» and «Передача» of «Очередь» as the hub answers them. */
+const WIN_BACK = { pageLabel: 'model-two-fansly', approaches: [{ id: 2, label: 'Скучала' }], items: [{ fanRef: '920000000000000031', conversationRef: '810000000000000031', username: 'kai_38', displayName: 'Kai', alias: '💵Kai/Canada/38', lifetimeGrossMills: 120000, reason: 'expiring', reasonAt: '2026-10-26T10:00:00.000Z' }], serverNow: '2026-10-24T10:00:00.000Z' };
+const HANDOFF = {
+  pageLabel: 'model-two-fansly',
+  recent: [{ fanRef: '920000000000000031', conversationRef: '810000000000000031', username: 'kai_38', alias: null, lastSentAt: '2026-10-24T09:50:00.000Z', messages: 4, chatters: ['Никита'], inConversation: ['Никита'] }],
+  waiting: { total: 1, head: [{ fanRef: '920000000000000032', conversationRef: null, username: null, alias: null, lifetimeGrossMills: 0, lastFanMessageAt: '2026-10-24T09:00:00.000Z' }] },
+  promises: [{ fanRef: '920000000000000031', conversationRef: '810000000000000031', text: 'Promised a video on Friday', messageRef: '930000000000000001', messageAt: null }],
+  serverNow: '2026-10-24T10:00:00.000Z',
+};
+
 /** Chat Memory week 2: a fan's card as the hub answers it. */
 const MEMORY_CARD = { pageLabel: 'model-two-fansly', fanRef: '920000000000000003', known: true, accounts: [{ platform: 'fansly', fanRef: '920000000000000003', username: 'kai_38', displayName: 'Kai', gone: false, linkedBy: null }], pages: [{ pageLabel: 'model-two-fansly', platform: 'fansly', modelName: 'Model Two', fanRef: '920000000000000003', granted: true, alias: '💵Kai/Canada/38', subscribed: true, subscribedSince: '2026-09-01T10:00:00.000Z', subscriptionEndsAt: null, spentMills: 120000, last30Mills: { tip: 20000 }, lastPurchaseAt: '2026-10-20T10:00:00.000Z' }], suggestions: [], facts: [{ id: 7, kind: 'about', text: 'Lives in Toronto, works nights', pageLabel: 'model-two-fansly', granted: true, conversationRef: '810000000000000001', messageRef: '930000000000000001', messageAt: '2026-10-20T10:00:00.000Z', source: 'ai', author: null, createdAt: '2026-10-20T10:20:00.000Z' }], serverNow: '2026-10-24T10:00:00.000Z' };
 
@@ -326,8 +336,20 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     res: dto(H.stats, { ...H.stats, moneyUnit: 'USD' }),
   },
   'spenders.queue': {
-    req: { valid: [{ pageId: 11, cursor: null, limit: 50 }, { pageId: 11, cursor: 'c1', limit: 100 }], invalid: [{ pageId: 11, cursor: null, limit: 101 }] },
+    req: { valid: [{ pageId: 11, cursor: null, limit: 50 }, { pageId: 11, cursor: 'c1', limit: 100 }, { pageId: 11, cursor: null, limit: 50, everyone: true }], invalid: [{ pageId: 11, cursor: null, limit: 101 }, { pageId: 11, cursor: null, limit: 50, everyone: 'true' }] },
     res: dto(H.queuePage, { ...H.queuePage, nextCursor: '' }),
+  },
+  'queue.winback': {
+    req: { valid: [{ pageId: 11 }], invalid: [{ pageId: 11, fanRef: '1' }] },
+    res: { valid: [WIN_BACK], invalid: [{ ...WIN_BACK, items: [{ fanRef: '1' }] }] },
+  },
+  'queue.winback.pick': {
+    req: { valid: [{ pageId: 11, fanRef: '920000000000000031', approachId: 2 }], invalid: [{ pageId: 11, fanRef: '920000000000000031', approachId: 0 }, { pageId: 11, approachId: 2 }] },
+    res: { valid: [{ attemptId: 5, list: WIN_BACK }], invalid: [{ attemptId: 5 }] },
+  },
+  'queue.handoff': {
+    req: { valid: [{ pageId: 11 }], invalid: [{ pageId: 0 }] },
+    res: { valid: [HANDOFF], invalid: [{ ...HANDOFF, waiting: { total: 1 } }] },
   },
   'feed.read': {
     req: {

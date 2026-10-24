@@ -193,6 +193,10 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * (`clientFanLinkDecide`), a fact deleted or corrected (`clientFanFactChange`). A hub without it shows no «Память».
    */
   'fan-card-v1',
+  /** Chat Memory week 3: «Вернуть» of «Очередь» — a few fans to win back and the owner's approaches, picked in one tap. */
+  'win-back-v1',
+  /** Chat Memory week 3: «Передача» of «Очередь» — whom the team wrote to, who waits, open promises. */
+  'handoff-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
