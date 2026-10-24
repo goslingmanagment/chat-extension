@@ -62,4 +62,9 @@ export interface MediaPickerVM {
   readonly allFree: boolean;
   /** The release forms of the picks: none picked, being read, read, not read («Повторить»). */
   readonly tags: 'none' | 'loading' | 'ok' | 'failed';
+  /**
+   * «Рассылка» of Spenders is open on this site: `offer` — «Для всей рассылки» takes these valid picks for every fan of
+   * it; `set` — these picks are the outreach's. Absent — no outreach, or nothing valid picked.
+   */
+  readonly outreach?: 'offer' | 'set';
 }

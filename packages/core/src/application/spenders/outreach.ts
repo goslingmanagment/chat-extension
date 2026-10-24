@@ -34,6 +34,11 @@ export type OutreachAnswer = { readonly ok: true; readonly messageId: string } |
 
 /** The site's half: the page's «Copied …» list and the background's send. */
 export interface OutreachPort {
+  /**
+   * How a row's «Отправить» sends: `own` (default) — this port's send with the copied items (Fansly); `preview` — the
+   * fan's card's send of its batch result with the outreach's vault media (OnlyFans, X8 and X53), handled by the preview.
+   */
+  readonly channel?: 'own' | 'preview';
   copied(): readonly OutreachItem[];
   send(request: OutreachRequest): Promise<OutreachAnswer>;
 }
@@ -61,6 +66,8 @@ export interface OutreachDeps {
   readonly port: OutreachPort;
   /** The hub rewrites a mass message for one fan (`outreach-fix-v1`): «Подстроить под фана» is offered. */
   readonly canAdapt: () => boolean;
+  /** `preview` channel: the vault media every fan takes, as the preview has them; null — none set. */
+  readonly media?: () => OutreachVM['media'];
   readonly rpc: TabRpc;
   readonly clock: BoardsClock;
   readonly i18n: I18n;
@@ -83,6 +90,7 @@ export function createOutreach(deps: OutreachDeps) {
   let epoch = 0;
 
   function read(): void {
+    if (channel === 'preview') return;
     const next = port.copied();
     const known = new Set(items.map(keyOf));
     for (const item of next) if (!known.has(keyOf(item)) && item.contentType === 2) picked.add(keyOf(item));
@@ -100,12 +108,21 @@ export function createOutreach(deps: OutreachDeps) {
     });
   }
 
-  /** The batch's Fix writes each fan's whole message from the common text. */
-  const adapting = (): boolean => adapt && deps.canAdapt();
+  const channel = port.channel ?? 'own';
+  /** The batch's Fix writes each fan's whole message from the common text; from the card (`preview`) always: its send is the result's. */
+  const adapting = (): boolean => (channel === 'preview' || adapt) && deps.canAdapt();
 
   function vm(): OutreachVM {
     const list: OutreachItemVM[] = items.map((item) => ({ ...item, picked: picked.has(keyOf(item)) }));
-    return { open, text, adapt: deps.canAdapt() ? adapt : null, items: list, sent: [...rows.values()].filter((row) => row.state === 'sent').length };
+    return {
+      open,
+      text,
+      adapt: deps.canAdapt() ? channel === 'preview' || adapt : null,
+      items: list,
+      sent: [...rows.values()].filter((row) => row.state === 'sent').length,
+      channel,
+      media: channel === 'preview' ? (deps.media?.() ?? null) : null,
+    };
   }
 
   /** What the board's batch writes for a fan while the bar is open: the Fix of the common text, or null — its own Reply / Ping. */
@@ -192,6 +209,7 @@ export function createOutreach(deps: OutreachDeps) {
   }
 
   return {
+    channel,
     vm,
     batchFix,
     needsText,

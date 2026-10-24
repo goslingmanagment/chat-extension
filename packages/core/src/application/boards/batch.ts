@@ -232,6 +232,10 @@ export interface BatchPreviewPort {
   batchLive(handle: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** X59 on a hub's «Новые»: the row's own «Отправить» of the fan's greeting; null — no part waits (absent — none here). */
   batchSend?(handle: string): NewcomerRowSendVM | null;
+  /** «Рассылка» of Spenders on a site that sends from the card (X8): its bar open or closed; false — no such send here. */
+  setOutreach?(on: boolean): boolean;
+  /** The vault media every fan of the outreach takes; null — none set. */
+  outreachMedia?(): { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
   onBatch(listener: () => void): () => void;
 }
 

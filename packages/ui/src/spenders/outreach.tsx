@@ -9,6 +9,7 @@ import { type JSX } from 'preact';
 import { type OutreachRowVM, type OutreachVM } from '@cg/contracts/vm';
 
 import { Button, CheckGlyph, Icon, TextField, useDispatch, useI18n, useTooltip } from '../kit';
+import { priceText } from './preview/MediaPicker';
 
 const TEXT_MAX = 5_000;
 
@@ -69,7 +70,7 @@ export function OutreachBar({ outreach, started }: { readonly outreach: Outreach
         <span class="cg-or__label">
           {i18n.t(adapt ? 'outreach.textAdapt' : 'outreach.text')}
           {/* «Подстроить под фана»: only where the hub can rewrite a mass message for one fan. */}
-          {outreach.adapt === null ? null : (
+          {outreach.adapt === null || outreach.channel === 'preview' ? null : (
             <button
               type="button"
               role="switch"
@@ -96,6 +97,22 @@ export function OutreachBar({ outreach, started }: { readonly outreach: Outreach
           onValue={(text) => void dispatch({ type: 'SetOutreach', text })}
         />
       </div>
+      {outreach.channel === 'preview' ? (
+        <div class="cg-or__col">
+          <span class="cg-or__label">{i18n.t('outreach.media.title')}</span>
+          {outreach.media === null ? (
+            <span class="cg-or__note">{i18n.t('outreach.media.none')}</span>
+          ) : (
+            <span class="cg-or__media" data-cg-outreach-media="on">
+              <Icon name="media" />
+              <b>{mediaText(i18n, outreach.media)}</b>
+              {outreach.media.from === null ? null : <span class="cg-or__id">{i18n.t('outreach.media.from', { name: outreach.media.from })}</span>}
+              <Button label={i18n.t('outreach.media.clear')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'ClearOutreachMedia' })} />
+            </span>
+          )}
+          {started ? null : <span class="cg-or__note">{i18n.t('outreach.hintPreview')}</span>}
+        </div>
+      ) : (
       <div class="cg-or__col">
         <span class="cg-or__label">
           {i18n.t('outreach.items')}
@@ -114,9 +131,16 @@ export function OutreachBar({ outreach, started }: { readonly outreach: Outreach
         {/* How it goes, until a batch wrote the lines: then the batch's own line says what is left. */}
         {started ? null : <span class="cg-or__note">{i18n.t(adapt ? 'outreach.hintAdapt' : 'outreach.hint')}</span>}
       </div>
+      )}
       <Button label={i18n.t('outreach.close')} icon="x" iconOnly variant="quiet" size="sm" class="cg-or__close cg-or__icon" onClick={() => void dispatch({ type: 'SetOutreach', open: false })} />
     </section>
   );
+}
+
+/** «2 медиа · 1 бесплатное превью · $25» of the outreach's vault media. */
+function mediaText(i18n: ReturnType<typeof useI18n>, media: NonNullable<OutreachVM['media']>): string {
+  const parts = [i18n.plural('outreach.plusMedia', media.count), media.previews === 0 ? null : i18n.plural('outreach.mediaPreviews', media.previews), media.priceCents === 0 ? i18n.t('outreach.mediaFree') : priceText(media.priceCents)];
+  return parts.filter((part) => part !== null).join(' · ');
 }
 
 /**
@@ -128,7 +152,9 @@ export function useOutreachAdds(outreach: OutreachVM | undefined): string | null
   if (outreach === undefined) return null;
   const items = outreach.items.filter((item) => item.picked).length;
   const text = outreach.adapt !== true && outreach.text.trim() !== '';
-  const parts = [text ? i18n.t('outreach.plusText') : null, items === 0 ? null : i18n.plural('outreach.plusItems', items)].filter((part) => part !== null);
+  // From the card: the outreach's vault media, as each fan's card takes them (a fan's own picks there win).
+  const media = outreach.media === null ? null : i18n.plural('outreach.plusMedia', outreach.media.count) + (outreach.media.priceCents > 0 ? ` ${priceText(outreach.media.priceCents)}` : '');
+  const parts = [text ? i18n.t('outreach.plusText') : null, items === 0 ? null : i18n.plural('outreach.plusItems', items), media].filter((part) => part !== null);
   return parts.length === 0 ? null : i18n.t('outreach.plus', { what: parts.join(` ${i18n.t('outreach.and')} `) });
 }
 
@@ -156,16 +182,16 @@ export function OutreachSend({ handle, row }: { readonly handle: string; readonl
       ) : null}
       {send ? (
         <Button
-          label={i18n.t('outreach.send')}
+          label={i18n.t(row.anyway === true ? 'outreach.sendAnyway' : 'outreach.send')}
           variant="send"
           size="sm"
           class="cg-or__send"
           tabIndex={-1}
-          tooltip={i18n.t('outreach.sendTooltip')}
+          tooltip={i18n.t(row.anyway === true ? 'outreach.sendAnywayTooltip' : 'outreach.sendTooltip')}
           reason={row.can ? null : i18n.t('newcomers.row.sendPaused')}
           onClick={(event) => {
             event.stopPropagation();
-            if (row.can) void dispatch({ type: 'SendOutreach', targetHandle: handle });
+            if (row.can) void dispatch(row.anyway === true ? { type: 'SendOutreach', targetHandle: handle, anyway: true } : { type: 'SendOutreach', targetHandle: handle });
           }}
         />
       ) : null}
@@ -205,6 +231,9 @@ export const OUTREACH_CSS = `
 .cg-or__adapt:hover { color: var(--cg-ink-strong); }
 .cg-or__adapt[aria-checked="true"] { background: var(--cg-clay-bg); color: var(--cg-clay-ink); }
 .cg-or__adapt .cg-ico { width: 11px; height: 11px; }
+.cg-or__media { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 32px; padding: 0 4px 0 10px; border-radius: var(--cg-r-md); background: var(--cg-surface); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-strong); font-size: var(--cg-text-sm2); }
+.cg-or__media .cg-ico { width: 14px; height: 14px; color: var(--cg-ink-muted); }
+.cg-or__media b { font-weight: 500; }
 .cg-or__note { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 1.4; white-space: normal; }
 .cg-spw .cg-sp__head .cg-or__toggle.cg-btn[aria-pressed="true"] { background: var(--cg-seg-on); color: var(--cg-ink-strong); }
 /* A row of the outreach: «Отправить» always shown in the action cell; the personal line under it is a draft. */
