@@ -945,6 +945,7 @@ export const RU: I18nCatalog<'ru'> = {
   'coach.recap.build': 'Собрать Recap',
   'coach.recap.refresh': 'Обновить Recap',
   'coach.recap.buildFull': 'Собрать полный',
+  'coach.recap.failed': 'Recap не собрался',
   'coach.turn.recap': 'с Recap · {age} назад',
   'coach.turn.recapBoth': 'с Recap · {full} назад и коротким · {short} назад',
   'coach.turn.recapShort': 'с коротким Recap · {age} назад',

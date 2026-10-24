@@ -303,18 +303,26 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     return done(type, 'opened');
   }
 
-  /** `panel` — asked from the fan panel's Recap tab, which shows it itself: no window over the panel (X55). */
+  /**
+   * `panel` — asked from where the Recap is shown already (the fan panel's Recap tab, Coach's Recap line): no window
+   * over it (X55), and no sheet of the dock behind it either (2026-10-24, the owner: a build from Coach streamed in
+   * the dock behind the window); a sheet that shows a Recap already follows the build.
+   */
   async function generate(type: UiAction['type'], length: RecapLength, cause: CauseKind, panel = false): Promise<ActionReceipt> {
     const chat = ws.situation().chat;
     if (chat === null) return refused(ws, type, { code: 'CG-CONTEXT-CHANGED' });
     const ui = uiOf(chat.key);
+    const follow = (): void => {
+      if (panel) ui.window = ui.holds = false;
+      if (!panel || ws.sheet(chat.key)?.kind === 'recap') ws.setSheet(chat.key, { kind: 'recap' });
+      else ws.bump();
+    };
     const running = ws.running(chat.key);
     // AI-127: the same build is already running — show it.
     if (running !== null && isRecap(running.view.feature) && lengthOf(running.view.feature) === length) {
       ui.length = length;
       ui.opId = running.view.opId;
-      if (panel) ui.window = ui.holds = false;
-      ws.setSheet(chat.key, { kind: 'recap' });
+      follow();
       return done(type, 'noop', { opId: running.view.opId });
     }
     const previous = ui.opId === null ? null : ws.ops.get(ui.opId);
@@ -331,8 +339,7 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       case 'started':
         ui.length = length;
         ui.opId = result.opId;
-        if (panel) ui.window = ui.holds = false;
-        ws.setSheet(chat.key, { kind: 'recap' });
+        follow();
         return done(type, 'started', { opId: result.opId });
       case 'refused':
         ws.showRefusal(chat.key, result.refusal);

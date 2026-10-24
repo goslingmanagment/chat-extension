@@ -155,6 +155,40 @@ describe('recap: building one', () => {
   });
 });
 
+describe('recap: a build asked from Coach or the fan panel', () => {
+  it('opens no sheet of the dock behind them, fails there too; a Recap sheet open already follows it', async () => {
+    const h = await start();
+    h.bg.hub.profileScript.push(saved);
+    h.script(recapStream(FULL_TEXT));
+    expect(await h.dispatch({ type: 'RefreshRecap', length: 'full', panel: true })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.clock.advance(20);
+    // 2026-10-24: Coach says «Собираю Recap»; the dock behind it shows only its Recap button busy, no sheet streaming.
+    expect(h.dock()).toMatchObject({ analysis: null, result: null });
+    expect(h.dock().actions.recap.busy).toBe(true);
+    expect(h.coach().recapRunning).toBe(true);
+    expect(h.recapView()).toMatchObject({ state: 'streaming', expanded: false });
+    await h.finish();
+    expect(h.dock().analysis).toBeNull();
+    expect(h.recapView()).toMatchObject({ state: 'done', markdown: FULL_TEXT, expanded: false });
+
+    // A failed one is said where it was asked (Coach reads the followed build); the dock stays as it was.
+    h.script({ kind: 'http-error', status: 500, body: { error: 'internal_error' } });
+    await h.dispatch({ type: 'RefreshRecap', length: 'full', panel: true });
+    await h.finish();
+    expect(h.dock().analysis).toBeNull();
+    expect(h.recapView()).toMatchObject({ state: 'failed', refreshFailed: { retry: { type: 'RefreshRecap', length: 'full' } } });
+
+    await openRecap(h);
+    h.bg.hub.profileScript.push(saved);
+    h.script(recapStream(FULL_TEXT));
+    await h.dispatch({ type: 'RefreshRecap', length: 'full', panel: true });
+    await h.clock.advance(20);
+    expect(h.dock().analysis).toBe('recap');
+    expect(h.recapView()).toMatchObject({ state: 'streaming', expanded: false });
+    await h.finish();
+  });
+});
+
 describe('recap: a build that fails over a saved one', () => {
   it('a failed «Обновить» keeps the Recap on screen and its window open: «Не обновилось» with «Повторить» under it', async () => {
     const h = await start();
