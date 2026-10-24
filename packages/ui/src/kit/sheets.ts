@@ -18,6 +18,7 @@ import { KEYS_FOOTER_CSS } from './components/KeysFooter';
 import { MENU_CSS } from './components/Menu';
 import { PART_CSS } from './components/PartRow';
 import { STAGE_CSS } from './components/StageLine';
+import { TALKING_CSS } from './components/Talking';
 import { TOAST_CSS } from './components/Toast';
 import { TOOLTIP_CSS } from './components/Tooltip';
 import { VALUES_CSS } from './components/Values';
@@ -36,6 +37,7 @@ export const COMPONENTS_SOURCE: StyleSource = {
   css: [
     ICON_CSS,
     INDICATORS_CSS,
+    TALKING_CSS,
     VALUES_CSS,
     BUTTON_CSS,
     TOOLTIP_CSS,

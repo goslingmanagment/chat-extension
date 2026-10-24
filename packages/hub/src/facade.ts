@@ -69,6 +69,11 @@ import {
   type RecapStatusQuery,
   type SendAttributionsRequest,
   type SendAttributionsResult,
+  ActivityBeatRequestSchema,
+  type ActivityBeatRequest,
+  type ActivityBeatResult,
+  type InConversationQuery,
+  type InConversationResult,
   type SessionIdentity,
   type SharedRecaps,
   type SharedRecapsQuery,
@@ -874,6 +879,24 @@ export class ChatExtensionHub implements HubFacade {
    */
   async sendAttributions(request: SendAttributionsRequest): Promise<SendAttributionsResult> {
     return (await this.client('clientSendAttributions', request, request.pageLabel)) as SendAttributionsResult;
+  }
+
+  /**
+   * Chat Memory week 1: the beat of the person signed in — no page in the path, so no page grant here (the hub skips a
+   * page not theirs). Refused without `chatter-activity-v1`; never repeated: a lost beat is just lost.
+   */
+  async activityBeat(request: ActivityBeatRequest): Promise<ActivityBeatResult> {
+    await this.ready;
+    const connection = this.ctx.connection('clientActivity');
+    if (!ActivityBeatRequestSchema.safeParse(request).success) throw this.ctx.failure('clientActivity', transportFailure('contract'), connection);
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    if (!hasCapability(entry.bootstrap.capabilities, 'chatter-activity-v1')) throw new FacadeCheckError('capabilityMissing', 'clientActivity', connection.epoch, 'chatter-activity-v1');
+    return (await this.ctx.client('clientActivity', request, {}, connection)) as ActivityBeatResult;
+  }
+
+  /** Chat Memory week 1: «в разговоре» of a page granted by this bootstrap; refused without `in-conversation-v1`. */
+  async inConversation(query: InConversationQuery): Promise<InConversationResult> {
+    return (await this.client('clientInConversation', query, query.pageLabel)) as InConversationResult;
   }
 
   /**

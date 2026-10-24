@@ -12,7 +12,7 @@ import { useEffect, useState } from 'preact/hooks';
 
 import { type DockVM } from '@cg/contracts/vm';
 
-import { Hints, useKit, useResultCap, useView, windowOf } from '../kit';
+import { Hints, TalkingNotice, useKit, useResultCap, useView, windowOf } from '../kit';
 import { DEFAULT_PARTS } from './lazy';
 import { type DockParts } from './lazy-part';
 import { Sheet } from './Sheet';
@@ -65,6 +65,8 @@ export function DockView({ parts }: DockViewProps): JSX.Element | null {
         {/* The strip comes first in the document and stands under the sheet on screen (column-reverse):
             Tab goes strip → head buttons → parts → footer buttons (ui-design §6.3). */}
         <Strip vm={vm} onRefused={() => setHidden(null)} />
+        {/* Chat Memory week 1: another chatter is talking to this fan — a notice, never a block («Понятно» hides it). */}
+        <TalkingNotice handle={vm.targetHandle} />
         <Sheet vm={vm} view={view} parts={all} refusalHidden={hidden !== null && hidden === refusal} onHideRefusal={() => setHidden(refusal)} />
       </div>
     </Hints>

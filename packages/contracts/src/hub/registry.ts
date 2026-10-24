@@ -36,6 +36,7 @@ import {
   StatsQuerySchema,
 } from './spenders';
 import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
+import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
 import { AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
 import { PageFanParamsSchema, PageParamsSchema } from './wire';
 import { VoiceAllowanceQuerySchema, VoiceAllowanceSchema, VoiceNoteAudioBytesSchema, VoiceNoteCreateRequestSchema, VoiceNoteRefSchema, VoiceNoteViewSchema } from '../voice';
@@ -72,6 +73,8 @@ export const HUB_ROUTE_SCHEMAS = {
   clientAudienceNew: { request: AudienceNewQuerySchema, response: AudienceNewPageSchema },
   clientAiUsageDaily: { request: AiUsageQuerySchema, response: AiUsageReportSchema },
   clientSendAttributions: { request: SendAttributionsRequestSchema, response: SendAttributionsResultSchema },
+  clientActivity: { request: ActivityBeatRequestSchema, response: ActivityBeatResultSchema },
+  clientInConversation: { request: InConversationQuerySchema, response: InConversationResultSchema },
   voiceNoteCreate: { request: VoiceNoteCreateRequestSchema, response: VoiceNoteViewSchema },
   voiceNoteStatus: { request: VoiceNoteRefSchema, response: VoiceNoteViewSchema },
   voiceNoteAudio: { request: VoiceNoteRefSchema, response: VoiceNoteAudioBytesSchema },

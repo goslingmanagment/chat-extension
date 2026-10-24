@@ -63,6 +63,10 @@ export const HUB_ROUTES = {
   clientAiUsageDaily: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['ai-usage-v1'], narrowToken: true },
   /** 1.21.0 (X48): who sent each outgoing message. No owner switch: the hub takes a send that happened on the page grant alone. */
   clientSendAttributions: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['send-attribution-v1'], narrowToken: true },
+  /** Chat Memory week 1: the beat — the pages open and the person's idle on each; no page in the path, the hub skips a page not theirs. */
+  clientActivity: { method: 'POST', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['chatter-activity-v1'], narrowToken: true },
+  /** Chat Memory week 1: «в разговоре» — who wrote to which fan of the page in the last 15 minutes. No owner switch. */
+  clientInConversation: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['in-conversation-v1'], narrowToken: true },
   /**
    * 1.47.0: the voice notes (the hub's voice-notes lane, HF-4б), on both sites: the paid create (idempotent per
    * `clientRequestId`, never repeated by itself), its status, its MP3 (`fetchVoiceNoteAudio` of the SDK, raw bytes).

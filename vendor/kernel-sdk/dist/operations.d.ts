@@ -639,6 +639,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/ofapi/commands/:commandId/cancel";
     };
+    readonly clientActivity: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/activity";
+    };
     readonly clientAiUsageDaily: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/ai-usage";
@@ -670,6 +674,10 @@ export declare const kernelOperations: {
     readonly clientFanProfileFromGeneration: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/profile/from-generation";
+    };
+    readonly clientInConversation: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/in-conversation";
     };
     readonly clientSendAttributions: {
         readonly method: "POST";
@@ -1342,6 +1350,14 @@ export declare const kernelOperations: {
     readonly syncStatus: {
         readonly method: "GET";
         readonly path: "/api/v1/sync/status";
+    };
+    readonly teamAuthorship: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/authorship";
+    };
+    readonly teamShifts: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/shifts";
     };
     readonly upsertFanProfile: {
         readonly method: "PUT";

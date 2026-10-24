@@ -106,6 +106,8 @@ export {
   type TabPresenceReport,
 } from './presence';
 export { createConsentState, type ConsentDeps, type ConsentState, type ConsentStatus } from './consent';
+export { ActivityBeat, beatPagesOf, type ActivityBeatDeps, type BeatTab } from './activity-beat';
+export { TalkingMarksService, talkingMarksOf, type TalkingDeps, type TalkingPage } from './talking';
 
 // R10 (./ports also holds R18's `Scheduler` and `KeyValuePort`, served by `@cg/core/services/logs`)
 export { AbortSwitch, NO_LOG, WriteQueue, type Clock, type IdSource, type KeyValueStore, type LogEntry, type LogSink, type TabEventSink, type TimerHandle } from './ports';

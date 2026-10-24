@@ -84,6 +84,11 @@ export type PreviewSendView =
   | { readonly s: 'held-stale'; readonly at: IsoTimestamp | null }
   /** Whether the fan wrote since Generate cannot be checked: a warning, «Отправить всё равно» sends (row 4). */
   | { readonly s: 'unverified' }
+  /**
+   * Chat Memory week 1: another chatter wrote to the fan in the last 15 minutes («в разговоре»): a warning, «Отправить
+   * всё равно» passes it; the warnings under it (stale, unverified) still ask for themselves after.
+   */
+  | { readonly s: 'held-talking'; readonly names: readonly string[]; readonly at: IsoTimestamp }
   | { readonly s: 'queued' }
   | { readonly s: 'sending' }
   | { readonly s: 'accepted' }
@@ -171,6 +176,7 @@ export const PREVIEW_SEND_STATES = [
   'unavailable',
   'held-stale',
   'unverified',
+  'held-talking',
   'queued',
   'sending',
   'accepted',

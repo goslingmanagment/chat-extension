@@ -651,6 +651,11 @@ export const RU: I18nCatalog<'ru'> = {
   'send.heldStaleTail': 'ответ не учитывает его новое сообщение. Посмотрите архив выше: отправьте всё равно или нажмите «Ещё раз».',
   'send.unverified': 'Не проверить, писал ли фан новое',
   'send.unverifiedTail': 'посмотрите архив выше; если ответ подходит — отправьте всё равно.',
+  // Chat Memory week 1: «в разговоре» — another chatter wrote to the fan in the last 15 minutes. A warning, never a block.
+  'send.talking': 'С ним сейчас говорит {names}',
+  'talking.mark': 'в разговоре: {names}',
+  'talking.notice': 'С ним сейчас говорит {names} · {age} назад',
+  'talking.ok': 'Понятно',
   'send.anyway': 'Отправить всё равно',
   'send.anywayTooltip': 'Ответ мог не учесть новое сообщение фана — отправить его как есть',
   'send.after': 'Отправка после части {n}',

@@ -33,6 +33,7 @@ import {
   useMinuteClock,
   useSpokenMoney,
   useTooltip,
+  TalkingMark,
 } from '../kit';
 import { BatchBar, BatchCheck, BatchLine, inBatch } from './batch';
 import { OutreachSend, useOutreachAdds } from './outreach';
@@ -294,6 +295,7 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
       <span role="cell" class="cg-bd__who">
         <span class="cg-bd__name">{row.name}</span>
         {row.deleted ? <span class="cg-bd__handle">{i18n.t('spenders.tag.deleted')}</span> : row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
+        <TalkingMark handle={row.handle} />
       </span>
       <LastMessage last={row.lastMessage} talked={row.weWroteAt !== null || row.fanWroteAt !== null} />
       <span role="cell" class="cg-bd__wait cg-num">

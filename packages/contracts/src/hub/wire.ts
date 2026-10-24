@@ -177,6 +177,17 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * refuses the field (400), so «Подстроить под фана» shows only for a hub that lists it.
    */
   'outreach-fix-v1',
+  /**
+   * Chat Memory week 1: the extension's beat (`clientActivity`) — the pages it has open and how long ago the person
+   * was active on each, once a minute, and once more `closed` when the last tab goes or the person signs out. A hub
+   * without it is never beaten to.
+   */
+  'chatter-activity-v1',
+  /**
+   * Chat Memory week 1: «в разговоре» (`clientInConversation`) — whoever wrote to a fan of the page in the last 15
+   * minutes. A hub without it is never asked, and no mark or warning shows.
+   */
+  'in-conversation-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

@@ -53,6 +53,23 @@ import { HealthCodeSchema, TabHealthReportSchema } from './telemetry';
 // ── Shared payload pieces ──────────────────────────────────────────────────
 
 const Empty = z.strictObject({});
+
+/**
+ * Chat Memory week 1: «в разговоре» — a fan of a page another chatter wrote to in the last 15 minutes: the page and the
+ * fan (the boards' rows), the chats of this browser's accounts bound to the page (`host:hostAccountId:fanId`: the dock,
+ * the quick jump), the names, newest first (never the person themself), and the newest message's time. A warning,
+ * never a block.
+ */
+export const TalkingMarkSchema = z.strictObject({
+  pageId: HubIntIdSchema,
+  fanRef: NativeIdSchema,
+  chatKeys: z.array(ChatKeySchema).check(z.maxLength(20)),
+  names: z.array(displayText(128)).check(z.minLength(1), z.maxLength(10)),
+  lastSentAt: IsoTimestampSchema,
+});
+export type TalkingMark = z.infer<typeof TalkingMarkSchema>;
+export const TalkingMarksSchema = z.strictObject({ marks: z.array(TalkingMarkSchema).check(z.maxLength(5000)) });
+export type TalkingMarks = z.infer<typeof TalkingMarksSchema>;
 const Ack = z.strictObject({ recorded: z.boolean() });
 
 /** A hub page + fan the tab asks about; the background re-checks the page is in the tab's binding. */
@@ -337,6 +354,11 @@ export const TAB_REQUESTS = {
       fanLabel: z.optional(z.nullable(displayText(256))),
       /** 2026-10-22: the open chat's fan's @handle as the tab already knows it (without «@»), for the popup; display only. */
       fanUsername: z.optional(z.nullable(displayText(64))),
+      /**
+       * Chat Memory week 1: when the person last pressed a key, clicked or scrolled in this tab (this browser's clock);
+       * null — not since the tab opened. Never what: the beat of the hub's shift reads only the time.
+       */
+      lastInputAt: z.optional(z.nullable(EpochMsSchema)),
     }),
     res: Ack,
     from: TAB,
@@ -465,6 +487,8 @@ export const TAB_REQUESTS = {
   },
   /** 1.11.0: the fuse as the background keeps it — a tab reads it at start and after a lost port. */
   'send.fuseState': { req: Empty, res: SendFuseStateSchema, from: ANY, hosts: CHATSPACE },
+  /** Chat Memory week 1: «в разговоре» as the background last heard it from the hub, for a tab that starts or came back. */
+  'talk.read': { req: Empty, res: TalkingMarksSchema, from: TAB },
   /** 1.11.0 «Сбросить предохранитель» of «Статус»: the fuse is cleared; X8 is on again until it trips again. */
   'send.fuseReset': { req: Empty, res: SendFuseStateSchema, from: PAGE, pages: ['options'] },
 
@@ -824,6 +848,8 @@ export const TAB_EVENTS = {
   'send.state': { payload: z.strictObject({ view: SendAttemptViewSchema }), to: ANY },
   /** 1.11.0 (decision X25): the X8 fuse tripped or was reset; tabs reconfigure their host adapter by it. */
   'send.fuse': { payload: SendFuseStateSchema, to: ANY },
+  /** Chat Memory week 1: «в разговоре» changed (the background asks the hub every 30 s per page with an open tab). */
+  'talk.changed': { payload: TalkingMarksSchema, to: TAB },
   toast: { payload: z.strictObject({ toast: BackgroundToastSchema }), to: TAB },
   'settings.changed': { payload: SettingsStateSchema, to: ANY },
   'session.changed': {

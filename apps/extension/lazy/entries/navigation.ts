@@ -12,6 +12,8 @@ export {
   createNavigationController,
   createPaletteController,
   createQuickJumpController,
+  createTalkingController,
   type NavigationController,
+  type TalkingController,
 } from '@cg/core/application/navigation';
 export { createActionCatalog } from '@cg/core/domain/hotkeys';

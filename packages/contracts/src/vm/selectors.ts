@@ -83,6 +83,7 @@ export const VIEW_NAMES = [
   'debug-prompt',
   'journal',
   'voice',
+  'talking',
 ] as const;
 export type ViewName = (typeof VIEW_NAMES)[number];
 
@@ -109,6 +110,8 @@ export const ViewSelectorSchema = z.discriminatedUnion('of', [
   z.strictObject({ of: view('journal'), journal: z.enum(JOURNAL_KINDS) }),
   /** 1.47.0: the voice studio of the open chat. */
   z.strictObject({ of: view('voice') }),
+  /** Chat Memory week 1: «в разговоре» of every fan the tab may name. */
+  z.strictObject({ of: view('talking') }),
 ]);
 export type ViewSelector = z.infer<typeof ViewSelectorSchema>;
 

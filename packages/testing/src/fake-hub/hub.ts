@@ -46,6 +46,7 @@ import {
   type HubStreamRequest,
   type IngestBatch,
   type SendAttributionsRequest,
+  type ActivityBeatRequest,
   type PersonaCatalogItem,
   type ProfileFromGenerationRequest,
   type QueueQuery,
@@ -67,7 +68,7 @@ import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagV
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
 import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
-import { CursorSigner, DataModel, type FakeSendAttribution, type Read, type Refusal } from './data';
+import { CursorSigner, DataModel, type FakeActivityBeat, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
 import { Gates, sseBody } from './sse';
@@ -449,6 +450,10 @@ export class FakeHub {
       case 'spenderFans':
         s.data.useSpenderFans(command.fans);
         return { ok: true, fans: command.fans.length };
+      case 'talking':
+        this.page(command.pageLabel);
+        s.data.addTalking({ pageLabel: command.pageLabel, fanRef: command.fanRef, conversationRef: command.conversationRef ?? null, userId: 9_000_001, name: command.name, at: now - (command.agoMs ?? 3 * 60_000) });
+        return { ok: true };
       case 'status':
         return this.status();
       default:
@@ -512,6 +517,11 @@ export class FakeHub {
   /** 1.21.0 (X48): the sends recorded with their person (tests assert who sent what; no texts by contract). */
   sendAttributions(): readonly FakeSendAttribution[] {
     return this.state.data.sendAttributionRows();
+  }
+
+  /** Chat Memory week 1: the beats, in order. */
+  activityBeats(): readonly FakeActivityBeat[] {
+    return this.state.data.activityBeats();
   }
 
   /** Ends every open stream like a reset connection (server close). Streams opened later are closed by the next call. */
@@ -1079,6 +1089,12 @@ export class FakeHub {
         return read(s.data.aiUsage(need(page), request as AiUsageQuery, need(principal).user.userId, now, s.config.quotaRequestsToday));
       case 'clientSendAttributions':
         return read(s.data.sendAttributions(need(page), need(principal).user.userId, request as SendAttributionsRequest, now));
+      case 'clientActivity': {
+        const who = need(principal).user.userId;
+        return read(s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now));
+      }
+      case 'clientInConversation':
+        return read(s.data.inConversation(need(page), need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now));
       case 'voiceNoteCreate':
       case 'voiceNoteStatus':
       case 'voiceNoteAudio':

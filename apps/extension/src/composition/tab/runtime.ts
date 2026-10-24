@@ -46,6 +46,9 @@ const PRESENCE_DELAY_MS = 200;
  * spent, delayed by up to 15 s more — the next report still lands inside the 30 s.
  */
 export const KEEPALIVE_MS = 10_000;
+/** Chat Memory week 1: the person's input that counts as activity (a key, a click, a scroll); never its content. */
+const INPUT_EVENTS = ['keydown', 'pointerdown', 'wheel'] as const;
+const INPUT_LISTENER = { capture: true, passive: true } as const;
 
 export interface TabRuntimeEnv {
   readonly win: Window;
@@ -176,6 +179,8 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
 
   // ── presence (sound, «AI готово», the accounts this browser saw) ───────────
   let presenceTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The person's last key, click or scroll in this tab; null — none since it opened (Chat Memory week 1). */
+  let lastInputAt: number | null = null;
   let sentAccounts = '';
   let withAccounts = true;
   let sentLabel: string | null = null;
@@ -226,6 +231,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
             focused: doc.hasFocus(),
             fanLabel: sentLabel,
             fanUsername: sentUsername,
+            lastInputAt,
             ...(include ? { accounts: [...accounts] } : {}),
           })
           .then((answer) => {
@@ -250,6 +256,12 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   doc.addEventListener('visibilitychange', onVisibility);
   win.addEventListener('focus', onVisibility);
   win.addEventListener('blur', onVisibility);
+  // Chat Memory week 1: the person's last key, click or scroll in this tab — when, never what. Passive and in the
+  // capture phase: the page sees every event as before. It travels with the next presence report (the keepalive).
+  const onInput = (): void => {
+    lastInputAt = Date.now();
+  };
+  for (const type of INPUT_EVENTS) win.addEventListener(type, onInput, INPUT_LISTENER);
   // BG-003: the keepalive. Only a registered tab beats; a lost port reconnects by itself (rpc-tab.ts) — at once, and
   // then on every beat for as long as it stays lost.
   const keepalive = setInterval(() => {
@@ -260,6 +272,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     doc.removeEventListener('visibilitychange', onVisibility);
     win.removeEventListener('focus', onVisibility);
     win.removeEventListener('blur', onVisibility);
+    for (const type of INPUT_EVENTS) win.removeEventListener(type, onInput, INPUT_LISTENER);
     clearInterval(keepalive);
     if (presenceTimer !== null) clearTimeout(presenceTimer);
   });

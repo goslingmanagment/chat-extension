@@ -94,7 +94,7 @@ function editPartAction(opId: string, part: PartVM, text: string | null): UiActi
 /** The queue has not reached this part: it waits behind an earlier one, or is held by an uncertain one (§6.7.9). */
 function waitsForEarlierPart(part: PartVM): boolean {
   const send = part.send;
-  return send !== undefined && (part.sendOrder ?? null) !== null && (send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale' || send.s === 'unverified');
+  return send !== undefined && (part.sendOrder ?? null) !== null && (send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale' || send.s === 'unverified' || send.s === 'held-talking');
 }
 
 /**
@@ -110,7 +110,7 @@ export function offersOpenInsert(part: PartVM): boolean {
   const send = part.send;
   if (send === undefined) return part.openInsert !== undefined && part.openInsert.s !== 'hidden';
   if (waitsForEarlierPart(part)) return false;
-  return send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale' || send.s === 'unverified' || (send.s === 'rejected' && !send.canRetry);
+  return send.s === 'available' || send.s === 'unavailable' || send.s === 'held-stale' || send.s === 'unverified' || send.s === 'held-talking' || (send.s === 'rejected' && !send.canRetry);
 }
 
 /** «Открыть и вставить»: the chat opens in ChatSpace by this click, then the part goes into its composer (§6.5). */
@@ -369,6 +369,20 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
           <CopyIcon part={part} />
         </div>
       );
+    case 'held-talking':
+      return (
+        <div class="cg-pvs" data-cg-send="held-talking">
+          {/* Chat Memory week 1: a warning, never a block — «Отправить всё равно» passes it. */}
+          <State>
+            <Dot kind="accent" use="send-held-stale" />
+            {i18n.t('send.talking', { names: send.names.join(', ') })}
+          </State>
+          <SendButton part={part} opId={opId} anyway label={i18n.t('send.anyway')} tooltip={i18n.t('send.anywayTooltip')} />
+          <OpenAndInsert part={part} opId={opId} />
+          <EditToggle part={part} opId={opId} />
+          <CopyIcon part={part} />
+        </div>
+      );
   }
 }
 
@@ -391,6 +405,8 @@ export function sendStateWords(i18n: I18n, send: PreviewSendView): string | null
       return i18n.t('send.heldStale');
     case 'unverified':
       return i18n.t('send.unverified');
+    case 'held-talking':
+      return i18n.t('send.talking', { names: send.names.join(', ') });
     case 'available':
     case 'unavailable':
       return null;

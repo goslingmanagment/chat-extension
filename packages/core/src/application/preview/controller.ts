@@ -160,6 +160,8 @@ interface OpTrack {
   readonly edits: Map<string, { readonly text: string; readonly revision: number }>;
   /** The person's own text from the draft field, not a generation: the hub's manual group (row 1). */
   readonly manual: { readonly textFingerprint: string } | null;
+  /** Chat Memory week 1: «Отправить всё равно» passed the «в разговоре» warning of this fan, for this result. */
+  talkAccepted?: true;
 }
 
 interface TargetState {
@@ -270,6 +272,11 @@ export interface PreviewControllerDeps {
    * host's own chat list where it has one (ChatSpace), null — none.
    */
   readonly readState?: ChatReadPort | null;
+  /**
+   * Chat Memory week 1: «в разговоре» — another chatter's mark on a fan's chat (the tab's `talking` view): a send to
+   * such a fan is a warning «Отправить всё равно» passes. Absent — no warning.
+   */
+  readonly talking?: { mark(chatKey: string): { readonly names: readonly string[]; readonly lastSentAt: string } | null; onChange(listener: () => void): () => void } | null;
 }
 
 export interface PreviewController extends SurfaceController<'preview'> {
@@ -1315,6 +1322,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // An edit with nothing in it cannot go (MAIN refuses an empty text the same way).
     const edit = track.edits.get(key);
     if (edit !== undefined && edit.text.trim() === '' && (row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified')) row = { s: 'unavailable', code: 'CG-SEND-PART', reason: msg(SEND_REASON_KEYS['CG-SEND-PART']) };
+    // Chat Memory week 1: another chatter wrote to the fan in the last 15 minutes — a warning over what the row would be,
+    // «Отправить всё равно» passes it (the warnings under it still ask for themselves after). Never a block.
+    if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && track.talkAccepted !== true) {
+      const talking = deps.talking?.mark(`page:${String(track.pageId)}:${track.fanRef}`) ?? deps.talking?.mark(chatKeyOf(track.target.chat)) ?? null;
+      if (talking !== null) row = { s: 'held-talking', names: talking.names, at: talking.lastSentAt };
+    }
     const settled = row.s === 'sent' || row.s === 'uncertain' || row.s === 'queued' || row.s === 'sending' || row.s === 'accepted';
     const order = group === null || settled ? null : partOrder(group, index, attempts);
     return {
@@ -1322,7 +1335,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       order,
       // «Открыть и вставить» puts the part as the card shows it into the chat: the person's edit, or their own text, goes as it is (2026-10-22).
       openInsert: edit !== undefined && edit.text.trim() === '' ? { s: 'hidden' } : openInsertRow({ row, waitingUntil: track.openInsert?.key === key ? track.openInsert.until : null, blocked: openInsertBlock(track, v, sends) }),
-      editable: deps.previewSend !== false && track.manual === null && order === null && (row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'unverified' || (row.s === 'rejected' && row.canRetry)),
+      editable: deps.previewSend !== false && track.manual === null && order === null && (row.s === 'available' || row.s === 'unavailable' || row.s === 'held-stale' || row.s === 'unverified' || row.s === 'held-talking' || (row.s === 'rejected' && row.canRetry)),
       ...(edit === undefined ? {} : { edit: edit.text }),
     };
   }
@@ -2043,6 +2056,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (sender === null || view === null || text === undefined || group === null) return refused(type, localError('CG-SEND-PART', i18n));
     const rows = rowsOf(track, variant, index);
     if (rows.send === undefined) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
+    // Chat Memory week 1: «Отправить всё равно» on «в разговоре» passes that warning alone; what the row is under it
+    // (stale, unverified) is asked again by the same click's rules.
+    if (rows.send.s === 'held-talking' && rows.order === null) {
+      if (!anyway) return refused(type, localError('CG-SEND-BUSY', i18n));
+      track.talkAccepted = true;
+      changed();
+      return sendPart(type, track, variant, index, false);
+    }
     if (!clickable(rows.send, rows.order, anyway)) {
       const code: CgCode = rows.order !== null ? 'CG-SEND-BUSY' : rows.send.s === 'unavailable' || rows.send.s === 'rejected' ? rows.send.code : rows.send.s === 'held-stale' ? 'CG-SEND-STALE' : rows.send.s === 'unverified' ? 'CG-SEND-FRESHNESS' : rows.send?.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY';
       return refused(type, localError(code, i18n));
@@ -2619,6 +2640,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   // ── subscriptions ──
 
   const offs: (() => void)[] = [];
+  // Chat Memory week 1: a mark that comes or goes changes the rows of its fan's results.
+  if (deps.talking) offs.push(deps.talking.onChange(() => changed()));
   offs.push(
     surfaces.subscribe((state, previous) => {
       if ((!state.spenders && previous.spenders) || (!state.newcomers && previous.newcomers)) previewOpenRun++;
