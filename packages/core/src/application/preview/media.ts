@@ -41,6 +41,9 @@ import { errorOf, msg } from '../boards/views';
 /** The release forms are asked this long after the last change of the picks. */
 export const MEDIA_TAGS_DEBOUNCE_MS = 300;
 
+/** The fan of the outreach's own picker («Выбрать медиа»): no fan, so nothing is asked of what a fan got. */
+export const OUTREACH_PICKER_FAN = 'outreach';
+
 /** Chats whose picks are kept with no card of theirs open, at most (a pick is a few short fields and a thumbnail's address). */
 const KEPT_MAX = 50;
 
@@ -437,7 +440,7 @@ export class MediaDesk {
   /** What the fan got of these media, for those not asked yet; a failed ask is not repeated (a marker is a hint). */
   private askStates(picker: Picker, items: readonly MediaItem[]): void {
     const port = this.deps.port;
-    if (port === undefined || !picker.open) return;
+    if (port === undefined || !picker.open || picker.chat.platformFanId === OUTREACH_PICKER_FAN) return;
     const ids = items.map((item) => item.id).filter((id) => !picker.asked.has(id));
     for (let at = 0; at < ids.length; at += MEDIA_LIMITS.idsPerRequest) {
       const batch = ids.slice(at, at + MEDIA_LIMITS.idsPerRequest);

@@ -22,7 +22,7 @@ import { BOARD_CSS, Board, BoardFilters, firstFan, focusIsIdle, openChat, type B
 import { PanelPreview, type PreviewFallback } from './preview/PanelPreview';
 import { STATS_CSS, StatsColumn, StatsExpanded, StatsRail, type StatsShow } from './Stats';
 import { RefreshButton, isPlainKey, isTextEntry, type RefreshableView } from './window';
-import { OUTREACH_CSS, OutreachBar, OutreachToggle } from './outreach';
+import { OUTREACH_CSS, OutreachBar, OutreachMediaWindow, OutreachToggle } from './outreach';
 
 /** Marks of the paints the UI reports; the controller starts the measure, the UI ends it (RenderMarks). */
 export const SPENDERS_PAINT_MARKS = { open: 'spenders.board', search: 'spenders.search' } as const;
@@ -359,7 +359,7 @@ export function SpendersWindow(): JSX.Element {
                 />
               </div>
             )}
-            {board.outreach?.open === true ? <OutreachBar outreach={board.outreach} started={board.batch !== undefined && board.batch.queued + board.batch.generating + board.batch.ready + board.batch.sent + board.batch.failed > 0} /> : null}
+            {board.outreach?.open === true ? <OutreachBar outreach={board.outreach} batch={board.batch} /> : null}
           </div>
           {expanded ? (
             <div class="cg-sp__cols is-stats">
@@ -390,6 +390,8 @@ export function SpendersWindow(): JSX.Element {
               ) : null}
             </div>
           )}
+          {/* «Выбрать медиа» of the outreach: its own window over the list. */}
+          {board.outreach?.picker === null || board.outreach?.picker === undefined ? null : <OutreachMediaWindow picker={board.outreach.picker} />}
           {/* The old window's foot: the list's keys (SP-034). */}
           <KeysFooter hints={board.keys.map((key) => ({ keys: key.hotkey.display, label: i18n.text(key.label) }))} hide={null} />
         </div>

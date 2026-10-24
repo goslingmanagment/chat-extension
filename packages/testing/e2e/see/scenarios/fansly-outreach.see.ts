@@ -27,7 +27,10 @@ scenario(
     // Key by key, as a person types: one action of many keys holds them all down to its end, and Firefox drops a letter
     // pressed again while it is still down.
     for (const key of Array.from('ok this one is SPECIAL, first time with a DRAGON. 6 minutes, tell me when you get to the end')) await s.browser.keys(key);
+    // The bar's steps: the text is there, the ticks are next; then the button over the list.
+    await s.shot('outreach-steps');
     await s.press(/^/, 'modal', '.cg-bd__head .cg-bt__check');
+    await s.shot('outreach-picked');
     await s.press(/^Подстроить под каждого/, 'modal');
     await s.see('modal', /Отправить/, 60_000);
     await s.shot('outreach-ready');

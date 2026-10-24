@@ -9,7 +9,7 @@
 // window closed) stops the batch: the fans left go back to ticked, for a new click.
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { BATCH_LIMITS, type ActionReceipt, type BatchRowState, type BatchRowVM, type BatchVM, type Msg, type NewcomerRowSendVM, type UiAction } from '@cg/contracts/vm';
+import { BATCH_LIMITS, type ActionReceipt, type BatchRowState, type BatchRowVM, type BatchVM, type MediaPickerVM, type Msg, type NewcomerRowSendVM, type UiAction } from '@cg/contracts/vm';
 
 import { type BoardsClock } from './ports';
 import { done } from './surface';
@@ -236,6 +236,8 @@ export interface BatchPreviewPort {
   setOutreach?(on: boolean): boolean;
   /** The vault media every fan of the outreach takes; null — none set. */
   outreachMedia?(): { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
+  /** The outreach's own media window while it is open; null — closed. */
+  outreachPicker?(): MediaPickerVM | null;
   onBatch(listener: () => void): () => void;
 }
 

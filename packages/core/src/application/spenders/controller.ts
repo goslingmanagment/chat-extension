@@ -197,6 +197,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     port: deps.outreach,
     canAdapt: () => context.current().bootstrap?.capabilities.includes(OUTREACH_FIX_CAPABILITY) === true,
     media: () => batchPort?.outreachMedia?.() ?? null,
+    picker: () => batchPort?.outreachPicker?.() ?? null,
     rpc,
     clock,
     i18n,
