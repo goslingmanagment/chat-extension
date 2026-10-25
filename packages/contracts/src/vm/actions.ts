@@ -16,6 +16,7 @@ import type { VoiceTone } from '../voice';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
 import { type SpendersPeriodSchema } from '../tab-messages';
 import { BATCH_LISTS } from './batch';
+import { OUTREACH_CONDITIONS, OUTREACH_PANES, OUTREACH_TABS } from './outreach-ids';
 
 /** The old Fansly extension's persona export may carry the old local persona texts too: a generous bound. */
 export const LEGACY_PERSONAS_MAX_CHARS = 4_000_000;
@@ -334,7 +335,7 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * Debounced by the controller (150 ms, IME-safe, SP-019). `now` — Enter in the field: the list follows at once, so the
    * top match the same key opens is the one of what was typed (the old Fansly board's Enter).
    */
-  act('Search', { list: z.enum(['spenders', 'newcomers', 'palette']), query: displayText(200), now: z.optional(z.literal(true)) }),
+  act('Search', { list: z.enum(['spenders', 'newcomers', 'palette', 'outreach']), query: displayText(200), now: z.optional(z.literal(true)) }),
   /** A collapsed shelf «ещё N · показать», or a click on a shelf in the stats (SP-045). */
   act('RevealShelf', { shelfId: HandleSchema }),
   /** 1.38.0 (X67): a tier chip of the board («🐳 Whale 42»): the list shows that shelf alone; null — every shelf. */
@@ -384,25 +385,46 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** 1.32.0: «Очистить» — the rows forget the batch; the results stay on the fans' cards. */
   act('ClearBatch', { list: z.enum(BATCH_LISTS) }),
   /**
-   * «Рассылка» of Spenders on Fansly: the bar shown or hidden (`open`, the page's «Copied …» list read again on opening
-   * and on `refresh`), its common text, or one copied item picked or not. Nothing is sent.
+   * 1.63.0, the window of «Рассылка» (vm/outreach): one move of the person, nothing sent — `open` from Spenders (its ticked
+   * fans or its tier become the audience) or ⌘K; `minimized` — the window folds into the chip in the page's corner and
+   * back; the common text; a tier or a condition of «Кому» (`amount` — «Потратил больше» in dollars as typed); a fan
+   * ticked or not (`tick`, or every fan of the list with `tickAll`); the list's tab; the pane on the right while no fan
+   * is chosen; `fresh` — «Новая рассылка»: the
+   * versions and the marks go; `refresh` — the board and what came of the sends are read again.
    */
   act('SetOutreach', {
     open: z.optional(z.boolean()),
+    minimized: z.optional(z.boolean()),
     refresh: z.optional(z.literal(true)),
     text: z.optional(z.string().check(z.maxLength(5_000))),
-    adapt: z.optional(z.boolean()),
-    item: z.optional(z.strictObject({ contentType: z.union([z.literal(1), z.literal(2)]), contentId: z.string().check(z.regex(/^[1-9][0-9]{0,23}$/)), picked: z.boolean() })),
+    tier: z.optional(z.strictObject({ id: HandleSchema, on: z.boolean() })),
+    condition: z.optional(z.strictObject({ id: z.enum(OUTREACH_CONDITIONS), on: z.optional(z.boolean()), amount: z.optional(z.string().check(z.maxLength(16))) })),
+    tick: z.optional(z.strictObject({ targetHandle: HandleSchema, on: z.boolean() })),
+    tickAll: z.optional(z.boolean()),
+    tab: z.optional(z.enum(OUTREACH_TABS)),
+    pane: z.optional(z.enum(OUTREACH_PANES)),
+    /** Fansly's «Из постов» sheet open or closed (the vault's sheet is the picker's own `SetMediaOpen`). */
+    sheet: z.optional(z.boolean()),
+    post: z.optional(z.strictObject({ contentType: z.union([z.literal(1), z.literal(2)]), contentId: z.string().check(z.regex(/^[1-9][0-9]{0,23}$/)), picked: z.boolean() })),
+    fresh: z.optional(z.literal(true)),
   }),
-  /** The row's «Отправить» of the outreach: the fan's personal line, the common text and the picked items — one click, one attempt. */
+  /**
+   * The row's or the card's «Отправить» of one fan's version: the version, with the offer's media or the fan's own — one
+   * click, one message, one attempt; `anyway` passes «Не проверить, писал ли фан новое» (ChatSpace, a version by the archive).
+   */
   act('SendOutreach', { targetHandle: HandleSchema, anyway: z.optional(z.literal(true)) }),
   /**
-   * «Рассылка» on OnlyFans: «Для всей рассылки» in a fan's media picker — that fan's valid picks and price go to every fan
-   * of the outreach whose card has no picks of its own. Nothing is sent.
+   * 1.63.0: «Ещё раз» — another version for this fan, or «Написать для …» — a fan of the chosen tiers written for alone
+   * after the versions of the rest. Nothing is sent. Several fans at once («Написать N версий», «Переписать N», «Дописать
+   * N») are `GenerateBatch` of `outreach`.
    */
-  act('SetOutreachMedia', { targetHandle: HandleSchema }),
-  /** «Убрать» of the outreach's media: the fans keep what they have, new fans of the batch get none. Nothing is sent. */
+  act('RewriteOutreach', { targetHandle: HandleSchema }),
+  /** 1.63.0: «Править» — the person's own words for this fan's version (null — back to Fix's). Nothing is sent. */
+  act('EditOutreach', { targetHandle: HandleSchema, text: z.nullable(z.string().check(z.maxLength(5_000))) }),
+  /** «Убрать» of the outreach's media: text alone from now on; a fan's own picks stay. Nothing is sent. */
   act('ClearOutreachMedia', {}),
+  /** 1.63.0: «Вернуть общее» — this fan takes the outreach's media again instead of their own picks. Nothing is sent. */
+  act('ResetOutreachMedia', { targetHandle: HandleSchema }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),

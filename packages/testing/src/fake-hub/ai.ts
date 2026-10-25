@@ -118,6 +118,22 @@ export function generationText(request: HubStreamRequest, splitAllFlag: boolean)
   return splitAllowed && text.split !== '' ? text.split : text.single;
 }
 
+/**
+ * «Рассылка» on the stand: the versions of one outreach — `texts['improve-draft:outreach']`, split by ` [FAN] ` — one
+ * per fan in the order the fans are first written for, and the next one for «Ещё раз» of the same fan; absent — none.
+ */
+const outreachSeen = new Map<string, number>();
+function outreachVersion(texts: Readonly<Record<string, string>> | undefined, request: HubStreamRequest): string | null {
+  const list = texts?.['improve-draft:outreach'];
+  if (list === undefined || request.feature !== 'improve-draft' || request.body.draftPurpose !== 'outreach') return null;
+  const variants = list.split(' [FAN] ');
+  const fan = String(request.body.conversationRef ?? '');
+  const at = outreachSeen.get(fan);
+  const index = at === undefined ? outreachSeen.size : at + 1;
+  outreachSeen.set(fan, index);
+  return variants[index % variants.length] ?? null;
+}
+
 /** Features whose answer is a draft for the fan (parts and variants); the others are analysis. */
 const DRAFT_FEATURES: readonly string[] = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'voice-script'];
 
@@ -201,7 +217,7 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
     steps.push(frame(facts.pair === undefined ? context : ({ ...context, pair: facts.pair } as ContextFrame)));
   }
   if (debug) steps.push(frame({ type: 'reasoning_delta', text: 'synthetic reasoning' }));
-  const written = facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
+  const written = outreachVersion(facts.texts, request) ?? facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
   const text = facts.nameFan === true ? namedForFan(written, request) : written;
   for (const piece of chunks(text)) steps.push(frame({ type: 'content_delta', text: piece }, facts.chunkDelayMs));
   if (!SHOWCASE) {

@@ -110,6 +110,17 @@ const PATHS = {
   ),
   /** A take that plays (1.47.0): «Пауза». */
   pause: <path d="M5.6 4.2v7.6M10.4 4.2v7.6" />,
+  /** «Рассылка» (1.63.0): an envelope — its button in Spenders and its chip in the page's corner. */
+  mail: (
+    <>
+      <rect x="2" y="3.6" width="12" height="8.8" rx="1.6" />
+      <path d="M2.6 4.6L8 8.6l5.4-4" />
+    </>
+  ),
+  /** «Править» of a version (1.63.0): a pencil. */
+  pencil: <path d="M10.6 2.9l2.5 2.5-7.3 7.3-3.1.6.6-3.1zM9.2 4.3l2.5 2.5" />,
+  /** «Дальше: …» (1.63.0): an arrow to the right. */
+  arrowRight: <path d="M3 8h9.6M8.9 4.3L12.6 8l-3.7 3.7" />,
   /** «Скачать лог» (2026-10-21): an arrow down into a tray. */
   download: (
     <>

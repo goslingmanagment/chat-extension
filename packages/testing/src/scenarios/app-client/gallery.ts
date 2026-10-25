@@ -21,7 +21,7 @@ import {
 import { cgError, msg, views, type ScenarioCtx } from './base';
 import { dock, dockOutsideChat } from './dock';
 import { entry, type ScenarioViewEntry } from './fake-app-client';
-import { board, newcomers, defaultNewcomerRows, preview, stats } from './lists';
+import { board, newcomers, defaultNewcomerRows, defaultOutreachRows, outreach, preview, stats } from './lists';
 import { debugPrompt, journal, options, popup } from './pages';
 import { cheatsheet, coach, coachTurn, fanPanel, palette, quickJump, recapPicker, recapView, toasts, toast, voiceStudio } from './panels';
 
@@ -139,6 +139,8 @@ export function galleryEntry(ctx: ScenarioCtx, selector: ViewSelector, state: Vm
       return entry(selector, preview(ctx, selector.from, view));
     case 'newcomers':
       return entry(selector, newcomers(ctx, view, state === 'ready' || state === 'partial' || state === 'offline' ? defaultNewcomerRows(ctx) : [], state === 'partial' ? { incomplete: msg('common.coverage.partial') } : {}));
+    case 'outreach':
+      return entry(selector, outreach(ctx, view, state === 'ready' || state === 'partial' || state === 'offline' ? defaultOutreachRows(ctx) : []));
     case 'fan-panel':
       return entry(selector, fanPanel(ctx, view));
     case 'palette':

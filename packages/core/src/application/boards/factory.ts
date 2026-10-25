@@ -1,9 +1,9 @@
 // The R12 surface controllers as one set (architecture.md §16: R12 hands out
 // factories; the integrator plugs them into the tab's AppClient router). One
 // page context, one open-overlay state and one chat navigator are shared by
-// the Spenders board and its statistics, the previews, «Новые» and the fan
-// panel. The ports come from the tab's composition root; nothing here touches
-// the browser, the network or ChatSpace's DOM.
+// the Spenders board and its statistics, the previews, «Новые», «Рассылка»
+// and the fan panel. The ports come from the tab's composition root; nothing
+// here touches the browser, the network or ChatSpace's DOM.
 
 import { type HostPort } from '@cg/contracts/host';
 import { type ActionReceipt, type I18n } from '@cg/contracts/vm';
@@ -11,6 +11,7 @@ import { type ActionReceipt, type I18n } from '@cg/contracts/vm';
 import { type BoardHandover } from '../board-handover';
 import { createFanPanelController, type FanPanelController } from '../fanpanel/controller';
 import { createNewcomersController, type NewcomersController } from '../newcomers/controller';
+import { createOutreachController, type OutreachController } from '../outreach/controller';
 import { createPreviewController, type PreviewController, type PreviewControllerDeps } from '../preview/controller';
 import { createPaletteDirectory, openOnlinePreview, type OnlineChat, type PaletteDirectory } from '../preview/palette';
 import { createSpendersController, type SpendersController } from '../spenders/controller';
@@ -59,6 +60,8 @@ export interface BoardsControllers {
   readonly spenders: SpendersController;
   readonly preview: PreviewController;
   readonly newcomers: NewcomersController;
+  /** «Рассылка»: each fan's version goes by the fan's card's own send (X8), as on ChatSpace. */
+  readonly outreach: OutreachController;
   readonly fanPanel: FanPanelController;
   /** The fans ChatSpace shows online, for the palette's group (CS-030). */
   readonly palette: PaletteDirectory;
@@ -113,6 +116,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     ...(deps.onNewSubscribers === undefined ? {} : { onNewSubscribers: deps.onNewSubscribers }),
     draftOf: (pageId, fanRef) => late.preview?.draftOf('newcomers', pageId, fanRef) ?? null,
   });
+  const outreach = createOutreachController({ rpc, i18n, clock, context, surfaces, board: spenders.outreachBoard });
   const rowOf = (pageId: number, fanRef: string) => spenders.row(pageId, fanRef);
   const rowsChanged = (listener: () => void): (() => void) => spenders.directory.subscribe(listener);
   const palette = createPaletteDirectory({ host, context, rowOf, rowsChanged });
@@ -125,7 +129,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     context,
     surfaces,
     navigator,
-    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette },
+    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette, outreach: outreach.directory },
     greeting: newcomers.greeting,
     sender: deps.sender ?? null,
     drafts: deps.drafts ?? null,
@@ -139,14 +143,16 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
   // 1.32.0: a batch of a list starts its generations through the preview's own Generate.
   spenders.attachBatch(preview);
   newcomers.attachBatch?.(preview);
+  outreach.attachBatch(preview);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = createFanPanelController({ rpc, host, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(deps.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
-  const controllers: readonly SurfaceController[] = [preview, spenders, newcomers, fanPanel] as readonly SurfaceController[];
+  const controllers: readonly SurfaceController[] = [preview, spenders, newcomers, fanPanel, outreach] as readonly SurfaceController[];
   return {
     spenders,
     preview,
     newcomers,
+    outreach,
     fanPanel,
     palette,
     openOnline: (chat, shown) => openOnlinePreview(palette, preview, i18n, chat, shown),

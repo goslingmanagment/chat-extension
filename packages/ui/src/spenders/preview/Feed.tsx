@@ -9,7 +9,7 @@
 // ранние»), and the place they were reading stays where it was. The scroll
 // bookkeeping is one fan's: another fan's feed opens at its newest message.
 
-import { type JSX } from 'preact';
+import { type ComponentChildren, type JSX } from 'preact';
 import { useLayoutEffect, useRef } from 'preact/hooks';
 
 import { type FeedItemVM, type I18n, type Msg, type PreviewVM, type TargetHandle } from '@cg/contracts/vm';
@@ -95,9 +95,11 @@ export interface FeedProps {
   readonly loading: boolean;
   /** Whether the fan read our newest message: the mark goes under that message's bubble. */
   readonly seen?: PreviewVM['seen'];
+  /** After the archive's messages: what went from us and is not in the archive yet («Рассылка»'s sent version). */
+  readonly tail?: ComponentChildren;
 }
 
-export function Feed({ handle, feed, empty, loading, seen = null }: FeedProps): JSX.Element {
+export function Feed({ handle, feed, empty, loading, seen = null, tail }: FeedProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const scroller = useRef<HTMLDivElement>(null);
@@ -192,7 +194,7 @@ export function Feed({ handle, feed, empty, loading, seen = null }: FeedProps): 
           <Spinner label={i18n.t('common.loading')} />
         </div>
       ) : null}
-      {feed.items.length === 0 && empty !== null ? <div class="cg-feed__empty">{i18n.text(empty)}</div> : null}
+      {feed.items.length === 0 && empty !== null && tail === undefined ? <div class="cg-feed__empty">{i18n.text(empty)}</div> : null}
       {feed.items.flatMap((item) => [
         item.dayBreak && item.at !== null ? (
           <div key={`day:${item.id}`} class="cg-feed__day">
@@ -201,6 +203,7 @@ export function Feed({ handle, feed, empty, loading, seen = null }: FeedProps): 
         ) : null,
         <Bubble key={item.id} item={item} seen={seen !== null && seen.inFeed && seen.messageId === item.id ? seen : null} />,
       ])}
+      {tail ?? null}
     </div>
   );
 }

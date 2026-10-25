@@ -157,7 +157,7 @@ describe('R20 F6a, Fansly: a preview — the conversation comes from the list th
       context,
       surfaces: world.surfaces,
       navigator: world.navigator,
-      directories: { spenders: directories.spenders ?? null, newcomers: null, palette: directories.palette ?? null },
+      directories: { spenders: directories.spenders ?? null, newcomers: null, palette: directories.palette ?? null, outreach: null },
       greeting: null,
       sender: null,
       drafts: null,

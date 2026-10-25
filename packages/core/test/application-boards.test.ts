@@ -1471,6 +1471,72 @@ describe('1.32.0 a batch of the Spenders board', () => {
   });
 });
 
+describe('«Рассылка» on ChatSpace: one click — one message; what went, or may have, never goes again from here', () => {
+  const OUTREACH = { of: 'outreach' } as const;
+  const fan = (fanRef: string): string => fanHandle('outreach', PAGE.pageId, fanRef);
+
+  /** Two fans of the chosen tiers, the common text, one click for both versions (MAIN's checkpoint is the first fan's). */
+  async function written(commit: NonNullable<HostAnswers['commit']>) {
+    const h = await harness({ config: X8, answers: { commit } });
+    expect(await h.dispatch({ type: 'SetOutreach', open: true })).toMatchObject({ ok: true, outcome: 'opened' });
+    const vm = () => h.boards.outreach.getSnapshot(OUTREACH);
+    const row = (fanRef: string) => vm().rows.find((entry) => entry.handle === fan(fanRef)) ?? vm().aside.find((entry) => entry.handle === fan(fanRef));
+    expect(vm().audience.count).toBeGreaterThan(2);
+    await h.dispatch({ type: 'SetOutreach', tickAll: false });
+    await h.dispatch({ type: 'SetOutreach', tick: { targetHandle: fan('5000'), on: true } });
+    await h.dispatch({ type: 'SetOutreach', tick: { targetHandle: fan('5001'), on: true } });
+    await h.dispatch({ type: 'SetOutreach', text: 'new video is up — the dragon one' });
+    h.script(0, 'improve-draft', 'had to show you this one first');
+    h.script(1, 'improve-draft', 'sorry babe, I was filming');
+    expect(await h.dispatch({ type: 'GenerateBatch', list: 'outreach' })).toMatchObject({ ok: true, outcome: 'started' });
+    await h.advance(500);
+    expect(count(h, 'op.start')).toBe(2);
+    expect([row('5000')?.state, row('5001')?.state]).toEqual(['ready', 'ready']);
+    expect(vm().audience).toMatchObject({ locked: true, count: 2 });
+    // Writing sent nothing.
+    expect(h.clicks).toEqual([]);
+    return { h, vm, row };
+  }
+
+  it('each version goes by its own click through the card; «Очистить» lets go of what did not go, never of what went', async () => {
+    const { h, vm, row } = await written([{ state: 'nativeEnqueued', pendingId: 'pending-1' }]);
+    // One click: one message, the fan's own version; a second click while it goes sends nothing.
+    const version = row('5000')?.version;
+    expect(await h.dispatch({ type: 'SendOutreach', targetHandle: fan('5000') })).toMatchObject({ ok: true });
+    expect((await h.dispatch({ type: 'SendOutreach', targetHandle: fan('5000') })).ok).toBe(false);
+    expect(h.host.calls.commits.map((commit) => commit.request.plainText)).toEqual([version]);
+    h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
+    h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
+    await h.advance(SEND_PACE_MS);
+    expect(row('5000')?.state).toBe('sent');
+
+    // «Очистить»: the unsent version is let go, the sent one stays in the outreach with its mark.
+    expect(await h.dispatch({ type: 'ClearBatch', list: 'outreach' })).toMatchObject({ ok: true });
+    expect(row('5000')?.state).toBe('sent');
+    expect(vm().rows.map((entry) => entry.handle)).toEqual([fan('5000')]);
+    expect(row('5001')).toMatchObject({ state: 'idle', aside: [{ kind: 'manual' }] });
+    // Nothing is written again for it, and no click sends it again.
+    expect(await h.dispatch({ type: 'GenerateBatch', list: 'outreach' })).toMatchObject({ ok: true, outcome: 'noop' });
+    expect((await h.dispatch({ type: 'SendOutreach', targetHandle: fan('5000') })).ok).toBe(false);
+    expect(h.host.calls.commits).toHaveLength(1);
+    expect(count(h, 'op.start')).toBe(2);
+  });
+
+  it('an unknown outcome is the person\'s to check in the chat: our button never sends it again, «Очистить» keeps it', async () => {
+    const { h, row } = await written([{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }]);
+    expect(await h.dispatch({ type: 'SendOutreach', targetHandle: fan('5000') })).toMatchObject({ ok: true });
+    await h.advance(SEND_PACE_MS);
+    expect(row('5000')?.state).toBe('uncertain');
+    expect(row('5000')?.send).toBeNull();
+    expect((await h.dispatch({ type: 'SendOutreach', targetHandle: fan('5000') })).ok).toBe(false);
+    expect(await h.dispatch({ type: 'ClearBatch', list: 'outreach' })).toMatchObject({ ok: true });
+    expect(row('5000')?.state).toBe('uncertain');
+    expect((await h.dispatch({ type: 'SendOutreach', targetHandle: fan('5000') })).ok).toBe(false);
+    expect(await h.dispatch({ type: 'GenerateBatch', list: 'outreach' })).toMatchObject({ ok: true, outcome: 'noop' });
+    expect(h.host.calls.commits).toHaveLength(1);
+  });
+});
+
 describe('Chat Memory week 2: «Память» of the fan panel', () => {
   const MEMORY_PAGE = (pageLabel: string, granted: boolean, alias: string, spentMills: number, fanRef = '5000') => ({
     pageLabel,

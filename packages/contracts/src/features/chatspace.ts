@@ -51,7 +51,8 @@ const FEATURES = {
   // `preview`: the hub's archive feed of the chat, which Coach reads for its history.
   coach: { base: { flags: ['coach'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['coach'], source: 'hub', switches: ['preview'] },
   // `stats`: the statistics and the «waiting» queue of the board; `preview`: the archive feed of a fan's preview.
-  spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview'], source: 'hub', switches: ['stats', 'preview'] },
+  // 2026-10-25: «Рассылка» is the board's own window (its fans, its tiers) and its chip; each version goes by the card's send.
+  spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview', 'outreach', 'outreach-chip'], source: 'hub', switches: ['stats', 'preview'] },
   // «Новые» come from the hub (`audience-new`); a greeting leaves from the card through X8.
   newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: PREVIEW_SEND }, surfaces: ['newcomers', 'preview'], source: 'hub', switches: ['preview'] },
   'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub', switches: ['preview'] },

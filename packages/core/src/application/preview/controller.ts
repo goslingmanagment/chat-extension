@@ -29,7 +29,7 @@ import { TONES, type FeatureId, type Surface, type Tone } from '@cg/contracts/fe
 import { type HostEvent, type HostPort, type NavigationReceipt } from '@cg/contracts/host';
 import { type SpenderDetail } from '@cg/contracts/hub';
 import { CHAT_IS_FAN, chatKeyOf, type ChatRef, type PartRef, type Platform, type Target } from '@cg/contracts/ids';
-import { OP_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
+import { MEDIA_LIMITS, OP_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from '@cg/contracts/limits';
 import { type OpView, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint, type PreviewSendPreflight, type PreviewSendRequest, type SendAttemptView, type SendGroup } from '@cg/contracts/send';
 import { type SendListItem, type TabEventPayload } from '@cg/contracts/tab-messages';
@@ -50,7 +50,12 @@ import {
   type UiAction,
   type UiActionType,
   type UserOptions,
-  type VmView, OUTREACH_MEDIA_HANDLE, type MediaPickerVM } from '@cg/contracts/vm';
+  type VmView,
+  OUTREACH_MEDIA_HANDLE,
+  type MediaPickerVM,
+  type OutreachMediaVM,
+} from '@cg/contracts/vm';
+import { type MediaFanState } from '@cg/contracts/media';
 
 import { MIN_MESSAGES_FOR_PING } from '../../domain/features/policy';
 import { DeferredInsertSlot, type DeferredOutcome } from '../../domain/insert/deferred';
@@ -70,13 +75,13 @@ import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pag
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
 import { boardOpenRefusal, issueCause, type BoardSwitch, type ChatNavigator } from '../boards/navigate';
-import { noteBatchOp, type BatchOutcome } from '../boards/batch';
+import { noteBatchOp, type BatchOutcome, type OutreachCardRow } from '../boards/batch';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
-import { attachmentSummary, type Attachment } from '../../domain/media/attachment';
-import { MediaDesk, OUTREACH_PICKER_FAN } from './media';
+import { EMPTY_ATTACHMENT, attachmentProblem, parsePrice, type Attachment } from '../../domain/media/attachment';
+import { MediaDesk, OUTREACH_PICKER_FAN, PRICE_PROBLEM_KEYS } from './media';
 import { SeenDesk, hostChatReadPort, type ChatReadPort } from './seen';
 import { partsOfResult, previewResult, type PartRows } from './result';
 import { clickable, fanAttempts, fanSendsOf, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type FanSendFact, type FanSends, type PartAttempt } from './send-rows';
@@ -105,7 +110,7 @@ export const RATE_LIMIT_HOLD_MS = 60_000;
  */
 export const SEND_PACE_MS = 500;
 
-const SOURCES = ['spenders', 'newcomers', 'palette'] as const satisfies readonly PreviewSource[];
+const SOURCES = ['spenders', 'newcomers', 'palette', 'outreach'] as const satisfies readonly PreviewSource[];
 const DRAFT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
 const CLOSE_PREVIEW: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } };
 /** The fan's name as the list shows it, when it is a name and not the bare id. */
@@ -292,7 +297,7 @@ export interface PreviewController extends SurfaceController<'preview'> {
    * 1.32.0: one fan of a list's batch — the preview's own Generate on the fan's card, open or not; resolves when the
    * generation ended (or did not start). The result stays on the fan's card, for the person's own «Отправить».
    */
-  batchStart(source: 'spenders' | 'newcomers', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }): Promise<BatchOutcome>;
+  batchStart(source: 'spenders' | 'newcomers' | 'outreach', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }): Promise<BatchOutcome>;
   /** The fan's result as the preview has it now: its first part, and whether it all went out; null — none. */
   batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null;
   /** A result a batch made moved on (it ended, a part went out). */
@@ -310,14 +315,23 @@ export interface PreviewController extends SurfaceController<'preview'> {
    */
   batchSend(handle: TargetHandle): NewcomerRowSendVM | null;
   /**
-   * «Рассылка» of Spenders on a site that sends from the card (X8): open — the rows of its batch send their fan's result
-   * («SendOutreach») and the fans' media pickers offer «Для всей рассылки». False on a site without that send.
+   * «Рассылка» on a site whose cards send (X8): on — the versions of its fans go by their cards' own send, and each fan's
+   * card takes the outreach's media unless the person picked the fan's own. True — the cards send here and the site has a
+   * vault to pick the outreach's media from.
    */
   setOutreach(on: boolean): boolean;
-  /** The vault media every fan of the outreach takes, as its bar says it; null — none set. */
-  outreachMedia(): { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
-  /** The outreach's own media window while it is open; null — closed (or no such send here). */
+  /** The outreach's media as picked in its sheet (valid or not); null — none: text only. */
+  outreachMedia(): OutreachMediaVM | null;
+  /** The outreach's media sheet while it is open; null — closed (or no such send here). */
   outreachPicker(): MediaPickerVM | null;
+  /** The fan's version on their card: its text, how its «Отправить» stands, its media; null — no version there. */
+  outreachRow(handle: TargetHandle): OutreachCardRow | null;
+  /** The card's own send of the fan's version (X8) with the fan's media, by this click. */
+  outreachSend(type: UiActionType, handle: TargetHandle, anyway: boolean): Promise<ActionReceipt>;
+  /** The person's words for the fan's version (null — Fix's again); false — it cannot change now. */
+  outreachEdit(handle: TargetHandle, text: string | null): boolean;
+  /** What these fans got of these media, as the vault says; null — no vault here. */
+  outreachStates(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
 }
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
@@ -363,10 +377,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   /** `ended`: who waits for an operation's result, by operation. */
   const endWaiters = new Map<string, Set<(ok: boolean) => void>>();
   const batchListeners = new Set<() => void>();
-  /** «Рассылка» is open on Spenders (X8 sites only): the rows of its batch send their fan's result. */
+  /** «Рассылка» exists (X8 sites only): the versions of its fans go by their cards' own send. */
   let outreachOn = false;
-  /** The vault media every fan of the outreach takes, and whose card they were picked in. */
-  let outreachMedia: { readonly attachment: Attachment; readonly from: string | null } | null = null;
+  /** The media every fan of the outreach takes: what its sheet holds now (the outreach picker's attachment). */
+  let outreachMedia: Attachment = EMPTY_ATTACHMENT;
   /** What the outreach gave each fan, by chat: replaced when its media change, never a fan's own picks. */
   const adopted = new Map<string, Attachment>();
   const batchOps = new Set<string>();
@@ -389,8 +403,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     i18n,
     changed: (chat) => {
       changed();
-      // The outreach's own media window is drawn by the Spenders board: it hears of it as of its batch.
-      if (chat.platformFanId === OUTREACH_PICKER_FAN) for (const listener of [...batchListeners]) listener();
+      // The outreach's sheet is drawn by its window: what it holds is the outreach's media at once, for every fan.
+      if (chat.platformFanId === OUTREACH_PICKER_FAN) syncOutreach();
+      else if (outreachOn) for (const listener of [...batchListeners]) listener();
     },
     shown: (chat) => (chat.platformFanId === OUTREACH_PICKER_FAN ? outreachOn : [...targets.values()].some((target) => target.fanRef === chat.platformFanId && chatOf(target)?.hostAccountId === chat.hostAccountId)),
   });
@@ -418,6 +433,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     spenders: new ViewCell(() => build('spenders')),
     newcomers: new ViewCell(() => build('newcomers')),
     palette: new ViewCell(() => build('palette')),
+    outreach: new ViewCell(() => build('outreach')),
   };
   const changed = (source?: PreviewSource): void => {
     if (disposed) return;
@@ -446,13 +462,15 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   };
   const surfaceOf = (source: PreviewSource): Surface => (source === 'newcomers' ? 'newcomers' : 'preview');
   const purposeOf = (source: PreviewSource): 'greeting' | 'preview-reply' => (source === 'newcomers' ? 'greeting' : 'preview-reply');
-  const featuresOf = (source: PreviewSource): readonly PreviewActionId[] => (source === 'newcomers' ? ['hi'] : DRAFT_FEATURES);
+  /** «Новые» greet; «Рассылка»'s card writes its fan's version alone (Fix of the common text, by the window's batch). */
+  const featuresOf = (source: PreviewSource): readonly PreviewActionId[] => (source === 'newcomers' ? ['hi'] : source === 'outreach' ? ['fix'] : DRAFT_FEATURES);
 
   // ── drafts ──
 
   const ownerKey = (source: PreviewSource, pageId: number, fanRef: string): string | null => {
     const session = context.current().session;
-    return session === null ? null : draftKey({ hubOrigin: session.hubOrigin, userId: session.userId, pageId, list: source, fanRef });
+    // The card of «Рассылка» keeps no draft of its own: the fan's Spenders draft is the one a Fix of theirs would read.
+    return session === null ? null : draftKey({ hubOrigin: session.hubOrigin, userId: session.userId, pageId, list: source === 'outreach' ? 'spenders' : source, fanRef });
   };
   const draftText = (state: TargetState): string => {
     const key = ownerKey(state.source, state.pageId, state.fanRef);
@@ -1304,7 +1322,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return { sentAt: null, hold: fanHold(track, variant, fanSends(track.pageId, track.fanRef, track.opId)) };
   }
 
-  function rowsOf(track: OpTrack, variant: number | null, index: number): PartRows {
+  /** `unpaced` — the row as it would be without the pause after a send (a warning keeps its words while the pause holds it). */
+  function rowsOf(track: OpTrack, variant: number | null, index: number, unpaced = false): PartRows {
     const v = variant ?? 0;
     const key = partKey(v, index);
     const group = groupOf(track, v);
@@ -1323,7 +1342,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // A part of another result on its way: one part of the fan goes at a time (an unknown outcome holds nothing, row 2).
     if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && sends.inFlight && !attempts.some((attempt) => inFlight(attempt.state))) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg(SEND_REASON_KEYS['CG-SEND-BUSY']) };
     // A send was clicked a moment ago (SEND_PACE_MS): the drafts of a batch never go out in one burst of clicks.
-    if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && paced()) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg('send.reason.pace') };
+    if ((row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') && paced() && !unpaced) row = { s: 'unavailable', code: 'CG-SEND-BUSY', reason: msg('send.reason.pace') };
     // Decision X53: picked media that cannot go yet (the price, the release forms) hold the part's «Отправить».
     if (row.s === 'available' || row.s === 'held-stale' || row.s === 'unverified') {
       const attached = media.attachment(track.target.chat);
@@ -1601,10 +1620,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   function mediaVm(state: TargetState): PreviewVM['media'] {
     const chat = chatOf(state);
     if (chat === null || deps.sender === null || deps.previewSend === false || !media.available || !pageFlag(context.current(), 'previewSend')) return null;
-    const vm = media.vm(chat);
-    // «Рассылка»: a whale's valid picks may become the outreach's («Для всей рассылки»), or already are.
-    const copy = vm === null || !outreachOn || state.source !== 'spenders' ? null : media.copyOf(chat);
-    return vm === null || copy === null ? vm : { ...vm, outreach: outreachMedia?.attachment === copy ? 'set' : 'offer' };
+    return media.vm(chat);
   }
 
   function build(source: PreviewSource): PreviewVM {
@@ -1778,7 +1794,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const ctx = context.current();
     const allowed = featuresOf(state.source);
     const known = allowed.find((f) => f === feature);
-    if (known === undefined) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
+    // On «Рассылка»'s card only the window writes (its Fix of the common text): no key or button of the card starts another.
+    if (known === undefined || (state.source === 'outreach' && outreach === null)) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
     const existing = currentOp.get(state.handle);
     const current = existing === undefined ? null : (tracks.get(existing) ?? null);
     if (current !== null && !isTerminalOpState(current.mirror.state)) {
@@ -1899,26 +1916,80 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const view = track.mirror.done;
     if (settle === undefined || (outcome === undefined && view === null)) return;
     batchWaiters.delete(track.opId);
-    // «Рассылка»: a whale whose version is ready takes the outreach's media now, so its release forms are read before the click.
-    if (view?.state === 'done' && track.source === 'spenders') adoptOutreach(track.target.chat);
+    // «Рассылка»: a fan whose version is ready takes the outreach's media now, so its release forms are read before the click.
+    if (view?.state === 'done' && track.source === 'outreach') adoptOutreach(track.target.chat);
     settle(outcome ?? (view?.state === 'done' ? { s: 'ready', text: firstPart(view) } : { s: 'failed', code: view?.error?.code ?? 'CG-OP-INTERRUPTED' }));
   }
 
   /** The outreach's media into this fan's picker, unless the person picked the fan's own there. */
   function adoptOutreach(chat: ChatRef): void {
-    if (outreachMedia === null || !outreachOn) return;
+    if (!outreachOn) return;
     const key = chatKeyOf(chat);
-    if (media.adopt(chat, outreachMedia.attachment, adopted.get(key) ?? null)) adopted.set(key, outreachMedia.attachment);
+    if (media.adopt(chat, outreachMedia, adopted.get(key) ?? null)) adopted.set(key, outreachMedia);
   }
 
-  /** The outreach's media go to every whale of the batch whose version is ready; the rows and the bar say so. */
+  /** The outreach's sheet changed: its media are every fan's of the outreach whose picks are not their own. */
+  function syncOutreach(): void {
+    const chat = outreachChat();
+    const next = chat === null ? EMPTY_ATTACHMENT : media.current(chat);
+    if (next !== outreachMedia) {
+      outreachMedia = next;
+      outreachChanged();
+    } else for (const listener of [...batchListeners]) listener();
+  }
+
+  /** The outreach's media go to every fan of its batch whose version is ready; the rows and the window say so. */
   function outreachChanged(): void {
     for (const handle of batched.keys()) {
       const track = tracks.get(currentOp.get(handle) ?? '');
-      if (track !== undefined && track.source === 'spenders' && track.mirror.done?.state === 'done') adoptOutreach(track.target.chat);
+      if (track !== undefined && track.source === 'outreach' && track.mirror.done?.state === 'done') adoptOutreach(track.target.chat);
     }
     changed();
     for (const listener of [...batchListeners]) listener();
+  }
+
+  /** The outreach's (or a fan's) picks as the window shows them: the media in order, the price, what is wrong. */
+  function outreachMediaOf(attachment: Attachment): OutreachMediaVM | null {
+    if (attachment.picks.length === 0) return null;
+    const price = parsePrice(attachment.price);
+    const problem = attachmentProblem(attachment);
+    return {
+      items: attachment.picks.map((pick) => ({ id: pick.id, type: pick.type, duration: pick.duration, thumb: pick.thumb, free: pick.free })),
+      posts: 0,
+      priceCents: price.ok ? price.cents : 0,
+      problem: problem === null ? null : problem.kind === 'all-free' ? msg('preview.media.allFree') : msg(PRICE_PROBLEM_KEYS[problem.problem]),
+    };
+  }
+
+  /** The fan's version on their card (one message, never split): the text that goes, its send, its media. */
+  function outreachRow(handle: TargetHandle): OutreachCardRow | null {
+    const track = tracks.get(currentOp.get(handle) ?? '');
+    if (track === undefined || track.source !== 'outreach' || track.hidden || track.mirror.done?.state !== 'done') return null;
+    const first = partsOfResult(track.mirror.done.result, 0)?.[0];
+    if (first === undefined) return null;
+    // The row before the pause after a send: the pause holds the button, it does not change what the button says.
+    const rows = rowsOf(track, 0, 0, true);
+    const edit = track.edits.get(partKey(0, 0));
+    const chat = track.target.chat;
+    const current = media.current(chat);
+    const ownMedia = current.picks.length > 0 && current !== adopted.get(chatKeyOf(chat));
+    const send = rows.send ?? null;
+    const goes = send !== null && (send.s === 'available' || send.s === 'unverified' || send.s === 'held-stale' || send.s === 'held-talking' || (send.s === 'rejected' && send.canRetry));
+    const paused = goes && paced();
+    const state = targets.get(handle) ?? null;
+    return {
+      opId: track.opId,
+      text: edit?.text ?? first,
+      edited: edit !== undefined,
+      editable: rows.editable === true,
+      send,
+      can: send?.s === 'available' && rows.order === null && !paused,
+      paused,
+      // Before the fan's picks take the outreach's (the version is not ready yet), what will go is the outreach's.
+      media: outreachMediaOf(current.picks.length > 0 || ownMedia ? current : outreachMedia),
+      ownMedia,
+      archiveAt: state?.feed?.asOf ?? null,
+    };
   }
 
   function batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null {
@@ -1935,7 +2006,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   function rowPart(handle: TargetHandle): { readonly track: OpTrack; readonly index: number; readonly rows: PartRows } | null {
     const track = tracks.get(currentOp.get(handle) ?? '');
     // X59 on a hub's «Новые»; «Рассылка» of Spenders while its bar is open.
-    if (track === undefined || (track.source !== 'newcomers' && !(outreachOn && track.source === 'spenders')) || track.hidden || track.mirror.done?.state !== 'done') return null;
+    if (track === undefined || (track.source !== 'newcomers' && !(outreachOn && track.source === 'outreach')) || track.hidden || track.mirror.done?.state !== 'done') return null;
     const parts = partsOfResult(track.mirror.done.result, 0) ?? [];
     for (let index = 0; index < parts.length; index += 1) {
       const rows = rowsOf(track, 0, index);
@@ -1951,7 +2022,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // Only what the card would send by one plain click: a warning («фан написал новое») or a part in work is the card's.
     const can = send.s === 'available' && next.rows.order === null;
     // «Рассылка»: a version made with the chat closed is unverified; its row may pass that, as the card's «Отправить всё равно».
-    const anyway = next.track.source === 'spenders' && send.s === 'unverified' && next.rows.order === null && !paced();
+    const anyway = next.track.source === 'outreach' && send.s === 'unverified' && next.rows.order === null && !paced();
     const refusedNow = send.s === 'rejected' && !send.canRetry ? { code: send.code, retryAt: null } : null;
     // The pause after a send (SEND_PACE_MS) is no fault of this draft: the row says so, not «откройте фана».
     const base = anyway ? { can, refused: refusedNow, anyway: true } : { can, refused: refusedNow };
@@ -1970,7 +2041,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     for (const listener of [...batchListeners]) listener();
   }
 
-  async function batchStart(source: 'spenders' | 'newcomers', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }): Promise<BatchOutcome> {
+  async function batchStart(source: 'spenders' | 'newcomers' | 'outreach', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }): Promise<BatchOutcome> {
     if (disposed) return { s: 'failed', code: 'CG-CONTEXT-CHANGED' };
     const shown = (): boolean => SOURCES.some((s) => surfaces.current().preview[s] === handle);
     let state = targets.get(handle) ?? null;
@@ -2529,7 +2600,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       return generate(type, state, action.feature, action.options, null);
     }
     if (isMediaAction(action) && action.targetHandle === OUTREACH_MEDIA_HANDLE) {
-      // «Выбрать медиа» of the outreach: its own window, for no fan.
+      // «+ Добавить медиа» of «Рассылка»: its own sheet, for no fan; what it holds is the outreach's media at once.
       const chat = outreachChat();
       if (!outreachOn || deps.sender === null || chat === null || !media.available) return Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n)));
       return Promise.resolve(mediaAction(action, chat) ? done(type) : done(type, 'noop'));
@@ -2560,43 +2631,26 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const state = stateOf(action.targetHandle);
       return state === null ? null : sendDraft(type, state);
     }
-    if (action.type === 'SetOutreachMedia' && action.targetHandle === OUTREACH_MEDIA_HANDLE) {
+    if (action.type === 'ClearOutreachMedia') {
+      // «Убрать» of the outreach's media: text alone from now on; every fan whose picks were the outreach's has none.
       const chat = outreachChat();
       if (!outreachOn || deps.sender === null || chat === null) return null;
-      const copy = media.copyOf(chat);
-      if (copy === null) return Promise.resolve(refused(type, localError('CG-SEND-MEDIA', i18n)));
-      outreachMedia = { attachment: copy, from: null };
-      // The window has done its job: it closes, and the picks stay in it for «Изменить».
+      media.clear(chat);
       media.setOpen(chat, false);
-      outreachChanged();
+      syncOutreach();
       return Promise.resolve(done(type));
     }
-    if (action.type === 'SetOutreachMedia') {
+    if (action.type === 'ResetOutreachMedia') {
+      // «Вернуть общее»: the fan takes the outreach's media again instead of their own picks.
       const state = stateOf(action.targetHandle);
       const chat = state === null ? null : chatOf(state);
-      if (!outreachOn || deps.sender === null || state === null || chat === null) return null;
-      const copy = media.copyOf(chat);
-      if (copy === null) return Promise.resolve(refused(type, localError('CG-SEND-MEDIA', i18n)));
-      outreachMedia = { attachment: copy, from: fanLabelOf(state.info) };
-      adopted.set(chatKeyOf(chat), copy);
-      outreachChanged();
+      if (!outreachOn || deps.sender === null || state === null || chat === null || state.source !== 'outreach') return null;
+      media.clear(chat);
+      media.setOpen(chat, false);
+      adopted.delete(chatKeyOf(chat));
+      if (media.adopt(chat, outreachMedia, null)) adopted.set(chatKeyOf(chat), outreachMedia);
+      for (const listener of [...batchListeners]) listener();
       return Promise.resolve(done(type));
-    }
-    if (action.type === 'ClearOutreachMedia') {
-      if (!outreachOn || deps.sender === null) return null;
-      outreachMedia = null;
-      adopted.clear();
-      outreachChanged();
-      return Promise.resolve(done(type));
-    }
-    if (action.type === 'SendOutreach') {
-      // «Рассылка» on a site that sends from the card: the row's «Отправить» is the card's own send of the fan's version,
-      // with the fan's media (the outreach's, unless the person picked the fan's own), by this click.
-      if (deps.sender === null || !outreachOn) return null;
-      const next = rowPart(action.targetHandle);
-      if (next === null) return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
-      adoptOutreach(next.track.target.chat);
-      return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index, action.anyway === true);
     }
     if (action.type === 'SendNewcomerGreeting') {
       // X59 on a hub's «Новые»: the row's «Отправить» is the card's own send of the greeting's next part, by this click.
@@ -2828,20 +2882,40 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         outreachOn = on;
         outreachChanged();
       }
-      return true;
+      return media.available && deps.previewSend !== false;
     },
     outreachPicker() {
       const chat = outreachChat();
       if (!outreachOn || deps.sender === null || chat === null || !pageFlag(context.current(), 'previewSend')) return null;
       const vm = media.vm(chat);
-      if (vm === null || !vm.open) return null;
-      const copy = media.copyOf(chat);
-      return copy === null ? vm : { ...vm, outreach: outreachMedia?.attachment === copy ? 'set' : 'offer' };
+      return vm === null || !vm.open ? null : vm;
     },
-    outreachMedia() {
-      if (outreachMedia === null) return null;
-      const summary = attachmentSummary(outreachMedia.attachment);
-      return { count: summary.count, previews: summary.previews, priceCents: summary.priceCents ?? 0, from: outreachMedia.from };
+    outreachMedia: () => (outreachOn ? outreachMediaOf(outreachMedia) : null),
+    outreachRow,
+    outreachSend(type, handle, anyway) {
+      // The card's own send of the fan's version, with the fan's media (the outreach's, unless the person picked the fan's own).
+      if (deps.sender === null || !outreachOn) return Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n)));
+      const next = rowPart(handle);
+      if (next === null) return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
+      adoptOutreach(next.track.target.chat);
+      return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index, anyway);
+    },
+    outreachEdit(handle, text) {
+      const track = tracks.get(currentOp.get(handle) ?? '');
+      if (track === undefined || track.source !== 'outreach') return false;
+      return editPart('EditOutreach', track, 0, 0, text).ok;
+    },
+    async outreachStates(fans, ids) {
+      const port = host.media;
+      const binding = context.current().binding;
+      if (port === undefined || binding === null || ids.length === 0) return null;
+      const states = new Map<string, readonly MediaFanState[]>();
+      for (const fanRef of fans) {
+        const read = await port.fanStates({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, ids.slice(0, MEDIA_LIMITS.idsPerRequest));
+        if (!read.ok) return null;
+        states.set(fanRef, read.value);
+      }
+      return states;
     },
     fromBatch: (opId) => batchOps.has(opId),
     onBatch(listener) {

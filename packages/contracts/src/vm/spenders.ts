@@ -6,7 +6,6 @@
 import { type CgErrorView } from '../errors';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type BatchRowVM, type BatchVM } from './batch';
-import { type MediaPickerVM } from './media';
 import { type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from './actions';
 import { type HotkeyLabel } from './catalog';
 import { type Msg } from './i18n';
@@ -49,71 +48,10 @@ export interface SpenderRowVM {
   readonly chat?: 'find' | 'finding' | 'missing';
   /** 1.32.0: the row in a batch (`SetBatchPick`, `GenerateBatch`); absent — the board has no batch. */
   readonly batch?: BatchRowVM;
-  /** «Рассылка» is open and the row's batch line is ready: its own «Отправить» and how it went; absent — nothing to send here. */
-  readonly outreach?: OutreachRowVM;
 }
 
-/** An item of the page's own «Copied …» list (Fansly's attach menu): 2 — «Copied Bundle», 1 — «Copied Media». */
-export interface OutreachItemVM {
-  readonly contentType: 1 | 2;
-  readonly contentId: string;
-  /** Goes with every message of the outreach. */
-  readonly picked: boolean;
-}
-
-/**
- * «Рассылка» of the board (Spenders on Fansly): each fan of the batch gets their personal line (the batch's Reply or
- * Ping), then the common text, with the picked copied items — by the person's click on the fan's row, one at a time.
- */
-export interface OutreachVM {
-  /** The bar over the list is shown; the rows offer «Отправить» only then. */
-  readonly open: boolean;
-  /** The common text: after each fan's personal line, or (`adapt`) the text each fan's own version is rewritten from. */
-  readonly text: string;
-  /**
-   * «Подстроить под фана»: the batch's Fix rewrites the common text for each fan, and that version goes alone; false —
-   * the batch's Reply / Ping line, then the common text. null — the hub cannot (no `outreach-fix-v1`).
-   */
-  readonly adapt: boolean | null;
-  /** The page's «Copied …» list as it was last read (opening the bar or «Обновить»), in its own order. */
-  readonly items: readonly OutreachItemVM[];
-  /**
-   * `reading` — the list is being read and Fansly asked which «Copied Media» are bundles (its own reload files copied
-   * bundles there); `checked` — the kinds are Fansly's word; `unchecked` — it did not answer: a «Copied Media» may be a
-   * bundle, which reaches the fan as nothing.
-   */
-  readonly itemsState: 'reading' | 'checked' | 'unchecked';
-  /** Fans the outreach reached in this tab. */
-  readonly sent: number;
-  /**
-   * How a row's «Отправить» sends: `own` — the site's own message with the copied items (Fansly); `preview` — the fan's
-   * card's send of its batch result with the outreach's media from the vault (OnlyFans, X8 and X53): there the result is
-   * always the fan's own version (`adapt`), and `items` are empty.
-   */
-  readonly channel: 'own' | 'preview';
-  /** `preview`: the vault media every fan of the outreach takes («Для всей рассылки» in a fan's picker); null — none set. */
-  readonly media: { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
-  /**
-   * `preview`: the outreach's own media window, open («Выбрать медиа»): the vault, the picks, the price — its media
-   * actions name `OUTREACH_MEDIA_HANDLE`; null — closed.
-   */
-  readonly picker: MediaPickerVM | null;
-}
-
-/** The target of the outreach's own media window: the media actions with it pick for the whole outreach, for no fan. */
+/** The target of the outreach's own media sheet: the media actions with it pick for the whole outreach, for no fan. */
 export const OUTREACH_MEDIA_HANDLE = 'outreach:media';
-
-/** A row's «Отправить» of the outreach. */
-export interface OutreachRowVM {
-  /** `ready` — may go; `sending` — on its way; `sent` — Fansly made the message; `uncertain` — it left, its fate unknown; `failed` — not sent. */
-  readonly state: 'ready' | 'sending' | 'sent' | 'uncertain' | 'failed';
-  /** The click goes now (false while another send of the board is on its way or rests its second). */
-  readonly can: boolean;
-  /** `failed` and `uncertain`: the code. */
-  readonly code: string | null;
-  /** From the card (X8): whether the fan wrote anything new could not be checked — the click is «Отправить всё равно». */
-  readonly anyway?: boolean;
-}
 
 export interface ShelfVM {
   readonly id: string;
@@ -173,8 +111,11 @@ export interface SpendersBoardVM {
   readonly waitingFallback?: { readonly error: CgErrorView; readonly retry: UiAction } | null;
   /** 1.32.0: the batch of the board — ticked fans, how their generations go; absent — no batch here. */
   readonly batch?: BatchVM;
-  /** «Рассылка» (Spenders on Fansly); absent — the site has none. */
-  readonly outreach?: OutreachVM;
+  /**
+   * 1.63.0: «Рассылка» in the head opens its window (the ticked fans, else the pressed tier, become its audience);
+   * absent — the hub cannot write the versions here (no `outreach-fix-v1`).
+   */
+  readonly outreach?: true;
 }
 
 /** One number of the statistics with its own stamp. */

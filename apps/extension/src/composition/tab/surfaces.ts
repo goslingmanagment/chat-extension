@@ -58,12 +58,50 @@ export const OVERLAY_MOUNTS: Readonly<Partial<Record<OverlayKind, OverlaySpec>>>
   'fan-panel': { kind: 'fan-panel', layer: 'panel', entry: 'fan-panel', pick: surfaceOf, edge: true },
   spenders: { kind: 'spenders', layer: 'modal', entry: 'spenders', pick: surfaceOf },
   newcomers: { kind: 'newcomers', layer: 'modal', entry: 'newcomers', pick: surfaceOf },
+  outreach: { kind: 'outreach', layer: 'modal', entry: 'outreach', pick: surfaceOf },
   preview: { kind: 'preview', layer: 'modal', entry: 'preview', pick: surfaceOf, only: (overlays) => overlays.previewFrom() === 'palette' },
   palette: { kind: 'palette', layer: 'modal', entry: 'palette', pick: surfaceOf },
   'quick-jump': { kind: 'quick-jump', layer: 'modal', entry: 'palette', pick: (module) => module['quickJumpSurface'] as Surface },
   cheatsheet: { kind: 'cheatsheet', layer: 'modal', entry: 'cheatsheet', pick: surfaceOf },
   'result-expanded': { kind: 'result-expanded', layer: 'modal', entry: 'result-expanded', pick: surfaceOf },
 };
+
+/**
+ * What stands over the page while something holds it up, not a window: «Рассылка» folded into its chip. No key of the
+ * page is taken for it, and it covers nothing but itself.
+ */
+export type PinKind = 'outreach-chip';
+
+export const PIN_MOUNTS: Readonly<Record<PinKind, OverlaySpec>> = {
+  'outreach-chip': { kind: 'outreach-chip', layer: 'panel', entry: 'outreach', pick: (module) => module['chipSurface'] as Surface },
+};
+
+/** Which pins are up: the boards set it (their «Рассылка» folded), the mounts follow it. */
+export interface PinState {
+  isOn(pin: PinKind): boolean;
+  set(pin: PinKind, on: boolean): void;
+  subscribe(listener: () => void): () => void;
+}
+
+export function createPinState(): PinState {
+  const on = new Set<PinKind>();
+  const listeners = new Set<() => void>();
+  return {
+    isOn: (pin) => on.has(pin),
+    set(pin, value) {
+      if (on.has(pin) === value) return;
+      if (value) on.add(pin);
+      else on.delete(pin);
+      for (const listener of [...listeners]) listener();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
 
 export interface SurfaceMountsEnv {
   readonly mounts: HostMounts;
@@ -73,6 +111,8 @@ export interface SurfaceMountsEnv {
   readonly ui: typeof DockChunk;
   readonly toasts: DockChunk.ToastHost;
   readonly overlays: OverlayState;
+  /** What stands over the page without being a window (PIN_MOUNTS); absent — none. */
+  readonly pins?: PinState;
   readonly lazy: <T>(entry: LazyEntryName) => Promise<T>;
   /** A surface failed to render, to dispatch or to load: facts only. */
   readonly report: (failure: DockChunk.KitFailure) => void;
@@ -118,8 +158,8 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
   const options = { report: env.report };
   /** A surface on screen and how to put it there again. */
   const live = new Map<MountSurfaceKind, { mount: DockChunk.KitMount; again: () => DockChunk.KitMount }>();
-  /** Overlays whose chunk is on its way; false — it closed meanwhile. */
-  const loading = new Map<OverlayKind, boolean>();
+  /** Overlays (and pins) whose chunk is on its way; false — it closed meanwhile. */
+  const loading = new Map<OverlayKind | PinKind, boolean>();
   let disposed = false;
 
   const layerRoot = (layer: OverlayLayer): ShadowRoot => overlayRoot(mounts, layer);
@@ -156,7 +196,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
     env.onChange?.();
   };
 
-  async function open(overlay: OverlayKind, spec: OverlaySpec): Promise<void> {
+  async function open(overlay: OverlayKind | PinKind, spec: OverlaySpec, shownNow: () => boolean = () => shown(overlay as OverlayKind, spec)): Promise<void> {
     if (live.has(spec.kind) || loading.has(overlay)) {
       if (loading.has(overlay)) loading.set(overlay, true);
       return;
@@ -175,7 +215,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
     const wanted = loading.get(overlay) === true;
     loading.delete(overlay);
     // Closed, or the tab went away, while the chunk was loading.
-    if (!wanted || disposed || !shown(overlay, spec)) return;
+    if (!wanted || disposed || !shownNow()) return;
     try {
       put(spec.kind, () => ui.mountKitSurface(spec.kind, layerRoot(spec.layer), spec.edge === true ? (env.panelDeps ?? deps) : deps, surface, options));
     } catch (error) {
@@ -195,8 +235,18 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
         drop(spec.kind);
       }
     }
+    const pins = env.pins;
+    for (const [pin, spec] of Object.entries(PIN_MOUNTS) as [PinKind, OverlaySpec][]) {
+      const up = (): boolean => pins?.isOn(pin) === true;
+      if (up()) void open(pin, spec, up);
+      else {
+        if (loading.has(pin)) loading.set(pin, false);
+        drop(spec.kind);
+      }
+    }
   };
   const off = overlays.subscribe(sync);
+  const offPins = env.pins?.subscribe(sync) ?? null;
   sync();
 
   return {
@@ -212,6 +262,7 @@ export function mountSurfaces(env: SurfaceMountsEnv): SurfaceMounts {
     dispose() {
       disposed = true;
       off();
+      offPins?.();
       for (const kind of [...live.keys()]) drop(kind);
     },
   };

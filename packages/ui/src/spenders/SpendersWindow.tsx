@@ -22,7 +22,6 @@ import { BOARD_CSS, Board, BoardFilters, firstFan, focusIsIdle, openChat, type B
 import { PanelPreview, type PreviewFallback } from './preview/PanelPreview';
 import { STATS_CSS, StatsColumn, StatsExpanded, StatsRail, type StatsShow } from './Stats';
 import { RefreshButton, isPlainKey, isTextEntry, type RefreshableView } from './window';
-import { OUTREACH_CSS, OutreachBar, OutreachMediaWindow, OutreachToggle } from './outreach';
 
 /** Marks of the paints the UI reports; the controller starts the measure, the UI ends it (RenderMarks). */
 export const SPENDERS_PAINT_MARKS = { open: 'spenders.board', search: 'spenders.search' } as const;
@@ -105,7 +104,7 @@ function PanelSplit({ panelRef, height, onResize }: { readonly panelRef: RefObje
  * черновик каждому — отправляете вы сами»; a batch already on its way says how far it got and can be stopped. The
  * batch never sends: each result waits on its fan's card for the person's own click (X8).
  */
-function PickedBar({ batch, picked, outreach }: { readonly batch: BatchVM; readonly picked: readonly string[]; readonly outreach: 'adapt' | 'lines' | null }): JSX.Element {
+function PickedBar({ batch, picked, outreach }: { readonly batch: BatchVM; readonly picked: readonly string[]; readonly outreach: boolean }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const total = batch.queued + batch.generating + batch.ready + batch.sent + batch.failed;
@@ -114,13 +113,15 @@ function PickedBar({ batch, picked, outreach }: { readonly batch: BatchVM; reado
     <div class="cg-sp__picked" role="group" aria-label={i18n.t('batch.pickAll')} data-cg-batch={running ? 'running' : 'picked'}>
       <b class="cg-sp__pickedn cg-num">{i18n.t('spenders.batch.picked', { n: batch.picked })}</b>
       <Button
-        label={i18n.t(outreach === 'adapt' ? 'outreach.adaptLines' : outreach === 'lines' ? 'outreach.writeLines' : 'spenders.batch.write')}
+        label={i18n.t('spenders.batch.write')}
         size="sm"
         class="cg-sp__solid"
         reason={batch.reason === null ? null : i18n.text(batch.reason)}
-        tooltip={i18n.t(outreach === 'adapt' ? 'outreach.adaptBatchTooltip' : 'batch.generateTooltip')}
+        tooltip={i18n.t('batch.generateTooltip')}
         onClick={() => void dispatch({ type: 'GenerateBatch', list: 'spenders' })}
       />
+      {/* «Рассылка» for the ticked fans: its own window, with them as its audience. */}
+      {outreach ? <Button label={i18n.t('outreach.forPicked', { n: batch.picked })} variant="quiet" size="sm" class="cg-sp__outreach" tooltip={i18n.t('outreach.forPickedTooltip')} onClick={() => void dispatch({ type: 'SetOutreach', open: true })} /> : null}
       <Button
         label={i18n.t('spenders.batch.unpick')}
         variant="quiet"
@@ -334,13 +335,13 @@ export function SpendersWindow(): JSX.Element {
               </span>
               <span class="cg-sp__grow" />
               {/* SP-024: one «Обновить» for what the window shows of the page — the list and the statistics beside it. */}
-              {board.outreach === undefined ? null : <OutreachToggle outreach={board.outreach} />}
+              {board.outreach === undefined ? null : <Button label={i18n.t('outreach.button')} icon="mail" variant="quiet" size="sm" class="cg-sp__outreach" tooltip={i18n.t('outreach.buttonTooltip')} onClick={() => void dispatch({ type: 'SetOutreach', open: true })} />}
               <RefreshButton views={statistics ? BOARD_REFRESH : LIST_REFRESH} />
               <Button label={i18n.t('common.close')} variant="quiet" size="sm" hotkey="Esc" tooltip={i18n.t('spenders.closeTooltip')} class="cg-sp__close" onClick={closeWindow} />
             </header>
             {ticking && board.batch !== undefined ? (
               <div class="cg-sp__bar is-batch">
-                <PickedBar batch={board.batch} picked={picked} outreach={board.outreach?.open !== true ? null : board.outreach.adapt === true ? 'adapt' : 'lines'} />
+                <PickedBar batch={board.batch} picked={picked} outreach={board.outreach === true} />
               </div>
             ) : (
               <div class="cg-sp__bar">
@@ -359,7 +360,6 @@ export function SpendersWindow(): JSX.Element {
                 />
               </div>
             )}
-            {board.outreach?.open === true ? <OutreachBar outreach={board.outreach} batch={board.batch} /> : null}
           </div>
           {expanded ? (
             <div class="cg-sp__cols is-stats">
@@ -390,8 +390,6 @@ export function SpendersWindow(): JSX.Element {
               ) : null}
             </div>
           )}
-          {/* «Выбрать медиа» of the outreach: its own window over the list. */}
-          {board.outreach?.picker === null || board.outreach?.picker === undefined ? null : <OutreachMediaWindow picker={board.outreach.picker} />}
           {/* The old window's foot: the list's keys (SP-034). */}
           <KeysFooter hints={board.keys.map((key) => ({ keys: key.hotkey.display, label: i18n.text(key.label) }))} hide={null} />
         </div>
@@ -474,5 +472,4 @@ export const SPENDERS_CSS = `
 }
 ${BOARD_CSS}
 ${STATS_CSS}
-${OUTREACH_CSS}
 `;

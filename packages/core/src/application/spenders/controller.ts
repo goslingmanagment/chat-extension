@@ -30,7 +30,7 @@ import { type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '..
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { flagReasonVm } from '../flag-reason';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, localKey, msg, stamp } from '../boards/views';
-import { createOutreach, type OutreachPort } from './outreach';
+import { type OutreachBoardPort } from '../outreach/controller';
 
 /** The search waits this long after the last keystroke (SP-019). */
 export const SEARCH_DEBOUNCE_MS = 150;
@@ -112,8 +112,6 @@ export interface SpendersControllerDeps {
   readonly timeZone: string;
   /** Rows of one «ждут ответа» page (QUEUE_PAGE_SIZE by default). */
   readonly queuePageSize?: number;
-  /** «Рассылка» (Fansly): the page's «Copied …» list and the background's send; absent — the board has none. */
-  readonly outreach?: OutreachPort;
 }
 
 type BoardViews = 'spenders.board' | 'spenders.stats';
@@ -134,6 +132,8 @@ export interface SpendersController extends SurfaceController<BoardViews> {
   command(command: BoardCommand, focused: TargetHandle | null): { readonly action: UiAction } | { readonly focusRow: TargetHandle } | { readonly focusSearch: true } | null;
   /** 1.32.0: the preview that starts a batch's generations (made after the board); until then the board has no batch. */
   attachBatch(port: BatchPreviewPort): void;
+  /** 1.63.0: the board as the window of «Рассылка» reads it — its fans, tiers, sums and who wrote last. */
+  readonly outreachBoard: OutreachBoardPort;
 }
 
 export function createSpendersController(deps: SpendersControllerDeps): SpendersController {
@@ -174,22 +174,13 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   /** 1.32.0: the batch — Reply to a fan who wrote last, Ping to one who did not; nothing is sent by it. */
   let batchPort: BatchPreviewPort | null = null;
   let offBatch: (() => void) | null = null;
-  /** The button each fan's batch line was started with, for the hub's record of how a «Рассылка» text was written. */
-  const lineWith = new Map<string, 'fix' | 'reply' | 'ping'>();
   const batch = createBatch({
     clock,
     start(handle) {
       const parsed = parseFanHandle(handle);
       if (batchPort === null || parsed === null || parsed.pageId !== pageId()) return Promise.resolve({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
-      // «Рассылка» with «Подстроить под фана»: each fan's own version of the common text (Fix), not a Reply or a Ping.
-      const fix = outreach?.batchFix() ?? null;
-      if (fix !== null) {
-        lineWith.set(handle, 'fix');
-        return batchPort.batchStart('spenders', handle, 'fix', fix);
-      }
       const known = rowOf(parsed.fanRef);
       const waiting = known === null ? queueMode() : known.waiting;
-      lineWith.set(handle, waiting ? 'reply' : 'ping');
       return batchPort.batchStart('spenders', handle, waiting ? 'reply' : 'ping');
     },
     live: (handle) => batchPort?.batchLive(handle) ?? null,
@@ -198,21 +189,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       changed('board');
     },
   });
-
-  const outreach = deps.outreach === undefined ? null : createOutreach({
-    port: deps.outreach,
-    account: () => context.current().binding?.platformAccountId ?? null,
-    canAdapt: () => context.current().bootstrap?.capabilities.includes(OUTREACH_FIX_CAPABILITY) === true,
-    media: () => batchPort?.outreachMedia?.() ?? null,
-    picker: () => batchPort?.outreachPicker?.() ?? null,
-    rpc,
-    clock,
-    i18n,
-    changed(rows) {
-      if (rows) shelfCache = null;
-      changed('board');
-    },
-  });
+  /** Who reads the board for «Рассылка»: its window hears every change of the rows and the reads. */
+  const outreachListeners = new Set<() => void>();
 
   const entryOf = (p: SpendersPeriod): BoardEntry => {
     let entry = boards.get(p);
@@ -306,27 +284,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       ...(chat === undefined ? {} : { chat }),
       ...(batchPort === null ? {} : { batch: batch.row(handleOf(row.fanRef)) }),
     };
-    const sends = outreach === null ? undefined : outreach.channel === 'preview' ? previewSend(base) : outreach.row(base.handle, base.batch?.state === 'ready' && base.batch.text !== null);
-    if (sends !== undefined) return cents ? { ...base, lifetimeCents: true, outreach: sends } : { ...base, outreach: sends };
     return cents ? { ...base, lifetimeCents: true } : base;
   }
-
-  /**
-   * «Рассылка» from the card (X8): the row's «Отправить» is the fan's card's send of its batch result — whether it may go
-   * now, why the last click was refused, and whether it all went out, as the preview says.
-   */
-  function previewSend(row: SpenderRowVM): SpenderRowVM['outreach'] {
-    if (outreach === null || !outreach.vm().open || batchPort === null || (row.batch?.state !== 'ready' && row.batch?.state !== 'sent')) return undefined;
-    if (row.batch.state === 'sent') return { state: 'sent', can: false, code: null };
-    const send = batchPort.batchSend?.(row.handle) ?? null;
-    if (send === null) return undefined;
-    const can = send.can || send.anyway === true;
-    const warned = send.anyway === true ? { anyway: true } : {};
-    return send.refused === null ? { state: 'ready', can, code: null, ...warned } : { state: 'failed', can, code: send.refused.code, ...warned };
-  }
-
-  /** Outreach is offered where its send exists: Fansly's own; the card's (X8) only with Fix for each fan. */
-  const outreachUsable = (): boolean => outreach !== null && (outreach.channel === 'own' || (outreach.vm().adapt !== null && batchPort?.setOutreach !== undefined));
 
   const boardRetry: UiAction = { type: 'ReloadView', selector: BOARD_SELECTOR };
   const statsRetry: UiAction = { type: 'ReloadView', selector: STATS_SELECTOR };
@@ -433,9 +392,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         { label: msg('common.close'), hotkey: localKey('Esc', 'Escape') },
       ],
       waitingFallback: queueFailed === null ? null : { error: errorOf(queueFailed, i18n), retry: boardRetry },
-      ...(batchPort === null ? {} : { batch: batch.vm(!pageFlag(ctx, 'preview') ? flagReasonVm(pageFlagOf(ctx, 'preview')).text : outreach?.needsText() === true ? msg('outreach.needText') : null) }),
-      // From the card (X8) the fans the outreach reached are the batch's rows whose version went out.
-      ...(outreach === null || !outreachUsable() ? {} : { outreach: outreach.channel === 'preview' ? { ...outreach.vm(), sent: batch.vm(null).sent } : outreach.vm() }),
+      ...(batchPort === null ? {} : { batch: batch.vm(!pageFlag(ctx, 'preview') ? flagReasonVm(pageFlagOf(ctx, 'preview')).text : null) }),
+      // «Рассылка» opens its window where the hub writes each fan's version of a mass message.
+      ...(ctx.bootstrap?.capabilities.includes(OUTREACH_FIX_CAPABILITY) === true ? { outreach: true as const } : {}),
     };
   }
 
@@ -492,7 +451,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     if (disposed) return;
     if (what !== 'stats') boardCell.invalidate();
     if (what !== 'board') statsCell.invalidate();
-    if (what !== 'stats') for (const listener of [...directoryListeners]) listener();
+    if (what !== 'stats') for (const listener of [...directoryListeners, ...outreachListeners]) listener();
   };
 
   // ── reads ──
@@ -640,7 +599,6 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       epoch = state.epoch;
       reset();
       batch.reset();
-      outreach?.reset();
       surfaces.setList('spenders', false);
     }
     changed();
@@ -855,32 +813,6 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       }
       return null;
     }
-    if (action.type === 'SetOutreach') {
-      if (outreach === null || !outreachUsable()) return null;
-      const receipt = outreach.set(action);
-      // From the card: the preview's rows and pickers follow the bar.
-      if (outreach.channel === 'preview') batchPort?.setOutreach?.(outreach.vm().open);
-      return Promise.resolve(receipt);
-    }
-    if (action.type === 'SendOutreach') {
-      const fanRef = own(action.targetHandle);
-      const binding = context.current().binding;
-      if (outreach === null || fanRef === null) return null;
-      // From the card the preview sends (it answers first); here only what it could not take.
-      if (outreach.channel === 'preview') return Promise.resolve(refused(action.type, localError('CG-SEND-PART', i18n)));
-      if (binding === null) return Promise.resolve(refused(action.type, localError('CG-BINDING-MISSING', i18n)));
-      return outreach.send(action.type, action.targetHandle, {
-        hostAccountId: binding.platformAccountId,
-        fanRef,
-        line: batchPort === null ? null : batch.row(action.targetHandle).text,
-        lineWith: lineWith.get(action.targetHandle) ?? null,
-        // The fan's group as the board finds it for «Открыть чат»: its row, the page's memory, then the inbox search.
-        async group() {
-          await resolveConversation(fanRef, true);
-          return conversationOfRow(knownRow(fanRef)?.row).conversationRef ?? null;
-        },
-      });
-    }
     if (isBatchAction(action)) {
       if (action.list !== 'spenders' || batchPort === null) return null;
       return Promise.resolve(batchDispatch(batch, action, (handle) => own(handle) !== null));
@@ -990,6 +922,50 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     return null;
   }
 
+  /** The board as the window of «Рассылка» reads it: the same reads, names and caches as the board's own. */
+  const outreachBoard: OutreachBoardPort = {
+    list() {
+      const entry = entryOf(LIST_PERIOD);
+      return { index: entry.index, loading: entry.loading, error: entry.error, since: entry.since };
+    },
+    recent: () => entryOf('7d').index,
+    async load(what) {
+      const force = what.force === true;
+      const stale = (p: SpendersPeriod): boolean => {
+        const entry = entryOf(p);
+        return !entry.loading && (force || entry.index === null || !fresh(entry.loadedAt, BOARD_FRESH_MS));
+      };
+      await Promise.all([stale(LIST_PERIOD) ? loadBoardOf(LIST_PERIOD, force) : undefined, what.recent === true && stale('7d') ? loadBoardOf('7d', force) : undefined]);
+    },
+    seed() {
+      const id = pageId();
+      const picked = batch.picked().flatMap((handle) => {
+        const parsed = parseFanHandle(handle);
+        return parsed !== null && parsed.pageId === id ? [parsed.fanRef] : [];
+      });
+      return { picked, shelf };
+    },
+    info(fanRef) {
+      const id = pageId();
+      const info = id === null ? null : infoOf(fanRef, id);
+      if (info === null) return null;
+      const { handle: _handle, source: _source, ...rest } = info;
+      return rest;
+    },
+    prepare: (fanRef) => resolveConversation(fanRef, false),
+    async group(fanRef) {
+      await resolveConversation(fanRef, true);
+      return conversationOfRow(knownRow(fanRef)?.row).conversationRef ?? null;
+    },
+    openChat: (type, fanRef) => openChat(type, fanRef),
+    subscribe(listener) {
+      outreachListeners.add(listener);
+      return () => {
+        outreachListeners.delete(listener);
+      };
+    },
+  };
+
   return {
     kinds: ['spenders.board', 'spenders.stats'],
     getSnapshot<K extends BoardViews>(selector: { readonly of: K }): ViewMap[K] {
@@ -1002,6 +978,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     },
     dispatch,
     directory,
+    outreachBoard,
     row: (id, fanRef) => (id === pageId() ? rowOf(fanRef) : null),
     attachBatch(port) {
       offBatch?.();
@@ -1053,7 +1030,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       disposed = true;
       offBatch?.();
       batch.dispose();
-      outreach?.dispose();
+      outreachListeners.clear();
       offContext();
       offSurfaces();
       offLanguage();

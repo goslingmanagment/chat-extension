@@ -13,18 +13,27 @@ import { type LocalGreeting } from '../../domain/newcomers/rows';
 export interface SurfacesState {
   readonly spenders: boolean;
   readonly newcomers: boolean;
+  /** 1.63.0: the window of «Рассылка». */
+  readonly outreach: boolean;
+  /** «Рассылка» folded into its chip in the page's corner: its outreach goes on while the person works in the chats. */
+  readonly outreachChip: boolean;
   readonly fanPanel: boolean;
   /** The fan each preview shows; null — closed. */
   readonly preview: Readonly<Record<PreviewSource, TargetHandle | null>>;
 }
 
-const CLOSED: SurfacesState = { spenders: false, newcomers: false, fanPanel: false, preview: { spenders: null, newcomers: null, palette: null } };
+const NO_PREVIEW: SurfacesState['preview'] = { spenders: null, newcomers: null, palette: null, outreach: null };
+const CLOSED: SurfacesState = { spenders: false, newcomers: false, outreach: false, outreachChip: false, fanPanel: false, preview: NO_PREVIEW };
+type List = 'spenders' | 'newcomers' | 'outreach';
+const LISTS: readonly List[] = ['spenders', 'newcomers', 'outreach'];
 
 /**
- * Open state of the R12 overlays. The lists are one window at a time: opening
- * one closes the other with its preview. The palette's preview (CS-030) is a
- * window of its own and one of them too: it closes the lists, and a list
- * closes it. The composition root reads it to mount and unmount the surfaces.
+ * Open state of the R12 overlays. The lists — Spenders, «Новые», «Рассылка» — are
+ * one window at a time: opening one closes the others with their previews. The
+ * palette's preview (CS-030) is a window of its own and one of them too: it
+ * closes the lists, and a list closes it. «Рассылка» may fold into a chip that
+ * stays on the page under any window. The composition root reads it to mount
+ * and unmount the surfaces.
  */
 export class Surfaces {
   private state: SurfacesState = CLOSED;
@@ -46,10 +55,13 @@ export class Surfaces {
     if (
       next.spenders === previous.spenders &&
       next.newcomers === previous.newcomers &&
+      next.outreach === previous.outreach &&
+      next.outreachChip === previous.outreachChip &&
       next.fanPanel === previous.fanPanel &&
       next.preview.spenders === previous.preview.spenders &&
       next.preview.newcomers === previous.preview.newcomers &&
-      next.preview.palette === previous.preview.palette
+      next.preview.palette === previous.preview.palette &&
+      next.preview.outreach === previous.preview.outreach
     ) {
       return;
     }
@@ -57,13 +69,21 @@ export class Surfaces {
     for (const listener of [...this.listeners]) listener(next, previous);
   }
 
-  setList(list: 'spenders' | 'newcomers', open: boolean): void {
+  setList(list: List, open: boolean): void {
     const s = this.state;
-    if (list === 'spenders') {
-      this.set(open ? { ...s, spenders: true, newcomers: false, preview: { ...s.preview, newcomers: null, palette: null } } : { ...s, spenders: false, preview: { ...s.preview, spenders: null } });
-    } else {
-      this.set(open ? { ...s, newcomers: true, spenders: false, preview: { ...s.preview, spenders: null, palette: null } } : { ...s, newcomers: false, preview: { ...s.preview, newcomers: null } });
+    if (!open) {
+      this.set({ ...s, [list]: false, preview: { ...s.preview, [list]: null } });
+      return;
     }
+    // One list at a time: the others close with their previews, and so does the palette's.
+    const preview = { ...s.preview, palette: null };
+    for (const other of LISTS) if (other !== list) preview[other] = null;
+    this.set({ ...s, spenders: list === 'spenders', newcomers: list === 'newcomers', outreach: list === 'outreach', preview });
+  }
+
+  /** «Свернуть» of «Рассылка» and back: the chip in the page's corner. */
+  setOutreachChip(on: boolean): void {
+    this.set({ ...this.state, outreachChip: on });
   }
 
   setFanPanel(open: boolean): void {
@@ -73,13 +93,17 @@ export class Surfaces {
   setPreview(source: PreviewSource, handle: TargetHandle | null): void {
     const s = this.state;
     // The palette's preview opens in its own window: the lists and their previews close.
-    if (source === 'palette' && handle !== null) this.set({ ...s, spenders: false, newcomers: false, preview: { spenders: null, newcomers: null, palette: handle } });
+    if (source === 'palette' && handle !== null) this.set({ ...s, spenders: false, newcomers: false, outreach: false, preview: { ...NO_PREVIEW, palette: handle } });
     else this.set({ ...s, preview: { ...s.preview, [source]: handle } });
   }
 
-  /** A chat opens from a board: the lists and their previews close (SP-035). */
+  /**
+   * A chat opens from a board: the lists and their previews close (SP-035). «Рассылка» folds into its chip: the person
+   * looks at the chat and comes back to the outreach with one click.
+   */
   closeBoards(): void {
-    this.set({ ...this.state, spenders: false, newcomers: false, preview: { spenders: null, newcomers: null, palette: null } });
+    const s = this.state;
+    this.set({ ...s, spenders: false, newcomers: false, outreach: false, outreachChip: s.outreachChip || s.outreach, preview: NO_PREVIEW });
   }
 
   closeAll(): void {

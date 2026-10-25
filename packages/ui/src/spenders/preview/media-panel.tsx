@@ -9,7 +9,7 @@
 // entry `preview-send`): Spenders, «Новые» and the preview window carry only
 // the toggle. Nothing here sends.
 
-import { type JSX } from 'preact';
+import { type ComponentChildren, type JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 
 import { type I18n, type MediaCellVM, type MediaChosenVM, type MediaPickerVM, type TargetHandle } from '@cg/contracts/vm';
@@ -20,8 +20,14 @@ import { Button, ErrorCard, Icon, Spinner, TextField, useDispatch, useI18n, useT
 export interface MediaPanelProps {
   readonly vm: MediaPickerVM;
   readonly handle: TargetHandle;
-  /** `window` — «Рассылка»'s own media window: the folders wrap, the grid is large and fills the window. */
+  /** `window` — «Рассылка»'s media sheet: the folders wrap, the grid is large and fills the sheet. */
   readonly variant?: 'window';
+  /** At the foot's end, after what goes (the sheet's «Готово»). */
+  readonly extra?: ComponentChildren;
+  /** false — no «Очистить» of the panel's own (the sheet puts its own words there through `extra`). */
+  readonly clear?: false;
+  /** A word on a medium of the grid, by its id («1 из 8 уже купил»). */
+  readonly marks?: Readonly<Record<string, string>>;
 }
 
 /** Where a click on a medium lands: «Платное» (behind the price) or «Превью» (free). */
@@ -60,7 +66,7 @@ function Notes({ vm, handle }: MediaPanelProps): JSX.Element | null {
   return notes.length === 0 ? null : <div class="cg-pvm__notes">{notes}</div>;
 }
 
-function Cell({ cell, handle, priced, step }: { readonly cell: MediaCellVM; readonly handle: TargetHandle; readonly priced: boolean; readonly step: Step }): JSX.Element {
+function Cell({ cell, handle, priced, step, mark }: { readonly cell: MediaCellVM; readonly handle: TargetHandle; readonly priced: boolean; readonly step: Step; readonly mark: string | null }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const fanTip = useTooltip(cell.fan === null ? null : i18n.t(`preview.media.fanTip.${cell.fan}`));
@@ -102,6 +108,7 @@ function Cell({ cell, handle, priced, step }: { readonly cell: MediaCellVM; read
           </span>
         )}
         {cell.ready ? null : <span class="cg-pvm__wait">{i18n.t('preview.media.notReady')}</span>}
+        {mark === null ? null : <span class="cg-pvm__strip">{mark}</span>}
       </button>
       {cell.fan === null ? null : (
         <span class={`cg-pvm__fan is-${cell.fan}`} {...fanTip.props} tabIndex={-1}>
@@ -218,7 +225,7 @@ function Slots({ vm, handle, variant, step, onStep }: MediaPanelProps & { readon
 }
 
 /** The open panel: «Платное», the price, «Превью», the folders, the grid and what goes. */
-function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
+function Panel({ vm, handle, variant, extra, clear, marks }: MediaPanelProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const gridRef = useRef<HTMLDivElement>(null);
@@ -263,7 +270,7 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
       ) : null}
       <div ref={gridRef} class={`cg-pvm__grid is-${step}`} onScroll={onScroll}>
         {grid.items.map((cell) => (
-          <Cell key={cell.id} cell={cell} handle={handle} priced={vm.priced} step={step} />
+          <Cell key={cell.id} cell={cell} handle={handle} priced={vm.priced} step={step} mark={marks?.[cell.id] ?? null} />
         ))}
         {grid.loading ? (
           <div class="cg-pvm__note">
@@ -276,7 +283,7 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
       </div>
       <div class="cg-pvm__foot">
         <span class="cg-pvm__sum">{vm.summary === null ? i18n.t('preview.media.hint') : i18n.text(vm.summary)}</span>
-        {vm.picks > 0 ? (
+        {vm.picks > 0 && clear !== false ? (
           <Button
             label={i18n.t('preview.media.clear')}
             size="sm"
@@ -287,7 +294,7 @@ function Panel({ vm, handle, variant }: MediaPanelProps): JSX.Element {
             }}
           />
         ) : null}
-        <OutreachMediaButton vm={vm} handle={handle} />
+        {extra ?? null}
       </div>
       <Notes vm={vm} handle={handle} />
     </section>
@@ -305,20 +312,10 @@ function Closed({ vm, handle }: MediaPanelProps): JSX.Element {
         {vm.summary === null ? null : <b>{i18n.text(vm.summary)}</b>} · {i18n.t('preview.media.attachedHint')}
       </span>
       <Button label={i18n.t('preview.media.button')} size="sm" variant="quiet" onClick={() => void dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true })} />
-      <OutreachMediaButton vm={vm} handle={handle} />
       <Button label={i18n.t('preview.media.clear')} icon="x" iconOnly size="sm" variant="quiet" onClick={() => void dispatch({ type: 'ClearMedia', targetHandle: handle })} />
       <Notes vm={vm} handle={handle} />
     </div>
   );
-}
-
-/** «Рассылка» open: these picks go to every fan of the outreach («Для всей рассылки»), or already are its media. */
-function OutreachMediaButton({ vm, handle }: MediaPanelProps): JSX.Element | null {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  if (vm.outreach === undefined) return null;
-  if (vm.outreach === 'set') return <span class="cg-pvm__or" data-cg-outreach-media="set">{i18n.t('outreach.media.set')}</span>;
-  return <Button label={i18n.t('outreach.media.take')} size="sm" variant="line" class="cg-pvm__or" tooltip={i18n.t('outreach.media.takeTooltip')} onClick={() => void dispatch({ type: 'SetOutreachMedia', targetHandle: handle })} />;
 }
 
 const MediaView = (props: MediaPanelProps): JSX.Element => (props.vm.open || props.variant === 'window' ? <Panel {...props} /> : <Closed {...props} />);
@@ -446,7 +443,10 @@ const MEDIA_PANEL_CSS = `
 .cg-pvm--window .cg-pvm__plus { font-size: 22px; }
 .cg-pvm--window .cg-pvm__price { font-size: var(--cg-text-sm2); }
 .cg-pvm--window .cg-pvm__price .cg-field { width: 108px; height: 32px; }
-.cg-pvm--window .cg-pvm__foot .cg-pvm__or { margin-left: auto; }
+.cg-pvm__strip {
+  position: absolute; left: 6px; right: 6px; bottom: 30px; height: 20px; border-radius: 5px; background: rgb(0 0 0 / .66); color: #fff;
+  font-size: var(--cg-text-xs); line-height: 20px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 /* In the window's column a 100% basis is the window's whole height: the notes would push the grid out of sight. */
 .cg-pvm--window .cg-pvm__notes { flex: none; padding: 0 20px 10px; background: var(--cg-sunk); }
 `;

@@ -60,7 +60,7 @@ import type { TabProbe } from './probe';
 import { panelGeometryOf, toastPlaceOf, type DockBox } from './panel-geometry';
 import { startTabJournal, type TabJournal } from './journal';
 import { followRecapTab } from './recap-tab';
-import { mountSurfaces, OVERLAY_MOUNTS, overlayRoot } from './surfaces';
+import { createPinState, mountSurfaces, OVERLAY_MOUNTS, overlayRoot } from './surfaces';
 import { toastOfTab, type ToastFacts } from './toast-events';
 import { Value } from './values';
 
@@ -130,7 +130,7 @@ function contractOf(report: HostContractReport, shape: HostContractShape): 'ok' 
 }
 
 /** Overlays the boards' controllers answer for: they are loaded with the first action that opens one. */
-const BOARD_SURFACES: readonly string[] = ['spenders', 'newcomers', 'fan-panel'];
+const BOARD_SURFACES: readonly string[] = ['spenders', 'newcomers', 'outreach', 'fan-panel'];
 
 /** The application of a site's tab; `site` is the application's half of the site's adapter (tab/adapter.ts). */
 export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site: HostAppAdapter<P, C>): Promise<TabApp> {
@@ -367,6 +367,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     },
   });
 
+  /** What stands over the page without being a window: the folded «Рассылка»'s chip (tab/surfaces.ts). */
+  const pins = createPinState();
   const world: TabWorld = {
     win,
     rpc: controllerRpc(rpc, tokens, (type, payload) => {
@@ -393,6 +395,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     logger,
     drafts: env.drafts,
     files: { save: (file) => saveFile({ fileName: file.name, mime: file.mime, body: file.bytes }) },
+    pins,
   };
 
   // ── stage one: the dock's controller, keys and navigation, the shell ───────
@@ -572,6 +575,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     ui: dockChunk,
     toasts,
     overlays: keys.overlays,
+    pins,
     // The Coach panel's chunk is remembered when it comes: a sign-out must reach its unsent questions.
     lazy: <T>(entry: LazyEntryName): Promise<T> =>
       env.lazy<T>(entry).then((module) => {

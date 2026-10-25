@@ -31,6 +31,8 @@ export const LAZY_ENTRIES = {
   dialogs: 'entries/dialogs.ts',
   spenders: 'entries/spenders.ts',
   newcomers: 'entries/newcomers.ts',
+  // «Рассылка»: its window and the chip it folds into.
+  outreach: 'entries/outreach.ts',
   'fan-panel': 'entries/fan-panel.ts',
   palette: 'entries/palette.ts',
   // The preview's own window, for a fan of the palette's «Онлайн» (X24).

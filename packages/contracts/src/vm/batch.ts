@@ -8,7 +8,8 @@
 
 import { type Msg } from './i18n';
 
-export const BATCH_LISTS = ['spenders', 'newcomers'] as const;
+/** 1.63.0: `outreach` — the versions of «Рассылка» (Fix of the common text for each fan). */
+export const BATCH_LISTS = ['spenders', 'newcomers', 'outreach'] as const;
 export type BatchList = (typeof BATCH_LISTS)[number];
 
 export const BATCH_LIMITS = {
