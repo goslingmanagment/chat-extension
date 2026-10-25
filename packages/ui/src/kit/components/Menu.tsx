@@ -17,6 +17,10 @@ export interface MenuItem {
   readonly label: string;
   /** Right column: a key label («⌘⇧B»), `ink-muted`. */
   readonly hint?: string;
+  /** Right column as plain words («около 1,5 мин», «есть, 3 д назад»), `ink-muted`; with `hint` the hint wins. */
+  readonly note?: string;
+  /** A second line under the label (what the item does), `ink-muted`, wrapping: the menu widens to fit it. */
+  readonly detail?: string;
   /** Radio menus mark the chosen item with ✓ and `aria-checked`. */
   readonly checked?: boolean;
   /** Unavailable items stay focusable and say why. */
@@ -37,6 +41,10 @@ export interface MenuProps {
   readonly returnFocusTo: () => HTMLElement | null;
   /** Focus the checked (or first) item on open (default); off for a menu shown without being opened by a person (the stand's gallery). */
   readonly autoFocus?: boolean;
+  /** The item focused on open when none is checked (an action menu's likely choice: Enter takes it); absent — the first. */
+  readonly focusId?: string;
+  /** A quiet line under the items: where a setting behind them lives. Not an item: never focused or chosen. */
+  readonly footer?: string;
 }
 
 export function Menu(props: MenuProps): JSX.Element | null {
@@ -52,7 +60,8 @@ export function Menu(props: MenuProps): JSX.Element | null {
     if (!open || !autoFocus) return;
     const list = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-cg-menuitem]') ?? [])];
     const checked = entries.findIndex((item) => item.checked === true);
-    focusQuietly(list[checked >= 0 ? checked : 0]);
+    const lead = checked >= 0 ? checked : entries.findIndex((item) => item.id === props.focusId);
+    focusQuietly(list[lead >= 0 ? lead : 0]);
     // Only for the focus moment of opening; later changes of the items keep focus where it is.
   }, [open]);
 
@@ -129,7 +138,7 @@ export function Menu(props: MenuProps): JSX.Element | null {
   return (
     <div
       ref={listRef}
-      class={`cg-menu cg-menu--${props.placement ?? 'top'} cg-menu--${props.align ?? 'start'}`}
+      class={`cg-menu cg-menu--${props.placement ?? 'top'} cg-menu--${props.align ?? 'start'}${props.items.some((item) => item.detail !== undefined) ? ' cg-menu--detailed' : ''}`}
       role="menu"
       aria-label={props.label}
       id={`cg-menu-${id}`}
@@ -139,6 +148,7 @@ export function Menu(props: MenuProps): JSX.Element | null {
       {props.items.map((item) => (
         <MenuEntry key={item.id} item={item} kind={props.kind} onChoose={() => choose(item)} />
       ))}
+      {props.footer === undefined ? null : <div class="cg-menu__foot">{props.footer}</div>}
     </div>
   );
 }
@@ -168,7 +178,8 @@ function MenuEntry({ item, kind, onChoose }: { readonly item: MenuItem; readonly
         }}
       >
         <span class="cg-menu__t">{item.label}</span>
-        {item.hint === undefined ? null : <kbd>{item.hint}</kbd>}
+        {item.hint !== undefined ? <kbd>{item.hint}</kbd> : item.note === undefined ? null : <span class="cg-menu__n">{item.note}</span>}
+        {item.detail === undefined ? null : <span class="cg-menu__d">{item.detail}</span>}
       </button>
       {tip.description}
     </>
@@ -208,5 +219,11 @@ export const MENU_CSS = `
 .cg-menu__item.is-on { background: var(--cg-clay-bg); color: var(--cg-clay-ink); font-weight: 600; }
 .cg-menu__item.is-on::after { content: "✓"; color: var(--cg-clay-ink); font-size: var(--cg-text-sm); }
 .cg-menu__item[aria-disabled="true"] { color: var(--cg-ink-faint); cursor: default; }
+.cg-menu--detailed { width: 320px; }
+.cg-menu--detailed .cg-menu__item { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; height: auto; padding: 8px; white-space: normal; }
+.cg-menu--detailed .cg-menu__t { font-weight: 600; }
+.cg-menu__n { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); font-weight: 400; }
+.cg-menu__d { grid-column: 1 / -1; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); line-height: 16px; font-weight: 400; }
+.cg-menu__foot { margin-top: 4px; padding: 6px 8px 4px; border-top: 1px solid var(--cg-rule); color: var(--cg-ink-faint); font-size: var(--cg-text-sm); line-height: 16px; }
 @media (prefers-reduced-motion: reduce) { .cg-menu { animation: none; } }
 `;

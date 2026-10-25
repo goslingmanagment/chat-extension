@@ -165,7 +165,7 @@ describe('recap: a build asked from Coach or the fan panel', () => {
     // 2026-10-24: Coach says «Собираю Recap»; the dock behind it shows only its Recap button busy, no sheet streaming.
     expect(h.dock()).toMatchObject({ analysis: null, result: null });
     expect(h.dock().actions.recap.busy).toBe(true);
-    expect(h.coach().recapRunning).toBe(true);
+    expect(h.coach().recapRunning).toBe('full');
     expect(h.recapView()).toMatchObject({ state: 'streaming', expanded: false });
     await h.finish();
     expect(h.dock().analysis).toBeNull();
