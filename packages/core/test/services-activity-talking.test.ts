@@ -5,6 +5,8 @@
 //   chat of every account of this browser bound to the page.
 
 import { type ActivityBeatRequest, type InConversationResult } from '@cg/contracts';
+import { talkingKeyOfHandle } from '@cg/contracts/vm';
+import { createTalkingController } from '@cg/core/application/navigation';
 import { ActivityBeat, TalkingMarksService, beatPagesOf, talkingMarksOf, type BeatTab } from '@cg/core/services';
 import { describe, expect, it } from 'vitest';
 
@@ -152,5 +154,69 @@ describe('«в разговоре»', () => {
     expect(emitted).toEqual([1, 0]);
     service.stop();
     expect(emitted).toEqual([1, 0]);
+  });
+
+  it('a hub not heard keeps no mark past its own 15 minutes, and a page never heard is asked again on the 30 s beat, not on every tab change', async () => {
+    const clock = new FakeClock(NOW);
+    const answers: InConversationResult[] = [
+      answer([
+        { fanRef: '900000000000000001', conversationRef: null, chatters: [chatter('Nikita', 14)] },
+        { fanRef: '900000000000000002', conversationRef: null, chatters: [chatter('Vanya', 0)] },
+      ]),
+    ];
+    let asked = 0;
+    let failing = false;
+    const service = new TalkingMarksService({
+      clock,
+      hub: () => ({
+        inConversation: () => {
+          asked += 1;
+          if (failing) return Promise.reject(new Error('offline'));
+          return Promise.resolve(answers.shift() ?? answer([]));
+        },
+      }),
+      enabled: () => true,
+      pages: () => [{ pageLabel: 'ari-1', pageId: 10, accounts: [{ host: 'fansly', hostAccountId: '74001001' }] }],
+      emit: () => undefined,
+    });
+    service.tabsChanged();
+    await settle();
+    expect(service.current().marks.map((mark) => mark.fanRef)).toEqual(['900000000000000001', '900000000000000002']);
+    failing = true;
+    await clock.advance(2 * 60_000);
+    await settle();
+    // Nikita's message is 16 minutes old now: his mark is gone though the hub is not heard; Vanya's stays.
+    expect(service.current().marks.map((mark) => mark.fanRef)).toEqual(['900000000000000002']);
+
+    // A page the hub never answered: the tabs' presence every few seconds asks nothing more than the 30 s beat.
+    const quiet = new TalkingMarksService({
+      clock,
+      hub: () => ({ inConversation: () => ((asked += 1), Promise.reject(new Error('offline'))) }),
+      enabled: () => true,
+      pages: () => [{ pageLabel: 'lora-1', pageId: 11, accounts: [] }],
+      emit: () => undefined,
+    });
+    asked = 0;
+    quiet.tabsChanged();
+    await settle();
+    for (let i = 0; i < 5; i += 1) quiet.tabsChanged();
+    await settle();
+    expect(asked).toBe(1);
+    service.stop();
+    quiet.stop();
+  });
+
+  it('⌘K and the quick jump find a mark by their chat handle, which names no host', async () => {
+    expect(talkingKeyOfHandle('nav.chat.74001001.900000000000000001')).toBe('acc:74001001:900000000000000001');
+    expect(talkingKeyOfHandle('nav.chat.74001001.900000000000000001.810000000000000001')).toBe('acc:74001001:900000000000000001');
+    const controller = createTalkingController({
+      rpc: {
+        request: () => Promise.resolve({ ok: true, payload: { marks: [{ pageId: 10, fanRef: '900000000000000001', chatKeys: ['fansly-web:74001001:900000000000000001' as const], names: ['Nikita'], lastSentAt: new Date(NOW).toISOString() }] } }),
+        onEvent: () => () => undefined,
+      },
+    });
+    await settle();
+    expect(controller.mark(talkingKeyOfHandle('nav.chat.74001001.900000000000000001') ?? '')?.names).toEqual(['Nikita']);
+    controller.dispose();
   });
 });

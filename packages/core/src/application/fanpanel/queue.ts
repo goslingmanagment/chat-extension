@@ -248,6 +248,10 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
     picking.delete(fanRef);
     if (disposed || pageId !== id) return done('PickWinBack', 'noop');
     if (answer.ok) {
+      // A read of the list on its way began before this pick: its answer is older than this one.
+      winBack.run += 1;
+      winBack.loading = false;
+      winBack.since = null;
       winBack.data = answer.payload.list;
       winBack.loadedAt = clock.now();
       picked = { name: queueName(row).name, approach: approach.label, open: openOf(row.fanRef, row.conversationRef) };

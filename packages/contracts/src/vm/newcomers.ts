@@ -56,6 +56,8 @@ export const CLAIM_STATES = ['none', 'mine', 'other', 'expired', 'held-uncertain
 
 export interface NewcomerRowVM {
   readonly handle: TargetHandle;
+  /** Chat Memory week 1: where the row's «в разговоре» mark is, when `handle` cannot say (a pass's row: its page's fan). */
+  readonly talking?: TargetHandle;
   readonly name: string;
   readonly username: string | null;
   readonly kind: NewcomerKind;

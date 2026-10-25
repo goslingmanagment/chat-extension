@@ -4,7 +4,7 @@
 // the hub has not answered is owed and journaled; every answer is final.
 
 import { SendAttributionsRequestSchema, type SendAttributionsRequest, type SendAttributionsResult } from '@cg/contracts';
-import { SEND_ATTRIBUTIONS_KEY, SEND_ATTRIBUTION_BATCH_MS, SEND_ATTRIBUTION_KEEP_MS, SendAttributionReporter, type SendAttributionInput } from '@cg/core/services';
+import { SEND_ATTRIBUTIONS_KEY, SEND_ATTRIBUTION_BATCH_MS, SEND_ATTRIBUTION_KEEP_MS, SEND_ATTRIBUTION_RECEIPT_HOLD_MS, SendAttributionReporter, type SendAttributionInput } from '@cg/core/services';
 import { describe, expect, it } from 'vitest';
 
 import { FakeClock, LogRecorder, MemoryStore, settle } from './support/clock';
@@ -125,6 +125,59 @@ describe('the report', () => {
     expect(reporter.report(send())).toBe('signed-out');
     expect(reporter.pending).toBe(0);
     expect(owedIn(store)).toEqual([]);
+  });
+});
+
+describe('a send seen only by its receipt (Fansly `pageSent`)', () => {
+  const receipt = (over: Partial<SendAttributionInput> = {}): SendAttributionInput => send({ source: 'fansly-extension', conversationRef: '810000000000000001', withMedia: true, composedWith: 'unknown', receipt: true, ...over });
+
+  it('is taken at once under the person signed in now, journaled, and held for its human send before it goes', async () => {
+    const { clock, hub, reporter, store, owner } = world();
+    const media = receipt();
+    expect(reporter.report(media)).toBe('queued');
+    await settle();
+    expect(owedIn(store).map((owed) => [owed.platformMessageId, owed.owner])).toEqual([[media.platformMessageId, OWNER]]);
+    // Another person signs in under the hold: the send stays its sender's.
+    owner.now = OTHER;
+    await clock.advance(SEND_ATTRIBUTION_RECEIPT_HOLD_MS);
+    await reporter.idle();
+    expect(hub.calls).toEqual([]);
+    owner.now = OWNER;
+    reporter.resume();
+    await reporter.idle();
+    expect(hub.calls.map((call) => call.facts)).toEqual([[{ platformMessageId: media.platformMessageId, fanRef: media.fanRef, conversationRef: '810000000000000001', observedAt: media.observedAt, priced: false, withMedia: true, composedWith: 'unknown' }]]);
+  });
+
+  it('its human send under the hold tells how the text was written — one fact, its first time, its sender', async () => {
+    const { clock, hub, reporter, owner } = world();
+    const typed = receipt({ withMedia: false });
+    expect(reporter.report(typed)).toBe('queued');
+    await clock.advance(SEND_ATTRIBUTION_RECEIPT_HOLD_MS / 2);
+    // The person signed in now is another one: the receipt's sender stays.
+    owner.now = OTHER;
+    const { receipt: _receipt, ...typedSend } = typed;
+    expect(reporter.report({ ...typedSend, composedWith: 'hand', observedAt: new Date(NOW_MS + 30_000).toISOString() })).toBe('queued');
+    owner.now = OWNER;
+    await clock.advance(SEND_ATTRIBUTION_BATCH_MS);
+    await reporter.idle();
+    expect(hub.calls.map((call) => call.facts)).toEqual([[{ platformMessageId: typed.platformMessageId, fanRef: typed.fanRef, conversationRef: '810000000000000001', observedAt: typed.observedAt, priced: false, withMedia: false, composedWith: 'hand' }]]);
+    expect(reporter.pending).toBe(0);
+  });
+
+  it('a held receipt survives the event page: the next instance keeps its hold and its sender', async () => {
+    const { clock, hub, reporter, store } = world();
+    const media = receipt();
+    reporter.report(media);
+    const successor = world({ now: OWNER }, { store, hub, clock });
+    await settle();
+    expect(await successor.reporter.restore()).toBe(1);
+    await clock.advance(SEND_ATTRIBUTION_RECEIPT_HOLD_MS - 1_000);
+    await successor.reporter.idle();
+    expect(hub.calls).toEqual([]);
+    await clock.advance(1_000);
+    await reporter.idle();
+    await successor.reporter.idle();
+    expect(hub.calls.flatMap((call) => call.facts.map((fact) => fact.platformMessageId))).toContain(media.platformMessageId);
   });
 });
 

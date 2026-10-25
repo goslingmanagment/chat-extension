@@ -117,6 +117,7 @@ export function memoryModel({ card, busy, openOf, customs }: MemoryInput): Omit<
       ),
   }));
   return {
+    fanRef: card.fanRef,
     accounts: card.accounts.map((account) => ({ key: `${account.platform}:${account.fanRef}`, platform: account.platform, name: account.displayName, username: account.username, gone: account.gone, linkedBy: account.linkedBy })),
     pages: [...card.pages].sort((a, b) => b.spentMills - a.spentMills).map(memoryPage),
     suggestions,

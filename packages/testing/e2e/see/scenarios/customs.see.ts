@@ -37,6 +37,13 @@ scenario(
     await s.press(/^Записать кастом/, 'panel');
     await s.see('panel', 'Это оплата кастома?');
     await s.shot('customs-record');
+    // A price that is no number of dollars is said on «Сохранить», never saved as no price.
+    await s.press(/.*/, 'panel', '.cg-mem__record textarea');
+    await s.keys('Video in red');
+    await s.press(/.*/, 'panel', '.cg-mem__record .cg-mem__price');
+    await s.keys('120 USD');
+    await s.see('panel', 'Цена — число долларов', 10_000);
+    await s.shot('customs-bad-price');
     await s.press(/^Отмена|^Cancel/, 'panel');
     await s.press(/^Очередь/, 'panel');
     await s.press(/^Передача/, 'panel');

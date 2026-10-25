@@ -721,7 +721,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     hub: () => hubInstance,
     enabled: () => servesNow('chatter-activity-v1'),
     instanceId: () => instanceId,
-    tabs: () => presence.tabs().map((tab) => ({ pageLabel: pageLabelOfAccount(tab.routeAccount), lastInputAt: tab.lastInputAt })),
+    // A tab off any account's route (ChatSpace's overview «/», on the way from one account to another) keeps the pages
+    // of the accounts it shows: the shift neither closes nor splits for that moment.
+    tabs: () =>
+      presence.tabs().flatMap((tab) => {
+        const route = pageLabelOfAccount(tab.routeAccount);
+        if (route !== null || tab.routeAccount !== null) return [{ pageLabel: route, lastInputAt: tab.lastInputAt }];
+        const shown = [...new Set(tab.accounts.map(pageLabelOfAccount).filter((label): label is string => label !== null))];
+        return shown.length === 0 ? [{ pageLabel: null, lastInputAt: tab.lastInputAt }] : shown.map((pageLabel) => ({ pageLabel, lastInputAt: tab.lastInputAt }));
+      }),
     log: coreLog,
   });
   // «В разговоре» (core/services/talking.ts): the hub's answer for every page an open tab shows, others only, to the tabs.
@@ -764,6 +772,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       readonly conversationRef?: string;
       readonly composedWith?: SendAttributionComposedWith;
       readonly edited?: boolean;
+      readonly receipt?: true;
     },
   ): { readonly queued: boolean; readonly reason?: string } => {
     const target = attributionTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
@@ -1508,6 +1517,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         ...(fact.conversationRef === undefined ? {} : { conversationRef: fact.conversationRef }),
         composedWith: composedWithOf(fact.wrote, learned?.composedWith ?? null),
         ...(learned === null ? {} : { edited: learned.edited }),
+        ...(fact.receipt === true ? { receipt: true as const } : {}),
       }),
     );
   });

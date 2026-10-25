@@ -28,9 +28,12 @@
 //   the draft was written (`wrote`: ours, the person's own, not known) and,
 //   on Fansly, its chat's group. Fansly also says every message its page
 //   sent from this tab (`pageSent`: media, PPV, voice too, no gesture
-//   proven): it waits PAGE_SENT_WAIT_MS for the same message's `humanSend`,
-//   which reports it with its draft; none came — it is reported as written
-//   in a way not known;
+//   proven): it goes to the background at once as a receipt (`receipt`,
+//   written in a way not known) — taken there under the person signed in
+//   now and journaled, so a tab closed or a sign-in changed a moment later
+//   loses nothing and names nobody else — and the same message's
+//   `humanSend`, heard after, tells the background its draft while the
+//   receipt waits there;
 // - what the bootstrap switches in the site's host port goes to it through
 //   the application's half of the site's adapter (tab/adapter.ts; ChatSpace:
 //   the owner's switches and the receipt profiles configure its part B — the
@@ -71,8 +74,6 @@ const SENT_REPORTS_KEPT = 32;
 const FUSE_REPORTS_KEPT = 8;
 /** Who-sent facts that wait for the port (decision X48); the oldest go. */
 const ATTRIBUTIONS_KEPT = 64;
-/** How long a page's send waits for its own `humanSend` before it is reported without its draft (Chat Memory week 1). */
-export const PAGE_SENT_WAIT_MS = 5_000;
 /** Messages whose `humanSend` was heard, remembered for a later `pageSent` of the same message; the oldest go. */
 const HUMAN_SENDS_KEPT = 256;
 
@@ -144,8 +145,6 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
   readonly onFailure: (what: string) => void;
   /** The tab's clock (tests); Date.now by default. */
   readonly now?: () => number;
-  /** The tab's timer (tests); setTimeout by default. Returns its cancel. */
-  readonly later?: (callback: () => void, ms: number) => () => void;
 }): HostFacts {
   const { host, site, rpc } = deps;
   const inserts = new Map<string, { readonly opId: string; readonly part: PartRef }>();
@@ -161,16 +160,10 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
   /** Who-sent facts the background has not acknowledged (decision X48). */
   const attributionsWaiting: { readonly fact: SendAttributionFact; readonly tries: number }[] = [];
   const now = deps.now ?? Date.now;
-  const later =
-    deps.later ??
-    ((callback: () => void, ms: number) => {
-      const id = setTimeout(callback, ms);
-      return () => clearTimeout(id);
-    });
   /** Messages a `humanSend` reported (Chat Memory week 1): their `pageSent` is said already. */
   const humanSent = new Set<string>();
-  /** `pageSent` facts waiting for their `humanSend`: their cancels. */
-  const pageSentWaiting = new Map<string, () => void>();
+  /** Messages whose `pageSent` receipt went to the background: the same receipt again says nothing. */
+  const receiptsSent = new Set<string>();
 
   const apply = (): void => {
     if (bootstrapNow === undefined) return;
@@ -247,19 +240,14 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
       return;
     }
     if (event.type === 'pageSent') {
-      // Chat Memory week 1: the page's send seen only by its receipt. Its `humanSend`, if any, comes with the draft.
+      // Chat Memory week 1: the page's send seen only by its receipt — to the background at once; its `humanSend`, if
+      // any, tells the draft there. One already reported by its `humanSend`, or by this receipt, says nothing.
       const { fact } = event;
       const id = fact.platformMessageId;
-      if (humanSent.has(id) || pageSentWaiting.has(id)) return;
-      const observedAt = new Date(now()).toISOString();
-      pageSentWaiting.set(
-        id,
-        later(() => {
-          pageSentWaiting.delete(id);
-          if (humanSent.has(id)) return;
-          reportAttribution({ chat: fact.chat, platformMessageId: id, observedAt, priced: false, media: fact.media, conversationRef: fact.conversationRef, wrote: 'unknown' });
-        }, PAGE_SENT_WAIT_MS),
-      );
+      if (humanSent.has(id) || receiptsSent.has(id)) return;
+      receiptsSent.add(id);
+      if (receiptsSent.size > HUMAN_SENDS_KEPT) receiptsSent.delete(receiptsSent.values().next().value ?? '');
+      reportAttribution({ chat: fact.chat, platformMessageId: id, observedAt: new Date(now()).toISOString(), priced: false, media: fact.media, conversationRef: fact.conversationRef, wrote: 'unknown', receipt: true });
       return;
     }
     if (event.type !== 'humanSend') return;
@@ -268,8 +256,6 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
     if (platformMessageId !== null) {
       humanSent.add(platformMessageId);
       if (humanSent.size > HUMAN_SENDS_KEPT) humanSent.delete(humanSent.values().next().value ?? '');
-      pageSentWaiting.get(platformMessageId)?.();
-      pageSentWaiting.delete(platformMessageId);
       const { conversationRef } = event.fact;
       reportAttribution({
         chat: event.fact.chat,
@@ -310,8 +296,7 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
       waiting.length = 0;
       fuseWaiting.length = 0;
       attributionsWaiting.length = 0;
-      for (const cancel of pageSentWaiting.values()) cancel();
-      pageSentWaiting.clear();
+      receiptsSent.clear();
       humanSent.clear();
     },
   };

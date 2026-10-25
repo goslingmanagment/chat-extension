@@ -272,7 +272,7 @@ function RowView({ row, index, count, active, parts, onPick }: RowProps): JSX.El
           {custom === null ? null : <span class="cg-nw__custom"> ({custom})</span>}
           {tag === null ? null : <span class="cg-nw__tag">{tag}</span>}
         </span>
-        <TalkingMark handle={row.handle} />
+        <TalkingMark handle={row.talking ?? row.handle} />
         <span class="cg-nw__meta cg-num">{parts.meta(i18n, row)}</span>
         <Status row={row} />
       </span>

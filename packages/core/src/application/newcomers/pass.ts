@@ -667,6 +667,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     const ctx = context.current();
     const now = stageOf();
     const passId = pass?.passId ?? null;
+    const pageId = ctx.binding?.pageId ?? null;
     const rowVMs: NewcomerRowVM[] =
       passId === null
         ? []
@@ -675,6 +676,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
             const inBatch = card === null ? null : batch.row(handle);
             return {
               handle,
+              // The pass's handle names its pass, not its page: the mark is looked up by the page's fan.
+              ...(pageId === null ? {} : { talking: `newcomers:${String(pageId)}:${row.fanRef}` }),
               name: nameOf(row),
               username: row.username,
               kind: 'new',

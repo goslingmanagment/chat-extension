@@ -871,6 +871,7 @@ export const RU: I18nCatalog<'ru'> = {
   'fanPanel.memory.custom.record': 'Записать кастом',
   'fanPanel.memory.custom.what': 'Что заказано',
   'fanPanel.memory.custom.price': 'Цена, $',
+  'fanPanel.memory.custom.badPrice': 'Цена — число долларов: 120 или 49.99',
   'fanPanel.memory.custom.payment': 'Это оплата кастома?',
   'fanPanel.memory.custom.none': 'Кастомов не записано',
   'queue.handoff.customs': 'Открытые кастомы',

@@ -258,6 +258,10 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     memory.busy.delete(key);
     if (disposed || atEpoch !== epoch) return done(type, 'noop');
     if (answer.ok) {
+      // A read of the card on its way began before this change: its answer is older than this one.
+      memory.run += 1;
+      memory.loading = false;
+      memory.since = null;
       memory.card = answer.payload.card;
       memory.loadedAt = clock.now();
     } else memory.actionError = answer.error;
@@ -430,7 +434,8 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
     // Chat Memory week 4: «Записать кастом»; «Оплачен» / «Отдали» by the card's suggestion, «Отменить».
     if (action.type === 'RecordFanCustom') {
       const description = action.description.trim();
-      if (description === '' || !customsServed()) return Promise.resolve(done(action.type, 'noop'));
+      // Written for another fan than the chat open now (the chat changed under the form): nobody's custom.
+      if (description === '' || !customsServed() || openChat()?.platformFanId !== action.fanRef) return Promise.resolve(done(action.type, 'noop'));
       const { priceMills, paymentRef } = action;
       return changeMemory(action.type, 'custom:new', (pageId, fanRef) =>
         rpc.request('fan.memory.custom', { pageId, fanRef, action: 'create', description, ...(priceMills === undefined ? {} : { priceMills }), ...(paymentRef === undefined ? {} : { paymentRef }) }),
