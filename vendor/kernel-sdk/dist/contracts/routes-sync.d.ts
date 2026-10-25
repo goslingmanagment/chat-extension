@@ -565,10 +565,10 @@ export declare const syncResourceFileEnum: z.ZodEnum<{
     subscribers: "subscribers";
     notifications: "notifications";
     posts: "posts";
+    followers: "followers";
     catalog: "catalog";
     transactions: "transactions";
     payouts: "payouts";
-    followers: "followers";
     repair: "repair";
     probe: "probe";
     ws: "ws";
@@ -717,11 +717,8 @@ export declare const syncPagesResponseSchema: z.ZodObject<{
         browser: z.ZodOptional<z.ZodObject<{
             profileId: z.ZodString;
             container: z.ZodString;
-            transport: z.ZodEnum<{
-                node: "node";
-                browser: "browser";
-            }>;
-            leavePendingSince: z.ZodNullable<z.ZodString>;
+            transport: z.ZodLiteral<"browser">;
+            leavePendingSince: z.ZodNull;
             link: z.ZodObject<{
                 lastStateAt: z.ZodNullable<z.ZodString>;
                 stateAgeMs: z.ZodNullable<z.ZodNumber>;
@@ -1060,10 +1057,10 @@ export declare const syncPageRefreshBodySchema: z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         payouts: "payouts";
-        followers: "followers";
         repair: "repair";
         probe: "probe";
         ws: "ws";
@@ -1225,11 +1222,8 @@ export declare const syncRouteSchemas: {
                     browser: z.ZodOptional<z.ZodObject<{
                         profileId: z.ZodString;
                         container: z.ZodString;
-                        transport: z.ZodEnum<{
-                            node: "node";
-                            browser: "browser";
-                        }>;
-                        leavePendingSince: z.ZodNullable<z.ZodString>;
+                        transport: z.ZodLiteral<"browser">;
+                        leavePendingSince: z.ZodNull;
                         link: z.ZodObject<{
                             lastStateAt: z.ZodNullable<z.ZodString>;
                             stateAgeMs: z.ZodNullable<z.ZodNumber>;
@@ -1670,10 +1664,10 @@ export declare const syncRouteSchemas: {
                 subscribers: "subscribers";
                 notifications: "notifications";
                 posts: "posts";
+                followers: "followers";
                 catalog: "catalog";
                 transactions: "transactions";
                 payouts: "payouts";
-                followers: "followers";
                 repair: "repair";
                 probe: "probe";
                 ws: "ws";

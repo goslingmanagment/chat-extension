@@ -41,6 +41,7 @@ import { CgAnyErrorWireSchema } from './errors-fansly';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
+import { SEND_ATTRIBUTION_COMPOSED_WITH } from './hub/attribution';
 import { ChatKeySchema, HumanCauseSchema } from './ids';
 import { ChatReadStateSchema, FanslyPhotoRefSchema, LiveTextMessageSchema } from './host';
 import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
@@ -580,6 +581,8 @@ export const FANSLY_TAB_REQUESTS = {
       text: z.string().check(z.minLength(1), z.maxLength(FANSLY_TAB_LIMITS.outreachTextMaxChars), z.refine((text) => text.trim() === text, { message: 'trimmed' })),
       attachments: z.array(FanslyOutreachAttachmentSchema).check(z.maxLength(FANSLY_TAB_LIMITS.outreachAttachmentsMax)),
       cause: HumanCauseSchema,
+      /** How the text was written, for the hub's record of who sent it: `fix` — «Подстроить под фана», else the line's button. */
+      composedWith: z.optional(z.enum(SEND_ATTRIBUTION_COMPOSED_WITH)),
     }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), messageId: NativeIdSchema }), Failure]),
     from: TAB, hosts: FANSLY,

@@ -55,10 +55,7 @@ export declare const pageBrowserLoginResponseSchema: z.ZodObject<{
         label: z.ZodString;
         pageId: z.ZodNumber;
     }, z.core.$strict>;
-    transport: z.ZodEnum<{
-        node: "node";
-        browser: "browser";
-    }>;
+    transport: z.ZodLiteral<"browser">;
     login: z.ZodObject<{
         state: z.ZodEnum<{
             off: "off";
@@ -740,10 +737,7 @@ export declare const pageBrowserRouteSchemas: {
                     label: z.ZodString;
                     pageId: z.ZodNumber;
                 }, z.core.$strict>;
-                transport: z.ZodEnum<{
-                    node: "node";
-                    browser: "browser";
-                }>;
+                transport: z.ZodLiteral<"browser">;
                 login: z.ZodObject<{
                     state: z.ZodEnum<{
                         off: "off";

@@ -287,6 +287,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/publications";
     };
+    readonly adminPublicationDeletePost: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/publications/:id/delete-post";
+    };
     readonly adminPublicationFileGet: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/publications/files/:fileId";
@@ -410,10 +414,6 @@ export declare const kernelOperations: {
     readonly adminUnassignPage: {
         readonly method: "DELETE";
         readonly path: "/api/v1/admin/users/by-id/:userId/pages/:pageLabel";
-    };
-    readonly adminUpdateCredentials: {
-        readonly method: "PATCH";
-        readonly path: "/api/v1/admin/pages/:pageLabel/credentials";
     };
     readonly adminUpdateModel: {
         readonly method: "PATCH";
@@ -1399,9 +1399,29 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/team/authorship";
     };
+    readonly teamChatterNumbers: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/chatter-numbers";
+    };
     readonly teamCustoms: {
         readonly method: "GET";
         readonly path: "/api/v1/team/customs";
+    };
+    readonly teamEmptyHours: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/empty-hours";
+    };
+    readonly teamGreetings: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/greetings";
+    };
+    readonly teamSalesPpv: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/sales/ppv";
+    };
+    readonly teamSalesReplies: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/sales/replies";
     };
     readonly teamShiftDisputes: {
         readonly method: "GET";

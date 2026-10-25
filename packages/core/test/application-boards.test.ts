@@ -1498,7 +1498,7 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
       pages: [MEMORY_PAGE(page.pageLabel, true, '💵Rowan/Norway/52', 120_000), MEMORY_PAGE('lora-1', false, '❌ПОКА НЕТ ДЕНЕГ❌ kai', 300_000)],
       suggestions: [{ platform: 'onlyfans', fanRef: '5001', username: 'kai_new', displayName: 'Kai', gone: false, reason: 'same_alias', shared: 'Rowan/Norway/52', sharedOn: 'lora-2', pages: [MEMORY_PAGE('lora-2', false, '💵Rowan/Norway/52', 40_000, '5001')] }],
       facts: [
-        { id: 7, kind: 'about', text: 'Lives in Toronto', pageLabel: page.pageLabel, granted: true, conversationRef: '5000', messageRef: '9001', messageAt: iso(NOW_MS - 3_600_000), source: 'ai', author: null, createdAt: iso(NOW_MS) },
+        { id: 7, kind: 'about', text: 'Lives in Toronto', pageLabel: page.pageLabel, granted: true, conversationRef: '5000', messageRef: '9001', messageAt: iso(NOW_MS - 3_600_000), source: 'ai', author: null, createdAt: iso(NOW_MS), quote: { text: 'toronto, near the lake', from: 'fan', at: iso(NOW_MS - 3_600_000), media: false } },
         { id: 8, kind: 'promise', text: 'A custom video on Friday', pageLabel: 'lora-1', granted: false, conversationRef: '5000', messageRef: '9002', messageAt: null, source: 'ai', author: null, createdAt: iso(NOW_MS) },
       ],
       serverNow: iso(NOW_MS),
@@ -1527,6 +1527,11 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
       ['about', [[7, true, true, true]]],
       ['promise', [[8, false, false, false]]],
       ['agreement', []],
+    ]);
+    // The fact's own message comes folded under it; a fact Hub quoted nothing for has none.
+    expect(memory.facts.flatMap((group) => group.items.map((fact) => fact.quote))).toEqual([
+      { text: 'toronto, near the lake', fromFan: true, at: iso(NOW_MS - 3_600_000), media: false },
+      null,
     ]);
 
     await h.dispatch(memory.suggestions[0]!.same);

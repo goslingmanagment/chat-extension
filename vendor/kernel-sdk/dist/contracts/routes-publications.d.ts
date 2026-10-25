@@ -97,6 +97,12 @@ export declare const publicationRouteSchemas: {
                     tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                     priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                     repost: import("zod").ZodBoolean;
+                    pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: import("zod").ZodBoolean;
                     media: import("zod").ZodArray<import("zod").ZodObject<{
                         role: import("zod").ZodEnum<{
                             media: "media";
@@ -160,6 +166,11 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    deletion: import("zod").ZodNullable<import("zod").ZodObject<{
+                        state: import("zod").ZodString;
+                        errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                        at: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -201,6 +212,12 @@ export declare const publicationRouteSchemas: {
             tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
             priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
             repost: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            pinWallRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
+            replyLock: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>>;
+            subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
             pageLabel: import("zod").ZodString;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -274,6 +291,12 @@ export declare const publicationRouteSchemas: {
                 tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                 priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                 repost: import("zod").ZodBoolean;
+                pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: import("zod").ZodBoolean;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -333,6 +356,11 @@ export declare const publicationRouteSchemas: {
                 statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                 previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                 withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                    at: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                     state: import("zod").ZodString;
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
@@ -423,6 +451,12 @@ export declare const publicationRouteSchemas: {
                 tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                 priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                 repost: import("zod").ZodBoolean;
+                pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: import("zod").ZodBoolean;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -482,6 +516,11 @@ export declare const publicationRouteSchemas: {
                 statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                 previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                 withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                    at: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                     state: import("zod").ZodString;
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
@@ -574,6 +613,12 @@ export declare const publicationRouteSchemas: {
             tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
             priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
             repost: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            pinWallRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
+            replyLock: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>>;
+            subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
             version: import("zod").ZodNumber;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -647,6 +692,12 @@ export declare const publicationRouteSchemas: {
                 tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                 priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                 repost: import("zod").ZodBoolean;
+                pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: import("zod").ZodBoolean;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -706,6 +757,11 @@ export declare const publicationRouteSchemas: {
                 statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                 previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                 withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                    at: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                     state: import("zod").ZodString;
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
@@ -807,6 +863,12 @@ export declare const publicationRouteSchemas: {
                         tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                         priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                         repost: import("zod").ZodBoolean;
+                        pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: import("zod").ZodBoolean;
                         media: import("zod").ZodArray<import("zod").ZodObject<{
                             role: import("zod").ZodEnum<{
                                 media: "media";
@@ -866,6 +928,11 @@ export declare const publicationRouteSchemas: {
                         statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                         previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                         withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                            state: import("zod").ZodString;
+                            errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                            at: import("zod").ZodString;
+                        }, import("zod/v4/core").$strip>>;
+                        deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                             state: import("zod").ZodString;
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
@@ -958,6 +1025,12 @@ export declare const publicationRouteSchemas: {
                 tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                 priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                 repost: import("zod").ZodBoolean;
+                pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: import("zod").ZodBoolean;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -1017,6 +1090,11 @@ export declare const publicationRouteSchemas: {
                 statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                 previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                 withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                    at: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                     state: import("zod").ZodString;
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
@@ -1118,6 +1196,12 @@ export declare const publicationRouteSchemas: {
                     tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                     priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                     repost: import("zod").ZodBoolean;
+                    pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: import("zod").ZodBoolean;
                     media: import("zod").ZodArray<import("zod").ZodObject<{
                         role: import("zod").ZodEnum<{
                             media: "media";
@@ -1181,6 +1265,11 @@ export declare const publicationRouteSchemas: {
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
                     }, import("zod/v4/core").$strip>>;
+                    deletion: import("zod").ZodNullable<import("zod").ZodObject<{
+                        state: import("zod").ZodString;
+                        errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                        at: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
                     createdAt: import("zod").ZodString;
                     updatedAt: import("zod").ZodString;
                     statusChangedAt: import("zod").ZodString;
@@ -1220,6 +1309,12 @@ export declare const publicationRouteSchemas: {
                     tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                     priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                     repost: import("zod").ZodBoolean;
+                    pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: import("zod").ZodBoolean;
                     media: import("zod").ZodArray<import("zod").ZodObject<{
                         role: import("zod").ZodEnum<{
                             media: "media";
@@ -1279,6 +1374,11 @@ export declare const publicationRouteSchemas: {
                     statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                     previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                        state: import("zod").ZodString;
+                        errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                        at: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                         state: import("zod").ZodString;
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
@@ -1382,6 +1482,12 @@ export declare const publicationRouteSchemas: {
                         tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                         priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                         repost: import("zod").ZodBoolean;
+                        pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: import("zod").ZodBoolean;
                         media: import("zod").ZodArray<import("zod").ZodObject<{
                             role: import("zod").ZodEnum<{
                                 media: "media";
@@ -1441,6 +1547,185 @@ export declare const publicationRouteSchemas: {
                         statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                         previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                         withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                            state: import("zod").ZodString;
+                            errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                            at: import("zod").ZodString;
+                        }, import("zod/v4/core").$strip>>;
+                        deletion: import("zod").ZodNullable<import("zod").ZodObject<{
+                            state: import("zod").ZodString;
+                            errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                            at: import("zod").ZodString;
+                        }, import("zod/v4/core").$strip>>;
+                        createdAt: import("zod").ZodString;
+                        updatedAt: import("zod").ZodString;
+                        statusChangedAt: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
+    readonly adminPublicationDeletePost: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: string;
+        readonly params: import("zod").ZodObject<{
+            id: import("zod").ZodCoercedNumber<unknown>;
+        }, import("zod/v4/core").$strip>;
+        readonly response: {
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 409: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                results: import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodNumber;
+                    outcome: import("zod").ZodEnum<{
+                        unknown: "unknown";
+                        rejected: "rejected";
+                        withdrawn: "withdrawn";
+                        refused: "refused";
+                        accepted: "accepted";
+                        not_sent: "not_sent";
+                    }>;
+                    reason: import("zod").ZodNullable<import("zod").ZodString>;
+                    publication: import("zod").ZodNullable<import("zod").ZodObject<{
+                        id: import("zod").ZodNumber;
+                        pageLabel: import("zod").ZodString;
+                        platform: import("zod").ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                        }>;
+                        kind: import("zod").ZodEnum<{
+                            story: "story";
+                            fyp_post: "fyp_post";
+                            subscriber_post: "subscriber_post";
+                            paid_post: "paid_post";
+                        }>;
+                        status: import("zod").ZodEnum<{
+                            unknown: "unknown";
+                            cancelled: "cancelled";
+                            scheduled: "scheduled";
+                            draft: "draft";
+                            approved: "approved";
+                            submitting: "submitting";
+                            processing: "processing";
+                            published: "published";
+                            not_published: "not_published";
+                            rejected: "rejected";
+                            missed: "missed";
+                            withdrawn: "withdrawn";
+                        }>;
+                        version: import("zod").ZodNumber;
+                        text: import("zod").ZodString;
+                        publishAt: import("zod").ZodString;
+                        expiresAt: import("zod").ZodNullable<import("zod").ZodString>;
+                        wallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        repost: import("zod").ZodBoolean;
+                        pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: import("zod").ZodBoolean;
+                        media: import("zod").ZodArray<import("zod").ZodObject<{
+                            role: import("zod").ZodEnum<{
+                                media: "media";
+                                preview: "preview";
+                            }>;
+                            position: import("zod").ZodNumber;
+                            source: import("zod").ZodEnum<{
+                                file: "file";
+                                vault: "vault";
+                            }>;
+                            mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
+                            fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        }, import("zod/v4/core").$strip>>;
+                        findings: import("zod").ZodArray<import("zod").ZodObject<{
+                            code: import("zod").ZodEnum<{
+                                publish_time_past: "publish_time_past";
+                                file_of_another_model: "file_of_another_model";
+                                file_deleted: "file_deleted";
+                                media_not_on_page: "media_not_on_page";
+                                repost_within_threshold: "repost_within_threshold";
+                                posted_before: "posted_before";
+                                price_range_not_set: "price_range_not_set";
+                                price_out_of_range: "price_out_of_range";
+                                paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                                volume_high: "volume_high";
+                                daily_limit_exceeded: "daily_limit_exceeded";
+                                wall_not_on_page: "wall_not_on_page";
+                                wall_default_unknown: "wall_default_unknown";
+                                tier_not_on_page: "tier_not_on_page";
+                                onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                                onlyfans_file_too_large: "onlyfans_file_too_large";
+                                fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            }>;
+                            severity: import("zod").ZodEnum<{
+                                info: "info";
+                                blocking: "blocking";
+                                warning: "warning";
+                            }>;
+                            mediaKey: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                            at: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                            postRef: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
+                            publicationId: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
+                            detail: import("zod").ZodDefault<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnion<readonly [import("zod").ZodNumber, import("zod").ZodString, import("zod").ZodNull]>>>;
+                        }, import("zod/v4/core").$strip>>;
+                        blocked: import("zod").ZodBoolean;
+                        author: import("zod").ZodObject<{
+                            kind: import("zod").ZodEnum<{
+                                human: "human";
+                                agent: "agent";
+                            }>;
+                            userId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            agentKeyId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        }, import("zod/v4/core").$strip>;
+                        approvedRevisionId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        platformPostRef: import("zod").ZodNullable<import("zod").ZodString>;
+                        statusReason: import("zod").ZodNullable<import("zod").ZodString>;
+                        previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                            state: import("zod").ZodString;
+                            errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                            at: import("zod").ZodString;
+                        }, import("zod/v4/core").$strip>>;
+                        deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                             state: import("zod").ZodString;
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
@@ -1545,6 +1830,12 @@ export declare const publicationRouteSchemas: {
                         tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                         priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                         repost: import("zod").ZodBoolean;
+                        pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: import("zod").ZodBoolean;
                         media: import("zod").ZodArray<import("zod").ZodObject<{
                             role: import("zod").ZodEnum<{
                                 media: "media";
@@ -1604,6 +1895,11 @@ export declare const publicationRouteSchemas: {
                         statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                         previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                         withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                            state: import("zod").ZodString;
+                            errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                            at: import("zod").ZodString;
+                        }, import("zod/v4/core").$strip>>;
+                        deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                             state: import("zod").ZodString;
                             errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                             at: import("zod").ZodString;
@@ -1696,6 +1992,12 @@ export declare const publicationRouteSchemas: {
                 tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                 priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                 repost: import("zod").ZodBoolean;
+                pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: import("zod").ZodBoolean;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -1755,6 +2057,11 @@ export declare const publicationRouteSchemas: {
                 statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                 previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                 withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                    at: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                     state: import("zod").ZodString;
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
@@ -2055,6 +2362,12 @@ export declare const publicationRouteSchemas: {
             tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
             priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
             repost: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            pinWallRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
+            replyLock: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>>;
+            subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
             idempotencyKey: import("zod").ZodString;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -2142,6 +2455,12 @@ export declare const publicationRouteSchemas: {
                 tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                 priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                 repost: import("zod").ZodBoolean;
+                pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: import("zod").ZodBoolean;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -2201,6 +2520,11 @@ export declare const publicationRouteSchemas: {
                 statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                 previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                 withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                    at: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                     state: import("zod").ZodString;
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
@@ -2326,6 +2650,12 @@ export declare const publicationRouteSchemas: {
                     tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                     priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                     repost: import("zod").ZodBoolean;
+                    pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: import("zod").ZodBoolean;
                     media: import("zod").ZodArray<import("zod").ZodObject<{
                         role: import("zod").ZodEnum<{
                             media: "media";
@@ -2385,6 +2715,11 @@ export declare const publicationRouteSchemas: {
                     statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                     previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                        state: import("zod").ZodString;
+                        errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                        at: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                         state: import("zod").ZodString;
                         errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                         at: import("zod").ZodString;
@@ -2610,6 +2945,12 @@ export declare const publicationRouteSchemas: {
                 tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                 priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                 repost: import("zod").ZodBoolean;
+                pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: import("zod").ZodBoolean;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -2669,6 +3010,11 @@ export declare const publicationRouteSchemas: {
                 statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                 previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                 withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                    at: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                     state: import("zod").ZodString;
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;
@@ -2761,6 +3107,12 @@ export declare const publicationRouteSchemas: {
             tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
             priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
             repost: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            pinWallRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
+            replyLock: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>>;
+            subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
             version: import("zod").ZodNumber;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -2848,6 +3200,12 @@ export declare const publicationRouteSchemas: {
                 tierRefs: import("zod").ZodArray<import("zod").ZodString>;
                 priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
                 repost: import("zod").ZodBoolean;
+                pinWallRefs: import("zod").ZodArray<import("zod").ZodString>;
+                replyLock: import("zod").ZodArray<import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: import("zod").ZodBoolean;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -2907,6 +3265,11 @@ export declare const publicationRouteSchemas: {
                 statusReason: import("zod").ZodNullable<import("zod").ZodString>;
                 previousPublicationId: import("zod").ZodNullable<import("zod").ZodNumber>;
                 withdrawal: import("zod").ZodNullable<import("zod").ZodObject<{
+                    state: import("zod").ZodString;
+                    errorCode: import("zod").ZodNullable<import("zod").ZodString>;
+                    at: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                deletion: import("zod").ZodNullable<import("zod").ZodObject<{
                     state: import("zod").ZodString;
                     errorCode: import("zod").ZodNullable<import("zod").ZodString>;
                     at: import("zod").ZodString;

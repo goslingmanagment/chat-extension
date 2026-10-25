@@ -56,6 +56,16 @@ const FanCardAccountFields = {
   gone: z.boolean(),
 };
 
+/** The archived message a fact comes from (hub `clientFanFactQuoteSchema`): its text cut at 280 with «…». */
+export const FanCardFactQuoteSchema = z.object({
+  text: z.string(),
+  /** `fan` or `model`; open on the wire. */
+  from: z.string(),
+  at: z.string(),
+  media: z.boolean(),
+});
+export type FanCardFactQuote = z.infer<typeof FanCardFactQuoteSchema>;
+
 export const FanCardFactSchema = z.object({
   id: z.number(),
   kind: z.string(),
@@ -68,6 +78,8 @@ export const FanCardFactSchema = z.object({
   source: z.string(),
   author: z.nullable(z.string()),
   createdAt: z.string(),
+  /** The message it comes from; absent from a Hub before it, null when the archive has no such message. */
+  quote: z.optional(z.nullable(FanCardFactQuoteSchema)),
 });
 export type FanCardFact = z.infer<typeof FanCardFactSchema>;
 

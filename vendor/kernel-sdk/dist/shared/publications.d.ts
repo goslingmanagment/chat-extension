@@ -1,5 +1,9 @@
 export declare const PUBLICATION_KINDS: readonly ["fyp_post", "subscriber_post", "paid_post", "story"];
 export type PublicationKind = (typeof PUBLICATION_KINDS)[number];
+/** Who may reply to a Fansly post ("Lock Replies", the contract §12.4): any of
+ *  these; none named, everyone. Followers are the model's followers. */
+export declare const PUBLICATION_REPLY_LOCKS: readonly ["followers", "subscribers"];
+export type PublicationReplyLock = (typeof PUBLICATION_REPLY_LOCKS)[number];
 /** What each platform can publish: OnlyFans has no FYP (spec §6). */
 export declare const PUBLICATION_PLATFORM_KINDS: {
     readonly fansly: readonly ["fyp_post", "subscriber_post", "paid_post", "story"];

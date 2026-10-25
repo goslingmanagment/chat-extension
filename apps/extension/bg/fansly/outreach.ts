@@ -5,8 +5,8 @@
 // - One attempt in flight per creator and fan (`CG-SEND-BUSY`); one request (fansly-api `sendOutreach`, FS-NET-1
 //   `outreach`), never repeated here: a request that left with no receipt is `CG-SEND-UNCERTAIN`.
 // - Nothing of the text is logged.
-// - Chat Memory week 1: a receipt goes to the hub's record of who sent the message (its chat, the person's click; how
-//   the text was written is not known here).
+// - Chat Memory week 1: a receipt goes to the hub's record of who sent the message (its chat, the person's click, and
+//   how the text was written as the board knows it: `fix` for «Подстроить под фана»).
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import type { FanslyTabRequestPayload, FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
@@ -37,7 +37,7 @@ export function createOutreachService(kit: Pick<BackgroundKit, 'tokens' | 'log' 
       if (client === null) return { ok: false, error: { code: 'CG-FAN-SESSION' } };
       const messageId = await sendOutreach(client, request.hostAccountId, { groupId: request.groupId, text: request.text, attachments: request.attachments });
       kit.log.service({ level: 'info', scope: 'fansly.outreach', msg: 'sent', fields: { attachments: request.attachments.length } });
-      kit.attributions.sent({ pageId: null, hostAccountId: request.hostAccountId, fanRef: request.fanRef, platformMessageId: messageId, priced: false, withMedia: request.attachments.length > 0, conversationRef: request.groupId, composedWith: 'unknown' });
+      kit.attributions.sent({ pageId: null, hostAccountId: request.hostAccountId, fanRef: request.fanRef, platformMessageId: messageId, priced: false, withMedia: request.attachments.length > 0, conversationRef: request.groupId, composedWith: request.composedWith ?? 'unknown' });
       return { ok: true, messageId };
     } catch (error) {
       const wire = outreachFailure(error);
