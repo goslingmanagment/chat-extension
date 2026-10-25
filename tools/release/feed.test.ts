@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { GECKO_ID, STRICT_MIN_VERSION, UPDATE_URL } from '../../apps/extension/build/manifest.ts';
-import { releaseTarget } from './config.ts';
+import { releaseTarget, signedXpiNames } from './config.ts';
 import { feedDifferences, feedEntryFor, parseFeed, renderFeed } from './feed.ts';
+import { parseReleaseRecord } from './records.ts';
 
 const SHA = 'a'.repeat(64);
 const target = releaseTarget();
@@ -12,7 +13,7 @@ describe('the update feed', () => {
     expect(target.feedUrl).toBe(UPDATE_URL);
     expect(target.geckoId).toBe(GECKO_ID);
     const entry = feedEntryFor(target, '0.1.0', SHA);
-    expect(entry.updateLink).toBe(`${UPDATE_URL.slice(0, UPDATE_URL.lastIndexOf('/') + 1)}chatgoose-chatspace-0.1.0.xpi`);
+    expect(entry.updateLink).toBe(`${UPDATE_URL.slice(0, UPDATE_URL.lastIndexOf('/') + 1)}chatgoose-0.1.0.xpi`);
     expect(entry.updateLink.startsWith('https://')).toBe(true);
   });
 
@@ -24,7 +25,7 @@ describe('the update feed', () => {
           updates: [
             {
               version: '0.1.0',
-              update_link: `${target.feedBase}chatgoose-chatspace-0.1.0.xpi`,
+              update_link: `${target.feedBase}chatgoose-0.1.0.xpi`,
               update_hash: `sha256:${SHA}`,
               applications: { gecko: { strict_min_version: STRICT_MIN_VERSION } },
             },
@@ -36,12 +37,34 @@ describe('the update feed', () => {
     expect(parseFeed(text, GECKO_ID)).toEqual(feedEntryFor(target, '0.1.0', SHA));
   });
 
+  it('a version signed before the rename keeps its old file name — from its record, never from the new prefix', () => {
+    expect(signedXpiNames('0.10.5')).toEqual(['chatgoose-0.10.5.xpi', 'chatgoose-chatspace-0.10.5.xpi']);
+    expect(feedEntryFor(target, '0.10.5', SHA, 'chatgoose-chatspace-0.10.5.xpi').updateLink).toBe(`${target.feedBase}chatgoose-chatspace-0.10.5.xpi`);
+    expect(() => feedEntryFor(target, '0.10.5', SHA, 'chatgoose-chatspace-0.10.4.xpi')).toThrow(/no name of the signed XPI of 0\.10\.5/);
+    const record = (file: string): string =>
+      JSON.stringify({
+        schema: 1,
+        version: '0.10.5',
+        geckoId: GECKO_ID,
+        strictMinVersion: STRICT_MIN_VERSION,
+        commit: 'a'.repeat(40),
+        signedAt: '2026-10-24T10:00:00.000Z',
+        xpi: { file, sha256: SHA, bytes: 10 },
+        unsignedXpiSha256: SHA,
+        sourcesSha256: SHA,
+        vendor: { sdkContractHash: SHA, sdkSourceCommit: 'e'.repeat(40), hotkeysSha256: SHA },
+      });
+    expect(parseReleaseRecord(record('chatgoose-chatspace-0.10.5.xpi')).xpi.file).toBe('chatgoose-chatspace-0.10.5.xpi');
+    expect(parseReleaseRecord(record('chatgoose-0.10.5.xpi')).xpi.file).toBe('chatgoose-0.10.5.xpi');
+    expect(() => parseReleaseRecord(record('chatgoose-0.10.4.xpi'))).toThrow(/chatgoose-0\.10\.5\.xpi or chatgoose-chatspace-0\.10\.5\.xpi is expected/);
+  });
+
   it('says what differs between the served feed and the meant one', () => {
     const meant = feedEntryFor(target, '0.1.1', SHA);
     expect(feedDifferences(meant, meant)).toEqual([]);
     expect(feedDifferences(feedEntryFor(target, '0.1.0', 'b'.repeat(64)), meant)).toEqual([
       'version 0.1.0, expected 0.1.1',
-      `update_link ${target.feedBase}chatgoose-chatspace-0.1.0.xpi, expected ${target.feedBase}chatgoose-chatspace-0.1.1.xpi`,
+      `update_link ${target.feedBase}chatgoose-0.1.0.xpi, expected ${target.feedBase}chatgoose-0.1.1.xpi`,
       `update_hash sha256:${'b'.repeat(64)}, expected sha256:${SHA}`,
     ]);
   });

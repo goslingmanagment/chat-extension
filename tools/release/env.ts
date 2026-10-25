@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { DEFAULT_REMOTE_DIR, DEFAULT_SSH, ENV } from './config.ts';
 
 /** The variables an env file may hand the release. */
-export const FILE_VARIABLES: readonly string[] = [ENV.amoKey, ENV.amoSecret, ENV.telegramToken, ENV.telegramChannel, ENV.ssh, ENV.remoteDir];
+export const FILE_VARIABLES: readonly string[] = [ENV.amoKey, ENV.amoSecret, ENV.telegramToken, ENV.telegramChannel, ENV.telegramPreview, ENV.ssh, ENV.remoteDir];
 
 export const envFiles = (home: string): readonly string[] => [join(home, '.config/agency/secrets.env'), join(home, 'code/1-platform/fansly-chat/.env.deploy')];
 

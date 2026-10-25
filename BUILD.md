@@ -23,7 +23,7 @@ pnpm build
 
 The extension is then in `apps/extension/.output/firefox-mv3/` — the same
 files as in the submitted XPI. The build also writes
-`apps/extension/.output/chatgoose-chatspace-<version>-firefox.zip`, an archive
+`apps/extension/.output/chatgoose-<version>-firefox.zip`, an archive
 of that folder.
 
 ## What is in the archive

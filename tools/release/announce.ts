@@ -1,12 +1,23 @@
-// The Telegram announcement of a release (architecture.md §13 п. 2 and п. 7,
-// UP-005): the notes of the version as one rich message (Bot API
-// sendRichMessage, Rich HTML) to the chatters' channel — the version and its
-// date, then each note: its title, who it is for and why, its screenshots
-// (served by the site, next to the pages) and «Как это устроено» folded; at
-// the end how the update comes and a button to «Что нового» on the site.
-// Composing and validating the post is pure and runs before anything
-// irreversible (`announce --check`); sending is a separate outward step the
-// owner starts by hand, and its failure does not undo a release.
+// The Telegram post of a release (architecture.md §13 п. 2 and п. 7, UP-005):
+// the notes of the version as one rich message (Bot API sendRichMessage, Rich
+// HTML) to the chatters' channel. The version and its date; the intro, when
+// the version has one; for a post of four notes or more a line of contents
+// that links to each; then ✨ Новое / 🛠 Улучшено / 🐛 Исправлено, each note
+// with its title, its sites, who it is for and why, every screenshot full
+// width with its caption and «Как это устроено» folded; at the end how the
+// update comes and two buttons — «Что нового» on the site and «Установить».
+//
+// The screenshots go up with the request itself (multipart/form-data: the
+// HTML shows `tg://photo?id=<id>`, the part named `<id>` is the file), so a
+// post never depends on the pages being published, and a preview can go out
+// before a release. A post of improvements and fixes alone goes without a
+// notification; something new or the intro notifies.
+//
+// Composing the post and checking it against Telegram's limits for one
+// message and its photos is pure and runs before anything irreversible
+// (`pnpm release` checks it with the others; `announce --check`). Sending is
+// the last step of `pnpm release` from 3.0.0 on, or `announce` by hand; a
+// failed send never undoes a release.
 //
 // The sender follows the family rule «an indeterminate send is never
 // retried»: any failure after the request left is indeterminate — a transport
@@ -15,22 +26,38 @@
 // with a short wait gets one retry. A 4xx is a refusal: nothing was posted.
 // The bot token is part of the request address, so no address and no raw
 // error text reaches the output. cli.ts remembers each send per version, so a
-// second `announce` of one version asks for `--again`.
+// second post of one version asks for `--again`.
 
 import { EXTENSION_NAME } from '../../apps/extension/build/manifest.ts';
 import type { Block, Inline } from './changelog.ts';
-import { KIND_EMOJI, KIND_LABEL, NOTE_SITES, NOTES_DIR, SITE_LABEL, TECH_HEADING, type Note } from './changes.ts';
+import { KIND_EMOJI, KIND_LABEL, sitesLabel, TECH_HEADING, type Note, type NoteImage } from './changes.ts';
+import { PUBLIC_SITE } from './config.ts';
 import { groups, NOTHING_NEW, releaseLabel, type Release } from './notes.ts';
 import { noteImageHref } from './site.ts';
 
-/** Telegram's limit for one rich message, in characters. */
-export const POST_CHAR_LIMIT = 32_768;
 export const PRODUCT_NAME = EXTENSION_NAME;
 /**
- * The first version announced in the channel: 3.0.0, the one extension for ChatSpace and Fansly that replaces the
- * old Fansly one (owner, 2026-10-22). Below it `announce` posts nothing to the channel.
+ * The first version announced in the channel: 3.0.0, the one extension for OnlyFans and Fansly that replaces the
+ * old Fansly one (owner, 2026-10-22). Below it nothing is posted to the channel.
  */
 export const ANNOUNCE_FROM = '3.0.0';
+/** From this many notes (the intro aside) the post opens with a line of contents. */
+export const CONTENTS_FROM = 4;
+
+/**
+ * Telegram's limits for one rich message and its photos (Bot API: «Rich Message Limits», «sendPhoto», «Sending
+ * files»). `uploadBytes` is ours: the API names no limit for a whole request, 50 MB is its largest upload.
+ */
+export const TELEGRAM_LIMITS = {
+  characters: 32_768,
+  blocks: 500,
+  media: 50,
+  photoBytes: 10 * 1024 * 1024,
+  /** Width and height together. */
+  photoSides: 10_000,
+  photoRatio: 20,
+  uploadBytes: 50 * 1024 * 1024,
+} as const;
 
 /** Rich HTML takes &lt; &gt; &amp; &quot; by name. */
 const esc = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -54,51 +81,148 @@ function blocks(list: readonly Block[]): string[] {
   });
 }
 
-/** Each screenshot full width with its own caption: a collage shrinks screenshots of different shapes past reading. */
-function images(note: Note, siteBase: string): string[] {
-  return note.images.map((image) => `<figure><img src="${esc(`${siteBase}${noteImageHref(image.file)}`)}"/><figcaption>${esc(image.alt)}</figcaption></figure>`);
+/** One screenshot of the post: uploaded with the request as the part `id`, shown where the HTML says `tg://photo?id=<id>`. */
+export interface PostPhoto {
+  readonly id: string;
+  /** The screenshot in changes/. */
+  readonly file: string;
 }
 
-function noteHtml(note: Note, siteBase: string): string[] {
-  const sites = note.sites.length === NOTE_SITES.length ? 'ChatSpace и Fansly' : note.sites.map((site) => SITE_LABEL[site]).join(', ');
-  const title = note.kind === 'intro' ? `<h2>${inline(note.title)}</h2>` : `<h3>${inline(note.title)}</h3>`;
-  const tech = note.tech.length === 0 ? [] : [`<details><summary>${TECH_HEADING}</summary>${blocks(note.tech).join('')}</details>`];
-  return [title, ...(note.kind === 'intro' ? [] : [`<p><i>${esc(sites)}</i></p>`]), ...blocks(note.story), ...images(note, siteBase), ...tech];
+export interface Post {
+  readonly version: string;
+  readonly html: string;
+  /** The screenshots in the order the post shows them. */
+  readonly photos: readonly PostPhoto[];
+  /** The notes it carries, the intro included. */
+  readonly notes: number;
+  /** true — without a notification: the post has improvements and fixes only. */
+  readonly silent: boolean;
+}
+
+/** A screenshot as it goes up: its bytes, null — the file is not there. */
+export interface Upload extends PostPhoto {
+  readonly data: Buffer | null;
 }
 
 /**
- * The post of a release as Rich HTML. `siteBase` is the site folder (with its
- * slash): the screenshots and the «Что нового» button point there.
+ * The post of a release. `site` is the public site (with its slash): the buttons point there.
  */
-export function composePost(release: Release, siteBase: string): string {
+export function composePost(release: Release, site: string = PUBLIC_SITE): Post {
+  const photos: PostPhoto[] = [];
+  // Each screenshot full width with its own caption: a collage shrinks screenshots of different shapes past reading.
+  const figure = (image: NoteImage): string => {
+    const id = `shot-${photos.length + 1}`;
+    photos.push({ id, file: image.file });
+    return `<figure><img src="tg://photo?id=${id}"/><figcaption>${esc(image.alt)}</figcaption></figure>`;
+  };
+  const noteHtml = (note: Note, anchor: boolean): string[] => {
+    const tech = note.tech.length === 0 ? [] : [`<details><summary>${TECH_HEADING}</summary>${blocks(note.tech).join('')}</details>`];
+    const head = note.kind === 'intro' ? [`<h2>${inline(note.title)}</h2>`] : [...(anchor ? [`<a name="${note.slug}"></a>`] : []), `<h3>${inline(note.title)}</h3>`, `<p><i>${esc(sitesLabel(note.sites))}</i></p>`];
+    return [...head, ...blocks(note.story), ...note.images.map(figure), ...tech];
+  };
+
   const label = releaseLabel(release);
   const lines = [`<h1>${esc(`${PRODUCT_NAME} ${release.version}`)}</h1>`, ...(label === '' ? [] : [`<p><i>${esc(label)}</i></p>`])];
+  const notes = release.kind === 'notes' ? release.notes : [];
   if (release.kind === 'legacy') lines.push(...blocks(release.blocks));
-  else if (release.notes.length === 0) lines.push(`<p>${NOTHING_NEW}</p>`);
+  else if (notes.length === 0) lines.push(`<p>${NOTHING_NEW}</p>`);
   else {
-    for (const group of groups(release.notes)) {
-      if (group.kind !== 'intro') lines.push('<hr/>', `<h2>${KIND_EMOJI[group.kind]} ${KIND_LABEL[group.kind]}</h2>`);
-      for (const note of group.notes) lines.push(...noteHtml(note, siteBase));
+    const parts = groups(notes);
+    for (const intro of parts.filter((group) => group.kind === 'intro')) lines.push(...intro.notes.flatMap((note) => noteHtml(note, false)));
+    const listed = parts.filter((group) => group.kind !== 'intro');
+    const contents = listed.flatMap((group) => group.notes);
+    if (contents.length >= CONTENTS_FROM) lines.push(`<p><b>В этом выпуске:</b> ${contents.map((note) => `<a href="#${note.slug}">${esc(note.title.map((part) => part.text).join(''))}</a>`).join(' · ')}</p>`);
+    for (const group of listed) {
+      lines.push('<hr/>', `<h2>${KIND_EMOJI[group.kind]} ${KIND_LABEL[group.kind]}</h2>`);
+      for (const note of group.notes) lines.push(...noteHtml(note, contents.length >= CONTENTS_FROM));
     }
   }
   lines.push(
     '<hr/>',
-    '<footer>Обновление придёт само в течение дня. Чтобы сразу: ☰ → «Дополнения и темы» → ⚙ → «Проверить наличие обновлений». Потом перезагрузите открытые вкладки ChatSpace и Fansly.</footer>',
-    `<tg-button-row><tg-button type="url" url="${esc(`${siteBase}whats-new.html`)}">Что нового — на сайте</tg-button></tg-button-row>`,
+    '<footer>Firefox поставит обновление сам в течение дня. Чтобы сразу: ☰ → «Дополнения и темы» → ⚙ → «Проверить наличие обновлений». Потом перезагрузите открытые вкладки OnlyFans (ChatSpace) и Fansly.</footer>',
+    `<tg-button-row><tg-button type="url" url="${esc(`${site}whats-new.html#v${release.version}`)}">Что нового на сайте</tg-button><tg-button type="url" url="${esc(site)}">Установить</tg-button></tg-button-row>`,
   );
-  const post = lines.join('\n');
-  const length = [...post].length;
-  if (length > POST_CHAR_LIMIT) throw new Error(`the announcement is ${length} characters, over Telegram's ${POST_CHAR_LIMIT} — shorten the notes of ${release.version}`);
-  return post;
+  return { version: release.version, html: lines.join('\n'), photos, notes: notes.length, silent: !notes.some((note) => note.kind === 'new' || note.kind === 'intro') };
+}
+
+// ── Telegram's limits ──
+
+/** The text of the post as Telegram counts it: what is shown, without the tags. */
+export const postCharacters = (html: string): number => [...html.replace(/<[^>]*>/g, '').replace(/&(?:lt|gt|amp|quot);/g, '_')].length;
+
+/** Its blocks, counted generously: every block element, list item, caption, summary, button and anchor. */
+export const postBlocks = (html: string): number =>
+  [...html.matchAll(/<(?:h[1-6]|p|ul|ol|li|figure|figcaption|details|summary|hr|footer|blockquote|pre|table|tr|aside|tg-button-row|tg-button)\b|<a name="/g)].length;
+
+/** The pixel size and type of a PNG or a JPEG; null — neither. */
+export function imageSize(data: Buffer): { readonly width: number; readonly height: number; readonly type: 'image/png' | 'image/jpeg' } | null {
+  if (data.length >= 24 && data.readUInt32BE(0) === 0x89504e47 && data.toString('latin1', 12, 16) === 'IHDR') {
+    return { width: data.readUInt32BE(16), height: data.readUInt32BE(20), type: 'image/png' };
+  }
+  if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
+  // The segments of a JPEG up to its frame header (SOF0…SOF15 but DHT, JPG and DAC): height, then width.
+  let at = 2;
+  while (at + 9 < data.length) {
+    if (data[at] !== 0xff) return null;
+    const marker = data[at + 1] ?? 0;
+    if (marker === 0xff) {
+      at += 1;
+      continue;
+    }
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) return { width: data.readUInt16BE(at + 7), height: data.readUInt16BE(at + 5), type: 'image/jpeg' };
+    at += 2 + data.readUInt16BE(at + 2);
+  }
+  return null;
+}
+
+/** Why the post cannot go out as one rich message with these screenshots; [] — it can. */
+export function postProblems(post: Post, uploads: readonly Upload[]): string[] {
+  const limits = TELEGRAM_LIMITS;
+  const problems: string[] = [];
+  const characters = postCharacters(post.html);
+  if (characters > limits.characters) problems.push(`the post is ${characters} characters, Telegram takes ${limits.characters} — shorten the notes of ${post.version}`);
+  const count = postBlocks(post.html);
+  if (count > limits.blocks) problems.push(`the post has ${count} blocks, Telegram takes ${limits.blocks}`);
+  if (uploads.length > limits.media) problems.push(`the post has ${uploads.length} screenshots, Telegram takes ${limits.media}`);
+  let total = 0;
+  for (const upload of uploads) {
+    const where = `changes/${upload.file}`;
+    if (upload.data === null) {
+      problems.push(`${where} is missing`);
+      continue;
+    }
+    total += upload.data.length;
+    const size = imageSize(upload.data);
+    if (upload.data.length > limits.photoBytes) problems.push(`${where} is ${Math.round(upload.data.length / 1024)} KB, a photo is at most ${limits.photoBytes / 1024 / 1024} MB`);
+    if (size === null) problems.push(`${where} is neither a PNG nor a JPEG`);
+    else if (size.width + size.height > limits.photoSides) problems.push(`${where} is ${size.width}×${size.height}: a photo's width and height together are at most ${limits.photoSides}`);
+    else if (Math.max(size.width, size.height) > limits.photoRatio * Math.max(1, Math.min(size.width, size.height))) problems.push(`${where} is ${size.width}×${size.height}: a photo is at most ${limits.photoRatio} times longer than wide`);
+  }
+  if (total > limits.uploadBytes) problems.push(`the screenshots are ${Math.round(total / 1024 / 1024)} MB together, one request carries ${limits.uploadBytes / 1024 / 1024} MB`);
+  return problems;
+}
+
+/** One line for a plan: what goes, how big, and whether it rings. */
+export function describePost(post: Post, uploads: readonly Upload[]): string {
+  const bytes = uploads.reduce((sum, upload) => sum + (upload.data?.length ?? 0), 0);
+  const shots = post.photos.length === 0 ? 'no screenshot' : `${post.photos.length} screenshot(s) uploaded with it (${(bytes / 1024 / 1024).toFixed(1)} MB)`;
+  const rings = post.silent ? `silent — ${post.notes === 0 ? 'no note' : 'improvements and fixes only'}` : 'with a notification — something new';
+  return `${post.notes} note(s), ${shots}, ${postCharacters(post.html)} characters, ${postBlocks(post.html)} blocks; ${rings}`;
 }
 
 /**
  * A local page that draws the post about as Telegram does — a channel bubble, the
- * screenshots from the copy next to it (changes/), «Как это устроено» folded, the button —
+ * screenshots from the copy next to it (changes/), «Как это устроено» folded, the buttons —
  * for `pnpm release notes`. Not what Telegram renders, near enough to judge the text and the pictures.
  */
-export function telegramPreview(post: string, siteBase: string): string {
-  const local = post.split(`${esc(siteBase)}${NOTES_DIR}/`).join(`${NOTES_DIR}/`);
+export function telegramPreview(post: Post): string {
+  const files = new Map(post.photos.map((photo) => [photo.id, photo.file]));
+  const local = post.html.replace(/tg:\/\/photo\?id=([A-Za-z0-9_-]+)/g, (whole: string, id: string) => {
+    const file = files.get(id);
+    return file === undefined ? whole : noteImageHref(file);
+  });
+  const row = /<tg-button-row>[\s\S]*<\/tg-button-row>/;
+  const buttons = (row.exec(local)?.[0] ?? '').replace(/<tg-button type="url" url="([^"]*)">([\s\S]*?)<\/tg-button>/g, '<a class="button" href="$1">$2</a>');
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -116,28 +240,33 @@ export function telegramPreview(post: string, siteBase: string): string {
   summary { cursor: pointer; color: #6ab3f3; font-weight: 600; }
   footer { color: #8ba3b8; font-size: 13px; }
   code { font: 13px ui-monospace, Menlo, monospace; }
-  tg-button-row { display: flex; margin: 10px auto 0; max-width: 520px; }
-  tg-button { flex: 1; padding: 9px; border-radius: 8px; background: #2b5278; text-align: center; font-weight: 600; }
+  tg-button-row { display: flex; gap: 6px; margin: 10px auto 0; max-width: 520px; }
+  .button { flex: 1; padding: 9px; border-radius: 8px; background: #2b5278; color: #f5f5f5; text-align: center; font-weight: 600; text-decoration: none; }
+  .meta { max-width: 520px; margin: 10px auto 0; color: #8ba3b8; font-size: 13px; text-align: center; }
 </style>
 </head>
 <body>
 <div class="bubble">
-${local.replace(/<tg-button-row>[\s\S]*<\/tg-button-row>/, '')}
+${local.replace(row, '')}
 </div>
-${/<tg-button-row>[\s\S]*<\/tg-button-row>/.exec(local)?.[0] ?? ''}
+${buttons}
+<p class="meta">${post.silent ? 'Уйдёт без уведомления: только улучшения и исправления.' : 'Уйдёт с уведомлением: есть новое.'} ${post.photos.length} скриншот(ов) — с самим постом.</p>
 </body>
 </html>
 `;
 }
+
+// ── sending ──
 
 export interface TelegramTarget {
   readonly botToken: string;
   readonly chatId: string;
 }
 
-export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type FetchLike = (url: string, init: { method: string; body: FormData; signal: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
-const REQUEST_TIMEOUT_MS = 30_000;
+/** The screenshots go up with the request: over a slow route that takes longer than a text alone. */
+const REQUEST_TIMEOUT_MS = 120_000;
 const RETRY_AFTER_MAX_SECONDS = 60;
 
 export class AnnounceError extends Error {
@@ -168,15 +297,24 @@ function indeterminate(error: unknown, token: string): AnnounceError {
   return new AnnounceError(`transport failure (${detail}): the send is indeterminate — Telegram may have accepted it; look at the channel before trying again`, true);
 }
 
-async function attempt(target: TelegramTarget, html: string, silent: boolean, fetchImpl: FetchLike): Promise<Attempt> {
+/** The body of one request: the message, the media it names and the files themselves. */
+function requestBody(target: TelegramTarget, post: Post, uploads: readonly Upload[], silent: boolean): FormData {
+  const form = new FormData();
+  form.set('chat_id', target.chatId);
+  const media = post.photos.map((photo) => ({ id: photo.id, media: { type: 'photo', media: `attach://${photo.id}` } }));
+  form.set('rich_message', JSON.stringify({ html: post.html, ...(media.length === 0 ? {} : { media }), skip_entity_detection: true }));
+  form.set('disable_notification', String(silent));
+  for (const upload of uploads) {
+    const data = upload.data ?? Buffer.alloc(0);
+    form.set(upload.id, new Blob([new Uint8Array(data)], { type: imageSize(data)?.type ?? 'application/octet-stream' }), upload.file);
+  }
+  return form;
+}
+
+async function attempt(target: TelegramTarget, body: () => FormData, fetchImpl: FetchLike): Promise<Attempt> {
   let response: Awaited<ReturnType<FetchLike>>;
   try {
-    response = await fetchImpl(`https://api.telegram.org/bot${target.botToken}/sendRichMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: target.chatId, rich_message: { html, skip_entity_detection: true }, disable_notification: silent }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    response = await fetchImpl(`https://api.telegram.org/bot${target.botToken}/sendRichMessage`, { method: 'POST', body: body(), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   } catch (error) {
     throw indeterminate(error, target.botToken);
   }
@@ -202,18 +340,28 @@ async function attempt(target: TelegramTarget, html: string, silent: boolean, fe
 }
 
 export interface SendOptions {
-  readonly silent?: boolean;
+  /** Without a notification: the post's own rule (`post.silent`), or always for a preview. */
+  readonly silent: boolean;
   readonly fetchImpl: FetchLike;
   readonly sleep: (ms: number) => Promise<void>;
 }
 
-/** Posts the announcement; resolves with the message id (null when Telegram did not name it). */
-export async function sendPost(target: TelegramTarget, html: string, options: SendOptions): Promise<number | null> {
-  let result = await attempt(target, html, options.silent ?? false, options.fetchImpl);
+/**
+ * Posts the post with its screenshots (`uploads`: one per photo of the post, in its order); resolves with the
+ * message id (null when Telegram did not name it). A post over Telegram's limits is refused before any request.
+ */
+export async function sendPost(target: TelegramTarget, post: Post, uploads: readonly Upload[], options: SendOptions): Promise<number | null> {
+  if (uploads.length !== post.photos.length || uploads.some((upload, index) => upload.id !== post.photos[index]?.id || upload.file !== post.photos[index]?.file)) {
+    throw new AnnounceError('the screenshots to upload are not the ones the post shows: nothing was sent', false);
+  }
+  const problems = postProblems(post, uploads);
+  if (problems.length > 0) throw new AnnounceError(`the post of ${post.version} cannot go out, nothing was sent: ${problems.join('; ')}`, false);
+  const body = (): FormData => requestBody(target, post, uploads, options.silent);
+  let result = await attempt(target, body, options.fetchImpl);
   if (result.kind === 'rate-limited') {
     if (result.seconds > RETRY_AFTER_MAX_SECONDS) throw new AnnounceError(`rate-limited: Telegram asks to wait ${result.seconds} s — run the command again later`, false);
     await options.sleep(result.seconds * 1000);
-    result = await attempt(target, html, options.silent ?? false, options.fetchImpl);
+    result = await attempt(target, body, options.fetchImpl);
   }
   if (result.kind === 'ok') return result.messageId;
   if (result.kind === 'rate-limited') throw new AnnounceError('still rate-limited after one retry — run the command again later', false);

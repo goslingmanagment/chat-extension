@@ -17,7 +17,7 @@ import { dirname } from 'node:path';
 
 import { readZip } from '../lib/zip.ts';
 import { NOTES_DIR } from './changes.ts';
-import { DEFAULT_HTTP_TIMEOUT_S, ENV, FEED_FILE, FEED_PREVIOUS_FILE, HUB_HEALTH_PATH, recordName, signedXpiName, type ReleaseTarget } from './config.ts';
+import { DEFAULT_HTTP_TIMEOUT_S, ENV, FEED_FILE, FEED_PREVIOUS_FILE, HUB_HEALTH_PATH, LEGACY_ARTIFACT_PREFIX, recordNameOf, signedXpiNames, type ReleaseTarget } from './config.ts';
 import { commandStep, mustRun, renderCommand, type Exec, type Print, type Step } from './exec.ts';
 import { feedDifferences, feedEntryFor, parseFeed, renderFeed, type FeedEntry } from './feed.ts';
 import { evaluateHubCompatibility } from './gate.ts';
@@ -235,11 +235,12 @@ export function publishSteps(deps: ServerDeps, input: PublishInput): Step[] {
   const { record } = input;
   const { target } = deps;
   const feedDir = `${deps.remoteDir}/${target.feedDir}`;
-  const entry = feedEntryFor(target, record.version, record.xpi.sha256);
-  const xpiName = signedXpiName(record.version);
+  // The names are the record's: a version signed before the rename goes up under its old ones.
+  const entry = feedEntryFor(target, record.version, record.xpi.sha256, record.xpi.file);
+  const xpiName = record.xpi.file;
   const files = [
     { local: input.signedXpiPath, name: xpiName, sha256: record.xpi.sha256 },
-    { local: input.recordPath, name: recordName(record.version), sha256: input.recordSha256 },
+    { local: input.recordPath, name: recordNameOf(xpiName), sha256: input.recordSha256 },
   ].map((file) => ({ ...file, tmp: `${feedDir}/${uploadName(file.name, deps.nonce)}`, final: `${feedDir}/${file.name}` }));
   const uploads = files.map((file) => deps.transport.upload(file.local, file.tmp));
   const places = files.map((file) => deps.transport.shell(placeImmutableScript(file)));
@@ -350,8 +351,9 @@ export interface RollbackInput {
  */
 export function rollbackSteps(deps: ServerDeps, input: RollbackInput): Step[] {
   const { target } = deps;
-  const recordUrl = `${target.feedBase}${recordName(input.to)}`;
-  const xpiUrl = `${target.feedBase}${signedXpiName(input.to)}`;
+  // A version's files keep the names they were published under: today's, or the old ones of a version signed before
+  // the rename. Its record is looked up under both; the XPI is the one the record names.
+  const recordUrls = signedXpiNames(input.to).map((file) => `${target.feedBase}${recordNameOf(file)}`);
   let entry: FeedEntry | null = null;
   const expected = (): FeedEntry => {
     if (entry === null) throw new Error('rollback: the record of the earlier version was not read.');
@@ -369,17 +371,29 @@ export function rollbackSteps(deps: ServerDeps, input: RollbackInput): Step[] {
     },
     {
       title: `Read the record and the XPI of ${input.to} from the server`,
-      show: [`GET ${recordUrl} — the release record of ${input.to}`, `GET ${xpiUrl} — sha256 as in that record, signed, ${target.geckoId} ${input.to}`],
+      show: [
+        `GET ${recordUrls.join(', on a 404 GET ')} — the release record of ${input.to} (a version signed before the rename keeps ${LEGACY_ARTIFACT_PREFIX}…)`,
+        `GET ${target.feedBase}<the XPI that record names> — sha256 as in that record, signed, ${target.geckoId} ${input.to}`,
+      ],
       run: async () => {
-        const answer = await deps.http(recordUrl);
-        if (answer.status !== 200) throw new Error(`${recordUrl} answered ${answer.status === 0 ? 'nothing' : `HTTP ${answer.status}`}: without the record of ${input.to} the feed cannot be pointed at it.`);
-        const record = parseReleaseRecord(answer.body.toString('utf8'));
-        if (record.version !== input.to || record.geckoId !== target.geckoId) throw new Error(`${recordUrl} is the record of ${record.geckoId} ${record.version}, not of ${target.geckoId} ${input.to}.`);
+        let found: { readonly url: string; readonly text: string } | null = null;
+        for (const url of recordUrls) {
+          const answer = await deps.http(url);
+          if (answer.status === 404) continue;
+          if (answer.status !== 200) throw new Error(`${url} answered ${answer.status === 0 ? 'nothing' : `HTTP ${answer.status}`}: without the record of ${input.to} the feed cannot be pointed at it.`);
+          found = { url, text: answer.body.toString('utf8') };
+          break;
+        }
+        if (found === null) throw new Error(`no record of ${input.to} on the server (${recordUrls.join(' and ')} answered 404): without it the feed cannot be pointed at it.`);
+        const record = parseReleaseRecord(found.text);
+        if (record.version !== input.to || record.geckoId !== target.geckoId) throw new Error(`${found.url} is the record of ${record.geckoId} ${record.version}, not of ${target.geckoId} ${input.to}.`);
+        if (`${target.feedBase}${recordNameOf(record.xpi.file)}` !== found.url) throw new Error(`${found.url} names the XPI ${record.xpi.file}, which is not the file next to it.`);
+        const xpiUrl = `${target.feedBase}${record.xpi.file}`;
         await readBack(deps, xpiUrl, (xpi) => signedXpiProblem(xpi, { version: input.to, geckoId: target.geckoId, sha256: record.xpi.sha256 }));
-        entry = { ...feedEntryFor(target, input.to, record.xpi.sha256), strictMinVersion: record.strictMinVersion };
+        entry = { ...feedEntryFor(target, input.to, record.xpi.sha256, record.xpi.file), strictMinVersion: record.strictMinVersion };
       },
     },
     ...swapFeedSteps(deps, input.localFeedPath, () => renderFeed(target.geckoId, expected()), `${input.to}, sha256 from its record`),
-    servedFeedStep(deps, expected, `${input.to} → ${xpiUrl}`),
+    servedFeedStep(deps, expected, `${input.to} → the XPI its record names`),
   ];
 }

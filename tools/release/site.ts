@@ -1,7 +1,7 @@
 // The release site (architecture.md §13: «Страницы site/ лежат рядом с
 // фидом»; UP-011…UP-015): static pages in site/, published as they are
-// committed. Three things in them follow the release and are written by this
-// tool, never by hand:
+// committed — the pages are the only source of their text. Three things in
+// them follow the release and are written by this tool, never by hand:
 //
 //   <… data-cg="version">0.1.0</…>      the current version
 //   <… data-cg="firefox">142</…>        the oldest Firefox the manifest allows
@@ -11,19 +11,24 @@
 //                                        `whats-new` (the current version) and
 //                                        `changelog` (every version)
 //
+// One thing is written by hand and read by the release: the first version a
+// page belongs to, `<meta name="cg-first-version" content="3.0.0">` in its
+// head (the pages of the 3.0 launch). While the site declares a version above
+// the one the notes give, that version is the next release, and only on the
+// owner's word (cli.ts): a routine release never publishes such pages early.
+//
 // `pnpm release` renders them into the tree for its build and puts the files
 // back after: the site in git stays the site of git's version and CHANGELOG.md. The screenshots of the notes
-// (changes/*.png) go up next to the pages, under changes/. Pilot privacy and cutover copy is generated
-// from site-copy.ts as well. No I/O here.
+// (changes/*.png) go up next to the pages, under changes/. No I/O here.
 
 import { blocksHtml, escapeHtml, inlineHtml } from './changelog.ts';
 import { KIND_LABEL, NOTES_DIR, SITE_LABEL, TECH_HEADING, type Note } from './changes.ts';
 import { signedXpiName, type ReleaseTarget } from './config.ts';
 import { groups, NOTHING_NEW, releaseLabel, releaseOf, type History, type Release } from './notes.ts';
-import { renderSiteCopy } from './site-copy.ts';
+import { compareVersions, isVersion, reservedVersionProblem } from './version.ts';
 
 /** Every page of the site; the first is its index. */
-export const SITE_PAGES = ['index.html', 'start.html', 'guide.html', 'whats-new.html', 'changelog.html', 'privacy.html'] as const;
+export const SITE_PAGES = ['index.html', 'start.html', 'guide.html', 'whats-new.html', 'changelog.html', 'privacy.html', '404.html'] as const;
 export const SITE_STYLESHEET = 'site.css';
 export const SITE_FILES: readonly string[] = [...SITE_PAGES, SITE_STYLESHEET];
 /**
@@ -33,16 +38,69 @@ export const SITE_FILES: readonly string[] = [...SITE_PAGES, SITE_STYLESHEET];
  * so it goes out with a release or with `pages` — ahead of a release only when
  * the server has none at all.
  */
-export const VERSIONLESS_PAGES: readonly string[] = ['start.html', 'guide.html', 'privacy.html'];
+export const VERSIONLESS_PAGES: readonly string[] = ['start.html', 'guide.html', 'privacy.html', '404.html'];
+/**
+ * The page nginx answers a missing address of the site's host with, at that address: its relative links resolve
+ * from the root only through `<base href="/">`, which it must carry (and no other page may).
+ */
+export const NOT_FOUND_PAGE = '404.html';
 
 export interface SiteContext {
   readonly version: string;
   readonly target: ReleaseTarget;
   readonly history: History;
+  /** The signed XPI as the version's record names it, when it is signed already (an older one keeps its old name). */
+  readonly xpiFile?: string;
 }
 
 /** The XPI's address as the install page links to it: relative to the site folder. */
-export const xpiHref = (context: Pick<SiteContext, 'version' | 'target'>): string => `${context.target.feedDir}/${signedXpiName(context.version)}`;
+export const xpiHref = (context: Pick<SiteContext, 'version' | 'target' | 'xpiFile'>): string => `${context.target.feedDir}/${context.xpiFile ?? signedXpiName(context.version)}`;
+
+// ── the first version a page belongs to ──
+
+/** How a page declares the first version it belongs to — in exactly this form. */
+export const FIRST_VERSION_META = (version: string): string => `<meta name="cg-first-version" content="${version}">`;
+const FIRST_VERSION_RE = /<meta\b[^>]*cg-first-version[^>]*>/gi;
+const FIRST_VERSION_EXACT_RE = /^<meta name="cg-first-version" content="([^"]*)">$/;
+
+export interface SiteFirstVersion {
+  /** The highest first version a page declares. */
+  readonly version: string;
+  /** The pages that declare it. */
+  readonly pages: readonly string[];
+}
+
+/** Every declaration of a first version in the pages, as written; `version` null — not in the exact form. */
+function firstVersionTags(files: ReadonlyMap<string, string>): Array<{ readonly page: string; readonly tag: string; readonly version: string | null }> {
+  return [...files].flatMap(([page, html]) =>
+    page.endsWith('.html') ? [...html.matchAll(FIRST_VERSION_RE)].map((match) => ({ page, tag: match[0], version: FIRST_VERSION_EXACT_RE.exec(match[0])?.[1] ?? null })) : [],
+  );
+}
+
+/** What is wrong with the pages' declarations of their first version; [] — each is exact, a version, at most one per page. */
+export function firstVersionProblems(files: ReadonlyMap<string, string>): string[] {
+  const tags = firstVersionTags(files);
+  const problems: string[] = [];
+  for (const page of new Set(tags.map((tag) => tag.page))) {
+    const many = tags.filter((tag) => tag.page === page).length;
+    if (many > 1) problems.push(`${page}: one ${FIRST_VERSION_META('X.Y.Z')} per page, there are ${many}`);
+  }
+  for (const { page, tag, version } of tags) {
+    const reserved = version !== null && isVersion(version) ? reservedVersionProblem(version) : null;
+    if (version === null || !isVersion(version)) problems.push(`${page}: «${tag}» — a page declares its first version as ${FIRST_VERSION_META('X.Y.Z')}`);
+    else if (reserved !== null) problems.push(`${page}: ${reserved}`);
+  }
+  return problems;
+}
+
+/** The first version the site belongs to: the highest any page declares; null — none does. Throws on a declaration that is not exact. */
+export function siteFirstVersion(files: ReadonlyMap<string, string>): SiteFirstVersion | null {
+  const problems = firstVersionProblems(files);
+  if (problems.length > 0) throw new Error(`site/ declares its first version wrongly:\n  ${problems.join('\n  ')}`);
+  const declared = firstVersionTags(files).flatMap(({ page, version }) => (version === null ? [] : [{ page, version }]));
+  const top = declared.map((each) => each.version).sort(compareVersions).at(-1);
+  return top === undefined ? null : { version: top, pages: declared.filter((each) => each.version === top).map((each) => each.page) };
+}
 
 /** The address of a note's screenshot on the site, relative to its pages. */
 export const noteImageHref = (file: string): string => `${NOTES_DIR}/${file}`;
@@ -107,7 +165,7 @@ export function renderPage(html: string, context: SiteContext): string {
 
 /** Every file of the site as it must be for `context` (the stylesheet as it is). */
 export function renderSite(files: ReadonlyMap<string, string>, context: SiteContext): Map<string, string> {
-  return new Map([...files].map(([name, text]) => [name, name.endsWith('.html') ? renderPage(renderSiteCopy(name, text), context) : text]));
+  return new Map([...files].map(([name, text]) => [name, name.endsWith('.html') ? renderPage(text, context) : text]));
 }
 
 const count = (text: string, pattern: RegExp): number => [...text.matchAll(pattern)].length;
@@ -134,6 +192,10 @@ export function siteProblems(files: ReadonlyMap<string, string>, context: SiteCo
     if (!/<meta name="viewport" /.test(html)) say('no viewport meta');
     if (!/<title>[^<]+<\/title>/.test(html)) say('no <title>');
     if (count(html, /<link rel="stylesheet" href="site\.css">/g) !== 1) say(`must link ${SITE_STYLESHEET} exactly once`);
+    // The error page is served at any missing address of its host: its links resolve from the root. No other page may.
+    if (page === NOT_FOUND_PAGE) {
+      if (count(html, /<base href="\/">/g) !== 1) say('must carry <base href="/"> once: nginx serves it at any missing address');
+    } else if (/<base\b/i.test(html)) say('no <base>: the page is served at its own address');
     // Static and self-contained: no script, no handler, nothing loaded from another host.
     if (/<script\b/i.test(html)) say('no scripts on the site');
     if (/\son[a-z]+\s*=/i.test(html)) say('no inline event handlers');
@@ -174,6 +236,7 @@ export function siteProblems(files: ReadonlyMap<string, string>, context: SiteCo
   for (const name of VERSIONLESS_PAGES) {
     if (/data-cg="|<!-- cg:/.test(files.get(name) ?? '')) problems.push(`${name}: a page that is published ahead of a release must carry nothing of a release`);
   }
+  problems.push(...firstVersionProblems(files));
   if (problems.length > 0) return problems;
 
   let rendered: Map<string, string>;

@@ -2,13 +2,15 @@
 // release, the AMO sources archive). wxt.config.ts fills them in as WXT's zip
 // templates; tools/archive-check opens exactly the pair named by the version
 // in the freshly built manifest, never "the first zip it finds" (an older
-// version's archives would otherwise be checked instead).
+// version's archives would otherwise be checked instead). Archives of a build
+// before the rename (`chatgoose-chatspace-…`) start with the prefix too, so a
+// build removes them as stale.
 //
 // Relative imports carry `.ts`: this file also runs under plain Node 26.
 
 import type { BuildFlavor } from './manifest.ts';
 
-export const ARTIFACT_PREFIX = 'chatgoose-chatspace-';
+export const ARTIFACT_PREFIX = 'chatgoose-';
 
 export interface ArtifactNames {
   /** The extension itself (an XPI is a zip). */

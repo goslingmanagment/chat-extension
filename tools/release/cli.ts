@@ -12,9 +12,14 @@
 // back. In order: the lock on origin (one release at a time), the checks
 // (main's CI, the tag, the vendored SDK, the hub, the feed), the build, AMO,
 // the server (XPI, feed, pages), the tag, the GitHub release with notes from
-// the commits since the previous tag. A run that stopped is run again: what is
-// signed is not signed twice, what is published is not published twice.
-// `--dry-run` makes the read-only checks and prints the notes and the plan.
+// the commits since the previous tag and, from 3.0.0 on, the post of the
+// version's notes to the chatters' channel (once per version; `--no-announce`
+// skips it; its failure never undoes the release). A site that declares a
+// later first version than the notes give (site.ts, the 3.0 launch) makes that
+// version the next release — on the owner's word only. A run that stopped is
+// run again: what is signed is not signed twice, what is published is not
+// published twice. `--dry-run` makes the read-only checks and prints the notes
+// and the plan.
 //
 // Other commands:
 //   status                         what this checkout holds: tags, build, records
@@ -23,9 +28,10 @@
 //   notes                          the notes of changes: checks every one, shows what the next
 //                                  release carries and its version, writes previews of the page
 //                                  and the post to .cache/notes/
-//   announce [--check|--again|--preview]   Telegram: the version's notes to the chatters'
-//                                  channel from 3.0.0 on — the owner's call only (plan only
-//                                  without --confirm <version>); --preview: to the owner's test chat
+//   announce [<version>] [--check|--again|--preview]   Telegram by hand: the post of the last
+//                                  release (or of <version>) to the chatters' channel from 3.0.0
+//                                  on (plan only without --confirm <version>); --preview: to the
+//                                  owner's test chat, any version the notes know, before its release too
 //   unlock                         remove the release lock a dead run left on origin
 //   sign --import <file.xpi>       a signed XPI AMO gave late, downloaded by hand; then run the
 //                                  release of that version again
@@ -44,19 +50,19 @@ import { parseArgs } from 'node:util';
 
 import { writeZip } from '../lib/zip-write.ts';
 import { readZip } from '../lib/zip.ts';
-import { ANNOUNCE_FROM, AnnounceError, composePost, sendPost, telegramPreview, type FetchLike } from './announce.ts';
+import { ANNOUNCE_FROM, AnnounceError, composePost, describePost, postProblems, sendPost, telegramPreview, type FetchLike, type Post, type Upload } from './announce.ts';
 import { KIND_EMOJI, KIND_LABEL, NOTES_DIR, bumpOf, releaseProblems, sortNotes, type Note } from './changes.ts';
-import { BEYOND_DOCUMENTS, CHANGELOG_FILE, DEFAULT_HUB_REPO, ENV, EXTENSION_REPO, HUB_HEALTH_PATH, MAIN_CI_JOBS, OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS, signedXpiName, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
+import { BEYOND_DOCUMENTS, CHANGELOG_FILE, DEFAULT_HUB_REPO, ENV, EXTENSION_REPO, HUB_HEALTH_PATH, MAIN_CI_JOBS, OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS, PUBLIC_SITE, signedXpiName, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
 import { mustRun, renderCommand, runSteps, type Exec, type Print, type Step } from './exec.ts';
 import { evaluateFeedAhead, evaluateHubAncestry, evaluateHubCompatibility, evaluateMainCi, evaluateTagFree, evaluateVendor, evaluateVersions, type Verdict } from './gate.ts';
 import { Checkout, heldFor } from './local.ts';
 import { acquireLock, describeHolder, lockHolder, releaseLock } from './lock.ts';
-import { githubNotes, needsNote, releaseOf, type History } from './notes.ts';
+import { githubNotes, needsNote, releaseOf, type History, type Release } from './notes.ts';
 import { publishSteps, rollbackSteps, servedFeed, type Http, type ServerDeps } from './publish.ts';
-import { importProblems, type ArtifactRef, type GateCheck, type GateRecord, type ReleaseRecord, type VendorRef } from './records.ts';
+import { importProblems, type AnnouncedRecord, type ArtifactRef, type GateCheck, type GateRecord, type ReleaseRecord, type VendorRef } from './records.ts';
 import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
 import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
-import { historyImages, renderPage, renderSite, siteProblems, SITE_FILES, SITE_STYLESHEET } from './site.ts';
+import { historyImages, renderPage, renderSite, siteFirstVersion, siteProblems, SITE_FILES, SITE_STYLESHEET, type SiteFirstVersion } from './site.ts';
 import {
   deriveTestBuild,
   differencesBeyondManifest,
@@ -75,11 +81,12 @@ import {
 import { bumpVersion, compareVersions, isVersion, reservedVersionProblem, setPackageVersion, type BumpKind } from './version.ts';
 import { sha256Hex } from './xpi.ts';
 
-const USAGE = `pnpm release [--dry-run]   the whole release, in one go; the version comes from the notes
-pnpm release major|X.Y.Z --confirm <version>   another version — only on the owner's word
+const USAGE = `pnpm release [--dry-run] [--no-announce]   the whole release, in one go; the version comes from the notes,
+          from 3.0.0 its post goes to the chatters' channel last (--no-announce: not this time)
+pnpm release major|X.Y.Z --confirm <version>   another version, or the launch site/ declares — only on the owner's word
 
           notes   check the notes of changes, preview the next release (.cache/notes/)
-          status · unlock · rollback --to <version> · announce [--check|--again|--preview]
+          status · unlock · rollback --to <version> · announce [<version>] [--check|--again|--preview|--silent]
           rollback and announce print their plan and stop without --confirm <version>
           sign --import <file.xpi> takes a signed XPI downloaded by hand (no network)
           test-builds · sign --test-builds   the P3b test builds
@@ -135,6 +142,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         silent: { type: 'boolean', default: false },
         again: { type: 'boolean', default: false },
         preview: { type: 'boolean', default: false },
+        'no-announce': { type: 'boolean', default: false },
         'test-builds': { type: 'boolean', default: false },
       },
     });
@@ -206,6 +214,103 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     return (await checkout.versionTags()).at(-1) ?? null;
   }
 
+  /** The first version site/ declares (site.ts); a declaration not in its exact form stops the command. */
+  function siteFirst(): SiteFirstVersion | null {
+    try {
+      return siteFirstVersion(checkout.siteFiles());
+    } catch (error) {
+      return refuse(message(error));
+    }
+  }
+
+  /** The launch: the first version site/ declares, when it is above the version the notes give — then it is the next release. */
+  function launchAbove(byNotes: string, first: SiteFirstVersion | null = siteFirst()): SiteFirstVersion | null {
+    return first !== null && compareVersions(first.version, byNotes) > 0 ? first : null;
+  }
+
+  const launchLine = (launch: SiteFirstVersion): string =>
+    `site/ is the ${launch.version} launch (cg-first-version in ${launch.pages.join(', ')}): the next release is ${launch.version} — pnpm release ${launch.version} --confirm ${launch.version}, on the owner's word`;
+
+  // ── the post ───────────────────────────────────────────────────────────────
+
+  /** The screenshots of a post with their bytes, from changes/. */
+  function uploadsOf(post: Post): Upload[] {
+    return post.photos.map((photo) => {
+      const path = checkout.path(join(NOTES_DIR, photo.file));
+      return { ...photo, data: existsSync(path) ? readFileSync(path) : null };
+    });
+  }
+
+  type PostPlan = { readonly kind: 'none'; readonly why: string } | { readonly kind: 'post'; readonly post: Post; readonly uploads: readonly Upload[] };
+
+  /** What a release posts to the channel as its last step: from 3.0.0 on, a version with notes, once. */
+  function postPlan(version: string, release: Release): PostPlan {
+    if (values['no-announce']) return { kind: 'none', why: `--no-announce — later, by hand: pnpm release announce --confirm ${version}` };
+    if (compareVersions(version, ANNOUNCE_FROM) < 0) return { kind: 'none', why: `${version} is below ${ANNOUNCE_FROM}: the channel hears of the one extension from its launch on` };
+    if (release.kind !== 'notes' || release.notes.length === 0) return { kind: 'none', why: `${version} has no note for chatters: nothing to tell them` };
+    const earlier = checkout.announced(version);
+    if (earlier !== null) return { kind: 'none', why: `a post of ${version} went out earlier (${earlier.state}, ${earlier.at})` };
+    const post = composePost(release, PUBLIC_SITE);
+    return { kind: 'post', post, uploads: uploadsOf(post) };
+  }
+
+  /** The check of the post before anything is done: what goes, and that it can — the keys are there, Telegram takes it. */
+  function postVerdict(plan: PostPlan): Verdict {
+    if (plan.kind === 'none') return { ok: true, detail: `no post: ${plan.why}` };
+    const keys = [ENV.telegramToken, ENV.telegramChannel].filter((name) => (deps.env[name] ?? '') === '').map((name) => `${name} is not set (~/.config/agency/secrets.env)`);
+    const problems = [...postProblems(plan.post, plan.uploads), ...keys];
+    if (problems.length > 0) return { ok: false, detail: `the post cannot go out: ${problems.join('; ')} — fix that, or release without the post: --no-announce` };
+    return { ok: true, detail: `to ${ENV.telegramChannel} as the last step — ${describePost(plan.post, plan.uploads)}` };
+  }
+
+  /**
+   * Posts to the channel, remembered in .release/<version>/announced.json: `sending` before the request leaves, then
+   * `posted`, or `indeterminate` when it may have gone out; a refusal leaves what was known before (`earlier`).
+   */
+  async function postToChannel(version: string, post: Post, uploads: readonly Upload[], earlier: AnnouncedRecord | null, silent: boolean): Promise<number | null> {
+    const telegram = { botToken: requireEnv(ENV.telegramToken), chatId: requireEnv(ENV.telegramChannel) };
+    const problems = postProblems(post, uploads);
+    if (problems.length > 0) throw new AnnounceError(`the post of ${version} cannot go out, nothing was sent: ${problems.join('; ')}`, false);
+    const at = deps.now().toISOString();
+    // Written before the request leaves: if this process dies now, the next run knows a send was under way.
+    checkout.saveAnnounced(version, { state: 'sending', at, messageId: null });
+    let id: number | null;
+    try {
+      id = await sendPost(telegram, post, uploads, { silent, fetchImpl: deps.fetchImpl, sleep: deps.sleep });
+    } catch (error) {
+      // Telegram said no: nothing was posted by this run, and what is known of an earlier one stands.
+      // Anything else: it may have been posted.
+      const refused = error instanceof AnnounceError && !error.indeterminate;
+      const stands = earlier === null ? null : { state: earlier.state, at: earlier.at, messageId: earlier.messageId };
+      checkout.saveAnnounced(version, refused ? stands : { state: 'indeterminate', at, messageId: null });
+      throw error;
+    }
+    checkout.saveAnnounced(version, { state: 'posted', at, messageId: id });
+    return id;
+  }
+
+  /** The last step of a release: its post. Whatever becomes of it, the release stands — the state is said, with what to do. */
+  async function announceStep(version: string, plan: PostPlan): Promise<void> {
+    if (plan.kind === 'none') {
+      print(`post: none — ${plan.why}`);
+      return;
+    }
+    const byHand = `pnpm release announce --confirm ${version}`;
+    const earlier = checkout.announced(version);
+    if (earlier !== null) {
+      print(`post: not sent — one went out meanwhile (${earlier.state}, ${earlier.at}): look at the channel`);
+      return;
+    }
+    const silent = plan.post.silent || values.silent;
+    try {
+      const id = await postToChannel(version, plan.post, plan.uploads, null, silent);
+      print(`post: in the channel${id === null ? '' : ` (message ${id})`}, ${silent ? 'without a notification' : 'with a notification'}`);
+    } catch (error) {
+      if (error instanceof AnnounceError && error.indeterminate) print(`post: UNKNOWN whether it reached the channel — ${error.message}. The release stands. Look at the channel first; only if the post is not there: ${byHand} --again`);
+      else print(`post: NOT posted — ${message(error)}. The release stands; post it by hand once that is fixed: ${byHand}`);
+    }
+  }
+
   // ── the release ────────────────────────────────────────────────────────────
 
   async function ship(asked: string): Promise<void> {
@@ -223,17 +328,24 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     if (noteProblems.length > 0) refuse(`the notes of changes do not parse — fix them in a PR first:\n  ${noteProblems.join('\n  ')}`);
     const all = checkout.notes();
     const pending = await checkout.pendingNotes(head, { all });
-    const computed = bumpVersion(floor, bumpOf(pending));
-    const version = asked === '' ? computed : isVersion(asked) ? asked : bumpVersion(floor, asked as BumpKind);
+    const byNotes = bumpVersion(floor, bumpOf(pending));
+    // A site that declares a later first version than the notes give is a launch: that version is the next release.
+    const first = siteFirst();
+    const launch = launchAbove(byNotes, first);
+    const version = asked === '' ? (launch?.version ?? byNotes) : isVersion(asked) ? asked : bumpVersion(floor, asked as BumpKind);
     const together = releaseProblems([...pending, ...heldFor(all, version)]);
     if (together.length > 0) refuse(`the notes of ${version}: ${together.join('; ')}`);
     for (const held of checkout.heldVersions(all).filter((other) => other !== version)) print(`note: ${heldFor(all, held).length} note(s) wait for ${held} and stay out of ${version}`);
     if (latest !== null && compareVersions(version, latest) <= 0) refuse(`${version} is not above the last release v${latest}.`);
     const reserved = reservedVersionProblem(version);
     if (reserved !== null) refuse(reserved);
-    // Any other version than the notes give is the owner's call — but finishing one this checkout began is not.
-    if (version !== computed && !checkout.unfinished(latest).includes(version)) {
-      const ask = `${version} is not what the notes give (${computed}): a major or a chosen version is the owner's call`;
+    const finishing = checkout.unfinished(latest).includes(version);
+    // The pages of a launch go out with it and never under a lower version; the launch itself is the owner's word.
+    if (first !== null && compareVersions(version, first.version) < 0) refuse(`${version} would publish the pages of ${first.version} early — ${launchLine(first)}`);
+    if (launch !== null && asked === '' && !finishing) refuse(launchLine(launch));
+    // Any other version than the notes give is the owner's call — the launch too — but finishing one this checkout began is not.
+    if (version !== byNotes && !finishing) {
+      const ask = `${version} ${launch?.version === version ? 'is the launch site/ declares' : `is not what the notes give (${byNotes})`}: a major or a chosen version is the owner's call`;
       if (dryRun) print(`note: ${ask} — a real run needs --confirm ${version}.`);
       else if (values.confirm !== version) refuse(`${ask}. With the owner's word: pnpm release ${asked} --confirm ${version}`);
     }
@@ -257,6 +369,13 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
     let restore: (() => void) | null = null;
     try {
+      // ── what is new: the notes of the version — CHANGELOG.md, the site, the post, the GitHub release ──
+      const history = await checkout.history({ version, head, day: deps.now().toISOString().slice(0, 10) });
+      const release = releaseOf(history, version);
+      const releaseNotes = release.kind === 'notes' ? release.notes : [];
+      const context = checkout.siteContext(version, history, signed?.xpi.file);
+      const post = postPlan(version, release);
+
       // ── the checks: read-only, quick ──
       const checks: GateCheck[] = [];
       const check = async (id: string, observe: () => Promise<Verdict> | Verdict): Promise<void> => {
@@ -307,15 +426,17 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         }
         return verdict;
       });
+      // The pages as this release publishes them, rendered here only; and its post (announce.ts).
+      await check('site', () => {
+        const problems = siteProblems(renderSite(checkout.siteFiles(), context), context, checkout.linkedPages());
+        return problems.length === 0 ? { ok: true, detail: `the pages render for ${version}` } : { ok: false, detail: problems.join('; ') };
+      });
+      await check('post', () => postVerdict(post));
       const failed = checks.filter((item) => !item.ok).map((item) => item.id);
       const stop = `not released: ${failed.join(', ')} failed.`;
       // A dry run shows the rest all the same; a real run stops here.
       if ((failed.length > 0 && !dryRun) || vendored === null) refuse(stop);
 
-      // ── what is new: the notes — CHANGELOG.md, the site, the post; the GitHub release ──
-      const history = await checkout.history({ version, head, day: deps.now().toISOString().slice(0, 10) });
-      const release = releaseOf(history, version);
-      const releaseNotes = release.kind === 'notes' ? release.notes : [];
       const changelog = checkout.changelogText(history);
       const notes = githubNotes({ version, previous: latest, subjects, notes: releaseNotes, repo: EXTENSION_REPO });
       await printNotes(version, releaseNotes, latest, head);
@@ -328,7 +449,12 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         await runSteps(publishSteps(serverDeps(true), { record, signedXpiPath: paths.signedXpi, recordPath: paths.record, recordSha256: '0'.repeat(64), localFeedPath: join(paths.dir, 'updates.json'), pages: checkout.publishablePages(SITE_FILES, images) }), { dryRun: true, print });
         await runSteps(tagSteps(version, record, true), { dryRun: true, print });
         print(`plan: gh release create v${version} (notes: ${subjects.length} commit(s) since ${latest === null ? 'the start' : `v${latest}`})`);
-        print('dry run: nothing was written, built, signed or published; the lock was not taken.');
+        print(
+          post.kind === 'none'
+            ? `plan: no Telegram post — ${post.why}`
+            : `plan: post ${version} to the chatters' channel ${ENV.telegramChannel} last (sendRichMessage, the screenshots uploaded with it): ${describePost(post.post, post.uploads)}; to see it: pnpm release notes`,
+        );
+        print('dry run: nothing was written, built, signed, published or posted; the lock was not taken.');
         if (failed.length > 0) refuse(stop);
         return;
       }
@@ -338,8 +464,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       if (checkout.version() !== version) checkout.write(VERSION_FILE, setPackageVersion(checkout.read(VERSION_FILE), version));
       checkout.write(CHANGELOG_FILE, changelog);
       const site = checkout.siteFiles();
-      for (const [name, text] of renderSite(site, checkout.siteContext(version, history))) if (text !== site.get(name)) checkout.write(join(SITE_DIR, name), text);
-      const problems = siteProblems(checkout.siteFiles(), checkout.siteContext(version, history), checkout.linkedPages());
+      for (const [name, text] of renderSite(site, context)) if (text !== site.get(name)) checkout.write(join(SITE_DIR, name), text);
+      const problems = siteProblems(checkout.siteFiles(), context, checkout.linkedPages());
       if (problems.length > 0) refuse(`the site is not ready:\n  ${problems.join('\n  ')}`);
 
       // ── build and sign, unless an earlier run did ──
@@ -367,7 +493,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       await runSteps(tagSteps(version, record, false), { dryRun: false, print });
       const url = await githubRelease(version, join(paths.dir, 'github-notes.md'), notes);
       print(`released ${version}: ${checkout.target.feedUrl} serves it, tag v${version}, ${url}`);
-      if (compareVersions(version, ANNOUNCE_FROM) >= 0) print(`announcing it to the chatters is the owner's call: pnpm release announce --confirm ${version}`);
+      // ── the post: last, and nothing of the release hangs on it ──
+      await announceStep(version, post);
     } finally {
       restore?.();
       if (!dryRun) {
@@ -456,7 +583,9 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   /** What a release carries for chatters, and the feat/fix commits that came without a note. */
   async function printNotes(version: string, notes: readonly Note[], latest: string | null, head: string): Promise<void> {
-    print(`notes of ${version} (the site, CHANGELOG.md, the post) — ${notes.length === 0 ? 'none: «nothing changes for the work»' : `${notes.length}, so ${bumpOf(notes)}`}:`);
+    // «so minor» only where the notes did give the version: not for the launch or another chosen one.
+    const gives = latest === null || bumpVersion(latest, bumpOf(notes)) === version ? `, so ${bumpOf(notes)}` : '';
+    print(`notes of ${version} (the site, CHANGELOG.md, the post) — ${notes.length === 0 ? 'none: «nothing changes for the work»' : `${notes.length}${gives}`}:`);
     for (const note of sortNotes(notes)) print(`  ${KIND_EMOJI[note.kind]} ${KIND_LABEL[note.kind].padEnd(10)} ${note.title.map((part) => part.text).join('')}  (${NOTES_DIR}/${note.slug}.md)`);
     for (const commit of await checkout.commitsWithNotes(latest === null ? null : `v${latest}`, head)) {
       if (needsNote(commit.subject) && !commit.note) print(`  note: no note for «${commit.subject}» — chatters will not hear of it (${NOTES_DIR}/README.md)`);
@@ -474,10 +603,13 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const all = checkout.notes();
     const pending = await checkout.pendingNotes('HEAD', { all, uncommitted: true });
     const floor = latest === null || compareVersions(checkout.version(), latest) > 0 ? checkout.version() : latest;
-    const next = bumpVersion(floor, bumpOf(pending));
+    const byNotes = bumpVersion(floor, bumpOf(pending));
+    const launch = launchAbove(byNotes);
+    const next = launch?.version ?? byNotes;
     const together = releaseProblems([...pending, ...heldFor(all, next)]);
     if (together.length > 0) refuse(together.join('; '));
-    print(`next release: ${next} (pnpm release; ${latest === null ? 'no tag yet' : `v${latest} + ${bumpOf(pending)}`})`);
+    print(`next release: ${next} (${launch === null ? `pnpm release; ${latest === null ? 'no tag yet' : `v${latest} + ${bumpOf(pending)}`}` : `the launch; by the notes alone ${byNotes}`})`);
+    if (launch !== null) print(launchLine(launch));
     await printNotes(next, [...pending, ...heldFor(all, next)], latest, 'HEAD');
     const out = checkout.path(join('.cache', 'notes'));
     rmSync(out, { recursive: true, force: true });
@@ -501,12 +633,16 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     const context = checkout.siteContext(version, history);
     const pages = new Map(['whats-new.html', 'changelog.html'].map((page) => [page, checkout.read(join(SITE_DIR, page))]));
     for (const [page, text] of renderSite(pages, context)) writeFileSync(join(out, page), text);
-    writeFileSync(join(out, 'telegram.html'), telegramPreview(composePost(releaseOf(history, version), checkout.target.siteBase), checkout.target.siteBase));
+    const post = composePost(releaseOf(history, version), PUBLIC_SITE);
+    writeFileSync(join(out, 'telegram.html'), telegramPreview(post));
     // Pages drafted for this version (site/drafts/<version>/, the 3.0 landing): not published until they move into site/.
     const drafts = checkout.path(join(SITE_DIR, 'drafts', version));
     const drafted = existsSync(drafts) ? readdirSync(drafts).filter((name) => name.endsWith('.html')) : [];
     for (const name of drafted) writeFileSync(join(out, name), renderPage(readFileSync(join(drafts, name), 'utf8'), context));
     print(`previews of ${version}: ${join(out, 'whats-new.html')} (the site), ${join(out, 'telegram.html')} (the post, as near as a browser draws it)${drafted.map((name) => `, ${join(out, name)} (a draft page)`).join('')}`);
+    const uploads = uploadsOf(post);
+    print(`the post of ${version}: ${describePost(post, uploads)}${compareVersions(version, ANNOUNCE_FROM) < 0 ? ` — the channel gets posts from ${ANNOUNCE_FROM} on` : ''}`);
+    for (const problem of postProblems(post, uploads)) print(`  note: it cannot go out so — ${problem}`);
   }
 
   // ── local ──────────────────────────────────────────────────────────────────
@@ -535,7 +671,9 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     try {
       const pending = await checkout.pendingNotes('HEAD', { uncommitted: true });
       const floor = latest === null || compareVersions(checkout.version(), latest) > 0 ? checkout.version() : latest;
-      print(`next         ${bumpVersion(floor, bumpOf(pending))} by the notes (${pending.length} since ${latest === null ? 'the start' : `v${latest}`}; pnpm release notes)`);
+      const byNotes = bumpVersion(floor, bumpOf(pending));
+      const launch = launchAbove(byNotes);
+      print(`next         ${launch === null ? `${byNotes} by the notes (${pending.length} since ${latest === null ? 'the start' : `v${latest}`}; pnpm release notes)` : `${launch.version} — ${launchLine(launch)}`}`);
     } catch (error) {
       print(`next         unknown: ${message(error)}`);
     }
@@ -753,18 +891,31 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     };
   }
 
-  async function announce(): Promise<void> {
-    // The version announced is the last one released: the highest tag.
-    const version = await latestTag();
+  async function announce(asked?: string): Promise<void> {
+    if (asked !== undefined && !isVersion(asked)) refuse(`announce: «${asked}» is no version X.Y.Z.`);
+    // The channel hears of the last release, the highest tag. A preview or a check may take any version the notes know, before its release too.
+    const tags = await checkout.versionTags();
+    const latest = tags.at(-1) ?? null;
+    const version = asked ?? latest;
     if (version === null) refuse('nothing is released yet: no tag vX.Y.Z here (git fetch --tags).');
-    const history: History = await checkout.history();
-    const post = composePost(releaseOf(history, version), checkout.target.siteBase);
+    const released = tags.includes(version);
+    const preview = values.preview;
+    if (!released && !preview && !values.check) refuse(`${version} is not released (no tag v${version}): the channel hears of released versions. Its post: pnpm release notes, or announce ${version} --preview to the owner's test chat.`);
+    if (!released && latest !== null && compareVersions(version, latest) < 0) refuse(`${version} was never released and is below the last release v${latest}: no notes are its.`);
+    const history: History = released ? await checkout.history() : await checkout.history({ version, head: 'HEAD', day: deps.now().toISOString().slice(0, 10), uncommitted: true });
+    const post = composePost(releaseOf(history, version), PUBLIC_SITE);
+    const uploads = uploadsOf(post);
+    const problems = postProblems(post, uploads);
     if (values.check) {
-      print(`announce: the post of ${version} is valid, ${[...post].length} characters.`);
+      if (problems.length > 0) refuse(`the post of ${version} cannot go out:\n  ${problems.join('\n  ')}`);
+      print(`announce: the post of ${version} can go out — ${describePost(post, uploads)}.`);
       return;
     }
     const plan = planOnly(version);
-    const preview = values.preview;
+    if (problems.length > 0) {
+      if (!plan) refuse(`the post of ${version} cannot go out:\n  ${problems.join('\n  ')}`);
+      for (const problem of problems) print(`note: the post cannot go out so — ${problem}`);
+    }
     // The channel hears of the one extension from its launch on: 3.0.0 (owner, 2026-10-22). The owner's test chat may see any.
     if (!preview && compareVersions(version, ANNOUNCE_FROM) < 0) {
       const text = `${version} is below ${ANNOUNCE_FROM}: the channel is announced to from the launch of the one extension on`;
@@ -781,38 +932,29 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       if (!plan) refuse(`${text}. Look at the channel first; to post it once more all the same: --again`);
       print(`note: ${text} — a real run needs --again.`);
     }
-    if (!plan) {
+    if (!plan && !preview) {
       const served = await servedFeed({ http: deps.http, target: checkout.target });
       if (served?.version !== version) refuse(`the feed serves ${served?.version ?? 'nothing'}, not ${version}: announce what chatters can already get.`);
     }
+    // A preview never rings; the channel rings for something new — unless --silent.
+    const silent = preview || post.silent || values.silent;
     const chat = preview ? ENV.telegramPreview : ENV.telegramChannel;
     await outward(preview ? "posting to the owner's test chat" : 'posting to the Telegram channel', version, [
       {
         title: `Post the notes of ${version} to ${preview ? "the owner's test chat" : 'the channel'} ${chat}`,
-        show: [`POST https://api.telegram.org/bot<${ENV.telegramToken}>/sendRichMessage${values.silent ? ' (without a notification)' : ''}:`, ...post.split('\n').map((line) => `  | ${line}`)],
+        show: [
+          `POST https://api.telegram.org/bot<${ENV.telegramToken}>/sendRichMessage — multipart/form-data: chat_id <${chat}>, disable_notification ${String(silent)}, rich_message (the HTML below, ${post.photos.length} media), and the screenshots:`,
+          ...uploads.map((upload) => `  ${upload.id}: ${NOTES_DIR}/${upload.file}${upload.data === null ? ' — MISSING' : ` (${Math.round(upload.data.length / 1024)} KB)`}`),
+          ...post.html.split('\n').map((line) => `  | ${line}`),
+        ],
         run: async () => {
-          const telegram = { botToken: requireEnv(ENV.telegramToken), chatId: requireEnv(chat) };
           if (preview) {
-            const id = await sendPost(telegram, post, { silent: true, fetchImpl: deps.fetchImpl, sleep: deps.sleep });
+            const id = await sendPost({ botToken: requireEnv(ENV.telegramToken), chatId: requireEnv(ENV.telegramPreview) }, post, uploads, { silent, fetchImpl: deps.fetchImpl, sleep: deps.sleep });
             print(`    posted to the test chat${id === null ? '' : ` (message ${id})`}; the channel's record is untouched`);
             return;
           }
-          const at = deps.now().toISOString();
-          // Written before the request leaves: if this process dies now, the next run knows a send was under way.
-          checkout.saveAnnounced(version, { state: 'sending', at, messageId: null });
-          let id: number | null;
-          try {
-            id = await sendPost(telegram, post, { silent: values.silent, fetchImpl: deps.fetchImpl, sleep: deps.sleep });
-          } catch (error) {
-            // Telegram said no: nothing was posted by this run, and what is known of an earlier one stands.
-            // Anything else: it may have been posted.
-            const refused = error instanceof AnnounceError && !error.indeterminate;
-            const stands = earlier === null ? null : { state: earlier.state, at: earlier.at, messageId: earlier.messageId };
-            checkout.saveAnnounced(version, refused ? stands : { state: 'indeterminate', at, messageId: null });
-            throw error;
-          }
-          checkout.saveAnnounced(version, { state: 'posted', at, messageId: id });
-          print(`    posted${id === null ? '' : ` (message ${id})`}`);
+          const id = await postToChannel(version, post, uploads, earlier, silent);
+          print(`    posted${id === null ? '' : ` (message ${id})`}, ${silent ? 'without a notification' : 'with a notification'}`);
         },
       },
     ]);
@@ -831,16 +973,17 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     }
   }
 
-  const commands: Readonly<Record<string, () => Promise<void> | void>> = { status, unlock, notes: notesCommand, 'test-builds': testBuilds, sign, announce, rollback };
+  const commands: Readonly<Record<string, (version?: string) => Promise<void> | void>> = { status, unlock, notes: notesCommand, 'test-builds': testBuilds, sign, announce, rollback };
 
   const help = command === 'help' || command === '--help';
   const run = command === '' || BUMPS.includes(command) || isVersion(command) ? () => ship(command) : commands[command];
-  if (run === undefined || help || extra.length > 0) {
+  // Only `announce` takes one more word: the version.
+  if (run === undefined || help || extra.length > (command === 'announce' ? 1 : 0)) {
     deps.printError(help ? USAGE : `release: ${extra.length > 0 ? `unexpected «${extra.join(' ')}»` : `unknown command «${command}»`}.\n\n${USAGE}`);
     return help ? 0 : 2;
   }
   try {
-    await run();
+    await run(extra[0]);
     return 0;
   } catch (error) {
     if (error instanceof Refusal) {
