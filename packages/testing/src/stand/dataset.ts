@@ -235,7 +235,8 @@ export function plainText(html: string): string {
 export const STAND_VAULT = {
   folders: [
     { id: '880001', type: 'messages', name: 'Messages', photos_count: 8, videos_count: 4, gifs_count: 0, audios_count: 0 },
-    { id: '880002', type: 'custom', name: 'Stand set &amp; one', photos_count: 4, videos_count: 0, gifs_count: 0, audios_count: 0 },
+    // The showcase world's folder reads as a model's set (src/showcase.ts).
+    { id: '880002', type: 'custom', name: SHOWCASE ? 'Red set &amp; lace' : 'Stand set &amp; one', photos_count: 4, videos_count: 0, gifs_count: 0, audios_count: 0 },
   ],
   media: Array.from({ length: 12 }, (_, i) => ({
     id: String(660_000_001 + i),
@@ -260,5 +261,5 @@ export const STAND_VAULT = {
     ],
   } as Readonly<Record<string, readonly Record<string, unknown>[]>>,
   /** By medium: the release forms OnlyFans tags a message with it. */
-  forms: { '660000004': [{ type: 'user', user: { id: 7_700_001, name: 'Stand Collab' } }] } as Readonly<Record<string, readonly Record<string, unknown>[]>>,
+  forms: { '660000004': [{ type: 'user', user: { id: 7_700_001, name: SHOWCASE ? 'Ella Moon' : 'Stand Collab' } }] } as Readonly<Record<string, readonly Record<string, unknown>[]>>,
 } as const;
