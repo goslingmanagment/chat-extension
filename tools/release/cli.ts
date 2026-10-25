@@ -44,7 +44,7 @@
 // the whole tool runs in tests against a throwaway checkout with a scripted
 // world (cli-world.ts); index.ts hands it the real one.
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -62,7 +62,7 @@ import { publishSteps, rollbackSteps, servedFeed, type Http, type ServerDeps } f
 import { importProblems, type AnnouncedRecord, type ArtifactRef, type GateCheck, type GateRecord, type ReleaseRecord, type VendorRef } from './records.ts';
 import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
 import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
-import { historyImages, renderPage, renderSite, siteFirstVersion, siteProblems, SITE_FILES, SITE_STYLESHEET, type SiteFirstVersion } from './site.ts';
+import { historyImages, renderSite, siteFirstVersion, siteProblems, SITE_FILES, SITE_PAGES, SITE_STYLESHEET, type SiteFirstVersion } from './site.ts';
 import {
   deriveTestBuild,
   differencesBeyondManifest,
@@ -631,15 +631,12 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     for (const file of historyImages(history)) if (existsSync(checkout.path(join(NOTES_DIR, file)))) copyFileSync(checkout.path(join(NOTES_DIR, file)), join(out, NOTES_DIR, file));
     copyFileSync(checkout.path(join(SITE_DIR, SITE_STYLESHEET)), join(out, SITE_STYLESHEET));
     const context = checkout.siteContext(version, history);
-    const pages = new Map(['whats-new.html', 'changelog.html'].map((page) => [page, checkout.read(join(SITE_DIR, page))]));
+    // Every page of the site as this version would publish it: the landing and the guides too, for the owner's look.
+    const pages = new Map(SITE_PAGES.map((page) => [page, checkout.read(join(SITE_DIR, page))]));
     for (const [page, text] of renderSite(pages, context)) writeFileSync(join(out, page), text);
     const post = composePost(releaseOf(history, version), PUBLIC_SITE);
     writeFileSync(join(out, 'telegram.html'), telegramPreview(post));
-    // Pages drafted for this version (site/drafts/<version>/, the 3.0 landing): not published until they move into site/.
-    const drafts = checkout.path(join(SITE_DIR, 'drafts', version));
-    const drafted = existsSync(drafts) ? readdirSync(drafts).filter((name) => name.endsWith('.html')) : [];
-    for (const name of drafted) writeFileSync(join(out, name), renderPage(readFileSync(join(drafts, name), 'utf8'), context));
-    print(`previews of ${version}: ${join(out, 'whats-new.html')} (the site), ${join(out, 'telegram.html')} (the post, as near as a browser draws it)${drafted.map((name) => `, ${join(out, name)} (a draft page)`).join('')}`);
+    print(`previews of ${version}: ${join(out, 'index.html')} and the other pages (the site), ${join(out, 'telegram.html')} (the post, as near as a browser draws it)`);
     const uploads = uploadsOf(post);
     print(`the post of ${version}: ${describePost(post, uploads)}${compareVersions(version, ANNOUNCE_FROM) < 0 ? ` — the channel gets posts from ${ANNOUNCE_FROM} on` : ''}`);
     for (const problem of postProblems(post, uploads)) print(`  note: it cannot go out so — ${problem}`);

@@ -228,7 +228,7 @@ export function siteProblems(files: ReadonlyMap<string, string>, context: SiteCo
   }
 
   const index = files.get('index.html') ?? '';
-  if (count(index, XPI_TAG_RE) !== 1) problems.push('index.html: exactly one install link (data-cg="xpi") is expected');
+  if (count(index, XPI_TAG_RE) < 1) problems.push('index.html: no install link (data-cg="xpi")');
   if (count(index, /data-cg="version"/g) < 1) problems.push('index.html: the version (data-cg="version") is not shown');
   if (count(index, /data-cg="firefox"/g) < 1) problems.push('index.html: the oldest Firefox (data-cg="firefox") is not shown');
   if (count(files.get('whats-new.html') ?? '', /<!-- cg:begin whats-new -->/g) !== 1) problems.push('whats-new.html: no generated part «whats-new»');

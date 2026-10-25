@@ -81,6 +81,16 @@ function blocks(list: readonly Block[]): string[] {
   });
 }
 
+/**
+ * A note in the line of contents: its title up to «: » or « — » — «Ответ в один клик: Reply, Fix, Hi и Ping…» reads
+ * «Ответ в один клик» there; a title without either stays whole.
+ */
+export const contentsLabel = (note: Note): string => {
+  const title = note.title.map((part) => part.text).join('');
+  const cut = title.search(/: | — /);
+  return cut > 0 ? title.slice(0, cut) : title;
+};
+
 /** One screenshot of the post: uploaded with the request as the part `id`, shown where the HTML says `tg://photo?id=<id>`. */
 export interface PostPhoto {
   readonly id: string;
@@ -131,7 +141,7 @@ export function composePost(release: Release, site: string = PUBLIC_SITE): Post 
     for (const intro of parts.filter((group) => group.kind === 'intro')) lines.push(...intro.notes.flatMap((note) => noteHtml(note, false)));
     const listed = parts.filter((group) => group.kind !== 'intro');
     const contents = listed.flatMap((group) => group.notes);
-    if (contents.length >= CONTENTS_FROM) lines.push(`<p><b>В этом выпуске:</b> ${contents.map((note) => `<a href="#${note.slug}">${esc(note.title.map((part) => part.text).join(''))}</a>`).join(' · ')}</p>`);
+    if (contents.length >= CONTENTS_FROM) lines.push(`<p><b>В этом выпуске:</b> ${contents.map((note) => `<a href="#${note.slug}">${esc(contentsLabel(note))}</a>`).join(' · ')}</p>`);
     for (const group of listed) {
       lines.push('<hr/>', `<h2>${KIND_EMOJI[group.kind]} ${KIND_LABEL[group.kind]}</h2>`);
       for (const note of group.notes) lines.push(...noteHtml(note, contents.length >= CONTENTS_FROM));

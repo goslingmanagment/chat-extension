@@ -121,6 +121,12 @@ describe('the Telegram post', () => {
     expect(postOf(['a-one', 'b-two', 'c-three'].map((slug) => note(slug, { kind: 'new' }))).html).not.toMatch(/В этом выпуске|<a name=/);
   });
 
+  it('names each note in the line of contents by its title up to «: » or « — »', () => {
+    const titled = (slug: string, title: string): Note => ({ ...note(slug, { kind: 'new' }), title: [{ kind: 'text', text: title }] });
+    const html = postOf([titled('a-one', 'Ответ в один клик: Reply и Fix'), titled('b-two', 'Голосовое — из черновика'), titled('c-three', 'Все настройки на одной странице'), titled('d-four', 'Spenders: кто платит')]).html;
+    expect(html).toContain('<a href="#a-one">Ответ в один клик</a> · <a href="#b-two">Голосовое</a> · <a href="#c-three">Все настройки на одной странице</a> · <a href="#d-four">Spenders</a>');
+  });
+
   it('[UP-005] a post of improvements and fixes alone goes without a notification', () => {
     expect(postOf([note('a-one', { kind: 'improved' }), note('b-two', { kind: 'fixed' })]).silent).toBe(true);
     expect(postOf([note('a-one', { kind: 'improved' }), note('b-two', { kind: 'new' })]).silent).toBe(false);

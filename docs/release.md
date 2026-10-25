@@ -73,12 +73,11 @@ previews of the page and the post to `.cache/notes/`.
    deleted. A release that stopped is the same `pnpm release` again.
 
 **3.0.0 — the launch.** The one extension replaces the old Fansly one under the number 3.0. Its notes
-are written ahead and held with `release: 3.0.0` (`changes/chatgoose-3.md` — the intro, then how to
-switch, Spenders, the read mark, the settings, «Скачать лог»): the releases before it leave them out,
-`pnpm release notes` previews them in `.cache/notes/3.0.0/`. Its landing is drafted in
-`site/drafts/3.0.0/index.html` (not published: `site/drafts/` is no file of the site) and previewed
-there too. The pages of `site/` are the only source of their text: the release fills only its slots
-(`data-cg` version, Firefox and install link, the `cg:begin` parts).
+are written ahead and held with `release: 3.0.0` (`changes/chatgoose-3.md` — the intro, then a tour of
+what the extension does and how to leave the old clients): the releases before it leave them out,
+`pnpm release notes` previews them — every page of the site and the post — in `.cache/notes/3.0.0/`.
+The pages of `site/` are the only source of their text: the release fills only its slots (`data-cg`
+version, Firefox and install link, the `cg:begin` parts).
 
 The launch is gated by the site itself. A page declares the first version it belongs to in its head,
 exactly so and once: `<meta name="cg-first-version" content="3.0.0">`; the highest any page declares is

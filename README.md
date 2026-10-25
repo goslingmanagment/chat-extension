@@ -1,43 +1,20 @@
 # chat-extension
 
-Браузерное расширение ChatGoose для чаттеров: AI-ответы, правка черновика,
-приветствия, пинги, рекапы, разбор чата, коучинг, доска Spenders, «Новые»,
-хоткеи и звук — поверх веб-чата OnlyMonster ChatSpace (`chat.onlymonster.ai`,
-OnlyFans), потом и на fansly.com.
+ChatGoose — браузерное расширение для чаттеров агентства, одно на OnlyFans (в ChatSpace,
+`chat.onlymonster.ai`) и fansly.com: Reply, Fix, Hi, Ping, Voice, Recap, Review, Coach, Spenders,
+«Новые», панель фана (Память, Очередь), рассылка, заметки и волт Fansly, хоткеи и звук. С версии 3.0
+(2026-10-25) это единственный клиент команды: оно заменило расширение для Fansly (`fansly-chat`, 2.x)
+и приложение ChatGoose Desktop (`onlyfans-chat`). Весь AI и все данные платформ идут через Agency Hub
+(`hub`) и вендоренный `@kernel/sdk`.
 
-После пилота заменяет оба нынешних клиента: десктоп для OnlyFans
-(`onlyfans-chat`, Electron) и Fansly-расширение (`fansly-chat`). Пока пилот
-не пройден, оба работают как раньше. Весь AI и все данные платформ идут через
-Agency Hub (`hub`).
-
-**Статус:** расширение собрано и соединено. Первая живая проверка на настоящем
-ChatSpace 0.172.0 с прод-хабом прошла 2026-10-04: мост и контракт хоста, док,
-тема, вход с узким токеном, bootstrap, привязка, персоны, Reply со вставкой,
-Ping, Review и короткий Recap работают; что она нашла и что из этого исправлено
-— [docs/pilot-readiness.md](docs/pilot-readiness.md), «Первая живая проверка».
-Пакеты волн 1 и 2 сведены в одну ветку: фон, вкладка
-ChatSpace (док, оверлеи, доски, хоткеи, звук, бронь «Новых») и страницы
-расширения (popup, настройки с экраном входа, страницы отладки) работают вместе
-на стенде против поддельного хаба — см. [«Что уже работает»](#что-уже-работает)
-и [«Как собраны вкладка, фон и страницы»](#как-собраны-вкладка-фон-и-страницы).
-Общие интерфейсы заморожены (`@cg/contracts` версии 1.15.0): что внутри —
-[docs/protocols/README.md](docs/protocols/README.md), правила изменений —
-[docs/contracts-changelog.md](docs/contracts-changelog.md). Спайк M0 пройден —
-[docs/spike-m0.md](docs/spike-m0.md).
-
-Коммит и хеш контракта вендоренного SDK записаны в
-[vendor manifest](vendor/kernel-sdk/kernel-sdk.vendor.json). Через SDK идут все вызовы
-хаба: лента архива, статистика Spenders и «ждут ответа», бронь и учёт отправки, «Новые»;
-поток AI объявляет `context-v1` и `split-all-v1`. Совместимость с продом проверяет
-`pnpm release` перед выпуском; что включено на странице, решает
-владелец её флагами. Подробно — [«Вендоринг»](#вендоринг). Впереди: отправка из
-превью (X8, решает владелец), следующие живые проверки владельца на тестовом чате (X9)
-и Fansly (R20). Releases are the Git tags `vX.Y.Z` and GitHub releases (up to 0.5.7 also
-[docs/releases/](docs/releases/)); the version in [apps/extension/package.json](apps/extension/package.json)
-is not raised by a release.
-Порядок выпуска — [docs/release.md](docs/release.md). Что
-координатор и интеграторы решили без владельца — решение X12 в
-[docs/decisions.md](docs/decisions.md).
+- Сайт для чаттеров — https://chatgoose.gosling-agency.ru/: страницы в `site/`, их публикует выпуск
+  вместе с фидом обновлений (`https://ext.gosling-agency.ru/chat-extension/firefox/updates.json`).
+- Что получают чаттеры — записки в `changes/` ([changes/README.md](changes/README.md)): из них
+  собираются «Что нового», история версий и пост в канале ChatGoose в Telegram.
+- Выпуск — `pnpm release` ([docs/release.md](docs/release.md)); версии — теги `vX.Y.Z` и GitHub
+  releases (до 0.5.7 ещё [docs/releases/](docs/releases/)), `apps/extension/package.json` выпуск не
+  поднимает.
+- Правила работы — [AGENTS.md](AGENTS.md).
 
 ## С чего начать
 
@@ -136,7 +113,7 @@ pnpm install --frozen-lockfile
 
 ### Тестовая сборка
 
-`CG_TEST_HOSTS=1` собирает **другое** дополнение: имя «ChatGoose для ChatSpace
+`CG_TEST_HOSTS=1` собирает **другое** дополнение: имя «ChatGoose
 (тест)», id `chat-extension-test@gosling.agency`, без адреса обновлений. Оно
 дополнительно работает на `http://127.0.0.1/*` и `http://localhost/*` (стенд и
 поддельный хаб) и принимает адрес хаба по `http`. На стенде (и только на нём:
