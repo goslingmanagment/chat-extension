@@ -42,7 +42,8 @@ words, who it is for and why, `## Как это устроено` (the technical
 visible change. Format and tone — `changes/README.md`; check and preview — `pnpm release notes`. The site
 (https://chatgoose.gosling-agency.ru/, pages in `site/`), the history and the Telegram post are made from these notes
 only; commit subjects never reach chatters. From 3.0.0 every release posts its notes to the chatters' channel: write a
-note as that post, with a screenshot that shows the change. `pnpm check`
+note as that post, with a screenshot that shows the change. No long dash «—» in what chatters read (notes, site, UI): a colon,
+a comma, a period or brackets instead (the owner, 2026-10-26); the notes check refuses it. `pnpm check`
 fails a `feat`/`fix` PR without a note unless its description says `No chatter note: <why>`.
 
 ## Release and versions
