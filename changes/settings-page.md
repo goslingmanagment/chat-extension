@@ -16,6 +16,7 @@ order: 70
 тимлиду.
 
 ![Настройки: «Статус» — всё готово к смене](launch-settings.png)
+![Окно ChatGoose по значку на панели Firefox](launch-popup.png)
 
 ## Как это устроено
 
