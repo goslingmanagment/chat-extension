@@ -49,7 +49,7 @@ scenario(
       await s.browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
     } else await s.leaveField();
     await s.keys(...s.PANEL, 'm');
-    await s.see('modal', fansly ? 'Hub Whale' : 'Fan Birch', 20_000);
+    await s.browser.waitUntil(() => s.has('modal', '.cg-sp__outreach'), { timeout: 20_000, interval: 200, timeoutMsg: 'Spenders did not open' });
     await s.press(/^Рассылка/, 'modal', '.cg-sp__outreach');
     await s.see('modal', 'Предложение', 20_000);
     await s.browser.pause(400);
@@ -72,7 +72,7 @@ scenario(
       await s.press(/^Готово/, 'modal', '.cg-ow__sheet .cg-ow__main');
     } else {
       await s.press(/Добавить медиа/, 'modal', '.cg-ow__addmedia');
-      await s.see('modal', 'Stand set & one', 15_000);
+      await s.browser.waitUntil(() => s.has('modal', '.cg-ow__sheet [data-cg-media="660000006"]'), { timeout: 15_000, interval: 200, timeoutMsg: 'the vault did not open' });
       // «Платное»: the video behind the price; the price; «Превью»: a photo, free and first.
       await s.press(/^/, 'modal', '.cg-ow__sheet [data-cg-media="660000006"] .cg-pvm__pick');
       await s.press(/^/, 'modal', '.cg-ow__sheet .cg-pvm__price input');

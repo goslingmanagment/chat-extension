@@ -226,6 +226,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   let postsOpen = false;
   /** The pane went to the end once by itself: a later look at a card is the person's. */
   let endShown = false;
+  /** The card open when the window last closed («Свернуть», a chat opened from it): it opens again with the window. */
+  let lastCard: TargetHandle | null = null;
 
   // ── what the sends did ──
   /** The text revision each fan's version was written from. */
@@ -890,7 +892,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (!light) for (const listener of [...directoryListeners]) listener();
   }
 
-  /** Once nothing more goes by a click the pane shows the end, once — unless a fan's card is open (the person reads it). */
+  /** Once nothing more goes by a click the pane under the cards is the end, once: a card open stays until it closes. */
   function followEnd(): void {
     if (endShown || locked === null) return;
     const now = audience();
@@ -898,7 +900,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const facts = new Map(now.members.map((fanRef) => [fanRef, factsOf(fanRef)] as const));
     if (!settled(now.members, facts)) return;
     endShown = true;
-    if (selectedFan() === null) pane = 'summary';
+    pane = 'summary';
   }
 
   // ── what came of the sends ──
@@ -1007,8 +1009,13 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   function open(fromSpenders: boolean): ActionReceipt {
     if (fromSpenders || source === null) seedSource(fromSpenders);
     minimized = false;
+    const card = lastCard;
     surfaces.setList('outreach', true);
     surfaces.setOutreachChip(false);
+    // Where it was: the card open when the window closed, while its fan is still the outreach's.
+    const fanRef = card === null ? null : fanOf(card);
+    const now = audience();
+    if (card !== null && fanRef !== null && now !== null && (now.members.includes(fanRef) || now.aside.has(fanRef))) surfaces.setPreview('outreach', card);
     if (own !== null && items.length === 0 && itemsState !== 'reading') readCopied();
     void board.load({ recent: conditions.active.on }).then(() => {
       if (source === null) seedSource(false);
@@ -1166,6 +1173,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     edits.clear();
     sentTexts.clear();
     clicks.clear();
+    lastCard = null;
     versions.clear();
     for (const outcome of outcomes.values()) if (outcome.timer !== null) clock.clearTimer(outcome.timer);
     outcomes.clear();
@@ -1363,6 +1371,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     changed();
   });
   const offSurfaces = surfaces.subscribe((state, previous) => {
+    if (state.outreach) lastCard = state.preview.outreach;
+    else if (previous.outreach) lastCard = previous.preview.outreach;
     // The window closed by a chat opened from it: it folds into its chip while its outreach goes on.
     if (!state.outreach && previous.outreach && state.outreachChip) minimized = true;
     if (state.outreach && !previous.outreach) minimized = false;

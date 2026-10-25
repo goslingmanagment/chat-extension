@@ -1486,8 +1486,8 @@ describe('«Рассылка» on ChatSpace: one click — one message; what wen
     await h.dispatch({ type: 'SetOutreach', tick: { targetHandle: fan('5000'), on: true } });
     await h.dispatch({ type: 'SetOutreach', tick: { targetHandle: fan('5001'), on: true } });
     await h.dispatch({ type: 'SetOutreach', text: 'new video is up — the dragon one' });
-    h.script(0, 'fix', 'had to show you this one first');
-    h.script(1, 'fix', 'sorry babe, I was filming');
+    h.script(0, 'improve-draft', 'had to show you this one first');
+    h.script(1, 'improve-draft', 'sorry babe, I was filming');
     expect(await h.dispatch({ type: 'GenerateBatch', list: 'outreach' })).toMatchObject({ ok: true, outcome: 'started' });
     await h.advance(500);
     expect(count(h, 'op.start')).toBe(2);
