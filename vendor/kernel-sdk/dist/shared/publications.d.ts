@@ -44,7 +44,7 @@ export declare const PUBLICATION_EDITABLE_STATUSES: readonly PublicationStatus[]
  */
 export declare const PUBLICATION_ACTIVE_STATUSES: readonly PublicationStatus[];
 /** The codes of the draft checks (spec §8.1). Severity is decided per finding. */
-export declare const PUBLICATION_FINDING_CODES: readonly ["publish_time_past", "file_of_another_model", "file_deleted", "media_not_on_page", "repost_within_threshold", "posted_before", "price_range_not_set", "price_out_of_range", "paid_post_off_on_onlyfans", "volume_high", "daily_limit_exceeded", "wall_not_on_page", "wall_default_unknown", "tier_not_on_page", "onlyfans_file_upload_unsupported", "onlyfans_file_too_large", "fansly_file_upload_unsupported", "fansly_several_tiers_unsupported"];
+export declare const PUBLICATION_FINDING_CODES: readonly ["publish_time_past", "file_of_another_model", "file_deleted", "media_not_on_page", "repost_within_threshold", "posted_before", "price_range_not_set", "price_out_of_range", "paid_post_off_on_onlyfans", "volume_high", "daily_limit_exceeded", "wall_not_on_page", "wall_default_unknown", "tier_not_on_page", "onlyfans_file_upload_unsupported", "onlyfans_file_too_large", "fansly_file_upload_unsupported", "fansly_several_tiers_unsupported", "platform_schedule_incomplete"];
 export type PublicationFindingCode = (typeof PUBLICATION_FINDING_CODES)[number];
 export declare const PUBLICATION_FINDING_SEVERITIES: readonly ["blocking", "warning", "info"];
 export type PublicationFindingSeverity = (typeof PUBLICATION_FINDING_SEVERITIES)[number];
@@ -73,6 +73,14 @@ export declare const FANSLY_FILE_UPLOAD_ENABLED = true;
 export declare const PUBLICATION_TEXT_MAX_LENGTH = 5000;
 export declare const PUBLICATION_MEDIA_MAX = 20;
 export declare const PUBLICATION_PREVIEWS_MAX = 5;
+/** Who sees an extra attachment of a Fansly post (the contract §12.2):
+ *  everyone; the subscribers (with a price, anyone else buys it); or whoever
+ *  pays (only subscribers, when it says so). */
+export declare const PUBLICATION_ATTACHMENT_ACCESS: readonly ["everyone", "subscribers", "paid"];
+export type PublicationAttachmentAccess = (typeof PUBLICATION_ATTACHMENT_ACCESS)[number];
+/** Extra attachments a Fansly post may carry beside its own (the site's post
+ *  A had four "Upload" windows in all). */
+export declare const PUBLICATION_EXTRA_ATTACHMENTS_MAX = 4;
 /** The largest new file Hub uploads to OnlyFans (OnlyFansAPI's direct upload, plan PR 4c). */
 export declare const ONLYFANS_UPLOAD_MAX_BYTES = 100000000;
 /** A story with a new file starts its upload this long before its time; a post when it goes into the schedule. */

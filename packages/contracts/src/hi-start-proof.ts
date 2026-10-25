@@ -10,6 +10,46 @@ export const START_PROOF_LIMITS = { automatedIdsMax: 120, passPersonalWindow: 30
 export const HI_FAN_AVATAR_URL_PATTERN = /^https:\/\/[a-z0-9-]+\.fansly\.com\//;
 export const HiFanAvatarUrlSchema = z.string().check(z.maxLength(4096), z.regex(HI_FAN_AVATAR_URL_PATTERN));
 
+/**
+ * The hub's bounds on the fan's names and bio (its `clientContext.fanUsername`, `fanDisplayName`, `fanBio`): what the
+ * released Fansly client sent with every Hi, and the hub's own `fanAccount` takes again.
+ */
+export const HI_FAN_ACCOUNT_LIMITS = { nameMaxChars: 200, aboutMaxChars: 5_000 } as const;
+
+/**
+ * 2026-10-26: the fan's Fansly account as the page or the pass already read it — the username, the display name and
+ * the «about» — for Hi on Fansly (hub `fanAccount`, `hi-fan-account-v1`). The hub learns a new follower only after
+ * the greeting goes, so without these a first message named nobody («Display name: fan»). The hub keeps its own
+ * values where it has them; these fill the rest. Each trimmed and cut to its bound, absent when empty.
+ */
+export const HiFanAccountSchema = z.strictObject({
+  username: z.optional(z.string().check(z.minLength(1), z.maxLength(HI_FAN_ACCOUNT_LIMITS.nameMaxChars))),
+  displayName: z.optional(z.string().check(z.minLength(1), z.maxLength(HI_FAN_ACCOUNT_LIMITS.nameMaxChars))),
+  about: z.optional(z.string().check(z.minLength(1), z.maxLength(HI_FAN_ACCOUNT_LIMITS.aboutMaxChars))),
+});
+export type HiFanAccount = z.infer<typeof HiFanAccountSchema>;
+
+/** Cut at `max` UTF-16 units without leaving half of a surrogate pair (the hub cuts the same way). */
+function capped(value: string, max: number): string {
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
+/** The account's values as the wire takes them: trimmed, cut to their bounds, absent when empty; null — nothing left. */
+export function hiFanAccountOf(input: { readonly username?: string | null | undefined; readonly displayName?: string | null | undefined; readonly about?: string | null | undefined }): HiFanAccount | null {
+  const value = (raw: string | null | undefined, max: number): string | undefined => {
+    const trimmed = capped((raw ?? '').trim(), max).trim();
+    return trimmed === '' ? undefined : trimmed;
+  };
+  const username = value(input.username?.replace(/^@/, ''), HI_FAN_ACCOUNT_LIMITS.nameMaxChars);
+  const displayName = value(input.displayName, HI_FAN_ACCOUNT_LIMITS.nameMaxChars);
+  const about = value(input.about, HI_FAN_ACCOUNT_LIMITS.aboutMaxChars);
+  if (username === undefined && displayName === undefined && about === undefined) return null;
+  return { ...(username === undefined ? {} : { username }), ...(displayName === undefined ? {} : { displayName }), ...(about === undefined ? {} : { about }) };
+}
+
 // ── StartProofV1 (§5.8, FS-AI-2, HF-5) ─────────────────────────────────────
 
 /**

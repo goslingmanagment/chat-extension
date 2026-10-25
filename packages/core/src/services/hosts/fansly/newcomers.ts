@@ -52,7 +52,7 @@
 
 import { type CgAnyCode, type CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { SEND_LIMITS } from '@cg/contracts/limits';
-import { type StartProofV1 } from '@cg/contracts/fansly';
+import { hiFanAccountOf, type StartProofV1 } from '@cg/contracts/fansly';
 import {
   FANSLY_TAB_LIMITS,
   type FanslyFollowerRow,
@@ -1554,7 +1554,9 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       .filter((message) => windowIds.has(message.id) && message.content.trim() !== '')
       .slice(-LIVE_TEXT_LIMITS.maxItems)
       .map((message) => ({ platformMessageId: message.id, direction: message.senderId === pass.creator ? 'model' as const : 'fan' as const, sentAt: iso(message.at), text: message.content.slice(0, LIVE_TEXT_LIMITS.maxChars) }));
-    return { ok: true, proof: { groupId: proof.groupId, historyRevision: proof.historyRevision, window: [...proof.window], knownFanMessageIds: known, startProof: proof.startProof, fanAvatarUrl: row.avatar, capturedAt: row.view.checkedAt ?? iso(deps.now()), tail } };
+    // 2026-10-26: the profile's names and «about» too — the hub learns a new follower only after the greeting goes.
+    const account = hiFanAccountOf({ username: row.view.username, displayName: row.view.displayName, about: row.view.bio });
+    return { ok: true, proof: { groupId: proof.groupId, historyRevision: proof.historyRevision, window: [...proof.window], knownFanMessageIds: known, startProof: proof.startProof, fanAvatarUrl: row.avatar, ...(account === null ? {} : { fanAccount: account }), capturedAt: row.view.checkedAt ?? iso(deps.now()), tail } };
   }
 
   /**

@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "6e6d52916024adf5aa06984bf5350bf6f8407b885a25d82d6c41e9d65e37d56a",
-    "sourceCommit": "9779bfb473dbf3f8d565b3251d1c443b24c39051",
-    "note": "Vendored on 2026-10-25 from hub main 9779bfb4 (#866) with scripts/vendor-sdk.mjs: the optional `quote` of each fact in clientFanCard (the archived message the fact comes from), on top of the review fixes of the client routes since 3ffb4614 (#851 the card answers only for a fan of the asked page, #858/#861 customs, #863 the shift report's lateChanges). Registered as a candidate for 0.10.5. Re-vendor with the same script and update this pin together."
+    "contractHash": "152d417095207c653d7423f2155468cc6dbd4ba95d597a13afa8dacb4d8338cd",
+    "sourceCommit": "c32fae68424d4eff48511af3baa08472c4a7ea5c",
+    "note": "Vendored on 2026-10-26 from hub main c32fae68 (#878) with scripts/vendor-sdk.mjs: Hi on Fansly takes `fanAccount` (the fan's username, display name and «about» as the page read them) under `hi-fan-account-v1`; also carries #876's persona openers routes and #879's «Онлайн» routes (`online-v1`, not used by this client yet). Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

@@ -176,8 +176,12 @@ export const TOMBSTONES = 2048;
 export const CASCADES = 256;
 /** Groups whose members, kind and DM rules MAIN knows (§5.7), the least recently touched forgotten first. */
 export const MAX_GROUPS = 600;
-/** Fans' avatar addresses from the page's answers (FX-018), the least recently seen forgotten first. */
+/** Fans' accounts from the page's answers (FX-018: the avatar; 2026-10-26: the names and the «about»), the least recently seen forgotten first. */
 export const MAX_AVATARS = 300;
+/** The hub's bound on a fan's name (`fanAccount.username`, `displayName`). */
+export const ACCOUNT_NAME_MAX_CHARS = 200;
+/** The «about» kept of a fan's account: enough to hook a first message on, and 300 of them stay well under the memory account. */
+export const ACCOUNT_ABOUT_MAX_CHARS = 1500;
 /** Welcome texts of `/message/automated` (§5.8), as hashes. */
 export const WELCOME_MAX = 256;
 /**
