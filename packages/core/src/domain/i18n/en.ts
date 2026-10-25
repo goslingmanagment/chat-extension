@@ -815,6 +815,10 @@ export const EN: I18nCatalog<'en'> = {
   'fanPanel.memory.fix': 'Correct',
   'fanPanel.memory.delete': 'Delete',
   'fanPanel.memory.correctedBy': 'corrected by {name}',
+  'fanPanel.memory.quote.show': 'from the chat',
+  'fanPanel.memory.quote.fan': 'fan',
+  'fanPanel.memory.quote.model': 'model',
+  'fanPanel.memory.quote.media': 'media',
   'fanPanel.memory.nobody': 'Hub knows nothing about this fan yet',
   'fanPanel.memory.pageSpent': '{total}, last 30 days {last30}',
   // Chat Memory week 4: customs.

@@ -4,6 +4,7 @@
 // fan's row sends it (X8: one send — one click; no key, no «send all»), one attempt, never repeated; every «Отправить»
 // of the board rests half a second after a click (#343, #349). What reached a fan stays marked while the tab lives.
 
+import type { SendAttributionComposedWith } from '@cg/contracts/hub';
 import { type ActionReceipt, type I18n, type OutreachItemVM, type OutreachRowVM, type OutreachVM, type UiAction } from '@cg/contracts/vm';
 
 import { issueCause } from '../boards/navigate';
@@ -28,6 +29,8 @@ export interface OutreachRequest {
   readonly text: string;
   readonly attachments: readonly OutreachItem[];
   readonly cause: { readonly kind: 'click' | 'key'; readonly actionToken: string };
+  /** How the text was written, for the hub's record of who sent it (Chat Memory week 1). */
+  readonly composedWith: SendAttributionComposedWith;
 }
 
 export type OutreachAnswer = { readonly ok: true; readonly messageId: string } | { readonly ok: false; readonly code: string };
@@ -59,6 +62,8 @@ export interface OutreachTarget {
   readonly fanRef: string;
   /** The batch's line for the fan (its result's first part); null — none ready. */
   readonly line: string | null;
+  /** The button the batch wrote the line with (`fix`, `reply`, `ping`); null — not known. */
+  readonly lineWith: SendAttributionComposedWith | null;
   /** The fan's group, found by the board (its row, the page's memory, the inbox search); null — not found. */
   group(): Promise<string | null>;
 }
@@ -185,6 +190,8 @@ export function createOutreach(deps: OutreachDeps) {
     if (paced() || sending()) return refused(type, localError('CG-SEND-BUSY', i18n));
     // «Подстроить под фана»: the line IS the fan's whole message (the Fix of the common text); else the line, then the text.
     const body = adapting() ? target.line.trim() : outreachText(target.line, text);
+    // The Fix's line is the whole message; otherwise the line's button wrote its personal part (the rest is the bar's text).
+    const composedWith: SendAttributionComposedWith = adapting() ? 'fix' : (target.lineWith ?? 'unknown');
     const attachments = items.filter((item) => picked.has(keyOf(item)));
     // The button is off from the click on, before anything answers.
     rows.set(handle, { state: 'sending', code: null });
@@ -203,7 +210,7 @@ export function createOutreach(deps: OutreachDeps) {
     if (!cause.ok) return end({ state: 'failed', code: cause.code });
     const groupId = await target.group().catch(() => null);
     if (groupId === null) return end({ state: 'failed', code: 'CG-HOST-CHAT-NOT-FOUND' });
-    const answer = await port.send({ hostAccountId: target.hostAccountId, fanRef: target.fanRef, groupId, text: body, attachments, cause: cause.cause }).catch((): OutreachAnswer => ({ ok: false, code: 'CG-SEND-UNCERTAIN' }));
+    const answer = await port.send({ hostAccountId: target.hostAccountId, fanRef: target.fanRef, groupId, text: body, attachments, cause: cause.cause, composedWith }).catch((): OutreachAnswer => ({ ok: false, code: 'CG-SEND-UNCERTAIN' }));
     if (answer.ok) return end({ state: 'sent', code: null });
     return end({ state: answer.code === 'CG-SEND-UNCERTAIN' ? 'uncertain' : 'failed', code: answer.code });
   }

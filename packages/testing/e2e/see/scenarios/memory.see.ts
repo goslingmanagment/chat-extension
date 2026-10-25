@@ -29,6 +29,9 @@ scenario(
     await s.see('panel', 'Fan Alder');
     await s.press(/^Память/, 'panel');
     await s.see('panel', 'Похоже, это тот же человек', 20_000);
+    // A fact's own message, folded under it: «из чата» opens it.
+    await s.press(/^из чата/, 'panel', '.cg-mem__quote summary');
+    await s.see('panel', 'work nights at the hospital');
     await s.shot('memory');
   },
   {
@@ -60,10 +63,12 @@ scenario(
             },
           ],
           facts: [
-            { id: 1, kind: 'about', text: 'Живёт в Торонто, работает по ночам', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '9001', messageAt: at(30), source: 'ai', author: null, createdAt: at(29) },
+            { id: 1, kind: 'about', text: 'Живёт в Торонто, работает по ночам', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '9001', messageAt: at(30), source: 'ai', author: null, createdAt: at(29), quote: { text: 'toronto 🇨🇦 i work nights at the hospital so i text late lol', from: 'fan', at: at(30), media: false } },
             { id: 2, kind: 'about', text: 'Любит кошек, у него рыжий кот', pageLabel: 'lora-1', granted: false, conversationRef: STAND_IDS.fans.a1, messageRef: '9002', messageAt: at(200), source: 'ai', author: null, createdAt: at(199) },
-            { id: 3, kind: 'promise', text: 'Видео в красном белье к пятнице', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '9003', messageAt: at(5), source: 'chatter', author: 'Nikita', createdAt: at(4) },
+            { id: 3, kind: 'promise', text: 'Видео в красном белье к пятнице', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '9003', messageAt: at(5), source: 'chatter', author: 'Nikita', createdAt: at(4), quote: { text: 'the red set is for you, i will send it on friday 😘', from: 'model', at: at(5), media: false } },
           ],
+          customs: [],
+          customPayments: [],
           serverNow: new Date().toISOString(),
         },
       });

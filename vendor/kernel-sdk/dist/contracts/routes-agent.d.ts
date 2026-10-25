@@ -2194,6 +2194,7 @@ export declare const agentSyncStreamEnum: z.ZodEnum<{
     subscribers: "subscribers";
     notifications: "notifications";
     posts: "posts";
+    followers: "followers";
     catalog: "catalog";
     transactions: "transactions";
     media_stats: "media_stats";
@@ -2201,7 +2202,6 @@ export declare const agentSyncStreamEnum: z.ZodEnum<{
     fan_earnings: "fan_earnings";
     light: "light";
     fan_identities: "fan_identities";
-    followers: "followers";
     top_spenders: "top_spenders";
     dm_conversations: "dm_conversations";
     dm_messages: "dm_messages";
@@ -2265,6 +2265,7 @@ export declare const agentPlatformCapabilitiesSchema: z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         media_stats: "media_stats";
@@ -2272,7 +2273,6 @@ export declare const agentPlatformCapabilitiesSchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         light: "light";
         fan_identities: "fan_identities";
-        followers: "followers";
         top_spenders: "top_spenders";
         dm_conversations: "dm_conversations";
         dm_messages: "dm_messages";
@@ -2504,6 +2504,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             subscribers: "subscribers";
             notifications: "notifications";
             posts: "posts";
+            followers: "followers";
             catalog: "catalog";
             transactions: "transactions";
             media_stats: "media_stats";
@@ -2511,7 +2512,6 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             light: "light";
             fan_identities: "fan_identities";
-            followers: "followers";
             top_spenders: "top_spenders";
             dm_conversations: "dm_conversations";
             dm_messages: "dm_messages";
@@ -24964,11 +24964,8 @@ export declare const agentSyncResourceKeyEnum: z.ZodEnum<{
 export declare const agentSyncBrowserStatusSchema: z.ZodObject<{
     profileId: z.ZodString;
     container: z.ZodString;
-    transport: z.ZodEnum<{
-        node: "node";
-        browser: "browser";
-    }>;
-    leavePendingSince: z.ZodNullable<z.ZodString>;
+    transport: z.ZodLiteral<"browser">;
+    leavePendingSince: z.ZodNull;
     link: z.ZodObject<{
         lastStateAt: z.ZodNullable<z.ZodString>;
         stateAgeMs: z.ZodNullable<z.ZodNumber>;
@@ -25232,11 +25229,8 @@ export declare const agentSyncPageStatusSchema: z.ZodObject<{
     browser: z.ZodOptional<z.ZodObject<{
         profileId: z.ZodString;
         container: z.ZodString;
-        transport: z.ZodEnum<{
-            node: "node";
-            browser: "browser";
-        }>;
-        leavePendingSince: z.ZodNullable<z.ZodString>;
+        transport: z.ZodLiteral<"browser">;
+        leavePendingSince: z.ZodNull;
         link: z.ZodObject<{
             lastStateAt: z.ZodNullable<z.ZodString>;
             stateAgeMs: z.ZodNullable<z.ZodNumber>;
@@ -25571,11 +25565,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
         browser: z.ZodOptional<z.ZodObject<{
             profileId: z.ZodString;
             container: z.ZodString;
-            transport: z.ZodEnum<{
-                node: "node";
-                browser: "browser";
-            }>;
-            leavePendingSince: z.ZodNullable<z.ZodString>;
+            transport: z.ZodLiteral<"browser">;
+            leavePendingSince: z.ZodNull;
             link: z.ZodObject<{
                 lastStateAt: z.ZodNullable<z.ZodString>;
                 stateAgeMs: z.ZodNullable<z.ZodNumber>;
@@ -27279,6 +27270,7 @@ export declare const agentRouteSchemas: {
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -27286,7 +27278,6 @@ export declare const agentRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -47883,11 +47874,8 @@ export declare const agentRouteSchemas: {
                     browser: z.ZodOptional<z.ZodObject<{
                         profileId: z.ZodString;
                         container: z.ZodString;
-                        transport: z.ZodEnum<{
-                            node: "node";
-                            browser: "browser";
-                        }>;
-                        leavePendingSince: z.ZodNullable<z.ZodString>;
+                        transport: z.ZodLiteral<"browser">;
+                        leavePendingSince: z.ZodNull;
                         link: z.ZodObject<{
                             lastStateAt: z.ZodNullable<z.ZodString>;
                             stateAgeMs: z.ZodNullable<z.ZodNumber>;

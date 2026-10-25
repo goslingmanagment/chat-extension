@@ -174,6 +174,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   /** 1.32.0: the batch — Reply to a fan who wrote last, Ping to one who did not; nothing is sent by it. */
   let batchPort: BatchPreviewPort | null = null;
   let offBatch: (() => void) | null = null;
+  /** The button each fan's batch line was started with, for the hub's record of how a «Рассылка» text was written. */
+  const lineWith = new Map<string, 'fix' | 'reply' | 'ping'>();
   const batch = createBatch({
     clock,
     start(handle) {
@@ -181,9 +183,13 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       if (batchPort === null || parsed === null || parsed.pageId !== pageId()) return Promise.resolve({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
       // «Рассылка» with «Подстроить под фана»: each fan's own version of the common text (Fix), not a Reply or a Ping.
       const fix = outreach?.batchFix() ?? null;
-      if (fix !== null) return batchPort.batchStart('spenders', handle, 'fix', fix);
+      if (fix !== null) {
+        lineWith.set(handle, 'fix');
+        return batchPort.batchStart('spenders', handle, 'fix', fix);
+      }
       const known = rowOf(parsed.fanRef);
       const waiting = known === null ? queueMode() : known.waiting;
+      lineWith.set(handle, waiting ? 'reply' : 'ping');
       return batchPort.batchStart('spenders', handle, waiting ? 'reply' : 'ping');
     },
     live: (handle) => batchPort?.batchLive(handle) ?? null,
@@ -867,6 +873,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         hostAccountId: binding.platformAccountId,
         fanRef,
         line: batchPort === null ? null : batch.row(action.targetHandle).text,
+        lineWith: lineWith.get(action.targetHandle) ?? null,
         // The fan's group as the board finds it for «Открыть чат»: its row, the page's memory, then the inbox search.
         async group() {
           await resolveConversation(fanRef, true);

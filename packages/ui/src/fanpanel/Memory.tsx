@@ -66,6 +66,7 @@ function FactRow({ fact }: { readonly fact: FanMemoryFactVM }): JSX.Element {
     <div class="cg-mem__fact" data-cg-fact={fact.id} aria-busy={fact.busy ? 'true' : 'false'}>
       <div class="cg-mem__text">{fact.text}</div>
       <div class="cg-mem__meta">{meta}</div>
+      {fact.quote === null ? null : <FactQuote quote={fact.quote} />}
       {fact.mine ? (
         <div class="cg-fp__acts">
           {fact.open === null ? null : <Button label={i18n.t('common.openChat')} variant="quiet" onClick={() => void dispatch(fact.open!)} />}
@@ -74,6 +75,22 @@ function FactRow({ fact }: { readonly fact: FanMemoryFactVM }): JSX.Element {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** The message a fact comes from, folded under it: «из чата» opens who wrote it, when, and its text. */
+function FactQuote({ quote }: { readonly quote: NonNullable<FanMemoryFactVM['quote']> }): JSX.Element {
+  const i18n = useI18n();
+  const who = i18n.t(quote.fromFan ? 'fanPanel.memory.quote.fan' : 'fanPanel.memory.quote.model');
+  const media = quote.media ? i18n.t('fanPanel.memory.quote.media') : null;
+  return (
+    <details class="cg-mem__quote" data-cg-quote="">
+      <summary>{i18n.t('fanPanel.memory.quote.show')}</summary>
+      <div class="cg-mem__quote-body">
+        <div class="cg-mem__meta">{[who, i18n.formatTime(quote.at, 'datetime'), media].filter((part) => part !== null).join(' · ')}</div>
+        {quote.text === '' ? null : <div class="cg-mem__quote-text">«{quote.text}»</div>}
+      </div>
+    </details>
   );
 }
 
@@ -284,5 +301,10 @@ export const MEMORY_CSS = `
 .cg-mem__fact[aria-busy="true"] { opacity: 0.6; }
 .cg-mem__text { font-size: var(--cg-text-md); line-height: 20px; color: var(--cg-ink); overflow-wrap: anywhere; }
 .cg-mem__meta { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-mem__quote { margin-top: 2px; }
+.cg-mem__quote summary { cursor: pointer; list-style: none; width: fit-content; font-size: var(--cg-text-sm); color: var(--cg-ink-2); text-decoration: underline dotted; text-decoration-color: var(--cg-ink-faint); text-underline-offset: 3px; }
+.cg-mem__quote summary::-webkit-details-marker { display: none; }
+.cg-mem__quote-body { margin-top: 4px; padding: 4px 0 4px 8px; border-left: 2px solid var(--cg-rule-3); }
+.cg-mem__quote-text { font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-2); overflow-wrap: anywhere; white-space: pre-wrap; }
 .cg-mem__fix { box-sizing: border-box; width: 100%; min-height: 60px; resize: vertical; font: inherit; color: var(--cg-ink); background: var(--cg-raised); border: 1px solid var(--cg-rule-3); border-radius: var(--cg-r-md); padding: 6px 8px; }
 `;

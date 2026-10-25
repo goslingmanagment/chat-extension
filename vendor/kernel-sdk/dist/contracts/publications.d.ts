@@ -29,7 +29,9 @@ export declare const publicationMediaInputSchema: z.ZodDiscriminatedUnion<[z.Zod
 }, z.core.$strict>], "source">;
 /**
  * What a draft says. Kind decides the rest: a story is one file; previews and a
- * price are a paid post's; FYP, walls and tiers exist on Fansly only. An empty
+ * price are a paid post's, or a Fansly subscriber post's that anyone else may
+ * buy (its subscribers see it free); FYP, walls, pins, reply locks and tiers
+ * exist on Fansly only, and a Fansly paid post may be for subscribers only. An empty
  * `wallRefs` on Fansly means the page's default wall, resolved when the draft
  * is saved so the approval freezes it.
  */
@@ -61,6 +63,12 @@ export declare const publicationContentSchema: z.ZodObject<{
     tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
     priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
     repost: z.ZodDefault<z.ZodBoolean>;
+    pinWallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+    replyLock: z.ZodDefault<z.ZodArray<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+    }>>>;
+    subscribersOnly: z.ZodDefault<z.ZodBoolean>;
 }, z.core.$strict>;
 export type PublicationContentBody = z.infer<typeof publicationContentSchema>;
 export declare const publicationCreateBodySchema: z.ZodObject<{
@@ -91,6 +99,12 @@ export declare const publicationCreateBodySchema: z.ZodObject<{
     tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
     priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
     repost: z.ZodDefault<z.ZodBoolean>;
+    pinWallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+    replyLock: z.ZodDefault<z.ZodArray<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+    }>>>;
+    subscribersOnly: z.ZodDefault<z.ZodBoolean>;
     pageLabel: z.ZodString;
 }, z.core.$strict>;
 export type PublicationCreateBody = z.infer<typeof publicationCreateBodySchema>;
@@ -122,6 +136,12 @@ export declare const publicationUpdateBodySchema: z.ZodObject<{
     tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
     priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
     repost: z.ZodDefault<z.ZodBoolean>;
+    pinWallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+    replyLock: z.ZodDefault<z.ZodArray<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+    }>>>;
+    subscribersOnly: z.ZodDefault<z.ZodBoolean>;
     version: z.ZodNumber;
 }, z.core.$strict>;
 export type PublicationUpdateBody = z.infer<typeof publicationUpdateBodySchema>;
@@ -153,6 +173,12 @@ export declare const agentPublicationCreateBodySchema: z.ZodObject<{
     tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
     priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
     repost: z.ZodDefault<z.ZodBoolean>;
+    pinWallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+    replyLock: z.ZodDefault<z.ZodArray<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+    }>>>;
+    subscribersOnly: z.ZodDefault<z.ZodBoolean>;
     idempotencyKey: z.ZodString;
 }, z.core.$strict>;
 export type AgentPublicationCreateBody = z.infer<typeof agentPublicationCreateBodySchema>;
@@ -237,6 +263,12 @@ export declare const publicationSchema: z.ZodObject<{
     tierRefs: z.ZodArray<z.ZodString>;
     priceMills: z.ZodNullable<z.ZodNumber>;
     repost: z.ZodBoolean;
+    pinWallRefs: z.ZodArray<z.ZodString>;
+    replyLock: z.ZodArray<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+    }>>;
+    subscribersOnly: z.ZodBoolean;
     media: z.ZodArray<z.ZodObject<{
         role: z.ZodEnum<{
             media: "media";
@@ -296,6 +328,11 @@ export declare const publicationSchema: z.ZodObject<{
     statusReason: z.ZodNullable<z.ZodString>;
     previousPublicationId: z.ZodNullable<z.ZodNumber>;
     withdrawal: z.ZodNullable<z.ZodObject<{
+        state: z.ZodString;
+        errorCode: z.ZodNullable<z.ZodString>;
+        at: z.ZodString;
+    }, z.core.$strip>>;
+    deletion: z.ZodNullable<z.ZodObject<{
         state: z.ZodString;
         errorCode: z.ZodNullable<z.ZodString>;
         at: z.ZodString;
@@ -379,6 +416,12 @@ export declare const publicationDetailSchema: z.ZodObject<{
     tierRefs: z.ZodArray<z.ZodString>;
     priceMills: z.ZodNullable<z.ZodNumber>;
     repost: z.ZodBoolean;
+    pinWallRefs: z.ZodArray<z.ZodString>;
+    replyLock: z.ZodArray<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+    }>>;
+    subscribersOnly: z.ZodBoolean;
     media: z.ZodArray<z.ZodObject<{
         role: z.ZodEnum<{
             media: "media";
@@ -438,6 +481,11 @@ export declare const publicationDetailSchema: z.ZodObject<{
     statusReason: z.ZodNullable<z.ZodString>;
     previousPublicationId: z.ZodNullable<z.ZodNumber>;
     withdrawal: z.ZodNullable<z.ZodObject<{
+        state: z.ZodString;
+        errorCode: z.ZodNullable<z.ZodString>;
+        at: z.ZodString;
+    }, z.core.$strip>>;
+    deletion: z.ZodNullable<z.ZodObject<{
         state: z.ZodString;
         errorCode: z.ZodNullable<z.ZodString>;
         at: z.ZodString;
@@ -567,6 +615,12 @@ export declare const publicationListResponseSchema: z.ZodObject<{
         tierRefs: z.ZodArray<z.ZodString>;
         priceMills: z.ZodNullable<z.ZodNumber>;
         repost: z.ZodBoolean;
+        pinWallRefs: z.ZodArray<z.ZodString>;
+        replyLock: z.ZodArray<z.ZodEnum<{
+            subscribers: "subscribers";
+            followers: "followers";
+        }>>;
+        subscribersOnly: z.ZodBoolean;
         media: z.ZodArray<z.ZodObject<{
             role: z.ZodEnum<{
                 media: "media";
@@ -630,6 +684,11 @@ export declare const publicationListResponseSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        deletion: z.ZodNullable<z.ZodObject<{
+            state: z.ZodString;
+            errorCode: z.ZodNullable<z.ZodString>;
+            at: z.ZodString;
+        }, z.core.$strip>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -687,6 +746,12 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
             tierRefs: z.ZodArray<z.ZodString>;
             priceMills: z.ZodNullable<z.ZodNumber>;
             repost: z.ZodBoolean;
+            pinWallRefs: z.ZodArray<z.ZodString>;
+            replyLock: z.ZodArray<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>;
+            subscribersOnly: z.ZodBoolean;
             media: z.ZodArray<z.ZodObject<{
                 role: z.ZodEnum<{
                     media: "media";
@@ -750,6 +815,11 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                 errorCode: z.ZodNullable<z.ZodString>;
                 at: z.ZodString;
             }, z.core.$strip>>;
+            deletion: z.ZodNullable<z.ZodObject<{
+                state: z.ZodString;
+                errorCode: z.ZodNullable<z.ZodString>;
+                at: z.ZodString;
+            }, z.core.$strip>>;
             createdAt: z.ZodString;
             updatedAt: z.ZodString;
             statusChangedAt: z.ZodString;
@@ -803,6 +873,12 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
         tierRefs: z.ZodArray<z.ZodString>;
         priceMills: z.ZodNullable<z.ZodNumber>;
         repost: z.ZodBoolean;
+        pinWallRefs: z.ZodArray<z.ZodString>;
+        replyLock: z.ZodArray<z.ZodEnum<{
+            subscribers: "subscribers";
+            followers: "followers";
+        }>>;
+        subscribersOnly: z.ZodBoolean;
         media: z.ZodArray<z.ZodObject<{
             role: z.ZodEnum<{
                 media: "media";
@@ -866,6 +942,11 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        deletion: z.ZodNullable<z.ZodObject<{
+            state: z.ZodString;
+            errorCode: z.ZodNullable<z.ZodString>;
+            at: z.ZodString;
+        }, z.core.$strip>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -905,6 +986,12 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
         tierRefs: z.ZodArray<z.ZodString>;
         priceMills: z.ZodNullable<z.ZodNumber>;
         repost: z.ZodBoolean;
+        pinWallRefs: z.ZodArray<z.ZodString>;
+        replyLock: z.ZodArray<z.ZodEnum<{
+            subscribers: "subscribers";
+            followers: "followers";
+        }>>;
+        subscribersOnly: z.ZodBoolean;
         media: z.ZodArray<z.ZodObject<{
             role: z.ZodEnum<{
                 media: "media";
@@ -964,6 +1051,11 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
         statusReason: z.ZodNullable<z.ZodString>;
         previousPublicationId: z.ZodNullable<z.ZodNumber>;
         withdrawal: z.ZodNullable<z.ZodObject<{
+            state: z.ZodString;
+            errorCode: z.ZodNullable<z.ZodString>;
+            at: z.ZodString;
+        }, z.core.$strip>>;
+        deletion: z.ZodNullable<z.ZodObject<{
             state: z.ZodString;
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
@@ -1062,6 +1154,12 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
         tierRefs: z.ZodArray<z.ZodString>;
         priceMills: z.ZodNullable<z.ZodNumber>;
         repost: z.ZodBoolean;
+        pinWallRefs: z.ZodArray<z.ZodString>;
+        replyLock: z.ZodArray<z.ZodEnum<{
+            subscribers: "subscribers";
+            followers: "followers";
+        }>>;
+        subscribersOnly: z.ZodBoolean;
         media: z.ZodArray<z.ZodObject<{
             role: z.ZodEnum<{
                 media: "media";
@@ -1125,6 +1223,11 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
             errorCode: z.ZodNullable<z.ZodString>;
             at: z.ZodString;
         }, z.core.$strip>>;
+        deletion: z.ZodNullable<z.ZodObject<{
+            state: z.ZodString;
+            errorCode: z.ZodNullable<z.ZodString>;
+            at: z.ZodString;
+        }, z.core.$strip>>;
         createdAt: z.ZodString;
         updatedAt: z.ZodString;
         statusChangedAt: z.ZodString;
@@ -1178,6 +1281,12 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
             tierRefs: z.ZodArray<z.ZodString>;
             priceMills: z.ZodNullable<z.ZodNumber>;
             repost: z.ZodBoolean;
+            pinWallRefs: z.ZodArray<z.ZodString>;
+            replyLock: z.ZodArray<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>;
+            subscribersOnly: z.ZodBoolean;
             media: z.ZodArray<z.ZodObject<{
                 role: z.ZodEnum<{
                     media: "media";
@@ -1237,6 +1346,11 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
             statusReason: z.ZodNullable<z.ZodString>;
             previousPublicationId: z.ZodNullable<z.ZodNumber>;
             withdrawal: z.ZodNullable<z.ZodObject<{
+                state: z.ZodString;
+                errorCode: z.ZodNullable<z.ZodString>;
+                at: z.ZodString;
+            }, z.core.$strip>>;
+            deletion: z.ZodNullable<z.ZodObject<{
                 state: z.ZodString;
                 errorCode: z.ZodNullable<z.ZodString>;
                 at: z.ZodString;

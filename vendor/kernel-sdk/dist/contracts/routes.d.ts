@@ -4831,6 +4831,7 @@ export declare const syncMonitorStreamItemSchema: z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         media_stats: "media_stats";
@@ -4838,7 +4839,6 @@ export declare const syncMonitorStreamItemSchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         light: "light";
         fan_identities: "fan_identities";
-        followers: "followers";
         top_spenders: "top_spenders";
         dm_conversations: "dm_conversations";
         dm_messages: "dm_messages";
@@ -4979,6 +4979,7 @@ export declare const syncMonitorPageItemSchema: z.ZodObject<{
             subscribers: "subscribers";
             notifications: "notifications";
             posts: "posts";
+            followers: "followers";
             catalog: "catalog";
             transactions: "transactions";
             media_stats: "media_stats";
@@ -4986,7 +4987,6 @@ export declare const syncMonitorPageItemSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             light: "light";
             fan_identities: "fan_identities";
-            followers: "followers";
             top_spenders: "top_spenders";
             dm_conversations: "dm_conversations";
             dm_messages: "dm_messages";
@@ -5198,6 +5198,7 @@ export declare const syncMonitorRecentEventSchema: z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         media_stats: "media_stats";
@@ -5205,7 +5206,6 @@ export declare const syncMonitorRecentEventSchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         light: "light";
         fan_identities: "fan_identities";
-        followers: "followers";
         top_spenders: "top_spenders";
         dm_conversations: "dm_conversations";
         dm_messages: "dm_messages";
@@ -5334,6 +5334,7 @@ export declare const syncStatusResponseSchema: z.ZodObject<{
                 subscribers: "subscribers";
                 notifications: "notifications";
                 posts: "posts";
+                followers: "followers";
                 catalog: "catalog";
                 transactions: "transactions";
                 media_stats: "media_stats";
@@ -5341,7 +5342,6 @@ export declare const syncStatusResponseSchema: z.ZodObject<{
                 fan_earnings: "fan_earnings";
                 light: "light";
                 fan_identities: "fan_identities";
-                followers: "followers";
                 top_spenders: "top_spenders";
                 dm_conversations: "dm_conversations";
                 dm_messages: "dm_messages";
@@ -5468,6 +5468,7 @@ export declare const syncStatusResponseSchema: z.ZodObject<{
             subscribers: "subscribers";
             notifications: "notifications";
             posts: "posts";
+            followers: "followers";
             catalog: "catalog";
             transactions: "transactions";
             media_stats: "media_stats";
@@ -5475,7 +5476,6 @@ export declare const syncStatusResponseSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             light: "light";
             fan_identities: "fan_identities";
-            followers: "followers";
             top_spenders: "top_spenders";
             dm_conversations: "dm_conversations";
             dm_messages: "dm_messages";
@@ -5510,6 +5510,7 @@ export declare const syncRequestItemSchema: z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         media_stats: "media_stats";
@@ -5517,7 +5518,6 @@ export declare const syncRequestItemSchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         light: "light";
         fan_identities: "fan_identities";
-        followers: "followers";
         top_spenders: "top_spenders";
         dm_conversations: "dm_conversations";
         dm_messages: "dm_messages";
@@ -5556,6 +5556,7 @@ export declare const syncRequestsResponseSchema: z.ZodArray<z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         media_stats: "media_stats";
@@ -5563,7 +5564,6 @@ export declare const syncRequestsResponseSchema: z.ZodArray<z.ZodObject<{
         fan_earnings: "fan_earnings";
         light: "light";
         fan_identities: "fan_identities";
-        followers: "followers";
         top_spenders: "top_spenders";
         dm_conversations: "dm_conversations";
         dm_messages: "dm_messages";
@@ -5634,6 +5634,7 @@ export declare const syncBlockIntervalSchema: z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         media_stats: "media_stats";
@@ -5641,7 +5642,6 @@ export declare const syncBlockIntervalSchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         light: "light";
         fan_identities: "fan_identities";
-        followers: "followers";
         top_spenders: "top_spenders";
         dm_conversations: "dm_conversations";
         dm_messages: "dm_messages";
@@ -5657,6 +5657,7 @@ export declare const syncBlockSubstreamSchema: z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         media_stats: "media_stats";
@@ -5664,7 +5665,6 @@ export declare const syncBlockSubstreamSchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         light: "light";
         fan_identities: "fan_identities";
-        followers: "followers";
         top_spenders: "top_spenders";
         dm_conversations: "dm_conversations";
         dm_messages: "dm_messages";
@@ -5826,6 +5826,7 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
             subscribers: "subscribers";
             notifications: "notifications";
             posts: "posts";
+            followers: "followers";
             catalog: "catalog";
             transactions: "transactions";
             media_stats: "media_stats";
@@ -5833,7 +5834,6 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             light: "light";
             fan_identities: "fan_identities";
-            followers: "followers";
             top_spenders: "top_spenders";
             dm_conversations: "dm_conversations";
             dm_messages: "dm_messages";
@@ -5855,6 +5855,7 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
             subscribers: "subscribers";
             notifications: "notifications";
             posts: "posts";
+            followers: "followers";
             catalog: "catalog";
             transactions: "transactions";
             media_stats: "media_stats";
@@ -5862,7 +5863,6 @@ export declare const syncBlockStatusSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             light: "light";
             fan_identities: "fan_identities";
-            followers: "followers";
             top_spenders: "top_spenders";
             dm_conversations: "dm_conversations";
             dm_messages: "dm_messages";
@@ -6073,6 +6073,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6080,7 +6081,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6102,6 +6102,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6109,7 +6110,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6272,6 +6272,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6279,7 +6280,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6301,6 +6301,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6308,7 +6309,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6471,6 +6471,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6478,7 +6479,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6500,6 +6500,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6507,7 +6508,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6670,6 +6670,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6677,7 +6678,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6699,6 +6699,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6706,7 +6707,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6869,6 +6869,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6876,7 +6877,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -6898,6 +6898,7 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -6905,7 +6906,6 @@ export declare const syncBlocksPageSchema: z.ZodObject<{
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -7120,6 +7120,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7127,7 +7128,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7149,6 +7149,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7156,7 +7157,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7319,6 +7319,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7326,7 +7327,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7348,6 +7348,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7355,7 +7356,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7518,6 +7518,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7525,7 +7526,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7547,6 +7547,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7554,7 +7555,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7717,6 +7717,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7724,7 +7725,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7746,6 +7746,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7753,7 +7754,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7916,6 +7916,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7923,7 +7924,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -7945,6 +7945,7 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -7952,7 +7953,6 @@ export declare const syncOverviewResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8153,6 +8153,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8160,7 +8161,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8182,6 +8182,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8189,7 +8190,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8352,6 +8352,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8359,7 +8360,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8381,6 +8381,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8388,7 +8389,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8551,6 +8551,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8558,7 +8559,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8580,6 +8580,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8587,7 +8588,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8750,6 +8750,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8757,7 +8758,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8779,6 +8779,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8786,7 +8787,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8949,6 +8949,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8956,7 +8957,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -8978,6 +8978,7 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -8985,7 +8986,6 @@ export declare const pageSyncBlocksResponseSchema: z.ZodObject<{
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -9183,6 +9183,7 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
                 subscribers: "subscribers";
                 notifications: "notifications";
                 posts: "posts";
+                followers: "followers";
                 catalog: "catalog";
                 transactions: "transactions";
                 media_stats: "media_stats";
@@ -9190,7 +9191,6 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
                 fan_earnings: "fan_earnings";
                 light: "light";
                 fan_identities: "fan_identities";
-                followers: "followers";
                 top_spenders: "top_spenders";
                 dm_conversations: "dm_conversations";
                 dm_messages: "dm_messages";
@@ -9212,6 +9212,7 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
                 subscribers: "subscribers";
                 notifications: "notifications";
                 posts: "posts";
+                followers: "followers";
                 catalog: "catalog";
                 transactions: "transactions";
                 media_stats: "media_stats";
@@ -9219,7 +9220,6 @@ export declare const pageMessagesBlockResponseSchema: z.ZodObject<{
                 fan_earnings: "fan_earnings";
                 light: "light";
                 fan_identities: "fan_identities";
-                followers: "followers";
                 top_spenders: "top_spenders";
                 dm_conversations: "dm_conversations";
                 dm_messages: "dm_messages";
@@ -9300,6 +9300,7 @@ export declare const adminSyncBlockRequestSchema: z.ZodObject<{
         subscribers: "subscribers";
         notifications: "notifications";
         posts: "posts";
+        followers: "followers";
         catalog: "catalog";
         transactions: "transactions";
         media_stats: "media_stats";
@@ -9307,7 +9308,6 @@ export declare const adminSyncBlockRequestSchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         light: "light";
         fan_identities: "fan_identities";
-        followers: "followers";
         top_spenders: "top_spenders";
         dm_conversations: "dm_conversations";
         dm_messages: "dm_messages";
@@ -9339,6 +9339,7 @@ export declare const adminSyncBlockResponseSchema: z.ZodObject<{
             subscribers: "subscribers";
             notifications: "notifications";
             posts: "posts";
+            followers: "followers";
             catalog: "catalog";
             transactions: "transactions";
             media_stats: "media_stats";
@@ -9346,7 +9347,6 @@ export declare const adminSyncBlockResponseSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             light: "light";
             fan_identities: "fan_identities";
-            followers: "followers";
             top_spenders: "top_spenders";
             dm_conversations: "dm_conversations";
             dm_messages: "dm_messages";
@@ -9379,6 +9379,7 @@ export declare const adminFollowersReconcileResetResponseSchema: z.ZodObject<{
             subscribers: "subscribers";
             notifications: "notifications";
             posts: "posts";
+            followers: "followers";
             catalog: "catalog";
             transactions: "transactions";
             media_stats: "media_stats";
@@ -9386,7 +9387,6 @@ export declare const adminFollowersReconcileResetResponseSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             light: "light";
             fan_identities: "fan_identities";
-            followers: "followers";
             top_spenders: "top_spenders";
             dm_conversations: "dm_conversations";
             dm_messages: "dm_messages";
@@ -9456,9 +9456,9 @@ export declare const syncTriggerBodySchema: z.ZodObject<{
     scope: z.ZodEnum<{
         all: "all";
         posts: "posts";
+        followers: "followers";
         messages: "messages";
         light: "light";
-        followers: "followers";
         data: "data";
     }>;
 }, z.core.$strip>;
@@ -9468,9 +9468,9 @@ export declare const syncTriggerResponseSchema: z.ZodObject<{
     scope: z.ZodEnum<{
         all: "all";
         posts: "posts";
+        followers: "followers";
         messages: "messages";
         light: "light";
-        followers: "followers";
         data: "data";
     }>;
 }, z.core.$strip>;
@@ -9859,28 +9859,6 @@ export declare const notificationsReportHistoryResponseSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const verifyCredentialsBodySchema: z.ZodUnion<readonly [z.ZodObject<{
     platform: z.ZodLiteral<"fansly">;
-    session: z.ZodObject<{
-        authorization: z.ZodString;
-        fanslyClientId: z.ZodOptional<z.ZodString>;
-        fanslyClientCheck: z.ZodOptional<z.ZodString>;
-        fanslySessionId: z.ZodOptional<z.ZodString>;
-        routeChecks: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-            message: "message";
-            group: "group";
-            account: "account";
-            earnings: "earnings";
-            messagingGroups: "messagingGroups";
-            subscribers: "subscribers";
-            media: "media";
-        }> & z.core.$partial, z.ZodString>>;
-    }, z.core.$strip>;
-    proxy: z.ZodObject<{
-        url: z.ZodString;
-        username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        password: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    }, z.core.$strip>;
-}, z.core.$strip>, z.ZodObject<{
-    platform: z.ZodLiteral<"fansly">;
     browserProfileId: z.ZodString;
 }, z.core.$strict>, z.ZodObject<{
     platform: z.ZodLiteral<"onlyfans">;
@@ -9896,30 +9874,6 @@ export declare const verifyCredentialsResponseSchema: z.ZodObject<{
     displayName: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
 export declare const createPageBodySchema: z.ZodUnion<readonly [z.ZodObject<{
-    platform: z.ZodLiteral<"fansly">;
-    session: z.ZodObject<{
-        authorization: z.ZodString;
-        fanslyClientId: z.ZodOptional<z.ZodString>;
-        fanslyClientCheck: z.ZodOptional<z.ZodString>;
-        fanslySessionId: z.ZodOptional<z.ZodString>;
-        routeChecks: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-            message: "message";
-            group: "group";
-            account: "account";
-            earnings: "earnings";
-            messagingGroups: "messagingGroups";
-            subscribers: "subscribers";
-            media: "media";
-        }> & z.core.$partial, z.ZodString>>;
-    }, z.core.$strip>;
-    proxy: z.ZodObject<{
-        url: z.ZodString;
-        username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        password: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    }, z.core.$strip>;
-    modelSlug: z.ZodString;
-    label: z.ZodString;
-}, z.core.$strip>, z.ZodObject<{
     platform: z.ZodLiteral<"fansly">;
     browserProfileId: z.ZodString;
     modelSlug: z.ZodString;
@@ -9958,31 +9912,6 @@ export declare const updatePageBodySchema: z.ZodObject<{
     label: z.ZodOptional<z.ZodString>;
     modelSlug: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
-export declare const updateCredentialsBodySchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
-    platform: z.ZodLiteral<"fansly">;
-    session: z.ZodOptional<z.ZodObject<{
-        authorization: z.ZodString;
-        fanslyClientId: z.ZodOptional<z.ZodString>;
-        fanslyClientCheck: z.ZodOptional<z.ZodString>;
-        fanslySessionId: z.ZodOptional<z.ZodString>;
-        routeChecks: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-            message: "message";
-            group: "group";
-            account: "account";
-            earnings: "earnings";
-            messagingGroups: "messagingGroups";
-            subscribers: "subscribers";
-            media: "media";
-        }> & z.core.$partial, z.ZodString>>;
-    }, z.core.$strip>>;
-    proxy: z.ZodOptional<z.ZodObject<{
-        url: z.ZodString;
-        username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        password: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    }, z.core.$strip>>;
-}, z.core.$strip>, z.ZodObject<{
-    platform: z.ZodLiteral<"onlyfans">;
-}, z.core.$strip>], "platform">;
 export declare const verifyPageResponseSchema: z.ZodObject<{
     verified: z.ZodBoolean;
     username: z.ZodNullable<z.ZodString>;
@@ -10032,9 +9961,9 @@ export declare const adminCreatePageResponseSchema: z.ZodObject<{
             scope: z.ZodEnum<{
                 all: "all";
                 posts: "posts";
+                followers: "followers";
                 messages: "messages";
                 light: "light";
-                followers: "followers";
                 data: "data";
             }>;
         }, z.core.$strip>;
@@ -10066,11 +9995,6 @@ export declare const adminUpdatePageResponseSchema: z.ZodObject<{
             voiceNotes: z.ZodBoolean;
         }, z.core.$strip>>;
     }, z.core.$strip>;
-}, z.core.$strip>;
-export declare const updateCredentialsResponseSchema: z.ZodObject<{
-    updated: z.ZodBoolean;
-    verified: z.ZodBoolean;
-    syncUnblocked: z.ZodBoolean;
 }, z.core.$strip>;
 export declare const deletedResponseSchema: z.ZodObject<{
     deleted: z.ZodLiteral<true>;
@@ -15234,9 +15158,9 @@ declare const baseRouteSchemas: {
             scope: z.ZodEnum<{
                 all: "all";
                 posts: "posts";
+                followers: "followers";
                 messages: "messages";
                 light: "light";
-                followers: "followers";
                 data: "data";
             }>;
         }, z.core.$strip>;
@@ -15247,9 +15171,9 @@ declare const baseRouteSchemas: {
                 scope: z.ZodEnum<{
                     all: "all";
                     posts: "posts";
+                    followers: "followers";
                     messages: "messages";
                     light: "light";
-                    followers: "followers";
                     data: "data";
                 }>;
             }, z.core.$strip>;
@@ -15328,6 +15252,7 @@ declare const baseRouteSchemas: {
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -15335,7 +15260,6 @@ declare const baseRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -15437,6 +15361,7 @@ declare const baseRouteSchemas: {
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -15444,7 +15369,6 @@ declare const baseRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -15539,6 +15463,7 @@ declare const baseRouteSchemas: {
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -15546,7 +15471,6 @@ declare const baseRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -15641,6 +15565,7 @@ declare const baseRouteSchemas: {
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -15648,7 +15573,6 @@ declare const baseRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -15732,6 +15656,7 @@ declare const baseRouteSchemas: {
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -15739,7 +15664,6 @@ declare const baseRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -16248,30 +16172,6 @@ declare const baseRouteSchemas: {
         readonly summary: "Onboard a new page";
         readonly body: z.ZodUnion<readonly [z.ZodObject<{
             platform: z.ZodLiteral<"fansly">;
-            session: z.ZodObject<{
-                authorization: z.ZodString;
-                fanslyClientId: z.ZodOptional<z.ZodString>;
-                fanslyClientCheck: z.ZodOptional<z.ZodString>;
-                fanslySessionId: z.ZodOptional<z.ZodString>;
-                routeChecks: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                    message: "message";
-                    group: "group";
-                    account: "account";
-                    earnings: "earnings";
-                    messagingGroups: "messagingGroups";
-                    subscribers: "subscribers";
-                    media: "media";
-                }> & z.core.$partial, z.ZodString>>;
-            }, z.core.$strip>;
-            proxy: z.ZodObject<{
-                url: z.ZodString;
-                username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                password: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            }, z.core.$strip>;
-            modelSlug: z.ZodString;
-            label: z.ZodString;
-        }, z.core.$strip>, z.ZodObject<{
-            platform: z.ZodLiteral<"fansly">;
             browserProfileId: z.ZodString;
             modelSlug: z.ZodString;
             label: z.ZodString;
@@ -16322,9 +16222,9 @@ declare const baseRouteSchemas: {
                         scope: z.ZodEnum<{
                             all: "all";
                             posts: "posts";
+                            followers: "followers";
                             messages: "messages";
                             light: "light";
-                            followers: "followers";
                             data: "data";
                         }>;
                     }, z.core.$strip>;
@@ -16482,28 +16382,6 @@ declare const baseRouteSchemas: {
         readonly summary: "Verify credentials without persisting";
         readonly body: z.ZodUnion<readonly [z.ZodObject<{
             platform: z.ZodLiteral<"fansly">;
-            session: z.ZodObject<{
-                authorization: z.ZodString;
-                fanslyClientId: z.ZodOptional<z.ZodString>;
-                fanslyClientCheck: z.ZodOptional<z.ZodString>;
-                fanslySessionId: z.ZodOptional<z.ZodString>;
-                routeChecks: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                    message: "message";
-                    group: "group";
-                    account: "account";
-                    earnings: "earnings";
-                    messagingGroups: "messagingGroups";
-                    subscribers: "subscribers";
-                    media: "media";
-                }> & z.core.$partial, z.ZodString>>;
-            }, z.core.$strip>;
-            proxy: z.ZodObject<{
-                url: z.ZodString;
-                username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                password: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            }, z.core.$strip>;
-        }, z.core.$strip>, z.ZodObject<{
-            platform: z.ZodLiteral<"fansly">;
             browserProfileId: z.ZodString;
         }, z.core.$strict>, z.ZodObject<{
             platform: z.ZodLiteral<"onlyfans">;
@@ -16600,84 +16478,6 @@ declare const baseRouteSchemas: {
                     fansly: "fansly";
                     onlyfans: "onlyfans";
                 }>;
-                syncUnblocked: z.ZodBoolean;
-            }, z.core.$strip>;
-            readonly 400: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 401: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 403: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 404: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-            readonly 409: z.ZodObject<{
-                error: z.ZodString;
-                message: z.ZodString;
-                statusCode: z.ZodNumber;
-                reason: z.ZodOptional<z.ZodString>;
-                statusUrl: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>;
-        };
-    };
-    readonly adminUpdateCredentials: {
-        readonly auth: {
-            readonly kind: "owner-session";
-        };
-        readonly tags: readonly ["admin"];
-        readonly summary: "Update credentials for an existing page";
-        readonly description: string;
-        readonly params: z.ZodObject<{
-            pageLabel: z.ZodString;
-        }, z.core.$strip>;
-        readonly body: z.ZodDiscriminatedUnion<[z.ZodObject<{
-            platform: z.ZodLiteral<"fansly">;
-            session: z.ZodOptional<z.ZodObject<{
-                authorization: z.ZodString;
-                fanslyClientId: z.ZodOptional<z.ZodString>;
-                fanslyClientCheck: z.ZodOptional<z.ZodString>;
-                fanslySessionId: z.ZodOptional<z.ZodString>;
-                routeChecks: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                    message: "message";
-                    group: "group";
-                    account: "account";
-                    earnings: "earnings";
-                    messagingGroups: "messagingGroups";
-                    subscribers: "subscribers";
-                    media: "media";
-                }> & z.core.$partial, z.ZodString>>;
-            }, z.core.$strip>>;
-            proxy: z.ZodOptional<z.ZodObject<{
-                url: z.ZodString;
-                username: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                password: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            }, z.core.$strip>>;
-        }, z.core.$strip>, z.ZodObject<{
-            platform: z.ZodLiteral<"onlyfans">;
-        }, z.core.$strip>], "platform">;
-        readonly response: {
-            readonly 200: z.ZodObject<{
-                updated: z.ZodBoolean;
-                verified: z.ZodBoolean;
                 syncUnblocked: z.ZodBoolean;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -26524,6 +26324,7 @@ declare const baseRouteSchemas: {
                             subscribers: "subscribers";
                             notifications: "notifications";
                             posts: "posts";
+                            followers: "followers";
                             catalog: "catalog";
                             transactions: "transactions";
                             media_stats: "media_stats";
@@ -26531,7 +26332,6 @@ declare const baseRouteSchemas: {
                             fan_earnings: "fan_earnings";
                             light: "light";
                             fan_identities: "fan_identities";
-                            followers: "followers";
                             top_spenders: "top_spenders";
                             dm_conversations: "dm_conversations";
                             dm_messages: "dm_messages";
@@ -26658,6 +26458,7 @@ declare const baseRouteSchemas: {
                         subscribers: "subscribers";
                         notifications: "notifications";
                         posts: "posts";
+                        followers: "followers";
                         catalog: "catalog";
                         transactions: "transactions";
                         media_stats: "media_stats";
@@ -26665,7 +26466,6 @@ declare const baseRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         light: "light";
                         fan_identities: "fan_identities";
-                        followers: "followers";
                         top_spenders: "top_spenders";
                         dm_conversations: "dm_conversations";
                         dm_messages: "dm_messages";
@@ -26730,6 +26530,7 @@ declare const baseRouteSchemas: {
                     subscribers: "subscribers";
                     notifications: "notifications";
                     posts: "posts";
+                    followers: "followers";
                     catalog: "catalog";
                     transactions: "transactions";
                     media_stats: "media_stats";
@@ -26737,7 +26538,6 @@ declare const baseRouteSchemas: {
                     fan_earnings: "fan_earnings";
                     light: "light";
                     fan_identities: "fan_identities";
-                    followers: "followers";
                     top_spenders: "top_spenders";
                     dm_conversations: "dm_conversations";
                     dm_messages: "dm_messages";
@@ -26943,6 +26743,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -26950,7 +26751,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -26972,6 +26772,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -26979,7 +26780,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -27142,6 +26942,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -27149,7 +26950,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -27171,6 +26971,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -27178,7 +26979,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -27341,6 +27141,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -27348,7 +27149,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -27370,6 +27170,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -27377,7 +27178,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -27540,6 +27340,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -27547,7 +27348,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -27569,6 +27369,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -27576,7 +27377,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -27739,6 +27539,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -27746,7 +27547,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -27768,6 +27568,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -27775,7 +27576,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28000,6 +27800,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28007,7 +27808,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28029,6 +27829,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28036,7 +27837,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28199,6 +27999,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28206,7 +28007,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28228,6 +28028,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28235,7 +28036,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28398,6 +28198,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28405,7 +28206,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28427,6 +28227,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28434,7 +28235,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28597,6 +28397,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28604,7 +28405,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28626,6 +28426,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28633,7 +28434,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28796,6 +28596,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28803,7 +28604,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -28825,6 +28625,7 @@ declare const baseRouteSchemas: {
                                     subscribers: "subscribers";
                                     notifications: "notifications";
                                     posts: "posts";
+                                    followers: "followers";
                                     catalog: "catalog";
                                     transactions: "transactions";
                                     media_stats: "media_stats";
@@ -28832,7 +28633,6 @@ declare const baseRouteSchemas: {
                                     fan_earnings: "fan_earnings";
                                     light: "light";
                                     fan_identities: "fan_identities";
-                                    followers: "followers";
                                     top_spenders: "top_spenders";
                                     dm_conversations: "dm_conversations";
                                     dm_messages: "dm_messages";
@@ -29064,6 +28864,7 @@ declare const baseRouteSchemas: {
                             subscribers: "subscribers";
                             notifications: "notifications";
                             posts: "posts";
+                            followers: "followers";
                             catalog: "catalog";
                             transactions: "transactions";
                             media_stats: "media_stats";
@@ -29071,7 +28872,6 @@ declare const baseRouteSchemas: {
                             fan_earnings: "fan_earnings";
                             light: "light";
                             fan_identities: "fan_identities";
-                            followers: "followers";
                             top_spenders: "top_spenders";
                             dm_conversations: "dm_conversations";
                             dm_messages: "dm_messages";
@@ -29093,6 +28893,7 @@ declare const baseRouteSchemas: {
                             subscribers: "subscribers";
                             notifications: "notifications";
                             posts: "posts";
+                            followers: "followers";
                             catalog: "catalog";
                             transactions: "transactions";
                             media_stats: "media_stats";
@@ -29100,7 +28901,6 @@ declare const baseRouteSchemas: {
                             fan_earnings: "fan_earnings";
                             light: "light";
                             fan_identities: "fan_identities";
-                            followers: "followers";
                             top_spenders: "top_spenders";
                             dm_conversations: "dm_conversations";
                             dm_messages: "dm_messages";
@@ -30668,6 +30468,12 @@ declare const baseRouteSchemas: {
                     tierRefs: z.ZodArray<z.ZodString>;
                     priceMills: z.ZodNullable<z.ZodNumber>;
                     repost: z.ZodBoolean;
+                    pinWallRefs: z.ZodArray<z.ZodString>;
+                    replyLock: z.ZodArray<z.ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: z.ZodBoolean;
                     media: z.ZodArray<z.ZodObject<{
                         role: z.ZodEnum<{
                             media: "media";
@@ -30731,6 +30537,11 @@ declare const baseRouteSchemas: {
                         errorCode: z.ZodNullable<z.ZodString>;
                         at: z.ZodString;
                     }, z.core.$strip>>;
+                    deletion: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        errorCode: z.ZodNullable<z.ZodString>;
+                        at: z.ZodString;
+                    }, z.core.$strip>>;
                     createdAt: z.ZodString;
                     updatedAt: z.ZodString;
                     statusChangedAt: z.ZodString;
@@ -30772,6 +30583,12 @@ declare const baseRouteSchemas: {
             tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
             priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             repost: z.ZodDefault<z.ZodBoolean>;
+            pinWallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+            replyLock: z.ZodDefault<z.ZodArray<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>>;
+            subscribersOnly: z.ZodDefault<z.ZodBoolean>;
             pageLabel: z.ZodString;
         }, z.core.$strict>;
         readonly response: {
@@ -30845,6 +30662,12 @@ declare const baseRouteSchemas: {
                 tierRefs: z.ZodArray<z.ZodString>;
                 priceMills: z.ZodNullable<z.ZodNumber>;
                 repost: z.ZodBoolean;
+                pinWallRefs: z.ZodArray<z.ZodString>;
+                replyLock: z.ZodArray<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: z.ZodBoolean;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -30904,6 +30727,11 @@ declare const baseRouteSchemas: {
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    errorCode: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                }, z.core.$strip>>;
+                deletion: z.ZodNullable<z.ZodObject<{
                     state: z.ZodString;
                     errorCode: z.ZodNullable<z.ZodString>;
                     at: z.ZodString;
@@ -30994,6 +30822,12 @@ declare const baseRouteSchemas: {
                 tierRefs: z.ZodArray<z.ZodString>;
                 priceMills: z.ZodNullable<z.ZodNumber>;
                 repost: z.ZodBoolean;
+                pinWallRefs: z.ZodArray<z.ZodString>;
+                replyLock: z.ZodArray<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: z.ZodBoolean;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -31053,6 +30887,11 @@ declare const baseRouteSchemas: {
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    errorCode: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                }, z.core.$strip>>;
+                deletion: z.ZodNullable<z.ZodObject<{
                     state: z.ZodString;
                     errorCode: z.ZodNullable<z.ZodString>;
                     at: z.ZodString;
@@ -31145,6 +30984,12 @@ declare const baseRouteSchemas: {
             tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
             priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             repost: z.ZodDefault<z.ZodBoolean>;
+            pinWallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+            replyLock: z.ZodDefault<z.ZodArray<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>>;
+            subscribersOnly: z.ZodDefault<z.ZodBoolean>;
             version: z.ZodNumber;
         }, z.core.$strict>;
         readonly response: {
@@ -31218,6 +31063,12 @@ declare const baseRouteSchemas: {
                 tierRefs: z.ZodArray<z.ZodString>;
                 priceMills: z.ZodNullable<z.ZodNumber>;
                 repost: z.ZodBoolean;
+                pinWallRefs: z.ZodArray<z.ZodString>;
+                replyLock: z.ZodArray<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: z.ZodBoolean;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -31277,6 +31128,11 @@ declare const baseRouteSchemas: {
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    errorCode: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                }, z.core.$strip>>;
+                deletion: z.ZodNullable<z.ZodObject<{
                     state: z.ZodString;
                     errorCode: z.ZodNullable<z.ZodString>;
                     at: z.ZodString;
@@ -31378,6 +31234,12 @@ declare const baseRouteSchemas: {
                         tierRefs: z.ZodArray<z.ZodString>;
                         priceMills: z.ZodNullable<z.ZodNumber>;
                         repost: z.ZodBoolean;
+                        pinWallRefs: z.ZodArray<z.ZodString>;
+                        replyLock: z.ZodArray<z.ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: z.ZodBoolean;
                         media: z.ZodArray<z.ZodObject<{
                             role: z.ZodEnum<{
                                 media: "media";
@@ -31437,6 +31299,11 @@ declare const baseRouteSchemas: {
                         statusReason: z.ZodNullable<z.ZodString>;
                         previousPublicationId: z.ZodNullable<z.ZodNumber>;
                         withdrawal: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        deletion: z.ZodNullable<z.ZodObject<{
                             state: z.ZodString;
                             errorCode: z.ZodNullable<z.ZodString>;
                             at: z.ZodString;
@@ -31529,6 +31396,12 @@ declare const baseRouteSchemas: {
                 tierRefs: z.ZodArray<z.ZodString>;
                 priceMills: z.ZodNullable<z.ZodNumber>;
                 repost: z.ZodBoolean;
+                pinWallRefs: z.ZodArray<z.ZodString>;
+                replyLock: z.ZodArray<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: z.ZodBoolean;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -31588,6 +31461,11 @@ declare const baseRouteSchemas: {
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    errorCode: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                }, z.core.$strip>>;
+                deletion: z.ZodNullable<z.ZodObject<{
                     state: z.ZodString;
                     errorCode: z.ZodNullable<z.ZodString>;
                     at: z.ZodString;
@@ -31689,6 +31567,12 @@ declare const baseRouteSchemas: {
                     tierRefs: z.ZodArray<z.ZodString>;
                     priceMills: z.ZodNullable<z.ZodNumber>;
                     repost: z.ZodBoolean;
+                    pinWallRefs: z.ZodArray<z.ZodString>;
+                    replyLock: z.ZodArray<z.ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: z.ZodBoolean;
                     media: z.ZodArray<z.ZodObject<{
                         role: z.ZodEnum<{
                             media: "media";
@@ -31752,6 +31636,11 @@ declare const baseRouteSchemas: {
                         errorCode: z.ZodNullable<z.ZodString>;
                         at: z.ZodString;
                     }, z.core.$strip>>;
+                    deletion: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        errorCode: z.ZodNullable<z.ZodString>;
+                        at: z.ZodString;
+                    }, z.core.$strip>>;
                     createdAt: z.ZodString;
                     updatedAt: z.ZodString;
                     statusChangedAt: z.ZodString;
@@ -31791,6 +31680,12 @@ declare const baseRouteSchemas: {
                     tierRefs: z.ZodArray<z.ZodString>;
                     priceMills: z.ZodNullable<z.ZodNumber>;
                     repost: z.ZodBoolean;
+                    pinWallRefs: z.ZodArray<z.ZodString>;
+                    replyLock: z.ZodArray<z.ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: z.ZodBoolean;
                     media: z.ZodArray<z.ZodObject<{
                         role: z.ZodEnum<{
                             media: "media";
@@ -31850,6 +31745,11 @@ declare const baseRouteSchemas: {
                     statusReason: z.ZodNullable<z.ZodString>;
                     previousPublicationId: z.ZodNullable<z.ZodNumber>;
                     withdrawal: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        errorCode: z.ZodNullable<z.ZodString>;
+                        at: z.ZodString;
+                    }, z.core.$strip>>;
+                    deletion: z.ZodNullable<z.ZodObject<{
                         state: z.ZodString;
                         errorCode: z.ZodNullable<z.ZodString>;
                         at: z.ZodString;
@@ -31953,6 +31853,12 @@ declare const baseRouteSchemas: {
                         tierRefs: z.ZodArray<z.ZodString>;
                         priceMills: z.ZodNullable<z.ZodNumber>;
                         repost: z.ZodBoolean;
+                        pinWallRefs: z.ZodArray<z.ZodString>;
+                        replyLock: z.ZodArray<z.ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: z.ZodBoolean;
                         media: z.ZodArray<z.ZodObject<{
                             role: z.ZodEnum<{
                                 media: "media";
@@ -32012,6 +31918,185 @@ declare const baseRouteSchemas: {
                         statusReason: z.ZodNullable<z.ZodString>;
                         previousPublicationId: z.ZodNullable<z.ZodNumber>;
                         withdrawal: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        deletion: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        createdAt: z.ZodString;
+                        updatedAt: z.ZodString;
+                        statusChangedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminPublicationDeletePost: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            id: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                results: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    outcome: z.ZodEnum<{
+                        unknown: "unknown";
+                        rejected: "rejected";
+                        withdrawn: "withdrawn";
+                        refused: "refused";
+                        accepted: "accepted";
+                        not_sent: "not_sent";
+                    }>;
+                    reason: z.ZodNullable<z.ZodString>;
+                    publication: z.ZodNullable<z.ZodObject<{
+                        id: z.ZodNumber;
+                        pageLabel: z.ZodString;
+                        platform: z.ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                        }>;
+                        kind: z.ZodEnum<{
+                            story: "story";
+                            fyp_post: "fyp_post";
+                            subscriber_post: "subscriber_post";
+                            paid_post: "paid_post";
+                        }>;
+                        status: z.ZodEnum<{
+                            unknown: "unknown";
+                            cancelled: "cancelled";
+                            scheduled: "scheduled";
+                            draft: "draft";
+                            approved: "approved";
+                            submitting: "submitting";
+                            processing: "processing";
+                            published: "published";
+                            not_published: "not_published";
+                            rejected: "rejected";
+                            missed: "missed";
+                            withdrawn: "withdrawn";
+                        }>;
+                        version: z.ZodNumber;
+                        text: z.ZodString;
+                        publishAt: z.ZodString;
+                        expiresAt: z.ZodNullable<z.ZodString>;
+                        wallRefs: z.ZodArray<z.ZodString>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        repost: z.ZodBoolean;
+                        pinWallRefs: z.ZodArray<z.ZodString>;
+                        replyLock: z.ZodArray<z.ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: z.ZodBoolean;
+                        media: z.ZodArray<z.ZodObject<{
+                            role: z.ZodEnum<{
+                                media: "media";
+                                preview: "preview";
+                            }>;
+                            position: z.ZodNumber;
+                            source: z.ZodEnum<{
+                                file: "file";
+                                vault: "vault";
+                            }>;
+                            mediaRef: z.ZodNullable<z.ZodString>;
+                            fileId: z.ZodNullable<z.ZodNumber>;
+                        }, z.core.$strip>>;
+                        findings: z.ZodArray<z.ZodObject<{
+                            code: z.ZodEnum<{
+                                publish_time_past: "publish_time_past";
+                                file_of_another_model: "file_of_another_model";
+                                file_deleted: "file_deleted";
+                                media_not_on_page: "media_not_on_page";
+                                repost_within_threshold: "repost_within_threshold";
+                                posted_before: "posted_before";
+                                price_range_not_set: "price_range_not_set";
+                                price_out_of_range: "price_out_of_range";
+                                paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                                volume_high: "volume_high";
+                                daily_limit_exceeded: "daily_limit_exceeded";
+                                wall_not_on_page: "wall_not_on_page";
+                                wall_default_unknown: "wall_default_unknown";
+                                tier_not_on_page: "tier_not_on_page";
+                                onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                                onlyfans_file_too_large: "onlyfans_file_too_large";
+                                fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            }>;
+                            severity: z.ZodEnum<{
+                                info: "info";
+                                blocking: "blocking";
+                                warning: "warning";
+                            }>;
+                            mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                            detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+                        }, z.core.$strip>>;
+                        blocked: z.ZodBoolean;
+                        author: z.ZodObject<{
+                            kind: z.ZodEnum<{
+                                human: "human";
+                                agent: "agent";
+                            }>;
+                            userId: z.ZodNullable<z.ZodNumber>;
+                            agentKeyId: z.ZodNullable<z.ZodNumber>;
+                        }, z.core.$strip>;
+                        approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+                        platformPostRef: z.ZodNullable<z.ZodString>;
+                        statusReason: z.ZodNullable<z.ZodString>;
+                        previousPublicationId: z.ZodNullable<z.ZodNumber>;
+                        withdrawal: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        deletion: z.ZodNullable<z.ZodObject<{
                             state: z.ZodString;
                             errorCode: z.ZodNullable<z.ZodString>;
                             at: z.ZodString;
@@ -32116,6 +32201,12 @@ declare const baseRouteSchemas: {
                         tierRefs: z.ZodArray<z.ZodString>;
                         priceMills: z.ZodNullable<z.ZodNumber>;
                         repost: z.ZodBoolean;
+                        pinWallRefs: z.ZodArray<z.ZodString>;
+                        replyLock: z.ZodArray<z.ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: z.ZodBoolean;
                         media: z.ZodArray<z.ZodObject<{
                             role: z.ZodEnum<{
                                 media: "media";
@@ -32175,6 +32266,11 @@ declare const baseRouteSchemas: {
                         statusReason: z.ZodNullable<z.ZodString>;
                         previousPublicationId: z.ZodNullable<z.ZodNumber>;
                         withdrawal: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        deletion: z.ZodNullable<z.ZodObject<{
                             state: z.ZodString;
                             errorCode: z.ZodNullable<z.ZodString>;
                             at: z.ZodString;
@@ -32267,6 +32363,12 @@ declare const baseRouteSchemas: {
                 tierRefs: z.ZodArray<z.ZodString>;
                 priceMills: z.ZodNullable<z.ZodNumber>;
                 repost: z.ZodBoolean;
+                pinWallRefs: z.ZodArray<z.ZodString>;
+                replyLock: z.ZodArray<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: z.ZodBoolean;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -32326,6 +32428,11 @@ declare const baseRouteSchemas: {
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    errorCode: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                }, z.core.$strip>>;
+                deletion: z.ZodNullable<z.ZodObject<{
                     state: z.ZodString;
                     errorCode: z.ZodNullable<z.ZodString>;
                     at: z.ZodString;
@@ -32626,6 +32733,12 @@ declare const baseRouteSchemas: {
             tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
             priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             repost: z.ZodDefault<z.ZodBoolean>;
+            pinWallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+            replyLock: z.ZodDefault<z.ZodArray<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>>;
+            subscribersOnly: z.ZodDefault<z.ZodBoolean>;
             idempotencyKey: z.ZodString;
         }, z.core.$strict>;
         readonly response: {
@@ -32713,6 +32826,12 @@ declare const baseRouteSchemas: {
                 tierRefs: z.ZodArray<z.ZodString>;
                 priceMills: z.ZodNullable<z.ZodNumber>;
                 repost: z.ZodBoolean;
+                pinWallRefs: z.ZodArray<z.ZodString>;
+                replyLock: z.ZodArray<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: z.ZodBoolean;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -32772,6 +32891,11 @@ declare const baseRouteSchemas: {
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    errorCode: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                }, z.core.$strip>>;
+                deletion: z.ZodNullable<z.ZodObject<{
                     state: z.ZodString;
                     errorCode: z.ZodNullable<z.ZodString>;
                     at: z.ZodString;
@@ -32897,6 +33021,12 @@ declare const baseRouteSchemas: {
                     tierRefs: z.ZodArray<z.ZodString>;
                     priceMills: z.ZodNullable<z.ZodNumber>;
                     repost: z.ZodBoolean;
+                    pinWallRefs: z.ZodArray<z.ZodString>;
+                    replyLock: z.ZodArray<z.ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                    }>>;
+                    subscribersOnly: z.ZodBoolean;
                     media: z.ZodArray<z.ZodObject<{
                         role: z.ZodEnum<{
                             media: "media";
@@ -32956,6 +33086,11 @@ declare const baseRouteSchemas: {
                     statusReason: z.ZodNullable<z.ZodString>;
                     previousPublicationId: z.ZodNullable<z.ZodNumber>;
                     withdrawal: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        errorCode: z.ZodNullable<z.ZodString>;
+                        at: z.ZodString;
+                    }, z.core.$strip>>;
+                    deletion: z.ZodNullable<z.ZodObject<{
                         state: z.ZodString;
                         errorCode: z.ZodNullable<z.ZodString>;
                         at: z.ZodString;
@@ -33181,6 +33316,12 @@ declare const baseRouteSchemas: {
                 tierRefs: z.ZodArray<z.ZodString>;
                 priceMills: z.ZodNullable<z.ZodNumber>;
                 repost: z.ZodBoolean;
+                pinWallRefs: z.ZodArray<z.ZodString>;
+                replyLock: z.ZodArray<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: z.ZodBoolean;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -33240,6 +33381,11 @@ declare const baseRouteSchemas: {
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    errorCode: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                }, z.core.$strip>>;
+                deletion: z.ZodNullable<z.ZodObject<{
                     state: z.ZodString;
                     errorCode: z.ZodNullable<z.ZodString>;
                     at: z.ZodString;
@@ -33332,6 +33478,12 @@ declare const baseRouteSchemas: {
             tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
             priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
             repost: z.ZodDefault<z.ZodBoolean>;
+            pinWallRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+            replyLock: z.ZodDefault<z.ZodArray<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+            }>>>;
+            subscribersOnly: z.ZodDefault<z.ZodBoolean>;
             version: z.ZodNumber;
         }, z.core.$strict>;
         readonly response: {
@@ -33419,6 +33571,12 @@ declare const baseRouteSchemas: {
                 tierRefs: z.ZodArray<z.ZodString>;
                 priceMills: z.ZodNullable<z.ZodNumber>;
                 repost: z.ZodBoolean;
+                pinWallRefs: z.ZodArray<z.ZodString>;
+                replyLock: z.ZodArray<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    followers: "followers";
+                }>>;
+                subscribersOnly: z.ZodBoolean;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -33482,6 +33640,11 @@ declare const baseRouteSchemas: {
                     errorCode: z.ZodNullable<z.ZodString>;
                     at: z.ZodString;
                 }, z.core.$strip>>;
+                deletion: z.ZodNullable<z.ZodObject<{
+                    state: z.ZodString;
+                    errorCode: z.ZodNullable<z.ZodString>;
+                    at: z.ZodString;
+                }, z.core.$strip>>;
                 createdAt: z.ZodString;
                 updatedAt: z.ZodString;
                 statusChangedAt: z.ZodString;
@@ -33538,10 +33701,7 @@ declare const baseRouteSchemas: {
                     label: z.ZodString;
                     pageId: z.ZodNumber;
                 }, z.core.$strict>;
-                transport: z.ZodEnum<{
-                    node: "node";
-                    browser: "browser";
-                }>;
+                transport: z.ZodLiteral<"browser">;
                 login: z.ZodObject<{
                     state: z.ZodEnum<{
                         off: "off";
@@ -39503,8 +39663,6 @@ export type CreatePageBody = z.infer<typeof createPageBodySchema>;
 export type UpdatePageBody = z.infer<typeof updatePageBodySchema>;
 export type AdminCreatePageResponse = z.infer<typeof adminCreatePageResponseSchema>;
 export type AdminUpdatePageResponse = z.infer<typeof adminUpdatePageResponseSchema>;
-export type UpdateCredentialsBody = z.infer<typeof updateCredentialsBodySchema>;
-export type UpdateCredentialsResponse = z.infer<typeof updateCredentialsResponseSchema>;
 export type VerifyPageResponse = z.infer<typeof verifyPageResponseSchema>;
 export type DeletedResponse = z.infer<typeof deletedResponseSchema>;
 export type ConfigViewResponse = z.infer<typeof configViewResponseSchema>;

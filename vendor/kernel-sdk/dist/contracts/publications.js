@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PUBLICATION_ACTOR_KINDS, PUBLICATION_AUTHOR_KINDS, PUBLICATION_FINDING_CODES, PUBLICATION_FINDING_SEVERITIES, PUBLICATION_KINDS, PUBLICATION_MEDIA_MAX, PUBLICATION_PREVIEWS_MAX, PUBLICATION_STATUSES, PUBLICATION_TEXT_MAX_LENGTH, } from "../shared/index";
+import { PUBLICATION_ACTOR_KINDS, PUBLICATION_AUTHOR_KINDS, PUBLICATION_FINDING_CODES, PUBLICATION_FINDING_SEVERITIES, PUBLICATION_KINDS, PUBLICATION_MEDIA_MAX, PUBLICATION_PREVIEWS_MAX, PUBLICATION_REPLY_LOCKS, PUBLICATION_STATUSES, PUBLICATION_TEXT_MAX_LENGTH, } from "../shared/index";
 import { intId, isoDateTime, mills, platformEnum } from "./primitives";
 import { agentCursorString } from "./routes-agent";
 // Publications: wall posts Hub publishes on Fansly and OnlyFans
@@ -15,7 +15,9 @@ export const publicationMediaInputSchema = z.discriminatedUnion("source", [
 const refList = z.array(z.string().regex(/^[0-9A-Za-z_-]{1,64}$/)).max(20);
 /**
  * What a draft says. Kind decides the rest: a story is one file; previews and a
- * price are a paid post's; FYP, walls and tiers exist on Fansly only. An empty
+ * price are a paid post's, or a Fansly subscriber post's that anyone else may
+ * buy (its subscribers see it free); FYP, walls, pins, reply locks and tiers
+ * exist on Fansly only, and a Fansly paid post may be for subscribers only. An empty
  * `wallRefs` on Fansly means the page's default wall, resolved when the draft
  * is saved so the approval freezes it.
  */
@@ -28,11 +30,17 @@ export const publicationContentSchema = z.strictObject({
     /** When the post leaves the wall; null = never. */
     expiresAt: isoDateTime({ offset: true }).nullable().default(null),
     wallRefs: refList.default([]),
-    /** Fansly subscription tiers that see a subscriber post; empty = every subscriber. */
+    /** Fansly subscription tiers that see a subscriber post (any of them); empty = every subscriber. */
     tierRefs: refList.default([]),
     priceMills: mills.positive().nullable().default(null),
     /** "Перезалив": the person or agent says the file is posted again on purpose. */
     repost: z.boolean().default(false),
+    /** Fansly: the walls the post is pinned on; each one of its walls. */
+    pinWallRefs: refList.default([]),
+    /** Fansly: who may reply — any of these; empty = everyone. */
+    replyLock: z.array(z.enum(PUBLICATION_REPLY_LOCKS)).max(PUBLICATION_REPLY_LOCKS.length).default([]),
+    /** Fansly paid post: only subscribers may buy it (of `tierRefs`, or of every tier). */
+    subscribersOnly: z.boolean().default(false),
 });
 export const publicationCreateBodySchema = publicationContentSchema.extend({
     pageLabel: z.string().min(1),
@@ -79,6 +87,9 @@ export const publicationSchema = z.object({
     tierRefs: z.array(z.string()),
     priceMills: mills.nullable(),
     repost: z.boolean(),
+    pinWallRefs: z.array(z.string()),
+    replyLock: z.array(z.enum(PUBLICATION_REPLY_LOCKS)),
+    subscribersOnly: z.boolean(),
     media: z.array(publicationMediaSchema),
     findings: z.array(publicationFindingSchema),
     /** A blocking finding: the draft cannot be approved as it is. */
@@ -99,6 +110,15 @@ export const publicationSchema = z.object({
      * the publication's status (withdrawn / unknown).
      */
     withdrawal: z.object({ state: z.string(), errorCode: z.string().nullable(), at: z.string() }).nullable(),
+    /**
+     * The deletion of its published Fansly post, when the owner asked for one:
+     * its command's state in the same words — prepared (never left; may be
+     * pressed again), dispatching, confirmed (Fansly answered; a fresh read
+     * decides), rejected (Fansly said no: the post stays), unknown. The outcome
+     * itself is the publication's status (withdrawn, reason
+     * deleted_after_publish / unknown).
+     */
+    deletion: z.object({ state: z.string(), errorCode: z.string().nullable(), at: z.string() }).nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
     statusChangedAt: z.string(),
@@ -199,7 +219,8 @@ export const publicationWithdrawResultSchema = z.object({
      * incomplete or without the post, the page stopped for its authorization;
      * accepted — Fansly (plan PR 9): Hub queued the cancel on the page's engine;
      * it goes after a fresh read of the schedule still shows the post, and its
-     * result comes as the publication's status within minutes.
+     * result comes as the publication's status within minutes. A deletion of a
+     * published Fansly post answers accepted or refused the same way.
      */
     outcome: z.enum(["withdrawn", "unknown", "rejected", "not_sent", "refused", "accepted"]),
     reason: z.string().nullable(),

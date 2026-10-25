@@ -853,6 +853,10 @@ export const RU: I18nCatalog<'ru'> = {
   'fanPanel.memory.fix': 'Исправить',
   'fanPanel.memory.delete': 'Удалить',
   'fanPanel.memory.correctedBy': 'исправил {name}',
+  'fanPanel.memory.quote.show': 'из чата',
+  'fanPanel.memory.quote.fan': 'фан',
+  'fanPanel.memory.quote.model': 'модель',
+  'fanPanel.memory.quote.media': 'медиа',
   'fanPanel.memory.nobody': 'Хаб пока ничего не знает об этом фане',
   'fanPanel.memory.pageSpent': '{total}, за 30 дней {last30}',
   // Chat Memory week 4: customs.

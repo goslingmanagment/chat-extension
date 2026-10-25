@@ -74,7 +74,7 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
       // the operation is still theirs: another sign-in since (an attempt outlives a sign-out) took the operation away,
       // and the send is not the next person's to report.
       const view = ops.view(fact.opId);
-      if (view !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId, priced: fact.priced, withMedia: fact.withMedia, composedWith: composedWithOfFeature(view.feature) });
+      if (view !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId, priced: fact.priced, withMedia: fact.withMedia, composedWith: composedWithOfFeature(view.feature), ...(fact.edited === undefined ? {} : { edited: fact.edited }) });
     },
   });
 

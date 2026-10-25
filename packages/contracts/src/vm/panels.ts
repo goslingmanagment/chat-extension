@@ -81,6 +81,8 @@ export interface FanMemoryFactVM {
   /** «Исправить» is offered (the UI sends `ChangeFanFact` with the text written). */
   readonly correctable: boolean;
   readonly busy: boolean;
+  /** The message the fact comes from, as Hub archived it — folded under the fact; null — Hub sent none. */
+  readonly quote: { readonly text: string; readonly fromFan: boolean; readonly at: IsoTimestamp; readonly media: boolean } | null;
 }
 
 /** Chat Memory week 4: a tip of the fan Hub suggests as a custom's payment — «$120 · 2 дня назад · «for my video»». */

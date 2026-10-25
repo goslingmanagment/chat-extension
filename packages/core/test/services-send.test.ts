@@ -210,6 +210,19 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(await report(second, 'a', 'sentObserved', { platformMessageId: WORLD.messages.sentByUs })).toBe(true);
     await second.coordinator.idle();
     expect(second.sent).toMatchObject([{ attemptId: A, priced: true, withMedia: true }]);
+    // Whether the person edited the part is not journaled: a restored attempt does not guess it.
+    expect(second.sent[0]).not.toHaveProperty('edited');
+  });
+
+  it('a part the person edited before the send goes to who sent it as edited; a restored attempt says nothing of it', async () => {
+    const h = sendHarness();
+    h.hub.claimScript.push(ticketFor(A), okAnswer(A, 'sent'));
+    await h.coordinator.begin(TAB, h.begin({ textRevision: 1 }));
+    expect(await report(h, 'a', 'nativeEnqueued', {}, 'pending-1')).toBe(true);
+    expect(await report(h, 'a', 'nativeAccepted', { platformMessageId: WORLD.messages.sentByUs })).toBe(true);
+    expect(await report(h, 'a', 'sentObserved', { platformMessageId: WORLD.messages.sentByUs })).toBe(true);
+    await h.coordinator.idle();
+    expect(h.sent).toMatchObject([{ attemptId: A, edited: true }]);
   });
 
   it('[SP-054] enqueued → accepted → echo: sentObserved, custody `sent` with the id, telemetry hook, lock released', async () => {
@@ -224,7 +237,7 @@ describe('[SP-054] [X8-07] [X8-08] [X8-09] the coordinator: journal, one dispatc
     expect(actions(h)).toEqual(['dispatch', 'sent']);
     expect(h.hub.claims[1]?.body).toEqual({ action: 'sent', attemptId: A, instanceId: WORLD.instanceId, platformMessageId: WORLD.messages.sentByUs, evidence: 'receipt+echo' });
     // With its page and fan: who sent the message is the background's to record (decision X48).
-    expect(h.sent).toEqual([{ attemptId: A, opId: OP, purpose: 'preview-reply', part: 0, variant: 0, generationRef: GEN, platformMessageId: WORLD.messages.sentByUs, pageId: previewTarget.binding.pageId, fanRef: previewTarget.fanRef, priced: false, withMedia: false }]);
+    expect(h.sent).toEqual([{ attemptId: A, opId: OP, purpose: 'preview-reply', part: 0, variant: 0, generationRef: GEN, platformMessageId: WORLD.messages.sentByUs, pageId: previewTarget.binding.pageId, fanRef: previewTarget.fanRef, priced: false, withMedia: false, edited: false }]);
     const journal = h.store.data.get(STORAGE_KEYS.sendJournal) as { state: string; pendingId?: string }[];
     expect(journal[0]).toMatchObject({ state: 'sentObserved', pendingId: 'pending-1' });
     expect(h.coordinator.counts()).toEqual({ open: 0, uncertain: 0 });

@@ -42,6 +42,7 @@ function world(copied: readonly OutreachItem[] | ((account: string | null) => Pr
     hostAccountId: CREATOR,
     fanRef: `70000000000000020${n}`,
     line,
+    lineWith: 'ping',
     group: async () => `80000000000000030${n}`,
   });
   const later = (ms: number): void => {
@@ -84,6 +85,7 @@ describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => 
         text: 'hey 1, missed you 😳\n\nnew video is up — the dragon one 🐉',
         attachments: [{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }],
         cause: { kind: 'click', actionToken: TOKEN },
+        composedWith: 'ping',
       },
       {
         hostAccountId: CREATOR,
@@ -92,6 +94,7 @@ describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => 
         text: 'how was the trip?\n\nnew video is up — the dragon one 🐉',
         attachments: [{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }],
         cause: { kind: 'click', actionToken: TOKEN },
+        composedWith: 'ping',
       },
     ]);
     expect(w.outreach.vm().sent).toBe(2);
@@ -142,8 +145,8 @@ describe('[host:fansly] «Рассылка» of Spenders: who gets what', () => 
     expect(w.outreach.needsText()).toBe(false);
     expect(w.outreach.batchFix()).toEqual({ draft: 'ok this one is SPECIAL, first time with a DRAGON' });
     await w.outreach.send('SendOutreach', 'spenders:42:1', w.fan(1, 'hey Gordon, made something new and you were the first one I thought of'));
-    expect(w.sent.map((request) => [request.fanRef, request.text, request.attachments])).toEqual([
-      ['700000000000000201', 'hey Gordon, made something new and you were the first one I thought of', [{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }]],
+    expect(w.sent.map((request) => [request.fanRef, request.text, request.attachments, request.composedWith])).toEqual([
+      ['700000000000000201', 'hey Gordon, made something new and you were the first one I thought of', [{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }], 'fix'],
     ]);
     // Switched off, the batch goes back to its Reply / Ping, and a hub without the mode never offers it.
     w.outreach.set({ type: 'SetOutreach', adapt: false });

@@ -133,6 +133,8 @@ export interface SendCoordinatorDeps {
     /** 1.30.0 (X53): what the part took along (a price, media), as the hub records who sent it. */
     readonly priced: boolean;
     readonly withMedia: boolean;
+    /** The person changed the part's text before the send (its `textRevision` above 0); absent — not known (restored). */
+    readonly edited?: boolean;
   }) => void;
   /** How long an ended attempt is kept (memory and journal); the results' lifetime by default. */
   readonly keepEndedMs?: number;
@@ -171,6 +173,8 @@ interface Attempt {
   readonly hostBuild?: string | null;
   /** 1.30.0 (X53): what the part takes along (`SendBegin.marks`, kept in the journal); undefined — its text alone. */
   readonly marks?: SendMarks;
+  /** The person changed the part's text before the send (`SendBegin.textRevision` above 0); undefined — restored, not known. */
+  readonly edited?: boolean;
 }
 
 /**
@@ -269,6 +273,7 @@ export class SendCoordinator {
       updatedAt: now,
       ...(begin.hostBuild === undefined ? {} : { hostBuild: begin.hostBuild }),
       ...(begin.marks === undefined ? {} : { marks: begin.marks }),
+      edited: begin.textRevision > 0,
     };
     this.attempts.set(begin.attemptId, attempt);
     this.byKey.set(key, begin.attemptId);
@@ -648,6 +653,7 @@ export class SendCoordinator {
         fanRef: attempt.fanRef,
         priced: attempt.marks?.priced ?? false,
         withMedia: attempt.marks?.withMedia ?? false,
+        ...(attempt.edited === undefined ? {} : { edited: attempt.edited }),
       });
     }
   }

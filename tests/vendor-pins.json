@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "0cc6c868f5c59aad6e702479b2f010d29fce123adc0569533ae803212eb3caa3",
-    "sourceCommit": "3ffb461437963aea6719128fc8d7b386518cbefa",
-    "note": "Vendored on 2026-10-24 from hub main 3ffb4614 (#831, #832) with scripts/vendor-sdk.mjs: clientFanCustomCreate and clientFanCustomChange, `customs` and `customPayments` of clientFanCard, `customs` of clientHandoff (Chat Memory week 4, «Кастомы»), on top of the week 3 «Очередь» routes; the rest of the client routes is unchanged. Registered as a candidate for 0.9.0. Re-vendor with the same script and update this pin together."
+    "contractHash": "6e6d52916024adf5aa06984bf5350bf6f8407b885a25d82d6c41e9d65e37d56a",
+    "sourceCommit": "9779bfb473dbf3f8d565b3251d1c443b24c39051",
+    "note": "Vendored on 2026-10-25 from hub main 9779bfb4 (#866) with scripts/vendor-sdk.mjs: the optional `quote` of each fact in clientFanCard (the archived message the fact comes from), on top of the review fixes of the client routes since 3ffb4614 (#851 the card answers only for a fan of the asked page, #858/#861 customs, #863 the shift report's lateChanges). Registered as a candidate for 0.10.5. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

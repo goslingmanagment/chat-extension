@@ -113,6 +113,7 @@ export function memoryModel({ card, busy, openOf, customs }: MemoryInput): Omit<
           remove: fact.granted ? { type: 'ChangeFanFact', factId: fact.id, action: 'delete' } : null,
           correctable: fact.granted,
           busy: busy.has(`fact:${String(fact.id)}`),
+          quote: fact.quote === undefined || fact.quote === null ? null : { text: fact.quote.text, fromFan: fact.quote.from === 'fan', at: fact.quote.at, media: fact.quote.media },
         }),
       ),
   }));
