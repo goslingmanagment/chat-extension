@@ -885,6 +885,11 @@ export const SendAttributionFactSchema = z.strictObject({
   conversationRef: z.optional(NativeIdSchema),
   /** Chat Memory week 1: how the draft was written; absent — `unknown`. */
   wrote: z.optional(z.enum(SEND_WROTE)),
+  /**
+   * The page's send seen only by its receipt (Fansly `pageSent`): the background takes it at once — under the person
+   * signed in now — and holds it a while for the same message's human send, which may still tell its draft.
+   */
+  receipt: z.optional(z.literal(true)),
 });
 export type SendAttributionFact = z.infer<typeof SendAttributionFactSchema>;
 

@@ -17,6 +17,12 @@ scenario(
     await s.keys(...s.PANEL, 'm');
     await s.see('modal', 'в разговоре: Nikita', 30_000);
     await s.shot('talking-spenders');
+    // ⌘K: the same fans' chats carry the mark (the navigation's chat handles name no host).
+    await s.closeAll();
+    await s.leaveField();
+    await s.keys(s.MOD, 'k');
+    await s.see('modal', 'в разговоре: Nikita', 30_000);
+    await s.shot('talking-palette');
   },
   {
     sites: ['chatspace', 'fansly'],

@@ -319,7 +319,7 @@ export function FanPanel(): JSX.Element {
               ) : (
                 <>
                   {vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
-                  {vm.tab === 'fan' ? <FanTab vm={vm} /> : vm.tab === 'memory' && vm.memory !== undefined ? <MemoryTab memory={vm.memory} /> : <RecapTab archive={vm.footer.stamp.coverage} />}
+                  {vm.tab === 'fan' ? <FanTab vm={vm} /> : vm.tab === 'memory' && vm.memory !== undefined ? <MemoryTab key={vm.memory.fanRef ?? ''} memory={vm.memory} /> : <RecapTab archive={vm.footer.stamp.coverage} />}
                 </>
               )}
             </div>

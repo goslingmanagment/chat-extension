@@ -833,6 +833,7 @@ export const EN: I18nCatalog<'en'> = {
   'fanPanel.memory.custom.record': 'Record a custom',
   'fanPanel.memory.custom.what': 'What was ordered',
   'fanPanel.memory.custom.price': 'Price, $',
+  'fanPanel.memory.custom.badPrice': 'The price is dollars: 120 or 49.99',
   'fanPanel.memory.custom.payment': 'Is this the custom’s payment?',
   'fanPanel.memory.custom.none': 'No customs recorded',
   'queue.handoff.customs': 'Open customs',

@@ -37,6 +37,14 @@
 // one (Fansly's group — the hub refuses a Fansly fact without it, so such a
 // fact is never taken) and how its text was written (`composedWith`,
 // `edited`).
+//
+// A send seen only by its receipt (Fansly's `pageSent`: media, PPV, any send
+// of the page) is taken at once — journaled, under the person signed in at
+// that moment — and held SEND_ATTRIBUTION_RECEIPT_HOLD_MS before it goes: the
+// same message's human send may still come (the gesture waits up to a minute
+// for its echo) and tell how its text was written, which replaces the
+// receipt's `unknown` while it is held. A tab closed, or another person
+// signed in, under the hold changes nothing of whose send it was.
 
 import {
   SEND_ATTRIBUTION_CHAT_SOURCES,
@@ -65,6 +73,8 @@ export const SEND_ATTRIBUTION_KEEP_MS = 14 * 24 * 60 * 60_000;
 export const SEND_ATTRIBUTION_BATCH_MS = 3_000;
 /** A difference from the hub's clock above this corrects the times sent; below it the browser's clock stands. */
 export const SEND_ATTRIBUTION_SKEW_MS = 60_000;
+/** How long a send seen only by its receipt waits for its human send before it goes as written in a way not known. */
+export const SEND_ATTRIBUTION_RECEIPT_HOLD_MS = 60_000;
 
 /** One send, as the background takes it: the page and client it is reported for, and the hub's own fact. */
 export interface SendAttributionInput {
@@ -82,6 +92,8 @@ export interface SendAttributionInput {
   readonly conversationRef?: string;
   readonly composedWith?: SendAttributionComposedWith;
   readonly edited?: boolean;
+  /** Seen only by its receipt: held for its human send (SEND_ATTRIBUTION_RECEIPT_HOLD_MS). */
+  readonly receipt?: true;
 }
 
 export type SendAttributionOutcome =
@@ -110,6 +122,8 @@ interface Owed extends SendAttributionInput {
   readonly at: number;
   /** The hub found its time ahead of its clock once: sent again corrected, and final the next time. */
   readonly ahead?: true;
+  /** A receipt's fact waits for its human send until then (local clock); absent — it goes with the next report. */
+  readonly holdUntil?: number;
 }
 
 const keyOf = (owner: string, fact: Pick<SendAttributionInput, 'pageLabel' | 'platformMessageId'>): string => `${owner}|${fact.pageLabel}|${fact.platformMessageId}`;
@@ -132,6 +146,7 @@ function isOwed(value: unknown): value is Owed {
     typeof item.at === 'number' &&
     Number.isFinite(item.at) &&
     (item.ahead === undefined || item.ahead === true) &&
+    (item.holdUntil === undefined || (typeof item.holdUntil === 'number' && Number.isFinite(item.holdUntil))) &&
     (item.conversationRef === undefined || isText(item.conversationRef, 64)) &&
     (item.composedWith === undefined || (SEND_ATTRIBUTION_COMPOSED_WITH as readonly unknown[]).includes(item.composedWith)) &&
     (item.edited === undefined || typeof item.edited === 'boolean')
@@ -168,6 +183,8 @@ export class SendAttributionReporter {
   /** Deliveries in flight, by `owner|page|source`. */
   private readonly running = new Map<string, Promise<void>>();
   private timer: TimerHandle | null = null;
+  /** Wakes the report when the first held receipt's hold ends. */
+  private holdTimer: { readonly handle: TimerHandle; readonly at: number } | null = null;
   /** The hub's clock less this browser's, as the last answer said; 0 — not known, or within SEND_ATTRIBUTION_SKEW_MS. */
   private skewMs = 0;
   private readonly writes = new WriteQueue();
@@ -199,6 +216,7 @@ export class SendAttributionReporter {
     if (dropped > 0 || stored.length > SEND_ATTRIBUTIONS_MAX) this.save();
     if (this.owed.size > 0) this.log.write({ level: 'info', scope: 'bg.attribution', msg: 'owed send attributions restored', fields: { owed: this.owed.size, dropped } });
     this.resume();
+    this.scheduleHold();
     return this.owed.size;
   }
 
@@ -215,8 +233,21 @@ export class SendAttributionReporter {
       return 'invalid';
     }
     const key = keyOf(owner, input);
+    // The human send of a message its receipt already gave: how its text was written replaces the receipt's `unknown`
+    // while the receipt is held — under the person signed in when the receipt was taken.
+    const held = input.receipt === true ? undefined : [...this.owed.entries()].find(([, owed]) => owed.holdUntil !== undefined && owed.pageLabel === input.pageLabel && owed.platformMessageId === input.platformMessageId);
+    if (held !== undefined) {
+      const [heldKey, { holdUntil: _hold, ...owed }] = held;
+      const { receipt: _receipt, ...told } = input;
+      this.owed.set(heldKey, { ...owed, ...told, observedAt: owed.observedAt, owner: owed.owner, at: owed.at });
+      this.save();
+      this.schedule();
+      return 'queued';
+    }
     if (this.owed.has(key) || this.answered.has(key)) return 'known';
-    this.owed.set(key, { ...input, owner, at: this.deps.clock.now() });
+    const { receipt, ...fact } = input;
+    const now = this.deps.clock.now();
+    this.owed.set(key, { ...fact, owner, at: now, ...(receipt === true ? { holdUntil: now + SEND_ATTRIBUTION_RECEIPT_HOLD_MS } : {}) });
     while (this.owed.size > SEND_ATTRIBUTIONS_MAX) {
       const oldest = this.owed.keys().next().value;
       if (oldest === undefined || oldest === key) break;
@@ -224,7 +255,8 @@ export class SendAttributionReporter {
       this.log.write({ level: 'warn', scope: 'bg.attribution', msg: 'owed send attribution given up: too many owed' });
     }
     this.save();
-    this.schedule();
+    if (receipt === true) this.scheduleHold();
+    else this.schedule();
     return 'queued';
   }
 
@@ -267,6 +299,23 @@ export class SendAttributionReporter {
     });
   }
 
+  /** A wake-up for the first held receipt whose hold ends; it goes with the next report then. */
+  private scheduleHold(): void {
+    // A hold that ended already is no wake-up: such a fact goes with the next report like any other.
+    const now = this.deps.clock.now();
+    const holds = [...this.owed.values()].map((owed) => owed.holdUntil).filter((at): at is number => at !== undefined && at > now);
+    if (holds.length === 0) return;
+    const at = Math.min(...holds);
+    if (this.holdTimer !== null && this.holdTimer.at <= at) return;
+    if (this.holdTimer !== null) this.deps.clock.clearTimer(this.holdTimer.handle);
+    const handle = this.deps.clock.setTimer(at - now, () => {
+      this.holdTimer = null;
+      this.resume();
+      this.scheduleHold();
+    });
+    this.holdTimer = { handle, at };
+  }
+
   private start(group: string): void {
     const run = this.deliver(group).finally(() => {
       this.running.delete(group);
@@ -279,7 +328,8 @@ export class SendAttributionReporter {
     // The journal first: an event page unloaded before the hub answers leaves the facts to its successor.
     await this.writes.idle();
     for (;;) {
-      const batch = [...this.owed.values()].filter((owed) => groupOf(owed) === group).slice(0, SEND_ATTRIBUTION_LIMITS.maxFacts);
+      const now = this.deps.clock.now();
+      const batch = [...this.owed.values()].filter((owed) => groupOf(owed) === group && (owed.holdUntil === undefined || owed.holdUntil <= now)).slice(0, SEND_ATTRIBUTION_LIMITS.maxFacts);
       const first = batch[0];
       if (first === undefined) return;
       const request: SendAttributionsRequest = {

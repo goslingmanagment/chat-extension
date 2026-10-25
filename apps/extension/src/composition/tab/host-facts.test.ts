@@ -35,8 +35,6 @@ function bootstrap(over: { off?: readonly string[]; notServed?: readonly string[
 
 function world(state = 'ready') {
   const sent: [string, unknown][] = [];
-  /** The tab's timers (Chat Memory week 1: a page's send waits for its `humanSend`), run by `runTimers`. */
-  const timers: Array<() => void> = [];
   const configured: ChatSpaceLiveConfig[] = [];
   const timeouts: number[] = [];
   const failures: string[] = [];
@@ -95,14 +93,6 @@ function world(state = 'ready') {
     setNavInsertTimeoutMs: (ms) => void timeouts.push(ms),
     onFailure: (what) => void failures.push(what),
     now: () => Date.parse('2026-10-17T12:00:00.000Z'),
-    later: (callback) => {
-      const run = (): void => callback();
-      timers.push(run);
-      return () => {
-        const index = timers.indexOf(run);
-        if (index >= 0) timers.splice(index, 1);
-      };
-    },
   });
   const setState = (next: string): void => {
     port.state = next;
@@ -119,9 +109,6 @@ function world(state = 'ready') {
     fuse,
     attributions,
     event: (type: string, payload: unknown) => eventListeners.get(type)?.(payload),
-    runTimers: () => {
-      for (const run of timers.splice(0)) run();
-    },
     emit: (event: HostEvent) => listener(event),
     subscribed: () => subscribed,
     stateListeners: () => stateListeners.size,
@@ -348,27 +335,35 @@ describe('facts of the page → the background', () => {
     expect(w.sent).toEqual([['op.reportSent', { opId: 'op-1', part: { index: 1 }, pendingId: 'pending-1', platformMessageId: '9001', edited: true }]]);
   });
 
-  it('Chat Memory week 1: a page’s send seen only by its receipt waits for its humanSend — which reports it with the draft — and else goes as written in a way not known', () => {
+  it('Chat Memory week 1: a page’s send seen only by its receipt goes to the background at once, as a receipt — a tab closed a moment later loses nothing; its humanSend after tells the draft', () => {
     const w = world();
     const pageSent = (platformMessageId: string, media = false): HostEvent => ({ type: 'pageSent', fact: { chat: CHAT, conversationRef: '810000000000000001', platformMessageId, media } });
-    // A typed send: the receipt first, then the gesture's humanSend of the same message — one fact, with its draft.
+    const receipt = (platformMessageId: string, media: boolean) => ({ fact: { chat: CHAT, platformMessageId, observedAt: '2026-10-17T12:00:00.000Z', priced: false, media, conversationRef: '810000000000000001', wrote: 'unknown', receipt: true } });
+    // A typed send: the receipt first — said at once — then the gesture's humanSend of the same message with its draft.
     w.emit(pageSent('9101'));
+    expect(w.attributions.sent).toEqual([receipt('9101', false)]);
     w.emit(humanSend({ platformMessageId: '9101', insertIntentId: null, edited: null, provenance: 'human-or-unknown', conversationRef: '810000000000000001' }));
-    // A send with media: no humanSend ever comes.
+    // A send with media, the tab closed right after: the receipt is the background's already.
     w.emit(pageSent('9102', true));
-    // The same receipt twice is one wait.
-    w.emit(pageSent('9102', true));
+    w.facts.dispose();
     expect(w.attributions.sent).toEqual([
+      receipt('9101', false),
       { fact: { chat: CHAT, platformMessageId: '9101', observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false, conversationRef: '810000000000000001', wrote: 'hand' } },
+      receipt('9102', true),
     ]);
-    w.runTimers();
-    expect(w.attributions.sent).toEqual([
-      { fact: { chat: CHAT, platformMessageId: '9101', observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false, conversationRef: '810000000000000001', wrote: 'hand' } },
-      { fact: { chat: CHAT, platformMessageId: '9102', observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: true, conversationRef: '810000000000000001', wrote: 'unknown' } },
+  });
+
+  it('Chat Memory week 1: a receipt of a message its humanSend already reported, or the same receipt again, says nothing', () => {
+    const w = world();
+    const pageSent = (platformMessageId: string): HostEvent => ({ type: 'pageSent', fact: { chat: CHAT, conversationRef: '810000000000000001', platformMessageId, media: false } });
+    w.emit(humanSend({ platformMessageId: '9201', insertIntentId: null, edited: null, provenance: 'human-or-unknown', conversationRef: '810000000000000001' }));
+    w.emit(pageSent('9201'));
+    w.emit(pageSent('9202'));
+    w.emit(pageSent('9202'));
+    expect(w.attributions.sent.map((sent) => (sent as { fact: { platformMessageId: string; receipt?: true } }).fact)).toMatchObject([
+      { platformMessageId: '9201', wrote: 'hand' },
+      { platformMessageId: '9202', receipt: true },
     ]);
-    // A receipt of a message its humanSend already reported says nothing.
-    w.emit(pageSent('9101'));
-    w.runTimers();
     expect(w.attributions.sent).toHaveLength(2);
   });
 });

@@ -124,6 +124,8 @@ export interface FanMemoryCustomsVM {
 
 export interface FanMemoryVM {
   readonly view: VmView;
+  /** The fan of the card shown; absent — none yet. Whatever is being written in the tab is that fan's. */
+  readonly fanRef?: string;
   readonly accounts: readonly FanMemoryAccountVM[];
   /** Every page of the person, most paid first. */
   readonly pages: readonly FanMemoryPageVM[];

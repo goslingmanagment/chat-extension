@@ -29,12 +29,16 @@ export function createTalkingController(deps: { readonly rpc: TalkingRpc }): Tal
   let view: TalkingVM = { view: { s: 'loading', since: null, stage: null }, marks };
 
   const take = (next: TalkingMarks): void => {
-    // Each mark under its page's row (`page:<pageId>:<fanRef>`) and under every chat of it (TalkingVM.marks).
+    // Each mark under its page's row (`page:<pageId>:<fanRef>`) and under every chat of it, with and without its host
+    // (TalkingVM.marks).
     const byChat: Record<string, TalkingMarkVM> = {};
     for (const mark of next.marks) {
       const vm = { names: mark.names, lastSentAt: mark.lastSentAt };
       byChat[`page:${String(mark.pageId)}:${mark.fanRef}`] = vm;
-      for (const chatKey of mark.chatKeys) byChat[chatKey] = vm;
+      for (const chatKey of mark.chatKeys) {
+        byChat[chatKey] = vm;
+        byChat[`acc:${chatKey.split(':').slice(1).join(':')}`] = vm;
+      }
     }
     if (loaded && JSON.stringify(byChat) === JSON.stringify(marks)) return;
     loaded = true;

@@ -1495,8 +1495,8 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
       fanRef: '5000',
       known: true,
       accounts: [{ platform: 'onlyfans', fanRef: '5000', username: 'kai38', displayName: 'Kai', gone: false, linkedBy: null }],
-      pages: [MEMORY_PAGE(page.pageLabel, true, '💵Kai/Canada/38', 120_000), MEMORY_PAGE('lora-1', false, '❌ПОКА НЕТ ДЕНЕГ❌ kai', 300_000)],
-      suggestions: [{ platform: 'onlyfans', fanRef: '5001', username: 'kai_new', displayName: 'Kai', gone: false, reason: 'same_alias', shared: 'Kai/Canada/38', sharedOn: 'lora-2', pages: [MEMORY_PAGE('lora-2', false, '💵Kai/Canada/38', 40_000, '5001')] }],
+      pages: [MEMORY_PAGE(page.pageLabel, true, '💵Rowan/Norway/52', 120_000), MEMORY_PAGE('lora-1', false, '❌ПОКА НЕТ ДЕНЕГ❌ kai', 300_000)],
+      suggestions: [{ platform: 'onlyfans', fanRef: '5001', username: 'kai_new', displayName: 'Kai', gone: false, reason: 'same_alias', shared: 'Rowan/Norway/52', sharedOn: 'lora-2', pages: [MEMORY_PAGE('lora-2', false, '💵Rowan/Norway/52', 40_000, '5001')] }],
       facts: [
         { id: 7, kind: 'about', text: 'Lives in Toronto', pageLabel: page.pageLabel, granted: true, conversationRef: '5000', messageRef: '9001', messageAt: iso(NOW_MS - 3_600_000), source: 'ai', author: null, createdAt: iso(NOW_MS) },
         { id: 8, kind: 'promise', text: 'A custom video on Friday', pageLabel: 'lora-1', granted: false, conversationRef: '5000', messageRef: '9002', messageAt: null, source: 'ai', author: null, createdAt: iso(NOW_MS) },
@@ -1519,9 +1519,9 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
     // Most paid first, the other page «не ваша» with the team's alias as it is.
     expect(memory.pages.map((row) => [row.pageLabel, row.mine, row.alias, row.spent, row.last30])).toEqual([
       ['lora-1', false, '❌ПОКА НЕТ ДЕНЕГ❌ kai', 300_000, 15_000],
-      [page.pageLabel, true, '💵Kai/Canada/38', 120_000, 15_000],
+      [page.pageLabel, true, '💵Rowan/Norway/52', 120_000, 15_000],
     ]);
-    expect(memory.suggestions[0]?.why).toEqual({ key: 'fanPanel.memory.why.alias', params: { shared: 'Kai/Canada/38', on: 'lora-2' } });
+    expect(memory.suggestions[0]?.why).toEqual({ key: 'fanPanel.memory.why.alias', params: { shared: 'Rowan/Norway/52', on: 'lora-2' } });
     // «не знаю» is the UI's: an empty kind is there, with no items.
     expect(memory.facts.map((group) => [group.kind, group.items.map((fact) => [fact.id, fact.mine, fact.remove !== null, fact.correctable])])).toEqual([
       ['about', [[7, true, true, true]]],
@@ -1600,7 +1600,7 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
       [3, 'cancelled', 0, 0, false],
     ]);
     // «Записать кастом» with the suggested tip: written paid, the tip taken.
-    await h.dispatch({ type: 'RecordFanCustom', description: '  A photo set  ', priceMills: 50_000, paymentRef: '8001' });
+    await h.dispatch({ type: 'RecordFanCustom', fanRef: '5000', description: '  A photo set  ', priceMills: 50_000, paymentRef: '8001' });
     await h.flush();
     customs = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!;
     expect(customs.items[0]).toMatchObject({ description: 'A photo set', state: 'paid', paid: 50_000, createdBy: WORLD.user.username });
@@ -1611,6 +1611,12 @@ describe('Chat Memory week 2: «Память» of the fan panel', () => {
     const delivered = h.boards.fanPanel.getSnapshot(PANEL).memory!.customs!.items.find((item) => item.id === 1)!;
     expect([delivered.state, delivered.deliveredBy, delivered.cancel]).toEqual(['delivered', [], null]);
     expect(h.hub.read().entries.filter((entry) => entry.route === 'clientFanCustomCreate' || entry.route === 'clientFanCustomChange').length).toBe(2);
+    // The form was written for this fan, then another chat opened: saving it writes nothing to anyone.
+    h.hostEvent({ type: 'route', route: { epoch: 7, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5001' } } });
+    await h.flush();
+    expect(await h.dispatch({ type: 'RecordFanCustom', fanRef: '5000', description: 'A video for 5000' })).toMatchObject({ outcome: 'noop' });
+    await h.flush();
+    expect(h.hub.read().entries.filter((entry) => entry.route === 'clientFanCustomCreate').length).toBe(1);
   });
 });
 
@@ -1622,7 +1628,7 @@ describe('Chat Memory week 3: «Очередь» of the fan panel', () => {
     h.hub.control({
       op: 'queue',
       pageLabel: page.pageLabel,
-      waiting: [{ fanRef: '5000', conversationRef: '7000', alias: '💵Kai/Canada/38', username: 'kai38', displayName: 'Kai', lifetimeGrossMills: 0, lastFanMessageAt: iso(NOW_MS - 600_000), lastModelMessageAt: null, unreadCount: 1, readState: 'unread' }],
+      waiting: [{ fanRef: '5000', conversationRef: '7000', alias: '💵Rowan/Norway/52', username: 'kai38', displayName: 'Kai', lifetimeGrossMills: 0, lastFanMessageAt: iso(NOW_MS - 600_000), lastModelMessageAt: null, unreadCount: 1, readState: 'unread' }],
       winBack: {
         pageLabel: page.pageLabel,
         approaches: [{ id: 1, label: 'Скучала' }, { id: 2, label: 'Новое видео' }],
@@ -1641,7 +1647,7 @@ describe('Chat Memory week 3: «Очередь» of the fan panel', () => {
     expect(reads()).toBe(1);
     let queue = h.boards.fanPanel.getSnapshot(PANEL).queue!;
     // The team's alias as it is, the username beside it; nothing spent is no money; the chat by its own id.
-    expect(queue.waiting?.rows.map((row) => [row.name, row.username, row.spent, row.open])).toEqual([['💵Kai/Canada/38', '@kai38', null, { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: HOST_IDS.acc, platformFanId: '5000' }, '7000') } }]]);
+    expect(queue.waiting?.rows.map((row) => [row.name, row.username, row.spent, row.open])).toEqual([['💵Rowan/Norway/52', '@kai38', null, { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: HOST_IDS.acc, platformFanId: '5000' }, '7000') } }]]);
     // A chat opens: the panel stays on «Очередь», nothing of it is read again before its time.
     h.hostEvent({ type: 'route', route: { epoch: 7, name: 'chat', account: hostAccount, chat: { host: 'chatspace', hostAccountId: HOST_IDS.acc, platformFanId: '5000' } } });
     await h.flush();

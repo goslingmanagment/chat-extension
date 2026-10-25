@@ -39,6 +39,9 @@ export function talkingMarksOf(answer: InConversationResult, page: Pick<TalkingP
   return marks;
 }
 
+/** A mark lasts this long after the other chatter's message (the hub's own window). */
+const TALK_MS = 15 * 60_000;
+
 export interface TalkingDeps {
   readonly clock: Pick<Clock, 'now' | 'setTimer' | 'clearTimer'>;
   readonly hub: () => Pick<HubFacade, 'inConversation'> | null;
@@ -62,11 +65,11 @@ export class TalkingMarksService {
     this.log = deps.log ?? NO_LOG;
   }
 
-  /** What the tabs are told now: every page's marks still running. */
+  /** What the tabs are told now: every mark still running by its own message — a hub not heard keeps none longer. */
   current(): TalkingMarks {
     const now = this.deps.clock.now();
     const marks: TalkingMark[] = [];
-    for (const page of this.byPage.values()) if (page.until > now) marks.push(...page.marks);
+    for (const page of this.byPage.values()) if (page.until > now) marks.push(...page.marks.filter((mark) => Date.parse(mark.lastSentAt) + TALK_MS > now));
     return { marks };
   }
 
@@ -112,10 +115,12 @@ export class TalkingMarksService {
         const now = this.deps.clock.now();
         const marks = talkingMarksOf(answer, page, now);
         // Kept until the newest mark would run out by itself (15 minutes after its message), then dropped.
-        const until = Math.max(now + IN_CONVERSATION_POLL_MS * 2, ...marks.map((mark) => Date.parse(mark.lastSentAt) + 15 * 60_000));
+        const until = Math.max(now + IN_CONVERSATION_POLL_MS * 2, ...marks.map((mark) => Date.parse(mark.lastSentAt) + TALK_MS));
         this.byPage.set(page.pageLabel, { marks, until });
       } catch {
-        // Not heard: the page keeps what it last heard until that runs out; the next poll asks again.
+        // Not heard: the page keeps what it last heard until that runs out; the next poll asks again — the regular
+        // one: a page never heard is known as asked, so the tabs' next change does not ask it again at once.
+        if (!this.byPage.has(page.pageLabel)) this.byPage.set(page.pageLabel, { marks: [], until: this.deps.clock.now() });
         this.log.write({ level: 'info', scope: 'bg.talking', msg: 'in-conversation not heard', fields: { page: page.pageLabel } });
       }
     }
