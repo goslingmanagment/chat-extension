@@ -21,6 +21,7 @@ export * from './analysis';
 export * from './batch';
 export * from './spenders';
 export * from './newcomers';
+export * from './outreach';
 export * from './preview';
 export * from './voice';
 export * from './talking';

@@ -195,8 +195,10 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   // R20 P10c: a «Новые» card asks after writing and reading its draft — «Отправить» a send, «Открыть и вставить» a navigation.
   SendNewcomerGreeting: ['send'],
   InsertNewcomerGreeting: ['navigate'],
-  // «Рассылка» of Spenders on Fansly: a row's «Отправить» is a send by this click.
+  // «Рассылка»: a fan's «Отправить» is a send by this click; «Ещё раз» / «Написать для …» writes that one fan's version
+  // (the versions of many are `GenerateBatch`, the batch's own grant).
   SendOutreach: ['send'],
+  RewriteOutreach: ['generate'],
   // 2026-10-24: «Hi» of a greeting reminder's toast opens the fan's card and starts its Hi; 2026-10-25 — and opens the
   // chat with it, or the chat of a fan somebody greeted meanwhile, or hands the click to the fan's model's tab (its
   // deferred greet grant, `afterGreet`).

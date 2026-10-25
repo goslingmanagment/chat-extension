@@ -9,7 +9,8 @@
 // window closed) stops the batch: the fans left go back to ticked, for a new click.
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { BATCH_LIMITS, type ActionReceipt, type BatchRowState, type BatchRowVM, type BatchVM, type MediaPickerVM, type Msg, type NewcomerRowSendVM, type UiAction } from '@cg/contracts/vm';
+import { type MediaFanState } from '@cg/contracts/media';
+import { BATCH_LIMITS, type ActionReceipt, type BatchRowState, type BatchRowVM, type BatchVM, type MediaPickerVM, type Msg, type NewcomerRowSendVM, type OutreachMediaVM, type PreviewSendView, type UiAction, type UiActionType } from '@cg/contracts/vm';
 
 import { type BoardsClock } from './ports';
 import { done } from './surface';
@@ -60,14 +61,23 @@ export interface Batch {
   pick(handles: readonly string[], picked: boolean): boolean;
   /** «Сгенерировать для N»: the ticked fans join the queue; false — none was ticked. */
   run(): boolean;
+  /**
+   * These fans join the queue now, at its end, whatever they had (a result, a tick): «Ещё раз» of one fan, «Переписать N».
+   * One generating stays as it is. False — none joined.
+   */
+  queue(handles: readonly string[]): boolean;
   /** «Остановить»: the fans waiting their turn are ticked again; those generating finish. */
   stop(): boolean;
   /** «Очистить»: the rows forget the batch (a generation running goes on and is still shown). */
   clear(): boolean;
+  /** These fans forget the batch — their tick, their result as the batch heard it (one generating goes on). */
+  drop(handles: readonly string[]): boolean;
   row(handle: string): BatchRowVM;
   vm(reason: Msg | null): BatchVM;
   /** Someone is ticked, waiting, generating or has a result in the batch. */
   active(): boolean;
+  /** The fans ticked for the next click, in the order they were ticked. */
+  picked(): readonly string[];
   /** Another sign-in, account or list: everything goes. */
   reset(): void;
   dispose(): void;
@@ -178,6 +188,20 @@ export function createBatch(deps: BatchDeps): Batch {
       pump();
       return true;
     },
+    queue(handles) {
+      let moved = false;
+      for (const handle of handles) {
+        if (items.get(handle)?.state === 'generating') continue;
+        picks.delete(handle);
+        items.delete(handle);
+        items.set(handle, { state: 'queued', text: null, code: null });
+        moved = true;
+      }
+      if (!moved) return false;
+      deps.changed();
+      pump();
+      return true;
+    },
     stop() {
       dropRetry();
       const moved = requeue();
@@ -191,6 +215,19 @@ export function createBatch(deps: BatchDeps): Batch {
       for (const [handle, item] of [...items]) if (item.state !== 'generating') items.delete(handle);
       if (had) deps.changed();
       return had;
+    },
+    drop(handles) {
+      let moved = false;
+      for (const handle of handles) {
+        if (picks.delete(handle)) moved = true;
+        const item = items.get(handle);
+        if (item !== undefined && item.state !== 'generating') {
+          items.delete(handle);
+          moved = true;
+        }
+      }
+      if (moved) deps.changed();
+      return moved;
     },
     row,
     vm(reason) {
@@ -207,6 +244,7 @@ export function createBatch(deps: BatchDeps): Batch {
       };
     },
     active: () => picks.size > 0 || items.size > 0,
+    picked: () => [...picks],
     reset() {
       generation += 1;
       dropRetry();
@@ -225,19 +263,53 @@ export function createBatch(deps: BatchDeps): Batch {
   };
 }
 
+/**
+ * «Рассылка» on a site whose cards send (X8): the fan's version as their card holds it — the text that goes, how its
+ * «Отправить» stands, what goes with it.
+ */
+export interface OutreachCardRow {
+  /** The result whose first part is the version. */
+  readonly opId: string;
+  /** The text that goes: the person's edit, else Fix's. */
+  readonly text: string;
+  readonly edited: boolean;
+  /** The person may change it now (it has not started to go). */
+  readonly editable: boolean;
+  /** Its «Отправить» as the card shows it; null — the card has none for it. */
+  readonly send: PreviewSendView | null;
+  /** The card would send it by one plain click now. */
+  readonly can: boolean;
+  /** Only the half second after a send of the tab holds it. */
+  readonly paused: boolean;
+  /** What goes with it: the fan's picks (the outreach's, or their own); null — nothing. */
+  readonly media: OutreachMediaVM | null;
+  /** The fan's picks are their own, not the outreach's. */
+  readonly ownMedia: boolean;
+  /** The archive's time of the fan's feed on their card (what the version was made by); null — not read. */
+  readonly archiveAt: string | null;
+}
+
 /** What a list's batch asks of the preview (its controller, bound late: the preview is made after the lists). */
 export interface BatchPreviewPort {
   /** `outreach` — «Рассылка»: a Fix of the common text made personal for the fan (the card's draft stays as it is). */
-  batchStart(source: 'spenders' | 'newcomers', handle: string, feature: 'reply' | 'ping' | 'hi' | 'fix', outreach?: { readonly draft: string }): Promise<BatchOutcome>;
+  batchStart(source: 'spenders' | 'newcomers' | 'outreach', handle: string, feature: 'reply' | 'ping' | 'hi' | 'fix', outreach?: { readonly draft: string }): Promise<BatchOutcome>;
   batchLive(handle: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** X59 on a hub's «Новые»: the row's own «Отправить» of the fan's greeting; null — no part waits (absent — none here). */
   batchSend?(handle: string): NewcomerRowSendVM | null;
-  /** «Рассылка» of Spenders on a site that sends from the card (X8): its bar open or closed; false — no such send here. */
+  /** «Рассылка» exists (its window open or folded): the cards of its fans take its media; false — no card send here. */
   setOutreach?(on: boolean): boolean;
-  /** The vault media every fan of the outreach takes; null — none set. */
-  outreachMedia?(): { readonly count: number; readonly previews: number; readonly priceCents: number; readonly from: string | null } | null;
-  /** The outreach's own media window while it is open; null — closed. */
+  /** The outreach's media as picked; null — none (text only). */
+  outreachMedia?(): OutreachMediaVM | null;
+  /** The outreach's media sheet while open (the vault picker); null — closed. */
   outreachPicker?(): MediaPickerVM | null;
+  /** The fan's version on their card; null — no version there. */
+  outreachRow?(handle: string): OutreachCardRow | null;
+  /** The card's own send of the fan's version (X8) with the fan's media, by this click; `anyway` passes the card's warning. */
+  outreachSend?(type: UiActionType, handle: string, anyway: boolean): Promise<ActionReceipt>;
+  /** The person's words for the fan's version (null — Fix's again); false — the version cannot change now. */
+  outreachEdit?(handle: string, text: string | null): boolean;
+  /** What these fans got of these media, as the site's vault says (bought, sent unbought, free); null — the site cannot tell. */
+  outreachStates?(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
   onBatch(listener: () => void): () => void;
 }
 

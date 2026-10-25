@@ -64,6 +64,8 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   dialogs: 'entries/dialogs.ts',
   spenders: 'entries/spenders.ts',
   'fan-panel': 'entries/fan-panel.ts',
+  // «Рассылка»: the shared window, its chip above the page's own launcher.
+  outreach: 'fansly/outreach.ts',
   // Fansly's AI policy (§1.6, §3.1): the proof of a start from MAIN's snapshot, loaded with the dock (R20 P8b1).
   'ai-fansly': 'fansly/ai-fansly.ts',
   // Fansly's own panels (§3.1): the vault on `/creator/vault` (R20 P13b) and the «Новые» window (R20 P10a).

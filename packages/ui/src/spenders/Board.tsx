@@ -36,7 +36,6 @@ import {
   TalkingMark,
 } from '../kit';
 import { BatchBar, BatchCheck, BatchLine, inBatch } from './batch';
-import { OutreachSend, useOutreachAdds } from './outreach';
 import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, inlinePreviewHeight, isStop, nextStop, shelfLabel, shelfTier, type BoardItem } from './rows';
 import { ChoiceMenu, FilterChip, coverageWord, isPlainKey } from './window';
@@ -215,8 +214,6 @@ interface FanRowProps {
   readonly rowIndex: number;
   readonly active: boolean;
   readonly onPick: (key: string) => void;
-  /** «Рассылка» is open: what goes after the row's personal line («+ общий текст · + 2 вложения»); null — nothing. */
-  readonly adds?: string | null;
   /**
    * A click on the row (not the keyboard's focus): the list holds its scroll for a second click. true — it is the second
    * click of a double click on this same row.
@@ -254,12 +251,12 @@ function tierText(i18n: I18n, tier: SpenderRowVM['tier']): string {
 }
 
 /** A fan: one line of the table's columns, and under a row in a batch the line of its generation. */
-function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, onPick, onPress, adds = null, copy = false }: FanRowProps): JSX.Element {
+function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, onPick, onPress, copy = false }: FanRowProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const format = row.lifetimeCents === true ? { cents: true } : {};
   const lifetime = useSpokenMoney(row.lifetime, format);
-  const classes = ['cg-bd__row', row.selected ? 'is-sel' : '', expanded ? 'is-open' : '', row.deleted ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : '', row.outreach === undefined ? '' : 'has-outreach', active ? 'is-active' : '']
+  const classes = ['cg-bd__row', row.selected ? 'is-sel' : '', expanded ? 'is-open' : '', row.deleted ? 'is-deleted' : '', inBatch(row) ? 'has-batch' : '', active ? 'is-active' : '']
     .filter((name) => name !== '')
     .join(' ');
   // The sticky copy is drawn for the eye: the list, its keys and the e2e find the real row by these.
@@ -315,8 +312,8 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
       <span role="cell" class="cg-bd__per cg-num">
         {period === null ? <span class="cg-bd__none">{i18n.formatMoneyMills(null)}</span> : i18n.formatMoneyMills(period)}
       </span>
-      {copy ? <span role="cell" class="cg-bd__act" /> : row.outreach === undefined ? <OpenCell row={row} live /> : <OutreachSend handle={row.handle} row={row.outreach} />}
-      {row.batch === undefined || copy ? null : <BatchLine row={row.batch} end={row.outreach === undefined || adds === null ? null : <span class="cg-or__plus">{adds}</span>} />}
+      {copy ? <span role="cell" class="cg-bd__act" /> : <OpenCell row={row} live />}
+      {row.batch === undefined || copy ? null : <BatchLine row={row.batch} end={null} />}
     </div>
   );
 }
@@ -688,10 +685,9 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
   const showList = hasRows && board.view.s !== 'error' && board.view.s !== 'forbidden' && board.view.s !== 'empty';
   // A batch's progress stands over the list once nobody is ticked (the ticked have the bar row of the window).
   const progress = board.batch !== undefined && board.batch.picked === 0;
-  const adds = useOutreachAdds(board.outreach);
   return (
     <section class={`cg-bd${tierColumn ? ' has-tier' : ''}${narrow ? ' is-narrow' : ''}`} aria-label={i18n.t('spenders.boardLabel')} data-cg-board={board.view.s} data-cg-sort={board.sort}>
-      {progress && board.batch !== undefined ? <BatchBar list="spenders" batch={board.batch} {...(board.outreach?.open === true ? { hint: i18n.t(board.outreach.adapt === true ? 'outreach.batchHintAdapt' : 'outreach.batchHint') } : {})} /> : null}
+      {progress && board.batch !== undefined ? <BatchBar list="spenders" batch={board.batch} /> : null}
       {board.view.s === 'offline' ? (
         <div class="cg-bd__banner">
           <ViewState view={board.view} />
@@ -748,7 +744,6 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
                       active={index === current}
                       onPick={setActiveKey}
                       onPress={onPress}
-                      adds={adds}
                       copy={copy === true}
                     />
                   );

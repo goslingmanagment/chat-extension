@@ -40,6 +40,10 @@ export interface NewcomersFrameProps {
   readonly frameRef: Ref<HTMLDivElement>;
   readonly onKeyDown: (event: TargetedKeyboardEvent<HTMLDivElement>) => void;
   readonly children: ComponentChildren;
+  /** What «×» and a press outside close: «Новые» by default (another window of the family names its own). */
+  readonly close?: UiAction;
+  /** In the head before «×» (the offer of «Рассылка», «Свернуть»). */
+  readonly actions?: ComponentChildren;
 }
 
 /** The text size the window is drawn in: «Крупнее» makes it and its rows larger (X55). */
@@ -49,7 +53,7 @@ export function useTextSize(): UiTextSize {
 }
 
 /** The compact window over a scrim, its head — the serif title, the page under it, «×» — and what the site puts under it. */
-export function NewcomersFrame({ title, sub, class: own, onEsc, frameRef, onKeyDown, children }: NewcomersFrameProps): JSX.Element {
+export function NewcomersFrame({ title, sub, class: own, onEsc, frameRef, onKeyDown, children, close = CLOSE_NEWCOMERS, actions }: NewcomersFrameProps): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const large = useTextSize() === 'large';
@@ -68,7 +72,7 @@ export function NewcomersFrame({ title, sub, class: own, onEsc, frameRef, onKeyD
         class={`cg-nw${own === undefined ? '' : ` ${own}`}${large ? ' is-large' : ''}`}
         onClose={onEsc}
         // One press outside closes the window at once, as the old Fansly extension's backdrop did; Esc still steps back.
-        onScrim={() => void dispatch(CLOSE_NEWCOMERS)}
+        onScrim={() => void dispatch(close)}
         initialFocus={() => frame.current?.querySelector<HTMLElement>('[data-cg-item][tabindex="0"]') ?? null}
       >
         <div ref={setFrame} class="cg-nw__frame" onKeyDown={onKeyDown}>
@@ -77,7 +81,8 @@ export function NewcomersFrame({ title, sub, class: own, onEsc, frameRef, onKeyD
               <h2 class="cg-nw__title">{title}</h2>
               <span class="cg-nw__sub">{sub}</span>
             </div>
-            <Button label={i18n.t('common.close')} icon="x" iconOnly variant="quiet" class="cg-nw__close" onClick={() => void dispatch(CLOSE_NEWCOMERS)} />
+            {actions}
+            <Button label={i18n.t('common.close')} icon="x" iconOnly variant="quiet" class="cg-nw__close" onClick={() => void dispatch(close)} />
           </header>
           {children}
         </div>
@@ -434,7 +439,7 @@ export function BatchFoot({ batch, words }: { readonly batch: BatchVM | undefine
  * person (a new follower on top, a fan done and gone from «К обработке») and the row stays on its fan. `initial` names
  * the row the window opens on.
  */
-export function useNewcomerRows(rows: readonly NewcomerRowVM[], initial: () => NewcomerRowVM | null): {
+export function useNewcomerRows<R extends { readonly handle: string; readonly selected: boolean } = NewcomerRowVM>(rows: readonly R[], initial: () => R | null): {
   readonly current: number;
   readonly currentHandle: string | null;
   readonly setActiveHandle: (handle: string | null) => void;

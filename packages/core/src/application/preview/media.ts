@@ -85,7 +85,7 @@ function readError<T>(read: Extract<MediaRead<T>, { ok: false }>): CgErrorWire {
   return { code, detail: read.status === null ? read.reason : `${read.reason} ${read.status}` };
 }
 
-const PRICE_PROBLEM_KEYS = {
+export const PRICE_PROBLEM_KEYS = {
   format: 'preview.media.price.format',
   decimals: 'preview.media.price.decimals',
   min: 'preview.media.price.min',
@@ -210,6 +210,11 @@ export class MediaDesk {
     this.release(picker);
     this.picksChanged(picker);
     return taken;
+  }
+
+  /** This chat's picks and price as they stand, valid or not (an empty attachment — none). */
+  current(chat: ChatRef): Attachment {
+    return this.pickers.get(keyOf(chat))?.attachment ?? EMPTY_ATTACHMENT;
   }
 
   /** «Рассылка»: this chat's picks as they stand, when valid — what every fan of the outreach then takes; null — none. */

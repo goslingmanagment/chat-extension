@@ -36,6 +36,7 @@ import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type { GestureGate } from './action-gate';
 import { adopt, type ControllerRpc, type LooseController } from './client';
 import { boardsHostOver, type HostFacts } from './host-facts';
+import type { PinState } from './surfaces';
 import type { TabKeys } from './keys';
 
 /** Timers and time as every controller family takes them (numbers as handles). */
@@ -81,6 +82,8 @@ export interface TabWorld {
   readonly drafts: DraftStore | null;
   /** 1.47.0: «Скачать MP3» of a voice take — a Blob saved inside our own closed root. */
   readonly files: AiChunk.FileSaver;
+  /** What stands over the page without being a window: «Рассылка» folded into its chip. Absent — nothing. */
+  readonly pins?: PinState;
 }
 
 const done = (type: UiAction['type'], outcome: Extract<ActionReceipt, { ok: true }>['outcome'] = 'done'): ActionReceipt => ({ ok: true, type, outcome });
@@ -329,7 +332,7 @@ export interface BoardsDock {
 }
 
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
-const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette'];
+const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette', 'outreach'];
 /** The toast's Hi on a hub's «Новые» waits this long for its result before the chat opens with it. */
 const GREET_RESULT_WAIT_MS = OP_TIMEOUTS.hi.maxMs + 15_000;
 
@@ -393,6 +396,8 @@ export async function startBoards(
     random: Math.random,
     draftOf: (pageId, fanRef) => late.preview?.draftOf('newcomers', pageId, fanRef) ?? null,
   });
+  // «Рассылка»: its own window over the Spenders board's fans; each site sends its versions its own way (the chunk says how).
+  const outreach = chunk.createOutreachController({ rpc, host: boardsHost, i18n, clock, context, surfaces, board: spenders.outreachBoard });
   const rowOf = (pageId: number, fanRef: string) => spenders.row(pageId, fanRef);
   const rowsChanged = (listener: () => void): (() => void) => spenders.directory.subscribe(listener);
   const palette = chunk.createPaletteDirectory({ host: boardsHost, context, rowOf, rowsChanged });
@@ -428,7 +433,7 @@ export async function startBoards(
     context,
     surfaces,
     navigator,
-    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette },
+    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette, outreach: outreach.directory },
     greeting: newcomers.greeting,
     sender: {
       send: (click) => driver.send(click),
@@ -452,12 +457,13 @@ export async function startBoards(
   // 1.32.0: a batch of a list starts its generations through the preview's own Generate.
   spenders.attachBatch(preview);
   newcomers.attachBatch?.(preview);
+  outreach.attachBatch(preview);
   dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
   // R12's order: the preview first — it answers for the parts of its own results.
-  const controllers = [preview, spenders, newcomers, fanPanel];
+  const controllers = [preview, spenders, newcomers, fanPanel, outreach];
   const offs = controllers.map((controller) => router.register(adopt(controller as unknown as LooseController)));
 
   /**
@@ -541,8 +547,10 @@ export async function startBoards(
     const wanted: readonly [Parameters<typeof overlays.set>[0], boolean][] = [
       ['spenders', state.spenders],
       ['newcomers', state.newcomers],
+      ['outreach', state.outreach],
       ['fan-panel', state.fanPanel],
     ];
+    world.pins?.set('outreach-chip', state.outreachChip && !state.outreach);
     for (const [overlay, isOpen] of wanted) if (overlays.isOpen(overlay) !== isOpen) overlays.set(overlay, isOpen);
     const from = PREVIEW_SOURCES.find((source) => state.preview[source] !== null) ?? null;
     if (overlays.previewFrom() !== from) overlays.setPreview(from);

@@ -9,6 +9,7 @@ import { type UiActionType, type UiAction } from './actions';
 import { type CoachVM, type RecapPickerVM, type RecapViewVM } from './analysis';
 import { type DockVM } from './dock';
 import { type NewcomersVM } from './newcomers';
+import { type OutreachWindowVM } from './outreach';
 import { type DebugPromptVM, type JournalVM, type OptionsVM, type PopupVM } from './pages';
 import { type CheatsheetVM, type FanPanelVM, type PaletteVM, type QuickJumpVM, type ToastsVM } from './panels';
 import { type PreviewVM } from './preview';
@@ -27,6 +28,8 @@ export interface ViewMap {
   readonly 'spenders.stats': SpendersStatsVM;
   readonly preview: PreviewVM;
   readonly newcomers: NewcomersVM;
+  /** 1.63.0: the window of «Рассылка». */
+  readonly outreach: OutreachWindowVM;
   readonly 'fan-panel': FanPanelVM;
   readonly palette: PaletteVM;
   readonly 'quick-jump': QuickJumpVM;
@@ -57,6 +60,7 @@ export const VM_STATE_SUPPORT = {
   'spenders.stats': ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   preview: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   newcomers: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
+  outreach: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   'fan-panel': ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   palette: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],
   popup: ['loading', 'ready', 'empty', 'partial', 'error', 'forbidden', 'offline'],

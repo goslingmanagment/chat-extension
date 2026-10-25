@@ -16,6 +16,8 @@ import {
   type GreetingStatusVM,
   type NewcomerRowVM,
   type NewcomersVM,
+  type OutreachRowVM,
+  type OutreachWindowVM,
   type PreviewActionId,
   type PreviewSource,
   type PreviewVM,
@@ -305,3 +307,90 @@ export const defaultNewcomerRows = (ctx: ScenarioCtx): NewcomerRowVM[] => [
 ];
 
 export const loadingView = (ctx: ScenarioCtx) => views.loading(ctx.now - 300);
+
+// ── «Рассылка» (1.63.0) ──
+
+const WHALE = { fromMills: usd(600), toMills: null };
+const TOP = { fromMills: usd(350), toMills: usd(600) };
+
+export function outreachRow(ctx: ScenarioCtx, fan: FanFixture, patch: Partial<OutreachRowVM> = {}): OutreachRowVM {
+  return {
+    handle: handles.outreach(fan),
+    name: fan.name,
+    username: fan.username,
+    tier: WHALE,
+    lifetime: usd(1200),
+    selected: false,
+    ticked: true,
+    waitingSince: null,
+    weWroteAt: iso(ctx.now - 3 * DAY),
+    history: true,
+    state: 'idle',
+    version: null,
+    edited: false,
+    stale: false,
+    ownMedia: false,
+    send: null,
+    warning: null,
+    sentAt: null,
+    clickedAt: null,
+    code: null,
+    bought: null,
+    replied: null,
+    ...patch,
+  };
+}
+
+export const defaultOutreachRows = (ctx: ScenarioCtx): OutreachRowVM[] => [
+  outreachRow(ctx, FANS.hubert, { lifetime: usd(8930), state: 'ready', version: 'hey Hubert, had to show you this one first. tell me when you get to the end 😈', send: { can: true, kind: 'send', paused: false, reason: null } }),
+  outreachRow(ctx, FANS.theodore, { lifetime: usd(6410), waitingSince: iso(ctx.now - 2 * HOUR), state: 'writing' }),
+  outreachRow(ctx, FANS.marco, { tier: TOP, lifetime: usd(1940), state: 'sent', version: 'ok you weren\'t up 😴 but you\'ll want to be for this one', sentAt: iso(ctx.now - 4 * MIN) }),
+];
+
+export function outreach(ctx: ScenarioCtx, view: VmView, rows: readonly OutreachRowVM[], patch: Partial<OutreachWindowVM> = {}): OutreachWindowVM {
+  const count = (state: OutreachRowVM['state']): number => rows.filter((row) => row.state === state).length;
+  return {
+    view,
+    pageName: PERSONA.pageName,
+    creator: null,
+    persona: PERSONA.label,
+    stamp: stamp(ctx),
+    chip: null,
+    text: 'ok this one is SPECIAL, first time with a DRAGON 🐉 6 minutes, tell me when you get to the end 😈',
+    maxChars: 5000,
+    textChangedAt: null,
+    media: null,
+    canPickMedia: true,
+    audience: {
+      source: 'tiers',
+      picked: 0,
+      tiers: [
+        { id: 'shelf-600000', range: WHALE, fans: 2, on: true },
+        { id: 'shelf-350000', range: TOP, fans: 1, on: true },
+      ],
+      conditions: [
+        { id: 'spent', on: false, amount: '1,000', note: null },
+        { id: 'active', on: false, note: null },
+        { id: 'noWaiting', on: false, note: { kind: 'waiting', fans: { names: [FANS.theodore.name], more: 0 } } },
+      ],
+      count: rows.length,
+      spent: rows.reduce((sum, row) => sum + (row.lifetime ?? 0), 0),
+      locked: rows.some((row) => row.state !== 'idle'),
+    },
+    tab: 'all',
+    tabs: { todo: rows.filter((row) => row.state !== 'sent' && row.state !== 'uncertain').length, all: rows.length },
+    query: '',
+    rows,
+    aside: [],
+    batch: { picked: 0, max: 60, queued: count('queued'), generating: count('writing'), ready: count('ready'), sent: count('sent'), failed: count('unwritten'), reason: null },
+    totals: { sent: count('sent'), failed: count('failed'), uncertain: count('uncertain'), ready: count('ready'), written: rows.filter((row) => row.version !== null).length, stopped: count('stopped'), total: rows.length, boughtMills: null, replied: 0 },
+    stale: 0,
+    pane: 'offer',
+    card: null,
+    summary: null,
+    sheet: null,
+    picker: null,
+    posts: null,
+    ...patch,
+  };
+}
