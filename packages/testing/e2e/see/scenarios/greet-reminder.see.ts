@@ -1,7 +1,9 @@
 // The greeting reminder: a fan subscribed 12 minutes ago and nobody greeted them — the toast «Ждёт приветствия · …»,
-// then its «Hi»: «Новые» opens on the fan's card and Hi writes the greeting into its field. The list is read once
-// (the palette row «Новые») so the reminder hears it at once instead of the background's next minute.
+// then its «Hi»: «Новые» opens on the fan's card, Hi writes the greeting, and the fan's chat opens with it in
+// ChatSpace's own field (2026-10-25). The list is read once (the palette row «Новые») so the reminder hears it at once
+// instead of the background's next minute.
 
+import { EDITOR } from '../../support/chat';
 import { STAND_IDS } from '../../support/stand';
 import { scenario, STAND_PAGE } from '../kit';
 
@@ -16,12 +18,8 @@ scenario(
     await s.closeAll();
     await s.shot('reminder');
     await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
-    await s.browser.waitUntil(() => s.has('modal', '.cg-nc__greet'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
-    await s.browser.waitUntil(async () => ((await s.h.readOurs('modal', '.cg-nc__field textarea', (node) => (node as HTMLTextAreaElement).value)) ?? '') !== '', {
-      timeout: 30_000,
-      timeoutMsg: 'the greeting did not land in the field',
-    });
-    await s.shot('reminder-hi');
+    await s.browser.waitUntil(async () => (await s.browser.$(EDITOR).getText()).trim() !== '', { timeout: 30_000, timeoutMsg: 'the greeting did not land in the chat' });
+    await s.shot('reminder-chat');
   },
   {
     previewSend: true,

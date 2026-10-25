@@ -457,7 +457,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       return fan === null ? null : (fan.displayName ?? fan.username);
     },
     // The boards come with the first action that opens one: before that no preview holds anything.
-    inPreview: (opId) => router.serves('preview') && PREVIEW_SOURCES.some((from) => router.getSnapshot({ of: 'preview', from }).result?.opId === opId),
+    inPreview: (opId) => (router.serves('preview') && PREVIEW_SOURCES.some((from) => router.getSnapshot({ of: 'preview', from }).result?.opId === opId)) || (boardsReady?.inCard(opId) ?? false),
     fromBatch: (opId) => boardsReady?.fromBatch(opId) ?? false,
   };
   const shell = createShellController({

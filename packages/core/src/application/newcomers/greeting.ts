@@ -101,6 +101,8 @@ export interface CardGreeting {
   batchLive(passId: string, fanRef: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** A batch started this generation: its end is said by its row, not by a toast. */
   fromBatch(opId: string): boolean;
+  /** A card's own «Сгенерировать» (or the toast's Hi) started this generation: its result is the card's field. */
+  fromCard(opId: string): boolean;
   /** X59: where the fan's greeting stands (a send of «Отправить готовые» ended how); null — no card of the fan yet. */
   stateOf(passId: string, fanRef: string): NewcomerGreetingStateVM | null;
   /** 2026-10-22: the site's kept attempts of the pass's fans, for the list's word before a card is opened. */
@@ -136,6 +138,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
   const waiting = new Map<string, (view: OpView | null) => void>();
   const ended = new Map<string, OpView>();
   const batchOps = new Set<string>();
+  const cardOps = new Set<string>();
   const offs: (() => void)[] = [];
   let generation = 0;
   let disposed = false;
@@ -392,7 +395,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (!admission.ok) return stop(admission.error.code);
     if (!admission.payload.ok) return stop(admission.payload.code);
     const opId = admission.payload.opId;
-    if (type === 'GenerateBatch') noteBatchOp(batchOps, opId);
+    noteBatchOp(type === 'GenerateBatch' ? batchOps : cardOps, opId);
     const view = await new Promise<OpView | null>((resolve) => {
       const timer = clock.setTimer(GREETING_GENERATION_WAIT_MS, () => {
         if (waiting.get(opId) !== undefined) waiting.delete(opId);
@@ -619,6 +622,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       return card === undefined ? null : { text: card.text.trim() === '' ? null : card.text, sent: card.state.s === 'sent' };
     },
     fromBatch: (opId) => batchOps.has(opId),
+    fromCard: (opId) => cardOps.has(opId),
     stateOf: (passId, fanRef) => cards.get(keyOf(passId, fanRef))?.state ?? null,
     known,
     refresh() {

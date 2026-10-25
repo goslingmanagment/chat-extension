@@ -60,10 +60,11 @@ import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQu
 /** The search waits this long after the last keystroke, as on the hub's list. */
 export const PASS_SEARCH_DEBOUNCE_MS = 150;
 /**
- * A greeting reminder's «Hi» waits this long for the pass to list and check its fan — inside the click's grant (the
- * tab's action gate keeps it 10 s); a fan not checked by then stays on the card for the person's own Hi.
+ * A greeting reminder's «Hi» waits this long for the pass to list and check its fan — inside the click's deferred greet
+ * grant (the tab's action gate, 2026-10-25: a window opened cold checks its first fans in tens of seconds); a fan not
+ * checked by then stays on the card for the person's own Hi.
  */
-export const GREET_CARD_WAIT_MS = 8_000;
+export const GREET_CARD_WAIT_MS = 45_000;
 /** Conversations kept in the tab at once (up to 750 messages each): the fans looked at last; an older one is read again. */
 export const PASS_HISTORIES_KEPT = 12;
 
@@ -490,7 +491,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
    * «Hi» of a greeting reminder's toast (2026-10-25), the window opened by the same click: the list shows «К обработке»
    * with no search or filter, so the fan is in it; the card goes to the fan as soon as their row is there, a fan not
    * checked yet is checked next, and the pass's handle comes back once the fan is checked — Hi then starts under that
-   * click. Not listed or not checked within GREET_CARD_WAIT_MS: null, the card's own Hi is the person's next click.
+   * click, and its greeting goes into the fan's chat. Not listed or not checked within GREET_CARD_WAIT_MS: null, the
+   * card's own Hi is the person's next click.
    */
   async function greetCard(handle: TargetHandle): Promise<TargetHandle | null> {
     const fan = parseFanHandle(handle);
@@ -1002,6 +1004,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     greetCard,
     draftsChanged: () => undefined,
     fromBatch: (opId) => card?.fromBatch(opId) ?? false,
+    inCard: (opId) => open() && (card?.fromCard(opId) ?? false),
     dispose() {
       disposed = true;
       batch.dispose();
