@@ -39,8 +39,10 @@ pnpm monorepo, TypeScript strict, WXT, Preact.
 
 A `feat`/`fix` PR — anything a chatter notices — adds `changes/<slug>.md` in the same PR: a title in the chatter's
 words, who it is for and why, `## Как это устроено` (the technical side), and a screenshot from `pnpm see` for a
-visible change. Format and tone — `changes/README.md`; check and preview — `pnpm release notes`. The site, the
-history and the Telegram post are made from these notes only; commit subjects never reach chatters. `pnpm check`
+visible change. Format and tone — `changes/README.md`; check and preview — `pnpm release notes`. The site
+(https://chatgoose.gosling-agency.ru/, pages in `site/`), the history and the Telegram post are made from these notes
+only; commit subjects never reach chatters. From 3.0.0 every release posts its notes to the chatters' channel: write a
+note as that post, with a screenshot that shows the change. `pnpm check`
 fails a `feat`/`fix` PR without a note unless its description says `No chatter note: <why>`.
 
 ## Release and versions
@@ -51,10 +53,10 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
 
 - The tool picks the version: a `new` note since the last tag — minor, else patch. Run `pnpm release` with no argument.
 - `major` or an exact `X.Y.Z` — only on the owner's word (`--confirm <version>`). 1.x and 2.x belong to the old Fansly
-  extension; the next major is **3.0.0**, the launch of the one extension that replaces it (`docs/release.md` §2).
-  Its notes wait in `changes/` with `release: 3.0.0`, its landing in `site/drafts/3.0.0/`; add to them, never release them early.
-  Once its pages are in `site/`, `site/index.html` declares `<meta name="cg-first-version" content="3.0.0">`: `pnpm release` then
-  stops with one line until the owner's `pnpm release 3.0.0 --confirm 3.0.0`.
+  extension; **3.0.0** is the launch of the one extension for OnlyFans and Fansly that replaces it and the desktop app
+  (`docs/release.md` §2). `site/index.html` declares `<meta name="cg-first-version" content="3.0.0">`: until 3.0.0 is out,
+  `pnpm release` stops with one line and waits for the owner's `pnpm release 3.0.0 --confirm 3.0.0`; its notes wait in
+  `changes/` with `release: 3.0.0`.
 - No version in PR titles, commits or notes; never edit the version in `apps/extension/package.json` — the tags hold it.
 - A version that reached AMO is spent: never reused or skipped, its tag never moved or deleted.
 - From 3.0.0 on, `pnpm release` posts the version's notes to the chatters' Telegram channel as its last step (owner,
