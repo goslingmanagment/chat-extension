@@ -447,6 +447,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       startProof: evidence.startProof,
       personalMessageCount: evidence.startProof.personalCount,
       ...(evidence.fanAvatarUrl === null ? {} : { fanAvatarUrl: evidence.fanAvatarUrl }),
+      // 2026-10-26: the names and «about» the pass read — the hub has not met a new follower yet.
+      ...(evidence.fanAccount === undefined ? {} : { fanAccount: evidence.fanAccount }),
       // 1.20.0 (X47): the name the pass already read, for «Идут сейчас» — display only, never sent to the hub.
       ...(fanLabel === null ? {} : { fanLabel }),
     };

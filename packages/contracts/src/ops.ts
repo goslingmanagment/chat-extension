@@ -7,7 +7,7 @@ import * as z from 'zod/mini';
 
 import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, freshTextSurface, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
-import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from './hi-start-proof';
+import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from './hi-start-proof';
 import { LiveImagesSchema, LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveImage, type LiveTextTail } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
@@ -315,6 +315,8 @@ export const StartOpSchema = z
     personalMessageCount: z.optional(CountSchema),
     /** FX-018: the page's avatar address, forwarded as an image to the provider by the hub. */
     fanAvatarUrl: z.optional(HiFanAvatarUrlSchema),
+    /** 2026-10-26: the fan's names and «about» the page or the pass read — Fansly Hi only (hub `fanAccount`). */
+    fanAccount: z.optional(HiFanAccountSchema),
     regenerateOf: z.optional(UuidSchema),
     /** Bypass the result cache (Regenerate, Refresh). */
     force: z.optional(z.boolean()),
@@ -363,6 +365,7 @@ export const StartOpSchema = z
     z.refine((op) => !hasHiStartFields(op) || (op.feature === 'hi' && (op.target.binding.platform === 'fansly' || (op.target.binding.platform === 'onlyfans' && hasOnlyPersonalCount(op)))), {
       message: 'Hi fields only on Fansly Hi; OnlyFans Hi only its personal count',
     }),
+    z.refine((op) => op.fanAccount === undefined || (op.feature === 'hi' && op.target.binding.platform === 'fansly'), { message: 'fanAccount only on Fansly Hi' }),
     z.refine((op) => hiStartProofMatches(op, op.target.conversationRef), { message: 'Hi proof conversation or count mismatch' }),
   );
 export type StartOp = z.infer<typeof StartOpSchema>;
@@ -775,6 +778,7 @@ export interface AiStartFields {
   readonly startProof?: StartOp['startProof'];
   readonly personalMessageCount?: StartOp['personalMessageCount'];
   readonly fanAvatarUrl?: StartOp['fanAvatarUrl'];
+  readonly fanAccount?: StartOp['fanAccount'];
 }
 
 /**

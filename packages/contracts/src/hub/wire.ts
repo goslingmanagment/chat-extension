@@ -199,6 +199,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'handoff-v1',
   /** Chat Memory week 4: customs in the fan's card (`customs`, `customPayments`), their record and changes, and in the handoff. */
   'fan-customs-v1',
+  /**
+   * 2026-10-26: Hi on Fansly takes `fanAccount` — the fan's names and «about» as the page or the pass read his account
+   * — beside `hi-fan-account-v1` in the request header. A hub without it refuses the field (400), so it goes only to a
+   * hub that lists it.
+   */
+  'hi-fan-account-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
@@ -226,8 +232,9 @@ export type ClientFeatureUnavailableReason = (typeof CLIENT_FEATURE_UNAVAILABLE_
  * 1.15.0 (R20 HF-8в): `coverage-check-v1` — a request with `coverageCheck` says it (with `context-v1`: the answer rides
  * in the context frame); only a request built from a proof does, so ChatSpace never says it.
  * `hi-start-proof-v1` (HF-5) admits the three Hi fields on Fansly; ChatSpace never says it either.
+ * `hi-fan-account-v1` (2026-10-26) admits Hi's `fanAccount` on Fansly, to a hub that lists it among its capabilities.
  */
-export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1', 'hi-start-proof-v1'] as const;
+export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1', 'hi-start-proof-v1', 'hi-fan-account-v1'] as const;
 export const AiStreamCapabilitySchema = z.enum(AI_STREAM_CAPABILITIES);
 export type AiStreamCapability = z.infer<typeof AiStreamCapabilitySchema>;
 

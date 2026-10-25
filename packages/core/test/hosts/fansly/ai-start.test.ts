@@ -223,6 +223,24 @@ describe('[host:fansly] R20 P8b1: a start on Fansly carries MAIN’s snapshot as
     expect(request.body.liveTextContext?.items.length).toBe(48);
   });
 
+  it('2026-10-26: Hi carries the fan’s names and «about» the page loaded to a hub that takes them (`hi-fan-account-v1`); a hub before it gets none of them', async () => {
+    const account = { username: 'romamai', displayName: 'Roma', about: 'guitar, cats and late nights' };
+    const tab = await fanslyTab();
+    tab.port.answer = (request) => Promise.resolve(snapshotOf(tab.held, request, { fanAccount: account }));
+    const { start, request } = await generate(tab, 'hi');
+    expect(start.fanAccount).toEqual(account);
+    expect([request.body.fanAccount, request.capabilities.includes('hi-fan-account-v1')]).toEqual([account, true]);
+
+    const older: Bootstrap = { ...BOOTSTRAP, capabilities: BOOTSTRAP.capabilities.filter((capability) => capability !== 'hi-fan-account-v1') };
+    const before = await fanslyTab({ bootstrap: older });
+    before.port.answer = (request) => Promise.resolve(snapshotOf(before.held, request, { fanAccount: account }));
+    const old = await generate(before, 'hi');
+    expect(old.start.fanAccount).toEqual(account);
+    expect([old.request.body.fanAccount, old.request.capabilities.includes('hi-fan-account-v1')]).toEqual([undefined, false]);
+    // Not another feature's: Reply's snapshot carries no account.
+    expect((await generate(tab, 'reply')).request.body.fanAccount).toBeUndefined();
+  });
+
   it('[FS-IDN-6] the snapshot is the route’s group of the chat the start was made in: a route that moved or names no group gives no proof, nothing is asked', async () => {
     const tab = await fanslyTab();
     const policy = createFanslyAi({ now: () => NOW_MS });

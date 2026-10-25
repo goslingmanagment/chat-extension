@@ -616,6 +616,8 @@ describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
       knownFanMessageIds: [second, first],
       startProof: { v: 1, source: 'pass-empty-page', groupId: chat.id, startWitnessId: welcome, coveredCount: 3, personalCount: 2, automatedIds: [welcome] },
       fanAvatarUrl: 'https://cdn3.fansly.com/a/300.jpeg?Key-Pair-Id=K1&Policy=P1&Signature=S1',
+      // 2026-10-26: the profile's names and «about» too: the hub has not met a new follower yet.
+      fanAccount: { username: 'fan_1', displayName: 'Fan 1', about: 'about 1' },
       capturedAt: row.checkedAt,
       tail: chat.messages.map((message, i) => ({ platformMessageId: message.id, direction: message.senderId === C ? 'model' : 'fan', sentAt: new Date(T0 - minutes(500) + i * 1000).toISOString(), text: message.content })),
     });

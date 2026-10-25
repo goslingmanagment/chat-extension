@@ -390,6 +390,7 @@ describe('[AI-134] [AI-142] every feature\'s request, as its driver builds it, i
     for (const { name, request } of built) {
       expect([name, request.body.coverageCheck, request.capabilities.includes('coverage-check-v1')]).toEqual([name, undefined, false]);
       expect([name, request.body.startProof, request.body.personalMessageCount, request.body.fanAvatarUrl, request.capabilities.includes('hi-start-proof-v1')]).toEqual([name, undefined, undefined, undefined, false]);
+      expect([name, request.body.fanAccount, request.capabilities.includes('hi-fan-account-v1')]).toEqual([name, undefined, false]);
       const draftFeature = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'].includes(request.feature);
       const answerFeature = ['chat-review', 'coach-chat', 'fan-summary'].includes(request.feature);
       if (!draftFeature && (!answerFeature || name.includes('a hub before X52'))) expect([name, request.body.liveTextContext]).toEqual([name, undefined]);

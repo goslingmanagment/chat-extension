@@ -78,7 +78,7 @@ export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabil
     return { error: 'bad_request', message: 'fanRef is required on fansly for coach-chat and short fan-summary' };
   }
   if (body.platform === 'fansly' && blank(body.fanRef) && feature === 'fan-notes-fill') return { error: 'bad_request', message: 'fanRef is required on fansly for fan-notes-fill' };
-  return hiStartProofShapeRefusal(feature, body, capabilities);
+  return hiStartProofShapeRefusal(feature, body, capabilities) ?? hiFanAccountRefusal(feature, body, capabilities);
 }
 
 // ── The open chat's PPV state (hub context/live-ppv.ts `assertLivePpvRequestShape`) ──
@@ -141,6 +141,19 @@ function hiStartProofShapeRefusal(feature: string, body: StreamRuleBody, capabil
     if (body.startProof.groupId !== body.conversationRef) return bad("startProof.groupId must be the request's conversationRef", 'start_proof_mismatch');
     if (body.personalMessageCount !== undefined && body.personalMessageCount !== body.startProof.personalCount) return bad('personalMessageCount must equal startProof.personalCount', 'start_proof_mismatch');
   }
+  return null;
+}
+
+// ── Hi's fan account (hub context/fansly-fan-identity.ts `assertHiFanAccountRequestShape`, 2026-10-26) ──
+
+/** Why the hub refuses `fanAccount`: only Fansly Hi without clientContext, from a caller that says hi-fan-account-v1. */
+function hiFanAccountRefusal(feature: string, body: StreamRuleBody, capabilities: readonly string[]): StreamBodyRefusal | null {
+  if (body.fanAccount === undefined) return null;
+  const bad = (message: string, reason: string): StreamBodyRefusal => ({ error: 'bad_request', message, reason });
+  if (feature !== 'hi-greeting') return bad(`${feature} does not accept fanAccount`, 'fan_account_not_allowed');
+  if (body.clientContext !== undefined) return bad('fanAccount cannot be combined with clientContext', 'fan_account_not_allowed');
+  if (body.platform !== 'fansly') return bad('fanAccount is only accepted for fansly pages', 'fan_account_not_allowed');
+  if (!capabilities.includes('hi-fan-account-v1')) return bad('fanAccount requires the hi-fan-account-v1 capability', 'capability_required');
   return null;
 }
 
