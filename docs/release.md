@@ -146,8 +146,7 @@ The post is one rich message (`sendRichMessage`, Rich HTML): «ChatGoose <versio
 intro, when the version has one; from four notes on a line of contents linking to each; then ✨ Новое /
 🛠 Улучшено / 🐛 Исправлено — each note with its title, its sites («OnlyFans и Fansly», «OnlyFans», «Fansly»),
 who it is for and why, each screenshot full width with its caption and «Как это устроено» folded; at the end
-how the update comes and the buttons «Что нового на сайте» and «Установить» (the public site, section 7).
-The screenshots go up with the request itself (multipart/form-data, `tg://photo?id=…` in the HTML): the
+how the update comes. The screenshots go up with the request itself (multipart/form-data, `tg://photo?id=…` in the HTML): the
 post depends on nothing being published, and a preview can go out before a release. A post of improvements
 and fixes alone goes without a notification; something new or the intro rings. Telegram's limits are checked
 before any request: 32 768 characters, 500 blocks, 50 screenshots, a photo up to 10 MB with width + height at
@@ -187,7 +186,7 @@ record names its XPI, the feed and `rollback` take the name from there and never
 The site for chatters is `https://chatgoose.gosling-agency.ru/`: nginx serves the same folder at the root of
 that host, `404.html` (versionless, `<base href="/">`) is its error page. The feed, the XPIs and the
 extension's own links stay under `https://ext.gosling-agency.ru/chat-extension/`, whose pages redirect
-there; the post's buttons point at the public address (`PUBLIC_SITE`, `tools/release/config.ts`).
+there.
 
 ## 8. CI
 

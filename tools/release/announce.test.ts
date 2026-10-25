@@ -8,7 +8,6 @@ import { historyOf, releaseOf } from './notes.ts';
 const TOKEN = '123456:synthetic-bot-token';
 const target = { botToken: TOKEN, chatId: '-100200300' };
 const CHANGELOG = '# Что нового\n\n## 0.2.0\n\nСтало быстрее, цена прежняя: $0.\n\n### Новое\n\n- **Сигнал.** Теперь `Double`.\n';
-const SITE = 'https://chatgoose.example/';
 
 /** The header of a PNG of that size: all of it the post reads. */
 const png = (width: number, height: number): Buffer => {
@@ -44,7 +43,7 @@ const note = (slug: string, fields: { kind: string; sites?: string; images?: str
     () => 1000,
   );
 
-const postOf = (notes: Note[], version = '3.0.1'): Post => composePost(releaseOf(historyOf(parseChangelog(CHANGELOG), [{ version, date: '2026-10-22', notes }]), version), SITE);
+const postOf = (notes: Note[], version = '3.0.1'): Post => composePost(releaseOf(historyOf(parseChangelog(CHANGELOG), [{ version, date: '2026-10-22', notes }]), version));
 const uploadsOf = (post: Post, data: (file: string) => Buffer | null = () => png(1440, 900)): Upload[] => post.photos.map((photo) => ({ ...photo, data: data(photo.file) }));
 
 type Reply = { ok: boolean; status: number; json: () => Promise<unknown> };
@@ -73,7 +72,7 @@ const TEXT_POST = postOf([note('fix-one', { kind: 'fixed' })]);
 const send = (net: ReturnType<typeof scripted>, post: Post = TEXT_POST): Promise<number | null> => sendPost(target, post, uploadsOf(post), { silent: post.silent, fetchImpl: net.fetchImpl, sleep: net.sleep });
 
 describe('the Telegram post', () => {
-  it('[UP-005] is the notes of the version: the sites by the chatters\' names, each screenshot uploaded with it, the technical side folded, the buttons to the public site', () => {
+  it('[UP-005] is the notes of the version: the sites by the chatters\' names, each screenshot uploaded with it, the technical side folded', () => {
     const post = postOf([note('spenders-all', { kind: 'new', images: ['spenders-all.png'] }), note('fansly-only', { kind: 'fixed', sites: 'fansly' })]);
     expect(post.html.split('\n')).toEqual([
       '<h1>ChatGoose 3.0.1</h1>',
@@ -93,12 +92,11 @@ describe('the Telegram post', () => {
       '<details><summary>Как это устроено</summary><p>Внутри две доски хаба.</p></details>',
       '<hr/>',
       '<footer>Firefox поставит обновление сам в течение дня. Чтобы сразу: ☰ → «Дополнения и темы» → ⚙ → «Проверить наличие обновлений». Потом перезагрузите открытые вкладки OnlyFans (ChatSpace) и Fansly.</footer>',
-      `<tg-button-row><tg-button type="url" url="${SITE}whats-new.html#v3.0.1">Что нового на сайте</tg-button><tg-button type="url" url="${SITE}">Установить</tg-button></tg-button-row>`,
     ]);
     expect(post.photos).toEqual([{ id: 'shot-1', file: 'spenders-all.png' }]);
     expect(post.silent).toBe(false);
     // A hand-written section of CHANGELOG.md goes out as it is.
-    expect(composePost(releaseOf(historyOf(parseChangelog(CHANGELOG), []), '0.2.0'), SITE).html).toContain('<p>Стало быстрее, цена прежняя: $0.</p>\n<h4>Новое</h4>\n<ul><li><b>Сигнал.</b> Теперь <code>Double</code>.</li></ul>');
+    expect(composePost(releaseOf(historyOf(parseChangelog(CHANGELOG), []), '0.2.0')).html).toContain('<p>Стало быстрее, цена прежняя: $0.</p>\n<h4>Новое</h4>\n<ul><li><b>Сигнал.</b> Теперь <code>Double</code>.</li></ul>');
   });
 
   it('opens with the intro; four notes or more get a line of contents with a link to each', () => {
@@ -134,7 +132,7 @@ describe('the Telegram post', () => {
 
   it('is refused before any request when Telegram would not take it: too long, too many pictures, a picture it cannot show', async () => {
     expect(postProblems(TEXT_POST, [])).toEqual([]);
-    const long = composePost(releaseOf(historyOf(parseChangelog(`# T\n\n## 1.0.0\n\n${'очень длинный текст '.repeat(2000)}\n`), []), '1.0.0'), SITE);
+    const long = composePost(releaseOf(historyOf(parseChangelog(`# T\n\n## 1.0.0\n\n${'очень длинный текст '.repeat(2000)}\n`), []), '1.0.0'));
     expect(postProblems(long, [])).toEqual([expect.stringMatching(/^the post is \d+ characters, Telegram takes 32768/)]);
 
     const many = postOf(
