@@ -497,6 +497,10 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
    * fan as soon as their row is there, a fan not checked yet is checked next; once checked: `hi` with the pass's handle
    * (Hi then starts under that click, and its greeting goes into the fan's chat), or `greeted` with their chat. Not
    * listed or not checked within GREET_CARD_WAIT_MS: `card`, the card's own Hi is the person's next click.
+   * 2026-10-25: `hi` also waits for the card's draft. A window opened again goes on with its pass, and a card it had not
+   * shown reads its draft only now — a Hi started before that was refused and wrote nothing; a draft that cannot be read
+   * is `card`, and the card says why. A pass another one replaced meanwhile (the background let it go): the fan's card in
+   * the new one.
    */
   async function greetCard(handle: TargetHandle): Promise<GreetCardAnswer> {
     const fan = parseFanHandle(handle);
@@ -513,20 +517,31 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     searchTimer = null;
     if (query) await queryChanged();
     const shown = (): TargetHandle | null => (pass === null || stage !== 'live' || listed(fanRef) === null ? null : passHandle(pass.passId, fanRef));
-    if (!(await until(() => shown() !== null, left()))) return ON_CARD;
-    selected = fanRef;
-    pin(fanRef);
-    nudge(fanRef);
-    changed();
-    ensureHistory();
-    const target = shown();
     const settled = (): boolean => {
       const row = rowOf(fanRef);
       return row !== null && (row.check === 'greeted' || ((row.check === 'ready' || row.check === 'reply') && row.conversationRef !== null));
     };
-    if (target === null || card === null || !(await until(settled, left())) || shown() !== target) return ON_CARD;
-    const greeted = greetedChat(handle);
-    return greeted === null ? { s: 'hi', handle: target } : { s: 'greeted', ...greeted };
+    for (;;) {
+      if (!(await until(() => shown() !== null, left()))) return ON_CARD;
+      const target = shown();
+      const passId = pass?.passId ?? null;
+      // Listed at the change, off the list by now (another pass took this one's place meanwhile): looked for again.
+      if (target === null || passId === null) continue;
+      selected = fanRef;
+      pin(fanRef);
+      nudge(fanRef);
+      changed();
+      ensureHistory();
+      if (card === null || !(await until(settled, left()))) return ON_CARD;
+      if (shown() === target) {
+        const greeted = greetedChat(handle);
+        if (greeted !== null) return { s: 'greeted', ...greeted };
+        const ready = await card.ready(passId, fanRef);
+        if (shown() === target) return ready ? { s: 'hi', handle: target } : ON_CARD;
+      }
+      // The fan is looked for again only in a pass that took this one's place; one the person's search hid stays hidden.
+      if (pass === null || pass.passId === passId || left() === 0) return ON_CARD;
+    }
   }
 
   /**

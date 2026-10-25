@@ -18,7 +18,7 @@ import {
   type FanslyTabEventPayload,
   type FanslyTabRequestPayload,
 } from '@cg/contracts/tab-messages-fansly';
-import { NEWCOMER_CHECK_FILTERS, type NewcomersVM } from '@cg/contracts/vm';
+import { NEWCOMER_CHECK_FILTERS, type ActionReceipt, type NewcomersVM } from '@cg/contracts/vm';
 import { NavigationIntentSchema, type HostEvent, type HostPort, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
 import { StartOpSchema, type GreetingDraftGeneration, type OpView, type StaleReason, type StartOp } from '@cg/contracts/ops';
 import { type FanslySendView } from '@cg/contracts/send-fansly';
@@ -28,7 +28,8 @@ import { BOOTSTRAP_PILOT_PAGES } from '@cg/testing/hub';
 import { createI18n } from '../../../domain/i18n';
 import { checkOf, passRowOf } from '../../../domain/hosts/fansly/newcomers';
 import { inPassTab, matchesPassSearch, passesCheckFilter } from '../../../domain/newcomers/pass';
-import { Surfaces, type PageContextPort, type PageContextState, type TabRpc } from '../../boards';
+import { Surfaces, fanHandle, type PageContextPort, type PageContextState, type TabRpc } from '../../boards';
+import { type GreetCardAnswer } from '../../newcomers/controller';
 import { GREETING_DRAFT_DEBOUNCE_MS } from '../../newcomers/greeting';
 import { passHandle } from '../../newcomers/pass';
 import { createPassNewcomersController } from '../../newcomers/pass';
@@ -171,6 +172,8 @@ class FakeFollowers implements FanslyFollowersPort {
   rows: FanslyFollowerRow[] = [];
   state: FanslyPassView['state'] = 'queue';
   partial = false;
+  /** The background's own rule (`scan`): the window opened again goes on with the creator's pass of that period; off — a new pass each time. */
+  keepPass = false;
   // R20 P10c: the card's greeting as the module keeps it.
   readonly drafts = new Map<string, { text: string; revision: number; historyRevision: string | null; generation?: GreetingDraftGeneration }>();
   readonly attempts = new Map<string, FanslySendView>();
@@ -206,9 +209,11 @@ class FakeFollowers implements FanslyFollowersPort {
   private answer(type: FanslyFollowersRequest, payload: Record<string, unknown>): unknown {
     switch (type) {
       case 'fansly.followers.scan': {
-        const passId = uuid(this.nextPass++);
         const chosen = payload['windowHours'] as number | null;
         if (chosen !== null) this.remembered = chosen;
+        const open = this.keepPass ? [...this.passes.values()].at(-1) : undefined;
+        if (open !== undefined && open.view.hostAccountId === payload['hostAccountId'] && open.view.windowHours === this.remembered) return { ok: true, pass: open.view };
+        const passId = uuid(this.nextPass++);
         const view = this.viewOf(passId, payload['hostAccountId'] as string, chosen ?? this.remembered);
         this.passes.set(passId, { view, rows: [...this.rows], seq: 0, history: new Map() });
         return { ok: true, pass: view };
@@ -260,6 +265,11 @@ class FakeFollowers implements FanslyFollowersPort {
       case 'fansly.followers.proof': {
         const proof = this.proofs.get(payload['fanRef'] as string);
         return proof === undefined ? { ok: false, error: { code: 'CG-FNEW-UNVERIFIED' } } : { ok: true, proof };
+      }
+      // 2026-10-25: Hi's own read of the history alongside the generation — nobody wrote meanwhile.
+      case 'fansly.followers.recheck': {
+        const revision = this.rows.find((row) => row.fanRef === payload['fanRef'])?.historyRevision ?? null;
+        return revision === null ? { ok: false, error: { code: 'CG-FNEW-UNVERIFIED' } } : { ok: true, historyRevision: revision };
       }
       case 'fansly.followers.draft': {
         const fanRef = payload['fanRef'] as string;
@@ -834,5 +844,97 @@ describe('[host:fansly] «Новые» on Fansly: a batch generated for many, ea
     expect(marked.background.of('fansly.followers.send')).toHaveLength(0);
     expect(await marked.send(1)).toMatchObject({ ok: true });
     expect(marked.background.of('fansly.followers.send')[0]).toMatchObject({ text: 'Hey!', admission: { kind: 'ai', generationRef: GEN } });
+  });
+});
+
+describe('[host:fansly] «Новые» on Fansly: «Hi» of a greeting reminder (2026-10-25)', () => {
+  type World = ReturnType<typeof greetingWorld>;
+
+  /** The reminder's Hi as the tab runs it (composition/tab/controllers.ts `greet`): the window opens, its card goes to the fan, the card's Hi starts. */
+  async function hi(w: World, n: number): Promise<{ readonly found: GreetCardAnswer; readonly started: ActionReceipt | null }> {
+    await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
+    const found: GreetCardAnswer = (await w.controller.greetCard?.(fanHandle('newcomers', PAGE_ID, fan(n)))) ?? { s: 'card' };
+    if (found.s !== 'hi') return { found, started: null };
+    return { found, started: await w.controller.dispatch({ type: 'Generate', targetHandle: found.handle, feature: 'hi', options: {} }) };
+  }
+
+  /** A shift's usual state: the window was opened on the first fan's card and closed; the background's pass goes on. */
+  async function closedAfterShift(): Promise<World> {
+    const background = new FakeFollowers();
+    background.keepPass = true;
+    const w = greetingWorld([wireRow(1), wireRow(2)], { background });
+    await w.open();
+    expect(w.card()?.handle).toBe(w.handle(1));
+    await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+    await settle();
+    return w;
+  }
+
+  /** The reads of fan `n`'s draft (a request without a text; one with it is a write). */
+  const draftReads = (w: World, n: number): unknown[] =>
+    w.background.of('fansly.followers.draft').filter((payload) => {
+      const asked = payload as { readonly fanRef: string; readonly text?: string };
+      return asked.fanRef === fan(n) && asked.text === undefined;
+    });
+
+  it('Hi on a fan the window checked before it was closed waits for the card’s draft, then writes the greeting — never a Hi into a card still reading it (it was refused, CG-DATA-NOT-READY, and nothing was written)', async () => {
+    const w = await closedAfterShift();
+    // Fan 2's card was never on screen: it reads its draft only now, and the read takes its time.
+    w.background.held.add('fansly.followers.draft');
+    const pressed = hi(w, 2);
+    await settle();
+    // The window opened again goes on with its pass: the card of the same pass goes to fan 2.
+    expect([w.background.of('fansly.followers.scan').length, w.background.passes.size]).toEqual([2, 1]);
+    expect(w.card()?.handle).toBe(w.handle(2));
+    expect(w.greeting()?.canGenerate).toBe(false);
+    expect(w.tab.started).toEqual([]);
+    w.background.release();
+    await settle();
+    // The draft is read: Hi starts on the card under the same click, and its greeting is the field.
+    expect(w.tab.started).toHaveLength(1);
+    w.tab.done(uuid(0xc1), ['Hey Fan 2, welcome! 💕']);
+    const { found, started } = await pressed;
+    expect(found).toEqual({ s: 'hi', handle: w.handle(2) });
+    expect(started).toMatchObject({ ok: true });
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 2, welcome! 💕', ai: true, canInsert: true, state: { s: 'idle' } });
+    // The card on screen and Hi shared one read of the draft.
+    expect(draftReads(w, 2)).toHaveLength(1);
+  });
+
+  it('Hi on a card whose draft cannot be read writes nothing and the card says why; the next Hi reads the draft again and writes', async () => {
+    const w = await closedAfterShift();
+    w.background.next.set('fansly.followers.draft', { ok: false, error: { code: 'CG-RUNTIME-UNREACHABLE' } });
+    expect(await hi(w, 2)).toEqual({ found: { s: 'card' }, started: null });
+    expect(w.card()?.handle).toBe(w.handle(2));
+    expect(w.greeting()).toMatchObject({ canGenerate: false, state: { s: 'not-drafted', failure: { code: 'CG-RUNTIME-UNREACHABLE', retryAt: null } } });
+    expect(w.tab.started).toEqual([]);
+    // The reminder came again and Hi is pressed: the draft is read again.
+    const pressed = hi(w, 2);
+    await settle();
+    w.tab.done(uuid(0xc1), ['Hey Fan 2!']);
+    expect(await pressed).toMatchObject({ found: { s: 'hi', handle: w.handle(2) }, started: { ok: true } });
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 2!', state: { s: 'idle' } });
+    expect(draftReads(w, 2)).toHaveLength(2);
+  });
+
+  it('Hi as the window opens again on another pass (the background let the old one go): the fan’s card in the new pass reads its draft and writes the greeting', async () => {
+    // A new pass at each open: the old one's cards go with it.
+    const w = greetingWorld([wireRow(1), wireRow(2)]);
+    await w.open();
+    // «Все» as Hi leaves it: Hi finds the fan in the rows still on screen at once.
+    await w.controller.dispatch({ type: 'SetNewcomersTab', tab: 'all' });
+    await settle();
+    const old = w.background.last().view.passId;
+    await w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+    await settle();
+    const pressed = hi(w, 2);
+    await settle();
+    w.tab.done(uuid(0xc1), ['Hey Fan 2!']);
+    const { found, started } = await pressed;
+    expect(w.background.last().view.passId).not.toBe(old);
+    expect(found).toEqual({ s: 'hi', handle: w.handle(2) });
+    expect(started).toMatchObject({ ok: true });
+    expect(w.card()?.handle).toBe(w.handle(2));
+    expect(w.greeting()).toMatchObject({ text: 'Hey Fan 2!', ai: true });
   });
 });
