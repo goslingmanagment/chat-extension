@@ -1283,6 +1283,12 @@ export const RU: I18nCatalog<'ru'> = {
     many: 'Чаты: Spenders и Новые, {n} фанов',
     other: 'Чаты: Spenders и Новые, {n} фана',
   },
+  'palette.foot.spenders': {
+    one: 'Чаты: Spenders, {n} фан',
+    few: 'Чаты: Spenders, {n} фана',
+    many: 'Чаты: Spenders, {n} фанов',
+    other: 'Чаты: Spenders, {n} фана',
+  },
   'quickJump.title': 'Быстрый переход',
   'quickJump.empty': 'Нет загруженных чатов для перехода',
   'quickJump.unread': { one: '{n} новое', few: '{n} новых', many: '{n} новых', other: '{n} новых' },

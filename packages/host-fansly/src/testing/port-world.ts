@@ -139,6 +139,12 @@ export async function startWorld(path: string, options: WorldOptions): Promise<W
       setTimeout(() => (held ? waiting.push(name) : name()), 0);
       return null;
     },
+    // The page received every group of the world: MAIN knows each fan's direct one (P7b's memory).
+    'fx.groupForFan': (payload: never) => {
+      const { creatorId, fanId } = payload as { readonly creatorId: string; readonly fanId: string };
+      const found = Object.entries(options.fans).find(([, fan]) => fan === fanId)?.[0] ?? null;
+      return { groupId: creatorId === fanslyIdentityWire.creatorId ? found : null };
+    },
   });
   const route = createRouteWatcher(window, (diagnostic) => diagnostics.push(diagnostic));
   const anchors = createAnchorWatcher(document, route);

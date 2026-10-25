@@ -43,14 +43,24 @@ describe('[SP-036] opening a chat the way a person does', () => {
   it('refused before anything moves: another account, an unknown group, no redeemed token', async () => {
     const world = await onChat([OTHER]);
     expect(await world.port.navigate(world.navigation(OTHER, 'x', { account: '700000000000000042' }))).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'rejected', code: 'CG-NAV-FAILED' } });
+    // No group named, and none the page ever gave MAIN for this fan.
     const { conversationRef: _group, ...noGroup } = world.navigation(OTHER).target;
-    expect(await world.port.navigate({ ...world.navigation(OTHER), target: noGroup })).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: null });
+    expect(await world.port.navigate({ ...world.navigation(OTHER), target: { ...noGroup, platformFanId: '700000000000000099' } })).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: null });
     world.allowRedeem(false);
     expect(await world.port.navigate(world.navigation(OTHER, 'x'))).toEqual({ state: 'failed', code: 'CG-NAV-FAILED', insert: { state: 'rejected', code: 'CG-NAV-FAILED' } });
     expect(location.pathname).toBe(`/messages/${GROUP}`);
     // The tab's own account: it is the one open.
     world.allowRedeem(true);
     expect(await world.port.navigate({ ...world.navigation(OTHER), target: { hostAccountId: CREATOR, platformFanId: null } })).toMatchObject({ state: 'navigated', insert: null });
+  });
+
+  it('2026-10-26: a target that names no group (a palette row the hub named no chat for) opens the fan’s group the page already gave MAIN', async () => {
+    const world = await onChat([OTHER]);
+    const { conversationRef: _group, ...noGroup } = world.navigation(OTHER).target;
+    expect(await world.port.navigate({ ...world.navigation(OTHER), target: noGroup })).toMatchObject({ state: 'navigated', insert: null });
+    expect(location.pathname).toBe(`/messages/${OTHER}`);
+    expect(ways(world)).toEqual(['link']);
+    await until('chat B', () => atChat(world, OTHER_FAN));
   });
 });
 

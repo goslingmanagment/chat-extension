@@ -675,6 +675,13 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     return state.state === 'off' || state.state === 'contractBroken' ? (state.code ?? 'CG-HOST-COMPOSER-MISSING') : null;
   };
 
+  /** A direct group the page already received, under its current creator (MAIN's memory); no site request. */
+  const groupForFan = async (creatorId: string, fanId: string): Promise<string | null> => {
+    if (bridge === null || creator !== creatorId || disposed) return null;
+    const taken = await generation.under(() => bridge.request('fx.groupForFan', { creatorId, fanId }));
+    return taken.ok && taken.fresh() && creator === creatorId && !disposed ? taken.value.groupId : null;
+  };
+
   const navigator = createNavigator({
     win,
     creator: () => creator,
@@ -703,6 +710,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     ...(options.navInsertTimeoutMs === undefined ? {} : { timeoutMs: options.navInsertTimeoutMs }),
     ...(options.load === undefined ? {} : { load: options.load }),
     onRoute: (listener) => route.onChange(() => listener()),
+    // A target that names no group (2026-10-26: a palette row the hub named no chat for): MAIN's memory of the page.
+    groupForFan,
     onNavigate: (way: NavigationWay, receipt: NavigationReceipt) =>
       diag({ event: 'navigate', ...(receipt.state === 'failed' ? { code: receipt.code } : {}), detail: { way, state: receipt.state, insert: receipt.insert?.state ?? null, insertCode: receipt.insert !== null && receipt.insert.state !== 'applied' ? receipt.insert.code : null } }),
   });
@@ -797,11 +806,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     platform: FANSLY_PLATFORM,
     ready,
     identity,
-    async groupForFan(creatorId, fanId) {
-      if (bridge === null || creator !== creatorId || disposed) return null;
-      const taken = await generation.under(() => bridge.request('fx.groupForFan', { creatorId, fanId }));
-      return taken.ok && taken.fresh() && creator === creatorId && !disposed ? taken.value.groupId : null;
-    },
+    groupForFan,
     previewSend: null,
     freshness: {
       snapshot: (...args) => {

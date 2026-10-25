@@ -16,12 +16,20 @@
 // navigation controller's LIST_SETTLE_MS). So the palette looks twice, as the
 // quick jump does: the look that opens it starts the read, the look a moment
 // later shows what it brought — who is online now, not at the last opening.
+//
+// 2026-10-26, Fansly: the same window. Its host keeps no list of ours yet (the
+// port's `chatList` is off, the honest «partial» note says so); its chats are
+// the hub's rows, each with its chat — the group, where a chat has an id of its
+// own — and «Новые» are asked of the hub only where the site's «Новые» are the
+// hub's list (its slice says so; Fansly finds its own by a pass).
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
+import { type FeatureSlice } from '@cg/contracts/features/types';
 import { type HostPort, type NavigationItem } from '@cg/contracts/host';
-import { type ChatRef, type HostAccount } from '@cg/contracts/ids';
+import { CHAT_IS_FAN, type ChatRef, type HostAccount } from '@cg/contracts/ids';
 import { OP_TERMINAL_STATES, type OpView } from '@cg/contracts/ops';
+import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 import {
   DOCK_ACTION_IDS,
   type ActionCatalog,
@@ -47,6 +55,8 @@ import { createEmitter, type SurfaceController, type TabClock, type TabRpc } fro
 
 export interface PaletteFanRow {
   readonly fanRef: string;
+  /** The fan's chat as the hub names it (Fansly's group); null — the hub names none. */
+  readonly conversationRef: string | null;
   readonly name: string | null;
   readonly username: string | null;
   /** Lifetime money of the fan on the page; null — unknown. */
@@ -63,7 +73,8 @@ export type PaletteSource<T> = { readonly ok: true; readonly rows: readonly T[] 
 /** Hub rows for the palette, read through the tab's own background requests (the background caches them). */
 export interface PaletteHubPort {
   waiting(account: HostAccount): Promise<PaletteSource<PaletteWaitingRow>>;
-  fans(account: HostAccount): Promise<{ readonly spenders: PaletteSource<PaletteFanRow>; readonly newcomers: PaletteSource<PaletteFanRow> }>;
+  /** `newcomers` null — the site has no «Новые» of the hub to look in, and nothing was asked. */
+  fans(account: HostAccount): Promise<{ readonly spenders: PaletteSource<PaletteFanRow>; readonly newcomers: PaletteSource<PaletteFanRow> | null }>;
 }
 
 export const PALETTE_LIMITS = {
@@ -81,12 +92,16 @@ export const PALETTE_LIMITS = {
   queueRows: 20,
 } as const;
 
-/** The default hub port: the page of the account, then the three reads. */
-export function createPaletteHub(rpc: Pick<TabRpc, 'request'>): PaletteHubPort {
+/**
+ * The default hub port: the page of the account, then the three reads. `newcomers: false` — the site's «Новые» are no
+ * list of the hub (Fansly's are a pass of the background): `newcomers.list` is not asked, the source is absent.
+ */
+export function createPaletteHub(rpc: Pick<TabRpc, 'request'>, options: { readonly newcomers?: boolean } = {}): PaletteHubPort {
   const pageOf = async (account: HostAccount): Promise<{ readonly ok: true; readonly pageId: number } | { readonly ok: false; readonly code: CgCode }> => {
     const answer = await rpc.request('binding.resolve', { account });
     return answer.ok ? { ok: true, pageId: answer.payload.binding.pageId } : { ok: false, code: answer.error.code };
   };
+  const newcomers = options.newcomers ?? true;
   return {
     async waiting(account) {
       const page = await pageOf(account);
@@ -95,15 +110,23 @@ export function createPaletteHub(rpc: Pick<TabRpc, 'request'>): PaletteHubPort {
       if (!answer.ok) return { ok: false, code: answer.error.code };
       return {
         ok: true,
-        rows: answer.payload.items.map((item) => ({ fanRef: item.fanRef, name: item.displayName, username: item.username, lifetimeMills: item.lifetimeGrossMills, waitingSince: item.lastFanMessageAt })),
+        rows: answer.payload.items.map((item) => ({
+          fanRef: item.fanRef,
+          // Chat Memory week 3: the queue names the fan's chat (absent from an older hub).
+          conversationRef: item.conversationRef ?? null,
+          name: item.displayName,
+          username: item.username,
+          lifetimeMills: item.lifetimeGrossMills,
+          waitingSince: item.lastFanMessageAt,
+        })),
       };
     },
     async fans(account) {
       const page = await pageOf(account);
-      if (!page.ok) return { spenders: page, newcomers: page };
+      if (!page.ok) return { spenders: page, newcomers: newcomers ? page : null };
       const [board, fresh] = await Promise.all([
         rpc.request('spenders.board', { pageId: page.pageId, period: 'lifetime' }),
-        rpc.request('newcomers.list', { pageId: page.pageId, windowHours: PALETTE_LIMITS.newcomersWindowHours, cursor: null }),
+        newcomers ? rpc.request('newcomers.list', { pageId: page.pageId, windowHours: PALETTE_LIMITS.newcomersWindowHours, cursor: null }) : Promise.resolve(null),
       ]);
       return {
         spenders: board.ok
@@ -111,15 +134,19 @@ export function createPaletteHub(rpc: Pick<TabRpc, 'request'>): PaletteHubPort {
               ok: true,
               rows: board.payload.items.map((item) => ({
                 fanRef: item.fan.platformUserId,
+                conversationRef: item.conversation.platformConversationId,
                 name: item.fan.displayName,
                 username: item.fan.username,
                 lifetimeMills: item.metrics.lifetime.scopeGrossAmountMills,
               })),
             }
           : { ok: false, code: board.error.code },
-        newcomers: fresh.ok
-          ? { ok: true, rows: fresh.payload.items.map((item) => ({ fanRef: item.fanRef, name: item.displayName, username: item.username, lifetimeMills: null })) }
-          : { ok: false, code: fresh.error.code },
+        newcomers:
+          fresh === null
+            ? null
+            : fresh.ok
+              ? { ok: true, rows: fresh.payload.items.map((item) => ({ fanRef: item.fanRef, conversationRef: null, name: item.displayName, username: item.username, lifetimeMills: null })) }
+              : { ok: false, code: fresh.error.code },
       };
     },
   };
@@ -134,8 +161,13 @@ export interface PaletteControllerDeps {
   readonly overlays: OverlayState;
   /** The dock's view of the open chat: which actions are available and why not. */
   readonly dock: { get(): DockVM | null; subscribe(listener: () => void): () => void };
-  /** Hub rows; omitted — `createPaletteHub(rpc)`. */
+  /** Hub rows; omitted — `createPaletteHub(rpc)`, with «Новые» where the site's are the hub's list (`features`). */
   readonly hub?: PaletteHubPort;
+  /**
+   * The site's slice of the feature manifest: «Новые» of the hub are looked in only where its `newcomers` come from the
+   * hub (the popup's rule, pages/client.ts). Absent — they are.
+   */
+  readonly features?: FeatureSlice;
   /**
    * Our preview of a fan ChatSpace shows online (CS-030), in its own window (X24); omitted — no «Онлайн»
    * group. `shown` — the group as the person saw it at the choice, in its order: the preview's previous and
@@ -169,7 +201,9 @@ const isRunning = (op: OpView): boolean => !(OP_TERMINAL_STATES as readonly stri
 
 export function createPaletteController(deps: PaletteControllerDeps): SurfaceController & { dispose(): void } {
   const { host, i18n, catalog, overlays } = deps;
-  const hub = deps.hub ?? createPaletteHub(deps.rpc);
+  /** The site's «Новые» are the hub's list (ChatSpace's); elsewhere the palette neither asks for them nor names them. */
+  const hubNewcomers = deps.features === undefined || deps.features['newcomers']?.source === 'hub';
+  const hub = deps.hub ?? createPaletteHub(deps.rpc, { newcomers: hubNewcomers });
   const changes = createEmitter();
   const caches = new Map<string, HubCache>();
   let query = '';
@@ -211,16 +245,16 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
           changes.emit();
         });
     }
-    if (normalizeQuery(query) !== '' && !cache.fansLoading && (stale(cache.spenders) || stale(cache.newcomers))) {
+    if (normalizeQuery(query) !== '' && !cache.fansLoading && (stale(cache.spenders) || (hubNewcomers && stale(cache.newcomers)))) {
       cache.fansLoading = true;
       const failed: PaletteSource<PaletteFanRow> = { ok: false, code: 'CG-HUB-UNAVAILABLE' };
       void hub
         .fans(account)
-        .catch(() => ({ spenders: failed, newcomers: failed }))
+        .catch(() => ({ spenders: failed, newcomers: hubNewcomers ? failed : null }))
         .then((sources) => {
           const at = deps.clock.now();
           cache.spenders = { at, source: sources.spenders };
-          cache.newcomers = { at, source: sources.newcomers };
+          cache.newcomers = sources.newcomers === null ? null : { at, source: sources.newcomers };
           cache.fansLoading = false;
           changes.emit();
         });
@@ -232,7 +266,8 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       .request('op.list', { scope: 'all' })
       .then((answer) => {
         if (!answer.ok) return;
-        running = answer.payload.ops.filter(isRunning);
+        // The generations of this site's chats: a chat of another site is no chat this tab opens.
+        running = answer.payload.ops.filter((op) => isRunning(op) && op.target.chat.host === host.kind);
         changes.emit();
       })
       .catch(() => undefined);
@@ -327,11 +362,16 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       );
     }
 
-    // ── generations that run now, in any tab (CS-012) ──
+    // ── generations that run now, in any tab of this site (CS-012) ──
+    /** The fan as the host names them: its loaded list, else what it keeps of a chat it showed (Fansly's, by its route). */
+    const hostName = (chat: ChatRef): string | null => {
+      const fan = host.fan(chat);
+      return nameOf.get(chat.platformFanId) ?? fan?.displayName ?? (fan === null || fan.username === null ? null : `@${fan.username}`);
+    };
     const runningRows = running.map((op) =>
       item(
         `running.${op.opId}`,
-        text({ key: 'palette.item.running', params: { feature: i18n.t(`dock.action.${FEATURE_ACTION[op.feature]}`), fan: nameOf.get(op.target.chat.platformFanId) ?? i18n.t('common.unknown') } }),
+        text({ key: 'palette.item.running', params: { feature: i18n.t(`dock.action.${FEATURE_ACTION[op.feature]}`), fan: hostName(op.target.chat) ?? i18n.t('common.unknown') } }),
         { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle(op.target.chat, op.target.conversationRef) } },
         { runningSince: op.startedAt },
       ),
@@ -340,7 +380,14 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
     if (runningShown.length > 0) groups.push({ id: 'running', title: { key: 'palette.group.running' }, items: runningShown });
 
     const cache = account === null ? null : cacheOf(account.hostAccountId);
-    const chatAction = (fanRef: string): UiAction => ({ type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: account?.hostAccountId ?? '0', platformFanId: fanRef }) } });
+    /**
+     * A fan's chat. The hub's row names its chat where a chat has an id of its own (Fansly's group): the handle carries
+     * it, as Spenders does (its `conversationOfRow`); where a chat is its fan (OnlyFans) the handle stays the fan's.
+     */
+    const chatAction = (fanRef: string, conversationRef: string | null = null): UiAction => {
+      const own = conversationRef !== null && account !== null && !CHAT_IS_FAN[account.platform] && NATIVE_ID_PATTERN.test(conversationRef);
+      return { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: account?.hostAccountId ?? '0', platformFanId: fanRef }, own ? conversationRef : undefined) } };
+    };
     let hubFans = 0;
     let hubSearched = false;
 
@@ -353,7 +400,7 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
         hubFans = waiting.rows.length;
         const rows = waiting.rows
           .slice(0, PALETTE_LIMITS.waiting)
-          .map((row) => item(`waiting.${row.fanRef}`, fanName(row), chatAction(row.fanRef), { sublabel: handleOf(row.username), money: row.lifetimeMills, waitingSince: row.waitingSince }));
+          .map((row) => item(`waiting.${row.fanRef}`, fanName(row), chatAction(row.fanRef, row.conversationRef), { sublabel: handleOf(row.username), money: row.lifetimeMills, waitingSince: row.waitingSince }));
         if (rows.length > 0) groups.push({ id: 'waiting', title: { key: 'palette.group.waiting' }, items: rows });
       }
     } else {
@@ -377,7 +424,7 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
           seen.add(row.fanRef);
           // Not in ChatSpace's loaded list: the row says where it was found.
           const handle = handleOf(row.username);
-          rows.push(item(`chat.${row.fanRef}`, fanName(row), chatAction(row.fanRef), { sublabel: handle === null ? where : `${handle} · ${where}`, money: row.lifetimeMills }));
+          rows.push(item(`chat.${row.fanRef}`, fanName(row), chatAction(row.fanRef, row.conversationRef), { sublabel: handle === null ? where : `${handle} · ${where}`, money: row.lifetimeMills }));
         }
       };
       fromHub(cache?.spenders?.source ?? null, 'spenders', i18n.t('palette.item.spenders'));
@@ -419,8 +466,9 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       view,
       query,
       groups,
-      // Where the chats were looked for: the hub rows too, or only what ChatSpace has loaded.
-      footer: hubSearched ? { key: 'palette.foot.chats', params: { n: hubFans } } : { key: 'palette.foot.hostOnly' },
+      // Where the chats were looked for: the hub rows too (Spenders, and «Новые» where they are the hub's), or only what
+      // the site has loaded.
+      footer: hubSearched ? { key: hubNewcomers ? 'palette.foot.chats' : 'palette.foot.spenders', params: { n: hubFans } } : { key: 'palette.foot.hostOnly' },
     };
   };
 
