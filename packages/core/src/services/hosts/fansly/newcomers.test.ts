@@ -839,10 +839,10 @@ describe('[host:fansly] «Новые» as the old extension did it (audit 2026-1
     const fans = [welcomed, greeted, wrote, silent].map((fanRef) => ({ fanRef, followedAt: at }));
     const verdicts = await t.service.remind(C, fans);
     expect(Object.fromEntries(verdicts)).toEqual({
-      [welcomed]: { s: 'due', fanLabel: 'Ann' },
+      [welcomed]: { s: 'due', fanLabel: 'Ann', username: 'fan_1', avatarUrl: null },
       [greeted]: { s: 'greeted' },
       [wrote]: { s: 'wrote' },
-      [silent]: { s: 'due', fanLabel: 'Bea' },
+      [silent]: { s: 'due', fanLabel: 'Bea', username: 'fan_4', avatarUrl: null },
     });
     expect(t.creates()).toEqual([]);
     expect(t.routes().filter((route) => route === 'messaging.groups' || route === 'message.automated' || route === 'account.byIds')).toEqual(['message.automated', 'messaging.groups', 'account.byIds']);

@@ -209,8 +209,11 @@ export interface FanslyRemindFollow {
 
 /** What the greeting reminder's check of one new follower found (greet-remind.ts). */
 export type FanslyRemindVerdict =
-  /** Nobody wrote to the fan, the fan did not write, and Fansly lets the creator write: the reminder is due. */
-  | { readonly s: 'due'; readonly fanLabel: string | null }
+  /**
+   * Nobody wrote to the fan, the fan did not write, and Fansly lets the creator write: the reminder is due — with the
+   * fan's name, @handle and picture as their profile gives them (null — not read).
+   */
+  | { readonly s: 'due'; readonly fanLabel: string | null; readonly username?: string | null; readonly avatarUrl?: string | null }
   /** The creator's personal message, or a greeting of ours that went. */
   | { readonly s: 'greeted' }
   | { readonly s: 'wrote' }
@@ -1666,8 +1669,12 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         verdicts.set(fan, verdict);
         if (verdict?.s === 'due') due.push(fan);
       }
-      const names = due.length === 0 ? new Map<string, string>() : await namesOf(pass, work, due);
-      for (const fan of due) verdicts.set(fan, { s: 'due', fanLabel: names.get(fan) ?? null });
+      const profiles = due.length === 0 ? new Map<string, PassProfile>() : await profilesOf(pass, work, due);
+      for (const fan of due) {
+        const profile = profiles.get(fan);
+        const name = profile === undefined ? null : profile.customName?.trim() || profile.displayName?.trim() || profile.username?.trim() || null;
+        verdicts.set(fan, { s: 'due', fanLabel: name, username: profile?.username?.trim().replace(/^@/, '') || null, avatarUrl: profile?.avatarUrl ?? null });
+      }
     } catch (error) {
       if (!(error instanceof Aborted) && !stop.aborted) log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the greeting reminder could not check its fans', fields: { code: failureOf(error).wire.code, fans: asked.length } });
     } finally {
@@ -1738,18 +1745,15 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return new Set(value.texts.filter((text): text is string => typeof text === 'string' && text !== ''));
   }
 
-  /** The fans' names for the reminder, one request: the creator's own name of each, else theirs; a failed read — none. */
-  async function namesOf(pass: Pass, work: Work, fans: readonly string[]): Promise<Map<string, string>> {
-    const names = new Map<string, string>();
+  /** The fans' profiles for the reminder, one request; a failed read — none. */
+  async function profilesOf(pass: Pass, work: Work, fans: readonly string[]): Promise<Map<string, PassProfile>> {
+    const profiles = new Map<string, PassProfile>();
     try {
-      for (const profile of readAccounts(await ask(pass, work, { route: 'account.byIds', query: { ids: fans.join(',') } })) ?? []) {
-        const name = profile.customName?.trim() || profile.displayName?.trim() || profile.username?.trim() || null;
-        if (name !== null) names.set(profile.fanRef, name);
-      }
+      for (const profile of readAccounts(await ask(pass, work, { route: 'account.byIds', query: { ids: fans.join(',') } })) ?? []) profiles.set(profile.fanRef, profile);
     } catch (error) {
       if (error instanceof Aborted || work.stop.aborted) throw new Aborted();
     }
-    return names;
+    return profiles;
   }
 
   /** The card's greeting went (sent, or the person's own send registered): the fan is «Уже писали» in the creator's pass. */

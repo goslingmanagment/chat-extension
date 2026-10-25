@@ -144,7 +144,9 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
           follow.d = true;
           if (verdict.s !== 'due' || target === null) continue;
           const fanLabel = verdict.fanLabel === null ? null : verdict.fanLabel.slice(0, 256);
-          deps.toast(target.tabSessionId, { toastId: deps.uuid(), kind: 'info', scope: `greet.${follow.f}`, fanLabel, greet: { pageId: target.pageId, fanRef: follow.f } });
+          const username = verdict.username?.slice(0, 64) ?? null;
+          const greet = { pageId: target.pageId, fanRef: follow.f, username, avatarUrl: verdict.avatarUrl ?? null, since: new Date(follow.at).toISOString() };
+          deps.toast(target.tabSessionId, { toastId: deps.uuid(), kind: 'info', scope: `greet.${follow.f}`, fanLabel, greet });
           reminded += 1;
         }
         persist();

@@ -108,7 +108,11 @@ export function createShellController(ports: ShellPorts): ShellController {
     const actions: ActionButtonVM[] = [];
     if (toast.greet !== undefined) {
       const action: UiAction = { type: 'GreetNewcomer', targetHandle: fanHandle('newcomers', toast.greet.pageId, toast.greet.fanRef) };
-      return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: fan ?? i18n.t('newcomers.col.fan') }), body: null, actions: [button('dock.action.hi', action)], copyCode: false, expiresAt: null };
+      const name = fan ?? i18n.t('newcomers.col.fan');
+      // 1.61.0 (the owner: «с авой»): the fan as a card — picture, name, «@handle · 11 мин назад»; «Позже» closes it.
+      const greet = { name, handle: toast.greet.username ?? null, avatarUrl: toast.greet.avatarUrl ?? null, since: toast.greet.since ?? null };
+      const later = button('toast.later', { type: 'DismissToast', toastId: toast.toastId });
+      return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: [button('dock.action.hi', action), later], copyCode: false, expiresAt: null, greet };
     }
     // §9.5: a background toast leads to its chat — by the person's click only.
     if (toast.chat !== undefined && ports.chatHandle !== undefined) actions.push(button('common.openChat', { type: 'Navigate', to: { kind: 'chat', targetHandle: ports.chatHandle(toast.chat, toast.conversationRef) } }));

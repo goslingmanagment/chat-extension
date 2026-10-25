@@ -81,9 +81,16 @@ export function createGreetReminder(deps: GreetReminderDeps): GreetReminder {
       const tab = tabOf(page);
       if (tab === null) return;
       for (const item of due) {
-        const name = item.displayName?.trim() || item.username?.trim().replace(/^@/, '') || null;
+        const handle = item.username?.trim().replace(/^@/, '') || null;
+        const name = item.displayName?.trim() || handle;
         deps.events.emit(tab, 'toast', {
-          toast: { toastId: deps.ids.uuid(), kind: 'info', scope: `greet.${item.fanRef}`, fanLabel: name === null ? null : name.slice(0, 256), greet: { pageId: page.pageId, fanRef: item.fanRef } },
+          toast: {
+            toastId: deps.ids.uuid(),
+            kind: 'info',
+            scope: `greet.${item.fanRef}`,
+            fanLabel: name === null ? null : name.slice(0, 256),
+            greet: { pageId: page.pageId, fanRef: item.fanRef, username: handle === null ? null : handle.slice(0, 64), since: item.subscribedAt },
+          },
         });
       }
       reminded = [...reminded, ...due.map((item) => item.eventRef)].slice(-GREET_REMINDED_MAX);
