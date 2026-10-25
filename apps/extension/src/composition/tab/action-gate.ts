@@ -68,6 +68,12 @@
 // port — a channel the page cannot write to. `vouch` opens a grant for it:
 // a navigation only, once, like a key pressed on the page. It can never
 // insert, send or generate.
+//
+// One more comes from another tab (2026-10-25): «Hi» of a greeting reminder's
+// toast pressed in a tab of another model. That tab spent its click's own
+// `navigate` token with the background, which brought this tab forward and
+// handed the click over (`greet.start`): `vouch(true)` opens for it what the
+// toast's own click would — GreetNewcomer's grant and its deferred greet grant.
 
 import type { CgErrorWire } from '@cg/contracts/errors';
 import type { Surface } from '@cg/contracts/features';
@@ -192,7 +198,8 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   // «Рассылка» of Spenders on Fansly: a row's «Отправить» is a send by this click.
   SendOutreach: ['send'],
   // 2026-10-24: «Hi» of a greeting reminder's toast opens the fan's card and starts its Hi; 2026-10-25 — and opens the
-  // chat with it (its deferred greet grant, `afterGreet`).
+  // chat with it, or the chat of a fan somebody greeted meanwhile, or hands the click to the fan's model's tab (its
+  // deferred greet grant, `afterGreet`).
   GreetNewcomer: ['generate'],
   // 1.47.0: Voice. The chip writes the script when the studio opens over a draft; a preset, «Переписать» and «Новый
   // войс» write one; «Озвучить» and «Проверить» are the paid create (the same request again for «Проверить»); only
@@ -218,7 +225,8 @@ export const DEFERRED_INSERT_TTL_MS = OP_TIMEOUTS.fix.maxMs + 15_000;
 export const DEFERRED_GREET_TTL_MS = 45_000 + OP_TIMEOUTS.hi.maxMs + 15_000;
 /** The token kinds the toast's Hi goes on with, and the actions of its chain that may take them. */
 const GREET_KINDS: readonly ActionKind[] = ['generate', 'navigate'];
-const GREET_CHAIN: readonly UiAction['type'][] = ['Generate', 'InsertNewcomerGreeting', 'OpenAndInsertPart'];
+// `Navigate` (2026-10-25): the chat of a fan somebody greeted meanwhile, or the click handed to the fan's model's tab.
+const GREET_CHAIN: readonly UiAction['type'][] = ['Generate', 'InsertNewcomerGreeting', 'OpenAndInsertPart', 'Navigate'];
 /** A kept key is handed over within the dispatcher's own bound (KEPT_KEY_TTL_MS, 5 s); a little room for the hand-over itself. */
 export const KEPT_KEY_MAX_AGE_MS = 6_000;
 /** Open grants kept; more is a stuck controller, the oldest go. */
@@ -254,9 +262,10 @@ export interface GestureGate {
   /**
    * A click made on one of our extension pages was brought to this tab by the
    * background (`tab.command`): the navigation it asks for may get its token
-   * — once, within the grant's time. No other kind.
+   * — once, within the grant's time. No other kind; `greet` — a reminder's Hi
+   * handed over by another tab (`greet.start`): what the toast's own click opens.
    */
-  vouch(): void;
+  vouch(greet?: boolean): void;
   /** `click` or `key`: what the action in flight is (HumanCause); `click` when there is none. */
   cause(): 'click' | 'key';
   /**
@@ -397,10 +406,12 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         if (resumed === event) resumed = null;
       };
     },
-    vouch() {
+    vouch(greeting = false) {
       // No DOM event of this document stands behind it: the marker only keeps «one token per action» true.
       const gesture: Gesture = { event: new Event('cg-command'), click: true, via: null };
-      grants = [...grants.filter((grant) => now() - grant.at <= GRANT_TTL_MS), { gesture, kinds: new Set<ActionKind>(['navigate']), at: now() }].slice(-GRANTS_KEPT);
+      const kinds: readonly ActionKind[] = greeting ? (GRANTED_KINDS.GreetNewcomer ?? []) : ['navigate'];
+      grants = [...grants.filter((grant) => now() - grant.at <= GRANT_TTL_MS), { gesture, kinds: new Set<ActionKind>(kinds), at: now() }].slice(-GRANTS_KEPT);
+      if (greeting) greet = { gesture, at: now(), kinds: new Set(GREET_KINDS) };
     },
     cause() {
       const gesture = inFlight();
@@ -445,7 +456,7 @@ export interface TabActionTokens {
   /** The hotkey dispatcher hands in a key press it stopped before this chunk's listeners could see it (§9.1). */
   noteGesture(event: Event): void;
   /** A click on an extension page, brought here by the background (`tab.command`): its navigation may get a token. */
-  vouched(): void;
+  vouched(greet?: boolean): void;
 }
 
 export interface ActionTokensDeps {
@@ -495,7 +506,7 @@ export function createActionTokens(deps: ActionTokensDeps): {
         if (refusal !== null) deps.onUngranted?.({ action, refusal });
       },
       noteGesture: (event) => deps.gate.note(event),
-      vouched: () => deps.gate.vouch(),
+      vouched: (greet) => deps.gate.vouch(greet),
     },
     async redeem(request) {
       const surface = surfaceOfToken.get(request.actionToken);

@@ -11,6 +11,11 @@
 // meanwhile (the socket again) is not checked. An hour after the follow is late news: such a fan is only the window's
 // to show. Kept in storage.session, so an event page that unloads neither forgets a follow nor reminds twice. It sends
 // nothing and generates nothing: «Hi» is the person's click.
+//
+// Where the toast stands (the owner, 2026-10-25: «может приходит только в одно окно активное? … у Никиты приходят не
+// всегда»): in the creator's tab the person looks at (else their last), and also in every other tab on screen — a
+// chatter on another model's tab sees it there, with the model's name, and its «Hi» brings the model's tab forward and
+// greets there (`fansly.greet.handover`).
 
 import { type SoundBatch } from '@cg/contracts/sound';
 import { type BackgroundToast } from '@cg/contracts/tab-messages';
@@ -46,9 +51,15 @@ export interface FanslyGreetReminderDeps {
   readonly check: (creator: string, follows: readonly FanslyRemindFollow[]) => Promise<ReadonlyMap<string, FanslyRemindVerdict | null>>;
   /**
    * Where a reminder about the creator's fan goes now: a tab of the creator and the creator's hub page; null — nowhere
-   * (no tab, the page's «Новые» off, Fansly off).
+   * (no tab, the page's «Новые» off, Fansly off). `elsewhere` — the other tabs on screen, `foreign` — of another model
+   * (the toast names the creator's page there: `page`).
    */
-  readonly target: (creator: string) => { readonly tabSessionId: string; readonly pageId: number } | null;
+  readonly target: (creator: string) => {
+    readonly tabSessionId: string;
+    readonly pageId: number;
+    readonly page?: string | null;
+    readonly elsewhere?: readonly { readonly tabSessionId: string; readonly foreign: boolean }[];
+  } | null;
   /** The followed account is the creator (or an alias of theirs): a follow of another account is nobody's here. */
   readonly sameAccount?: (creator: string, accountId: string) => boolean;
   readonly toast: (tabSessionId: string, toast: BackgroundToast) => void;
@@ -147,6 +158,12 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
           const username = verdict.username?.slice(0, 64) ?? null;
           const greet = { pageId: target.pageId, fanRef: follow.f, username, avatarUrl: verdict.avatarUrl ?? null, since: new Date(follow.at).toISOString() };
           deps.toast(target.tabSessionId, { toastId: deps.uuid(), kind: 'info', scope: `greet.${follow.f}`, fanLabel, greet });
+          const page = target.page?.trim().slice(0, 256) || null;
+          for (const other of target.elsewhere ?? []) {
+            if (other.tabSessionId === target.tabSessionId) continue;
+            const named = other.foreign && page !== null ? { ...greet, page } : greet;
+            deps.toast(other.tabSessionId, { toastId: deps.uuid(), kind: 'info', scope: `greet.${follow.f}`, fanLabel, greet: named });
+          }
           reminded += 1;
         }
         persist();

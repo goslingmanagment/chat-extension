@@ -32,6 +32,11 @@ import { TOAST_TIMING, errorView, settingsRouteOf, toastKey, toastLifetimeMs, vi
 import { translatorOf } from '../../domain/i18n/live';
 import { fanHandle } from '../boards/handles';
 
+/** «Hi» of a greeting reminder about this fan of this page — the toast's own, or one another tab handed over (2026-10-25). */
+export function greetNewcomer(pageId: number, fanRef: string): UiAction {
+  return { type: 'GreetNewcomer', targetHandle: fanHandle('newcomers', pageId, fanRef) };
+}
+
 export interface ShellClock {
   now(): number;
   setTimer(ms: number, fn: () => void): unknown;
@@ -108,10 +113,10 @@ export function createShellController(ports: ShellPorts): ShellController {
     const fan = toast.fanLabel;
     const actions: ActionButtonVM[] = [];
     if (toast.greet !== undefined) {
-      const action: UiAction = { type: 'GreetNewcomer', targetHandle: fanHandle('newcomers', toast.greet.pageId, toast.greet.fanRef) };
+      const action = greetNewcomer(toast.greet.pageId, toast.greet.fanRef);
       const name = fan ?? i18n.t('newcomers.col.fan');
       // 1.61.0 (the owner: «с авой»): the fan as a card — picture, name, «@handle · 11 мин назад»; «Позже» closes it.
-      const greet = { name, handle: toast.greet.username ?? null, avatarUrl: toast.greet.avatarUrl ?? null, since: toast.greet.since ?? null };
+      const greet = { name, handle: toast.greet.username ?? null, avatarUrl: toast.greet.avatarUrl ?? null, since: toast.greet.since ?? null, page: toast.greet.page ?? null };
       const later = button('toast.later', { type: 'DismissToast', toastId: toast.toastId });
       return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: [button('dock.action.hi', action), later], copyCode: false, expiresAt: null, greet };
     }

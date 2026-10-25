@@ -7,6 +7,7 @@
 //   (GREETING_DRAFT_DEBOUNCE_MS), never on every key, and at once before a send or an insert.
 // - «Сгенерировать» (NF-013…NF-017): only for a fan whose history the pass read to its start (NF-014). The pass's proof
 //   of that history is asked first; Hi has no message limit (the owner, 2026-10-21), so its count refuses nothing.
+//   While it generates, the site reads the history again (2026-10-25): a colleague's greeting since stops it.
 //   Then one Hi with one variant: the hub combines its history with confirmed pass texts
 //   (X69); the start carries their ids, proof of the start and fan's avatar (NF-034, FX-018). The sign-in, the
 //   binding and the persona are the same before and after (NF-016) — else the result is not taken; an empty, too long
@@ -48,6 +49,8 @@ const MAX_CHARS = SEND_LIMITS.previewDraftMaxChars;
 const INSERTS_KEPT = 16;
 /** A generation whose end the tab never heard (its port went meanwhile) stops waiting after this. */
 export const GREETING_GENERATION_WAIT_MS = 180_000;
+/** A result that came before the history read again waits this long for it (2026-10-25); then it goes into the field. */
+export const GREETING_RECHECK_WAIT_MS = 6_000;
 
 export interface PassGreetingDeps {
   readonly rpc: TabRpc;
@@ -99,7 +102,7 @@ export interface CardGreeting {
   batchStart(passId: string, row: PassRow): Promise<BatchOutcome>;
   /** The card's field as it is now, and whether it went out; null — no card of the fan. */
   batchLive(passId: string, fanRef: string): { readonly text: string | null; readonly sent: boolean } | null;
-  /** A batch started this generation: its end is said by its row, not by a toast. */
+  /** A batch started this generation (its end is said by its row), or a Hi whose chat was being read again: no toast. */
   fromBatch(opId: string): boolean;
   /** A card's own «Сгенерировать» (or the toast's Hi) started this generation: its result is the card's field. */
   fromCard(opId: string): boolean;
@@ -353,6 +356,29 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     if (!same()) return stop('CG-CONTEXT-CHANGED');
     if (!proof.ok) return stop(proof.failure.code);
     const evidence = proof.value;
+    // 2026-10-25 (the owner: «если один нажал на hi и там месага уже есть — чтобы генерация стопнулась»): the fan's
+    // history is read again alongside — a colleague's greeting since the pass checked it stops this Hi (`CG-SEND-PART`).
+    // Not for a batch: its sends check the history anyway, and the batch would read every chat twice.
+    // A result that came first waits for that read (GREETING_RECHECK_WAIT_MS at most) before it goes into the field, and
+    // its end makes no «AI готово» toast meanwhile: a Hi stopped this way is no result to open.
+    const watch: { greeted: boolean; read: boolean; opId: string | null; stop: (() => void) | null } = { greeted: false, read: false, opId: null, stop: null };
+    const checking =
+      type === 'GenerateBatch' || source.recheck === undefined
+        ? null
+        : source
+            .recheck(card.passId, card.fanRef)
+            .then(
+              (answer) => {
+                if (answer.ok || answer.failure.code !== 'CG-SEND-PART') return;
+                watch.greeted = true;
+                watch.stop?.();
+              },
+              () => undefined,
+            )
+            .finally(() => {
+              watch.read = true;
+              if (!watch.greeted && watch.opId !== null) batchOps.delete(watch.opId);
+            });
     const fanLabel = (row.displayName ?? row.username)?.trim().slice(0, 256) || null;
     const issued = await issueCause(rpc, 'generate', 'newcomers');
     if (!same()) return stop('CG-CONTEXT-CHANGED');
@@ -390,12 +416,21 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       // 1.20.0 (X47): the name the pass already read, for «Идут сейчас» — display only, never sent to the hub.
       ...(fanLabel === null ? {} : { fanLabel }),
     };
+    if (watch.greeted) return stop('CG-SEND-PART');
     const admission = await rpc.request('op.start', start);
     if (!same()) return stop('CG-CONTEXT-CHANGED');
     if (!admission.ok) return stop(admission.error.code);
     if (!admission.payload.ok) return stop(admission.payload.code);
     const opId = admission.payload.opId;
     noteBatchOp(type === 'GenerateBatch' ? batchOps : cardOps, opId);
+    // While the chat is read again its end makes no toast either: the window may be gone by then (a Hi stopped this way).
+    if (type !== 'GenerateBatch' && checking !== null && !watch.read) noteBatchOp(batchOps, opId);
+    watch.opId = opId;
+    const greetedMeanwhile = (): ActionReceipt => {
+      void rpc.request('op.cancel', { opId }).catch(() => undefined);
+      return stop('CG-SEND-PART');
+    };
+    if (watch.greeted) return greetedMeanwhile();
     const view = await new Promise<OpView | null>((resolve) => {
       const timer = clock.setTimer(GREETING_GENERATION_WAIT_MS, () => {
         if (waiting.get(opId) !== undefined) waiting.delete(opId);
@@ -411,6 +446,13 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
         waiting.delete(opId);
         settle(view);
       };
+      // The history says somebody wrote meanwhile: nothing more is waited for.
+      watch.stop = () => {
+        const settle = waiting.get(opId);
+        if (settle === undefined) return;
+        waiting.delete(opId);
+        settle(null);
+      };
       const known = ended.get(opId);
       if (known !== undefined) finish(known);
       else {
@@ -422,7 +464,18 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
         }).catch(() => undefined);
       }
     });
+    watch.stop = null;
+    if (checking !== null && !watch.greeted) {
+      await new Promise<void>((resolve) => {
+        const timer = clock.setTimer(GREETING_RECHECK_WAIT_MS, resolve);
+        void checking.then(() => {
+          clock.clearTimer(timer);
+          resolve();
+        });
+      });
+    }
     if (!same()) return stop('CG-CONTEXT-CHANGED');
+    if (watch.greeted) return greetedMeanwhile();
     if (view === null) return stop('CG-OP-INTERRUPTED');
     if (view.state !== 'done') return stop(view.error?.code ?? 'CG-OP-INTERRUPTED');
     const parts = view.result?.kind === 'variants' ? view.result.variants[0] : undefined;

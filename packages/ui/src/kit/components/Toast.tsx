@@ -11,6 +11,7 @@
 //
 // A greeting reminder (1.61.0, the owner: «с авой»): the fan as a card — their picture over the initial, «Ждёт
 // приветствия» in the accent, the name, «@handle · 11 мин назад»; «Hi» filled in the accent, «Позже» beside it.
+// 1.62.0: in a tab of another model the accent line names the fan's model — «Ждёт приветствия · {модель}».
 
 import { type JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
@@ -108,7 +109,7 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
         </div>
       ) : (
         <div class="cg-toast__main" title={toast.title}>
-          <div class="cg-toast__lead">{i18n.t('toast.greetWaiting')}</div>
+          <div class="cg-toast__lead">{greet.page === undefined || greet.page === null ? i18n.t('toast.greetWaiting') : i18n.t('toast.greetWaitingAt', { page: greet.page })}</div>
           <div class="cg-toast__name">{greet.name}</div>
           {greet.handle === null && greet.since === null ? null : (
             <div class="cg-toast__sub">

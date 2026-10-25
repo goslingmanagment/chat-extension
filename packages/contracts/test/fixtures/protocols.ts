@@ -685,7 +685,10 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
   },
   'send.state': { valid: [{ view: sendView }], invalid: [{ view: { ...sendView, state: 'done' } }] },
   'send.fuse': { valid: [fuseState, { fuse: null, resetAt: T0 }], invalid: [{ fuse: { ...fuseState.fuse, build: 7 }, resetAt: null }, {}] },
-  toast: { valid: [{ toast }, { toast: fanslyToast }], invalid: [{ toast: { ...toast, toastId: 'x' } }, { toast: { ...fanslyToast, conversationRef: '' } }] },
+  toast: {
+    valid: [{ toast }, { toast: fanslyToast }, { toast: { ...toast, greet: { pageId: 11, fanRef: IDS.fan, username: 'fan', since: ISO, page: 'Lora' } } }],
+    invalid: [{ toast: { ...toast, toastId: 'x' } }, { toast: { ...fanslyToast, conversationRef: '' } }, { toast: { ...toast, greet: { pageId: 11, fanRef: IDS.fan, page: 'x'.repeat(257) } } }],
+  },
   'settings.changed': { valid: [settingsState], invalid: [{ ...settingsState, revision: 'r3' }] },
   'session.changed': {
     valid: [{ session, reason: 'sign-in' }, { session: null, reason: 'revoked' }],
@@ -706,6 +709,7 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
     // The same closed set as the request: a window of ours or an account — never a chat, a text or an action token.
     invalid: [{ command: { kind: 'surface', surface: 'coach' } }, { command: { kind: 'chat', fan: IDS.fan } }, { command: { kind: 'surface', surface: 'spenders' }, actionToken: 'x'.repeat(32) }, {}],
   },
+  'greet.start': { valid: [{ pageId: 11, fanRef: IDS.fan }], invalid: [{ pageId: 11 }, { pageId: 11, fanRef: IDS.fan, actionToken: 'x'.repeat(32) }] },
 };
 
 export interface BridgeRequestFixtures {

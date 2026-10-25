@@ -401,13 +401,16 @@ export function toasts(view: VmView, list: readonly ToastVM[]): ToastsVM {
   return { view, toasts: list };
 }
 
-/** A greeting reminder (1.61.0): the fan as a card — picture, name, «@handle · N мин назад» — with «Hi» and «Позже». */
-export const greetToast = (ctx: ScenarioCtx, id: string, fan: { readonly name: string; readonly handle: string | null; readonly avatarUrl: string | null; readonly minutesAgo: number }): ToastVM =>
+/**
+ * A greeting reminder (1.61.0): the fan as a card — picture, name, «@handle · N мин назад» — with «Hi» and «Позже».
+ * 1.62.0: `page` — the toast stands in a tab of another model: «Ждёт приветствия · {модель}».
+ */
+export const greetToast = (ctx: ScenarioCtx, id: string, fan: { readonly name: string; readonly handle: string | null; readonly avatarUrl: string | null; readonly minutesAgo: number; readonly page?: string }): ToastVM =>
   toast(ctx, id, 'info', {
     title: ctx.lang === 'ru' ? `Ждёт приветствия · ${fan.name}` : `Waiting for a greeting · ${fan.name}`,
     actions: [button('dock.action.hi', { type: 'GreetNewcomer', targetHandle: 'newcomers:11:910000000000000001' }), button('toast.later', { type: 'DismissToast', toastId: id })],
     expiresAt: null,
-    greet: { name: fan.name, handle: fan.handle, avatarUrl: fan.avatarUrl, since: new Date(ctx.now - fan.minutesAgo * 60_000).toISOString() },
+    greet: { name: fan.name, handle: fan.handle, avatarUrl: fan.avatarUrl, since: new Date(ctx.now - fan.minutesAgo * 60_000).toISOString(), ...(fan.page === undefined ? {} : { page: fan.page }) },
   });
 
 export const aiReadyToast = (ctx: ScenarioCtx, fanName: string, chatHandle: string): ToastVM =>

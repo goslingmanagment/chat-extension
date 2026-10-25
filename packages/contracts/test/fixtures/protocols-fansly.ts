@@ -249,6 +249,15 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       ],
     },
   },
+  // 1.62.0: the card's Hi reads the fan's history again while it generates; the toast's Hi from a tab of another model.
+  'fansly.followers.recheck': {
+    req: { valid: [{ ...passRef, fanRef: F.fan }], invalid: [{ ...passRef }, { ...passRef, fanRef: 'fan' }] },
+    res: { valid: [{ ok: true, historyRevision: uuid(0x501) }, { ok: false, error: { code: 'CG-SEND-PART' } }, failure], invalid: [{ ok: true }, { ok: true, historyRevision: 'rev' }] },
+  },
+  'fansly.greet.handover': {
+    req: { valid: [{ pageId: 11, fanRef: F.fan, cause }], invalid: [{ pageId: 11, fanRef: F.fan }, { pageId: '11', fanRef: F.fan, cause }, { pageId: 11, fanRef: F.fan, cause: { kind: 'timer', actionToken: cause.actionToken } }] },
+    res: { valid: [{ delivered: true }, { delivered: false }], invalid: [{ delivered: 'yes' }, {}] },
+  },
   'fansly.followers.draft': {
     req: { valid: [{ ...passRef, fanRef: F.fan }, { ...passRef, fanRef: F.fan, text: '' }, { ...passRef, fanRef: F.fan, text: 'x'.repeat(5000) }, { ...passRef, fanRef: F.fan, text: 'Привет!', generation: { opId: greetingGeneration.opId, historyRevision: greetingGeneration.historyRevision } }], invalid: [{ ...passRef, fanRef: F.fan, text: 'x'.repeat(5001) }, { ...passRef, fanRef: F.fan, text: null }, { ...passRef, fanRef: F.fan, text: 'Привет!', generation: { opId: 'bad-id', historyRevision: uuid(0x501) } }] },
     res: {

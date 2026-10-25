@@ -373,7 +373,14 @@ export interface ToastVM {
    * 1.61.0: a greeting reminder — the fan as a card: their picture over the initial, the name, «@handle · 11 мин назад»;
    * `actions` are «Hi» and «Позже».
    */
-  readonly greet?: { readonly name: string; readonly handle: string | null; readonly avatarUrl: string | null; readonly since: string | null };
+  readonly greet?: {
+    readonly name: string;
+    readonly handle: string | null;
+    readonly avatarUrl: string | null;
+    readonly since: string | null;
+    /** 1.62.0: the fan's model, when the toast stands in a tab of another model: «Ждёт приветствия · {модель}». */
+    readonly page?: string | null;
+  };
 }
 
 export interface ToastsVM {

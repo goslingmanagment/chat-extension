@@ -5,6 +5,7 @@
 //
 // - `proof` — what «Сгенерировать» takes of the pass (FS-NEW-7): the checked history's ids, the start, the avatar of the
 //   profile the pass read (FX-018). The generation itself is the tab's: the hub builds it from its own history (X4).
+//   `recheck` — the history read again while Hi generates (2026-10-25): a colleague's greeting stops it.
 // - `draft` — the card's field (NF-012): kept per creator (its hub page) and fan in the shared `newcomers.drafts` (5000
 //   characters, until sent or cleared, at most 7 days), merged draft by draft with what the tabs wrote; read without a text, written with one. The
 //   background holds the revision, so the final check compares the click's with the one now.
@@ -68,9 +69,10 @@ export interface FanslyGreetingDeps {
 
 type Payload<T extends GreetingRequest> = FanslyTabRequestPayload<T>;
 type Answer<T extends GreetingRequest> = FanslyTabResponsePayload<T>;
-export type GreetingRequest = 'fansly.followers.proof' | 'fansly.followers.draft' | 'fansly.followers.outcomes' | 'fansly.followers.send' | 'fansly.followers.sent';
+export type GreetingRequest = 'fansly.followers.proof' | 'fansly.followers.recheck' | 'fansly.followers.draft' | 'fansly.followers.outcomes' | 'fansly.followers.send' | 'fansly.followers.sent';
 const REQUESTS: Readonly<Record<GreetingRequest, true>> = {
   'fansly.followers.proof': true,
+  'fansly.followers.recheck': true,
   'fansly.followers.draft': true,
   'fansly.followers.outcomes': true,
   'fansly.followers.send': true,
@@ -190,6 +192,17 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
     return answer.ok ? { ok: true, proof: answer.proof } : { ok: false, error: { code: answer.code } };
   }
 
+  /**
+   * 2026-10-25 (the owner: «если один нажал на hi и там месага уже есть — чтобы генерация стопнулась»): the card's Hi
+   * reads the fan's history again while it generates — the send's own check (NF-036), read-only; «Уже писали» is
+   * `CG-SEND-PART`, and the row says so to every window.
+   */
+  async function recheck(payload: Payload<'fansly.followers.recheck'>, tab: string): Promise<Answer<'fansly.followers.recheck'>> {
+    const answer = await deps.newcomers.recheck(payload.passId, payload.fanRef, tab);
+    if (answer.ok) return { ok: true, historyRevision: answer.historyRevision };
+    return { ok: false, error: answer.retryAt === undefined ? { code: answer.code } : { code: answer.code, retryAt: answer.retryAt } };
+  }
+
   // ── the send (FS-NEW-3, FS-NEW-6) ──
 
   /** The card's greeting went: «Уже писали» for the pass, the draft has done its work. */
@@ -294,6 +307,8 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       switch (type) {
         case 'fansly.followers.proof':
           return proof(payload as Payload<'fansly.followers.proof'>, tab);
+        case 'fansly.followers.recheck':
+          return recheck(payload as Payload<'fansly.followers.recheck'>, tab);
         case 'fansly.followers.draft':
           return draft(payload as Payload<'fansly.followers.draft'>, tab);
         case 'fansly.followers.outcomes':

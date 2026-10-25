@@ -31,7 +31,7 @@ import type { PageCommand } from '@cg/contracts/tab-messages';
 import type { TabHealthReport } from '@cg/contracts/telemetry';
 import { PREVIEW_SOURCES, type ActionReceipt, type ColorScheme, type MountDeps, type MountSurfaceKind, type SurfaceGeometry, type UiAction } from '@cg/contracts/vm';
 import { createAppRouter } from '@cg/core/application';
-import { createShellController } from '@cg/core/application/shell';
+import { createShellController, greetNewcomer } from '@cg/core/application/shell';
 import { toastKindOf, viewOfCode } from '@cg/core/domain/errors';
 import { createLiveI18n, resolveLocale, translatorOf } from '@cg/core/domain/i18n/live';
 import { createLogForwarder, createLogger, installErrorCapture, logEvent, logHostContract } from '@cg/core/domain/logging';
@@ -99,6 +99,8 @@ export interface TabApp {
   readonly tokens: TabActionTokens;
   /** A click on the popup or the options page that acts in this tab (`tab.command`): a window of ours, or an account. */
   command(command: PageCommand): void;
+  /** 2026-10-25: «Hi» of a greeting reminder pressed in a tab of another model, handed here (`greet.start`). */
+  greet(pageId: number, fanRef: string): void;
   dispose(): void;
 }
 
@@ -991,5 +993,23 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     );
   };
 
-  return { redeem, tokens, command, dispose };
+  /**
+   * 2026-10-25 (the owner: «может приходит только в одно окно активное?»): «Hi» of a greeting reminder's toast pressed in
+   * a tab of another model. That tab spent its click's `navigate` token with the background, which brought this tab
+   * forward and hands the click here: it runs as that click — the grants the toast's own click would open.
+   */
+  const greet = (pageId: number, fanRef: string): void => {
+    if (disposed) return;
+    const action = greetNewcomer(pageId, fanRef);
+    tokens.vouched(true);
+    const dispatched = journal === null ? client.dispatch(action) : journal.asCommand(() => client.dispatch(action));
+    void dispatched.then(
+      (receipt) => {
+        if (!receipt.ok) logger.warn('greet.start', 'a handed-over greeting was refused', { code: receipt.code });
+      },
+      () => undefined,
+    );
+  };
+
+  return { redeem, tokens, command, greet, dispose };
 }
