@@ -565,7 +565,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   }
 
   /** Waits for the person's click, or for Fix: what «К отправке» shows. */
-  const TODO: readonly OutreachFanState[] = ['idle', 'queued', 'writing', 'stopped', 'unwritten', 'ready', 'failed'];
+  const TO_SEND: readonly OutreachFanState[] = ['idle', 'queued', 'writing', 'stopped', 'unwritten', 'ready', 'failed'];
   const WENT: readonly OutreachFanState[] = ['sent', 'uncertain'];
   /** Still moving by itself: Fix writes, or a send is on its way. */
   const MOVING: readonly OutreachFanState[] = ['queued', 'writing', 'sending', 'accepted'];
@@ -723,7 +723,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const ticked = new Set(now.ticked);
     const members = now.members;
     const out = locked === null ? now.ticked : members;
-    const todo = out.filter((fanRef) => TODO.includes(states.get(fanRef) ?? 'idle'));
+    const todo = out.filter((fanRef) => TO_SEND.includes(states.get(fanRef) ?? 'idle'));
     const shown = tab === 'todo' ? members.filter((fanRef) => todo.includes(fanRef) || todoSnapshot.has(fanRef)) : members;
     const rows = shown.filter((fanRef) => matches(index, fanRef)).map((fanRef) => rowOf(fanRef, index, selected, locked !== null || ticked.has(fanRef), undefined));
     const aside = [...now.aside.entries()].filter(([fanRef]) => matches(index, fanRef)).map(([fanRef, reasons]) => rowOf(fanRef, index, selected, false, reasons));
@@ -1251,7 +1251,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (action.tab !== undefined && action.tab !== tab) {
       tab = action.tab;
       const now = audience();
-      todoSnapshot = new Set(tab === 'todo' && now !== null ? (locked ?? now.ticked).filter((fanRef) => TODO.includes(factsOf(fanRef).state)) : []);
+      todoSnapshot = new Set(tab === 'todo' && now !== null ? (locked ?? now.ticked).filter((fanRef) => TO_SEND.includes(factsOf(fanRef).state)) : []);
     }
     if (action.pane !== undefined) {
       pane = action.pane;
