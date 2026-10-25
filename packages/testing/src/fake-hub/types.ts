@@ -3,7 +3,7 @@
 // in-process and over the loopback control endpoint) and the request journal.
 // Everything here is JSON-serialisable: the loopback control API carries it.
 
-import type { ClientFeatureFlag, HubAiFeature, HubErrorBody, HubFrame, HubRouteKey } from '@cg/contracts';
+import type { ClientFeatureFlag, HubAiFeature, HubErrorBody, HubFrame, HubRouteKey, OnlineAttemptRequest } from '@cg/contracts';
 
 import type { HttpExchange, HttpScenario, SseScenario, SseStep } from '../scenarios/hub/types';
 import type { FakeVoiceOutcome, VoiceNoteSnapshot } from './voice';
@@ -233,10 +233,41 @@ export type FakeHubCommand =
    */
   | { readonly op: 'queue'; readonly pageLabel: string; readonly waiting?: readonly Record<string, unknown>[]; readonly winBack?: Record<string, unknown>; readonly handoff?: Record<string, unknown> }
   | { readonly op: 'talking'; readonly pageLabel: string; readonly fanRef: string; readonly conversationRef?: string; readonly name: string; readonly agoMs?: number }
+  /**
+   * «Онлайн» of a page as the hub answers it (`clientOnline`): `items` — the fans online, each a fan id and any field of
+   * the hub's item (the rest filled in; `seenAgoMs` / `onlineAgoMs` count back from the hub's «now» at every read, so an
+   * item stays fresh in a long session; a reason, act or aside left out is the hub's rules' over the given facts);
+   * `templates` — the guide's texts. `null` — back to the stand's fans (items) or the guide (templates); left out — as
+   * it was. What the chatters do in the window and the Fansly tabs' reports go on top of either.
+   */
+  | { readonly op: 'online'; readonly pageLabel: string; readonly items?: readonly Record<string, unknown>[] | null; readonly templates?: readonly Record<string, unknown>[] | null }
   /** Chat Memory week 2: the fan's card as the hub answers it (`clientFanCard`), until a decision or a fact change moves it. */
   | { readonly op: 'fanCard'; readonly pageLabel: string; readonly fanRef: string; readonly card: Record<string, unknown> }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
+
+/** «Онлайн» (online.ts): one action of a chatter in the window, as the hub journals it (ids, a word of a closed list, a time; never a text). */
+export interface FakeOnlineAttempt {
+  readonly attemptId: number;
+  readonly pageLabel: string;
+  readonly fanRef: string;
+  readonly userId: number;
+  /** The chatter's username: who marked «Не предлагать». */
+  readonly by: string;
+  readonly action: OnlineAttemptRequest['action'];
+  readonly act: OnlineAttemptRequest['act'] | null;
+  readonly templateId: string | null;
+  readonly reason: string | null;
+  readonly at: number;
+}
+
+/** One presence report a Fansly tab sent, as kept: the followers of the page and when Fansly saw each. */
+export interface FakeOnlinePresenceReport {
+  readonly pageLabel: string;
+  readonly userId: number;
+  readonly seen: readonly { readonly fanRef: string; readonly lastSeenAt: string }[];
+  readonly at: number;
+}
 
 export interface FakeHubStatus {
   readonly origin: string;
@@ -260,6 +291,8 @@ export interface FakeHubStatus {
   readonly ingested: number;
   /** Every voice note the lane admitted, in order, with its state now: one per paid create (a replay adds none). */
   readonly voiceNotes: readonly VoiceNoteSnapshot[];
+  /** «Онлайн»: what the chatters did in the window and the Fansly tabs' presence reports, in order (ids and times). */
+  readonly online: { readonly attempts: readonly FakeOnlineAttempt[]; readonly presence: readonly FakeOnlinePresenceReport[] };
 }
 
 // ── Journal ────────────────────────────────────────────────────────────────

@@ -286,3 +286,59 @@ describe('R20 F6b: the reads by conversation (architecture §11.1, hub HF-10)', 
     }
   });
 });
+
+describe('«Онлайн» (hub #879, `online-v1`): the list, a Fansly tab\'s report, a chatter\'s action', () => {
+  const FANSLY_PAGE = WORLD.pages.fansly.pageLabel;
+  const FAN = '920000000000000031';
+  const LIST = {
+    pageLabel: PAGE,
+    minutes: 30,
+    items: [],
+    templates: [{ id: 'B3', group: 'b', text: 'ok be honest are you the quiet type or did my page just get lost in the scroll? either way, hi 👋' }],
+    serverNow: '2026-10-03T10:00:00.000Z',
+  };
+  const SEEN = { pageLabel: FANSLY_PAGE, seen: [{ fanRef: FAN, lastSeenAt: '2026-10-03T09:58:00.000Z' }] };
+  const SENT = { pageLabel: FANSLY_PAGE, fanRef: FAN, action: 'sent', act: 'template', templateId: 'B3', reason: 'never_wrote' } as const;
+
+  it('each goes to its own address: the list by its window, the report and the action as their bodies', async () => {
+    h.hub
+      .on('clientOnline', () => json(200, LIST))
+      .on('clientOnlinePresence', () => json(200, { recorded: 1, skipped: 0, serverNow: '2026-10-03T10:00:00.000Z' }))
+      .on('clientOnlineAttempt', () => json(200, { attemptId: 7 }));
+    await expect(h.facade.online({ pageLabel: PAGE, minutes: 30 })).resolves.toEqual(LIST);
+    await expect(h.facade.onlinePresence(SEEN)).resolves.toEqual({ recorded: 1, skipped: 0, serverNow: '2026-10-03T10:00:00.000Z' });
+    await expect(h.facade.onlineAttempt(SENT)).resolves.toEqual({ attemptId: 7 });
+    expect(h.hub.of('clientOnline').map(({ method, path, query }) => ({ method, path, query }))).toEqual([{ method: 'GET', path: `/api/v1/client/pages/${PAGE}/online`, query: { minutes: '30' } }]);
+    expect(h.hub.of('clientOnlinePresence').map(({ method, path, body }) => ({ method, path, body }))).toEqual([{ method: 'POST', path: `/api/v1/client/pages/${FANSLY_PAGE}/online/presence`, body: { seen: SEEN.seen } }]);
+    const { pageLabel: _pageLabel, ...action } = SENT;
+    expect(h.hub.of('clientOnlineAttempt').map(({ method, path, body }) => ({ method, path, body }))).toEqual([{ method: 'POST', path: `/api/v1/client/pages/${FANSLY_PAGE}/online/attempts`, body: action }]);
+    expect(h.hub.unexpected).toEqual([]);
+  });
+
+  it('a report or an action is never asked twice: a 503 and a lost answer are one request each', async () => {
+    for (const answer of [() => hubError(503, 'service_unavailable'), () => 'network-error' as const]) {
+      const before = { presence: h.hub.of('clientOnlinePresence').length, attempt: h.hub.of('clientOnlineAttempt').length };
+      h.hub.on('clientOnlinePresence', answer).on('clientOnlineAttempt', answer);
+      expect(isHubCallError(await h.facade.onlinePresence(SEEN).catch((reason: unknown) => reason))).toBe(true);
+      expect(isHubCallError(await h.facade.onlineAttempt(SENT).catch((reason: unknown) => reason))).toBe(true);
+      await flush(20);
+      expect(h.hub.of('clientOnlinePresence').length - before.presence).toBe(1);
+      expect(h.hub.of('clientOnlineAttempt').length - before.attempt).toBe(1);
+    }
+  });
+
+  it('a hub without `online-v1` is never asked: refused here with CG-HUB-CAPABILITY, nothing sent', async () => {
+    const older = makeHarness({ paths: HUB_ROUTE_PATHS });
+    await signIn(older, signInWorld(SIGN_IN, hubServing(BOOTSTRAP_ALL_ON, BOOTSTRAP_ALL_ON.capabilities.filter((capability) => capability !== 'online-v1')), WORLD.user.username));
+    await flush(20);
+    try {
+      for (const call of [() => older.facade.online({ pageLabel: PAGE, minutes: 30 }), () => older.facade.onlinePresence(SEEN), () => older.facade.onlineAttempt(SENT)]) {
+        const refused = await call().catch((reason: unknown) => reason);
+        expect(isHubCheckError(refused) && refused.code).toBe('CG-HUB-CAPABILITY');
+      }
+      expect([...older.hub.of('clientOnline'), ...older.hub.of('clientOnlinePresence'), ...older.hub.of('clientOnlineAttempt')]).toEqual([]);
+    } finally {
+      older.facade.dispose();
+    }
+  });
+});

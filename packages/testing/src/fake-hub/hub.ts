@@ -53,6 +53,10 @@ import {
   type Handoff,
   type WinBackAttemptRequest,
   type WinBackList,
+  type OnlineAttemptRequest,
+  type OnlinePresenceRequest,
+  type OnlineQuery,
+  type OnlineTemplate,
   type FanCardQuery,
   type FanFactChangeRequest,
   type FanLinkDecideRequest,
@@ -80,6 +84,7 @@ import { checkCommand } from './command';
 import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
 import { CursorSigner, DataModel, type FakeActivityBeat, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
+import { type OnlineSeed } from './online';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
 import { Gates, sseBody } from './sse';
 import {
@@ -90,6 +95,8 @@ import {
   type FakeHubJournalPage,
   type FakeHubServedBy,
   type FakeHubStatus,
+  type FakeOnlineAttempt,
+  type FakeOnlinePresenceReport,
   type FakeSseResponse,
   type ScriptMatch,
   type StreamOutcome,
@@ -482,6 +489,13 @@ export class FakeHub {
         this.page(command.pageLabel);
         s.data.addTalking({ pageLabel: command.pageLabel, fanRef: command.fanRef, conversationRef: command.conversationRef ?? null, userId: 9_000_001, name: command.name, at: now - (command.agoMs ?? 3 * 60_000) });
         return { ok: true };
+      case 'online':
+        this.page(command.pageLabel);
+        s.data.setOnline(command.pageLabel, {
+          ...(command.items === undefined ? {} : { items: command.items as unknown as readonly OnlineSeed[] | null }),
+          ...(command.templates === undefined ? {} : { templates: command.templates as unknown as readonly OnlineTemplate[] | null }),
+        });
+        return { ok: true };
       case 'status':
         return this.status();
       default:
@@ -506,6 +520,7 @@ export class FakeHub {
       claims: s.claims.snapshot(now),
       ingested: s.data.ingestedEvents().length,
       voiceNotes: s.voice.snapshot(now),
+      online: { attempts: s.data.onlineAttempts(), presence: s.data.onlinePresenceReports() },
     };
   }
 
@@ -550,6 +565,16 @@ export class FakeHub {
   /** Chat Memory week 1: the beats, in order. */
   activityBeats(): readonly FakeActivityBeat[] {
     return this.state.data.activityBeats();
+  }
+
+  /** «Онлайн»: what the chatters did in the window, in order (ids, actions, times; never a text). */
+  onlineAttempts(): readonly FakeOnlineAttempt[] {
+    return this.state.data.onlineAttempts();
+  }
+
+  /** «Онлайн»: the presence reports of the Fansly tabs, in order. */
+  onlinePresence(): readonly FakeOnlinePresenceReport[] {
+    return this.state.data.onlinePresenceReports();
   }
 
   /** Ends every open stream like a reset connection (server close). Streams opened later are closed by the next call. */
@@ -1139,6 +1164,12 @@ export class FakeHub {
         return { kind: 'json', status: 200, body: s.data.handoff(need(page), now) };
       case 'clientInConversation':
         return read(s.data.inConversation(need(page), need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now));
+      case 'clientOnline':
+        return read(s.data.online(need(page), request as OnlineQuery, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now, s.config.spendersTotal));
+      case 'clientOnlinePresence':
+        return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now));
+      case 'clientOnlineAttempt':
+        return read(s.data.onlineAttempt(need(page), need(principal).user.userId, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', request as OnlineAttemptRequest, now, s.config.spendersTotal));
       case 'voiceNoteCreate':
       case 'voiceNoteStatus':
       case 'voiceNoteAudio':

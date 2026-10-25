@@ -381,6 +381,17 @@ export class BoardsBackground {
       const pageLabel = this.pageLabel(pageId);
       return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientHandoff', { pageLabel });
     },
+    // «Онлайн», as the background's hub-data routes: the list of the window's minutes, a chatter's action — one call.
+    'online.list': ({ pageId, minutes }) => {
+      const pageLabel = this.pageLabel(pageId);
+      return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientOnline', { pageLabel, minutes });
+    },
+    'online.attempt': (request) => {
+      const pageLabel = this.pageLabel(request.pageId);
+      if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
+      const { pageId: _pageId, ...attempt } = request;
+      return this.read('clientOnlineAttempt', { ...attempt, pageLabel });
+    },
     'feed.read': ({ pageId, fanRef, cursor, limit, summaryWindow, conversationRef }) => {
       const pageLabel = this.pageLabel(pageId);
       if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));

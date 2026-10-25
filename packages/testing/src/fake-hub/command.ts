@@ -4,6 +4,7 @@
 // an error of the test, never a silent `{ ok: true }` that leaves the hub as
 // it was. The loopback endpoint answers it with 400.
 
+import { ONLINE_SEED_KEYS } from './online';
 import { type FakeHubCommand } from './types';
 import { FAKE_VOICE_OUTCOMES } from './voice';
 
@@ -64,6 +65,23 @@ const isConversationSeed: FieldCheck = (value) =>
       Object.entries(message as Record<string, unknown>).every(([key, field]) => key === 'id' || key === 'sender' || (field === undefined ? key in CONVERSATION_SEED_FIELDS : CONVERSATION_SEED_FIELDS[key]?.(field) === true)),
   );
 
+/** `online.items`: a fan id each and nothing but the hub item's fields (and `seenAgoMs`, `onlineAgoMs`); null — the stand's fans. */
+const isOnlineSeeds: FieldCheck = (value) =>
+  value === null ||
+  (Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isObject(item) &&
+        isNativeId((item as Record<string, unknown>)['fanRef']) &&
+        Object.keys(item as Record<string, unknown>).every((key) => ONLINE_SEED_KEYS.has(key)) &&
+        ['seenAgoMs', 'onlineAgoMs'].every((key) => (item as Record<string, unknown>)[key] === undefined || (isNumber((item as Record<string, unknown>)[key]) && ((item as Record<string, unknown>)[key] as number) >= 0)),
+    ));
+/** `online.templates`: `{ id, group, text }` each; null — the guide. */
+const isOnlineTemplates: FieldCheck = (value) =>
+  value === null ||
+  (Array.isArray(value) &&
+    value.every((item) => isObject(item) && Object.keys(item as Record<string, unknown>).every((key) => key === 'id' || key === 'group' || key === 'text') && ['id', 'group', 'text'].every((key) => isString((item as Record<string, unknown>)[key]))));
+
 const MATCH = oneOf('exact', 'route');
 const UNSCRIPTED = oneOf('fail', 'model');
 const PAGE_FAN = { pageLabel: isString, fanRef: isString };
@@ -111,6 +129,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   talking: { ...PAGE_FAN, conversationRef: isNativeId, name: isString, agoMs: isNumber },
   fanCard: { ...PAGE_FAN, card: isObject },
   queue: { pageLabel: isString, waiting: isArray, winBack: isObject, handoff: isObject },
+  online: { pageLabel: isString, items: isOnlineSeeds, templates: isOnlineTemplates },
   status: {},
 };
 
@@ -138,6 +157,7 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   talking: ['pageLabel', 'fanRef', 'name'],
   fanCard: ['pageLabel', 'fanRef', 'card'],
   queue: ['pageLabel'],
+  online: ['pageLabel'],
 };
 
 /** Keys of a config patch (FakeHubConfigPatch). */

@@ -2,3 +2,5 @@
 // the conversation, and the background's pass in the neutral words of a pass. Only Fansly's code imports it.
 
 export * from './rows';
+// «Онлайн» reads the same `followersnew` (FS-NET-1 `online`): who of the followers was active lately.
+export { readFollowersSeen, type FollowerSeen } from './pass-rules';

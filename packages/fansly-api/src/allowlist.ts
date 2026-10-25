@@ -9,7 +9,7 @@
 //   composition/site-access.ts `routeFamily`) and its pace key (the pacer's
 //   rules, pacer/rules.ts).
 // - A purpose is a row of FS-NET-1's table: the «Новые» pass, the greeting,
-//   Spenders, «Регистрация», «Заметки», the identity. Only a (purpose, route)
+//   Spenders, «Регистрация», «Заметки», the identity, «Онлайн». Only a (purpose, route)
 //   pair named here is admitted; the pair gives the call its pacer mode
 //   (architecture §8.4 — a mode per call, not per route: `GET /group/<id>` waits
 //   its turn in a pass and only checks the cooldown for «Регистрация») and how
@@ -101,7 +101,7 @@ export type FanslyRouteName = keyof typeof FANSLY_ROUTES;
 export const FANSLY_ROUTE_NAMES = Object.keys(FANSLY_ROUTES) as FanslyRouteName[];
 
 /** Why the extension asks Fansly at all: the rows of FS-NET-1's table. */
-export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv', 'preview', 'outreach'] as const;
+export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv', 'preview', 'outreach', 'online'] as const;
 export type FanslyPurpose = (typeof FANSLY_PURPOSES)[number];
 
 /**
@@ -124,6 +124,12 @@ export interface FanslyAdmission {
 const PASS_READ: FanslyAdmission = { mode: 'queue', attempts: 4 };
 /** A read the person waits for by a click: once, and not at all while the creator cools down. */
 const CLICK_READ: FanslyAdmission = { mode: 'check', attempts: 1 };
+/**
+ * A read an open window repeats on its own (at most once a minute per creator, its caller's rule): never in the creator's
+ * FIFO — a person's click never waits behind it, nor it behind a pass —, once, and not at all while the creator cools
+ * down (the window keeps what it had). Not a pass's read: a cooldown is never waited out, a failure never asked again.
+ */
+const POLL_READ: FanslyAdmission = { mode: 'check', attempts: 1 };
 /** `POST /group` (get-or-create by identity): its turn in the FIFO, refused at once during a cooldown, one attempt. */
 const GROUP_WRITE: FanslyAdmission = { mode: 'queue-or-refuse', attempts: 1 };
 /** A write the person asked for: one attempt, no wait (the hub's custody is already taken for a greeting). */
@@ -171,6 +177,9 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   // `POST /message`, one attempt (the fan's group is found by Spenders' own `spenders` reads before it). Opening the
   // bar or «Обновить» asks once which copied items are bundles: Fansly's own reload files them as media.
   outreach: { 'message.send': WRITE, 'media.bundles': CLICK_READ },
+  // «Онлайн»: who of the creator's followers was active lately — `followersnew?lastSeenAfter=`, the read FBuddy makes —,
+  // while a window or the bar's count needs it, at most once a minute per creator; never queued, never during a cooldown.
+  online: { 'followers.new': POLL_READ },
 };
 
 const has = (record: object, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);
