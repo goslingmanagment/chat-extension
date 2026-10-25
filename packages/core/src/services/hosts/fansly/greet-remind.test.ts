@@ -15,16 +15,17 @@ const FAN = '710000000000000001';
 const minutes = (n: number): number => n * 60_000;
 const followId = (ms: number): string => String(BigInt(ms - FANSLY_EPOCH_MS) << 22n);
 
-function setup(verdict: FanslyRemindVerdict | null = { s: 'due', fanLabel: 'Ann' }) {
+function setup(answer: FanslyRemindVerdict | null | (() => FanslyRemindVerdict | null) = { s: 'due', fanLabel: 'Ann' }) {
+  const verdict = typeof answer === 'function' ? answer : () => answer;
   const checks: string[] = [];
   const toasts: { tab: string; toast: BackgroundToast }[] = [];
   const store = new Map<string, unknown>();
   let tab: string | null = 'tab-1';
   const make = () =>
     createFanslyGreetReminder({
-      check: (creator, fan) => {
-        checks.push(`${creator}:${fan}`);
-        return Promise.resolve(verdict);
+      check: (creator, follows) => {
+        for (const follow of follows) checks.push(`${creator}:${follow.fanRef}`);
+        return Promise.resolve(new Map(follows.map((follow) => [follow.fanRef, verdict()])));
       },
       target: () => (tab === null ? null : { tabSessionId: tab, pageId: 7 }),
       toast: (to, toast) => {
@@ -90,6 +91,27 @@ describe('[host:fansly] the greeting reminder (2026-10-25)', () => {
     await second.restore();
     await vi.advanceTimersByTimeAsync(FANSLY_GREET_RETRY_MS);
     expect(t.toasts.map((entry) => entry.tab)).toEqual(['tab-2']);
+  });
+
+  it('a fan the check cannot tell about yet is asked again each minute — and no more once the follow is an hour old', async () => {
+    let answers: (FanslyRemindVerdict | null)[] = [null, null, { s: 'due', fanLabel: null }];
+    const t = setup(() => answers.shift() ?? null);
+    const reminder = t.make();
+    reminder.heard(t.follow());
+    await vi.advanceTimersByTimeAsync(minutes(10));
+    expect(t.checks).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(FANSLY_GREET_RETRY_MS * 2);
+    expect(t.checks).toHaveLength(3);
+    expect(t.toasts).toHaveLength(1);
+    answers = [];
+    reminder.heard(t.batch([{ kind: 'subscriber', id: followId(Date.now()), accountId: C, followerId: '710000000000000002' }]));
+    await vi.advanceTimersByTimeAsync(minutes(70));
+    // Asked from its tenth minute to its sixtieth, once a minute; never after.
+    expect(t.checks.filter((check) => check.endsWith(':710000000000000002')).length).toBeLessThanOrEqual(51);
+    const asked = t.checks.length;
+    await vi.advanceTimersByTimeAsync(minutes(10));
+    expect(t.checks).toHaveLength(asked);
+    expect(t.toasts).toHaveLength(1);
   });
 
   it('a follow of another account, or older than an hour, is nobody’s', async () => {

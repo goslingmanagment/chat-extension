@@ -825,22 +825,34 @@ describe('[host:fansly] «Новые» as the old extension did it (audit 2026-1
     expect(t.world.calls.length).toBe(calls);
   });
 
-  it('[2026-10-25] the greeting reminder checks one new follower with no window: the welcome automation alone is due (with the name), a personal message is greeted, a fan who wrote wrote', async () => {
+  it('[2026-10-25] the greeting reminder checks a creator’s new followers READ-ONLY, together: the inbox once, the chats it names; no chat made', async () => {
     const t = setup();
-    const due = t.world.follow(1, T0 - minutes(10), { name: 'Ann' });
-    t.world.chat(due, [{ from: 'model', content: 'Thanks for the follow' }], 'no');
-    const greeted = t.world.follow(2, T0 - minutes(10));
-    t.world.chat(greeted, [{ from: 'model', content: 'Thanks for the follow' }, { from: 'model', content: 'hey you 💕' }], 'no');
-    const wrote = t.world.follow(3, T0 - minutes(10));
-    t.world.chat(wrote, [{ from: 'fan', content: 'hi' }], 'no');
-    expect(await t.service.remind(C, due, T0 - minutes(10))).toEqual({ s: 'due', fanLabel: 'Ann' });
-    expect(t.routes()).toEqual(['message.automated', 'group.create', 'message.history', 'message.history', 'account.byIds']);
-    // The welcome texts just read are taken from the store: no read of the automations per follow.
-    expect(await t.service.remind(C, greeted, T0 - minutes(10))).toEqual({ s: 'greeted' });
-    expect(await t.service.remind(C, wrote, T0 - minutes(10))).toEqual({ s: 'wrote' });
-    expect(t.routes().filter((route) => route === 'message.automated')).toHaveLength(1);
+    const at = T0 - minutes(10);
+    const welcomed = t.world.follow(1, at, { name: 'Ann' });
+    t.world.chat(welcomed, [{ from: 'model', content: 'Thanks for the follow' }]);
+    const greeted = t.world.follow(2, at);
+    t.world.chat(greeted, [{ from: 'model', content: 'Thanks for the follow' }, { from: 'model', content: 'hey you 💕' }]);
+    const wrote = t.world.follow(3, at);
+    t.world.chat(wrote, [{ from: 'fan', content: 'hi' }]);
+    // No chat anywhere: nobody wrote since the follow, and the inbox read to its end says so.
+    const silent = t.world.follow(4, at, { name: 'Bea' });
+    const fans = [welcomed, greeted, wrote, silent].map((fanRef) => ({ fanRef, followedAt: at }));
+    const verdicts = await t.service.remind(C, fans);
+    expect(Object.fromEntries(verdicts)).toEqual({
+      [welcomed]: { s: 'due', fanLabel: 'Ann' },
+      [greeted]: { s: 'greeted' },
+      [wrote]: { s: 'wrote' },
+      [silent]: { s: 'due', fanLabel: 'Bea' },
+    });
+    expect(t.creates()).toEqual([]);
+    expect(t.routes().filter((route) => route === 'messaging.groups' || route === 'message.automated' || route === 'account.byIds')).toEqual(['message.automated', 'messaging.groups', 'account.byIds']);
     // What it proved is the book's: a window's pass takes the greeted fan without a request.
     await vi.advanceTimersByTimeAsync(KNOWN_FLUSH_MS + 1);
     expect(t.kv.data.get(`${NEWCOMERS_KNOWN_PREFIX}${C}`)).toMatchObject({ fans: { [greeted]: { p: { at: expect.any(Number) } } } });
+    // The creator's lane cools down: nothing is asked, nobody is told — the reminder asks again a minute later.
+    const calls = t.world.calls.length;
+    t.world.setCooling(Date.now() + minutes(1));
+    expect(Object.fromEntries(await t.service.remind(C, fans.slice(0, 1)))).toEqual({ [welcomed]: null });
+    expect(t.world.calls.length).toBe(calls);
   });
 });

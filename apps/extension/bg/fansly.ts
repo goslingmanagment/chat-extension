@@ -488,7 +488,7 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
 function startGreetReminder(kit: BackgroundKit, newcomers: FanslyNewcomers): FanslyGreetReminder {
   const idsOf = (creator: string): readonly string[] => [creator, ...(kit.networkSession?.aliases(creator) ?? [])];
   return createFanslyGreetReminder({
-    check: (creator, fanRef, followedAt) => newcomers.remind(creator, fanRef, followedAt),
+    check: (creator, follows) => newcomers.remind(creator, follows),
     target(creator) {
       const bootstrap = kit.hub.bootstrap();
       if (kit.siteActive?.() === false || bootstrap === null) return null;
