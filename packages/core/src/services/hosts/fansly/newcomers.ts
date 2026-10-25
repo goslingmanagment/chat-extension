@@ -193,6 +193,22 @@ interface KnownBook {
   timer: boolean;
 }
 
+/**
+ * 2026-10-25: the greeting reminder's check of one fan (`remind`) takes the kept welcome texts without asking Fansly
+ * while they are this fresh: a check per follow, not a read of the automations per follow.
+ */
+export const REMIND_WELCOME_FRESH_MS = 15 * 60_000;
+
+/** What the greeting reminder's check of one new follower found (greet-remind.ts). */
+export type FanslyRemindVerdict =
+  /** Nobody wrote to the fan, the fan did not write, and Fansly lets the creator write: the reminder is due. */
+  | { readonly s: 'due'; readonly fanLabel: string | null }
+  /** The creator's personal message, or a greeting of ours that went. */
+  | { readonly s: 'greeted' }
+  | { readonly s: 'wrote' }
+  /** «Нельзя написать» (FS-NEW-2), or the person took the fan out of the queue. */
+  | { readonly s: 'closed' };
+
 /** A blip of Fansly's is asked again no sooner than this (the old extension's 2.4.3: live 404s came in runs of 2–3 s). */
 export const RECHECK_DELAY_MS = 3000;
 /**
@@ -1568,6 +1584,95 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return { hostAccountId: pass.creator, groupId: row.proof.groupId, fanRef, historyRevision: row.proof.historyRevision };
   }
 
+  // ── the greeting reminder (2026-10-25, greet-remind.ts) ──
+
+  /** The reminder's checks in flight: stopped with the module. */
+  const reminding = new Set<AbortSwitch>();
+
+  /**
+   * The check of one new follower with no window open: what passes proved first (an open pass's «Уже писали» or «Нельзя
+   * написать», the book), then the queue's own check of that fan alone (NF-032, NF-039) — the welcome texts (the kept
+   * ones while fresh), the chat by get-or-create, its history to the empty page. A pass nobody holds: no window shows
+   * it, what it proves goes to the book as any pass's. The fan's name is read only for a fan who is due. One attempt,
+   * never repeated; null — not told (a failure, the module going): nobody is reminded.
+   */
+  async function remind(creator: string, fanRef: string, followedAt: number): Promise<FanslyRemindVerdict | null> {
+    const shown = passes.get(creator)?.byFan.get(fanRef)?.view.status;
+    if (shown === 'greeted') return { s: 'greeted' };
+    if (shown === 'dm-closed' || shown === 'excluded') return { s: 'closed' };
+    const stop = new AbortSwitch();
+    reminding.add(stop);
+    const work = workOf(stop);
+    const row: Row = { view: rowView(fanRef, followedAt, undefined), chat: null, kept: [], keptAll: false, proof: null, avatar: null };
+    const pass: Pass = {
+      id: deps.uuid(),
+      creator,
+      windowHours: FANSLY_TAB_LIMITS.windowHoursMin,
+      startedAt: deps.now(),
+      journal: undefined,
+      base: 'queue',
+      phase: null,
+      partial: false,
+      error: null,
+      coolingUntil: null,
+      welcome: new Set(),
+      followers: { before: '0', pages: 0, read: true, cursors: new Set() },
+      rows: [row],
+      byFan: new Map([[fanRef, row]]),
+      leads: new Map(),
+      watchers: new Set(),
+      life: new AbortSwitch(),
+      work: null,
+      preferred: null,
+      seq: 0,
+      dirty: new Set(),
+      passDirty: false,
+      flushing: false,
+    };
+    try {
+      pass.welcome = (await freshWelcome(creator)) ?? (await welcomeTexts(pass, work));
+      const book = await bookOf(creator);
+      if (stop.aborted) return null;
+      // The row as the steps left it (each of them sets it).
+      const statusOf = (): FanslyFollowerRow['status'] => row.view.status;
+      knownVerdicts(pass, book);
+      if (statusOf() === 'greeted') return { s: 'greeted' };
+      knownLeads(pass, book);
+      await check(pass, work, row, true);
+      const status = statusOf();
+      if (status === 'greeted') return { s: 'greeted' };
+      if (status === 'dm-closed' || status === 'excluded') return { s: 'closed' };
+      if (status !== 'ready') return null;
+      if (row.view.fanWrote === true) return { s: 'wrote' };
+      return { s: 'due', fanLabel: await nameOf(pass, work, fanRef) };
+    } catch (error) {
+      if (!(error instanceof Aborted) && !stop.aborted) log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the greeting reminder could not check a fan', fields: { code: failureOf(error).wire.code } });
+      return null;
+    } finally {
+      reminding.delete(stop);
+    }
+  }
+
+  /** The kept welcome texts of the creator, read from Fansly less than REMIND_WELCOME_FRESH_MS ago; null — none so fresh. */
+  async function freshWelcome(creator: string): Promise<Set<string> | null> {
+    const key = `${NEWCOMERS_WELCOME_PREFIX}${creator}`;
+    const stored = await deps.local.get([key]).catch(() => null);
+    const value = stored?.ok === true ? (stored.value[key] as { readonly texts?: unknown; readonly checkedAt?: unknown } | undefined) : undefined;
+    if (!Array.isArray(value?.texts) || !finite(value.checkedAt) || deps.now() - value.checkedAt > REMIND_WELCOME_FRESH_MS) return null;
+    return new Set(value.texts.filter((text): text is string => typeof text === 'string' && text !== ''));
+  }
+
+  /** The fan's name for the reminder: the creator's own name of them, else theirs; null — not read. */
+  async function nameOf(pass: Pass, work: Work, fanRef: string): Promise<string | null> {
+    try {
+      const profile = readAccounts(await ask(pass, work, { route: 'account.byIds', query: { ids: fanRef } }))?.find((entry) => entry.fanRef === fanRef);
+      return profile?.customName?.trim() || profile?.displayName?.trim() || profile?.username?.trim() || null;
+    } catch (error) {
+      if (error instanceof Aborted || work.stop.aborted) throw new Aborted();
+      return null;
+    }
+  }
+
   /** The card's greeting went (sent, or the person's own send registered): the fan is «Уже писали» in the creator's pass. */
   function markGreeted(creator: string, fanRef: string): void {
     const pass = passes.get(creator);
@@ -1616,12 +1721,14 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     recheck,
     live,
     greeted: markGreeted,
+    remind,
     /** The work in flight, for tests and the module's dispose. */
     idle: async (): Promise<void> => {
       for (const pass of passes.values()) await pass.work?.done;
     },
     dispose(): void {
       for (const pass of [...passes.values()]) drop(pass);
+      for (const stop of reminding) stop.abort();
       windows.clear();
     },
   };

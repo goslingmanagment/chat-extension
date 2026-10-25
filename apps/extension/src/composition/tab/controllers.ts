@@ -461,6 +461,14 @@ export async function startBoards(
    */
   async function greet(handle: string): Promise<ActionReceipt> {
     await router.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
+    // 2026-10-25: «Новые» checked by a pass (Fansly) find the fan themselves — the card opens, and the handle Hi starts
+    // on comes back only for a fan checked already; otherwise the card's own Hi is the person's next click.
+    if (newcomers.greetCard !== undefined) {
+      const hi = await newcomers.greetCard(handle);
+      if (hi === null) return { ok: true, type: 'GreetNewcomer', outcome: 'opened' };
+      const started = await router.dispatch({ type: 'Generate', targetHandle: hi, feature: 'hi', options: { variants: 1 } });
+      return { ...started, type: 'GreetNewcomer' };
+    }
     if (newcomers.directory.resolve(handle) === null) await newcomers.refresh();
     const opened = await router.dispatch({ type: 'OpenPreview', targetHandle: handle });
     if (!opened.ok) return { ...opened, type: 'GreetNewcomer' };

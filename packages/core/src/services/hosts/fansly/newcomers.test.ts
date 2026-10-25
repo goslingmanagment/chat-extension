@@ -824,4 +824,23 @@ describe('[host:fansly] «Новые» as the old extension did it (audit 2026-1
     await t.settle();
     expect(t.world.calls.length).toBe(calls);
   });
+
+  it('[2026-10-25] the greeting reminder checks one new follower with no window: the welcome automation alone is due (with the name), a personal message is greeted, a fan who wrote wrote', async () => {
+    const t = setup();
+    const due = t.world.follow(1, T0 - minutes(10), { name: 'Ann' });
+    t.world.chat(due, [{ from: 'model', content: 'Thanks for the follow' }], 'no');
+    const greeted = t.world.follow(2, T0 - minutes(10));
+    t.world.chat(greeted, [{ from: 'model', content: 'Thanks for the follow' }, { from: 'model', content: 'hey you 💕' }], 'no');
+    const wrote = t.world.follow(3, T0 - minutes(10));
+    t.world.chat(wrote, [{ from: 'fan', content: 'hi' }], 'no');
+    expect(await t.service.remind(C, due, T0 - minutes(10))).toEqual({ s: 'due', fanLabel: 'Ann' });
+    expect(t.routes()).toEqual(['message.automated', 'group.create', 'message.history', 'message.history', 'account.byIds']);
+    // The welcome texts just read are taken from the store: no read of the automations per follow.
+    expect(await t.service.remind(C, greeted, T0 - minutes(10))).toEqual({ s: 'greeted' });
+    expect(await t.service.remind(C, wrote, T0 - minutes(10))).toEqual({ s: 'wrote' });
+    expect(t.routes().filter((route) => route === 'message.automated')).toHaveLength(1);
+    // What it proved is the book's: a window's pass takes the greeted fan without a request.
+    await vi.advanceTimersByTimeAsync(KNOWN_FLUSH_MS + 1);
+    expect(t.kv.data.get(`${NEWCOMERS_KNOWN_PREFIX}${C}`)).toMatchObject({ fans: { [greeted]: { p: { at: expect.any(Number) } } } });
+  });
 });

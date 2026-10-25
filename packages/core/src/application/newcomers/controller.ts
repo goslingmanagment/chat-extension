@@ -109,6 +109,12 @@ export interface NewcomersController extends SurfaceController<'newcomers'> {
   attachBatch?(port: BatchPreviewPort): void;
   /** A batch of the list's own (a pass's greetings) started this generation: no toast for its end. */
   fromBatch?(opId: string): boolean;
+  /**
+   * 2026-10-25, «Hi» of a greeting reminder's toast on a list checked by a pass (Fansly), the window open: the card of
+   * the toast's fan (`fanHandle('newcomers', …)`) opens, and the handle Hi may start on now comes back — null while the
+   * fan is not checked yet (the card's own Hi is then the person's). Absent — the hub's list: the preview's own way.
+   */
+  greetCard?(handle: TargetHandle): Promise<TargetHandle | null>;
 }
 
 export function createNewcomersController(deps: NewcomersControllerDeps): NewcomersController {

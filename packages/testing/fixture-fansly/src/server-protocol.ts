@@ -113,8 +113,11 @@ export type FakeFanslyCommand =
   | { readonly op: 'ack'; readonly messageIds: readonly string[]; readonly userId?: string; readonly type?: number }
   /** `5/22`: the group's fan types (or the account named). */
   | { readonly op: 'typing'; readonly groupId: string; readonly accountId?: string }
-  /** A new follower and its `3/2` frame; `dmRulesUnmet` — the fan's DM rules the creator does not meet, in the chat `POST /group` makes. */
-  | { readonly op: 'follow'; readonly followerId?: string; readonly silent?: boolean; readonly dmRulesUnmet?: boolean }
+  /**
+   * A new follower and its `3/2` frame; `dmRulesUnmet` — the fan's DM rules the creator does not meet, in the chat
+   * `POST /group` makes; `agoMs` — the follow happened this long ago (its id's moment; the frame comes now).
+   */
+  | { readonly op: 'follow'; readonly followerId?: string; readonly silent?: boolean; readonly dmRulesUnmet?: boolean; readonly agoMs?: number }
   /** Replace only the followers with this pass fixture; profiles, notes and optional histories use normal API shapes. No socket events. */
   | { readonly op: 'newcomers'; readonly followers: readonly NewcomerSeed[] }
   /**

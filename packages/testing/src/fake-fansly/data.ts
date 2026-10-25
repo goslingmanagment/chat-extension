@@ -424,13 +424,16 @@ export class FanslyWorld {
 
   // ── followers ──
 
-  /** A new follower, now: a made-up account unless one is named; `dmRulesUnmet` — the fan's DMs are closed to the creator. */
-  follow(followerId?: string, dmRulesUnmet = false): FakeFollow {
+  /**
+   * A new follower, now (or `agoMs` ago, by its id): a made-up account unless one is named; `dmRulesUnmet` — the fan's
+   * DMs are closed to the creator.
+   */
+  follow(followerId?: string, dmRulesUnmet = false, agoMs?: number): FakeFollow {
     const id = followerId ?? String(FOLLOWER_ACCOUNT_BASE + 900_000n + BigInt(this.follows.length * 17 + 5));
     if (dmRulesUnmet) this.dmClosed.add(id);
     const account = this.ensureAccount(id);
     account.followsCreator = true;
-    const follow: FakeFollow = { id: this.nextId(), followerId: id };
+    const follow: FakeFollow = { id: agoMs === undefined ? this.nextId() : snowflakeAt(Date.now() - agoMs, this.follows.length), followerId: id };
     this.follows.unshift(follow);
     return follow;
   }
