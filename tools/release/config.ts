@@ -71,10 +71,26 @@ export const FEED_FILE = UPDATE_URL.slice(UPDATE_URL.lastIndexOf('/') + 1);
 export const FEED_PREVIOUS_FILE = 'updates.previous.json';
 export const HUB_HEALTH_PATH = '/api/v1/health';
 
-/** The signed XPI as it is served: one immutable file per version. */
+/**
+ * The signed XPI of a version signed now, as it is served: one immutable file per version. A version signed before
+ * the rename keeps its name on the server and in its record (`xpi.file`) forever — read it from there, never from here.
+ */
 export const signedXpiName = (version: string): string => `${ARTIFACT_PREFIX}${version}.xpi`;
-/** The record of a release, served next to its XPI (sha256, source commit, SDK hash). */
-export const recordName = (version: string): string => `${ARTIFACT_PREFIX}${version}.json`;
+/** The prefix of the files of every version signed before the rename (2026-10-25): `chatgoose-chatspace-0.10.5.xpi`. */
+export const LEGACY_ARTIFACT_PREFIX = 'chatgoose-chatspace-';
+/** The names a version's signed XPI may carry: today's first, then the one of a version signed before the rename. */
+export const signedXpiNames = (version: string): readonly string[] => [signedXpiName(version), `${LEGACY_ARTIFACT_PREFIX}${version}.xpi`];
+/** The record of a release (sha256, source commit, SDK hash), served next to its XPI under the XPI's name with .json. */
+export const recordNameOf = (xpiFile: string): string => `${xpiFile.replace(/\.xpi$/, '')}.json`;
+/** The record of a version signed now. */
+export const recordName = (version: string): string => recordNameOf(signedXpiName(version));
+
+/**
+ * The site for chatters: the folder of `SITE_BASE`, served at the root of its own host since 3.0 (the pages under
+ * `SITE_BASE` redirect there; the feed and its XPIs stay where the manifest looks for them). The post and its buttons
+ * point here.
+ */
+export const PUBLIC_SITE = 'https://chatgoose.gosling-agency.ru/';
 
 /** Environment variables the outward steps read. Values never go to the repository, a log or a command line. */
 export const ENV = {

@@ -23,8 +23,9 @@ export function xpiPath(flavor: Flavor): string {
   if (!existsSync(`${dir}manifest.json`)) throw new Error(`${flavor} build missing: run \`${command}\` first`);
   const { version } = JSON.parse(readFileSync(`${dir}manifest.json`, 'utf8')) as { version: string };
   const suffix = flavor === 'test' ? '-firefox-test.zip' : '-firefox.zip';
-  const expected = `chatgoose-chatspace-${version}${suffix}`;
-  const found = readdirSync(outputDir).filter((file) => file.startsWith('chatgoose-chatspace-') && file.endsWith(suffix));
+  const expected = `chatgoose-${version}${suffix}`;
+  // An archive of a build before the rename (chatgoose-chatspace-…) is stale as well: the build removes it.
+  const found = readdirSync(outputDir).filter((file) => file.startsWith('chatgoose-') && file.endsWith(suffix));
   if (!found.includes(expected)) throw new Error(`${expected} missing: run \`${command}\` first`);
   if (found.length > 1) throw new Error(`stale ${flavor} XPIs next to ${expected}: ${found.join(', ')} — run \`${command}\``);
   return `${outputDir}${expected}`;

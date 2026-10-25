@@ -6,18 +6,21 @@
 // answer from a script; the "server" is a folder of this machine that `scp` and
 // `ssh … sh -s` are played into (the scripts themselves run for real) and that
 // the scripted HTTP reads back; Telegram is a list of replies. Whatever the
-// tool asks that the script does not know is an error.
+// tool asks that the script does not know is an error. The notes of changes
+// are files a test writes into the checkout's changes/, with the commit that
+// added each (`World.added`).
 
 import { cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { artifactNames } from '../../apps/extension/build/artifacts.ts';
 import { listTree } from '../lib/files.ts';
 import { writeZip } from '../lib/zip-write.ts';
 import type { ZipEntry } from '../lib/zip.ts';
 import type { FetchLike } from './announce.ts';
 import { runCli, type CliDeps } from './cli.ts';
-import { CHANGELOG_FILE, ENV, HUB_HEALTH_PATH, OPTIONAL_SITE_ORIGINS, releaseTarget, REPO_ROOT, signedXpiName, SITE_DIR, VERSION_FILE } from './config.ts';
+import { CHANGELOG_FILE, ENV, HUB_HEALTH_PATH, OPTIONAL_SITE_ORIGINS, recordName, releaseTarget, REPO_ROOT, signedXpiName, SITE_DIR, VERSION_FILE } from './config.ts';
 import { realExec, type CommandResult, type CommandSpec, type Exec } from './exec.ts';
 import type { Http } from './publish.ts';
 import type { ReleaseRecord } from './records.ts';
@@ -53,6 +56,10 @@ export interface World {
   pushFails: boolean;
   /** The subjects `git log --first-parent` gives for any range, newest first. */
   subjects: string[];
+  /** The notes each commit of main added: changes/<slug>.md (and their pictures). */
+  added: Map<string, string[]>;
+  /** The day of each tag's commit, YYYY-MM-DD (2026-10-01 unless named). */
+  tagDays: Map<string, string>;
   /** The message of the lock tag here and on origin; null — none. */
   localLock: string | null;
   originLock: string | null;
@@ -91,8 +98,8 @@ export interface Harness {
   readonly commands: string[];
   /** Every address it read over HTTP. */
   readonly requests: string[];
-  /** Every request to Telegram. */
-  readonly posts: Array<{ url: string; body: unknown }>;
+  /** Every request to Telegram: its form fields, and its files by part name. */
+  readonly posts: Array<{ url: string; fields: Record<string, string>; files: Record<string, { name: string; type: string; bytes: number }> }>;
   readonly out: string[];
   readonly err: string[];
   /** `pnpm release <argv>`; resolves with the exit code. */
@@ -149,8 +156,9 @@ export function makeHarness(): Harness {
     const version = readPackageVersion(readFileSync(join(checkout, VERSION_FILE), 'utf8'));
     rmSync(join(checkout, 'apps/extension/.output'), { recursive: true, force: true });
     for (const file of buildOf(version)) put(`apps/extension/.output/firefox-mv3/${file.name}`, file.data);
-    put(`apps/extension/.output/chatgoose-chatspace-${version}-firefox.zip`, writeZip(buildOf(version)));
-    put(`apps/extension/.output/chatgoose-chatspace-${version}-sources.zip`, writeZip([{ name: 'package.json', data: Buffer.from(`{"version":"${version}"}`) }, { name: 'BUILD.md', data: Buffer.from('how to build') }]));
+    const names = artifactNames(version, 'release');
+    put(`apps/extension/.output/${names.xpi}`, writeZip(buildOf(version)));
+    put(`apps/extension/.output/${names.sources}`, writeZip([{ name: 'package.json', data: Buffer.from(`{"version":"${version}"}`) }, { name: 'BUILD.md', data: Buffer.from('how to build') }]));
   };
   build();
 
@@ -163,6 +171,8 @@ export function makeHarness(): Harness {
     originTags: new Set([`v${VERSION}`]),
     pushFails: false,
     subjects: ['feat(ai): reply drafts keep the last messages (#240)', 'docs: release notes (#241)', 'fix(fansly): Spenders opens on the first click (#239)'],
+    added: new Map(),
+    tagDays: new Map(),
     localLock: null,
     originLock: null,
     githubReleases: new Map(),
@@ -181,7 +191,7 @@ export function makeHarness(): Harness {
 
   const commands: string[] = [];
   const requests: string[] = [];
-  const posts: Array<{ url: string; body: unknown }> = [];
+  const posts: Harness['posts'] = [];
   const out: string[] = [];
   const err: string[] = [];
   const answer = (stdout = '', code = 0, stderr = ''): CommandResult => ({ code, stdout, stderr });
@@ -200,6 +210,18 @@ export function makeHarness(): Harness {
     if (/^fetch origin main( --tags)? --quiet$/.test(line) || line === 'fetch --quiet --force origin main --tags') return answer();
     if (line === 'tag -l v*') return answer([...world.localTags.keys()].filter((name) => name.startsWith('v')).join('\n'));
     if (line.startsWith('log --first-parent --format=%s ')) return answer(world.subjects.join('\n'));
+    // The notes a range of main added (local.ts notesAdded): `from..to` or everything up to `to`, oldest first.
+    if (line.startsWith('log --first-parent --reverse --diff-filter=A --no-renames --format= --name-only ')) {
+      const range = args[args.indexOf('--name-only') + 1] ?? '';
+      const dots = range.indexOf('..');
+      const end = world.main.indexOf(commit(dots < 0 ? range : range.slice(dots + 2)));
+      const start = dots < 0 ? 0 : world.main.indexOf(commit(range.slice(0, dots))) + 1;
+      return answer(world.main.slice(start, end + 1).flatMap((each) => world.added.get(each) ?? []).join('\n'));
+    }
+    // The subjects and files of a range (local.ts commitsWithNotes): the subjects, no files.
+    if (line.startsWith('log --first-parent --format=%x01%s --name-only ')) return answer(world.subjects.map((subject) => `\x01${subject}\n`).join(''));
+    const day = /^log -1 --format=%cs (v[0-9.]+)\^\{commit\}$/.exec(line);
+    if (day !== null) return answer(`${world.tagDays.get(day[1] ?? '') ?? '2026-10-01'}\n`);
     // The lock (lock.ts).
     if (line === `ls-remote origin ${LOCK_REF}`) return answer(world.originLock === null ? '' : `${'7'.repeat(40)}\t${LOCK_REF}\n`);
     if (line === `fetch --quiet --no-tags origin +${LOCK_REF}:${LOCK_REF}`) {
@@ -335,7 +357,13 @@ export function makeHarness(): Harness {
   };
 
   const fetchImpl: FetchLike = (url, init) => {
-    posts.push({ url, body: JSON.parse(init.body) });
+    const fields: Record<string, string> = {};
+    const files: Record<string, { name: string; type: string; bytes: number }> = {};
+    for (const [name, value] of init.body.entries()) {
+      if (typeof value === 'string') fields[name] = value;
+      else files[name] = { name: value.name, type: value.type, bytes: value.size };
+    }
+    posts.push({ url, fields, files });
     const next = world.telegram.shift();
     if (next === undefined) throw new Error('no Telegram reply is scripted');
     if (next instanceof Error) return Promise.reject(next);
@@ -398,7 +426,7 @@ export function makeHarness(): Harness {
       };
       mkdirSync(releaseDir, { recursive: true });
       writeFileSync(join(releaseDir, signedXpiName(VERSION)), xpi);
-      writeFileSync(join(releaseDir, `chatgoose-chatspace-${VERSION}.json`), `${JSON.stringify(record, null, 2)}\n`);
+      writeFileSync(join(releaseDir, recordName(VERSION)), `${JSON.stringify(record, null, 2)}\n`);
       return record;
     },
     path: (relative) => join(checkout, relative),

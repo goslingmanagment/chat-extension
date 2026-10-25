@@ -16,7 +16,7 @@
 
 import { join } from 'node:path';
 
-import { recordName, RELEASE_DIR, signedXpiName } from './config.ts';
+import { recordNameOf, RELEASE_DIR, signedXpiName, signedXpiNames } from './config.ts';
 import { isVersion } from './version.ts';
 
 export interface ArtifactRef {
@@ -90,14 +90,15 @@ export interface AnnouncedRecord {
   readonly messageId: number | null;
 }
 
-export function releasePaths(repoRoot: string, version: string): ReleasePaths {
+/** `xpiFile` — the name of the version's signed XPI: today's unless the version was signed before the rename. */
+export function releasePaths(repoRoot: string, version: string, xpiFile: string = signedXpiName(version)): ReleasePaths {
   const dir = join(repoRoot, RELEASE_DIR, version);
   return {
     dir,
     gate: join(dir, 'gate.json'),
     submitted: join(dir, 'submitted.json'),
-    record: join(dir, recordName(version)),
-    signedXpi: join(dir, signedXpiName(version)),
+    record: join(dir, recordNameOf(xpiFile)),
+    signedXpi: join(dir, xpiFile),
     amoMetadata: join(dir, 'amo-metadata.json'),
     announced: join(dir, 'announced.json'),
   };
@@ -146,7 +147,9 @@ export function parseReleaseRecord(text: string): ReleaseRecord {
   if (typeof record.unsignedXpiSha256 !== 'string' || !SHA256_RE.test(record.unsignedXpiSha256)) problems.push('unsignedXpiSha256: not a sha256');
   if (typeof record.sourcesSha256 !== 'string' || !SHA256_RE.test(record.sourcesSha256)) problems.push('sourcesSha256: not a sha256');
   problems.push(...artifactProblems('xpi', record.xpi), ...vendorProblems(record.vendor));
-  if (problems.length === 0 && record.xpi?.file !== signedXpiName(record.version ?? '')) problems.push(`xpi.file: ${signedXpiName(record.version ?? '')} is expected`);
+  // A version signed before the rename names its file by the old prefix: that is its name for good.
+  const names = signedXpiNames(record.version ?? '');
+  if (problems.length === 0 && !names.includes(record.xpi?.file ?? '')) problems.push(`xpi.file: ${names.join(' or ')} is expected`);
   if (problems.length > 0) throw new Error(`release record: ${problems.join('; ')}.`);
   return record as ReleaseRecord;
 }

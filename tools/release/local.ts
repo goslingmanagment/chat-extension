@@ -12,7 +12,7 @@ import type { ZipEntry } from '../lib/zip.ts';
 import { SITE_PAGES as EXTENSION_LINKS } from '../../apps/extension/src/site.ts';
 import { parseChangelog, type Changelog } from './changelog.ts';
 import { NOTES_DIR, noteSlug, parseNote, type Note } from './changes.ts';
-import { CHANGELOG_FILE, RELEASE_DIR, releaseTarget, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
+import { CHANGELOG_FILE, RELEASE_DIR, releaseTarget, signedXpiNames, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
 import { mustRun, type Exec } from './exec.ts';
 import type { VendorObservation } from './gate.ts';
 import type { LocalFile } from './publish.ts';
@@ -258,8 +258,9 @@ export class Checkout {
     return new Map(names.sort().map((name) => [name, readFileSync(join(dir, name), 'utf8')]));
   }
 
-  siteContext(version: string, history: History): SiteContext {
-    return { version, target: this.target, history };
+  /** `xpiFile` — the signed XPI as the version's record names it, once it is signed. */
+  siteContext(version: string, history: History, xpiFile?: string): SiteContext {
+    return { version, target: this.target, history, ...(xpiFile === undefined ? {} : { xpiFile }) };
   }
 
   /** File names of the site pages the extension itself opens (apps/extension/src/site.ts). */
@@ -310,8 +311,9 @@ export class Checkout {
 
   // ── the records in .release/ ──
 
+  /** The files of a version in .release/: under the names its record has here (one signed before the rename keeps the old ones), else today's. */
   paths(version: string): ReleasePaths {
-    return releasePaths(this.root, version);
+    return releasePaths(this.root, version, signedXpiNames(version).find((file) => existsSync(releasePaths(this.root, version, file).record)));
   }
 
   gate(version: string): GateRecord | null {

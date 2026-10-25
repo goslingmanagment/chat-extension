@@ -52,9 +52,13 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
 - `major` or an exact `X.Y.Z` — only on the owner's word (`--confirm <version>`). 1.x and 2.x belong to the old Fansly
   extension; the next major is **3.0.0**, the launch of the one extension that replaces it (`docs/release.md` §2).
   Its notes wait in `changes/` with `release: 3.0.0`, its landing in `site/drafts/3.0.0/`; add to them, never release them early.
+  Once its pages are in `site/`, `site/index.html` declares `<meta name="cg-first-version" content="3.0.0">`: `pnpm release` then
+  stops with one line until the owner's `pnpm release 3.0.0 --confirm 3.0.0`.
 - No version in PR titles, commits or notes; never edit the version in `apps/extension/package.json` — the tags hold it.
 - A version that reached AMO is spent: never reused or skipped, its tag never moved or deleted.
-- The Telegram announcement (`pnpm release announce`) — only on the owner's word, and only from 3.0.0 on.
+- From 3.0.0 on, `pnpm release` posts the version's notes to the chatters' Telegram channel as its last step (owner,
+  2026-10-25): once per version, nothing for a version without notes, `--no-announce` skips it. By hand
+  (`pnpm release announce --confirm <version>`) only to post what a release could not (`docs/release.md` §6).
 
 ## Dangerous
 
@@ -79,7 +83,9 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
   chat, `--chat $FANSLY_TEST_MODEL_CHAT` (a real fan, silent since 2024-12): sends there are allowed once and for all
   (the owner, 2026-10-24) — texts like the model's own, never a burst.
 - **The hub's prod** (`agency-de`) — read-only. AI, keys and prompts live only in the hub.
-- **Announcements to chatters** (Telegram) — the owner's call, never automatic; the channel starts at 3.0.0.
+- **Posts to chatters** (Telegram) — automatic only as the last step of `pnpm release` from 3.0.0 (the owner's word,
+  2026-10-25); any other post to the channel is the owner's call. A post that may have gone out (`UNKNOWN`) is never
+  sent again before a look at the channel.
 
 ## What the chatter gets
 

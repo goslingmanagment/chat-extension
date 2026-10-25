@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, sym
 import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
+import { artifactNames } from '../../apps/extension/build/artifacts.ts';
 import { REPO_ROOT, fail } from '../lib/paths.ts';
 
 const TESTING = join(REPO_ROOT, 'packages/testing');
@@ -82,7 +83,7 @@ const extensionVersion = (): string => (JSON.parse(readFileSync(join(REPO_ROOT, 
 
 const TEST_BUILD: Build = {
   name: 'test build',
-  outputs: () => [join(REPO_ROOT, `apps/extension/.output/chatgoose-chatspace-${extensionVersion()}-firefox-test.zip`)],
+  outputs: () => [join(REPO_ROOT, 'apps/extension/.output', artifactNames(extensionVersion(), 'test').xpi)],
   inputs: ['apps/extension', 'packages/contracts', 'packages/core', 'packages/platform', 'packages/hub', 'packages/host-kit', 'packages/host-chatspace', 'packages/host-fansly', 'packages/fansly-api', 'packages/ui', 'vendor', 'pnpm-lock.yaml'],
   command: ['pnpm', 'build:test'],
 };

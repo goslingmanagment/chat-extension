@@ -3,7 +3,7 @@
 // address of its signed XPI and the XPI's sha256; Firefox installs it when it
 // is higher than what is installed and the hash matches. No I/O here.
 
-import { signedXpiName, type ReleaseTarget } from './config.ts';
+import { signedXpiName, signedXpiNames, type ReleaseTarget } from './config.ts';
 import { isVersion } from './version.ts';
 
 export interface FeedEntry {
@@ -19,10 +19,12 @@ const HASH_RE = /^sha256:[0-9a-f]{64}$/;
 /** https, or the loopback server of the tool's own tests. */
 const LINK_RE = /^(?:https:\/\/|http:\/\/127\.0\.0\.1[:/])/;
 
-export function feedEntryFor(target: ReleaseTarget, version: string, sha256: string): FeedEntry {
+/** `file` — the signed XPI as its record names it: today's name, or the old one of a version signed before the rename. */
+export function feedEntryFor(target: ReleaseTarget, version: string, sha256: string, file: string = signedXpiName(version)): FeedEntry {
   if (!isVersion(version)) throw new Error(`feed: "${version}" is not a version.`);
   if (!SHA256_RE.test(sha256)) throw new Error(`feed: "${sha256}" is not a sha256.`);
-  return { version, updateLink: `${target.feedBase}${signedXpiName(version)}`, sha256, strictMinVersion: target.strictMinVersion };
+  if (!signedXpiNames(version).includes(file)) throw new Error(`feed: "${file}" is no name of the signed XPI of ${version}.`);
+  return { version, updateLink: `${target.feedBase}${file}`, sha256, strictMinVersion: target.strictMinVersion };
 }
 
 /** The exact bytes of updates.json for one entry. */
