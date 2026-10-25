@@ -194,10 +194,18 @@ interface KnownBook {
 }
 
 /**
- * 2026-10-25: the greeting reminder's check of one fan (`remind`) takes the kept welcome texts without asking Fansly
- * while they are this fresh: a check per follow, not a read of the automations per follow.
+ * 2026-10-25: the greeting reminder's check (`remind`) takes the kept welcome texts without asking Fansly while they
+ * are this fresh: a check a minute at most, not a read of the automations per check.
  */
 export const REMIND_WELCOME_FRESH_MS = 15 * 60_000;
+/** The start of the inbox one reminder check reads at most, pages of `PASS_BOUNDS.inboxPage`, back past the oldest follow. */
+export const REMIND_INBOX_PAGES = 3;
+
+/** A new follower the greeting reminder asks about: the fan and the follow's moment (epoch ms). */
+export interface FanslyRemindFollow {
+  readonly fanRef: string;
+  readonly followedAt: number;
+}
 
 /** What the greeting reminder's check of one new follower found (greet-remind.ts). */
 export type FanslyRemindVerdict =
@@ -1590,20 +1598,35 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   const reminding = new Set<AbortSwitch>();
 
   /**
-   * The check of one new follower with no window open: what passes proved first (an open pass's «Уже писали» or «Нельзя
-   * написать», the book), then the queue's own check of that fan alone (NF-032, NF-039) — the welcome texts (the kept
-   * ones while fresh), the chat by get-or-create, its history to the empty page. A pass nobody holds: no window shows
-   * it, what it proves goes to the book as any pass's. The fan's name is read only for a fan who is due. One attempt,
-   * never repeated; null — not told (a failure, the module going): nobody is reminded.
+   * The check of a creator's new followers with no window open, READ-ONLY (the owner, 2026-10-25: «только чтение без
+   * создания чата»): never `POST /group`. What passes proved first (an open pass's «Уже писали» or «Нельзя написать»,
+   * the book); then the start of the inbox — the newest chats first — back past the oldest follow (at most
+   * REMIND_INBOX_PAGES pages, the first page again after more than one: a chat written to meanwhile jumps to the top).
+   * A fan whose chat it or the book names is checked as the window checks them (NF-032: the participants' fence, the
+   * history to the empty page, «Нельзя написать»), without creating anything. A fan with no chat there, once the inbox
+   * reaches past their follow, got no message since and wrote none: due — an old chat with an earlier greeting of a
+   * fan who came back is not looked for. The names are read in one request, only for the fans who are due.
+   * Per fan: the verdict, or null — not told now (the lane cools down, a failure, an inbox not read far enough): the
+   * reminder asks again a minute later. A pass nobody holds: no window shows it; what it proves goes to the book.
    */
-  async function remind(creator: string, fanRef: string, followedAt: number): Promise<FanslyRemindVerdict | null> {
-    const shown = passes.get(creator)?.byFan.get(fanRef)?.view.status;
-    if (shown === 'greeted') return { s: 'greeted' };
-    if (shown === 'dm-closed' || shown === 'excluded') return { s: 'closed' };
+  async function remind(creator: string, follows: readonly FanslyRemindFollow[]): Promise<Map<string, FanslyRemindVerdict | null>> {
+    const verdicts = new Map<string, FanslyRemindVerdict | null>();
+    const open = passes.get(creator);
+    const asked: FanslyRemindFollow[] = [];
+    for (const follow of follows) {
+      if (verdicts.has(follow.fanRef) || asked.some((other) => other.fanRef === follow.fanRef)) continue;
+      const shown = open?.byFan.get(follow.fanRef)?.view.status;
+      if (shown === 'greeted') verdicts.set(follow.fanRef, { s: 'greeted' });
+      else if (shown === 'dm-closed' || shown === 'excluded') verdicts.set(follow.fanRef, { s: 'closed' });
+      else asked.push(follow);
+    }
+    for (const follow of asked) verdicts.set(follow.fanRef, null);
+    // The creator's lane cools down: nothing is asked now, the next minute is.
+    if (asked.length === 0 || deps.api.coolingUntil(creator) > deps.now()) return verdicts;
     const stop = new AbortSwitch();
     reminding.add(stop);
     const work = workOf(stop);
-    const row: Row = { view: rowView(fanRef, followedAt, undefined), chat: null, kept: [], keptAll: false, proof: null, avatar: null };
+    const rows: Row[] = asked.map((follow) => ({ view: rowView(follow.fanRef, follow.followedAt, undefined), chat: null, kept: [], keptAll: false, proof: null, avatar: null }));
     const pass: Pass = {
       id: deps.uuid(),
       creator,
@@ -1617,8 +1640,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       coolingUntil: null,
       welcome: new Set(),
       followers: { before: '0', pages: 0, read: true, cursors: new Set() },
-      rows: [row],
-      byFan: new Map([[fanRef, row]]),
+      rows,
+      byFan: new Map(rows.map((row) => [row.view.fanRef, row])),
       leads: new Map(),
       watchers: new Set(),
       life: new AbortSwitch(),
@@ -1632,25 +1655,78 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     try {
       pass.welcome = (await freshWelcome(creator)) ?? (await welcomeTexts(pass, work));
       const book = await bookOf(creator);
-      if (stop.aborted) return null;
-      // The row as the steps left it (each of them sets it).
-      const statusOf = (): FanslyFollowerRow['status'] => row.view.status;
+      if (stop.aborted) return verdicts;
       knownVerdicts(pass, book);
-      if (statusOf() === 'greeted') return { s: 'greeted' };
       knownLeads(pass, book);
-      await check(pass, work, row, true);
-      const status = statusOf();
-      if (status === 'greeted') return { s: 'greeted' };
-      if (status === 'dm-closed' || status === 'excluded') return { s: 'closed' };
-      if (status !== 'ready') return null;
-      if (row.view.fanWrote === true) return { s: 'wrote' };
-      return { s: 'due', fanLabel: await nameOf(pass, work, fanRef) };
+      const reach = await inboxReach(pass, work, Math.min(...asked.map((follow) => follow.followedAt)));
+      const due: string[] = [];
+      for (const row of rows) {
+        const fan = row.view.fanRef;
+        const verdict = row.view.status === 'greeted' ? { s: 'greeted' as const } : await remindRow(pass, work, row, reach);
+        verdicts.set(fan, verdict);
+        if (verdict?.s === 'due') due.push(fan);
+      }
+      const names = due.length === 0 ? new Map<string, string>() : await namesOf(pass, work, due);
+      for (const fan of due) verdicts.set(fan, { s: 'due', fanLabel: names.get(fan) ?? null });
     } catch (error) {
-      if (!(error instanceof Aborted) && !stop.aborted) log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the greeting reminder could not check a fan', fields: { code: failureOf(error).wire.code } });
-      return null;
+      if (!(error instanceof Aborted) && !stop.aborted) log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the greeting reminder could not check its fans', fields: { code: failureOf(error).wire.code, fans: asked.length } });
     } finally {
       reminding.delete(stop);
     }
+    return verdicts;
+  }
+
+  /**
+   * The start of the inbox for the reminder: the wanted fans' chats become the pass's leads; the answer is how far back
+   * it reached — a follow later than that would show its chat had anyone written since (-Infinity: the inbox's end;
+   * +Infinity: not told).
+   */
+  async function inboxReach(pass: Pass, work: Work, oldest: number): Promise<number> {
+    const wanted = new Set(pass.rows.filter((row) => row.view.status === 'pending' && !pass.leads.has(row.view.fanRef)).map((row) => row.view.fanRef));
+    if (wanted.size === 0) return Number.POSITIVE_INFINITY;
+    const read = async (page: number): Promise<number> => {
+      const answer = readInboxPage(
+        await ask(pass, work, {
+          route: 'messaging.groups',
+          query: { sortOrder: '1', flags: '0', subscriptionTierId: '', listIds: '', search: '', limit: String(PASS_BOUNDS.inboxPage), offset: String(page * PASS_BOUNDS.inboxPage) },
+        }),
+        pass.creator,
+        wanted,
+        deps.now(),
+      );
+      if (answer === null) throw new PassFailure({ code: 'CG-FAN-REQUEST' });
+      for (const chat of answer.chats) pass.leads.set(chat.fanRef, chat);
+      if (answer.count < PASS_BOUNDS.inboxPage) return Number.NEGATIVE_INFINITY;
+      return (answer.tail === null ? null : snowflakeMs(answer.tail, deps.now())) ?? Number.POSITIVE_INFINITY;
+    };
+    let reach = Number.POSITIVE_INFINITY;
+    let pages = 0;
+    while (pages < REMIND_INBOX_PAGES && reach >= oldest) {
+      reach = await read(pages);
+      pages += 1;
+    }
+    // Chats written to while the later pages were read.
+    if (pages > 1) await read(0);
+    return reach;
+  }
+
+  /** One fan of a reminder check: the window's own check of a chat the inbox or the book named; no chat — by the inbox's reach. */
+  async function remindRow(pass: Pass, work: Work, row: Row, reach: number): Promise<FanslyRemindVerdict | null> {
+    const fan = row.view.fanRef;
+    if (!pass.leads.has(fan)) return reach < Date.parse(row.view.followedAt) ? { s: 'due', fanLabel: null } : null;
+    try {
+      // `create` false: a lead is confirmed and read, never made.
+      await check(pass, work, row, false);
+    } catch (error) {
+      if (error instanceof Aborted || work.stop.aborted || stopsPass(error)) throw error;
+      return null;
+    }
+    // The row as the check left it (it sets it).
+    const status = ((): FanslyFollowerRow['status'] => row.view.status)();
+    if (status === 'greeted') return { s: 'greeted' };
+    if (status === 'dm-closed' || status === 'excluded') return { s: 'closed' };
+    if (status !== 'ready') return null;
+    return row.view.fanWrote === true ? { s: 'wrote' } : { s: 'due', fanLabel: null };
   }
 
   /** The kept welcome texts of the creator, read from Fansly less than REMIND_WELCOME_FRESH_MS ago; null — none so fresh. */
@@ -1662,15 +1738,18 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return new Set(value.texts.filter((text): text is string => typeof text === 'string' && text !== ''));
   }
 
-  /** The fan's name for the reminder: the creator's own name of them, else theirs; null — not read. */
-  async function nameOf(pass: Pass, work: Work, fanRef: string): Promise<string | null> {
+  /** The fans' names for the reminder, one request: the creator's own name of each, else theirs; a failed read — none. */
+  async function namesOf(pass: Pass, work: Work, fans: readonly string[]): Promise<Map<string, string>> {
+    const names = new Map<string, string>();
     try {
-      const profile = readAccounts(await ask(pass, work, { route: 'account.byIds', query: { ids: fanRef } }))?.find((entry) => entry.fanRef === fanRef);
-      return profile?.customName?.trim() || profile?.displayName?.trim() || profile?.username?.trim() || null;
+      for (const profile of readAccounts(await ask(pass, work, { route: 'account.byIds', query: { ids: fans.join(',') } })) ?? []) {
+        const name = profile.customName?.trim() || profile.displayName?.trim() || profile.username?.trim() || null;
+        if (name !== null) names.set(profile.fanRef, name);
+      }
     } catch (error) {
       if (error instanceof Aborted || work.stop.aborted) throw new Aborted();
-      return null;
     }
+    return names;
   }
 
   /** The card's greeting went (sent, or the person's own send registered): the fan is «Уже писали» in the creator's pass. */

@@ -5,11 +5,12 @@
 //
 // The follow is the tab's socket fact (3/2, the one the subscriber sound hears through `fansly.sound.batch`), kept by
 // its id; its moment is the id's (a snowflake). Ten minutes on, while a tab of the creator is open and the page's
-// «Новые» are on (`target`), the pass's check of that one fan (newcomers.ts `remind`) reads the chat: a few requests
-// of the creator's lane, one check per follow, never repeated, one at a time. A fan who writes meanwhile (the socket
-// again) is not checked. An hour after the follow is late news: such a fan is only the window's to show. Kept in
-// storage.session, so an event page that unloads neither forgets a follow nor reminds twice. It sends nothing and
-// generates nothing: «Hi» is the person's click.
+// «Новые» are on (`target`), the creator's due follows are checked together (newcomers.ts `remind`): reads only —
+// the start of the inbox and the chats it names —, never a chat made. A fan the check cannot tell about yet (the
+// creator's lane cools down, a failed read) is asked again a minute later; one check at a time. A fan who writes
+// meanwhile (the socket again) is not checked. An hour after the follow is late news: such a fan is only the window's
+// to show. Kept in storage.session, so an event page that unloads neither forgets a follow nor reminds twice. It sends
+// nothing and generates nothing: «Hi» is the person's click.
 
 import { type SoundBatch } from '@cg/contracts/sound';
 import { type BackgroundToast } from '@cg/contracts/tab-messages';
@@ -19,14 +20,17 @@ import { snowflakeMs } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { GREET_REMIND_AFTER_MS, GREET_REMIND_UNTIL_MS, GREET_REMINDED_MAX } from '../../../domain/newcomers/remind';
 import { type Clock, type KeyValueStore, type TimerHandle } from '../../ports';
 import { NO_LOG, type ServiceLog } from '../../storage/ports';
-import { type FanslyRemindVerdict } from './newcomers';
+import { type FanslyRemindFollow, type FanslyRemindVerdict } from './newcomers';
 
 /** storage.session: the follows heard, oldest first (`Follow[]`). */
 export const FANSLY_GREET_SESSION_KEY = 'fansly.greet.follows';
-/** A follow due while no tab of its creator can be told is looked at again this much later. */
+/** A follow not told about yet, or due while no tab of its creator can be told, is looked at again this much later. */
 export const FANSLY_GREET_RETRY_MS = 60_000;
 
-/** One follow as kept: the creator, the fan, the follow's id, its moment (epoch ms); `d` — settled, `w` — the fan wrote. */
+/**
+ * One follow as kept: the creator, the fan, the follow's id, its moment (epoch ms); `d` — settled, `w` — the fan wrote,
+ * `n` — not looked at again before this moment.
+ */
 interface Follow {
   readonly c: string;
   readonly f: string;
@@ -34,11 +38,12 @@ interface Follow {
   readonly at: number;
   d: boolean;
   w?: true;
+  n?: number;
 }
 
 export interface FanslyGreetReminderDeps {
-  /** The check of one fan (newcomers.ts `remind`). */
-  readonly check: (creator: string, fanRef: string, followedAt: number) => Promise<FanslyRemindVerdict | null>;
+  /** The check of a creator's due follows (newcomers.ts `remind`): per fan, a verdict or null — not told yet. */
+  readonly check: (creator: string, follows: readonly FanslyRemindFollow[]) => Promise<ReadonlyMap<string, FanslyRemindVerdict | null>>;
   /**
    * Where a reminder about the creator's fan goes now: a tab of the creator and the creator's hub page; null — nowhere
    * (no tab, the page's «Новые» off, Fansly off).
@@ -63,10 +68,10 @@ export interface FanslyGreetReminder {
 
 function followOf(value: unknown): Follow | null {
   if (typeof value !== 'object' || value === null) return null;
-  const { c, f, e, at, d, w } = value as Record<string, unknown>;
+  const { c, f, e, at, d, w, n } = value as Record<string, unknown>;
   if (typeof c !== 'string' || typeof f !== 'string' || typeof e !== 'string' || !NATIVE_ID_PATTERN.test(c) || !NATIVE_ID_PATTERN.test(f) || !NATIVE_ID_PATTERN.test(e)) return null;
   if (typeof at !== 'number' || !Number.isFinite(at) || typeof d !== 'boolean') return null;
-  return { c, f, e, at, d, ...(w === true ? { w } : {}) };
+  return { c, f, e, at, d, ...(w === true ? { w } : {}), ...(typeof n === 'number' && Number.isFinite(n) ? { n } : {}) };
 }
 
 export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): FanslyGreetReminder {
@@ -77,8 +82,6 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
   let timer: TimerHandle | null = null;
   let running = false;
   let disposed = false;
-  /** The last round: a follow due while nobody could be told waits FANSLY_GREET_RETRY_MS after it. */
-  let lookedAt = Number.NEGATIVE_INFINITY;
 
   const persist = (): void => {
     void deps.session?.set(FANSLY_GREET_SESSION_KEY, follows).catch(() => log({ level: 'warn', scope: 'bg.fansly.greet', msg: 'greeting reminders unsaved', code: 'CG-STORAGE-WRITE' }));
@@ -89,13 +92,13 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
     follows = follows.filter((follow) => now - follow.at < GREET_REMIND_UNTIL_MS).slice(-GREET_REMINDED_MAX);
   };
 
-  /** The next look: ten minutes after the first follow not settled, no sooner than a minute after the last round. */
+  /** The next look: ten minutes after the first follow not settled, or when it may be looked at again. */
   function schedule(): void {
     if (disposed || running) return;
     if (timer !== null) deps.clock.clearTimer(timer);
     timer = null;
     let next = Number.POSITIVE_INFINITY;
-    for (const follow of follows) if (!follow.d) next = Math.min(next, Math.max(follow.at + GREET_REMIND_AFTER_MS, lookedAt + FANSLY_GREET_RETRY_MS));
+    for (const follow of follows) if (!follow.d) next = Math.min(next, Math.max(follow.at + GREET_REMIND_AFTER_MS, follow.n ?? 0));
     if (next === Number.POSITIVE_INFINITY) return;
     timer = deps.clock.setTimer(Math.max(0, next - deps.clock.now()), () => {
       timer = null;
@@ -103,7 +106,7 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
     });
   }
 
-  /** Every follow due now whose creator has a tab, one check at a time. */
+  /** The follows due now, one creator at a time; a creator with no tab to tell waits a minute. */
   async function round(): Promise<void> {
     if (disposed || running) return;
     running = true;
@@ -111,23 +114,44 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
       for (;;) {
         const now = deps.clock.now();
         prune(now);
-        const follow = follows.find((entry) => !entry.d && now - entry.at >= GREET_REMIND_AFTER_MS && deps.target(entry.c) !== null);
-        if (follow === undefined) break;
-        // One check per follow: whatever it answers, never again.
-        follow.d = true;
-        persist();
-        const verdict = await deps.check(follow.c, follow.f, follow.at);
+        const due = follows.filter((follow) => !follow.d && now - follow.at >= GREET_REMIND_AFTER_MS && (follow.n ?? 0) <= now);
+        let creator: string | null = null;
+        for (const follow of due) {
+          if (creator === follow.c) continue;
+          if (creator === null && deps.target(follow.c) !== null) creator = follow.c;
+          else if (deps.target(follow.c) === null) follow.n = now + FANSLY_GREET_RETRY_MS;
+        }
+        if (creator === null) break;
+        const batch = due.filter((follow) => follow.c === creator);
+        let verdicts: ReadonlyMap<string, FanslyRemindVerdict | null>;
+        try {
+          verdicts = await deps.check(creator, batch.map((follow) => ({ fanRef: follow.f, followedAt: follow.at })));
+        } catch {
+          verdicts = new Map();
+        }
         if (disposed) return;
-        if (verdict?.s !== 'due' || follow.w === true) continue;
-        const target = deps.target(follow.c);
-        if (target === null) continue;
-        const fanLabel = verdict.fanLabel === null ? null : verdict.fanLabel.slice(0, 256);
-        deps.toast(target.tabSessionId, { toastId: deps.uuid(), kind: 'info', scope: `greet.${follow.f}`, fanLabel, greet: { pageId: target.pageId, fanRef: follow.f } });
-        log({ level: 'info', scope: 'bg.fansly.greet', msg: 'greeting reminded', fields: { pageId: target.pageId } });
+        const later = deps.clock.now() + FANSLY_GREET_RETRY_MS;
+        const target = deps.target(creator);
+        let reminded = 0;
+        for (const follow of batch) {
+          // The fan wrote while the check ran: settled already.
+          if (follow.w === true) continue;
+          const verdict = verdicts.get(follow.f) ?? null;
+          if (verdict === null || (verdict.s === 'due' && target === null)) {
+            follow.n = later;
+            continue;
+          }
+          follow.d = true;
+          if (verdict.s !== 'due' || target === null) continue;
+          const fanLabel = verdict.fanLabel === null ? null : verdict.fanLabel.slice(0, 256);
+          deps.toast(target.tabSessionId, { toastId: deps.uuid(), kind: 'info', scope: `greet.${follow.f}`, fanLabel, greet: { pageId: target.pageId, fanRef: follow.f } });
+          reminded += 1;
+        }
+        persist();
+        log({ level: 'info', scope: 'bg.fansly.greet', msg: 'greeting checked', fields: { follows: batch.length, reminded } });
       }
     } finally {
       running = false;
-      lookedAt = deps.clock.now();
       persist();
       schedule();
     }

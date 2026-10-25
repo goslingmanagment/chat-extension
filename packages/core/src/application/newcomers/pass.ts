@@ -59,8 +59,11 @@ import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQu
 
 /** The search waits this long after the last keystroke, as on the hub's list. */
 export const PASS_SEARCH_DEBOUNCE_MS = 150;
-/** A greeting reminder's «Hi» waits this long for its fan's row (inside the click's 10 s generate grant). */
-export const GREET_CARD_WAIT_MS = 5_000;
+/**
+ * A greeting reminder's «Hi» waits this long for the pass to list and check its fan — inside the click's grant (the
+ * tab's action gate keeps it 10 s); a fan not checked by then stays on the card for the person's own Hi.
+ */
+export const GREET_CARD_WAIT_MS = 8_000;
 /** Conversations kept in the tab at once (up to 750 messages each): the fans looked at last; an older one is read again. */
 export const PASS_HISTORIES_KEPT = 12;
 
@@ -154,21 +157,12 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   let epoch = context.current().epoch;
   let account = context.current().account?.hostAccountId ?? null;
   let disposed = false;
-  /**
-   * 2026-10-25: the fan a greeting reminder's «Hi» asked for (`greetCard`): the card goes to them as soon as their row
-   * is on screen — the pass may still be reading its followers —; null — none.
-   */
-  let wanted: string | null = null;
-  /** `greetCard` waiting for that row: settled once it is taken or the list failed, else by its timer. */
-  const waiters = new Set<() => void>();
 
   const cell = new ViewCell(build);
   const changed = (): void => {
     if (disposed) return;
-    take();
     reselect();
     cell.invalidate();
-    if (waiters.size > 0 && (wanted === null || stage === 'failed')) for (const settle of [...waiters]) settle();
   };
   const greetingSource = source.greeting;
   const card = deps.greeting === undefined || greetingSource === undefined ? null : createCardGreeting({ greeting: deps.greeting, source: greetingSource, i18n, clock, context, surfaces, changed });
@@ -474,41 +468,58 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     void source.checkNext(pass.passId, fanRef, true).catch(() => undefined);
   }
 
-  /** The reminder's fan, once their row is on screen: the card goes to them, and a fan not checked yet is checked next. */
-  function take(): void {
-    if (wanted === null || pass === null || stage !== 'live' || listed(wanted) === null) return;
-    const fanRef = wanted;
-    wanted = null;
-    selected = fanRef;
-    pin(fanRef);
-    nudge(fanRef);
-    void Promise.resolve().then(ensureHistory);
+  /** Resolves true once `ready()` holds (asked at every change of the window), or with `ready()` after `ms`. */
+  function until(ready: () => boolean, ms: number): Promise<boolean> {
+    if (ready()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let off = (): void => undefined;
+      const timer = clock.setTimer(ms, () => {
+        off();
+        resolve(ready());
+      });
+      off = cell.subscribe(() => {
+        if (!ready()) return;
+        clock.clearTimer(timer);
+        off();
+        resolve(true);
+      });
+    });
   }
 
   /**
-   * «Hi» of a greeting reminder's toast (2026-10-25), the window opened by the same click: the toast's fan is chosen
-   * (waiting up to GREET_CARD_WAIT_MS for their row), and the pass's handle comes back only for a fan checked already
-   * — Hi then starts under that click; otherwise the card's own Hi is the person's next click.
+   * «Hi» of a greeting reminder's toast (2026-10-25), the window opened by the same click: the list shows «К обработке»
+   * with no search or filter, so the fan is in it; the card goes to the fan as soon as their row is there, a fan not
+   * checked yet is checked next, and the pass's handle comes back once the fan is checked — Hi then starts under that
+   * click. Not listed or not checked within GREET_CARD_WAIT_MS: null, the card's own Hi is the person's next click.
    */
   async function greetCard(handle: TargetHandle): Promise<TargetHandle | null> {
     const fan = parseFanHandle(handle);
     if (disposed || fan === null || fan.source !== 'newcomers') return null;
-    wanted = fan.fanRef;
-    take();
-    if (wanted === fan.fanRef) {
-      await new Promise<void>((resolve) => {
-        const settle = (): void => {
-          clock.clearTimer(timer);
-          waiters.delete(settle);
-          resolve();
-        };
-        const timer = clock.setTimer(GREET_CARD_WAIT_MS, settle);
-        waiters.add(settle);
-      });
-    }
-    const row = listed(fan.fanRef);
-    if (disposed || pass === null || card === null || row === null || row.check !== 'ready') return null;
-    return passHandle(pass.passId, fan.fanRef);
+    const fanRef = fan.fanRef;
+    const deadline = clock.now() + GREET_CARD_WAIT_MS;
+    const left = (): number => Math.max(0, deadline - clock.now());
+    const query = tab !== 'todo' || filter !== 'any' || applied !== '' || typed !== '';
+    tab = 'todo';
+    filter = 'any';
+    typed = '';
+    applied = '';
+    if (searchTimer !== null) clock.clearTimer(searchTimer);
+    searchTimer = null;
+    if (query) await queryChanged();
+    const shown = (): TargetHandle | null => (pass === null || stage !== 'live' || listed(fanRef) === null ? null : passHandle(pass.passId, fanRef));
+    if (!(await until(() => shown() !== null, left()))) return null;
+    selected = fanRef;
+    pin(fanRef);
+    nudge(fanRef);
+    changed();
+    ensureHistory();
+    const target = shown();
+    const checked = (): boolean => {
+      const row = rowOf(fanRef);
+      return row !== null && (row.check === 'ready' || row.check === 'reply') && row.conversationRef !== null;
+    };
+    if (target === null || card === null || !(await until(checked, left())) || shown() !== target) return null;
+    return target;
   }
 
   /**
@@ -966,7 +977,6 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
         // no pass lets everything go.
         if (pass !== null && stage === 'live') source.close(pass.passId);
         else letGo(true);
-        wanted = null;
         if (searchTimer !== null) clock.clearTimer(searchTimer);
         searchTimer = null;
         applied = typed;

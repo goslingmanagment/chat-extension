@@ -1,9 +1,11 @@
 // Fansly: the greeting reminder — a fan followed 11 minutes ago and nobody wrote to them: the follow's `3/2` frame
-// reaches the background, the pass's check of that one fan finds the chat empty, and the toast «Ждёт приветствия · …»
-// comes; then its «Hi»: «Новые фоловеры» open on the fan's card, and Hi writes the greeting into its field.
+// reaches the background, the check (reads only: no chat is made) finds nobody wrote, and the toast «Ждёт приветствия ·
+// …» comes. Then «Hi»: «Новые фоловеры» open on the fan's card. Hi writes the greeting by that click when the window's
+// pass has the fan checked within the click's grant: here the window was opened once before (a shift's usual state),
+// so it has; on a window opened cold the card's «Сгенерировать» is the person's next click.
 
 import { WORLD } from '../../../src/scenarios/hub';
-import { writeLocalStorage } from '../../support/extension';
+import { pageRpc, writeLocalStorage } from '../../support/extension';
 import { QUIET_PAGE } from '../../support/fake-hub';
 import { fakeFansly } from '../../support/fansly-stand';
 import { scenario } from '../kit';
@@ -24,13 +26,19 @@ scenario(
     await fakeFansly().command({ op: 'follow', followerId: FAN, agoMs: 11 * 60_000 });
     await s.see('toast', 'Ждёт приветствия', 30_000);
     await s.shot('fansly-reminder');
+    // The window, opened and closed as during a shift (the popup's command): its pass has the fan checked.
+    await s.toPages();
+    await s.browser.url(s.page('popup.html'));
+    await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } });
+    await s.browser.url(s.page(QUIET_PAGE));
+    await s.toChat();
+    const row = `.cg-nw__row[data-cg-fan$=":${FAN}"]`;
+    await s.browser.waitUntil(async () => (await s.h.readOurs('modal', row, (node) => node.getAttribute('data-cg-check'))) === 'ready', { timeout: 90_000, timeoutMsg: 'the follower was not checked' });
+    await s.browser.keys('Escape');
     await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
-    await s.browser.waitUntil(() => s.has('modal', '.cg-nc__greet'), { timeout: 30_000, timeoutMsg: 'the card did not open' });
-    const filled = async (): Promise<boolean> => ((await s.h.readOurs('modal', '.cg-nc__field textarea', (node) => (node as HTMLTextAreaElement).value)) ?? '') !== '';
-    // Hi starts by the toast's click when the pass has the fan checked already; otherwise it is the card's own button.
-    await s.browser.waitUntil(filled, { timeout: 8_000 }).catch(async () => {
-      await s.press(/^Сгенерировать/, 'modal', '.cg-nc__gbar button');
-      await s.browser.waitUntil(filled, { timeout: 30_000, timeoutMsg: 'the greeting did not land in the field' });
+    await s.browser.waitUntil(async () => ((await s.h.readOurs('modal', '.cg-nc__field textarea', (node) => (node as HTMLTextAreaElement).value)) ?? '') !== '', {
+      timeout: 15_000,
+      timeoutMsg: 'Hi did not write the greeting into the card',
     });
     await s.shot('fansly-reminder-hi');
   },
