@@ -93,6 +93,8 @@ import { createFanslyOperations } from '@cg/core/services/hosts/fansly/operation
 import { featureSlice } from '@cg/core/domain/features';
 import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
 import { createFanslyNewcomers, type FanslyNewcomers, type FanslyNewcomersApi } from '@cg/core/services/hosts/fansly/newcomers';
+import { createFanslyGreetReminder, type FanslyGreetReminder } from '@cg/core/services/hosts/fansly/greet-remind';
+import { flagUsable } from '@cg/core/domain/ops';
 import { createFanslySend, type FanslySend, type FanslySendDeps, type FanslySendLive } from '@cg/core/services/hosts/fansly/send';
 import { createFanslyGreeting, type FanslyGreeting } from '@cg/core/services/hosts/fansly/greeting';
 import { freshForSend, verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
@@ -100,7 +102,7 @@ import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-che
 import { createFanslyApi, createFanslyClient, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { copiedBundles, createSpendersLookup } from '@cg/fansly-api/spenders';
 
-import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer } from '../src/composition/background/host-module';
+import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer, SiteTabRegistration } from '../src/composition/background/host-module';
 import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
 import { createNotesService } from './fansly/notes';
 import { createOutreachService } from './fansly/outreach';
@@ -254,6 +256,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const journal = kit.site === undefined ? null : kit.log.passJournal ?? null;
   const newcomers = kit.site === undefined ? null : startNewcomers(kit, session, api, journal, greetings);
   greeting = newcomers === null || greetings === null ? null : startGreeting(kit, newcomers, greetings);
+  const reminder = newcomers === null || api === null ? null : startGreetReminder(kit, newcomers);
+  void reminder?.restore();
   const handle: HostSiteRegistry['handle'] = async (type, payload, sender) => {
     // The registry's rules let a page send only the settings page's types (contracts tab-messages-fansly.ts).
     if (sender.kind === 'page') return pageRequest(kit, accounts, type, payload);
@@ -334,11 +338,15 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         const answer = await kit.settingsExt.patch({ hosts: { 'fansly-web': { notesView: view } } });
         return ok({ view: answer.state.ext.hosts['fansly-web'].notesView });
       }
-      case 'fansly.sound.batch':
+      case 'fansly.sound.batch': {
+        const batch = payload as FanslyTabRequestPayload<'fansly.sound.batch'>;
         // Our own messages of the batch may be the echoes of greeting receipts (§8.6).
-        greetings?.echo((payload as FanslyTabRequestPayload<'fansly.sound.batch'>).events.flatMap((event) => (event.kind === 'message' ? [event] : [])));
-        await kit.sound?.batch(tab, payload as FanslyTabRequestPayload<'fansly.sound.batch'>);
+        greetings?.echo(batch.events.flatMap((event) => (event.kind === 'message' ? [event] : [])));
+        // 2026-10-25: a follow starts the greeting reminder's ten minutes; a fan's message ends them.
+        reminder?.heard(batch);
+        await kit.sound?.batch(tab, batch);
         return ok({ recorded: kit.sound !== undefined });
+      }
       case 'fansly.vault.resume':
         return ok(await vault.resume(payload as FanslyTabRequestPayload<'fansly.vault.resume'>, tab));
       case 'fansly.vault.checkpoint':
@@ -391,6 +399,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       unplug();
       unprobe();
       greeting?.dispose();
+      reminder?.dispose();
       newcomers?.dispose();
       unprobeSend();
       greetings?.dispose();
@@ -468,6 +477,35 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
     log: kit.log.service,
     // A receipt the echo never confirmed is confirmed by a history that shows its id (§8.6).
     onHistory: (groupId, ids, complete) => send?.history(groupId, ids, complete),
+  });
+}
+
+/**
+ * 2026-10-25, the greeting reminder (core services/hosts/fansly/greet-remind.ts): a new follower nobody greeted ten
+ * minutes after the follow is a toast with «Hi» in a tab of the creator — the one the person looks at, else the last
+ * that reported —, only while Fansly is on and the creator's page has «Новые» on (the window's own switch).
+ */
+function startGreetReminder(kit: BackgroundKit, newcomers: FanslyNewcomers): FanslyGreetReminder {
+  const idsOf = (creator: string): readonly string[] => [creator, ...(kit.networkSession?.aliases(creator) ?? [])];
+  return createFanslyGreetReminder({
+    check: (creator, fanRef, followedAt) => newcomers.remind(creator, fanRef, followedAt),
+    target(creator) {
+      const bootstrap = kit.hub.bootstrap();
+      if (kit.siteActive?.() === false || bootstrap === null) return null;
+      const ids = idsOf(creator);
+      const page = bootstrap.pages.find((entry) => entry.platform === 'fansly' && entry.platformAccountId !== null && ids.includes(entry.platformAccountId));
+      if (page === undefined || !flagUsable(bootstrap, page.pageId, 'newcomers')) return null;
+      const rank = (tab: SiteTabRegistration): number => (tab.visible === true ? 2 : 0) + (tab.focused === true ? 1 : 0);
+      const tabs = (kit.siteTabs?.registered() ?? []).filter((tab) => tab.accounts.some((account) => ids.includes(account)));
+      const best = [...tabs].sort((a, b) => rank(b) - rank(a) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
+      return best === undefined ? null : { tabSessionId: best.tabSessionId, pageId: page.pageId };
+    },
+    sameAccount: (creator, accountId) => idsOf(creator).includes(accountId),
+    toast: (tab, toast) => kit.router.events.emit(tab, 'toast', { toast }),
+    session: kit.storage.sessionKeys,
+    clock: kit.clock,
+    uuid: () => kit.ids.uuid(),
+    log: kit.log.service,
   });
 }
 

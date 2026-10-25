@@ -909,11 +909,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return {
       open: () => (host === OPTIONAL_HOST ? scriptTabs.list().catch(() => null) : Promise.resolve(null)),
       registered() {
-        const reported = new Map(presence.tabs().map((tab) => [tab.tabSessionId, tab.accounts]));
+        const reported = new Map(presence.tabs().map((tab) => [tab.tabSessionId, tab]));
         return rpc
           .tabs()
           .filter((tab) => tab.request.host === host)
-          .map((tab) => ({ tabSessionId: tab.tabSessionId, tabId: tab.tabId, accounts: (reported.get(tab.tabSessionId) ?? []).filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length)) }));
+          .map((tab) => {
+            const seen = reported.get(tab.tabSessionId);
+            const accounts = (seen?.accounts ?? []).filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
+            return { tabSessionId: tab.tabSessionId, tabId: tab.tabId, accounts, ...(seen === undefined ? {} : { visible: seen.visible, focused: seen.focused, updatedAt: seen.updatedAt }) };
+          });
       },
       focus: (tabId) => tabFocus.focus(tabId),
     };

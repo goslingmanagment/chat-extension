@@ -252,6 +252,10 @@ export interface SiteTabRegistration {
   readonly tabId: number;
   /** Host account ids of the site (not keys), as the tab's last `tab.presence` listed them; empty — not said yet. */
   readonly accounts: readonly string[];
+  /** 2026-10-25: the tab is shown, has the focus, and when it last reported (presence); absent — no report yet. */
+  readonly visible?: boolean;
+  readonly focused?: boolean;
+  readonly updatedAt?: number;
 }
 
 /** R20 P14b1: the module's site's tabs as the core knows them, without the `tabs` right (architecture.md §4). */

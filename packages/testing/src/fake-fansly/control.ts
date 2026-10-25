@@ -112,7 +112,7 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
       return { ok: true, sent: hub.emit([typingFrame(group.id, accountId)], '5/22') };
     }
     case 'follow': {
-      const follow = world.wireFollow(world.follow(command.followerId, command.dmRulesUnmet === true));
+      const follow = world.wireFollow(world.follow(command.followerId, command.dmRulesUnmet === true, command.agoMs));
       return { ok: true, follow, sent: command.silent === true ? 0 : hub.emit([followFrame(follow)], '3/2') };
     }
     case 'newcomers': {
