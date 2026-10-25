@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PUBLICATION_ACTOR_KINDS, PUBLICATION_AUTHOR_KINDS, PUBLICATION_FINDING_CODES, PUBLICATION_FINDING_SEVERITIES, PUBLICATION_KINDS, PUBLICATION_MEDIA_MAX, PUBLICATION_PREVIEWS_MAX, PUBLICATION_REPLY_LOCKS, PUBLICATION_STATUSES, PUBLICATION_TEXT_MAX_LENGTH, } from "../shared/index";
+import { PUBLICATION_ACTOR_KINDS, PUBLICATION_ATTACHMENT_ACCESS, PUBLICATION_AUTHOR_KINDS, PUBLICATION_EXTRA_ATTACHMENTS_MAX, PUBLICATION_FINDING_CODES, PUBLICATION_FINDING_SEVERITIES, PUBLICATION_KINDS, PUBLICATION_MEDIA_MAX, PUBLICATION_PREVIEWS_MAX, PUBLICATION_REPLY_LOCKS, PUBLICATION_STATUSES, PUBLICATION_TEXT_MAX_LENGTH, } from "../shared/index";
 import { intId, isoDateTime, mills, platformEnum } from "./primitives";
 import { agentCursorString } from "./routes-agent";
 // Publications: wall posts Hub publishes on Fansly and OnlyFans
@@ -13,6 +13,22 @@ export const publicationMediaInputSchema = z.discriminatedUnion("source", [
     z.strictObject({ source: z.literal("file"), fileId: intId }),
 ]);
 const refList = z.array(z.string().regex(/^[0-9A-Za-z_-]{1,64}$/)).max(20);
+/**
+ * An extra attachment of a Fansly post, after the post's own (the contract
+ * §12.2: one per "Upload" window, each with its own audience): `everyone`;
+ * `subscribers` (of `tierRefs`, or of every tier; with `priceMills`, anyone
+ * else buys it); `paid` (`priceMills`; only subscribers buy it with
+ * `subscribersOnly`, of `tierRefs` or of every tier). Previews belong to one
+ * with a price, `previews[i]` to `media[i]`.
+ */
+export const publicationExtraAttachmentInputSchema = z.strictObject({
+    access: z.enum(PUBLICATION_ATTACHMENT_ACCESS),
+    media: z.array(publicationMediaInputSchema).min(1).max(PUBLICATION_MEDIA_MAX),
+    previews: z.array(publicationMediaInputSchema).max(PUBLICATION_PREVIEWS_MAX).default([]),
+    tierRefs: refList.default([]),
+    priceMills: mills.positive().nullable().default(null),
+    subscribersOnly: z.boolean().default(false),
+});
 /**
  * What a draft says. Kind decides the rest: a story is one file; previews and a
  * price are a paid post's, or a Fansly subscriber post's that anyone else may
@@ -41,6 +57,8 @@ export const publicationContentSchema = z.strictObject({
     replyLock: z.array(z.enum(PUBLICATION_REPLY_LOCKS)).max(PUBLICATION_REPLY_LOCKS.length).default([]),
     /** Fansly paid post: only subscribers may buy it (of `tierRefs`, or of every tier). */
     subscribersOnly: z.boolean().default(false),
+    /** Fansly: attachments after the post's own, each with its own audience. */
+    extraAttachments: z.array(publicationExtraAttachmentInputSchema).max(PUBLICATION_EXTRA_ATTACHMENTS_MAX).default([]),
 });
 export const publicationCreateBodySchema = publicationContentSchema.extend({
     pageLabel: z.string().min(1),
@@ -72,6 +90,15 @@ export const publicationMediaSchema = z.object({
     source: z.enum(["vault", "file"]),
     mediaRef: z.string().nullable(),
     fileId: z.number().int().nullable(),
+    /** 0: the post's own attachment; 1…: an extra one (`extraAttachments`). */
+    attachment: z.number().int().nonnegative(),
+});
+export const publicationExtraAttachmentSchema = z.object({
+    attachment: z.number().int().positive(),
+    access: z.enum(PUBLICATION_ATTACHMENT_ACCESS),
+    tierRefs: z.array(z.string()),
+    priceMills: mills.nullable(),
+    subscribersOnly: z.boolean(),
 });
 export const publicationSchema = z.object({
     id: intId,
@@ -90,6 +117,7 @@ export const publicationSchema = z.object({
     pinWallRefs: z.array(z.string()),
     replyLock: z.array(z.enum(PUBLICATION_REPLY_LOCKS)),
     subscribersOnly: z.boolean(),
+    extraAttachments: z.array(publicationExtraAttachmentSchema),
     media: z.array(publicationMediaSchema),
     findings: z.array(publicationFindingSchema),
     /** A blocking finding: the draft cannot be approved as it is. */
@@ -300,9 +328,12 @@ export const publicationPageMediaSchema = z.object({
     /** The page's live publication (approved, on its way, on the platform or
      *  unknown) with the file, closest in time to `publishAt`. */
     nearestPublication: z.object({ id: intId, publishAt: z.string(), status: publicationStatusSchema }).nullable(),
-    /** The last post or the nearest publication is closer to `publishAt` than
-     *  the page's repeat threshold: a draft with this file at that time is
-     *  blocked unless marked `repost`. */
+    /** The entry of the platform's own schedule with the file, put there by
+     *  hand or by another tool (the page's latest read), closest to `publishAt`. */
+    platformSchedule: z.object({ at: z.string(), postRef: z.string().nullable() }).nullable(),
+    /** The last post, the nearest publication or the platform's schedule entry
+     *  is closer to `publishAt` than the page's repeat threshold: a draft with
+     *  this file at that time is blocked unless marked `repost`. */
     repostWithinThreshold: z.boolean(),
 });
 export const agentPublicationMediaResponseSchema = z.object({

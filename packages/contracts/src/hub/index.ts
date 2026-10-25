@@ -17,6 +17,7 @@ export * from './attribution';
 export * from './conversation';
 export * from './fan-card';
 export * from './queue';
+export * from './online';
 export * from './routes';
 export * from './registry';
 export * from './error-map';

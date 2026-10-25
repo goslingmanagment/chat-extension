@@ -17,6 +17,7 @@ import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMI
 import { type SpendersPeriodSchema } from '../tab-messages';
 import { BATCH_LISTS } from './batch';
 import { OUTREACH_CONDITIONS, OUTREACH_PANES, OUTREACH_TABS } from './outreach-ids';
+import { ONLINE_TABS } from './online';
 
 /** The old Fansly extension's persona export may carry the old local persona texts too: a generous bound. */
 export const LEGACY_PERSONAS_MAX_CHARS = 4_000_000;
@@ -335,7 +336,7 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * Debounced by the controller (150 ms, IME-safe, SP-019). `now` — Enter in the field: the list follows at once, so the
    * top match the same key opens is the one of what was typed (the old Fansly board's Enter).
    */
-  act('Search', { list: z.enum(['spenders', 'newcomers', 'palette', 'outreach']), query: displayText(200), now: z.optional(z.literal(true)) }),
+  act('Search', { list: z.enum(['spenders', 'newcomers', 'palette', 'outreach', 'online']), query: displayText(200), now: z.optional(z.literal(true)) }),
   /** A collapsed shelf «ещё N · показать», or a click on a shelf in the stats (SP-045). */
   act('RevealShelf', { shelfId: HandleSchema }),
   /** 1.38.0 (X67): a tier chip of the board («🐳 Whale 42»): the list shows that shelf alone; null — every shelf. */
@@ -425,6 +426,37 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('ClearOutreachMedia', {}),
   /** 1.63.0: «Вернуть общее» — this fan takes the outreach's media again instead of their own picks. Nothing is sent. */
   act('ResetOutreachMedia', { targetHandle: HandleSchema }),
+  /**
+   * 1.65.0, the window of «Онлайн» (vm/online): one move of the person, nothing sent — `open` (the bar's «Онлайн», ⌘K);
+   * the list's tab; `minutes` — «Зашли за»; `refresh` — the hub's list read again now.
+   */
+  act('SetOnline', {
+    open: z.optional(z.boolean()),
+    tab: z.optional(z.enum(ONLINE_TABS)),
+    minutes: z.optional(z.union([z.literal(10), z.literal(30), z.literal(120)])),
+    refresh: z.optional(z.literal(true)),
+  }),
+  /**
+   * 1.65.0: a fan of «Онлайн» chosen — a click on the row, J / K: their card opens and, where the AI writes, their text is
+   * written by this click. Nothing is sent.
+   */
+  act('SelectOnline', { targetHandle: HandleSchema }),
+  /**
+   * 1.65.0: «Отправить →» of a fan of «Онлайн»: the text, one click, one message, one attempt; the next fan's card opens and
+   * its text is written by the same click. `anyway` passes the card's warning («Отправить всё равно»).
+   */
+  act('SendOnline', { targetHandle: HandleSchema, anyway: z.optional(z.literal(true)) }),
+  /**
+   * 1.65.0: «Ещё раз» — the AI writes the fan's text again —, «Другой шаблон» — the guide's next text —, or «Написать Ping»
+   * of a fan with nothing to write about. Nothing is sent.
+   */
+  act('RewriteOnline', { targetHandle: HandleSchema }),
+  /** 1.65.0: «Править» — the person's own words for the fan's text (null — back to the AI's or the guide's). Nothing is sent. */
+  act('EditOnline', { targetHandle: HandleSchema, text: z.nullable(z.string().check(z.maxLength(5_000))) }),
+  /** 1.65.0: «Пропустить» (S) — the fan leaves this pass; `skip: false` — «Вернуть». Nothing is told to anyone. */
+  act('SkipOnline', { targetHandle: HandleSchema, skip: z.boolean() }),
+  /** 1.65.0: «Не предлагать» for the page's whole team (the hub keeps it); `dismiss: false` — «Вернуть». Nothing is sent. */
+  act('DismissOnline', { targetHandle: HandleSchema, dismiss: z.boolean() }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),

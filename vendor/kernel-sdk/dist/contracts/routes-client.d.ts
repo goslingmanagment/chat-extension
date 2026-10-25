@@ -89,7 +89,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -2100,6 +2100,126 @@ export declare const teamWinBackApproachSaveBodySchema: z.ZodObject<{
     sortOrder: z.ZodDefault<z.ZodNumber>;
     active: z.ZodDefault<z.ZodBoolean>;
 }, z.core.$strict>;
+/** Why to write now, the most urgent first. Open on the wire. */
+export declare const CLIENT_ONLINE_REASONS: readonly ["waiting", "new_unattended", "expiring", "silent", "quiet", "never_wrote", "none"];
+/** With what: Reply, Hi, Ping, or a text of the team's guide (A — talked before, B — never wrote). Open on the wire. */
+export declare const CLIENT_ONLINE_ACTS: readonly ["reply", "hi", "ping", "template_a", "template_b", "none"];
+/** Why a fan is not offered now, though a chatter may still write. Open on the wire. */
+export declare const CLIENT_ONLINE_ASIDES: readonly ["in_conversation", "wrote_recently", "attempted_recently", "dismissed", "unreachable"];
+export declare const CLIENT_ONLINE_ATTEMPT_ACTIONS: readonly ["sent", "dismissed", "restored"];
+/** What a sent message was written with. */
+export declare const CLIENT_ONLINE_SENT_ACTS: readonly ["reply", "hi", "ping", "template"];
+export declare const CLIENT_ONLINE_DEFAULT_MINUTES = 30;
+export declare const CLIENT_ONLINE_MAX_MINUTES = 180;
+/** Fans one read lists at most: the newest activity first. */
+export declare const CLIENT_ONLINE_MAX_ITEMS = 200;
+/** Fansly fans one presence report names at most (a `followersnew` page is 100). */
+export declare const CLIENT_ONLINE_PRESENCE_MAX = 200;
+export declare const clientOnlineQuerySchema: z.ZodObject<{
+    minutes: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+}, z.core.$strict>;
+export declare const clientOnlineItemSchema: z.ZodObject<{
+    fanRef: z.ZodString;
+    conversationRef: z.ZodNullable<z.ZodString>;
+    username: z.ZodNullable<z.ZodString>;
+    displayName: z.ZodNullable<z.ZodString>;
+    alias: z.ZodNullable<z.ZodString>;
+    greetingName: z.ZodNullable<z.ZodString>;
+    lifetimeGrossMills: z.ZodNumber;
+    last30dGrossMills: z.ZodNumber;
+    seenAt: z.ZodNullable<z.ZodString>;
+    onlineSince: z.ZodNullable<z.ZodString>;
+    seenSource: z.ZodNullable<z.ZodString>;
+    reason: z.ZodString;
+    reasonAt: z.ZodNullable<z.ZodString>;
+    act: z.ZodString;
+    aside: z.ZodNullable<z.ZodString>;
+    asideAt: z.ZodNullable<z.ZodString>;
+    asideBy: z.ZodNullable<z.ZodString>;
+    messageCount: z.ZodNumber;
+    lastFanMessageAt: z.ZodNullable<z.ZodString>;
+    lastPageMessageAt: z.ZodNullable<z.ZodString>;
+    subscription: z.ZodObject<{
+        isSubscriber: z.ZodBoolean;
+        startedAt: z.ZodNullable<z.ZodString>;
+        endsAt: z.ZodNullable<z.ZodString>;
+        autoRenew: z.ZodNullable<z.ZodBoolean>;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+/** A text of the team's reactivation guide, word for word; `love` is the place of the fan's name. */
+export declare const clientOnlineTemplateSchema: z.ZodObject<{
+    id: z.ZodString;
+    group: z.ZodString;
+    text: z.ZodString;
+}, z.core.$strip>;
+export declare const clientOnlineResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    minutes: z.ZodNumber;
+    items: z.ZodArray<z.ZodObject<{
+        fanRef: z.ZodString;
+        conversationRef: z.ZodNullable<z.ZodString>;
+        username: z.ZodNullable<z.ZodString>;
+        displayName: z.ZodNullable<z.ZodString>;
+        alias: z.ZodNullable<z.ZodString>;
+        greetingName: z.ZodNullable<z.ZodString>;
+        lifetimeGrossMills: z.ZodNumber;
+        last30dGrossMills: z.ZodNumber;
+        seenAt: z.ZodNullable<z.ZodString>;
+        onlineSince: z.ZodNullable<z.ZodString>;
+        seenSource: z.ZodNullable<z.ZodString>;
+        reason: z.ZodString;
+        reasonAt: z.ZodNullable<z.ZodString>;
+        act: z.ZodString;
+        aside: z.ZodNullable<z.ZodString>;
+        asideAt: z.ZodNullable<z.ZodString>;
+        asideBy: z.ZodNullable<z.ZodString>;
+        messageCount: z.ZodNumber;
+        lastFanMessageAt: z.ZodNullable<z.ZodString>;
+        lastPageMessageAt: z.ZodNullable<z.ZodString>;
+        subscription: z.ZodObject<{
+            isSubscriber: z.ZodBoolean;
+            startedAt: z.ZodNullable<z.ZodString>;
+            endsAt: z.ZodNullable<z.ZodString>;
+            autoRenew: z.ZodNullable<z.ZodBoolean>;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
+    templates: z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        group: z.ZodString;
+        text: z.ZodString;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export declare const clientOnlinePresenceBodySchema: z.ZodObject<{
+    seen: z.ZodArray<z.ZodObject<{
+        fanRef: z.ZodString;
+        lastSeenAt: z.ZodString;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
+export declare const clientOnlinePresenceResponseSchema: z.ZodObject<{
+    recorded: z.ZodNumber;
+    skipped: z.ZodNumber;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export declare const clientOnlineAttemptBodySchema: z.ZodObject<{
+    fanRef: z.ZodString;
+    action: z.ZodEnum<{
+        sent: "sent";
+        dismissed: "dismissed";
+        restored: "restored";
+    }>;
+    act: z.ZodOptional<z.ZodEnum<{
+        ping: "ping";
+        reply: "reply";
+        hi: "hi";
+        template: "template";
+    }>>;
+    templateId: z.ZodOptional<z.ZodString>;
+    reason: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+export declare const clientOnlineAttemptResponseSchema: z.ZodObject<{
+    attemptId: z.ZodNumber;
+}, z.core.$strip>;
 export declare const CLIENT_HANDOFF_HOURS = 12;
 export declare const clientHandoffResponseSchema: z.ZodObject<{
     pageLabel: z.ZodString;
@@ -4500,6 +4620,224 @@ export declare const clientRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly clientOnline: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The page's fans seen online recently, why to write to each now, and with what";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            minutes: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                minutes: z.ZodNumber;
+                items: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    conversationRef: z.ZodNullable<z.ZodString>;
+                    username: z.ZodNullable<z.ZodString>;
+                    displayName: z.ZodNullable<z.ZodString>;
+                    alias: z.ZodNullable<z.ZodString>;
+                    greetingName: z.ZodNullable<z.ZodString>;
+                    lifetimeGrossMills: z.ZodNumber;
+                    last30dGrossMills: z.ZodNumber;
+                    seenAt: z.ZodNullable<z.ZodString>;
+                    onlineSince: z.ZodNullable<z.ZodString>;
+                    seenSource: z.ZodNullable<z.ZodString>;
+                    reason: z.ZodString;
+                    reasonAt: z.ZodNullable<z.ZodString>;
+                    act: z.ZodString;
+                    aside: z.ZodNullable<z.ZodString>;
+                    asideAt: z.ZodNullable<z.ZodString>;
+                    asideBy: z.ZodNullable<z.ZodString>;
+                    messageCount: z.ZodNumber;
+                    lastFanMessageAt: z.ZodNullable<z.ZodString>;
+                    lastPageMessageAt: z.ZodNullable<z.ZodString>;
+                    subscription: z.ZodObject<{
+                        isSubscriber: z.ZodBoolean;
+                        startedAt: z.ZodNullable<z.ZodString>;
+                        endsAt: z.ZodNullable<z.ZodString>;
+                        autoRenew: z.ZodNullable<z.ZodBoolean>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
+                templates: z.ZodArray<z.ZodObject<{
+                    id: z.ZodString;
+                    group: z.ZodString;
+                    text: z.ZodString;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientOnlinePresence: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The Fansly fans a chatter's tab saw active, kept as their presence";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            seen: z.ZodArray<z.ZodObject<{
+                fanRef: z.ZodString;
+                lastSeenAt: z.ZodString;
+            }, z.core.$strict>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                recorded: z.ZodNumber;
+                skipped: z.ZodNumber;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientOnlineAttempt: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "What a chatter did with a fan in the «Онлайн» window";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            fanRef: z.ZodString;
+            action: z.ZodEnum<{
+                sent: "sent";
+                dismissed: "dismissed";
+                restored: "restored";
+            }>;
+            act: z.ZodOptional<z.ZodEnum<{
+                ping: "ping";
+                reply: "reply";
+                hi: "hi";
+                template: "template";
+            }>>;
+            templateId: z.ZodOptional<z.ZodString>;
+            reason: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                attemptId: z.ZodNumber;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly teamWinBackResults: {
         readonly auth: {
             readonly kind: "session";
@@ -6173,6 +6511,13 @@ export type ClientHandoffResponse = z.infer<typeof clientHandoffResponseSchema>;
 export type ClientWinBackResponse = z.infer<typeof clientWinBackResponseSchema>;
 export type ClientWinBackAttemptBody = z.infer<typeof clientWinBackAttemptBodySchema>;
 export type ClientWinBackAttemptResponse = z.infer<typeof clientWinBackAttemptResponseSchema>;
+export type ClientOnlineQuery = z.infer<typeof clientOnlineQuerySchema>;
+export type ClientOnlineItem = z.infer<typeof clientOnlineItemSchema>;
+export type ClientOnlineResponse = z.infer<typeof clientOnlineResponseSchema>;
+export type ClientOnlinePresenceBody = z.infer<typeof clientOnlinePresenceBodySchema>;
+export type ClientOnlinePresenceResponse = z.infer<typeof clientOnlinePresenceResponseSchema>;
+export type ClientOnlineAttemptBody = z.infer<typeof clientOnlineAttemptBodySchema>;
+export type ClientOnlineAttemptResponse = z.infer<typeof clientOnlineAttemptResponseSchema>;
 export type TeamWinBackResultsQuery = z.infer<typeof teamWinBackResultsQuerySchema>;
 export type TeamWinBackResultsResponse = z.infer<typeof teamWinBackResultsResponseSchema>;
 export type TeamWinBackApproachesResponse = z.infer<typeof teamWinBackApproachesResponseSchema>;

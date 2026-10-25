@@ -71,7 +71,7 @@ export const DOCK_CHIP_GROUPS = ['reply', 'draft', 'openers', 'voice', 'analysis
 export type DockChipGroup = (typeof DOCK_CHIP_GROUPS)[number];
 
 /** 1.15.0 (R20 F4). The icons a chip may show on a narrow bar instead of its word; `ui/kit` draws each (its test holds the list to the kit's icon set). */
-export const DOCK_ICON_IDS = ['gauge', 'dossier', 'bulb', 'bill', 'userPlus', 'mic'] as const;
+export const DOCK_ICON_IDS = ['gauge', 'dossier', 'bulb', 'bill', 'userPlus', 'mic', 'online'] as const;
 export type DockIconId = (typeof DOCK_ICON_IDS)[number];
 
 /**
@@ -90,6 +90,8 @@ export interface ChipVM extends DockActionVM {
   readonly hint: Msg;
   /** What a click asks for; null — nothing can be asked now (no chat to act on). */
   readonly action: UiAction | null;
+  /** 1.65.0: a number beside the chip — «Онлайн»: the fans worth a message now. Absent or null — none shown. */
+  readonly count?: number | null;
 }
 
 export interface DockVM {

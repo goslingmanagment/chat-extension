@@ -103,6 +103,17 @@ export declare const publicationRouteSchemas: {
                         followers: "followers";
                     }>>;
                     subscribersOnly: import("zod").ZodBoolean;
+                    extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                        attachment: import("zod").ZodNumber;
+                        access: import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        subscribersOnly: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
                     media: import("zod").ZodArray<import("zod").ZodObject<{
                         role: import("zod").ZodEnum<{
                             media: "media";
@@ -115,6 +126,7 @@ export declare const publicationRouteSchemas: {
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        attachment: import("zod").ZodNumber;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -136,6 +148,7 @@ export declare const publicationRouteSchemas: {
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
                         }>;
                         severity: import("zod").ZodEnum<{
                             info: "info";
@@ -218,6 +231,30 @@ export declare const publicationRouteSchemas: {
                 followers: "followers";
             }>>>;
             subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            extraAttachments: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodObject<{
+                access: import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                media: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"vault">;
+                    mediaRef: import("zod").ZodString;
+                }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"file">;
+                    fileId: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strict>], "source">>;
+                previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"vault">;
+                    mediaRef: import("zod").ZodString;
+                }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"file">;
+                    fileId: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strict>], "source">>>;
+                tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
+                priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
+                subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            }, import("zod/v4/core").$strict>>>;
             pageLabel: import("zod").ZodString;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -297,6 +334,17 @@ export declare const publicationRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: import("zod").ZodBoolean;
+                extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                    attachment: import("zod").ZodNumber;
+                    access: import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -309,6 +357,7 @@ export declare const publicationRouteSchemas: {
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    attachment: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -330,6 +379,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -457,6 +507,17 @@ export declare const publicationRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: import("zod").ZodBoolean;
+                extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                    attachment: import("zod").ZodNumber;
+                    access: import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -469,6 +530,7 @@ export declare const publicationRouteSchemas: {
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    attachment: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -490,6 +552,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -619,6 +682,30 @@ export declare const publicationRouteSchemas: {
                 followers: "followers";
             }>>>;
             subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            extraAttachments: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodObject<{
+                access: import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                media: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"vault">;
+                    mediaRef: import("zod").ZodString;
+                }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"file">;
+                    fileId: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strict>], "source">>;
+                previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"vault">;
+                    mediaRef: import("zod").ZodString;
+                }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"file">;
+                    fileId: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strict>], "source">>>;
+                tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
+                priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
+                subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            }, import("zod/v4/core").$strict>>>;
             version: import("zod").ZodNumber;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -698,6 +785,17 @@ export declare const publicationRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: import("zod").ZodBoolean;
+                extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                    attachment: import("zod").ZodNumber;
+                    access: import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -710,6 +808,7 @@ export declare const publicationRouteSchemas: {
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    attachment: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -731,6 +830,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -869,6 +969,17 @@ export declare const publicationRouteSchemas: {
                             followers: "followers";
                         }>>;
                         subscribersOnly: import("zod").ZodBoolean;
+                        extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                            attachment: import("zod").ZodNumber;
+                            access: import("zod").ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                            priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            subscribersOnly: import("zod").ZodBoolean;
+                        }, import("zod/v4/core").$strip>>;
                         media: import("zod").ZodArray<import("zod").ZodObject<{
                             role: import("zod").ZodEnum<{
                                 media: "media";
@@ -881,6 +992,7 @@ export declare const publicationRouteSchemas: {
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            attachment: import("zod").ZodNumber;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -902,6 +1014,7 @@ export declare const publicationRouteSchemas: {
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
                             }>;
                             severity: import("zod").ZodEnum<{
                                 info: "info";
@@ -1031,6 +1144,17 @@ export declare const publicationRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: import("zod").ZodBoolean;
+                extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                    attachment: import("zod").ZodNumber;
+                    access: import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -1043,6 +1167,7 @@ export declare const publicationRouteSchemas: {
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    attachment: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -1064,6 +1189,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -1202,6 +1328,17 @@ export declare const publicationRouteSchemas: {
                         followers: "followers";
                     }>>;
                     subscribersOnly: import("zod").ZodBoolean;
+                    extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                        attachment: import("zod").ZodNumber;
+                        access: import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        subscribersOnly: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
                     media: import("zod").ZodArray<import("zod").ZodObject<{
                         role: import("zod").ZodEnum<{
                             media: "media";
@@ -1214,6 +1351,7 @@ export declare const publicationRouteSchemas: {
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        attachment: import("zod").ZodNumber;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -1235,6 +1373,7 @@ export declare const publicationRouteSchemas: {
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
                         }>;
                         severity: import("zod").ZodEnum<{
                             info: "info";
@@ -1315,6 +1454,17 @@ export declare const publicationRouteSchemas: {
                         followers: "followers";
                     }>>;
                     subscribersOnly: import("zod").ZodBoolean;
+                    extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                        attachment: import("zod").ZodNumber;
+                        access: import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        subscribersOnly: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
                     media: import("zod").ZodArray<import("zod").ZodObject<{
                         role: import("zod").ZodEnum<{
                             media: "media";
@@ -1327,6 +1477,7 @@ export declare const publicationRouteSchemas: {
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        attachment: import("zod").ZodNumber;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -1348,6 +1499,7 @@ export declare const publicationRouteSchemas: {
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
                         }>;
                         severity: import("zod").ZodEnum<{
                             info: "info";
@@ -1488,6 +1640,17 @@ export declare const publicationRouteSchemas: {
                             followers: "followers";
                         }>>;
                         subscribersOnly: import("zod").ZodBoolean;
+                        extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                            attachment: import("zod").ZodNumber;
+                            access: import("zod").ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                            priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            subscribersOnly: import("zod").ZodBoolean;
+                        }, import("zod/v4/core").$strip>>;
                         media: import("zod").ZodArray<import("zod").ZodObject<{
                             role: import("zod").ZodEnum<{
                                 media: "media";
@@ -1500,6 +1663,7 @@ export declare const publicationRouteSchemas: {
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            attachment: import("zod").ZodNumber;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -1521,6 +1685,7 @@ export declare const publicationRouteSchemas: {
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
                             }>;
                             severity: import("zod").ZodEnum<{
                                 info: "info";
@@ -1662,6 +1827,17 @@ export declare const publicationRouteSchemas: {
                             followers: "followers";
                         }>>;
                         subscribersOnly: import("zod").ZodBoolean;
+                        extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                            attachment: import("zod").ZodNumber;
+                            access: import("zod").ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                            priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            subscribersOnly: import("zod").ZodBoolean;
+                        }, import("zod/v4/core").$strip>>;
                         media: import("zod").ZodArray<import("zod").ZodObject<{
                             role: import("zod").ZodEnum<{
                                 media: "media";
@@ -1674,6 +1850,7 @@ export declare const publicationRouteSchemas: {
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            attachment: import("zod").ZodNumber;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -1695,6 +1872,7 @@ export declare const publicationRouteSchemas: {
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
                             }>;
                             severity: import("zod").ZodEnum<{
                                 info: "info";
@@ -1836,6 +2014,17 @@ export declare const publicationRouteSchemas: {
                             followers: "followers";
                         }>>;
                         subscribersOnly: import("zod").ZodBoolean;
+                        extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                            attachment: import("zod").ZodNumber;
+                            access: import("zod").ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                            priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            subscribersOnly: import("zod").ZodBoolean;
+                        }, import("zod/v4/core").$strip>>;
                         media: import("zod").ZodArray<import("zod").ZodObject<{
                             role: import("zod").ZodEnum<{
                                 media: "media";
@@ -1848,6 +2037,7 @@ export declare const publicationRouteSchemas: {
                             }>;
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                            attachment: import("zod").ZodNumber;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -1869,6 +2059,7 @@ export declare const publicationRouteSchemas: {
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
                             }>;
                             severity: import("zod").ZodEnum<{
                                 info: "info";
@@ -1998,6 +2189,17 @@ export declare const publicationRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: import("zod").ZodBoolean;
+                extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                    attachment: import("zod").ZodNumber;
+                    access: import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -2010,6 +2212,7 @@ export declare const publicationRouteSchemas: {
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    attachment: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -2031,6 +2234,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -2368,6 +2572,30 @@ export declare const publicationRouteSchemas: {
                 followers: "followers";
             }>>>;
             subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            extraAttachments: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodObject<{
+                access: import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                media: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"vault">;
+                    mediaRef: import("zod").ZodString;
+                }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"file">;
+                    fileId: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strict>], "source">>;
+                previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"vault">;
+                    mediaRef: import("zod").ZodString;
+                }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"file">;
+                    fileId: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strict>], "source">>>;
+                tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
+                priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
+                subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            }, import("zod/v4/core").$strict>>>;
             idempotencyKey: import("zod").ZodString;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -2461,6 +2689,17 @@ export declare const publicationRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: import("zod").ZodBoolean;
+                extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                    attachment: import("zod").ZodNumber;
+                    access: import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -2473,6 +2712,7 @@ export declare const publicationRouteSchemas: {
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    attachment: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -2494,6 +2734,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -2656,6 +2897,17 @@ export declare const publicationRouteSchemas: {
                         followers: "followers";
                     }>>;
                     subscribersOnly: import("zod").ZodBoolean;
+                    extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                        attachment: import("zod").ZodNumber;
+                        access: import("zod").ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                        priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        subscribersOnly: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>>;
                     media: import("zod").ZodArray<import("zod").ZodObject<{
                         role: import("zod").ZodEnum<{
                             media: "media";
@@ -2668,6 +2920,7 @@ export declare const publicationRouteSchemas: {
                         }>;
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                        attachment: import("zod").ZodNumber;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -2689,6 +2942,7 @@ export declare const publicationRouteSchemas: {
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
                         }>;
                         severity: import("zod").ZodEnum<{
                             info: "info";
@@ -2845,6 +3099,10 @@ export declare const publicationRouteSchemas: {
                             withdrawn: "withdrawn";
                         }>;
                     }, import("zod/v4/core").$strip>>;
+                    platformSchedule: import("zod").ZodNullable<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        postRef: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
                     repostWithinThreshold: import("zod").ZodBoolean;
                 }, import("zod/v4/core").$strip>>;
                 nextCursor: import("zod").ZodNullable<import("zod").ZodString>;
@@ -2951,6 +3209,17 @@ export declare const publicationRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: import("zod").ZodBoolean;
+                extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                    attachment: import("zod").ZodNumber;
+                    access: import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -2963,6 +3232,7 @@ export declare const publicationRouteSchemas: {
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    attachment: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -2984,6 +3254,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";
@@ -3113,6 +3384,30 @@ export declare const publicationRouteSchemas: {
                 followers: "followers";
             }>>>;
             subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            extraAttachments: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodObject<{
+                access: import("zod").ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                media: import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"vault">;
+                    mediaRef: import("zod").ZodString;
+                }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"file">;
+                    fileId: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strict>], "source">>;
+                previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"vault">;
+                    mediaRef: import("zod").ZodString;
+                }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
+                    source: import("zod").ZodLiteral<"file">;
+                    fileId: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strict>], "source">>>;
+                tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
+                priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
+                subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
+            }, import("zod/v4/core").$strict>>>;
             version: import("zod").ZodNumber;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -3206,6 +3501,17 @@ export declare const publicationRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: import("zod").ZodBoolean;
+                extraAttachments: import("zod").ZodArray<import("zod").ZodObject<{
+                    attachment: import("zod").ZodNumber;
+                    access: import("zod").ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: import("zod").ZodArray<import("zod").ZodString>;
+                    priceMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    subscribersOnly: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>;
                 media: import("zod").ZodArray<import("zod").ZodObject<{
                     role: import("zod").ZodEnum<{
                         media: "media";
@@ -3218,6 +3524,7 @@ export declare const publicationRouteSchemas: {
                     }>;
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    attachment: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -3239,6 +3546,7 @@ export declare const publicationRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: import("zod").ZodEnum<{
                         info: "info";

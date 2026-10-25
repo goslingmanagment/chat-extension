@@ -199,6 +199,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'handoff-v1',
   /** Chat Memory week 4: customs in the fan's card (`customs`, `customPayments`), their record and changes, and in the handoff. */
   'fan-customs-v1',
+  /** «Онлайн»: the page's fans seen online with why to write now (`clientOnline`), Fansly presence reports, the window's rows. */
+  'online-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

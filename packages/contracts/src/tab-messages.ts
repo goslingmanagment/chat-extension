@@ -44,6 +44,7 @@ import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
 import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
 import { HandoffSchema, WinBackAttemptResultSchema, WinBackListSchema } from './hub/queue';
+import { ONLINE_ATTEMPT_ACTIONS, ONLINE_SENT_ACTS, OnlineAttemptResultSchema, OnlineListSchema } from './hub/online';
 import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
@@ -549,6 +550,27 @@ export const TAB_REQUESTS = {
   'queue.winback': { req: z.strictObject({ pageId: HubIntIdSchema }), res: WinBackListSchema, from: TAB },
   /** A chatter's approach pick for a fan of the list: one call, never repeated; answered with the list after it. Nothing is sent to the fan. */
   'queue.winback.pick': { req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema, approachId: HubIntIdSchema }), res: WinBackAttemptResultSchema, from: TAB },
+  /**
+   * «Онлайн» (hub `clientOnline`, `online-v1`): the page's fans seen online within `minutes`, each with why to write now
+   * and with what, the team's guide texts with them. Read while the window or the bar's count needs it; nothing is sent.
+   */
+  'online.list': { req: z.strictObject({ pageId: HubIntIdSchema, minutes: z.int().check(z.gte(5), z.lte(180)) }), res: OnlineListSchema, from: TAB },
+  /**
+   * What a chatter did in «Онлайн» (hub `clientOnlineAttempt`): a message went from the window (what wrote it, the
+   * template), «Не предлагать» or its undo. One call, never repeated; journaled and shared by the page's team.
+   */
+  'online.attempt': {
+    req: z.strictObject({
+      pageId: HubIntIdSchema,
+      fanRef: NativeIdSchema,
+      action: z.enum(ONLINE_ATTEMPT_ACTIONS),
+      act: z.optional(z.enum(ONLINE_SENT_ACTS)),
+      templateId: z.optional(z.string().check(z.minLength(1), z.maxLength(32))),
+      reason: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
+    }),
+    res: OnlineAttemptResultSchema,
+    from: TAB,
+  },
   /** Chat Memory week 3, «Передача» of «Очередь»: whom the team wrote to, who waits, the open promises. */
   'queue.handoff': { req: z.strictObject({ pageId: HubIntIdSchema }), res: HandoffSchema, from: TAB },
   'feed.read': {

@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "6e6d52916024adf5aa06984bf5350bf6f8407b885a25d82d6c41e9d65e37d56a",
-    "sourceCommit": "9779bfb473dbf3f8d565b3251d1c443b24c39051",
-    "note": "Vendored on 2026-10-25 from hub main 9779bfb4 (#866) with scripts/vendor-sdk.mjs: the optional `quote` of each fact in clientFanCard (the archived message the fact comes from), on top of the review fixes of the client routes since 3ffb4614 (#851 the card answers only for a fan of the asked page, #858/#861 customs, #863 the shift report's lateChanges). Registered as a candidate for 0.10.5. Re-vendor with the same script and update this pin together."
+    "contractHash": "da728c3a1e28c4642f20cb8ca1abc87cb1c26e1398139961e6f1ec48445752dd",
+    "sourceCommit": "8fd1428abd4b8190eb43c60a96787fe8c5846509",
+    "note": "Vendored on 2026-10-26 from hub main 8fd1428a with scripts/vendor-sdk.mjs: the «Онлайн» routes (#879: clientOnline, clientOnlinePresence, clientOnlineAttempt, capability online-v1), on top of Hi's persona openers (#876) and the nick name (#877) since 9779bfb4. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
