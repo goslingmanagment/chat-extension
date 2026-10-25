@@ -626,7 +626,7 @@ export const GALLERY_STATES: readonly GalleryState[] = [
           }),
           toast(ctx, 'toast-contract', 'warning', {
             code: 'CG-HOST-CONTRACT',
-            title: ctx.lang === 'ru' ? `${site(ctx)} обновился — часть функций выключена` : `${site(ctx)} was updated — some functions are off`,
+            title: ctx.lang === 'ru' ? `${site(ctx)} обновился, часть функций выключена` : `${site(ctx)} was updated; some functions are off`,
             actions: [button('common.settings', { type: 'OpenSettings', route: { section: 'status', code: 'CG-HOST-CONTRACT' } })],
           }),
           toast(ctx, 'toast-insert', 'warning', { code: 'CG-INSERT-UNCERTAIN', title: cgError(ctx, 'CG-INSERT-UNCERTAIN').title, body: cgError(ctx, 'CG-INSERT-UNCERTAIN').body }),

@@ -179,17 +179,17 @@ function DraftMedia({ card }: { readonly card: OutreachCardVM }): JSX.Element {
       <span class="cg-ow__dwords">
         {media.items.length === 0 ? (
           <span>
-            <b>{i18n.plural('outreach.media.posts', media.posts)}</b> — {i18n.t('outreach.media.postPrice')}
+            <b>{i18n.plural('outreach.media.posts', media.posts)}</b>, {i18n.t('outreach.media.postPrice')}
           </span>
         ) : null}
         {free.length > 0 ? (
           <span>
-            <b>{free.length === 1 ? (media.priceCents > 0 ? i18n.t('outreach.media.preview') : mediumWords(i18n, free[0] as OutreachMediaVM['items'][number])) : i18n.plural('outreach.media.previewsN', free.length)}</b> — {i18n.t('outreach.media.free')}
+            <b>{free.length === 1 ? (media.priceCents > 0 ? i18n.t('outreach.media.preview') : mediumWords(i18n, free[0] as OutreachMediaVM['items'][number])) : i18n.plural('outreach.media.previewsN', free.length)}</b>, {i18n.t('outreach.media.free')}
           </span>
         ) : null}
         {paid.length > 0 ? (
           <span>
-            <b>{paid.length === 1 ? mediumWords(i18n, paid[0] as OutreachMediaVM['items'][number]) : i18n.plural('outreach.media.count', paid.length)}</b> — {i18n.t('outreach.media.forPrice', { price: priceText(media.priceCents) })}
+            <b>{paid.length === 1 ? mediumWords(i18n, paid[0] as OutreachMediaVM['items'][number]) : i18n.plural('outreach.media.count', paid.length)}</b>, {i18n.t('outreach.media.forPrice', { price: priceText(media.priceCents) })}
           </span>
         ) : null}
         {media.problem === null ? null : <span class="cg-ow__bad">{i18n.text(media.problem)}</span>}
@@ -228,15 +228,15 @@ function Calm({ card, preview }: { readonly card: OutreachCardVM; readonly previ
       {warning.kind === 'archive' ? (
         <span>
           <b>{i18n.t('outreach.card.archiveWarn')}</b>
-          {time === null ? null : ` — ${i18n.t('outreach.card.byArchiveAt', { time })}`}
+          {time === null ? null : `: ${i18n.t('outreach.card.byArchiveAt', { time })}`}
         </span>
       ) : warning.kind === 'stale' ? (
         <span>
-          <b>{i18n.t('outreach.card.staleWarn')}</b> — {i18n.t('outreach.card.staleTail')}
+          <b>{i18n.t('outreach.card.staleWarn')}</b>: {i18n.t('outreach.card.staleTail')}
         </span>
       ) : (
         <span>
-          <b>{i18n.t('outreach.card.talkingWarn', { names: warning.names.join(', ') })}</b> — {i18n.t('outreach.card.talkingTail')}
+          <b>{i18n.t('outreach.card.talkingWarn', { names: warning.names.join(', ') })}</b>: {i18n.t('outreach.card.talkingTail')}
         </span>
       )}
       <span class="cg-nw__grow" />

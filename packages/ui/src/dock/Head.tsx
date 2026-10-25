@@ -38,7 +38,7 @@ function FanName({ name }: { readonly name: string }): JSX.Element {
   return (
     <>
       <span class="cg-head__fan" {...tip.props}>
-        — {name}
+        · {name}
       </span>
       {tip.description}
     </>

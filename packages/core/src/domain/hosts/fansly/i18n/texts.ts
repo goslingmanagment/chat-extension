@@ -15,11 +15,11 @@ export type FanslyTextKey = Extract<I18nTextKey, 'dock.reason.fanBlocked' | 'cg.
 
 export const FANSLY_TEXTS: { readonly [L in Locale]: Readonly<Record<FanslyTextKey, string>> } = {
   ru: {
-    'dock.reason.fanBlocked': 'фан не принимает сообщения — можно только копировать',
+    'dock.reason.fanBlocked': 'фан не принимает сообщения, можно только копировать',
     'cg.gateFanBlocked.title': 'Фан не принимает сообщения',
   },
   en: {
-    'dock.reason.fanBlocked': 'the fan doesn’t accept messages — copy only',
+    'dock.reason.fanBlocked': 'the fan doesn’t accept messages; copy only',
     'cg.gateFanBlocked.title': 'The fan doesn’t accept messages',
   },
 };

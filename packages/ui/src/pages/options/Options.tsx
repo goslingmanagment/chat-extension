@@ -126,7 +126,7 @@ function StepList({ steps }: { readonly steps: readonly ChecklistStep[] }): JSX.
           {step.done ? <Icon name="check" size={14} /> : <Dot kind="ring" />}
           <span class="pg-check__t">
             {i18n.text(step.label)}
-            <span class="cg-sr"> — {i18n.t(step.done ? 'settings.onboarding.stepDone' : 'settings.onboarding.stepTodo')}</span>
+            <span class="cg-sr">: {i18n.t(step.done ? 'settings.onboarding.stepDone' : 'settings.onboarding.stepTodo')}</span>
           </span>
           {step.action === null ? <span /> : <ActionButton vm={step.action} variant="quiet" />}
         </li>
