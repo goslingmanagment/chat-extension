@@ -58,7 +58,8 @@ screenshots from `pnpm see`. The format, the tone and the commands — `changes/
 `No chatter note: <why>`. `pnpm release notes` checks the notes, names the next version and writes
 previews of the page and the post to `.cache/notes/`. A released note may be corrected (a typo, an
 inaccuracy), never renamed: the next release republishes the pages, or at once, from a clean `main` —
-`pnpm release pages --confirm <version>` (the pages alone, for the version the feed serves).
+`pnpm release pages --confirm <version>` (the pages alone, for the version the feed serves; `--with-site` when
+`site/` changed since the tag too and describes only released work).
 
 **Versions** — the rules for agents:
 

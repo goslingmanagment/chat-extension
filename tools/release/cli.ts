@@ -87,7 +87,8 @@ pnpm release major|X.Y.Z --confirm <version>   another version, or the launch si
 
           notes   check the notes of changes, preview the next release (.cache/notes/)
           status · unlock · rollback --to <version> · announce [<version>] [--check|--again|--preview|--silent]
-          pages   the pages alone for the release the feed serves, after a released note was corrected
+          pages   the pages alone for the release the feed serves, after a released note was corrected;
+          --with-site: site/ changed since the tag too, and you checked it describes only released work
           rollback, pages and announce print their plan and stop without --confirm <version>
           sign --import <file.xpi> takes a signed XPI downloaded by hand (no network)
           test-builds · sign --test-builds   the P3b test builds
@@ -144,6 +145,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         again: { type: 'boolean', default: false },
         preview: { type: 'boolean', default: false },
         'no-announce': { type: 'boolean', default: false },
+        'with-site': { type: 'boolean', default: false },
         'test-builds': { type: 'boolean', default: false },
       },
     });
@@ -974,7 +976,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   /**
    * The pages alone, for the release the feed serves: a released note was corrected (changes/README.md), and «Что
    * нового», the history and the post's «Что нового на сайте» say so now, not with the next release. Only what the
-   * notes render may differ from the tag: changed pages and the stylesheet go out with a release.
+   * notes render may differ from the tag: changed pages and the stylesheet go out with a release, or here with
+   * `--with-site` once checked to describe only released work (a wording fix of the site).
    */
   async function pages(): Promise<void> {
     const version = await latestTag();
@@ -982,7 +985,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     if ((await checkout.git('status', '--porcelain', '--', NOTES_DIR, SITE_DIR)) !== '') refuse(`${NOTES_DIR}/ or ${SITE_DIR}/ has changes not committed: the pages publish what main holds.`);
     if (!(await checkout.isAncestor('HEAD', 'origin/main'))) refuse('HEAD is not on origin/main: the pages publish what main holds (git pull).');
     const changed = await checkout.git('diff', '--name-only', `v${version}`, '--', SITE_DIR);
-    if (changed !== '') refuse(`${SITE_DIR}/ differs from v${version} (${changed.split('\n').join(', ')}): changed pages go out with a release.`);
+    if (changed !== '' && !values['with-site']) refuse(`${SITE_DIR}/ differs from v${version} (${changed.split('\n').join(', ')}): changed pages go out with a release, or here with --with-site once you checked they describe only released work.`);
+    if (changed !== '') print(`note: ${SITE_DIR}/ differs from v${version} (${changed.split('\n').join(', ')}): published as main holds it (--with-site).`);
     const served = await servedFeed({ http: deps.http, target: checkout.target });
     if (served?.version !== version) refuse(`the feed serves ${served?.version ?? 'nothing'}, not ${version}: the pages describe what the feed serves.`);
     const history = await checkout.history();
