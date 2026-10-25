@@ -7,7 +7,7 @@
 import { type ActivityBeatRequest, type InConversationResult } from '@cg/contracts';
 import { talkingKeyOfHandle } from '@cg/contracts/vm';
 import { createTalkingController } from '@cg/core/application/navigation';
-import { ActivityBeat, TalkingMarksService, beatPagesOf, talkingMarksOf, type BeatTab } from '@cg/core/services';
+import { ActivityBeat, TalkingMarksService, beatPagesOf, beatTabsOf, talkingMarksOf, type BeatTab } from '@cg/core/services';
 import { describe, expect, it } from 'vitest';
 
 import { FakeClock, settle } from './support/clock';
@@ -73,6 +73,28 @@ describe('the beat', () => {
     await beat.tabsChanged();
     await beat.beat();
     expect(sent).toHaveLength(5);
+  });
+
+  it("ChatSpace's overview «/» keeps the page the tab was last on — not the pages it lists, not input made on it", () => {
+    const pageOf = (account: string | null) => ({ 'chatspace:1': 'lora-of', 'chatspace:2': 'lora-vip-of', 'chatspace:9': null }[account ?? ''] ?? null);
+    const last = new Map<string, BeatTab>();
+    expect(beatTabsOf([{ tabSessionId: 't1', routeAccount: 'chatspace:1', lastInputAt: NOW - 60_000 }], pageOf, last))
+      .toEqual([{ pageLabel: 'lora-of', lastInputAt: NOW - 60_000 }]);
+    // On the overview, a click there: still lora-of with its own last input; lora-vip-of it merely lists stays out.
+    expect(beatTabsOf([{ tabSessionId: 't1', routeAccount: null, lastInputAt: NOW }], pageOf, last))
+      .toEqual([{ pageLabel: 'lora-of', lastInputAt: NOW - 60_000 }]);
+    // On to the other account: its page; a tab that opened on the overview has none; an unbound account forgets.
+    expect(beatTabsOf([
+      { tabSessionId: 't1', routeAccount: 'chatspace:2', lastInputAt: NOW },
+      { tabSessionId: 't2', routeAccount: null, lastInputAt: NOW },
+    ], pageOf, last)).toEqual([{ pageLabel: 'lora-vip-of', lastInputAt: NOW }, { pageLabel: null, lastInputAt: NOW }]);
+    beatTabsOf([{ tabSessionId: 't1', routeAccount: 'chatspace:9', lastInputAt: NOW }], pageOf, last);
+    expect(beatTabsOf([{ tabSessionId: 't1', routeAccount: null, lastInputAt: NOW }], pageOf, last))
+      .toEqual([{ pageLabel: null, lastInputAt: NOW }]);
+    // A closed tab leaves the memory.
+    beatTabsOf([{ tabSessionId: 't1', routeAccount: 'chatspace:1', lastInputAt: NOW }], pageOf, last);
+    beatTabsOf([], pageOf, last);
+    expect(last.size).toBe(0);
   });
 });
 

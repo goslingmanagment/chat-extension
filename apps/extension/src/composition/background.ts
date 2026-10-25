@@ -90,6 +90,8 @@ import {
   OpScheduler,
   SendAttributionReporter,
   ActivityBeat,
+  beatTabsOf,
+  type BeatTab,
   TalkingMarksService,
   type TalkingPage,
   RecapProfileSaver,
@@ -716,20 +718,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const bootstrap = hubInstance?.session() ? (hubInstance.cachedBootstrap()?.bootstrap ?? null) : null;
     return bootstrap !== null && hasCapability(bootstrap.capabilities, capability);
   };
+  // A tab off any account's route (ChatSpace's overview «/») keeps the page it was last on, never the pages it lists.
+  const beatLastPage = new Map<string, BeatTab>();
   const activity = new ActivityBeat({
     clock: CLOCK,
     hub: () => hubInstance,
     enabled: () => servesNow('chatter-activity-v1'),
     instanceId: () => instanceId,
-    // A tab off any account's route (ChatSpace's overview «/», on the way from one account to another) keeps the pages
-    // of the accounts it shows: the shift neither closes nor splits for that moment.
-    tabs: () =>
-      presence.tabs().flatMap((tab) => {
-        const route = pageLabelOfAccount(tab.routeAccount);
-        if (route !== null || tab.routeAccount !== null) return [{ pageLabel: route, lastInputAt: tab.lastInputAt }];
-        const shown = [...new Set(tab.accounts.map(pageLabelOfAccount).filter((label): label is string => label !== null))];
-        return shown.length === 0 ? [{ pageLabel: null, lastInputAt: tab.lastInputAt }] : shown.map((pageLabel) => ({ pageLabel, lastInputAt: tab.lastInputAt }));
-      }),
+    tabs: () => beatTabsOf(presence.tabs(), pageLabelOfAccount, beatLastPage),
     log: coreLog,
   });
   // «В разговоре» (core/services/talking.ts): the hub's answer for every page an open tab shows, others only, to the tabs.

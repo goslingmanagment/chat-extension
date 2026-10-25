@@ -21,6 +21,41 @@ export interface BeatTab {
   readonly lastInputAt: number | null;
 }
 
+/** A registered tab as presence knows it: which account its route is on (null — none) and its last input. */
+export interface BeatTabSeen {
+  readonly tabSessionId: string;
+  readonly routeAccount: string | null;
+  readonly lastInputAt: number | null;
+}
+
+/**
+ * The beat's tabs. On an account's route: that account's page (null — not bound) and the tab's input. Off every
+ * route (ChatSpace's overview «/», on the way from one account to another): the page it was last on and the input it
+ * had there — the shift neither closes nor splits for that moment, and the overview adds no page it merely lists,
+ * nor input made off them. A tab that opened on the overview has no page yet. `last` holds each open tab's last
+ * page between beats; closed tabs leave it.
+ */
+export function beatTabsOf(
+  tabs: readonly BeatTabSeen[],
+  pageOfAccount: (account: string | null) => string | null,
+  last: Map<string, BeatTab>,
+): BeatTab[] {
+  const out: BeatTab[] = [];
+  for (const tab of tabs) {
+    if (tab.routeAccount === null) {
+      out.push(last.get(tab.tabSessionId) ?? { pageLabel: null, lastInputAt: tab.lastInputAt });
+      continue;
+    }
+    const beat: BeatTab = { pageLabel: pageOfAccount(tab.routeAccount), lastInputAt: tab.lastInputAt };
+    if (beat.pageLabel === null) last.delete(tab.tabSessionId);
+    else last.set(tab.tabSessionId, beat);
+    out.push(beat);
+  }
+  const open = new Set(tabs.map((tab) => tab.tabSessionId));
+  for (const id of [...last.keys()]) if (!open.has(id)) last.delete(id);
+  return out;
+}
+
 /** The pages of a beat at `now`: each bound page once, idle from its most recent input; at most ACTIVITY_LIMITS.maxPages. Pure. */
 export function beatPagesOf(tabs: readonly BeatTab[], now: number): ActivityBeatRequest['pages'] {
   const latest = new Map<string, number | null>();
