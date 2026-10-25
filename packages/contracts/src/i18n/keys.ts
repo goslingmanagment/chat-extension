@@ -333,6 +333,8 @@ export const UI_TEXT_KEYS = [
   // 1.26.0 (X55): the team lead's steps folded under «Ещё»; «Размер текста» of «Вид и звук».
   'settings.onboarding.more', 'settings.appearance.textSize', 'settings.appearance.textSizeHint', 'settings.appearance.textSizeLarge',
   'settings.appearance.textSizeNote',
+  // 1.64.0: «Дать доступ к хабу» — the access step of a chatter of another site only (Fansly).
+  'settings.onboarding.hub',
   'settings.status.warningOne', 'settings.status.warning.staleTabs', 'settings.status.row.extensionUpdatedToday',
   'settings.status.row.extensionUpdatedOn', 'settings.status.row.extensionStaleTabs', 'settings.status.leadPending', 'settings.status.checking',
   'settings.status.checkAllTooltip', 'settings.status.warning.quotaLow', 'settings.status.warning.quotaZero', 'settings.status.warning.sendUncertain',
