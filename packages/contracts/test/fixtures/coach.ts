@@ -44,9 +44,9 @@ export const COACH_CONFIRM_SAMPLES: { readonly valid: readonly C.CoachTurnVM[]; 
 const SELL: C.CoachHintGroupVM = {
   label: { key: 'coach.group.sell' },
   questions: [
-    { label: { key: 'coach.hint.sell.how' }, question: 'Не знаю, как продать — подскажи' },
+    { label: { key: 'coach.hint.sell.how' }, question: 'Не знаю, как продать, подскажи' },
     { label: { key: 'coach.hint.sell.price' }, question: 'Как подать цену, чтобы не спугнуть?' },
-    { label: { key: 'coach.hint.sell.discount' }, question: 'Просит скидку — что ответить?' },
+    { label: { key: 'coach.hint.sell.discount' }, question: 'Просит скидку: что ответить?' },
   ],
 };
 

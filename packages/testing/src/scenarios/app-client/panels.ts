@@ -172,17 +172,17 @@ const COACH_HINTS = [
   {
     label: 'coach.group.sell',
     questions: [
-      ['coach.hint.sell.how', 'Не знаю, как продать — подскажи'],
+      ['coach.hint.sell.how', 'Не знаю, как продать, подскажи'],
       ['coach.hint.sell.price', 'Как подать цену, чтобы не спугнуть?'],
-      ['coach.hint.sell.discount', 'Просит скидку — что ответить?'],
+      ['coach.hint.sell.discount', 'Просит скидку: что ответить?'],
     ],
   },
   {
     label: 'coach.group.return',
     questions: [
       ['coach.hint.return.revive', 'Как оживить остывший чат?'],
-      ['coach.hint.return.seen', 'Прочитал и молчит — что написать?'],
-      ['coach.hint.return.afterPrice', 'Пропал после цены — как вернуть?'],
+      ['coach.hint.return.seen', 'Прочитал и молчит: что написать?'],
+      ['coach.hint.return.afterPrice', 'Пропал после цены: как вернуть?'],
     ],
   },
   {
