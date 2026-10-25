@@ -46,7 +46,7 @@ scenario(
     await s.h.ours('panel', FIELD).click();
     await s.keys('Should I wait a day before the offer?');
     await s.keys(s.Key.Enter);
-    await s.see('panel', 'без Recap — выключен', 30_000);
+    await s.see('panel', 'без Recap: выключен', 30_000);
     await s.shot('answer-recap-off');
     await s.closeAll();
 

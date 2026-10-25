@@ -76,7 +76,7 @@ describe('[SP-054] «Отправить»: the states that must not send', () =>
     expect(stateWords(0)).toBe('Не подтвердилось');
     expect(part(0).querySelector('.cg-dot--ink')).not.toBeNull();
     expect(buttons(0)).toEqual(['Открыть чат', 'Отправить ещё раз', 'Копировать часть 1']);
-    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-UNCERTAIN: с 09:21: ChatSpace не подтвердил отправку. Откройте чат — если сообщения нет, отправьте ещё раз.');
+    expect(codeLine(0)).toBe('ChatGoose · CG-SEND-UNCERTAIN: с 09:21: ChatSpace не подтвердил отправку. Откройте чат: если сообщения нет, отправьте ещё раз.');
     await flush(() => (part(0).querySelector('.cg-pvs__verify') as HTMLElement).click());
     expect(ui.actions().at(-1)).toEqual({ type: 'OpenChatToVerify', attemptId });
     // Enter on the part does not open-and-insert an uncertain part, and nothing goes by itself.

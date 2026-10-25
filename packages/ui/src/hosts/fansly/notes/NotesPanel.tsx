@@ -171,7 +171,7 @@ function Quotes({ quotes }: { readonly quotes: readonly (string | NotesQuoteVM)[
           <li key={index}>«{typeof quote === 'string' ? quote : quote.quote}»</li>
         ) : (
           <li key={index}>
-            <span class="cg-notes__quote-label">{quote.label} — </span>«{quote.quote}»
+            <span class="cg-notes__quote-label">{quote.label}: </span>«{quote.quote}»
           </li>
         ),
       )}

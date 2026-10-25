@@ -166,7 +166,7 @@ export function Summary({ vm, summary }: { readonly vm: OutreachWindowVM; readon
         )}
       </div>
       <div class="cg-ow__efoot">
-        <span>{summary.skipped.length === 0 ? '' : i18n.t('outreach.summary.skipped', { list: summary.skipped.map((item) => `${item.name} — ${asideText(i18n, item.reason, vm.media).toLowerCase()}`).join('; ') })}</span>
+        <span>{summary.skipped.length === 0 ? '' : i18n.t('outreach.summary.skipped', { list: summary.skipped.map((item) => `${item.name} ${asideText(i18n, item.reason, vm.media).toLowerCase()}`).join('; ') })}</span>
         <span class="cg-nw__grow" />
         <Button label={i18n.t('outreach.summary.fresh')} variant="line" size="sm" tooltip={i18n.t('outreach.summary.freshTooltip')} onClick={() => void dispatch({ type: 'SetOutreach', fresh: true })} />
       </div>

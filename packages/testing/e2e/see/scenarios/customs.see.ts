@@ -32,7 +32,7 @@ scenario(
     await s.keys(']');
     await s.see('panel', 'Fan Alder');
     await s.press(/^Память/, 'panel');
-    await s.see('panel', 'Отдали — это он?', 20_000);
+    await s.see('panel', 'Отдали: это он?', 20_000);
     await s.shot('customs');
     await s.press(/^Записать кастом/, 'panel');
     await s.see('panel', 'Это оплата кастома?');
@@ -42,7 +42,7 @@ scenario(
     await s.keys('Video in red');
     await s.press(/.*/, 'panel', '.cg-mem__record .cg-mem__price');
     await s.keys('120 USD');
-    await s.see('panel', 'Цена — число долларов', 10_000);
+    await s.see('panel', 'Цена: число долларов', 10_000);
     await s.shot('customs-bad-price');
     await s.press(/^Отмена|^Cancel/, 'panel');
     await s.press(/^Очередь/, 'panel');

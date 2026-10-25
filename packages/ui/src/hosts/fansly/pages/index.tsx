@@ -322,7 +322,7 @@ function Steps({ control }: { readonly control: FanslyPagesControl }): JSX.Eleme
             {step.done ? <Icon name="check" size={14} /> : <Dot kind="ring" />}
             <span class="pg-check__t">
               {text(i18n, STEP_KEYS[step.id])}
-              <span class="cg-sr"> — {i18n.t(step.done ? 'settings.onboarding.stepDone' : 'settings.onboarding.stepTodo')}</span>
+              <span class="cg-sr">: {i18n.t(step.done ? 'settings.onboarding.stepDone' : 'settings.onboarding.stepTodo')}</span>
             </span>
             {step.action === null ? (
               <span />

@@ -270,7 +270,7 @@ export function ReportHead({ kicker, title, fan, badge, tools, acts, sub = [], l
         <span class="cg-rhead__k">{kicker}</span>
         <h2 class="cg-rhead__h">
           {title}
-          {fan === null ? null : <span class="cg-rhead__fan"> — {fan}</span>}
+          {fan === null ? null : <span class="cg-rhead__fan"> · {fan}</span>}
         </h2>
         {line === undefined || line === null ? (sub.length === 0 ? null : <span class="cg-rhead__sub">{sub.join(' · ')}</span>) : <span class="cg-rhead__sub cg-rhead__line">{line}</span>}
         {tools === undefined || tools === null ? null : <span class="cg-rhead__tools">{tools}</span>}
