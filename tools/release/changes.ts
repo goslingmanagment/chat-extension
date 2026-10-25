@@ -107,6 +107,9 @@ export function parseNote(slug: string, source: string, imageBytes: (file: strin
   if (!SLUG_RE.test(slug) || slug.length > LIMITS.slug) fail(`the file name is lowercase latin words joined by «-», at most ${LIMITS.slug} characters`);
 
   const lines = source.replace(/\r\n/g, '\n').split('\n');
+  // No long dash in what chatters read (the owner, 2026-10-26): a colon, a comma, a period or brackets instead.
+  const dash = lines.findIndex((text) => text.includes('\u2014'));
+  if (dash >= 0) fail('a long dash «\u2014»: write a colon, a comma, a period or brackets instead (the owner, 2026-10-26)', dash + 1);
   if (lines[0] !== '---') fail('starts with «---» and the fields kind and sites', 1);
   const close = lines.indexOf('---', 1);
   if (close < 0) fail('the fields are not closed by «---»', 1);

@@ -237,7 +237,7 @@ export function telegramPreview(post: Post): string {
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Пост в Telegram — предпросмотр</title>
+<title>Пост в Telegram: предпросмотр</title>
 <style>
   body { margin: 0; padding: 32px 16px; background: #0e1621; font: 15px/1.45 -apple-system, 'Segoe UI', Roboto, sans-serif; color: #f5f5f5; }
   .bubble { max-width: 520px; margin: 0 auto; padding: 10px 14px 12px; border-radius: 12px; background: #182533; }
@@ -260,7 +260,7 @@ export function telegramPreview(post: Post): string {
 ${local.replace(row, '')}
 </div>
 ${buttons}
-<p class="meta">${post.silent ? 'Уйдёт без уведомления: только улучшения и исправления.' : 'Уйдёт с уведомлением: есть новое.'} ${post.photos.length} скриншот(ов) — с самим постом.</p>
+<p class="meta">${post.silent ? 'Уйдёт без уведомления: только улучшения и исправления.' : 'Уйдёт с уведомлением: есть новое.'} Скриншотов в посте: ${post.photos.length}.</p>
 </body>
 </html>
 `;

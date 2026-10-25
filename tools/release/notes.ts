@@ -76,7 +76,7 @@ const titleText = (note: Note): string => note.title.map((part) => part.text).jo
 
 function notesSection(release: Extract<Release, { kind: 'notes' }>): string {
   const label = releaseLabel(release);
-  const lines = [`## ${release.version}${label === '' ? '' : ` — ${label}`}`, ''];
+  const lines = [`## ${release.version}${label === '' ? '' : ` · ${label}`}`, ''];
   if (release.notes.length === 0) lines.push(`- ${NOTHING_NEW}`, '');
   for (const group of groups(release.notes)) {
     if (group.kind !== 'intro') lines.push(`### ${KIND_EMOJI[group.kind]} ${KIND_LABEL[group.kind]}`, '');
