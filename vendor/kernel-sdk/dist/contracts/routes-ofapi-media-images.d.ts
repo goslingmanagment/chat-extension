@@ -19,9 +19,9 @@ export declare const OFAPI_MEDIA_MAX_TRANSFER_BYTES = 30000000;
 export declare const ofapiMediaOutcomeSchema: z.ZodEnum<{
     pending: "pending";
     error: "error";
+    paid: "paid";
     free_url: "free_url";
     ofapi_cache: "ofapi_cache";
-    paid: "paid";
     cap_blocked: "cap_blocked";
     source_expired: "source_expired";
     unavailable: "unavailable";
@@ -60,9 +60,9 @@ export declare const ofapiMediaResolveResponseSchema: z.ZodObject<{
     outcome: z.ZodEnum<{
         pending: "pending";
         error: "error";
+        paid: "paid";
         free_url: "free_url";
         ofapi_cache: "ofapi_cache";
-        paid: "paid";
         cap_blocked: "cap_blocked";
         source_expired: "source_expired";
         unavailable: "unavailable";
@@ -203,9 +203,9 @@ export declare const ofapiMediaImageRouteSchemas: {
                 outcome: z.ZodEnum<{
                     pending: "pending";
                     error: "error";
+                    paid: "paid";
                     free_url: "free_url";
                     ofapi_cache: "ofapi_cache";
-                    paid: "paid";
                     cap_blocked: "cap_blocked";
                     source_expired: "source_expired";
                     unavailable: "unavailable";

@@ -27,6 +27,18 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/ai/personas";
     };
+    readonly adminAiPersonaOpenerCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/ai/personas/:key/openers";
+    };
+    readonly adminAiPersonaOpenerUpdate: {
+        readonly method: "PATCH";
+        readonly path: "/api/v1/admin/ai/personas/:key/openers/:id";
+    };
+    readonly adminAiPersonaOpenersList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/ai/personas/:key/openers";
+    };
     readonly adminAiPersonaUpdate: {
         readonly method: "PUT";
         readonly path: "/api/v1/admin/ai/personas/:key";
@@ -714,6 +726,18 @@ export declare const kernelOperations: {
     readonly clientInConversation: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/in-conversation";
+    };
+    readonly clientOnline: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/online";
+    };
+    readonly clientOnlineAttempt: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/online/attempts";
+    };
+    readonly clientOnlinePresence: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/online/presence";
     };
     readonly clientSendAttributions: {
         readonly method: "POST";

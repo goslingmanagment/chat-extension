@@ -133,6 +133,10 @@ export const PUBLICATION_FINDING_CODES = [
     "fansly_file_upload_unsupported",
     /** No longer produced (several tiers captured 2026-10-25, the contract §3); kept so findings saved before still read. */
     "fansly_several_tiers_unsupported",
+    /** The page's latest read of the platform's own schedule missed entries (an
+     *  OnlyFans day over 100 posts, a budget, a sync): the repeat check could
+     *  not see the whole schedule. Warning. */
+    "platform_schedule_incomplete",
 ];
 export const PUBLICATION_FINDING_SEVERITIES = ["blocking", "warning", "info"];
 /** Defaults of a page's publishing settings (a page without a settings row has these). */
@@ -160,6 +164,13 @@ export const FANSLY_FILE_UPLOAD_ENABLED = true;
 export const PUBLICATION_TEXT_MAX_LENGTH = 5000;
 export const PUBLICATION_MEDIA_MAX = 20;
 export const PUBLICATION_PREVIEWS_MAX = 5;
+/** Who sees an extra attachment of a Fansly post (the contract §12.2):
+ *  everyone; the subscribers (with a price, anyone else buys it); or whoever
+ *  pays (only subscribers, when it says so). */
+export const PUBLICATION_ATTACHMENT_ACCESS = ["everyone", "subscribers", "paid"];
+/** Extra attachments a Fansly post may carry beside its own (the site's post
+ *  A had four "Upload" windows in all). */
+export const PUBLICATION_EXTRA_ATTACHMENTS_MAX = 4;
 /** The largest new file Hub uploads to OnlyFans (OnlyFansAPI's direct upload, plan PR 4c). */
 export const ONLYFANS_UPLOAD_MAX_BYTES = 100_000_000;
 /** A story with a new file starts its upload this long before its time; a post when it goes into the schedule. */

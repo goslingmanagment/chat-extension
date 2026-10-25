@@ -4202,6 +4202,11 @@ export declare const aiFeatureStreamBodySchema: z.ZodObject<{
     }, z.core.$strict>>;
     personalMessageCount: z.ZodOptional<z.ZodNumber>;
     fanAvatarUrl: z.ZodOptional<z.ZodString>;
+    fanAccount: z.ZodOptional<z.ZodObject<{
+        username: z.ZodOptional<z.ZodString>;
+        displayName: z.ZodOptional<z.ZodString>;
+        about: z.ZodOptional<z.ZodString>;
+    }, z.core.$strict>>;
     liveTextContext: z.ZodOptional<z.ZodObject<{
         capturedAt: z.ZodString;
         items: z.ZodArray<z.ZodObject<{
@@ -13333,6 +13338,11 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>>;
             personalMessageCount: z.ZodOptional<z.ZodNumber>;
             fanAvatarUrl: z.ZodOptional<z.ZodString>;
+            fanAccount: z.ZodOptional<z.ZodObject<{
+                username: z.ZodOptional<z.ZodString>;
+                displayName: z.ZodOptional<z.ZodString>;
+                about: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>;
             liveTextContext: z.ZodOptional<z.ZodObject<{
                 capturedAt: z.ZodString;
                 items: z.ZodArray<z.ZodObject<{
@@ -18673,6 +18683,303 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>>;
                 nextCursor: z.ZodNullable<z.ZodString>;
             }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiPersonaOpenersList: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "List a persona's Hi openers and how fans answered each one";
+        readonly params: z.ZodObject<{
+            key: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                personaKey: z.ZodString;
+                openers: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    body: z.ZodString;
+                    audience: z.ZodEnum<{
+                        any: "any";
+                        bare: "bare";
+                    }>;
+                    hours: z.ZodNullable<z.ZodObject<{
+                        from: z.ZodNumber;
+                        to: z.ZodNumber;
+                        timeZone: z.ZodString;
+                    }, z.core.$strict>>;
+                    enabled: z.ZodBoolean;
+                    createdAt: z.ZodString;
+                    outcomes: z.ZodObject<{
+                        all: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        bare: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        named: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        other: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                    }, z.core.$strict>;
+                }, z.core.$strict>>;
+            }, z.core.$strict>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiPersonaOpenerCreate: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Add a Hi opener to a persona";
+        readonly params: z.ZodObject<{
+            key: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            body: z.ZodString;
+            audience: z.ZodEnum<{
+                any: "any";
+                bare: "bare";
+            }>;
+            hours: z.ZodNullable<z.ZodObject<{
+                from: z.ZodNumber;
+                to: z.ZodNumber;
+                timeZone: z.ZodString;
+            }, z.core.$strict>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                personaKey: z.ZodString;
+                openers: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    body: z.ZodString;
+                    audience: z.ZodEnum<{
+                        any: "any";
+                        bare: "bare";
+                    }>;
+                    hours: z.ZodNullable<z.ZodObject<{
+                        from: z.ZodNumber;
+                        to: z.ZodNumber;
+                        timeZone: z.ZodString;
+                    }, z.core.$strict>>;
+                    enabled: z.ZodBoolean;
+                    createdAt: z.ZodString;
+                    outcomes: z.ZodObject<{
+                        all: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        bare: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        named: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        other: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                    }, z.core.$strict>;
+                }, z.core.$strict>>;
+            }, z.core.$strict>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiPersonaOpenerUpdate: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Switch a persona's Hi opener on or off";
+        readonly params: z.ZodObject<{
+            key: z.ZodString;
+            id: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            enabled: z.ZodBoolean;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                personaKey: z.ZodString;
+                openers: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    body: z.ZodString;
+                    audience: z.ZodEnum<{
+                        any: "any";
+                        bare: "bare";
+                    }>;
+                    hours: z.ZodNullable<z.ZodObject<{
+                        from: z.ZodNumber;
+                        to: z.ZodNumber;
+                        timeZone: z.ZodString;
+                    }, z.core.$strict>>;
+                    enabled: z.ZodBoolean;
+                    createdAt: z.ZodString;
+                    outcomes: z.ZodObject<{
+                        all: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        bare: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        named: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                        other: z.ZodObject<{
+                            sent: z.ZodNumber;
+                            edited: z.ZodNumber;
+                            matured: z.ZodNumber;
+                            replied: z.ZodNumber;
+                            talked: z.ZodNumber;
+                            maturedPaid: z.ZodNumber;
+                            paid: z.ZodNumber;
+                        }, z.core.$strict>;
+                    }, z.core.$strict>;
+                }, z.core.$strict>>;
+            }, z.core.$strict>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
@@ -30474,6 +30781,17 @@ declare const baseRouteSchemas: {
                         followers: "followers";
                     }>>;
                     subscribersOnly: z.ZodBoolean;
+                    extraAttachments: z.ZodArray<z.ZodObject<{
+                        attachment: z.ZodNumber;
+                        access: z.ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        subscribersOnly: z.ZodBoolean;
+                    }, z.core.$strip>>;
                     media: z.ZodArray<z.ZodObject<{
                         role: z.ZodEnum<{
                             media: "media";
@@ -30486,6 +30804,7 @@ declare const baseRouteSchemas: {
                         }>;
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
+                        attachment: z.ZodNumber;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -30507,6 +30826,7 @@ declare const baseRouteSchemas: {
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
                         }>;
                         severity: z.ZodEnum<{
                             info: "info";
@@ -30589,6 +30909,30 @@ declare const baseRouteSchemas: {
                 followers: "followers";
             }>>>;
             subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+            extraAttachments: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                access: z.ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    source: z.ZodLiteral<"vault">;
+                    mediaRef: z.ZodString;
+                }, z.core.$strict>, z.ZodObject<{
+                    source: z.ZodLiteral<"file">;
+                    fileId: z.ZodNumber;
+                }, z.core.$strict>], "source">>;
+                previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    source: z.ZodLiteral<"vault">;
+                    mediaRef: z.ZodString;
+                }, z.core.$strict>, z.ZodObject<{
+                    source: z.ZodLiteral<"file">;
+                    fileId: z.ZodNumber;
+                }, z.core.$strict>], "source">>>;
+                tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+                priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+            }, z.core.$strict>>>;
             pageLabel: z.ZodString;
         }, z.core.$strict>;
         readonly response: {
@@ -30668,6 +31012,17 @@ declare const baseRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: z.ZodBoolean;
+                extraAttachments: z.ZodArray<z.ZodObject<{
+                    attachment: z.ZodNumber;
+                    access: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    subscribersOnly: z.ZodBoolean;
+                }, z.core.$strip>>;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -30680,6 +31035,7 @@ declare const baseRouteSchemas: {
                     }>;
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
+                    attachment: z.ZodNumber;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -30701,6 +31057,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -30828,6 +31185,17 @@ declare const baseRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: z.ZodBoolean;
+                extraAttachments: z.ZodArray<z.ZodObject<{
+                    attachment: z.ZodNumber;
+                    access: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    subscribersOnly: z.ZodBoolean;
+                }, z.core.$strip>>;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -30840,6 +31208,7 @@ declare const baseRouteSchemas: {
                     }>;
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
+                    attachment: z.ZodNumber;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -30861,6 +31230,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -30990,6 +31360,30 @@ declare const baseRouteSchemas: {
                 followers: "followers";
             }>>>;
             subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+            extraAttachments: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                access: z.ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    source: z.ZodLiteral<"vault">;
+                    mediaRef: z.ZodString;
+                }, z.core.$strict>, z.ZodObject<{
+                    source: z.ZodLiteral<"file">;
+                    fileId: z.ZodNumber;
+                }, z.core.$strict>], "source">>;
+                previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    source: z.ZodLiteral<"vault">;
+                    mediaRef: z.ZodString;
+                }, z.core.$strict>, z.ZodObject<{
+                    source: z.ZodLiteral<"file">;
+                    fileId: z.ZodNumber;
+                }, z.core.$strict>], "source">>>;
+                tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+                priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+            }, z.core.$strict>>>;
             version: z.ZodNumber;
         }, z.core.$strict>;
         readonly response: {
@@ -31069,6 +31463,17 @@ declare const baseRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: z.ZodBoolean;
+                extraAttachments: z.ZodArray<z.ZodObject<{
+                    attachment: z.ZodNumber;
+                    access: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    subscribersOnly: z.ZodBoolean;
+                }, z.core.$strip>>;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -31081,6 +31486,7 @@ declare const baseRouteSchemas: {
                     }>;
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
+                    attachment: z.ZodNumber;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -31102,6 +31508,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -31240,6 +31647,17 @@ declare const baseRouteSchemas: {
                             followers: "followers";
                         }>>;
                         subscribersOnly: z.ZodBoolean;
+                        extraAttachments: z.ZodArray<z.ZodObject<{
+                            attachment: z.ZodNumber;
+                            access: z.ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: z.ZodArray<z.ZodString>;
+                            priceMills: z.ZodNullable<z.ZodNumber>;
+                            subscribersOnly: z.ZodBoolean;
+                        }, z.core.$strip>>;
                         media: z.ZodArray<z.ZodObject<{
                             role: z.ZodEnum<{
                                 media: "media";
@@ -31252,6 +31670,7 @@ declare const baseRouteSchemas: {
                             }>;
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
+                            attachment: z.ZodNumber;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -31273,6 +31692,7 @@ declare const baseRouteSchemas: {
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
                             }>;
                             severity: z.ZodEnum<{
                                 info: "info";
@@ -31402,6 +31822,17 @@ declare const baseRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: z.ZodBoolean;
+                extraAttachments: z.ZodArray<z.ZodObject<{
+                    attachment: z.ZodNumber;
+                    access: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    subscribersOnly: z.ZodBoolean;
+                }, z.core.$strip>>;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -31414,6 +31845,7 @@ declare const baseRouteSchemas: {
                     }>;
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
+                    attachment: z.ZodNumber;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -31435,6 +31867,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -31573,6 +32006,17 @@ declare const baseRouteSchemas: {
                         followers: "followers";
                     }>>;
                     subscribersOnly: z.ZodBoolean;
+                    extraAttachments: z.ZodArray<z.ZodObject<{
+                        attachment: z.ZodNumber;
+                        access: z.ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        subscribersOnly: z.ZodBoolean;
+                    }, z.core.$strip>>;
                     media: z.ZodArray<z.ZodObject<{
                         role: z.ZodEnum<{
                             media: "media";
@@ -31585,6 +32029,7 @@ declare const baseRouteSchemas: {
                         }>;
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
+                        attachment: z.ZodNumber;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -31606,6 +32051,7 @@ declare const baseRouteSchemas: {
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
                         }>;
                         severity: z.ZodEnum<{
                             info: "info";
@@ -31686,6 +32132,17 @@ declare const baseRouteSchemas: {
                         followers: "followers";
                     }>>;
                     subscribersOnly: z.ZodBoolean;
+                    extraAttachments: z.ZodArray<z.ZodObject<{
+                        attachment: z.ZodNumber;
+                        access: z.ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        subscribersOnly: z.ZodBoolean;
+                    }, z.core.$strip>>;
                     media: z.ZodArray<z.ZodObject<{
                         role: z.ZodEnum<{
                             media: "media";
@@ -31698,6 +32155,7 @@ declare const baseRouteSchemas: {
                         }>;
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
+                        attachment: z.ZodNumber;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -31719,6 +32177,7 @@ declare const baseRouteSchemas: {
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
                         }>;
                         severity: z.ZodEnum<{
                             info: "info";
@@ -31859,6 +32318,17 @@ declare const baseRouteSchemas: {
                             followers: "followers";
                         }>>;
                         subscribersOnly: z.ZodBoolean;
+                        extraAttachments: z.ZodArray<z.ZodObject<{
+                            attachment: z.ZodNumber;
+                            access: z.ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: z.ZodArray<z.ZodString>;
+                            priceMills: z.ZodNullable<z.ZodNumber>;
+                            subscribersOnly: z.ZodBoolean;
+                        }, z.core.$strip>>;
                         media: z.ZodArray<z.ZodObject<{
                             role: z.ZodEnum<{
                                 media: "media";
@@ -31871,6 +32341,7 @@ declare const baseRouteSchemas: {
                             }>;
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
+                            attachment: z.ZodNumber;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -31892,6 +32363,7 @@ declare const baseRouteSchemas: {
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
                             }>;
                             severity: z.ZodEnum<{
                                 info: "info";
@@ -32033,6 +32505,17 @@ declare const baseRouteSchemas: {
                             followers: "followers";
                         }>>;
                         subscribersOnly: z.ZodBoolean;
+                        extraAttachments: z.ZodArray<z.ZodObject<{
+                            attachment: z.ZodNumber;
+                            access: z.ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: z.ZodArray<z.ZodString>;
+                            priceMills: z.ZodNullable<z.ZodNumber>;
+                            subscribersOnly: z.ZodBoolean;
+                        }, z.core.$strip>>;
                         media: z.ZodArray<z.ZodObject<{
                             role: z.ZodEnum<{
                                 media: "media";
@@ -32045,6 +32528,7 @@ declare const baseRouteSchemas: {
                             }>;
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
+                            attachment: z.ZodNumber;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -32066,6 +32550,7 @@ declare const baseRouteSchemas: {
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
                             }>;
                             severity: z.ZodEnum<{
                                 info: "info";
@@ -32207,6 +32692,17 @@ declare const baseRouteSchemas: {
                             followers: "followers";
                         }>>;
                         subscribersOnly: z.ZodBoolean;
+                        extraAttachments: z.ZodArray<z.ZodObject<{
+                            attachment: z.ZodNumber;
+                            access: z.ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: z.ZodArray<z.ZodString>;
+                            priceMills: z.ZodNullable<z.ZodNumber>;
+                            subscribersOnly: z.ZodBoolean;
+                        }, z.core.$strip>>;
                         media: z.ZodArray<z.ZodObject<{
                             role: z.ZodEnum<{
                                 media: "media";
@@ -32219,6 +32715,7 @@ declare const baseRouteSchemas: {
                             }>;
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
+                            attachment: z.ZodNumber;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -32240,6 +32737,7 @@ declare const baseRouteSchemas: {
                                 onlyfans_file_too_large: "onlyfans_file_too_large";
                                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
                             }>;
                             severity: z.ZodEnum<{
                                 info: "info";
@@ -32369,6 +32867,17 @@ declare const baseRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: z.ZodBoolean;
+                extraAttachments: z.ZodArray<z.ZodObject<{
+                    attachment: z.ZodNumber;
+                    access: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    subscribersOnly: z.ZodBoolean;
+                }, z.core.$strip>>;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -32381,6 +32890,7 @@ declare const baseRouteSchemas: {
                     }>;
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
+                    attachment: z.ZodNumber;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -32402,6 +32912,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -32739,6 +33250,30 @@ declare const baseRouteSchemas: {
                 followers: "followers";
             }>>>;
             subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+            extraAttachments: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                access: z.ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    source: z.ZodLiteral<"vault">;
+                    mediaRef: z.ZodString;
+                }, z.core.$strict>, z.ZodObject<{
+                    source: z.ZodLiteral<"file">;
+                    fileId: z.ZodNumber;
+                }, z.core.$strict>], "source">>;
+                previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    source: z.ZodLiteral<"vault">;
+                    mediaRef: z.ZodString;
+                }, z.core.$strict>, z.ZodObject<{
+                    source: z.ZodLiteral<"file">;
+                    fileId: z.ZodNumber;
+                }, z.core.$strict>], "source">>>;
+                tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+                priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+            }, z.core.$strict>>>;
             idempotencyKey: z.ZodString;
         }, z.core.$strict>;
         readonly response: {
@@ -32832,6 +33367,17 @@ declare const baseRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: z.ZodBoolean;
+                extraAttachments: z.ZodArray<z.ZodObject<{
+                    attachment: z.ZodNumber;
+                    access: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    subscribersOnly: z.ZodBoolean;
+                }, z.core.$strip>>;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -32844,6 +33390,7 @@ declare const baseRouteSchemas: {
                     }>;
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
+                    attachment: z.ZodNumber;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -32865,6 +33412,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -33027,6 +33575,17 @@ declare const baseRouteSchemas: {
                         followers: "followers";
                     }>>;
                     subscribersOnly: z.ZodBoolean;
+                    extraAttachments: z.ZodArray<z.ZodObject<{
+                        attachment: z.ZodNumber;
+                        access: z.ZodEnum<{
+                            subscribers: "subscribers";
+                            everyone: "everyone";
+                            paid: "paid";
+                        }>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        subscribersOnly: z.ZodBoolean;
+                    }, z.core.$strip>>;
                     media: z.ZodArray<z.ZodObject<{
                         role: z.ZodEnum<{
                             media: "media";
@@ -33039,6 +33598,7 @@ declare const baseRouteSchemas: {
                         }>;
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
+                        attachment: z.ZodNumber;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -33060,6 +33620,7 @@ declare const baseRouteSchemas: {
                             onlyfans_file_too_large: "onlyfans_file_too_large";
                             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                            platform_schedule_incomplete: "platform_schedule_incomplete";
                         }>;
                         severity: z.ZodEnum<{
                             info: "info";
@@ -33216,6 +33777,10 @@ declare const baseRouteSchemas: {
                             withdrawn: "withdrawn";
                         }>;
                     }, z.core.$strip>>;
+                    platformSchedule: z.ZodNullable<z.ZodObject<{
+                        at: z.ZodString;
+                        postRef: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
                     repostWithinThreshold: z.ZodBoolean;
                 }, z.core.$strip>>;
                 nextCursor: z.ZodNullable<z.ZodString>;
@@ -33322,6 +33887,17 @@ declare const baseRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: z.ZodBoolean;
+                extraAttachments: z.ZodArray<z.ZodObject<{
+                    attachment: z.ZodNumber;
+                    access: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    subscribersOnly: z.ZodBoolean;
+                }, z.core.$strip>>;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -33334,6 +33910,7 @@ declare const baseRouteSchemas: {
                     }>;
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
+                    attachment: z.ZodNumber;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -33355,6 +33932,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -33484,6 +34062,30 @@ declare const baseRouteSchemas: {
                 followers: "followers";
             }>>>;
             subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+            extraAttachments: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                access: z.ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    source: z.ZodLiteral<"vault">;
+                    mediaRef: z.ZodString;
+                }, z.core.$strict>, z.ZodObject<{
+                    source: z.ZodLiteral<"file">;
+                    fileId: z.ZodNumber;
+                }, z.core.$strict>], "source">>;
+                previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                    source: z.ZodLiteral<"vault">;
+                    mediaRef: z.ZodString;
+                }, z.core.$strict>, z.ZodObject<{
+                    source: z.ZodLiteral<"file">;
+                    fileId: z.ZodNumber;
+                }, z.core.$strict>], "source">>>;
+                tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+                priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+            }, z.core.$strict>>>;
             version: z.ZodNumber;
         }, z.core.$strict>;
         readonly response: {
@@ -33577,6 +34179,17 @@ declare const baseRouteSchemas: {
                     followers: "followers";
                 }>>;
                 subscribersOnly: z.ZodBoolean;
+                extraAttachments: z.ZodArray<z.ZodObject<{
+                    attachment: z.ZodNumber;
+                    access: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        everyone: "everyone";
+                        paid: "paid";
+                    }>;
+                    tierRefs: z.ZodArray<z.ZodString>;
+                    priceMills: z.ZodNullable<z.ZodNumber>;
+                    subscribersOnly: z.ZodBoolean;
+                }, z.core.$strip>>;
                 media: z.ZodArray<z.ZodObject<{
                     role: z.ZodEnum<{
                         media: "media";
@@ -33589,6 +34202,7 @@ declare const baseRouteSchemas: {
                     }>;
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
+                    attachment: z.ZodNumber;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -33610,6 +34224,7 @@ declare const baseRouteSchemas: {
                         onlyfans_file_too_large: "onlyfans_file_too_large";
                         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                        platform_schedule_incomplete: "platform_schedule_incomplete";
                     }>;
                     severity: z.ZodEnum<{
                         info: "info";
@@ -36537,9 +37152,9 @@ declare const baseRouteSchemas: {
                 outcome: z.ZodEnum<{
                     pending: "pending";
                     error: "error";
+                    paid: "paid";
                     free_url: "free_url";
                     ofapi_cache: "ofapi_cache";
-                    paid: "paid";
                     cap_blocked: "cap_blocked";
                     source_expired: "source_expired";
                     unavailable: "unavailable";

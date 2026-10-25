@@ -28,6 +28,38 @@ export declare const publicationMediaInputSchema: z.ZodDiscriminatedUnion<[z.Zod
     fileId: z.ZodNumber;
 }, z.core.$strict>], "source">;
 /**
+ * An extra attachment of a Fansly post, after the post's own (the contract
+ * §12.2: one per "Upload" window, each with its own audience): `everyone`;
+ * `subscribers` (of `tierRefs`, or of every tier; with `priceMills`, anyone
+ * else buys it); `paid` (`priceMills`; only subscribers buy it with
+ * `subscribersOnly`, of `tierRefs` or of every tier). Previews belong to one
+ * with a price, `previews[i]` to `media[i]`.
+ */
+export declare const publicationExtraAttachmentInputSchema: z.ZodObject<{
+    access: z.ZodEnum<{
+        subscribers: "subscribers";
+        everyone: "everyone";
+        paid: "paid";
+    }>;
+    media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        source: z.ZodLiteral<"vault">;
+        mediaRef: z.ZodString;
+    }, z.core.$strict>, z.ZodObject<{
+        source: z.ZodLiteral<"file">;
+        fileId: z.ZodNumber;
+    }, z.core.$strict>], "source">>;
+    previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        source: z.ZodLiteral<"vault">;
+        mediaRef: z.ZodString;
+    }, z.core.$strict>, z.ZodObject<{
+        source: z.ZodLiteral<"file">;
+        fileId: z.ZodNumber;
+    }, z.core.$strict>], "source">>>;
+    tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+    priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+    subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+}, z.core.$strict>;
+/**
  * What a draft says. Kind decides the rest: a story is one file; previews and a
  * price are a paid post's, or a Fansly subscriber post's that anyone else may
  * buy (its subscribers see it free); FYP, walls, pins, reply locks and tiers
@@ -69,6 +101,30 @@ export declare const publicationContentSchema: z.ZodObject<{
         followers: "followers";
     }>>>;
     subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+    extraAttachments: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        access: z.ZodEnum<{
+            subscribers: "subscribers";
+            everyone: "everyone";
+            paid: "paid";
+        }>;
+        media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            source: z.ZodLiteral<"vault">;
+            mediaRef: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            source: z.ZodLiteral<"file">;
+            fileId: z.ZodNumber;
+        }, z.core.$strict>], "source">>;
+        previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            source: z.ZodLiteral<"vault">;
+            mediaRef: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            source: z.ZodLiteral<"file">;
+            fileId: z.ZodNumber;
+        }, z.core.$strict>], "source">>>;
+        tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+        priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strict>>>;
 }, z.core.$strict>;
 export type PublicationContentBody = z.infer<typeof publicationContentSchema>;
 export declare const publicationCreateBodySchema: z.ZodObject<{
@@ -105,6 +161,30 @@ export declare const publicationCreateBodySchema: z.ZodObject<{
         followers: "followers";
     }>>>;
     subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+    extraAttachments: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        access: z.ZodEnum<{
+            subscribers: "subscribers";
+            everyone: "everyone";
+            paid: "paid";
+        }>;
+        media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            source: z.ZodLiteral<"vault">;
+            mediaRef: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            source: z.ZodLiteral<"file">;
+            fileId: z.ZodNumber;
+        }, z.core.$strict>], "source">>;
+        previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            source: z.ZodLiteral<"vault">;
+            mediaRef: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            source: z.ZodLiteral<"file">;
+            fileId: z.ZodNumber;
+        }, z.core.$strict>], "source">>>;
+        tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+        priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strict>>>;
     pageLabel: z.ZodString;
 }, z.core.$strict>;
 export type PublicationCreateBody = z.infer<typeof publicationCreateBodySchema>;
@@ -142,6 +222,30 @@ export declare const publicationUpdateBodySchema: z.ZodObject<{
         followers: "followers";
     }>>>;
     subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+    extraAttachments: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        access: z.ZodEnum<{
+            subscribers: "subscribers";
+            everyone: "everyone";
+            paid: "paid";
+        }>;
+        media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            source: z.ZodLiteral<"vault">;
+            mediaRef: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            source: z.ZodLiteral<"file">;
+            fileId: z.ZodNumber;
+        }, z.core.$strict>], "source">>;
+        previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            source: z.ZodLiteral<"vault">;
+            mediaRef: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            source: z.ZodLiteral<"file">;
+            fileId: z.ZodNumber;
+        }, z.core.$strict>], "source">>>;
+        tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+        priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strict>>>;
     version: z.ZodNumber;
 }, z.core.$strict>;
 export type PublicationUpdateBody = z.infer<typeof publicationUpdateBodySchema>;
@@ -179,6 +283,30 @@ export declare const agentPublicationCreateBodySchema: z.ZodObject<{
         followers: "followers";
     }>>>;
     subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+    extraAttachments: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        access: z.ZodEnum<{
+            subscribers: "subscribers";
+            everyone: "everyone";
+            paid: "paid";
+        }>;
+        media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            source: z.ZodLiteral<"vault">;
+            mediaRef: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            source: z.ZodLiteral<"file">;
+            fileId: z.ZodNumber;
+        }, z.core.$strict>], "source">>;
+        previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+            source: z.ZodLiteral<"vault">;
+            mediaRef: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            source: z.ZodLiteral<"file">;
+            fileId: z.ZodNumber;
+        }, z.core.$strict>], "source">>>;
+        tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
+        priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+        subscribersOnly: z.ZodDefault<z.ZodBoolean>;
+    }, z.core.$strict>>>;
     idempotencyKey: z.ZodString;
 }, z.core.$strict>;
 export type AgentPublicationCreateBody = z.infer<typeof agentPublicationCreateBodySchema>;
@@ -202,6 +330,7 @@ export declare const publicationFindingSchema: z.ZodObject<{
         onlyfans_file_too_large: "onlyfans_file_too_large";
         fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
         fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+        platform_schedule_incomplete: "platform_schedule_incomplete";
     }>;
     severity: z.ZodEnum<{
         info: "info";
@@ -227,6 +356,18 @@ export declare const publicationMediaSchema: z.ZodObject<{
     }>;
     mediaRef: z.ZodNullable<z.ZodString>;
     fileId: z.ZodNullable<z.ZodNumber>;
+    attachment: z.ZodNumber;
+}, z.core.$strip>;
+export declare const publicationExtraAttachmentSchema: z.ZodObject<{
+    attachment: z.ZodNumber;
+    access: z.ZodEnum<{
+        subscribers: "subscribers";
+        everyone: "everyone";
+        paid: "paid";
+    }>;
+    tierRefs: z.ZodArray<z.ZodString>;
+    priceMills: z.ZodNullable<z.ZodNumber>;
+    subscribersOnly: z.ZodBoolean;
 }, z.core.$strip>;
 export declare const publicationSchema: z.ZodObject<{
     id: z.ZodNumber;
@@ -269,6 +410,17 @@ export declare const publicationSchema: z.ZodObject<{
         followers: "followers";
     }>>;
     subscribersOnly: z.ZodBoolean;
+    extraAttachments: z.ZodArray<z.ZodObject<{
+        attachment: z.ZodNumber;
+        access: z.ZodEnum<{
+            subscribers: "subscribers";
+            everyone: "everyone";
+            paid: "paid";
+        }>;
+        tierRefs: z.ZodArray<z.ZodString>;
+        priceMills: z.ZodNullable<z.ZodNumber>;
+        subscribersOnly: z.ZodBoolean;
+    }, z.core.$strip>>;
     media: z.ZodArray<z.ZodObject<{
         role: z.ZodEnum<{
             media: "media";
@@ -281,6 +433,7 @@ export declare const publicationSchema: z.ZodObject<{
         }>;
         mediaRef: z.ZodNullable<z.ZodString>;
         fileId: z.ZodNullable<z.ZodNumber>;
+        attachment: z.ZodNumber;
     }, z.core.$strip>>;
     findings: z.ZodArray<z.ZodObject<{
         code: z.ZodEnum<{
@@ -302,6 +455,7 @@ export declare const publicationSchema: z.ZodObject<{
             onlyfans_file_too_large: "onlyfans_file_too_large";
             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+            platform_schedule_incomplete: "platform_schedule_incomplete";
         }>;
         severity: z.ZodEnum<{
             info: "info";
@@ -422,6 +576,17 @@ export declare const publicationDetailSchema: z.ZodObject<{
         followers: "followers";
     }>>;
     subscribersOnly: z.ZodBoolean;
+    extraAttachments: z.ZodArray<z.ZodObject<{
+        attachment: z.ZodNumber;
+        access: z.ZodEnum<{
+            subscribers: "subscribers";
+            everyone: "everyone";
+            paid: "paid";
+        }>;
+        tierRefs: z.ZodArray<z.ZodString>;
+        priceMills: z.ZodNullable<z.ZodNumber>;
+        subscribersOnly: z.ZodBoolean;
+    }, z.core.$strip>>;
     media: z.ZodArray<z.ZodObject<{
         role: z.ZodEnum<{
             media: "media";
@@ -434,6 +599,7 @@ export declare const publicationDetailSchema: z.ZodObject<{
         }>;
         mediaRef: z.ZodNullable<z.ZodString>;
         fileId: z.ZodNullable<z.ZodNumber>;
+        attachment: z.ZodNumber;
     }, z.core.$strip>>;
     findings: z.ZodArray<z.ZodObject<{
         code: z.ZodEnum<{
@@ -455,6 +621,7 @@ export declare const publicationDetailSchema: z.ZodObject<{
             onlyfans_file_too_large: "onlyfans_file_too_large";
             fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
             fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+            platform_schedule_incomplete: "platform_schedule_incomplete";
         }>;
         severity: z.ZodEnum<{
             info: "info";
@@ -621,6 +788,17 @@ export declare const publicationListResponseSchema: z.ZodObject<{
             followers: "followers";
         }>>;
         subscribersOnly: z.ZodBoolean;
+        extraAttachments: z.ZodArray<z.ZodObject<{
+            attachment: z.ZodNumber;
+            access: z.ZodEnum<{
+                subscribers: "subscribers";
+                everyone: "everyone";
+                paid: "paid";
+            }>;
+            tierRefs: z.ZodArray<z.ZodString>;
+            priceMills: z.ZodNullable<z.ZodNumber>;
+            subscribersOnly: z.ZodBoolean;
+        }, z.core.$strip>>;
         media: z.ZodArray<z.ZodObject<{
             role: z.ZodEnum<{
                 media: "media";
@@ -633,6 +811,7 @@ export declare const publicationListResponseSchema: z.ZodObject<{
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
+            attachment: z.ZodNumber;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -654,6 +833,7 @@ export declare const publicationListResponseSchema: z.ZodObject<{
                 onlyfans_file_too_large: "onlyfans_file_too_large";
                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                platform_schedule_incomplete: "platform_schedule_incomplete";
             }>;
             severity: z.ZodEnum<{
                 info: "info";
@@ -752,6 +932,17 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                 followers: "followers";
             }>>;
             subscribersOnly: z.ZodBoolean;
+            extraAttachments: z.ZodArray<z.ZodObject<{
+                attachment: z.ZodNumber;
+                access: z.ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                tierRefs: z.ZodArray<z.ZodString>;
+                priceMills: z.ZodNullable<z.ZodNumber>;
+                subscribersOnly: z.ZodBoolean;
+            }, z.core.$strip>>;
             media: z.ZodArray<z.ZodObject<{
                 role: z.ZodEnum<{
                     media: "media";
@@ -764,6 +955,7 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                 }>;
                 mediaRef: z.ZodNullable<z.ZodString>;
                 fileId: z.ZodNullable<z.ZodNumber>;
+                attachment: z.ZodNumber;
             }, z.core.$strip>>;
             findings: z.ZodArray<z.ZodObject<{
                 code: z.ZodEnum<{
@@ -785,6 +977,7 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                     onlyfans_file_too_large: "onlyfans_file_too_large";
                     fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                     fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                    platform_schedule_incomplete: "platform_schedule_incomplete";
                 }>;
                 severity: z.ZodEnum<{
                     info: "info";
@@ -879,6 +1072,17 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             followers: "followers";
         }>>;
         subscribersOnly: z.ZodBoolean;
+        extraAttachments: z.ZodArray<z.ZodObject<{
+            attachment: z.ZodNumber;
+            access: z.ZodEnum<{
+                subscribers: "subscribers";
+                everyone: "everyone";
+                paid: "paid";
+            }>;
+            tierRefs: z.ZodArray<z.ZodString>;
+            priceMills: z.ZodNullable<z.ZodNumber>;
+            subscribersOnly: z.ZodBoolean;
+        }, z.core.$strip>>;
         media: z.ZodArray<z.ZodObject<{
             role: z.ZodEnum<{
                 media: "media";
@@ -891,6 +1095,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
+            attachment: z.ZodNumber;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -912,6 +1117,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
                 onlyfans_file_too_large: "onlyfans_file_too_large";
                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                platform_schedule_incomplete: "platform_schedule_incomplete";
             }>;
             severity: z.ZodEnum<{
                 info: "info";
@@ -992,6 +1198,17 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             followers: "followers";
         }>>;
         subscribersOnly: z.ZodBoolean;
+        extraAttachments: z.ZodArray<z.ZodObject<{
+            attachment: z.ZodNumber;
+            access: z.ZodEnum<{
+                subscribers: "subscribers";
+                everyone: "everyone";
+                paid: "paid";
+            }>;
+            tierRefs: z.ZodArray<z.ZodString>;
+            priceMills: z.ZodNullable<z.ZodNumber>;
+            subscribersOnly: z.ZodBoolean;
+        }, z.core.$strip>>;
         media: z.ZodArray<z.ZodObject<{
             role: z.ZodEnum<{
                 media: "media";
@@ -1004,6 +1221,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
+            attachment: z.ZodNumber;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -1025,6 +1243,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
                 onlyfans_file_too_large: "onlyfans_file_too_large";
                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                platform_schedule_incomplete: "platform_schedule_incomplete";
             }>;
             severity: z.ZodEnum<{
                 info: "info";
@@ -1160,6 +1379,17 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
             followers: "followers";
         }>>;
         subscribersOnly: z.ZodBoolean;
+        extraAttachments: z.ZodArray<z.ZodObject<{
+            attachment: z.ZodNumber;
+            access: z.ZodEnum<{
+                subscribers: "subscribers";
+                everyone: "everyone";
+                paid: "paid";
+            }>;
+            tierRefs: z.ZodArray<z.ZodString>;
+            priceMills: z.ZodNullable<z.ZodNumber>;
+            subscribersOnly: z.ZodBoolean;
+        }, z.core.$strip>>;
         media: z.ZodArray<z.ZodObject<{
             role: z.ZodEnum<{
                 media: "media";
@@ -1172,6 +1402,7 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
             }>;
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
+            attachment: z.ZodNumber;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -1193,6 +1424,7 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
                 onlyfans_file_too_large: "onlyfans_file_too_large";
                 fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                 fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                platform_schedule_incomplete: "platform_schedule_incomplete";
             }>;
             severity: z.ZodEnum<{
                 info: "info";
@@ -1287,6 +1519,17 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
                 followers: "followers";
             }>>;
             subscribersOnly: z.ZodBoolean;
+            extraAttachments: z.ZodArray<z.ZodObject<{
+                attachment: z.ZodNumber;
+                access: z.ZodEnum<{
+                    subscribers: "subscribers";
+                    everyone: "everyone";
+                    paid: "paid";
+                }>;
+                tierRefs: z.ZodArray<z.ZodString>;
+                priceMills: z.ZodNullable<z.ZodNumber>;
+                subscribersOnly: z.ZodBoolean;
+            }, z.core.$strip>>;
             media: z.ZodArray<z.ZodObject<{
                 role: z.ZodEnum<{
                     media: "media";
@@ -1299,6 +1542,7 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
                 }>;
                 mediaRef: z.ZodNullable<z.ZodString>;
                 fileId: z.ZodNullable<z.ZodNumber>;
+                attachment: z.ZodNumber;
             }, z.core.$strip>>;
             findings: z.ZodArray<z.ZodObject<{
                 code: z.ZodEnum<{
@@ -1320,6 +1564,7 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
                     onlyfans_file_too_large: "onlyfans_file_too_large";
                     fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
                     fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                    platform_schedule_incomplete: "platform_schedule_incomplete";
                 }>;
                 severity: z.ZodEnum<{
                     info: "info";
@@ -1483,6 +1728,10 @@ export declare const publicationPageMediaSchema: z.ZodObject<{
             withdrawn: "withdrawn";
         }>;
     }, z.core.$strip>>;
+    platformSchedule: z.ZodNullable<z.ZodObject<{
+        at: z.ZodString;
+        postRef: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
     repostWithinThreshold: z.ZodBoolean;
 }, z.core.$strip>;
 export type PublicationPageMediaWire = z.infer<typeof publicationPageMediaSchema>;
@@ -1529,6 +1778,10 @@ export declare const agentPublicationMediaResponseSchema: z.ZodObject<{
                 missed: "missed";
                 withdrawn: "withdrawn";
             }>;
+        }, z.core.$strip>>;
+        platformSchedule: z.ZodNullable<z.ZodObject<{
+            at: z.ZodString;
+            postRef: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>>;
         repostWithinThreshold: z.ZodBoolean;
     }, z.core.$strip>>;
