@@ -24,7 +24,8 @@ second): open it for the owner in the Claude desktop browser pane. `--gif`
 makes `see.gif` from the run's frames (needs `ffmpeg`).
 
 Scenarios: `dock`, `reply`, `reply-wait` (the sheet at the click while the start still reads the open chat), `coach`, `coach-recap` (what a
-Recap is used by: the Recap picker's words, Coach «Recap нет» and an answer «без Recap», «Собрать Recap» from Coach,
+Recap is used by: the Recap picker's words, Coach «Recap нет» and an answer «без Recap», «Собрать Recap ▾» from Coach with
+its menu (the full or the short one) and the line while the full one is built, «Обновить Recap ▾» with each one's age,
 the next answer «с Recap», «Учитывать Recap» unticked and an answer «без Recap — выключен», a Reply whose head still shows
 «с Recap» ticked, the head's tick pressed and the Reply made again without it, the Recap's «в этом чате его учитывают только
 Fix и Ping»), `recap`,
