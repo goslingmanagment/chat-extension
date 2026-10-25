@@ -65,8 +65,10 @@ import { registerComposer, unregisterComposer } from './registry';
 const TYPING_THROTTLE_MS = 3000;
 const TRANSLATE_MS = 60;
 const QUICK_REPLIES = ['(◕‿◕)', 'ok!', '♡'];
-const TEMPLATES = ['Синтетический шаблон: привет!', 'Stand template: how was your day?', 'Тестовый шаблон №3'];
-const PLACEHOLDER = 'Stand message…';
+const TEMPLATES = env.showcase
+  ? ['hey you 💕 how is your day going?', 'good morning ☀️ did you sleep well?', 'thank you for the tip, you spoil me 🥰']
+  : ['Синтетический шаблон: привет!', 'Stand template: how was your day?', 'Тестовый шаблон №3'];
+const PLACEHOLDER = env.showcase ? 'Type a message…' : 'Stand message…';
 /** ChatSpace's «Media uploader»: either permission lets a file into the composer. */
 const UPLOAD_PERMISSIONS = ['om_view_media_uploader', 'om_upload_media_hub'];
 /** What ChatSpace's composer takes: these MIME types, or a name with one of these extensions. */

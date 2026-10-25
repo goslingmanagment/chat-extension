@@ -2,7 +2,7 @@
 // (?stand-break=…, §6.2 degradation tests), a slow start (?stand-slow-start=…)
 // and the few knobs tests may turn.
 
-import { STAND_API_ORIGIN_META, STAND_BREAK_PARAM, STAND_SENTRY_PARAM, STAND_SLOW_START_PARAM, type FansOnlineTimings, type StandBreak, type UploadBehaviour } from './protocol';
+import { STAND_API_ORIGIN_META, STAND_BREAK_PARAM, STAND_SENTRY_PARAM, STAND_SLOW_START_PARAM, STAND_WORLD_ATTRIBUTE, type FansOnlineTimings, type StandBreak, type UploadBehaviour } from './protocol';
 
 const KNOWN_BREAKS = /^(vue-app|router-name|composer-bridge|composer-slot|composer-frame|editor-handle|draft-key|store:[A-Za-z_]+|query-key:[A-Za-z]+)$/;
 
@@ -40,6 +40,8 @@ export const env = {
    * (third live check). 0 — the stand's usual order: the data first, then the app.
    */
   slowStartMs: readSlowStart(location.search),
+  /** The showcase world (the page server's `data-stand-world` on `<html>`): the page's own words read like a working day's. */
+  showcase: typeof document !== 'undefined' && document.documentElement.getAttribute(STAND_WORLD_ATTRIBUTE) === 'showcase',
   /** `?stand-sentry=1`: Sentry on the page, as on ChatSpace 0.195.0 (sentry.ts). */
   sentry: new URLSearchParams(location.search).get(STAND_SENTRY_PARAM) === '1',
   /** Origin of the native API and the socket (ChatSpace: the apex domain, not the page's chat. host). */

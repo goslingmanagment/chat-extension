@@ -17,6 +17,7 @@ import { NgFor, NgIf, anchor, el, host, scope, setClass, setText, type Scope, ty
 import type { ComposerPlace, ListView } from './protocol';
 import { watchScroll } from './scroll';
 import type { Group, GroupService, PageMessage } from './store';
+import { clock, picture } from './world';
 
 const TYPING_EXPIRE_MS = 3100;
 const TYPING_SWEEP_MS = 2000;
@@ -144,7 +145,7 @@ export class MessageContainer implements View {
     const partner: Account | undefined = this.group.partners[0];
     const body = el(s, 'div', { class: 'flex-col width-100' });
     const element = el(s, 'app-group-message-collection', { class: 'message-collection', attrs: { apptheme: '' } }, [
-      el(s, 'div', { class: 'flex-row width-100', attrs: { appmutation: '' } }, [run.mine ? null : el(s, 'app-account-avatar', { class: 'avatar', attrs: { title: partner?.username ?? '' } }), body]),
+      el(s, 'div', { class: 'flex-row width-100', attrs: { appmutation: '' } }, [run.mine ? null : picture(el(s, 'app-account-avatar', { class: 'avatar', attrs: { title: partner?.username ?? '' } }), partner), body]),
     ]);
     const view: CollectionView = { nodes: [element], body };
     this.fillCollection(view, run);
@@ -171,7 +172,7 @@ export class MessageContainer implements View {
     if (view.body.lastElementChild !== stamp) view.body.append(stamp);
     const last = run.messages.at(-1);
     const span = stamp.firstElementChild;
-    if (span !== null && last !== undefined) setText(span, new Date(last.createdAt * 1000).toISOString().slice(11, 16));
+    if (span !== null && last !== undefined) setText(span, clock(last.createdAt));
     for (const [index, message] of run.messages.entries()) {
       const bubble = view.body.querySelectorAll(':scope > .flex-col > app-group-message')[index];
       if (bubble !== undefined) setClass(bubble, 'queued', message.queued);

@@ -3,7 +3,7 @@
 // extension's reports in .cache/see/<time>-<scenario>/ with an index.html contact sheet.
 //
 //   pnpm see                         the scenarios
-//   pnpm see <scenario|file> [--site fansly] [--gif] [--no-build]
+//   pnpm see <scenario|file> [--site fansly] [--showcase] [--dpr <n>] [--gif] [--no-build]
 //   pnpm see --new <name>            a scenario of one's own (packages/testing/e2e/see/scratch, not committed)
 //   pnpm see:session [chatspace|fansly]   a shift held open; pnpm see:do drives it
 //   … --live [--chat <group>]       Fansly for real: the test model on fansly.com, its writes to Fansly journaled (e2e/see/live.ts)
@@ -121,6 +121,23 @@ function ensureBuilds(skip: boolean, live = false): void {
   if (!live) ensure(STAND_BUILD);
 }
 
+/** A scenario that asks for the showcase world itself (`scenario(…, { showcase: true })`). */
+const wantsShowcase = (spec: string): boolean => /\bshowcase:\s*true\b/.test(readFileSync(spec, 'utf8'));
+
+/**
+ * The world and the pixels of a run on the stand: `--showcase` (or a scenario's `showcase: true`) — the showcase world
+ * (packages/testing/src/showcase.ts), shot at device pixel ratio 2 unless `--dpr` says otherwise; `--dpr <n>` alone —
+ * the synthetic world at that ratio. Neither — {}.
+ */
+function worldEnv(flags: Flags, spec: string | null): Record<string, string> {
+  const showcase = flags.switches.has('--showcase') || (spec !== null && wantsShowcase(spec));
+  const dpr = flags.values.get('--dpr') ?? (showcase ? '2' : '');
+  if (dpr !== '' && !/^[1-4](?:\.\d+)?$/.test(dpr)) fail(`see: --dpr ${dpr}: a device pixel ratio from 1 to 4`);
+  if (showcase && (flags.switches.has('--live') || flags.switches.has('--bare'))) fail('see: --showcase is the stand\'s world, not fansly.com\'s');
+  // One «now» for every process of the run: the stand and the scenario date the same messages alike (src/showcase.ts).
+  return { ...(showcase ? { CG_SEE_SHOWCASE: '1', CG_SEE_SHOWCASE_AT: String(Date.now()) } : {}), ...(dpr === '' ? {} : { CG_SEE_DPR: dpr }) };
+}
+
 /** The environment of a `--live` run (fansly.com, the test model): null without the switch. */
 function liveEnv(flags: Flags): Record<string, string> | null {
   const bare = flags.switches.has('--bare');
@@ -146,7 +163,7 @@ function describeScenario(file: string): string {
 }
 
 function listScenarios(): void {
-  console.log('pnpm see <scenario> [--site fansly | --live [--chat <group>]] [--gif] [--no-build]   (tools/see/README.md)\n');
+  console.log('pnpm see <scenario> [--site fansly | --live [--chat <group>]] [--showcase] [--dpr <n>] [--gif] [--no-build]   (tools/see/README.md)\n');
   for (const [title, dir] of [
     ['scenarios', SCENARIOS],
     ['scratch (yours, not committed)', SCRATCH],
@@ -355,7 +372,7 @@ function parse(args: readonly string[]): Flags {
   const positional: string[] = [];
   const values = new Map<string, string>();
   const switches = new Set<string>();
-  const valued = new Set(['--site', '--new', '--file', '--shot', '--name', '--idle', '--chat']);
+  const valued = new Set(['--site', '--new', '--file', '--shot', '--name', '--idle', '--chat', '--dpr']);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index] ?? '';
     if (arg === '--') continue;
@@ -378,12 +395,14 @@ async function run(flags: Flags): Promise<void> {
   const spec = resolveScenario(arg);
   if (flags.switches.has('--bare')) fail('see: --bare is a held session\'s (pnpm see:session --bare): a scenario presses our buttons');
   const live = liveEnv(flags);
+  const world = worldEnv(flags, spec);
   ensureBuilds(flags.noBuild, live !== null);
   const built = Date.now();
-  const name = `${scenarioName(spec)}${live !== null ? '-live' : flags.site === null ? '' : `-${flags.site}`}`;
+  const showcase = world['CG_SEE_SHOWCASE'] === '1';
+  const name = `${scenarioName(spec)}${live !== null ? '-live' : flags.site === null ? '' : `-${flags.site}`}${showcase ? '-showcase' : ''}`;
   const out = outDir(name);
-  say(`${relative(REPO_ROOT, spec)} → headless Firefox ${live !== null ? 'on fansly.com (the test model: real fans — a send or a post only on the owner\'s «да»)' : 'on the stand'}…`);
-  const env: Record<string, string> = { ...(flags.site === null ? {} : { CG_SEE_SITE: flags.site }), ...live, ...(flags.gif ? { CG_SEE_GIF: '1' } : {}) };
+  say(`${relative(REPO_ROOT, spec)} → headless Firefox ${live !== null ? 'on fansly.com (the test model: real fans — a send or a post only on the owner\'s «да»)' : showcase ? 'on the stand, the showcase world' : 'on the stand'}${world['CG_SEE_DPR'] === undefined ? '' : ` at ${world['CG_SEE_DPR']}×`}…`);
+  const env: Record<string, string> = { ...(flags.site === null ? {} : { CG_SEE_SITE: flags.site }), ...live, ...world, ...(flags.gif ? { CG_SEE_GIF: '1' } : {}) };
   const code = await wdio(spec, out, env).exit;
   if (flags.gif) makeGif(out);
   printResult(out, name, code === 0, `${secs()} (builds ${((built - t0) / 1000).toFixed(1)} s, Firefox and the scenario ${secs(built)})`);
@@ -423,12 +442,13 @@ async function session(flags: Flags): Promise<void> {
   const running = readSession();
   if (running !== null) fail(`see: a session (${running.site}) already runs on http://127.0.0.1:${running.port}/live — pnpm see:do --stop`);
   const bare = live?.['CG_SEE_LIVE_BARE'] === '1';
+  const world = worldEnv(flags, null);
   ensureBuilds(flags.noBuild || bare, live !== null);
-  const label = bare ? 'fansly-bare' : live !== null ? 'fansly-live' : site;
+  const label = `${bare ? 'fansly-bare' : live !== null ? 'fansly-live' : site}${world['CG_SEE_SHOWCASE'] === '1' ? '-showcase' : ''}`;
   const out = outDir(`session-${label}`);
   const idle = flags.values.get('--idle') ?? process.env['CG_SEE_IDLE_MIN'] ?? '30';
   say(`starting a ${bare ? 'bare fansly.com (the test model, no extension: real fans — a send or a post only on the owner\'s «да»)' : live !== null ? 'live fansly.com (the test model: real fans — a send or a post only on the owner\'s «да»)' : site} session (headless Firefox; stops after ${idle} min without a request)…`);
-  const { child, exit } = wdio(join(SEE_DIR, 'session.see.ts'), out, { CG_SEE_SITE: site, ...live, CG_SEE_PORT: String(SESSION_PORT), CG_SEE_IDLE_MIN: idle }, (line) => {
+  const { child, exit } = wdio(join(SEE_DIR, 'session.see.ts'), out, { CG_SEE_SITE: site, ...live, ...world, CG_SEE_PORT: String(SESSION_PORT), CG_SEE_IDLE_MIN: idle }, (line) => {
     if (!line.includes('cg-see session ready')) return;
     console.log('');
     say(`session ready in ${secs()} — live view: http://127.0.0.1:${SESSION_PORT}/live`);

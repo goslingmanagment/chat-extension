@@ -9,8 +9,23 @@
 // kept as strings: 18 digits today and above 2^53 (`Number()` merges
 // neighbours), 17 or fewer for an account made before April 2020; and a chat
 // is a group with an id of its own, never its fan's (FS-ACC-1).
+//
+// The showcase world (`pnpm see --showcase`, src/showcase.ts) keeps every id and renames what a person reads: the
+// pages are Mia Rose's on OnlyFans and Sofia Lane's on Fansly, the chatter is kate.
 
 import { HUB_FEATURE_MAP, hostBindingKey, type FeatureId, type HubAiFeature } from '@cg/contracts';
+
+import { SHOWCASE } from '../../showcase';
+
+/** What a person reads of the pages and the chatter: the synthetic world's, or the showcase's. */
+const NAMES = SHOWCASE
+  ? { one: { label: 'mia-rose', title: 'Mia Rose' }, vip: { label: 'mia-rose-vip', title: 'Mia Rose VIP' }, fansly: { label: 'sofia-lane', title: 'Sofia Lane' }, chatter: 'kate' }
+  : { one: { label: 'model-one', title: 'Model One' }, vip: { label: 'model-one-vip', title: 'Model One VIP' }, fansly: { label: 'model-two-fansly', title: 'Model Two' }, chatter: 'chatter1' };
+
+/** The models the pages belong to (the hub's `modelSlug` and `modelName`): page one and its VIP page are model one's. */
+export const MODELS = SHOWCASE
+  ? { one: { modelSlug: 'mia-rose', modelName: 'Mia Rose' }, two: { modelSlug: 'sofia-lane', modelName: 'Sofia Lane' } }
+  : { one: { modelSlug: 'model-one', modelName: 'Model One' }, two: { modelSlug: 'model-two', modelName: 'Model Two' } };
 
 /** Deterministic RFC 4122-shaped ids. */
 export const uuid = (n: number): string => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -22,15 +37,15 @@ export const at = (seconds: number): string => new Date(NOW_MS + seconds * 1000)
 
 export const WORLD = {
   hubOrigin: 'https://hub.example.test',
-  user: { userId: 7, username: 'chatter1', role: 'chatter' },
+  user: { userId: 7, username: NAMES.chatter, role: 'chatter' },
   otherUser: { userId: 8, username: 'chatter2' },
   /** This client install (H-7 `instanceId`). */
   instanceId: uuid(0x900),
   otherInstanceId: uuid(0x901),
   pages: {
-    one: { pageId: 11, pageLabel: 'model-one', title: 'Model One', platformAccountId: '3003', hostAccountId: '1001', bindingRevision: 2 },
-    vip: { pageId: 12, pageLabel: 'model-one-vip', title: 'Model One VIP', platformAccountId: '3004', hostAccountId: '1002', bindingRevision: 1 },
-    fansly: { pageId: 13, pageLabel: 'model-two-fansly', title: 'Model Two', platformAccountId: '700000000000000017', bindingRevision: 1 },
+    one: { pageId: 11, pageLabel: NAMES.one.label, title: NAMES.one.title, platformAccountId: '3003', hostAccountId: '1001', bindingRevision: 2 },
+    vip: { pageId: 12, pageLabel: NAMES.vip.label, title: NAMES.vip.title, platformAccountId: '3004', hostAccountId: '1002', bindingRevision: 1 },
+    fansly: { pageId: 13, pageLabel: NAMES.fansly.label, title: NAMES.fansly.title, platformAccountId: '700000000000000017', bindingRevision: 1 },
   },
   /** R20 P6c1: the Fansly page's chats as the hub's capture knows them (`page_dm_threads`: a group and its fan). */
   fansly: {

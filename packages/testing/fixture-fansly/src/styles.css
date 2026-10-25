@@ -193,3 +193,8 @@ app-messaging-overlay { position: fixed; bottom: 0; right: 24px; z-index: 4; dis
 app-messaging-overlay-group { display: flex; flex-direction: column; width: 440px; height: 420px; background: var(--dark-2); border: 1px solid var(--border-color); border-bottom: none; border-radius: 0.5em 0.5em 0 0; }
 
 .chatgoose-launcher { position: fixed; right: 16px; bottom: 96px; }
+
+/* The showcase world (world.ts): the inbox's unread count as a small pill beside the preview, not stretched down the row. */
+html[data-stand-world='showcase'] .message-list .eclipse { flex: 1; min-width: 0; }
+html[data-stand-world='showcase'] .badge-container { align-self: flex-start; margin-left: 0.5em; }
+html[data-stand-world='showcase'] .badge { box-sizing: border-box; height: 1.5em; min-width: 1.5em; padding: 0 0.4em; line-height: 1.5em; font-weight: 700; }

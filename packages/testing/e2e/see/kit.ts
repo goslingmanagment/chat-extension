@@ -15,12 +15,13 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { JOURNAL_KINDS, type SettingsV1 } from '@cg/contracts';
-import { $, browser } from '@wdio/globals';
+import { $, $$, browser } from '@wdio/globals';
 import { Key } from 'webdriverio';
 
 import { fakeHubControl, type FakeHubControlClient } from '../../src/fake-hub/control-client';
 import { describeCalls, journalViolations } from '../../src/fake-hub/journal';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
+import { SHOWCASE } from '../../src/showcase';
 import { MOD, PANEL, typeDraft } from '../support/chat';
 import { E2E_ADDON_UUID } from '../support/constants';
 import { readReport, type DockReport, type SpikeReport } from '../support/extension';
@@ -31,6 +32,7 @@ import { fakeFansly } from '../support/fansly-stand';
 import { allOurs, ours, oursExists, oursText, pressOurs, readOurs, waitOursByText, waitOursText, type Where } from '../support/ours';
 import { dockIs, startShift, type ShiftOptions } from '../support/shift';
 import { callStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
+import { serveShowcaseAvatars } from './avatars';
 import { fanslyWrites, LIVE, netRecords, startLiveShift, type NetRecord } from './live';
 import { makeSite, type SiteVerbs } from './site';
 
@@ -63,6 +65,23 @@ export const SEE_AI_TEXTS: Readonly<Record<string, string>> = {
     'Yes, but not as the first message. He brought up the set himself — use that: the flight first, then a teaser.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
 };
 
+/**
+ * The same shift in the showcase world (`--showcase`, src/showcase.ts): the open chat's fan is Jamie, back from a trip,
+ * and Hi introduces the page's own model — Mia Rose on OnlyFans, Sofia Lane on Fansly. Recap and Coach speak Russian,
+ * as they do to the team's chatters; what goes to a fan (drafts, Hi, Reply) stays English.
+ */
+export function showcaseAiTexts(site: Site): Readonly<Record<string, string>> {
+  const model = site === 'fansly' ? 'Sofia' : 'Mia';
+  return {
+    ...SEE_AI_TEXTS,
+    'hi-greeting': `hey you 👋 so glad you’re here! tell me one thing about your day [VARIANT] welcome, handsome ☺️ I was hoping you’d come by — what brought you to me? [VARIANT] hi! I’m ${model} 💛 I read every message myself, so say hi back`,
+    'voice-script': '[warmly] Hey you… welcome home, traveler. I missed you.',
+    'fan-summary': '## Кто он\nJamie, 34, часто летает по работе. Отвечает по вечерам, по времени Чикаго.\n\n## Что покупал\n- сет «Morning» за $25, вчера\n- два платных сообщения по $12 на прошлой неделе\n\n## На что отвечает\n- вопросы про поездки и кофе\n- короткие сообщения без давления\n\n## Чего избегать\n- длинных текстов и скидок в первом сообщении',
+    'coach-chat':
+      'Да, но не первым сообщением. Про сет он спросил сам — зацепитесь за это: сначала про полёт, потом тизер.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
+  };
+}
+
 export interface SeeOptions {
   /** The sites it runs on; the first is the default, `--site` picks another of them. */
   readonly sites?: readonly Site[];
@@ -80,6 +99,26 @@ export interface SeeOptions {
   readonly fanslyGroup?: string;
   /** The scenario's own time limit (default 3 minutes). */
   readonly timeout?: number;
+  /**
+   * The showcase world (src/showcase.ts): `pnpm see <name>` switches it on by itself for a scenario that says so (as
+   * `--showcase` does for any), at device pixel ratio 2. Run another way, the scenario stops at once.
+   */
+  readonly showcase?: true;
+}
+
+/** A box on the tab, in CSS pixels. */
+export interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface ShotOptions {
+  /** Only this part of the tab (CSS pixels; what falls outside the window is cut off): `around(…)` makes one. */
+  readonly clip?: Box;
+  /** The file's own name (`launch-reply-onlyfans` → `launch-reply-onlyfans.png`) instead of `NN-<name>.png`. */
+  readonly file?: string;
 }
 
 /** What a scenario (and a held session's `pnpm see:do`) works with. */
@@ -91,8 +130,12 @@ export interface See {
   readonly hub: FakeHubControlClient;
   /** The ChatSpace stand server's control API (fan messages, socket frames, journal). */
   readonly stand: typeof standServer;
-  /** Saves `NN-name.png` of what the tab in front shows (once it stands still); returns its path. */
-  shot(name: string): Promise<string>;
+  /** Saves `NN-name.png` of what the tab in front shows (once it stands still), or only its `clip`; returns its path. */
+  shot(name: string, options?: ShotOptions): Promise<string>;
+  /** Where an element is on the tab, in CSS pixels: of ours (`where`, a selector in its root) or the page's own (`'page'`, a CSS selector). null — none now. */
+  rect(where: Where | 'page', selector: string): Promise<Box | null>;
+  /** The showcase world (`--showcase`): the site's model, fans and texts are the showcase's (src/showcase.ts). */
+  readonly showcase: boolean;
   /** The dock of the open chat is ready: Reply is on. Its report; null with --live (the real site gets none). */
   ready(timeout?: number): Promise<DockReport | null>;
   /** Presses a button of ours by its text — the dock's strip by default (`s.press(/^Reply/, 'modal', '.cg-pv button')`); the extension's UI speaks Russian, so most labels are matched in Russian. */
@@ -213,6 +256,50 @@ async function stillPicture(settleMs = 800): Promise<string> {
 }
 
 /**
+ * The part `clip` of a tab's picture, cut in the tab's own page: a canvas there knows PNG, and the extension's pages
+ * refuse BiDi's clipped screenshot (privileged scope). The box is in CSS pixels; the picture has the window's device
+ * pixels (`--dpr`).
+ */
+async function cropPicture(png: string, clip: Box): Promise<string> {
+  // An async script: WebDriver hands back what its promise settles to.
+  const cut: string = await browser.execute(
+    async (data: string, box: Box) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const ratio = image.naturalWidth / window.innerWidth;
+      const x = Math.max(0, Math.round(box.x * ratio));
+      const y = Math.max(0, Math.round(box.y * ratio));
+      const width = Math.min(image.naturalWidth - x, Math.round((box.width + Math.min(0, box.x)) * ratio));
+      const height = Math.min(image.naturalHeight - y, Math.round((box.height + Math.min(0, box.y)) * ratio));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, width);
+      canvas.height = Math.max(1, height);
+      canvas.getContext('2d')?.drawImage(image, -x, -y);
+      return canvas.toDataURL('image/png').slice('data:image/png;base64,'.length);
+    },
+    png,
+    clip,
+  );
+  return cut;
+}
+
+/** The smallest box over all of these (a missing one is skipped), grown by `pad` CSS pixels — on every side, or [top, right, bottom, left]. */
+export function around(boxes: readonly (Box | null)[], pad: number | readonly [number, number, number, number] = 0): Box {
+  const present = boxes.filter((box): box is Box => box !== null);
+  if (present.length === 0) throw new Error('around: no box to frame (nothing of it on the tab)');
+  const [top, right, bottom, left] = typeof pad === 'number' ? [pad, pad, pad, pad] : pad;
+  const x = Math.min(...present.map((box) => box.x)) - left;
+  const y = Math.min(...present.map((box) => box.y)) - top;
+  return {
+    x,
+    y,
+    width: Math.max(...present.map((box) => box.x + box.width)) + right - x,
+    height: Math.max(...present.map((box) => box.y + box.height)) + bottom - y,
+  };
+}
+
+/**
  * Frames of the tab in front, taken over BiDi beside whatever the scenario does (for `--gif` and the session's live
  * view). A frame that cannot be taken (an extension page refuses BiDi's screenshot) is skipped.
  */
@@ -251,6 +338,7 @@ export function recordFrames(everyMs: number, onFrame: (png: Buffer) => void): {
  * A call the fake hub says the client must never make is written down (violations.txt), not failed on.
  */
 export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
+  if (options.showcase === true && !SHOWCASE) throw new Error('this scenario is the showcase world\'s: run it with `pnpm see <name>` (it switches the world on) or add --showcase');
   const site = pickSite(options);
   const hub = fakeHubControl(fakeHubOrigin());
   const logs: ConsoleEntry[] = [];
@@ -273,8 +361,10 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
       await setFanslyNeighbor(null);
       await fakeFansly().command({ op: 'reset' });
     }
-    if (options.hubTexts !== true) await hub.command({ op: 'config', patch: { aiTexts: SEE_AI_TEXTS } });
+    if (options.hubTexts !== true) await hub.command({ op: 'config', patch: { aiTexts: SHOWCASE ? showcaseAiTexts(site) : SEE_AI_TEXTS } });
     await options.before?.({ hub, site, stand: standServer });
+    // The showcase world's fans have pictures on Fansly (avatars.ts).
+    if (SHOWCASE && site === 'fansly') await serveShowcaseAvatars();
     const viewport = options.viewport ?? { width: 1440, height: 900 };
     let toChat: () => Promise<void>;
     let toPages: () => Promise<void>;
@@ -398,11 +488,13 @@ function makeSee(parts: Parts): See {
     browser,
     hub: parts.hub,
     stand: standServer,
-    async shot(name) {
-      const safe = name.replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-+|-+$/g, '') || 'shot';
-      const file = `${String(parts.nextNumber()).padStart(2, '0')}-${safe}.png`;
+    async shot(name, options = {}) {
+      const safe = (text: string): string => text.replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-+|-+$/g, '') || 'shot';
+      const number = parts.nextNumber();
+      const file = options.file === undefined ? `${String(number).padStart(2, '0')}-${safe(name)}.png` : `${safe(options.file)}.png`;
       const onPage = (await browser.getUrl()).startsWith(ADDON_PAGE);
-      const png = await stillPicture();
+      const still = await stillPicture();
+      const png = options.clip === undefined ? still : await cropPicture(still, options.clip);
       writeFileSync(join(OUT, file), Buffer.from(png, 'base64'));
       const dock = onPage ? null : dockLine((await readReport())?.dock);
       parts.note({ file, name, seconds: (Date.now() - STARTED) / 1000, dock });
@@ -439,6 +531,16 @@ function makeSee(parts: Parts): See {
       lap(`result ${dock.result?.feature ?? '?'} ${dock.result?.state ?? '?'}${dock.result?.error ? ` (${dock.result.error})` : ''}`);
       return dock;
     },
+    async rect(where, selector) {
+      const box = (node: Element): Box => {
+        const { x, y, width, height } = node.getBoundingClientRect();
+        return { x, y, width, height };
+      };
+      if (where !== 'page') return readOurs(where, selector, box);
+      const [node] = await $$(selector).getElements();
+      return node === undefined ? null : ((await browser.execute(box, node as unknown as Element)) as Box);
+    },
+    showcase: SHOWCASE,
     dock: async () => (await readReport())?.dock ?? null,
     report: () => readReport(),
     see: (where, text, timeout = 20_000) => waitOursText(where, text, `${where} shows «${String(text)}»`, { timeout }),
@@ -497,10 +599,11 @@ function makeSee(parts: Parts): See {
 
 /** One «show me» scenario: a shift on the stand, then `body` with the verbs of `See`. */
 export function scenario(title: string, body: (s: See) => Promise<void>, options: SeeOptions = {}): void {
-  describe(`see: ${title}`, () => {
+  describe(`see: ${title}`, function (this: Mocha.Suite) {
+    // On the suite: wdio's wrapper reads a test's limit before its body runs (a limit set there was the config's 2 minutes).
+    this.timeout(options.timeout ?? 180_000);
     const run = useSee(options);
-    it(title, async function (this: Mocha.Context) {
-      this.timeout(options.timeout ?? 180_000);
+    it(title, async function () {
       await body(run.see());
       lap('done');
     });

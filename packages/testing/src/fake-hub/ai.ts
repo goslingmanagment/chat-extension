@@ -6,11 +6,14 @@
 // generation (H-5 eligibility, shared recaps, own AI spend). The text is
 // synthetic and fixed; it never lands in the journal. On Fansly (R20 P6c1)
 // the context frame also names the checked pair (HF-9) and answers the
-// body's window check (HF-8в).
+// body's window check (HF-8в). The showcase world (src/showcase.ts) names its
+// personas as an agency would and sends no usage frame: a result's head shows
+// no cost there.
 
 import { SPLIT_MARKERS, type ContextFrame, type HubFrame, type HubStreamRequest, type PersonaCatalogItem } from '@cg/contracts';
 
 import { WORLD } from '../scenarios/hub';
+import { SHOWCASE } from '../showcase';
 import { hiStartProofDecides, type CoverageCheckAnswer } from './ai-rules';
 import { type FakeSseStep } from './types';
 
@@ -36,7 +39,7 @@ export interface Generation {
 }
 
 export const DEFAULT_CATALOG: readonly PersonaCatalogItem[] = [
-  { key: WORLD.persona.key, displayName: 'Default', version: 3, definitionId: WORLD.persona.definitionId, status: 'active' },
+  { key: WORLD.persona.key, displayName: SHOWCASE ? 'Sweet & warm' : 'Default', version: 3, definitionId: WORLD.persona.definitionId, status: 'active' },
   { key: 'playful', displayName: 'Playful', version: 1, definitionId: 'pdef_playful000000001', status: 'active' },
 ];
 
@@ -201,15 +204,16 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
   const written = facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
   const text = facts.nameFan === true ? namedForFan(written, request) : written;
   for (const piece of chunks(text)) steps.push(frame({ type: 'content_delta', text: piece }, facts.chunkDelayMs));
-  steps.push(
-    frame({
-      type: 'usage',
-      usage: { inputTokens: 1200, outputTokens: Math.ceil(text.length / 4), cacheWriteTokens: 0, cacheReadTokens: 1000, costMicroUsd: 2500, costApproximate: false },
-      providerResponseId: null,
-      cacheHit: true,
-    }),
-    frame({ type: 'done', stopReason: 'end_turn' }),
-    { kind: 'eof' },
-  );
+  if (!SHOWCASE) {
+    steps.push(
+      frame({
+        type: 'usage',
+        usage: { inputTokens: 1200, outputTokens: Math.ceil(text.length / 4), cacheWriteTokens: 0, cacheReadTokens: 1000, costMicroUsd: 2500, costApproximate: false },
+        providerResponseId: null,
+        cacheHit: true,
+      }),
+    );
+  }
+  steps.push(frame({ type: 'done', stopReason: 'end_turn' }), { kind: 'eof' });
   return steps;
 }

@@ -34,6 +34,7 @@ const SEED_FIELDS: Readonly<Record<string, FieldCheck>> = {
   fanWroteAgoSec: either(isNumber, oneOf(null)),
   weWroteAgoSec: either(isNumber, oneOf(null)),
   awaiting: isBoolean,
+  preview: isString,
 };
 /** `spenderFans.fans`: objects with a fan id and nothing but the seed's own fields. */
 const isSpenderSeeds: FieldCheck = (value) =>
@@ -46,7 +47,13 @@ const isSpenderSeeds: FieldCheck = (value) =>
   );
 
 const isNativeId: FieldCheck = (value) => typeof value === 'string' && /^[1-9]\d{0,29}$/.test(value);
-/** `archiveConversation.messages`: an id, a side, and at most a state — nothing else. */
+/** `archiveConversation.messages`: an id, a side, at most a state, and what the site shows of it (text, time, price) — nothing else. */
+const CONVERSATION_SEED_FIELDS: Readonly<Record<string, FieldCheck>> = {
+  state: oneOf('held', 'deleted'),
+  text: isString,
+  at: (value) => typeof value === 'string' && !Number.isNaN(Date.parse(value)),
+  priceMills: (value) => isNumber(value) && (value as number) >= 0,
+};
 const isConversationSeed: FieldCheck = (value) =>
   Array.isArray(value) &&
   value.every(
@@ -54,7 +61,7 @@ const isConversationSeed: FieldCheck = (value) =>
       isObject(message) &&
       isNativeId((message as Record<string, unknown>)['id']) &&
       oneOf('fan', 'model')((message as Record<string, unknown>)['sender']) &&
-      Object.entries(message as Record<string, unknown>).every(([key, field]) => key === 'id' || key === 'sender' || (key === 'state' && (field === undefined || oneOf('held', 'deleted')(field)))),
+      Object.entries(message as Record<string, unknown>).every(([key, field]) => key === 'id' || key === 'sender' || (field === undefined ? key in CONVERSATION_SEED_FIELDS : CONVERSATION_SEED_FIELDS[key]?.(field) === true)),
   );
 
 const MATCH = oneOf('exact', 'route');
@@ -99,7 +106,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   archiveRebuild: PAGE_FAN,
   grantPages: { username: isString, userId: isNumber, pages: isStringArray },
   pageAccount: { pageLabel: isString, platformAccountId: either(isString, oneOf(null)) },
-  audienceEvent: { ...PAGE_FAN, kind: oneOf('new', 'returning'), trial: isBoolean, fanWrote: isBoolean, handSent: isBoolean, agoMs: isNumber },
+  audienceEvent: { ...PAGE_FAN, kind: oneOf('new', 'returning'), trial: isBoolean, fanWrote: isBoolean, handSent: isBoolean, agoMs: isNumber, username: isString, displayName: isString },
   spenderFans: { fans: isSpenderSeeds },
   talking: { ...PAGE_FAN, conversationRef: isNativeId, name: isString, agoMs: isNumber },
   fanCard: { ...PAGE_FAN, card: isObject },
