@@ -64,6 +64,8 @@ interface Card {
   readonly passId: string;
   readonly fanRef: string;
   loaded: 'no' | 'loading' | 'yes' | 'failed';
+  /** The draft's read under way for the card on screen or a reminder's Hi: they share it. */
+  reading: Promise<boolean> | null;
   /** The draft as the site holds it. */
   stored: PassDraft | null;
   /** The field. */
@@ -91,6 +93,12 @@ export interface CardGreeting {
   vm(passId: string, row: PassRow): NewcomerGreetingVM | null;
   /** The card is on screen: its draft is read once. */
   open(passId: string, fanRef: string): void;
+  /**
+   * 2026-10-25, «Hi» of a greeting reminder: true once the card may take its Hi — the draft read (the read under way, or
+   * one more when none was made or the last failed), nothing of the fan under way, nothing gone out. A draft that cannot
+   * be read: false, and the card says why («Черновик не создан: …»).
+   */
+  ready(passId: string, fanRef: string): Promise<boolean>;
   /** The port returned: read durable drafts and attempts again. */
   refresh(): void;
   /** An action of the card; null — not the greeting's. */
@@ -157,7 +165,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     const key = keyOf(passId, fanRef);
     let card = cards.get(key);
     if (card === undefined) {
-      card = { passId, fanRef, loaded: 'no', stored: null, text: '', dirty: false, timer: null, writing: null, gen: null, state: { s: 'idle' }, busy: false };
+      card = { passId, fanRef, loaded: 'no', reading: null, stored: null, text: '', dirty: false, timer: null, writing: null, gen: null, state: { s: 'idle' }, busy: false };
       cards.set(key, card);
     }
     return card;
@@ -214,11 +222,37 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     }
   }
 
+  /** Reads the card's draft; a read under way (the card on screen, a reminder's Hi) is joined, never made twice. */
+  function load(card: Card): Promise<boolean> {
+    if (card.reading !== null) return card.reading;
+    card.loaded = 'loading';
+    const reading = read(card).finally(() => {
+      if (card.reading === reading) card.reading = null;
+    });
+    card.reading = reading;
+    return reading;
+  }
+
   function open(passId: string, fanRef: string): void {
     const card = cardOf(passId, fanRef);
-    if (card.loaded !== 'no') return;
-    card.loaded = 'loading';
-    void read(card);
+    if (card.loaded === 'no') void load(card);
+  }
+
+  /**
+   * 2026-10-25: a reminder's Hi on a card the window opened again shows only now — its draft is read first (a Hi into
+   * a card still reading it was refused and wrote nothing). A draft that cannot be read is said on the card, unless it
+   * shows a click under way or an attempt of its own.
+   */
+  async function ready(passId: string, fanRef: string): Promise<boolean> {
+    const card = cardOf(passId, fanRef);
+    const at = generation;
+    if (card.loaded !== 'yes') await load(card);
+    if (at !== generation || disposed) return false;
+    if (card.loaded !== 'yes') {
+      if (!card.busy && card.state.s !== 'sent' && card.state.s !== 'uncertain') said(card, { s: 'not-drafted', failure: failure('CG-RUNTIME-UNREACHABLE') });
+      return false;
+    }
+    return !card.busy && card.state.s !== 'sent';
   }
 
   /** Writes the field now; a write that failed leaves the field as it is (the next one carries it). */
@@ -669,6 +703,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
   return {
     vm,
     open,
+    ready,
     batchStart,
     batchLive(passId, fanRef) {
       const card = cards.get(keyOf(passId, fanRef));
