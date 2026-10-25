@@ -4,15 +4,22 @@
 // fan's id (FS-ACC-1). A message's id is a snowflake of its own time, as
 // Fansly's is: the id order is the time order across all conversations, and
 // the newest conversation of the inbox has the newest message id (the inbox
-// is listed by it). Deterministic: every load gets the same world.
+// is listed by it). Deterministic: every load gets the same world. The
+// showcase world (`pnpm see --showcase`) dresses the same ids as Sofia Lane's
+// working day: showcase.ts, dated back from the run's one «now».
 
 import type { FanslyStandIds } from './protocol';
+import { SHOWCASE_CONVERSATIONS, SHOWCASE_CREATOR, showcaseFillerChat, showcasePerson } from './showcase';
 import { snowflakeAt } from './wire';
 
 export interface Account {
   readonly id: string;
   readonly username: string;
   readonly displayName: string;
+  /** The line under the name on the profile (the showcase world's; the fake Fansly makes one up otherwise). */
+  readonly about?: string;
+  /** The picture's address as the API gives it (its 400 px variant); the page draws it only in the showcase world (world.ts). */
+  readonly avatar?: string;
 }
 
 export interface MessageAttachment {
@@ -33,6 +40,8 @@ export interface Message {
   readonly type?: number;
   /** The id of what made the message (a mass send's parent): deleting that parent deletes this one too (main:28943-28950). */
   readonly correlationId?: string | null;
+  /** When the other side read it, seconds; absent — the moment it came. */
+  readonly readAt?: number;
 }
 
 /** A conversation as the server side of the stand keeps it. */
@@ -71,11 +80,18 @@ const EPOCH_S = 1_791_072_000;
 const CREATOR: Account = { id: '700000000000000017', username: 'stand_creator', displayName: 'Stand Creator' };
 
 const groupId = (index: number): string => String(GROUP_BASE + BigInt(index * 13 + 1));
+/** The id of the stand's `index`-th conversation (0 — the long one, the first of the inbox in the synthetic world). */
+export const standGroupId = groupId;
 const fanOf = (index: number): Account => ({ id: String(FAN_BASE + BigInt(index * 29 + 3)), username: `stand_fan_${index + 1}`, displayName: `Stand Fan ${index + 1}` });
 /** The first conversation has a long history: three older pages of 25 above the latest one. */
 const historyLength = (index: number): number => (index === 0 ? 90 : ((index * 7) % 23) + 3);
 
-export function createWorld(creatorId: string = CREATOR.id): World {
+/**
+ * The stand's world: the synthetic one, or with `showcaseAt` (ms) the showcase world's (showcase.ts) dated back from
+ * that moment — the same group, fan and creator ids either way.
+ */
+export function createWorld(creatorId: string = CREATOR.id, showcaseAt: number | null = null): World {
+  if (showcaseAt !== null) return createShowcaseWorld(creatorId, showcaseAt);
   const creator = { ...CREATOR, id: creatorId };
   let sequence = 0;
   const groups: ServerGroup[] = [];
@@ -102,6 +118,42 @@ export function createWorld(creatorId: string = CREATOR.id): World {
   }
   // New messages of the in-page world come after every seeded one.
   return { creator, groups, byId: new Map(groups.map((group) => [group.id, group])), nextMessage: BigInt(snowflakeAt(EPOCH_S * 1000, 0)), nextMedia: MEDIA_BASE };
+}
+
+/**
+ * Sofia Lane's inbox (showcase.ts): the hand-written conversations first (group 0 is the open chat), the rest short
+ * chats of a day to six weeks; message ids are snowflakes of their own moments, in time order across the inbox; a
+ * creator's message is read by the fan a few minutes after it came.
+ */
+function createShowcaseWorld(creatorId: string, now: number): World {
+  const creator: Account = { id: creatorId, ...SHOWCASE_CREATOR };
+  const groups: ServerGroup[] = [];
+  const lines: { readonly group: ServerGroup; readonly mine: boolean; readonly text: string; readonly at: number }[] = [];
+  for (let index = 0; index < GROUP_COUNT; index += 1) {
+    const id = groupId(index);
+    const written = SHOWCASE_CONVERSATIONS[index];
+    const person = written ?? showcasePerson(index);
+    const fan: Account = { id: fanOf(index).id, username: person.username, displayName: person.displayName, about: person.about };
+    const group: ServerGroup = { id, partners: [fan], fan, dmRulesUnmet: false, status: written?.online === true ? 1 : 3, unread: written?.unread ?? (index % 7 === 2 ? 1 : 0), history: [] };
+    groups.push(group);
+    for (const [from, text, minutesAgo] of written?.chat ?? showcaseFillerChat(index)) lines.push({ group, mine: from === 'model', text, at: Math.floor((now - minutesAgo * 60_000) / 1000) });
+  }
+  lines
+    .sort((a, b) => a.at - b.at)
+    .forEach((line, sequence) => {
+      line.group.history.push({
+        id: snowflakeAt(line.at * 1000, sequence),
+        groupId: line.group.id,
+        senderId: line.mine ? creator.id : line.group.fan.id,
+        content: line.text,
+        createdAt: line.at,
+        attachments: [],
+        ...(line.mine ? { readAt: Math.min(Math.floor(now / 1000), line.at + 60 + (sequence % 9) * 60) } : {}),
+      });
+    });
+  // The inbox's order: the newest conversation first.
+  groups.sort((a, b) => (b.history.at(-1)?.createdAt ?? 0) - (a.history.at(-1)?.createdAt ?? 0));
+  return { creator, groups, byId: new Map(groups.map((group) => [group.id, group])), nextMessage: BigInt(snowflakeAt(now, 0)), nextMedia: MEDIA_BASE };
 }
 
 export function standIds(world: World): FanslyStandIds {

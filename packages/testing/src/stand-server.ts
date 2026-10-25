@@ -41,12 +41,14 @@ import {
   STAND_CONTROL_PREFIX,
   STAND_SENTRY_PREFIX,
   STAND_TOKEN_PATH,
+  STAND_WORLD_ATTRIBUTE,
   STAND_WS_PATH,
   type CallOrigin,
 } from '../fixture-chatspace/src/protocol';
 import { startFakeFansly, type FakeFansly } from './fake-fansly';
 import { NEIGHBOR_CONTROL_PATH, NEIGHBOR_SCRIPT_PATH, neighborConfig, type NeighborConfig } from './fake-fansly/neighbor/protocol';
 import { neighborFor, withNeighbor } from './fake-fansly/neighbor/serve';
+import { SHOWCASE } from './showcase';
 import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
@@ -229,6 +231,9 @@ async function serveFile(response: ServerResponse, file: string, csp: string | n
 const metaPattern = (name: string): RegExp => new RegExp(`(<meta name="${name}" content=")[^"]*(")`);
 const META_PATTERN = metaPattern(STAND_API_ORIGIN_META);
 
+/** The showcase world (src/showcase.ts) on a stand page's `<html>`: the page's own words read like a working day's. */
+const inWorld = (html: string): string => (SHOWCASE ? html.replace(/<html\b/, `<html ${STAND_WORLD_ATTRIBUTE}="showcase"`) : html);
+
 /** Tells the served Fansly stand page where the fake Fansly is and which session it has (server-protocol.ts). */
 function withFanslyServer(html: string, fake: FakeFansly): string {
   const values: ReadonlyArray<readonly [string, string]> = [
@@ -313,7 +318,7 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     } else if (existsSync(join(fixtureDir, 'index.html'))) {
       // History-mode SPA: every other path is the app's index, told where its API is.
       status = await serveFile(response, join(fixtureDir, 'index.html'), url.searchParams.get('csp') === 'strict' ? strictFixtureCsp(apiOrigin) : null, (text) =>
-        text.replace(META_PATTERN, `$1${apiOrigin}$2`),
+        inWorld(text.replace(META_PATTERN, `$1${apiOrigin}$2`)),
       );
     } else {
       response
@@ -411,7 +416,7 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
       }
       const apiOrigin = fake === null || url.searchParams.get(FANSLY_STAND_PARAMS.backend) === 'local' ? null : fake.apiOrigin;
       status = await serveFile(response, join(fanslyDir, 'index.html'), null, (text) => {
-        const served = fake === null ? text : withFanslyServer(text, fake);
+        const served = inWorld(fake === null ? text : withFanslyServer(text, fake));
         return pageNeighbor === null ? served : withNeighbor(served, { config: pageNeighbor, apiOrigin });
       });
     } else {

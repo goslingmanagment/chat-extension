@@ -11,6 +11,12 @@ export const FANSLY_STAND_GLOBAL = '__fanslyStand';
 export const FANSLY_STAND_READY_ATTRIBUTE = 'data-stand-ready';
 
 /** Query flags the page reads at boot. */
+/**
+ * The attribute of `<html>` the page server sets in the showcase world (`pnpm see --showcase`, packages/testing/src/
+ * showcase.ts; the same name as the ChatSpace stand's): the page draws its fans' pictures and its clock in local time.
+ */
+export const FANSLY_STAND_WORLD_ATTRIBUTE = 'data-stand-world';
+
 export const FANSLY_STAND_PARAMS = {
   /** `bright` (default, as in the live snapshot of 2026-10-13) or `dark`. */
   theme: 'stand-theme',

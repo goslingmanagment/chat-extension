@@ -41,7 +41,10 @@ export function toMessage(wire: WireMessage): Message {
   };
 }
 
-const toAccount = (wire: WireAccount): Account => ({ id: wire.id, username: wire.username, displayName: wire.displayName ?? wire.username });
+const toAccount = (wire: WireAccount): Account => {
+  const avatar = wire.avatar?.variants.find((variant) => variant.width === 400)?.locations[0]?.location ?? wire.avatar?.locations[0]?.location;
+  return { id: wire.id, username: wire.username, displayName: wire.displayName ?? wire.username, ...(avatar === undefined ? {} : { avatar }) };
+};
 
 /** Fansly's own answer to «may this account write to the partner?» in brief: no rule set, or one with every bit met (E155). */
 const dmRulesUnmet = (group: WireGroup): boolean => group.dmPermissionFlags.length > 0 && group.dmPermissionFlags.every((rule) => (rule.flags & ~rule.verificationFlags) !== 0);

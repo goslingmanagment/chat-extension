@@ -15,6 +15,11 @@ export const STAND_WS_PATH = '/api/chat-space/ws';
 export const STAND_API_PREFIX = '/api/';
 /** `<meta name=…>` the page server fills with the API origin when it serves the app. */
 export const STAND_API_ORIGIN_META = 'stand-api-origin';
+/**
+ * The attribute of `<html>` the page server sets in the showcase world (`pnpm see --showcase`, packages/testing/src/
+ * showcase.ts): the page's own words (the composer's placeholder, its templates) read like a working day's.
+ */
+export const STAND_WORLD_ATTRIBUTE = 'data-stand-world';
 /** Control endpoints for tests (page origin); never called by the app's own client. */
 export const STAND_CONTROL_PREFIX = '/__stand/';
 /** Plays the session-token provider (Clerk's getToken), on the page origin. */

@@ -19,6 +19,7 @@ import { record } from './journal';
 import type { ModalService } from './modal';
 import { NgIf, anchor, el, host, scope, setAttr, setText, type Scope, type View } from './ng';
 import type { Group, GroupService } from './store';
+import { picture } from './world';
 
 const STATUS_TEXT: Readonly<Record<1 | 2 | 3, string>> = { 1: 'Active now', 2: 'Away', 3: 'Offline' };
 
@@ -126,7 +127,7 @@ export class ConversationRoute {
     const back = el(s, 'div', { class: 'back-button' }, [el(s, 'i', { class: 'fa-fw fal fa-arrow-left' })]);
     back.addEventListener('click', handler(() => history.back()));
     const avatarIf = new NgIf<View>(() => ({
-      nodes: [el(s, 'div', { class: 'message-content-header-avatar' }, [el(s, 'app-account-avatar', { class: 'avatar flex-0' }, [el(s, 'div', { class: 'avatar default-avatar' })])])],
+      nodes: [el(s, 'div', { class: 'message-content-header-avatar' }, [picture(el(s, 'app-account-avatar', { class: 'avatar flex-0' }, [el(s, 'div', { class: 'avatar default-avatar' })]), this.partners()[0])])],
     }));
     const contactIf = new NgIf(() => this.createContact());
     const notes = el(s, 'div', { class: 'dropdown-item' }, [el(s, 'i', { class: 'fa-fw fal fa-note-sticky hover-effect' }), el(s, 'xd-localization-string', {}, ['Notes / Custom Name '])]);

@@ -51,6 +51,8 @@ const firefoxBinary = process.env['FIREFOX_BIN'] ?? (existsSync(macFirefox) ? ma
 process.env['MOZ_REMOTE_SETTINGS_DEVTOOLS'] = '1';
 
 const live = process.env['CG_SEE_LIVE'] === '1';
+/** `pnpm see … --dpr <n>` (and `--showcase`, 2 by default): every page drawn at that device pixel ratio, its pictures too. */
+const seeDpr = process.env['CG_SEE_DPR'] ?? '';
 const liveProfile = process.env['CG_SEE_LIVE_PROFILE'] || join(homedir(), '.cache/chatgoose/fansly-live', basename(repoRoot));
 if (live) mkdirSync(liveProfile, { recursive: true });
 
@@ -149,6 +151,8 @@ export const config: WebdriverIO.Config = {
           // itself, and BiDi does not see a worker's requests: the journal of writes (e2e/see/live.ts) would miss
           // them. Measured 2026-10-24 with a probe POST.
           ...(live ? { 'dom.serviceWorkers.enabled': false } : {}),
+          // `pnpm see … --dpr 2`: crisp pictures — the window keeps its CSS size, the screen has twice the pixels.
+          ...(seeDpr === '' ? {} : { 'layout.css.devPixelsPerPx': seeDpr }),
         },
       },
     },

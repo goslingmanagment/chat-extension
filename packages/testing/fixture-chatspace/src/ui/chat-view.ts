@@ -20,6 +20,7 @@
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type PropType, type VNode } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import { env } from '../env';
 import { record } from '../journal';
 import { api, HTTPError } from '../net/http';
 import { useQueryCache } from '../query/cache';
@@ -55,6 +56,8 @@ export const ANCHOR_PARAM = 'firstId';
 const STAND_FAN_LIST = '501';
 
 const fanName = (fans: FansMap | undefined, fanId: string): string => fans?.[fanId]?.name ?? `Fan ${fanId.slice(-4)}`;
+/** The avatar's letter: the name's first, past the synthetic world's «Fan » («Fan Alder» → A, «Jamie Carter» → J). */
+const initial = (name: string): string => name.replace(/^Fan /, '').slice(0, 1);
 const preview = (message: Pick<Message, 'text'> | null): string =>
   message === null
     ? ''
@@ -77,7 +80,7 @@ const audioBubbles = (audioItems: OnlyFansMessageMetadata['audioItems']): VNode[
 const SCOPES: ReadonlyArray<{ readonly value: ChatListView['scope']; readonly label: string }> = [
   { value: 'all', label: 'All chats' },
   ...CHAT_LIST_FILTERS.map((filter) => ({ value: `filter:${filter}` as const, label: `Filter: ${filter}` })),
-  { value: `list:${STAND_FAN_LIST}`, label: 'Stand fan list' },
+  { value: `list:${STAND_FAN_LIST}`, label: env.showcase ? 'VIP fans' : 'Stand fan list' },
 ];
 
 const ChatsPanel = defineComponent({
@@ -158,7 +161,7 @@ const ChatsPanel = defineComponent({
                 },
               },
               [
-                h('span', { class: ['avatar', online ? 'avatar--online' : ''] }, fanName(fans.value, chat.id).slice(4, 5)),
+                h('span', { class: ['avatar', online ? 'avatar--online' : ''] }, initial(fanName(fans.value, chat.id))),
                 h('span', { class: 'chat-row__text' }, [
                   h('span', { class: 'chat-row__name' }, fanName(fans.value, chat.id)),
                   h('span', { class: 'chat-row__preview' }, typing ? 'typing…' : rowPreview(chat.lastMessage)),
@@ -317,7 +320,7 @@ const ConversationHeader = defineComponent({
       const typing = chats.isFanTyping(props.accountId, props.chatId);
       const name = fanName(cache.getQueryData<FansMap>(keys.fansMap(props.accountId)), props.chatId);
       return h('header', { class: 'conversation-header', 'data-stand-conversation-header': '' }, [
-        h('span', { class: ['avatar', online ? 'avatar--online' : ''] }, name.slice(4, 5)),
+        h('span', { class: ['avatar', online ? 'avatar--online' : ''] }, initial(name)),
         h('div', { class: 'conversation-header__text' }, [h('strong', name), h('span', { class: 'conversation-header__status' }, typing ? 'typing…' : online ? 'online' : 'offline')]),
         h('button', { type: 'button', class: 'chip', 'data-testid': 'conversation-header-pinned-messages-button', onClick: () => props.onOpenPinned() }, 'Pinned'),
         fan.value !== null ? h('button', { type: 'button', class: 'chip', 'data-stand-block-button': '', onClick: () => void setBlocked(cache, props.accountId, props.chatId, !fan.value?.isBlocked).catch(() => undefined) }, fan.value.isBlocked ? 'Unblock' : 'Block') : null,

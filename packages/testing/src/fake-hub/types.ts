@@ -122,6 +122,8 @@ export interface SpenderSeed {
   readonly weWroteAgoSec?: number | null;
   /** Stands in «ждут ответа» (the fan wrote last and nobody answered). */
   readonly awaiting?: boolean;
+  /** The newest message's text, the row's «Последнее сообщение» (default: a stock line by the row's rank). */
+  readonly preview?: string;
 }
 
 export type FakeHubCommand =
@@ -173,13 +175,15 @@ export type FakeHubCommand =
    * R20 P6c1: a conversation's archive becomes exactly these messages, oldest first (a new archive generation): what
    * the AI's reader reads, and beside it what the hub holds without reading (`held`) or tombstoned (`deleted`).
    * `lookupFails` — the hub's lookup of the ids outside the served window fails there (the window check answers
-   * `unknown`).
+   * `unknown`). A message may bring what the site shows of it — its `text`, when it was written (`at`, ISO), a paid
+   * message's price (`priceMills`) — as the showcase world's mirror of a stand chat does; without them the archive's
+   * own synthetic text, a minute apart.
    */
   | {
       readonly op: 'archiveConversation';
       readonly pageLabel: string;
       readonly conversationRef: string;
-      readonly messages: readonly { readonly id: string; readonly sender: 'fan' | 'model'; readonly state?: 'held' | 'deleted' }[];
+      readonly messages: readonly { readonly id: string; readonly sender: 'fan' | 'model'; readonly state?: 'held' | 'deleted'; readonly text?: string; readonly at?: string; readonly priceMills?: number }[];
       readonly lookupFails?: boolean;
     }
   /**
@@ -198,7 +202,20 @@ export type FakeHubCommand =
   /** The fan's archive is rebuilt (the hub's archive generation moves): every feed cursor of the fan is `cursor_invalid` from now on. */
   | { readonly op: 'archiveRebuild'; readonly pageLabel: string; readonly fanRef: string }
   /** A subscription event lands in «Новые». */
-  | { readonly op: 'audienceEvent'; readonly pageLabel: string; readonly fanRef: string; readonly kind?: 'new' | 'returning'; readonly trial?: boolean; readonly fanWrote?: boolean; readonly handSent?: boolean; /** The subscription this long before now (the greeting reminder). */ readonly agoMs?: number }
+  | {
+      readonly op: 'audienceEvent';
+      readonly pageLabel: string;
+      readonly fanRef: string;
+      readonly kind?: 'new' | 'returning';
+      readonly trial?: boolean;
+      readonly fanWrote?: boolean;
+      readonly handSent?: boolean;
+      /** The subscription this long before now (the greeting reminder). */
+      readonly agoMs?: number;
+      /** The fan's handle and name as the platform shows them (default: a synthetic handle, no name). */
+      readonly username?: string;
+      readonly displayName?: string;
+    }
   /**
    * The first rows of every page's Spenders board are these fans, in this order — fans the e2e's stand has, so
    * a chat a preview names can be opened, inserted into and sent to. The board's shelves become the six

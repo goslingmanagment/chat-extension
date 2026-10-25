@@ -10,11 +10,13 @@
 import { DEFAULT_SETTINGS, STORAGE_KEYS, type SettingsV1 } from '@cg/contracts';
 import { browser } from '@wdio/globals';
 
-import { createWorld } from '../../fixture-fansly/src/data';
+import { createWorld, standGroupId, type World } from '../../fixture-fansly/src/data';
+import { SHOWCASE_CONVERSATIONS } from '../../fixture-fansly/src/showcase';
 import { fanslyPageFlags } from '../../src/fake-hub/config';
 import type { FakeHubControlClient } from '../../src/fake-hub/control-client';
 import type { NeighborConfig } from '../../src/fake-fansly/neighbor/protocol';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
+import { SHOWCASE, SHOWCASE_AT } from '../../src/showcase';
 import { assignPersona, installTestBuild, pageRpc, writeLocalStorage } from './extension';
 import { fakeHubOrigin, QUIET_PAGE, testBuildPage } from './fake-hub';
 import { openWithNeighbor } from './fansly-neighbor';
@@ -23,6 +25,7 @@ import { switchFanslyOnForTheStand } from './fansly-site';
 import { focusTab } from './focus';
 import { SHIFT_PASSWORD } from './shift';
 import { chatPath, openStand, STAND_IDS, waitForChatReady } from './stand';
+import { showcaseSpender } from './world';
 
 export interface FanslyShiftOptions {
   /** Settings on top of the defaults (the hub address is the fake hub's). */
@@ -52,21 +55,44 @@ export interface FanslyShift {
  * check over a stand chat then finds its messages, and a result is marked only where a spec makes the archive lag
  * (`archiveConversation` again). The stand's world is deterministic (fixture-fansly).
  */
-async function seedStandArchive(hub: FakeHubControlClient, path: string): Promise<void> {
-  const world = createWorld();
+async function seedStandArchive(hub: FakeHubControlClient, path: string, world: World, more: readonly string[] = []): Promise<void> {
   const opened = /\/messages\/(\d+)/.exec(path)?.[1];
-  const groups = new Set([WORLD.fansly.chats.a.group, WORLD.fansly.chats.b.group, ...(opened === undefined ? [] : [opened])]);
+  const groups = new Set([WORLD.fansly.chats.a.group, WORLD.fansly.chats.b.group, ...(opened === undefined ? [] : [opened]), ...more]);
   for (const id of groups) {
     const group = world.byId.get(id);
     if (group === undefined) continue;
-    const messages = group.history.map((message) => ({ id: message.id, sender: message.senderId === group.fan.id ? ('fan' as const) : ('model' as const) }));
+    const messages = group.history.map((message) => ({
+      id: message.id,
+      sender: message.senderId === group.fan.id ? ('fan' as const) : ('model' as const),
+      // The showcase world's archive reads as its chat does: the texts and times a person sees.
+      ...(SHOWCASE ? { text: message.content, at: new Date(message.createdAt * 1000).toISOString() } : {}),
+    }));
     await hub.command({ op: 'archiveConversation', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: id, messages });
   }
 }
 
+/**
+ * The showcase world (src/showcase.ts): the Fansly page's Spenders board is the inbox's hand-written fans with their
+ * money and ages, and the hub's capture knows their chats (a preview reads each from the archive). Returns their groups.
+ */
+async function showcaseBoard(hub: FakeHubControlClient, world: World): Promise<string[]> {
+  const rows = SHOWCASE_CONVERSATIONS.flatMap((conversation, index) => {
+    const group = world.byId.get(standGroupId(index));
+    return group === undefined ? [] : [{ group: group.id, seed: showcaseSpender({ fanRef: group.fan.id, conversationRef: group.id, username: conversation.username, displayName: conversation.displayName, spentUsd: conversation.spentUsd, chat: conversation.chat }) }];
+  });
+  for (const row of rows) await hub.command({ op: 'thread', pageLabel: WORLD.pages.fansly.pageLabel, conversationRef: row.group, fanRef: row.seed.fanRef });
+  await hub.command({ op: 'spenderFans', fans: rows.map((row) => row.seed) });
+  await hub.command({ op: 'config', patch: { spendersTotal: rows.length } });
+  return rows.map((row) => row.group);
+}
+
 export async function startFanslyShift(hub: FakeHubControlClient, options: FanslyShiftOptions): Promise<FanslyShift> {
-  if (options.world !== false) await hub.command({ op: 'config', patch: fanslyPageFlags() });
-  if (options.world !== false) await seedStandArchive(hub, options.path);
+  if (options.world !== false) {
+    await hub.command({ op: 'config', patch: fanslyPageFlags() });
+    // The stand's world, as the fake Fansly made it (the showcase's dated from the run's one «now»).
+    const world = createWorld(undefined, SHOWCASE ? SHOWCASE_AT : null);
+    await seedStandArchive(hub, options.path, world, SHOWCASE ? await showcaseBoard(hub, world) : []);
+  }
   await installTestBuild();
   await browser.url(testBuildPage(QUIET_PAGE));
   const settings: SettingsV1 = {
@@ -88,6 +114,8 @@ export async function startFanslyShift(hub: FakeHubControlClient, options: Fansl
   const signedIn = await pageRpc('session.signIn', { login: options.user?.username ?? WORLD.user.username, password: options.user?.password ?? SHIFT_PASSWORD });
   if (!signedIn.ok) throw new Error(`sign-in: ${signedIn.error.code}`);
   await assignPersona(WORLD.pages.fansly.pageLabel);
+  // The showcase's chatter is set up: every page of hers has its persona (src/showcase.ts).
+  if (SHOWCASE) for (const page of [WORLD.pages.one, WORLD.pages.vip]) await assignPersona(page.pageLabel);
   // «Включить Fansly», as far as the stand goes: its origins and webRequest granted, the background registers both scripts.
   await switchFanslyOnForTheStand();
   await browser.url(testBuildPage(QUIET_PAGE));

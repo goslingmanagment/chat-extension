@@ -62,6 +62,8 @@ export class StandState {
     this.failReleaseForms = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.onlineFans.clear();
+    // A fan the world starts with as seen a moment ago (the showcase's) is online to the presence poll too.
+    for (const chat of this.dataset.chats.values()) if (chat.fan.lastSeen !== null) this.onlineFans.add(chatKey(chat.accountId, chat.fan.id));
     this.racingHistory.clear();
     this.forcedHistoryDelayMs = 0;
     this.scripts.clear();

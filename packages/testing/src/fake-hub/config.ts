@@ -25,6 +25,7 @@ import {
   BINDING_KEY_ONE,
   BINDING_KEY_VIP,
   HUB_FEATURE_REQUIREMENTS,
+  MODELS,
   PILOT_FLAGS_ON,
   SCENARIO_DATA,
   STAR_ROW_PLATFORMS,
@@ -51,9 +52,9 @@ export interface FakePage {
 
 /** The synthetic pages (scenarios/hub/world.ts): two OF pilot pages and one Fansly page. */
 export const FAKE_PAGES: readonly FakePage[] = [
-  { ...WORLD.pages.one, platform: 'onlyfans', modelSlug: 'model-one', modelName: 'Model One' },
-  { ...WORLD.pages.vip, platform: 'onlyfans', modelSlug: 'model-one', modelName: 'Model One' },
-  { ...WORLD.pages.fansly, platform: 'fansly', modelSlug: 'model-two', modelName: 'Model Two' },
+  { ...WORLD.pages.one, platform: 'onlyfans', ...MODELS.one },
+  { ...WORLD.pages.vip, platform: 'onlyfans', ...MODELS.one },
+  { ...WORLD.pages.fansly, platform: 'fansly', ...MODELS.two },
 ];
 
 export const pageRefOf = (page: FakePage): HubPageRef => ({ id: page.pageId, label: page.pageLabel, platform: page.platform, modelSlug: page.modelSlug, modelName: page.modelName });

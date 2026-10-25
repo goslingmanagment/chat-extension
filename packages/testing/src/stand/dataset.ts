@@ -2,6 +2,11 @@
 // ids and texts are invented here; no real message, fan or account appears
 // (tools/archive-check rejects the owner's real ids). Ids follow the hub's one
 // id form ^[1-9]\d{0,29}$ (docs/hub-pr-plan-critic.md item 14) and stay strings.
+// The showcase world (`pnpm see --showcase`, src/showcase.ts) dresses the same
+// ids as a working day: showcase.ts.
+
+import { SHOWCASE, SHOWCASE_AT } from '../showcase';
+import { SHOWCASE_ACCOUNTS } from './showcase';
 
 export interface StandAccount {
   /** OnlyMonster account id (host namespace). */
@@ -91,8 +96,9 @@ function line(pool: readonly string[], n: number): string {
   return (pool[n % pool.length] ?? '').replaceAll('{n}', String(n));
 }
 
-/** A fresh copy of the synthetic dataset (the server mutates its own copy). */
+/** A fresh copy of the synthetic dataset (the server mutates its own copy); the showcase world's in a showcase run. */
 export function createDataset(): StandDataset {
+  if (SHOWCASE) return createShowcaseDataset(SHOWCASE_AT);
   const accounts: StandAccount[] = [
     { id: STAND_IDS.accounts.a, platformAccountId: STAND_IDS.platformAccounts.a, name: 'Stand Creator A', username: 'stand_creator_a', openOnStart: true },
     { id: STAND_IDS.accounts.b, platformAccountId: STAND_IDS.platformAccounts.b, name: 'Stand Creator B', username: 'stand_creator_b', openOnStart: true },
@@ -143,6 +149,63 @@ export function createDataset(): StandDataset {
       chats.set(chatKey(account.id, fanId), { accountId: account.id, fan, messages, unread: last?.isFromFan === true ? 1 + (index % 3) : 0 });
     }
   });
+  return { userId: STAND_IDS.user, accounts, chats };
+}
+
+/** Text as a message body: ChatSpace's paragraph, the few characters HTML reserves escaped. */
+const paragraph = (text: string): string => `<p>${text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</p>`;
+
+/**
+ * The showcase world's stand (showcase.ts): accounts a and b with the same fan ids, the showcase's names, money and
+ * chats, dated back from `now`; message ids in time order across the stand, as OnlyFans gives them. Nobody is blocked.
+ */
+export function createShowcaseDataset(now: number): StandDataset {
+  const ids = [STAND_IDS.platformAccounts.a, STAND_IDS.platformAccounts.b, STAND_IDS.platformAccounts.c];
+  const accounts: StandAccount[] = [STAND_IDS.accounts.a, STAND_IDS.accounts.b, STAND_IDS.accounts.c].slice(0, SHOWCASE_ACCOUNTS.length).map((id, index) => {
+    const showcase = SHOWCASE_ACCOUNTS[index];
+    return { id, platformAccountId: ids[index] ?? '', name: showcase?.name ?? '', username: showcase?.username ?? '', openOnStart: true };
+  });
+  const pending: { readonly key: string; readonly at: number; readonly message: Omit<StandMessage, 'id'> }[] = [];
+  const chats = new Map<string, StandChat>();
+  accounts.forEach((account, accountIndex) => {
+    (SHOWCASE_ACCOUNTS[accountIndex]?.fans ?? []).forEach((showcase, index) => {
+      const fanId = `7400${accountIndex + 1}${String(index + 1).padStart(3, '0')}`;
+      const last = showcase.chat.at(-1);
+      const fan: StandFan = {
+        id: fanId,
+        name: showcase.name,
+        username: showcase.username,
+        isBlocked: false,
+        isRestricted: false,
+        canReceiveChatMessage: true,
+        subscribedOn: true,
+        totalSpent: showcase.spentUsd,
+        buyingPower: Math.min(5, Math.floor(showcase.spentUsd / 300)),
+        lastPaymentAt: showcase.spentUsd > 0 ? new Date(now - (last?.[2] ?? 0) * 60_000 - 86_400_000).toISOString() : null,
+        lastSeen: showcase.online === true ? new Date(now - 60_000).toISOString() : null,
+        pinnedChat: false,
+        tipped: showcase.spentUsd >= 100,
+        priority: showcase.spentUsd >= 600,
+        lists: showcase.spentUsd >= 600 ? [STAND_FAN_LIST_ID] : [],
+      };
+      const key = chatKey(account.id, fanId);
+      chats.set(key, { accountId: account.id, fan, messages: [], unread: showcase.unread });
+      showcase.chat.forEach(([from, text, minutesAgo, ppv], n) => {
+        const at = now - minutesAgo * 60_000;
+        pending.push({
+          key,
+          at,
+          message: { content: paragraph(text), sentAt: new Date(at).toISOString(), isFromFan: from === 'fan', isPinned: n === 1 || n === 5, ...(ppv === undefined ? {} : { price: ppv.usd, isOpened: ppv.bought }) },
+        });
+      });
+    });
+  });
+  // Oldest first everywhere: a message's id grows with its time.
+  pending
+    .sort((a, b) => a.at - b.at)
+    .forEach((item, rank) => {
+      chats.get(item.key)?.messages.push({ id: String(5_100_000_001 + rank), ...item.message });
+    });
   return { userId: STAND_IDS.user, accounts, chats };
 }
 

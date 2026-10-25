@@ -12,6 +12,7 @@ import type { InboxView } from './protocol';
 import type { Router } from './router';
 import { watchScroll } from './scroll';
 import type { GroupService } from './store';
+import { clock, picture } from './world';
 
 export const INBOX_ROW_PX = 73;
 export const INBOX_PAGE = 20;
@@ -121,7 +122,7 @@ export class Inbox {
     const time = el(s, 'div', { class: 'message-time' });
     const link = el(s, 'a', { attrs: { href: `/messages/${groupId}` } }, [
       el(s, 'app-messaging-group', { class: 'message border-color' }, [
-        el(s, 'div', { class: 'message-avatar' }, [el(s, 'app-account-avatar', { class: 'avatar' }, [el(s, 'div', { class: 'avatar default-avatar' })])]),
+        el(s, 'div', { class: 'message-avatar' }, [picture(el(s, 'app-account-avatar', { class: 'avatar' }, [el(s, 'div', { class: 'avatar default-avatar' })]), partner)]),
         el(s, 'div', { class: 'flex-col flex-1 min-width-0' }, [
           el(s, 'div', { class: 'flex-row' }, [
             el(s, 'div', { class: 'message-contact' }, [
@@ -140,7 +141,7 @@ export class Inbox {
       refresh: () => {
         const current = this.store.getGroup(groupId);
         setText(preview, current?.lastMessage?.content ?? '');
-        setText(time, current?.lastMessage === null || current?.lastMessage === undefined ? '' : new Date(current.lastMessage.createdAt * 1000).toISOString().slice(11, 16));
+        setText(time, current?.lastMessage === null || current?.lastMessage === undefined ? '' : clock(current.lastMessage.createdAt));
         const unread = current?.unread ?? 0;
         if (unread > 0) {
           setText(badge, String(unread));

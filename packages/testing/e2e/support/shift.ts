@@ -10,6 +10,7 @@ import { browser } from '@wdio/globals';
 
 import type { FakeHubControlClient } from '../../src/fake-hub/control-client';
 import { PAGE, WORLD } from '../../src/scenarios/hub';
+import { SHOWCASE } from '../../src/showcase';
 import { assignPersona, installTestBuild, pageRpc, waitForReport, writeLocalStorage, type DockReport, type SpikeReport } from './extension';
 import { fakeHubOrigin, QUIET_PAGE, testBuildPage } from './fake-hub';
 import { focusTab } from './focus';
@@ -84,6 +85,8 @@ export async function startShift(hub: FakeHubControlClient, options: ShiftOption
   const signedIn = await pageRpc('session.signIn', { login: options.user?.username ?? WORLD.user.username, password: options.user?.password ?? SHIFT_PASSWORD });
   if (!signedIn.ok) throw new Error(`sign-in: ${signedIn.error.code}`);
   if (options.persona !== false) await assignPersona(PAGE);
+  // The showcase's chatter is set up: every page of hers has its persona (src/showcase.ts).
+  if (SHOWCASE && options.persona !== false) for (const page of [WORLD.pages.vip, WORLD.pages.fansly]) await assignPersona(page.pageLabel);
   // A page that asks the background nothing by itself stays open for the spec's own requests.
   await browser.url(testBuildPage(QUIET_PAGE));
   const pagesTab = await browser.getWindowHandle();

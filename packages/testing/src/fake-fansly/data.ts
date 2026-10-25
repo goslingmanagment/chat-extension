@@ -5,9 +5,13 @@
 // texts and vault albums. Nothing here is real: ids are Fansly-shaped
 // snowflakes kept as strings, names and texts are made up, and an avatar's
 // address is data nobody loads. The shapes it serialises to are
-// fixture-fansly/src/wire.ts, where each one's source is named.
+// fixture-fansly/src/wire.ts, where each one's source is named. The showcase
+// world (src/showcase.ts) is Sofia Lane's: her inbox, today's new followers
+// with names and a line about them, her welcome texts and albums.
 
 import { createWorld } from '../../fixture-fansly/src/data';
+import { showcasePerson } from '../../fixture-fansly/src/showcase';
+import { SHOWCASE, SHOWCASE_AT } from '../showcase';
 import {
   compareIds,
   snowflakeAt,
@@ -195,11 +199,11 @@ export class FanslyWorld {
   private readonly ids = new Snowflakes();
 
   constructor(readonly startedAt = Date.now(), creatorId?: string) {
-    const seed = createWorld(creatorId);
+    const seed = createWorld(creatorId, SHOWCASE ? SHOWCASE_AT : null);
     this.creatorId = seed.creator.id;
     this.accounts.set(seed.creator.id, this.newAccount(seed.creator.id, seed.creator.username, seed.creator.displayName, 1));
     for (const seeded of seed.groups) {
-      for (const partner of seeded.partners) this.accounts.set(partner.id, this.newAccount(partner.id, partner.username, partner.displayName, seeded.status));
+      for (const partner of seeded.partners) this.accounts.set(partner.id, this.newAccount(partner.id, partner.username, partner.displayName, seeded.status, partner.about));
       const group: FakeGroup = { id: seeded.id, type: GROUP_TYPE.conversation, createdBy: seeded.fan.id, fanId: seeded.fan.id, users: [seed.creator.id, ...seeded.partners.map((partner) => partner.id)], history: [], unread: new Set(), dmRulesUnmet: seeded.dmRulesUnmet };
       for (const message of seeded.history) {
         const mine = message.senderId === seed.creator.id;
@@ -213,7 +217,7 @@ export class FanslyWorld {
           correlationId: null,
           inReplyTo: null,
           attachments: [],
-          interactions: new Map([[mine ? seeded.fan.id : seed.creator.id, { readAt: message.createdAt * 1000, deliveredAt: message.createdAt * 1000 }]]),
+          interactions: new Map([[mine ? seeded.fan.id : seed.creator.id, { readAt: (message.readAt ?? message.createdAt) * 1000, deliveredAt: message.createdAt * 1000 }]]),
         };
         group.history.push(stored);
         this.messages.set(stored.id, stored);
@@ -225,29 +229,34 @@ export class FanslyWorld {
     }
     this.groups.set(BROADCAST_GROUP_ID, { id: BROADCAST_GROUP_ID, type: GROUP_TYPE.broadcast, createdBy: seed.creator.id, fanId: null, users: [seed.creator.id], history: [], unread: new Set(), dmRulesUnmet: false });
 
-    // Followers, newest first: the newest followed five minutes before the start, the oldest about a week before.
+    // Followers, newest first: the newest followed five minutes before the start, the oldest about a week before. In
+    // the showcase world today's followers are new people, sixteen in the last twelve hours, and the fans of the inbox
+    // followed weeks ago (the oldest).
     const fans = seed.groups.map((group) => group.fan.id);
     for (let index = 0; index < SEED_FOLLOWERS; index += 1) {
-      const followedAt = startedAt - Math.round((5 + index * index * 0.45) * 60_000);
-      let followerId = fans[index * 3];
-      if (index >= SEED_FOLLOWERS_WITH_CHAT || followerId === undefined) {
+      const followedAt = startedAt - Math.round((5 + index * index * (SHOWCASE ? 3 : 0.45)) * 60_000);
+      const withChat = SHOWCASE ? index - (SEED_FOLLOWERS - SEED_FOLLOWERS_WITH_CHAT) : index;
+      let followerId = withChat < 0 ? undefined : fans[withChat * 3];
+      if (withChat >= SEED_FOLLOWERS_WITH_CHAT || followerId === undefined) {
         followerId = String(FOLLOWER_ACCOUNT_BASE + BigInt(index * 31 + 7));
-        this.accounts.set(followerId, this.newAccount(followerId, `stand_follower_${index + 1}`, `Stand Follower ${index + 1}`, 3));
+        const person = showcasePerson(500 + index);
+        this.accounts.set(followerId, SHOWCASE ? this.newAccount(followerId, person.username, person.displayName, index % 4 === 0 ? 1 : 3, person.about) : this.newAccount(followerId, `stand_follower_${index + 1}`, `Stand Follower ${index + 1}`, 3));
       }
       const account = this.accounts.get(followerId);
       if (account !== undefined) account.followsCreator = true;
       this.follows.push({ id: snowflakeAt(followedAt, index), followerId });
     }
 
+    const [followed, subscribed] = SHOWCASE ? ['hey you 💕 thanks for the follow! say hi anytime', 'welcome to my page 🥰 so happy you’re here'] : ['Stand welcome: thanks for the follow', 'Stand welcome: thanks for subscribing'];
     this.automated = [
-      { id: '806000000000000011', accountId: seed.creator.id, type: 1, status: 1, messageTemplate: JSON.stringify({ type: 1, content: 'Stand welcome: thanks for the follow', attachments: [] }) },
-      { id: '806000000000000012', accountId: seed.creator.id, type: 2, status: 1, messageTemplate: JSON.stringify({ type: 1, content: 'Stand welcome: thanks for subscribing', attachments: [] }) },
+      { id: '806000000000000011', accountId: seed.creator.id, type: 1, status: 1, messageTemplate: JSON.stringify({ type: 1, content: followed, attachments: [] }) },
+      { id: '806000000000000012', accountId: seed.creator.id, type: 2, status: 1, messageTemplate: JSON.stringify({ type: 1, content: subscribed, attachments: [] }) },
       // An automation with media only: no text to match.
       { id: '806000000000000013', accountId: seed.creator.id, type: 3, status: 1, messageTemplate: JSON.stringify({ type: 1, content: null, attachments: [] }) },
     ];
     this.albums = [
-      { id: '807000000000000021', type: 0, title: 'Stand album', mediaIds: [] },
-      { id: '807000000000000022', type: 0, title: 'Stand album 2', mediaIds: [] },
+      { id: '807000000000000021', type: 0, title: SHOWCASE ? 'October set' : 'Stand album', mediaIds: [] },
+      { id: '807000000000000022', type: 0, title: SHOWCASE ? 'Behind the scenes' : 'Stand album 2', mediaIds: [] },
     ];
   }
 
@@ -257,15 +266,16 @@ export class FanslyWorld {
     return this.ids.next(ms);
   }
 
-  private newAccount(id: string, username: string, displayName: string, statusId: number): FakeAccount {
-    return { id, username, displayName, statusId, lastSeenAt: this.startedAt - 60_000, about: `About ${username}`, followsCreator: false, notes: [] };
+  private newAccount(id: string, username: string, displayName: string, statusId: number, about?: string): FakeAccount {
+    return { id, username, displayName, statusId, lastSeenAt: this.startedAt - 60_000, about: about ?? `About ${username}`, followsCreator: false, notes: [] };
   }
 
-  /** The account, made up on first mention (a fan a test names, a guest of a group chat). */
+  /** The account, made up on first mention (a fan a test names, a guest of a group chat); a person with a name in the showcase world. */
   ensureAccount(id: string): FakeAccount {
     let account = this.accounts.get(id);
     if (account === undefined) {
-      account = this.newAccount(id, `stand_account_${id.slice(-6)}`, `Stand Account ${id.slice(-4)}`, 3);
+      const person = showcasePerson(Number(BigInt(id) % 997n));
+      account = SHOWCASE ? this.newAccount(id, person.username, person.displayName, 1, person.about) : this.newAccount(id, `stand_account_${id.slice(-6)}`, `Stand Account ${id.slice(-4)}`, 3);
       this.accounts.set(id, account);
     }
     return account;

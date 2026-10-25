@@ -12,7 +12,7 @@ assert nothing, and a scenario fails only when a step cannot be done.
 | Command | What it does | Time |
 |---|---|---|
 | `pnpm see` | lists the scenarios | — |
-| `pnpm see <scenario\|file> [--site fansly \| --live [--chat <n>]] [--gif] [--no-build]` | rebuilds only what is stale; runs the scenario; prints the folder, the PNG paths and `index.html` (a contact sheet) | 6–10 s; +5 s test build, +1.5 s stand when changed |
+| `pnpm see <scenario\|file> [--site fansly \| --live [--chat <n>]] [--showcase] [--dpr <n>] [--gif] [--no-build]` | rebuilds only what is stale; runs the scenario; prints the folder, the PNG paths and `index.html` (a contact sheet). `--showcase` — the showcase world at 2× (below); `--dpr <n>` — any world at that device pixel ratio | 6–10 s; +5 s test build, +1.5 s stand when changed |
 | `pnpm see --new <name>` | a scenario of your own in `packages/testing/e2e/see/scratch/` (not committed) | — |
 | `pnpm see:session [chatspace\|fansly] [--live [--chat <n>]]` | holds a shift open; the port is the worktree's own and is printed. An agent runs it in the background. Stops after 30 min idle (`--idle <min>`) | ~5 s to ready |
 | `pnpm see:session --bare [--chat <n>]` | fansly.com alone, signed in as the test model, no extension: a browser to study Fansly in — click anything, read the page, every request and socket frame with its body in `s.net` (below) | ~10 s to ready |
@@ -41,7 +41,29 @@ someone else's change), `fansly-switch` (the switch from the old extension: «В
 no-direct-connection hint, the old extension's notice, its personas carried over), `fansly-ppv` (Reply's
 PPV state in `hub-calls.json`), `fansly-seen` (a Spenders preview: «не прочитано», then «прочитано в …»),
 `fansly-newcomers` («Новые фоловеры»: a fresh follower checked by the pass, the card, «Сгенерировать» — the same
-window and card as ChatSpace's `newcomers`).
+window and card as ChatSpace's `newcomers`). `launch` (the showcase world's pictures of 3.0's launch, below).
+
+## The showcase world (`--showcase`)
+
+Pictures for chatters — the site, a post, a note's screenshot — from a working day instead of the test rig:
+`pnpm see <any scenario> --showcase` (a session too: `pnpm see:session [chatspace|fansly] --showcase`). Every
+process of the run reads one switch (`packages/testing/src/showcase.ts`): the ChatSpace stand is Mia Rose's OnlyFans
+and her VIP page (`src/stand/showcase.ts`), the Fansly stand Sofia Lane's inbox and today's followers with pictures
+(`fixture-fansly/src/showcase.ts`, `e2e/see/avatars.ts`), the fake hub names its pages, chatter (kate) and personas as
+an agency would, keeps its archive equal to the stand's chats, shows a page's real-looking statistics and sends no
+cost line (`src/fake-hub/showcase.ts`). The open chat is Jamie, back from a trip and asking about the set — what the
+mockup's AI texts answer (`showcaseAiTexts` in `kit.ts`). Every name, text and number is invented; the ids are the
+synthetic world's, so a scenario works in both worlds. Without the switch (the e2e, the unit tests, a plain
+`pnpm see`) nothing changes.
+
+The pictures are at device pixel ratio 2 and can be cut to what they show: `s.shot(name, { clip, file })` — `clip`
+is a box in CSS pixels (`around([boxes], pad)` frames several), `file` the picture's own name;
+`s.rect('page', css)` / `s.rect(where, selector)` give the boxes of the site's elements and of ours. A scenario
+that needs the world says `scenario(…, { showcase: true })` and gets it from a plain `pnpm see <name>`.
+
+`pnpm see launch` (ChatSpace) and `pnpm see launch --site fansly` make the launch set: `launch-*.png` in the run's
+folder (Reply on both sites, Coach, Recap, Voice, Spenders and a fan's preview, «Новые фоловеры», «Ждёт приветствия»,
+«Память», «Очередь», the popup, «Статус», «Включить Fansly»).
 
 ## A scenario of your own
 
@@ -62,8 +84,9 @@ The verbs (`packages/testing/e2e/see/kit.ts`, type `See`): `shot`, `ready`,
 `press(text, where, selector)`, `done`, `see(where, text)`, `text`, `has`,
 `keys`, `type`, `leaveField`, `openChat`, `toPages`/`toChat`/`page`, `rpc`,
 `closeAll`, `dock`, `report`; `s.hub` is the fake hub, `s.stand` the stand,
-`s.h` the e2e helpers. Options: `scenario(…, { sites, viewport, settings,
-previewSend, before, hubTexts })`. Our UI lives in closed shadow roots:
+`s.h` the e2e helpers; `s.shot(name, { clip, file })` and `s.rect` cut a picture
+to its part (the showcase world, above). Options: `scenario(…, { sites, viewport,
+settings, previewSend, before, hubTexts, showcase })`. Our UI lives in closed shadow roots:
 Playwright or devtools DOM snapshots cannot see it — use these helpers and
 `s.dock()`. The extension's UI speaks Russian, so labels are matched in
 Russian (`/^Собрать полностью/`).

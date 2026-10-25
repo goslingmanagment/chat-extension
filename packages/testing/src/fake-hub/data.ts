@@ -9,7 +9,8 @@
 // stand-in, the client never derives it anyway (it shows what it gets).
 // R20 P6c1: the page's capture of its chats (the pair of hub HF-9), and what
 // the AI's serving reader reads of a conversation beside what the hub holds
-// or tombstoned (the window check of hub HF-8в).
+// or tombstoned (the window check of hub HF-8в). In the showcase world
+// (src/showcase.ts) its stock lines read as a working day's (showcase.ts).
 
 import {
   CHAT_IS_FAN,
@@ -62,9 +63,11 @@ import {
 } from '@cg/contracts';
 
 import { SCENARIO_DATA, WORLD, spenderRow } from '../scenarios/hub';
+import { SHOWCASE } from '../showcase';
 import { classifyPair, type PairState, type ServedRef, type StoreState } from './ai-rules';
 import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
+import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
 import { type SpenderSeed } from './types';
 
 export interface Refusal {
@@ -186,6 +189,12 @@ export interface ConversationSeed {
   readonly sender: 'fan' | 'model';
   /** `held` — the hub holds it but the AI's reader does not read it; `deleted` — tombstoned. Absent — read, inside the window. */
   readonly state?: 'held' | 'deleted';
+  /** What the site shows of it (the showcase world's mirror of a stand chat); absent — the archive's synthetic text. */
+  readonly text?: string;
+  /** When it was written, ISO; absent — a minute apart, before the hub's start. */
+  readonly at?: string;
+  /** A paid message's price. */
+  readonly priceMills?: number;
 }
 
 /** What the AI's serving reader read of a conversation, newest first, and what the stores hold about any other id (null — their lookup failed). */
@@ -399,7 +408,7 @@ export class DataModel {
     const weWrote = ago(seed.weWroteAgoSec, base.conversation.lastModelMessageAt);
     const last = [fanWrote, weWrote].filter((value): value is string => value !== null).sort().at(-1) ?? null;
     // The hub's `lastMessagePreview`: the newest message's text, the fan's or ours, whoever wrote last.
-    const preview = last === null ? null : (last === weWrote ? OUR_PREVIEWS : FAN_PREVIEWS)[rank % 4] ?? null;
+    const preview = last === null ? null : (seed.preview ?? (last === weWrote ? OUR_PREVIEWS : FAN_PREVIEWS)[rank % 4] ?? null);
     return {
       ...base,
       fan: { ...base.fan, platformUserId: seed.fanRef, username: seed.username ?? `fan_${seed.fanRef}`, displayName: seed.displayName === undefined ? null : seed.displayName },
@@ -553,6 +562,7 @@ export class DataModel {
   stats(page: FakePage, query: StatsQuery, now: number): Read<SpendersStats> {
     if (!isKnownZone(query.timeZone)) return no('bad_request', 'unknown_time_zone');
     const queue = this.queue(page, now);
+    if (SHOWCASE) return ok(showcaseStats(now, query.timeZone, page.pageLabel, { total: queue.length, unknown: queue.filter((item) => item.readState === 'unknown').length }));
     return ok({
       ...SCENARIO_DATA.stats,
       pageLabel: page.pageLabel,
@@ -625,12 +635,21 @@ export class DataModel {
     if (archive === undefined) {
       // A conversation with an id of its own (a Fansly group, R20 F6b) holds three messages of its own, ids from its id.
       const seeded = fanRef === WORLD.fan ? SCENARIO_DATA.feedTotal : this.knowsFanStatic(fanRef) || !CHAT_IS_FAN[page.platform] ? 3 : 0;
+      // The showcase world's fan the stand does not show: the lines of a first day instead of the synthetic ones.
+      const firstDay = SHOWCASE && fanRef !== WORLD.fan ? showcaseFirstDay(fanRef) : null;
       archive = {
         generation: 1,
         revision: 1,
         messages: Array.from({ length: seeded }, (_, n) => {
           const item = SCENARIO_DATA.feedItem(n);
-          return { ...item, at: iso(this.base - 600_000 * n), messageId: fanRef === WORLD.fan ? item.messageId : `${fanRef}${String(n).padStart(3, '0')}`, order: -(n + 1) };
+          const line = firstDay?.[n];
+          return {
+            ...item,
+            ...(line === undefined ? {} : { sender: line.sender, text: line.text, tipMills: null, priceMills: null, attachmentLabels: [], deleted: false }),
+            at: iso(this.base - 600_000 * n),
+            messageId: fanRef === WORLD.fan ? item.messageId : `${fanRef}${String(n).padStart(3, '0')}`,
+            order: -(n + 1),
+          };
         }),
       };
       this.archives.set(key, archive);
@@ -653,7 +672,7 @@ export class DataModel {
       messageId: id,
       at: iso(now),
       sender,
-      text: sender === 'fan' ? 'new synthetic fan message' : 'new synthetic model message',
+      text: SHOWCASE ? SHOWCASE_NEW_MESSAGE[sender] : sender === 'fan' ? 'new synthetic fan message' : 'new synthetic model message',
       automatic: null,
       deleted: false,
       tipMills: null,
@@ -684,13 +703,13 @@ export class DataModel {
     const count = messages.length;
     const seeded: ArchiveMessage[] = messages.map((message, index) => ({
       messageId: message.id,
-      at: iso(this.base - 60_000 * (count - index)),
+      at: message.at ?? iso(this.base - 60_000 * (count - index)),
       sender: message.sender,
-      text: message.sender === 'fan' ? 'seeded synthetic fan message' : 'seeded synthetic model message',
+      text: message.text ?? (message.sender === 'fan' ? 'seeded synthetic fan message' : 'seeded synthetic model message'),
       automatic: null,
       deleted: message.state === 'deleted',
       tipMills: null,
-      priceMills: null,
+      priceMills: message.priceMills ?? null,
       attachmentLabels: [],
       order: -(count - index),
       ...(message.state === 'held' ? { held: true as const } : {}),
@@ -811,6 +830,7 @@ export class DataModel {
           createdAt: subscribedAt,
           item: {
             ...item,
+            ...(SHOWCASE ? showcaseSubscriber(n) : {}),
             eventRef: `evt-${page.pageId}-${1000 + n}`,
             subscribedAt: iso(subscribedAt),
             status: { ...item.status, endsAt: iso(this.base + 30 * DAY_MS), asOf: iso(this.base - 60_000) },
@@ -827,7 +847,7 @@ export class DataModel {
    * `fanWrote` — the fan already wrote a message (one stored message of the fan's); `handSent` — a person greeted the
    * fan by hand in the site's composer (a send attribution of that moment).
    */
-  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false, handSent = false): string {
+  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false, handSent = false, named: { readonly username?: string; readonly displayName?: string } = {}): string {
     const events = this.audienceOf(page);
     const eventRef = `evt-${page.pageId}-${2000 + events.length}`;
     const { claim: _claim, ...seed } = SCENARIO_DATA.audienceItem(0);
@@ -837,7 +857,10 @@ export class DataModel {
         ...seed,
         eventRef,
         fanRef,
-        username: `newfan_${fanRef}`,
+        // A name the scenario gives; the showcase world's person; else the synthetic handle.
+        ...(SHOWCASE ? showcaseSubscriber(Number(BigInt(fanRef) % 97n) + events.length) : { username: `newfan_${fanRef}` }),
+        ...(named.username === undefined ? {} : { username: named.username }),
+        ...(named.displayName === undefined ? {} : { displayName: named.displayName }),
         kind,
         trial,
         subscribedAt: iso(now),

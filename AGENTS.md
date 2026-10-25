@@ -27,6 +27,7 @@ pnpm monorepo, TypeScript strict, WXT, Preact.
   `CG_DEV_PROFILE=~/Documents/ChatGoose/firefox-dev-profile pnpm dev --debugger-port 6111`.
 - See a change: `pnpm see <scenario>` — tools/see/README.md; on the real fansly.com — `--live` (the agency's test model);
   study Fansly itself — `pnpm see:session --bare` (the site alone, every request and socket frame with its body).
+  Pictures for chatters (site, posts, notes): `--showcase` — a working day of invented models and fans, at 2×.
 - Locally only `pnpm typecheck`, lint and `pnpm vitest run <paths>` of what you touched.
 - `pnpm check` (types, lint, tests, build, webext-lint, gates, archives) runs in CI on a PR, in four parallel parts on
   GitHub-hosted runners; never run it whole locally.
