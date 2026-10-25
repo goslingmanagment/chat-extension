@@ -19,7 +19,7 @@ const VERSIONS = [
   'lol ok so I made something you will actually like 😏 dragon, 6 minutes, first time ever. all yours right here',
   'ok you were not up 😴 but you will want to be for this one. first time with a dragon 🐉 6 minutes, tell me when you get to the end 😈',
   'you always know what I am up to 😏 so here it is first: a dragon, 6 minutes, my first time. tell me what you think 🐉',
-  'thinking of you since this morning ☀️ I made something new — first time with a dragon, 6 minutes. you are the first to see it 😈',
+  'thinking of you since this morning ☀️ I made something new: first time with a dragon, 6 minutes. you are the first to see it 😈',
   'you asked for something different… well 🐉 first time with a dragon, 6 minutes, and it got intense. tell me when you are done 😳',
   'I saved this one for you 💛 first time with a dragon, 6 minutes. watch it to the end and tell me 😈',
 ];

@@ -126,7 +126,7 @@ const JAMIE_CARD = {
   facts: [
     { id: 1, kind: 'about', text: 'Живёт в Чикаго, летает по работе почти каждую неделю', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '5100000101', messageAt: chatAt(8 * 24 * 60 + 120), source: 'ai', author: null, createdAt: chatAt(8 * 24 * 60), quote: { text: 'flying to Denver again tomorrow 😩 3 days of meetings', from: 'fan', at: chatAt(8 * 24 * 60 + 120), media: false } },
     { id: 3, kind: 'about', text: 'Отвечает вечером, любит короткие сообщения', pageLabel: WORLD.pages.fansly.pageLabel, granted: false, conversationRef: WORLD.fansly.chats.a.group, messageRef: '5100000103', messageAt: chatAt(5 * 24 * 60), source: 'ai', author: null, createdAt: chatAt(5 * 24 * 60) },
-    { id: 4, kind: 'promise', text: 'Вторая часть сета «Morning» — когда вернётся из поездки', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '5100000104', messageAt: chatAt(20 * 60), source: 'chatter', author: 'Max', createdAt: chatAt(20 * 60 - 5), quote: { text: 'safe flight, handsome 💋 the second part waits until you’re back 😇', from: 'model', at: chatAt(20 * 60), media: false } },
+    { id: 4, kind: 'promise', text: 'Вторая часть сета «Morning», когда вернётся из поездки', pageLabel: STAND_PAGE, granted: true, conversationRef: STAND_IDS.fans.a1, messageRef: '5100000104', messageAt: chatAt(20 * 60), source: 'chatter', author: 'Max', createdAt: chatAt(20 * 60 - 5), quote: { text: 'safe flight, handsome 💋 the second part waits until you’re back 😇', from: 'model', at: chatAt(20 * 60), media: false } },
   ],
   customs: [],
   customPayments: [],

@@ -24,7 +24,7 @@ const MIN = 60_000;
 const MATT = '930000000000000781';
 const JORDAN = '930000000000000783';
 /** What Hi writes for a new follower. */
-const GREETING = 'hey you 💛 so glad you followed — what caught your eye first?';
+const GREETING = 'hey you 💛 so glad you followed! what caught your eye first?';
 /** What a colleague wrote to Jordan from another browser while his reminder waited. */
 const COLLEAGUE = ['hey Jordan 💕 so happy you followed!', 'what caught your eye first? 😊'];
 const groups = new Map<string, string>();

@@ -55,14 +55,14 @@ export function lap(label: string): void {
  */
 export const SEE_AI_TEXTS: Readonly<Record<string, string>> = {
   'fast-reply': 'good morning, my traveler ☀️ how was the flight? [NEXT] I just woke up and saw your messages… you made me smile before my coffee 🙈 [NEXT] the set is still waiting for you 😏 want me to send it now, or do you want to guess what’s inside first?',
-  'hi-greeting': 'hey you 👋 so glad you’re here! tell me one thing about your day [VARIANT] welcome, handsome ☺️ I was hoping you’d come by — what brought you to me? [VARIANT] hi! I’m Lora 💛 I read every message myself, so say hi back',
-  'improve-draft': 'I missed you so much today 🥺 tell me everything — how was the flight?',
+  'hi-greeting': 'hey you 👋 so glad you’re here! tell me one thing about your day [VARIANT] welcome, handsome ☺️ I was hoping you’d come by. what brought you to me? [VARIANT] hi! I’m Lora 💛 I read every message myself, so say hi back',
+  'improve-draft': 'I missed you so much today 🥺 tell me everything, how was the flight?',
   ping: 'still thinking about what you said yesterday… are you around? 😌',
   'fan-summary': '## Who he is\nHubert, 34, flies a lot for work. Answers in the evening, Warsaw time.\n\n## What he bought\n- the «Morning» set for $25, yesterday\n- two paid messages at $12 last week\n\n## What he answers to\n- questions about trips and coffee\n- short messages, no pressure\n\n## What to avoid\n- long texts and discounts in the first message',
   'chat-review':
     '<rating>7</rating><evaluation>ВЕРДИКТ: the conversation is alive, but the set was pitched too early.\n\nДЕНЬГИ: $25 yesterday, no second set offered.\n\nПЕРСОНА: warm tone, in character; one message is too long.\n\nОШИБКИ:\n1. Offered the set as the first message of the morning. Как надо было: ask about the flight first, then a teaser.\n2. Did not answer the question about coffee.\n\nЧТО РАБОТАЕТ: short questions about the trip, emoji in moderation.</evaluation><recommendations>1. Open with a question about the flight.\n2. The set teaser as the second message.\n3. Come back to the coffee joke.</recommendations>',
   'coach-chat':
-    'Yes, but not as the first message. He brought up the set himself — use that: the flight first, then a teaser.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
+    'Yes, but not as the first message. He brought up the set himself, so use that: the flight first, then a teaser.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
 };
 
 /**
@@ -74,11 +74,11 @@ export function showcaseAiTexts(site: Site): Readonly<Record<string, string>> {
   const model = site === 'fansly' ? 'Sofia' : 'Mia';
   return {
     ...SEE_AI_TEXTS,
-    'hi-greeting': `hey you 👋 so glad you’re here! tell me one thing about your day [VARIANT] welcome, handsome ☺️ I was hoping you’d come by — what brought you to me? [VARIANT] hi! I’m ${model} 💛 I read every message myself, so say hi back`,
+    'hi-greeting': `hey you 👋 so glad you’re here! tell me one thing about your day [VARIANT] welcome, handsome ☺️ I was hoping you’d come by. what brought you to me? [VARIANT] hi! I’m ${model} 💛 I read every message myself, so say hi back`,
     'voice-script': '[warmly] Hey you… welcome home, traveler. I missed you.',
     'fan-summary': '## Кто он\nJamie, 34, часто летает по работе. Отвечает по вечерам, по времени Чикаго.\n\n## Что покупал\n- сет «Morning» за $25, вчера\n- два платных сообщения по $12 на прошлой неделе\n\n## На что отвечает\n- вопросы про поездки и кофе\n- короткие сообщения без давления\n\n## Чего избегать\n- длинных текстов и скидок в первом сообщении',
     'coach-chat':
-      'Да, но не первым сообщением. Про сет он спросил сам — зацепитесь за это: сначала про полёт, потом тизер.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
+      'Да, но не первым сообщением. Про сет он спросил сам, зацепитесь за это: сначала про полёт, потом тизер.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
   };
 }
 
