@@ -109,6 +109,8 @@ export interface NewcomersController extends SurfaceController<'newcomers'> {
   attachBatch?(port: BatchPreviewPort): void;
   /** A batch of the list's own (a pass's greetings) started this generation: no toast for its end. */
   fromBatch?(opId: string): boolean;
+  /** The open window's card shows this generation's result in its field (a pass's card): no «AI готово» over it. */
+  inCard?(opId: string): boolean;
   /**
    * 2026-10-25, «Hi» of a greeting reminder's toast on a list checked by a pass (Fansly), the window open: the card of
    * the toast's fan (`fanHandle('newcomers', …)`) opens, and the handle Hi may start on now comes back — null while the

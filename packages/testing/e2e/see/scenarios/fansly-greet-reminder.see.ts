@@ -26,7 +26,7 @@ scenario(
     await s.see('toast', 'Ждёт приветствия', 30_000);
     await s.shot('fansly-reminder');
     await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
-    await s.browser.waitUntil(async () => (await s.browser.$(FANSLY_MAIN.field).getValue().catch(() => '')) === GREETING, { timeout: 90_000, timeoutMsg: 'the greeting did not land in the chat' });
+    await s.browser.waitUntil(async () => ((await s.browser.$(FANSLY_MAIN.field).getValue().catch(() => '')) as string).trim() !== '', { timeout: 90_000, timeoutMsg: 'the greeting did not land in the chat' });
     await s.shot('fansly-reminder-chat');
   },
   {

@@ -308,6 +308,8 @@ export interface TabBoards {
   openOnline(chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt>;
   /** A list's batch started this generation: its row says how it ended, a toast does not. */
   fromBatch(opId: string): boolean;
+  /** The open «Новые» card (a pass's) shows this generation's result in its field. */
+  inCard(opId: string): boolean;
   dispose(): void;
 }
 
@@ -520,6 +522,7 @@ export async function startBoards(
   return {
     openOnline: (chat, shown) => previewChunk.openOnlinePreview(palette, preview, i18n, chat, shown),
     fromBatch: (opId) => preview.fromBatch(opId) || (newcomers.fromBatch?.(opId) ?? false),
+    inCard: (opId) => newcomers.inCard?.(opId) ?? false,
     dispose() {
       dock.bind(null);
       win.removeEventListener('online', onOnline);

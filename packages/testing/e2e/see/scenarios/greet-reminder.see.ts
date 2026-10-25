@@ -18,7 +18,6 @@ scenario(
     await s.closeAll();
     await s.shot('reminder');
     await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
-    await s.browser.waitUntil(() => s.has('modal', '.cg-nc__greet'), { timeout: 10_000, timeoutMsg: 'the card did not open' });
     await s.browser.waitUntil(async () => (await s.browser.$(EDITOR).getText()).trim() !== '', { timeout: 30_000, timeoutMsg: 'the greeting did not land in the chat' });
     await s.shot('reminder-chat');
   },

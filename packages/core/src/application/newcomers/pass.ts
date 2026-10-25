@@ -1004,6 +1004,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     greetCard,
     draftsChanged: () => undefined,
     fromBatch: (opId) => card?.fromBatch(opId) ?? false,
+    inCard: (opId) => open() && (card?.fromCard(opId) ?? false),
     dispose() {
       disposed = true;
       batch.dispose();
