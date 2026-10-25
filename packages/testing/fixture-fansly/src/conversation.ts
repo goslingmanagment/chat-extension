@@ -146,6 +146,9 @@ export class ConversationRoute {
       refresh: () => {
         const one = this.partners().length === 1;
         avatarIf.update(one);
+        // The showcase world's picture, once the partner's account is known (it may come after the header stood).
+        const avatar = root.querySelector<HTMLElement>('.message-content-header-avatar app-account-avatar');
+        if (avatar !== null) picture(avatar, this.partners()[0]);
         const contact = contactIf.update(one);
         if (contact !== null) this.refreshContact(contact);
       },

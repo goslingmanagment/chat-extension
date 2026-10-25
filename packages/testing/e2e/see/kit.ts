@@ -599,10 +599,11 @@ function makeSee(parts: Parts): See {
 
 /** One «show me» scenario: a shift on the stand, then `body` with the verbs of `See`. */
 export function scenario(title: string, body: (s: See) => Promise<void>, options: SeeOptions = {}): void {
-  describe(`see: ${title}`, () => {
+  describe(`see: ${title}`, function (this: Mocha.Suite) {
+    // On the suite: wdio's wrapper reads a test's limit before its body runs (a limit set there was the config's 2 minutes).
+    this.timeout(options.timeout ?? 180_000);
     const run = useSee(options);
-    it(title, async function (this: Mocha.Context) {
-      this.timeout(options.timeout ?? 180_000);
+    it(title, async function () {
       await body(run.see());
       lap('done');
     });

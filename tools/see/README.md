@@ -63,7 +63,9 @@ that needs the world says `scenario(…, { showcase: true })` and gets it from a
 
 `pnpm see launch` (ChatSpace) and `pnpm see launch --site fansly` make the launch set: `launch-*.png` in the run's
 folder (Reply on both sites, Coach, Recap, Voice, Spenders and a fan's preview, «Новые фоловеры», «Ждёт приветствия»,
-«Память», «Очередь», the popup, «Статус», «Включить Fansly»).
+«Память», «Очередь», the popup, «Статус», «Включить Fansly»). `pnpm see launch-greet [--site fansly]` — the greeting
+reminder's pictures of the 3.0 notes (`greet-*.png`: Hi into the fan's chat on both sites, a fan a colleague greeted,
+the reminder in another model's tab).
 
 ## A scenario of your own
 
