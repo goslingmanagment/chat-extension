@@ -48,7 +48,7 @@ import {
   useT,
 } from '@cg/ui/kit';
 
-import { aiReadyToast, button, cgError, hotkey, part, phase, reason, toast, uuid, views, type ScenarioCtx } from '../../scenarios/app-client';
+import { aiReadyToast, button, cgError, greetToast, hotkey, part, phase, reason, toast, uuid, views, type ScenarioCtx } from '../../scenarios/app-client';
 
 const OP = uuid(101);
 const MIN = 60_000;
@@ -260,6 +260,9 @@ function Tooltips(): JSX.Element {
   );
 }
 
+/** A drawn stand-in for a fan's picture: head and shoulders on a warm ground. */
+const GALLERY_AVATAR = `data:image/svg+xml,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'><rect width='80' height='80' fill='#e9b8a2'/><circle cx='40' cy='31' r='15' fill='#fbe6da'/><path d='M10 80c3-19 16-28 30-28s27 9 30 28z' fill='#8c4a3a'/><path d='M24 30c0-12 7-19 16-19s17 7 17 19c-4-6-10-9-17-9s-12 3-16 9z' fill='#5b3326'/></svg>")}`;
+
 function toastsOf(ctx: ScenarioCtx): ToastVM[] {
   const hub = cgError(ctx, 'CG-HUB-UNAVAILABLE');
   const contract = cgError(ctx, 'CG-HOST-CONTRACT');
@@ -277,6 +280,9 @@ function toastsOf(ctx: ScenarioCtx): ToastVM[] {
     }),
     toast(ctx, 'w', 'warning', { code: 'CG-HOST-CONTRACT', title: contract.title, actions: [settings] }),
     aiReadyToast(ctx, 'Theodore Whitfield', 'h-chat'),
+    // A greeting reminder: with the fan's picture (a drawn stand-in, nobody's photo), and with none — the initial.
+    greetToast(ctx, 'g1', { name: 'Anya', handle: 'anya_k', avatarUrl: GALLERY_AVATAR, minutesAgo: 11 }),
+    greetToast(ctx, 'g2', { name: 'Theodore Whitfield', handle: null, avatarUrl: null, minutesAgo: 14 }),
     toast(ctx, 'i', 'info', { title: ctx.lang === 'ru' ? 'Split включён: ответ придёт частями' : 'Split is on: the answer comes in parts' }),
   ];
 }

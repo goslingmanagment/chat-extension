@@ -36,6 +36,7 @@ import {
 } from './primitives';
 import { DispatchTicketSchema, FreshnessCheckpointSchema, PendingIdSchema, SendAttemptViewSchema, SendFuseFactSchema, SendFuseStateSchema, SendGroupSchema, SendPurposeSchema, checkpointMatches, partInGroup, SendMarksSchema } from './send';
 import { CONTRACT_HASH_PATTERN } from './hub/auth';
+import { HiFanAvatarUrlSchema } from './hi-start-proof';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
 import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
@@ -142,7 +143,16 @@ export const BackgroundToastSchema = z.strictObject({
    * 1.54.0: a fan of «Новые» nobody greeted ten minutes after subscribing (the greeting reminder). The toast stays
    * until it is closed, and its «Hi» opens the fan's card in «Новые» and starts Hi there, by that click.
    */
-  greet: z.optional(z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema })),
+  greet: z.optional(
+    z.strictObject({
+      pageId: HubIntIdSchema,
+      fanRef: NativeIdSchema,
+      /** 1.61.0: the fan's @handle (without «@»), their picture (Fansly's own address), the follow's or subscription's moment. */
+      username: z.optional(z.nullable(displayText(64))),
+      avatarUrl: z.optional(z.nullable(HiFanAvatarUrlSchema)),
+      since: z.optional(IsoTimestampSchema),
+    }),
+  ),
 });
 export type BackgroundToast = z.infer<typeof BackgroundToastSchema>;
 

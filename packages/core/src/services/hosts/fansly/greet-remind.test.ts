@@ -58,7 +58,9 @@ describe('[host:fansly] the greeting reminder (2026-10-25)', () => {
     expect(t.checks).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
     expect(t.checks).toEqual([`${C}:${FAN}`]);
-    expect(t.toasts).toEqual([{ tab: 'tab-1', toast: expect.objectContaining({ scope: `greet.${FAN}`, fanLabel: 'Ann', greet: { pageId: 7, fanRef: FAN } }) }]);
+    expect(t.toasts).toEqual([
+      { tab: 'tab-1', toast: expect.objectContaining({ scope: `greet.${FAN}`, fanLabel: 'Ann', greet: { pageId: 7, fanRef: FAN, username: null, avatarUrl: null, since: new Date(T0).toISOString() } }) },
+    ]);
     await vi.advanceTimersByTimeAsync(minutes(60));
     expect(t.checks).toHaveLength(1);
   });

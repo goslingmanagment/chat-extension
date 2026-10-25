@@ -8,9 +8,12 @@
 // (HoldToast); Esc inside or × closes. The controller owns the queue: the
 // same code and scope replace each other, 4.5 s and 6.5 s for errors; the
 // stack never draws more than three, newest first.
+//
+// A greeting reminder (1.61.0, the owner: «с авой»): the fan as a card — their picture over the initial, «Ждёт
+// приветствия» in the accent, the name, «@handle · 11 мин назад»; «Hi» filled in the accent, «Позже» beside it.
 
 import { type JSX } from 'preact';
-import { useRef } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 
 import { type ToastVM } from '@cg/contracts/vm';
 
@@ -20,7 +23,7 @@ import { ActionButton, Button } from './Button';
 import { CodeLine, CopyCodeButton, technicalLine } from './ErrorCard';
 import { Icon } from './Icon';
 import { Dot } from './Indicators';
-import { useCountdownText } from './Values';
+import { Age, useCountdownText } from './Values';
 
 /** At most three on screen (ui-design §3.9). */
 export const TOAST_MAX = 3;
@@ -44,6 +47,19 @@ function Mark({ kind }: { readonly kind: ToastVM['kind'] }): JSX.Element {
   }
 }
 
+/** The fan's picture over their initial: the initial stays when there is none, or it does not load. */
+function GreetAvatar({ name, url }: { readonly name: string; readonly url: string | null }): JSX.Element {
+  const [broken, setBroken] = useState<string | null>(null);
+  const letter = ([...name.trim()][0] ?? '?').toLocaleUpperCase();
+  const shown = url !== null && url !== broken ? url : null;
+  return (
+    <span class="cg-toast__ava" aria-hidden="true">
+      {letter}
+      {shown === null ? null : <img src={shown} alt="" decoding="async" referrerpolicy="no-referrer" draggable={false} onError={() => setBroken(shown)} />}
+    </span>
+  );
+}
+
 export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Element {
   const i18n = useI18n();
   const { root } = useKit();
@@ -62,10 +78,11 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
   const { remaining } = useCountdownText(toast.retryAt ?? null);
   const counting = toast.retryAt !== undefined && remaining > 0;
   const copyCode = toast.copyCode ? toast.code : null;
+  const greet = toast.greet ?? null;
   return (
     <div
       ref={box}
-      class={`cg-toast cg-toast--${toast.kind}`}
+      class={`cg-toast cg-toast--${toast.kind}${greet === null ? '' : ' cg-toast--greet'}`}
       data-cg-toast={toast.id}
       {...(toast.kind === 'error' ? { role: 'alert' } : {})}
       onMouseEnter={() => update({ hovered: true })}
@@ -81,21 +98,37 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
         }
       }}
     >
-      <span class="cg-gut">
-        <Mark kind={toast.kind} />
-      </span>
-      <div class="cg-toast__main">
-        {toast.code === null ? null : <CodeLine code={toast.code} class="cg-toast__code" />}
-        <div class="cg-toast__t">{toast.title}</div>
-        {toast.body === null ? null : <div class="cg-toast__sub">{toast.body}</div>}
-        {tech === null ? null : <div class="cg-toast__tech">{tech}</div>}
-      </div>
+      <span class="cg-gut">{greet === null ? <Mark kind={toast.kind} /> : <GreetAvatar name={greet.name} url={greet.avatarUrl} />}</span>
+      {greet === null ? (
+        <div class="cg-toast__main">
+          {toast.code === null ? null : <CodeLine code={toast.code} class="cg-toast__code" />}
+          <div class="cg-toast__t">{toast.title}</div>
+          {toast.body === null ? null : <div class="cg-toast__sub">{toast.body}</div>}
+          {tech === null ? null : <div class="cg-toast__tech">{tech}</div>}
+        </div>
+      ) : (
+        <div class="cg-toast__main" title={toast.title}>
+          <div class="cg-toast__lead">{i18n.t('toast.greetWaiting')}</div>
+          <div class="cg-toast__name">{greet.name}</div>
+          {greet.handle === null && greet.since === null ? null : (
+            <div class="cg-toast__sub">
+              {greet.handle === null ? null : `@${greet.handle}`}
+              {greet.handle !== null && greet.since !== null ? ' · ' : null}
+              {greet.since === null ? null : <Age from={greet.since} suffix />}
+            </div>
+          )}
+        </div>
+      )}
       <Button label={i18n.t('toast.closeAria')} icon="x" iconOnly variant="quiet" class="cg-toast__x" onClick={onDismiss} />
       {toast.actions.length > 0 || copyCode !== null || counting ? (
         <div class="cg-toast__acts">
-          {toast.actions.map((vm, index) => (
-            <ActionButton key={index} vm={vm} variant={vm.action.type === 'Navigate' || vm.action.type === 'GreetNewcomer' ? 'line' : 'plain'} />
-          ))}
+          {toast.actions.map((vm, index) =>
+            vm.action.type === 'GreetNewcomer' ? (
+              <ActionButton key={index} vm={vm} class="cg-toast__hi" />
+            ) : (
+              <ActionButton key={index} vm={vm} variant={vm.action.type === 'Navigate' || greet !== null ? 'line' : 'plain'} />
+            ),
+          )}
           {counting ? <span class="cg-count cg-toast__count">{`${i18n.t('common.retry')} ${i18n.t('cg.retryIn', { n: Math.ceil(remaining / 1000) })}`}</span> : null}
           {copyCode === null ? null : <CopyCodeButton code={copyCode} />}
         </div>
@@ -151,4 +184,17 @@ export const TOAST_CSS = `
 .cg-toast__ok { color: var(--cg-ink-2); }
 .cg-toast__info { color: var(--cg-ink-muted); }
 @media (prefers-reduced-motion: reduce) { .cg-toast { animation: none; } }
+.cg-toast--greet { grid-template-columns: 58px minmax(0, 1fr) auto; padding: 12px 6px 12px 0; }
+.cg-toast--greet > .cg-gut { width: 58px; height: auto; display: flex; justify-content: center; }
+.cg-toast__ava {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; width: 40px; height: 40px;
+  border-radius: 50%; background: var(--cg-clay-bg); color: var(--cg-clay-ink); font-weight: 600; font-size: var(--cg-text-xl);
+  box-shadow: inset 0 0 0 1px var(--cg-clay-line);
+}
+.cg-toast__ava img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cg-toast__lead { font-size: var(--cg-text-sm); line-height: 16px; font-weight: 500; color: var(--cg-clay-ink); }
+.cg-toast__name { font-size: var(--cg-text-xl); line-height: 20px; font-weight: 600; color: var(--cg-ink-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cg-toast--greet .cg-toast__acts { gap: 8px; margin-top: 10px; grid-column: 2 / 4; }
+.cg-btn.cg-toast__hi { background: var(--cg-clay); color: #fff; padding: 0 16px; }
+.cg-btn.cg-toast__hi:hover { background: var(--cg-clay-ink); color: #fff; }
 `;

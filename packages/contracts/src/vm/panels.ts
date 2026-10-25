@@ -365,6 +365,11 @@ export interface ToastVM {
   readonly detail?: string;
   /** The error's retry deadline, fixed once (CgErrorView.retryAt, epoch ms): «Повторить можно через 24 с» (ER-010). 1.1.0. */
   readonly retryAt?: number;
+  /**
+   * 1.61.0: a greeting reminder — the fan as a card: their picture over the initial, the name, «@handle · 11 мин назад»;
+   * `actions` are «Hi» and «Позже».
+   */
+  readonly greet?: { readonly name: string; readonly handle: string | null; readonly avatarUrl: string | null; readonly since: string | null };
 }
 
 export interface ToastsVM {
