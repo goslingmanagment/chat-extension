@@ -5,6 +5,7 @@
 // signed in (ST-011), and the first-run checklist (ST-012).
 
 import { SETTINGS_SECTIONS, type CgErrorWire, type SettingsSection } from '@cg/contracts/errors';
+import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { ONBOARDING_STEPS, type OnboardingStep, type OptionsBodyMap, type OptionsVM, type SaveStateVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
 import { accountKeyOf, answered, boundPageOf, button, codeError, currentAccountOf, errorOf, knownAccounts, msg, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
@@ -69,6 +70,22 @@ const open = (section: SettingsSection): UiAction => ({ type: 'OpenSettings', ro
 const CHATTER_STEPS: readonly OnboardingStep[] = ['host-permission', 'sign-in', 'open-chatspace'];
 
 /**
+ * A chatter of another site only — a Fansly chatter come over from the old extension: that site is switched on, open,
+ * or holds the sign-in's pages, and the build's own site (ChatSpace) is none of these. «Открыть ChatSpace» is not their
+ * step: the site's own steps open it («Открыть Fansly под моделью»).
+ */
+function otherSiteOnly(model: PagesModel): boolean {
+  const own = model.env.sites[0]?.kind;
+  if (own === undefined) return false;
+  const seen = valueOf(model.accounts) ?? [];
+  const pages = valueOf(model.bootstrap)?.pages ?? [];
+  const access = valueOf(model.diagnostics)?.siteAccess ?? [];
+  const on = (kind: HostKind): boolean =>
+    (hostReportOf(model, kind)?.tabs ?? 0) > 0 || seen.some((entry) => entry.account.host === kind) || pages.some((page) => page.platform === HOST_PLATFORM[kind]);
+  return !on(own) && model.env.sites.some((site) => site.kind !== own && (on(site.kind) || access.some((entry) => entry.host === site.kind && (entry.enabled || entry.granted))));
+}
+
+/**
  * The first-run checklist: the steps of §9.9 but the install, each with what is known
  * about it now — the chatter's three first, the team lead's under «Ещё» (X55). It stands on the sign-in screen too —
  * the first run starts there, with «Дать права на хосты» and «Войти в хаб» still to
@@ -81,13 +98,15 @@ export function checklistOf(model: PagesModel): OptionsVM['checklist'] {
   const current = currentAccountOf(model);
   const bound = current === null ? null : boundPageOf(model, current.account);
   const hostOpen = (hostReportOf(model)?.tabs ?? 0) > 0 || (valueOf(model.accounts) ?? []).length > 0;
-  const access = model.hostAccess === true && model.hubAccess === true;
+  // A chatter of another site only needs the hub alone: ChatSpace is not theirs, their site asks its own access.
+  const elsewhere = otherSiteOnly(model);
+  const access = model.hubAccess === true && (elsewhere || model.hostAccess === true);
   const facts: Record<OnboardingStep, { readonly done: boolean; readonly action: UiAction | null; readonly label: Parameters<typeof msg>[0] }> = {
     install: { done: true, action: null, label: 'settings.onboarding.install' },
     'host-permission': {
       done: access,
-      action: access ? null : { type: 'RequestPermission', kind: model.hostAccess === true ? 'hub-host' : 'chatspace-host' },
-      label: 'settings.onboarding.hosts',
+      action: access ? null : { type: 'RequestPermission', kind: elsewhere || model.hostAccess === true ? 'hub-host' : 'chatspace-host' },
+      label: elsewhere ? 'settings.onboarding.hub' : 'settings.onboarding.hosts',
     },
     // On the sign-in screen the step points at the form in front of the person (the deep link highlights it, ST-009).
     'sign-in': { done: session !== null, action: session === null ? { type: 'OpenSettings', route: { section: 'account', code: 'CG-AUTH-REQUIRED' } } : null, label: 'settings.onboarding.signIn' },
@@ -107,7 +126,10 @@ export function checklistOf(model: PagesModel): OptionsVM['checklist'] {
     return { id, label: msg(fact.label), done: fact.done, action, ...(CHATTER_STEPS.includes(id) ? {} : { more: true as const }) };
   };
   return {
-    steps: [...CHATTER_STEPS, ...ONBOARDING_STEPS.filter((id) => id !== 'install' && !CHATTER_STEPS.includes(id))].map(step),
+    steps: [
+      ...(elsewhere ? CHATTER_STEPS.filter((id) => id !== 'open-chatspace') : CHATTER_STEPS),
+      ...ONBOARDING_STEPS.filter((id) => id !== 'install' && !CHATTER_STEPS.includes(id)),
+    ].map(step),
     dismiss: { type: 'SetPreference', key: 'onboarding.checklistDismissed', value: true },
   };
 }
