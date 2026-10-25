@@ -2,7 +2,7 @@
 kind: new
 sites: chatspace, fansly
 release: 3.0.0
-order: 45
+order: 10
 ---
 
 # Рассылка в своём окне: кому писать, версия каждому фану и итог рассылки

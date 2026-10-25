@@ -58,7 +58,7 @@ import { evaluateFeedAhead, evaluateHubAncestry, evaluateHubCompatibility, evalu
 import { Checkout, heldFor } from './local.ts';
 import { acquireLock, describeHolder, lockHolder, releaseLock } from './lock.ts';
 import { githubNotes, needsNote, releaseOf, type History, type Release } from './notes.ts';
-import { publishSteps, rollbackSteps, servedFeed, type Http, type ServerDeps } from './publish.ts';
+import { pagesOnlySteps, publishSteps, rollbackSteps, servedFeed, type Http, type ServerDeps } from './publish.ts';
 import { importProblems, type AnnouncedRecord, type ArtifactRef, type GateCheck, type GateRecord, type ReleaseRecord, type VendorRef } from './records.ts';
 import { checkRemoteDir, checkSiteFolder, sshTransport } from './remote.ts';
 import { amoMetadata, importSigned, releaseRecord, reviewerNotes, signBuild, signCommand } from './sign.ts';
@@ -87,7 +87,8 @@ pnpm release major|X.Y.Z --confirm <version>   another version, or the launch si
 
           notes   check the notes of changes, preview the next release (.cache/notes/)
           status · unlock · rollback --to <version> · announce [<version>] [--check|--again|--preview|--silent]
-          rollback and announce print their plan and stop without --confirm <version>
+          pages   the pages alone for the release the feed serves, after a released note was corrected
+          rollback, pages and announce print their plan and stop without --confirm <version>
           sign --import <file.xpi> takes a signed XPI downloaded by hand (no network)
           test-builds · sign --test-builds   the P3b test builds
 
@@ -970,7 +971,38 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     }
   }
 
-  const commands: Readonly<Record<string, (version?: string) => Promise<void> | void>> = { status, unlock, notes: notesCommand, 'test-builds': testBuilds, sign, announce, rollback };
+  /**
+   * The pages alone, for the release the feed serves: a released note was corrected (changes/README.md), and «Что
+   * нового», the history and the post's «Что нового на сайте» say so now, not with the next release. Only what the
+   * notes render may differ from the tag: changed pages and the stylesheet go out with a release.
+   */
+  async function pages(): Promise<void> {
+    const version = await latestTag();
+    if (version === null) refuse('nothing is released yet: no tag vX.Y.Z here (git fetch --tags).');
+    if ((await checkout.git('status', '--porcelain', '--', NOTES_DIR, SITE_DIR)) !== '') refuse(`${NOTES_DIR}/ or ${SITE_DIR}/ has changes not committed: the pages publish what main holds.`);
+    if (!(await checkout.isAncestor('HEAD', 'origin/main'))) refuse('HEAD is not on origin/main: the pages publish what main holds (git pull).');
+    const changed = await checkout.git('diff', '--name-only', `v${version}`, '--', SITE_DIR);
+    if (changed !== '') refuse(`${SITE_DIR}/ differs from v${version} (${changed.split('\n').join(', ')}): changed pages go out with a release.`);
+    const served = await servedFeed({ http: deps.http, target: checkout.target });
+    if (served?.version !== version) refuse(`the feed serves ${served?.version ?? 'nothing'}, not ${version}: the pages describe what the feed serves.`);
+    const history = await checkout.history();
+    const release = releaseOf(history, version);
+    const images = release.kind === 'notes' ? release.notes.flatMap((note) => note.images.map((image) => image.file)) : [];
+    // The install link: the file the feed serves.
+    const context = checkout.siteContext(version, history, served.updateLink.slice(served.updateLink.lastIndexOf('/') + 1));
+    const restore = checkout.snapshot(SITE_FILES.map((name) => join(SITE_DIR, name)));
+    try {
+      const site = checkout.siteFiles();
+      for (const [name, text] of renderSite(site, context)) if (text !== site.get(name)) checkout.write(join(SITE_DIR, name), text);
+      const problems = siteProblems(checkout.siteFiles(), context, checkout.linkedPages());
+      if (problems.length > 0) refuse(`the pages of ${version} do not render:\n  ${problems.join('\n  ')}`);
+      await outward(`publishing the pages of ${version}`, version, pagesOnlySteps(serverDeps(planOnly(version)), checkout.publishablePages(SITE_FILES, images)));
+    } finally {
+      restore();
+    }
+  }
+
+  const commands: Readonly<Record<string, (version?: string) => Promise<void> | void>> = { status, unlock, notes: notesCommand, 'test-builds': testBuilds, sign, announce, rollback, pages };
 
   const help = command === 'help' || command === '--help';
   const run = command === '' || BUMPS.includes(command) || isVersion(command) ? () => ship(command) : commands[command];

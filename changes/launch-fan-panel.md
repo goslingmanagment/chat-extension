@@ -2,7 +2,7 @@
 kind: new
 sites: chatspace, fansly
 release: 3.0.0
-order: 60
+order: 20
 ---
 
 # Панель фана: Память, Очередь и кто сейчас говорит с фаном
