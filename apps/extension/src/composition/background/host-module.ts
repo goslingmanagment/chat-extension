@@ -61,8 +61,11 @@ export type VerifiedTabMessage<T extends HostRequestType = HostRequestType> = {
 
 /** The hub as a site's services may use it: through the core's one facade. */
 export interface HubPort {
-  /** The facade's custody routes, its errors as they are (the greeting leases read their wire form). */
-  readonly facade: Pick<HubFacade, 'claim' | 'claimStatus'>;
+  /**
+   * The facade's custody routes, its errors as they are (the greeting leases read their wire form); «Онлайн»'s report
+   * of the followers a Fansly tab saw active (`errorWire` reads its failure).
+   */
+  readonly facade: Pick<HubFacade, 'claim' | 'claimStatus' | 'onlinePresence'>;
   /**
    * A facade call as the core's services take it: the facade's own reading of a failure goes with it, and a
    * refusal of the hub layer itself (a flag off, a page not granted…) becomes a failure with its own code.

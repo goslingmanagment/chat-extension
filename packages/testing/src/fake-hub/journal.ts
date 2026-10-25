@@ -39,6 +39,8 @@ export const JOURNAL_KEPT_STRING_KEYS: ReadonlySet<string> = new Set([
   'kind', 'clientEventId', 'observedAt', 'lifecycle', 'opId', 'surface', 'via', 'metric', 'missing', 'disabled',
   // who sent each message (Chat Memory week 1): how the text was written — a word of a closed list, never the text
   'composedWith',
+  // «Онлайн»: when Fansly saw a follower, what wrote a message of the window, the guide's text by its id (never its text)
+  'lastSeenAt', 'act', 'templateId',
 ]);
 const KEPT_MAX_CHARS = 200;
 const KEPT_VALUE = new RegExp(`^\\S{0,${KEPT_MAX_CHARS}}$`, 'u');

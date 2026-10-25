@@ -870,7 +870,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     } },
     hub: {
       // The facade is read at each call: it exists once the settings are read.
-      facade: { claim: (op, check) => hub().claim(op, check), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef) },
+      facade: { claim: (op, check) => hub().claim(op, check), claimStatus: (pageLabel, fanRef) => hub().claimStatus(pageLabel, fanRef), onlinePresence: (request) => hub().onlinePresence(request) },
       call: forCore,
       resolve,
       errorWire: wireOf,
@@ -1547,6 +1547,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('queue.winback', data['queue.winback']);
   rpc.handle('queue.winback.pick', data['queue.winback.pick']);
   rpc.handle('queue.handoff', data['queue.handoff']);
+  rpc.handle('online.list', data['online.list']);
+  rpc.handle('online.attempt', data['online.attempt']);
   // 1.47.0: voice notes, both sites.
   rpc.handle('voice.read', voice.handlers['voice.read']);
   rpc.handle('voice.allowance', voice.handlers['voice.allowance']);

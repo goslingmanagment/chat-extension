@@ -50,6 +50,13 @@ import {
   type WinBackAttemptRequest,
   type WinBackAttemptResult,
   type WinBackList,
+  type OnlineAttemptRequest,
+  type OnlineAttemptResult,
+  type OnlineList,
+  type OnlinePresenceRequest,
+  type OnlinePresenceResult,
+  type OnlineQuery,
+  type OnlineTemplate,
   type SharedRecaps,
   type SpenderBatch,
   type SpenderBatchQuery,
@@ -67,8 +74,9 @@ import { SHOWCASE } from '../showcase';
 import { classifyPair, type PairState, type ServedRef, type StoreState } from './ai-rules';
 import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
+import { ONLINE_SEEN_SOURCES, OnlineModel, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
 import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
-import { type SpenderSeed } from './types';
+import { type FakeOnlineAttempt, type FakeOnlinePresenceReport, type SpenderSeed } from './types';
 
 export interface Refusal {
   readonly error: HubErrorCode | (string & {});
@@ -263,6 +271,14 @@ const SEEDED_TIERS: ReadonlyArray<{ readonly key: string; readonly label: string
 ];
 const MILLS = 1000;
 
+/**
+ * «Онлайн» of the stand (no scenario's list): the board's first fans, each seen this many minutes before «now» (the
+ * ninth outside the window's default half hour), the ones OnlyFansAPI holds online now on an OnlyFans page, and the
+ * stories of a working day on top of what the board says: the first fan who never wrote subscribed yesterday, the
+ * second fan's subscription ends in two days without renewal, the seventh has a short chat (below Ping's 10).
+ */
+const ONLINE_STAND = { seenAgoMin: [1, 4, 2, 6, 9, 3, 13, 18, 41, 7], onlineNow: [0, 2, 5], expiring: 1, shortChat: 6 } as const;
+
 export class DataModel {
   private readonly archives = new Map<string, Archive>();
   private readonly audience = new Map<string, AudienceEvent[]>();
@@ -280,6 +296,8 @@ export class DataModel {
   /** Chat Memory week 3: «Очередь» a scenario set (`queue`), by page. */
   private readonly queues = new Map<string, { waiting?: QueuePage['items']; winBack?: WinBackList; handoff?: Handoff }>();
   private winBackAttempts = 0;
+  /** «Онлайн»: a scenario's lists, the Fansly tabs' presence reports, what the chatters did in the window. */
+  private readonly onlineModel = new OnlineModel();
   /** Chat Memory week 1: another chatter's message to a fan, set by a scenario (`talking`): «в разговоре» without a send. */
   private readonly talking: FakeTalking[] = [];
   /**
@@ -1162,6 +1180,125 @@ export class DataModel {
     this.setQueue(page.pageLabel, { winBack: next });
     this.winBackAttempts += 1;
     return ok({ attemptId: this.winBackAttempts, list: next });
+  }
+
+  // ── «Онлайн» (hub #879; online.ts) ──
+
+  /** A scenario's «Онлайн» of a page: its items and templates; `null` — back to the stand's fans or the guide. */
+  setOnline(pageLabel: string, set: { readonly items?: readonly OnlineSeed[] | null; readonly templates?: readonly OnlineTemplate[] | null }): void {
+    this.onlineModel.set(pageLabel, set);
+  }
+
+  /** What «Онлайн» reads of this model: the board's first fans with their stories, a reported follower, «в разговоре». */
+  private onlineWorld(page: FakePage, userId: number, names: (userId: number) => string, now: number, total: number): OnlineWorld {
+    const others = new Map<string, OthersTalking>();
+    const talking = this.inConversation(page, userId, names, now);
+    for (const fan of talking.ok ? talking.body.fans : []) {
+      const chatters = fan.chatters.filter((chatter) => !chatter.isMe);
+      const newest = chatters[0];
+      if (newest !== undefined) others.set(fan.fanRef, { names: chatters.map((chatter) => chatter.name), lastSentAt: Date.parse(newest.lastSentAt) });
+    }
+    return {
+      stand: () => this.onlineStand(page, now, total),
+      known: (fanRef) => {
+        const row = this.row(page, fanRef, total, now);
+        if (row !== null) return { ...this.onlineFactsOf(page, row), seenAt: null, onlineSince: null, seenSource: null };
+        // A follower the board does not have: the hub knows no chat, no money, no subscription of his.
+        return {
+          fanRef,
+          conversationRef: CHAT_IS_FAN[page.platform] ? fanRef : this.threadOf(page.pageLabel, fanRef),
+          username: null,
+          displayName: null,
+          alias: null,
+          lifetimeGrossMills: 0,
+          last30dGrossMills: 0,
+          seenAt: null,
+          onlineSince: null,
+          seenSource: null,
+          lastFanMessageAt: null,
+          answeredAt: null,
+          isSubscriber: false,
+          startedAt: null,
+          endsAt: null,
+          autoRenew: null,
+          messageCount: 0,
+        };
+      },
+      others,
+    };
+  }
+
+  /** A board row's facts as «Онлайн» reads them (no moment yet, a plain subscription). */
+  private onlineFactsOf(page: FakePage, row: SpenderListItem): OnlineFacts {
+    const at = (value: string | null): number | null => (value === null ? null : Date.parse(value));
+    const fanWrote = at(row.conversation.lastFanMessageAt);
+    const weWrote = at(row.conversation.lastModelMessageAt);
+    return {
+      fanRef: row.fan.platformUserId,
+      conversationRef: CHAT_IS_FAN[page.platform] ? row.fan.platformUserId : row.conversation.platformConversationId,
+      username: row.fan.username,
+      displayName: row.fan.displayName,
+      alias: row.fan.pageAlias,
+      lifetimeGrossMills: row.metrics.lifetime.scopeGrossAmountMills,
+      last30dGrossMills: row.metrics.window?.grossAmountMills ?? 0,
+      seenAt: null,
+      onlineSince: null,
+      seenSource: page.platform === 'onlyfans' ? ONLINE_SEEN_SOURCES.ofapi : ONLINE_SEEN_SOURCES.fanslyFollowers,
+      lastFanMessageAt: fanWrote,
+      answeredAt: weWrote,
+      isSubscriber: true,
+      startedAt: null,
+      endsAt: null,
+      autoRenew: null,
+      messageCount: fanWrote === null && weWrote === null ? 0 : Math.min(10, row.conversation.storedMessageCount),
+    };
+  }
+
+  /** The stand's fans of a page seen online lately (ONLINE_STAND): the board's first rows, with their stories. */
+  private onlineStand(page: FakePage, now: number, total: number): OnlineFacts[] {
+    const count = ONLINE_STAND.seenAgoMin.length;
+    const rows = this.rows(page, Math.min(total, count), now).slice(0, count);
+    const fresh = rows.findIndex((row) => row.conversation.lastFanMessageAt === null);
+    return rows.map((row, index) => {
+      const facts = this.onlineFactsOf(page, row);
+      const ago = (ONLINE_STAND.seenAgoMin[index] ?? 30) * 60_000;
+      const started = index === fresh ? now - 20 * HOUR_MS : now - (45 + 9 * index) * DAY_MS;
+      return {
+        ...facts,
+        seenAt: now - ago,
+        onlineSince: page.platform === 'onlyfans' && (ONLINE_STAND.onlineNow as readonly number[]).includes(index) ? now - ago - 3 * 60_000 : null,
+        startedAt: started,
+        endsAt: index === ONLINE_STAND.expiring ? now + 2 * DAY_MS : index === fresh ? started + 30 * DAY_MS : now + (6 + 2 * index) * DAY_MS,
+        autoRenew: index !== ONLINE_STAND.expiring,
+        messageCount: index === ONLINE_STAND.shortChat ? 4 : facts.messageCount,
+      };
+    });
+  }
+
+  /** As the hub's `clientOnline` (online.ts): the page's fans seen online within `minutes`, why to write now and with what. */
+  online(page: FakePage, query: OnlineQuery, userId: number, names: (userId: number) => string, now: number, total: number): Read<OnlineList> {
+    return ok(this.onlineModel.list(page, query.minutes, this.onlineWorld(page, userId, names, now, total), now));
+  }
+
+  /** As the hub's `clientOnlinePresence`: a Fansly page's followers its tab saw active. */
+  onlinePresence(page: FakePage, userId: number, request: OnlinePresenceRequest, now: number): Read<OnlinePresenceResult> {
+    return this.onlineModel.report(page, userId, request, now);
+  }
+
+  /** As the hub's `clientOnlineAttempt`: a fan the page has (its list, its board, its archive, a report), else 409 `not_listed`. */
+  onlineAttempt(page: FakePage, userId: number, by: string, request: OnlineAttemptRequest, now: number, total: number): Read<OnlineAttemptResult> {
+    const linked = this.knowsFan(page, request.fanRef, total) || this.onlineModel.listed(page, this.onlineWorld(page, userId, () => by, now, total), request.fanRef, now);
+    return this.onlineModel.attempt(page, userId, by, request, linked, now);
+  }
+
+  /** What the chatters did in «Онлайн», in order (ids, actions, times). */
+  onlineAttempts(): readonly FakeOnlineAttempt[] {
+    return this.onlineModel.attemptRows();
+  }
+
+  /** The Fansly tabs' presence reports, in order. */
+  onlinePresenceReports(): readonly FakeOnlinePresenceReport[] {
+    return this.onlineModel.presenceReports();
   }
 
   /** As the hub's `clientHandoff`: the handoff a scenario set, else nobody written to and the awaiting queue's head. */

@@ -115,6 +115,12 @@ export function runCommand(state: FanslyState, hub: FanslySocketHub, command: Fa
       const follow = world.wireFollow(world.follow(command.followerId, command.dmRulesUnmet === true, command.agoMs));
       return { ok: true, follow, sent: command.silent === true ? 0 : hub.emit([followFrame(follow)], '3/2') };
     }
+    case 'seen': {
+      if (!/^[1-9][0-9]{0,23}$/.test(command.fanId)) throw new FakeFanslyCommandError('seen: expected an account id');
+      if (command.agoMs !== null && !(Number.isFinite(command.agoMs) && command.agoMs >= 0)) throw new FakeFanslyCommandError('seen: agoMs is a duration ≥ 0 or null');
+      world.setSeen(command.fanId, command.agoMs);
+      return { ok: true };
+    }
     case 'newcomers': {
       for (const account of world.accounts.values()) account.followsCreator = false;
       world.follows.length = 0;

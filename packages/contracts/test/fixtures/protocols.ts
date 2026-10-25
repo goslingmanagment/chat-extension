@@ -97,6 +97,32 @@ const HANDOFF = {
   serverNow: '2026-10-24T10:00:00.000Z',
 };
 
+/** «Онлайн» (hub #879): a fan who waits for an answer, online now; one text of the guide. */
+const ONLINE_ITEM = {
+  fanRef: '920000000000000031',
+  conversationRef: '810000000000000031',
+  username: 'kai_38',
+  displayName: 'Kai',
+  alias: '💵Rowan/Norway/52',
+  greetingName: 'Kai',
+  lifetimeGrossMills: 120000,
+  last30dGrossMills: 20000,
+  seenAt: '2026-10-26T09:58:00.000Z',
+  onlineSince: null,
+  seenSource: 'fansly_extension_last_seen',
+  reason: 'waiting',
+  reasonAt: '2026-10-26T09:40:00.000Z',
+  act: 'reply',
+  aside: null,
+  asideAt: null,
+  asideBy: null,
+  messageCount: 10,
+  lastFanMessageAt: '2026-10-26T09:40:00.000Z',
+  lastPageMessageAt: '2026-10-25T21:00:00.000Z',
+  subscription: { isSubscriber: true, startedAt: '2026-09-01T10:00:00.000Z', endsAt: '2026-11-01T10:00:00.000Z', autoRenew: true },
+};
+const ONLINE_LIST = { pageLabel: 'model-two-fansly', minutes: 30, items: [ONLINE_ITEM], templates: [{ id: 'B3', group: 'b', text: 'ok be honest are you the quiet type or did my page just get lost in the scroll? either way, hi 👋' }], serverNow: '2026-10-26T10:00:00.000Z' };
+
 /** Chat Memory week 4: a paid custom with a delivery Hub suggests. */
 const CUSTOM = { id: 3, pageLabel: 'model-two-fansly', granted: true, description: 'A 5-minute video in red', priceMills: 120_000, state: 'paid', paymentMills: 120_000, paidAt: '2026-10-22T10:00:00.000Z', deliveredMessageRef: null, deliveredAt: null, createdBy: 'Nikita', createdAt: '2026-10-22T10:05:00.000Z', deliveryCandidates: [{ messageRef: '930000000000000078', at: '2026-10-23T10:00:00.000Z', mediaCount: 1, priceMills: null }] };
 
@@ -353,6 +379,32 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'queue.handoff': {
     req: { valid: [{ pageId: 11 }], invalid: [{ pageId: 0 }] },
     res: { valid: [HANDOFF], invalid: [{ ...HANDOFF, waiting: { total: 1 } }] },
+  },
+  'online.list': {
+    req: { valid: [{ pageId: 13, minutes: 30 }, { pageId: 13, minutes: 5 }, { pageId: 13, minutes: 180 }], invalid: [{ pageId: 13 }, { pageId: 13, minutes: 4 }, { pageId: 13, minutes: 181 }, { pageId: 13, minutes: 30, pageLabel: 'model-two-fansly' }] },
+    res: {
+      // Open on the wire: a reason, an act or an aside this client does not know is still an answer.
+      valid: [ONLINE_LIST, { ...ONLINE_LIST, items: [] }, { ...ONLINE_LIST, items: [{ ...ONLINE_ITEM, reason: 'later_reason', act: 'later_act', aside: 'later_aside', asideAt: '2026-10-26T09:00:00.000Z', asideBy: 'Аня' }] }],
+      invalid: [{ ...ONLINE_LIST, items: [{ fanRef: '920000000000000031' }] }, { ...ONLINE_LIST, templates: [{ id: 'B3' }] }, { pageLabel: 'model-two-fansly', items: [] }],
+    },
+  },
+  'online.attempt': {
+    req: {
+      valid: [
+        { pageId: 13, fanRef: '920000000000000031', action: 'sent', act: 'template', templateId: 'B3', reason: 'never_wrote' },
+        { pageId: 13, fanRef: '920000000000000031', action: 'sent', act: 'reply', reason: 'waiting' },
+        { pageId: 13, fanRef: '920000000000000031', action: 'dismissed' },
+        { pageId: 13, fanRef: '920000000000000031', action: 'restored' },
+      ],
+      invalid: [
+        { pageId: 13, fanRef: '920000000000000031', action: 'liked' },
+        { pageId: 13, fanRef: '920000000000000031', action: 'sent', act: 'voice' },
+        { pageId: 13, fanRef: 'kai_38', action: 'dismissed' },
+        { pageId: 13, fanRef: '920000000000000031', action: 'sent', act: 'template', templateId: '' },
+        { pageId: 13, fanRef: '920000000000000031', action: 'dismissed', text: 'hey love' },
+      ],
+    },
+    res: { valid: [{ attemptId: 5 }], invalid: [{}, { attemptId: '5' }] },
   },
   'feed.read': {
     req: {

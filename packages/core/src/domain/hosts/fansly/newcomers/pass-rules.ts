@@ -158,6 +158,48 @@ export function readFollowersPage(response: unknown): FollowersPage | null {
   return { follows, profiles: Array.isArray(accounts) ? (readAccounts(accounts) ?? []) : [] };
 }
 
+// ── «Онлайн»: who of the followers was active lately ──
+
+/** A follower Fansly saw active, and when (epoch ms). */
+export interface FollowerSeen {
+  readonly fanRef: string;
+  readonly lastSeenAt: number;
+}
+
+/** A moment this far ahead of this machine's clock is the clocks' skew (taken as now); beyond it, a wrong one. */
+const SEEN_SKEW_MS = 60_000;
+
+/**
+ * `GET /account/<creator>/followersnew?lastSeenAfter=` for «Онлайн» (the read FBuddy makes): the followers Fansly saw
+ * active since `since`, the most recent first, each fan once (his newest moment). A follower's moment is his account's
+ * `lastSeenAt` beside the page (`aggregationData.accounts`, epoch ms), else the follow entry's own — as the hub's own
+ * follower poll reads them (hub services/fansly-presence.ts). Unlike the pass's page (`readFollowersPage`), one bad
+ * entry spoils nothing: an entry whose follower is not a native id or is the creator, a moment that is not one, older
+ * than `since` or more than a minute ahead of `now` is left out (within the minute — the clocks' skew — it is now).
+ * Null — not a followers page.
+ */
+export function readFollowersSeen(response: unknown, creatorId: string, since: number, now: number): FollowerSeen[] | null {
+  const page = record(response);
+  const list = page?.['followers'];
+  if (page === null || !Array.isArray(list)) return null;
+  const accounts = record(page['aggregationData'])?.['accounts'];
+  const moments = new Map<string, unknown>();
+  for (const value of Array.isArray(accounts) ? accounts : []) {
+    const account = record(value);
+    if (account !== null && isId(account['id'])) moments.set(account['id'], account['lastSeenAt']);
+  }
+  const seen = new Map<string, number>();
+  for (const entry of list) {
+    const follow = record(entry);
+    const fanRef = follow?.['followerId'];
+    if (follow === null || !isId(fanRef) || fanRef === creatorId) continue;
+    const at = moments.get(fanRef) ?? follow['lastSeenAt'];
+    if (typeof at !== 'number' || !Number.isFinite(at) || at <= 0 || at < since || at > now + SEEN_SKEW_MS) continue;
+    seen.set(fanRef, Math.max(seen.get(fanRef) ?? 0, Math.min(at, now)));
+  }
+  return [...seen].map(([fanRef, lastSeenAt]) => ({ fanRef, lastSeenAt })).sort((a, b) => b.lastSeenAt - a.lastSeenAt || compareNativeIds(a.fanRef, b.fanRef));
+}
+
 // ── messages (NF-033) ──
 
 /** A message of a chat as the pass reads it: the fields its rules need, and the text for the card. */
