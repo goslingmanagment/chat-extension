@@ -48,11 +48,12 @@ import {
 import { filterLeavesTodo, historyReadable, placePassPage, prependHistory, writable } from '../../domain/newcomers/pass';
 import { parseFanHandle } from '../boards/handles';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
+import { issueCause } from '../boards/navigate';
 import { type BoardsClock } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused } from '../boards/surface';
 import { dataView, failureView, loadingView, localError, msg, reason, stamp } from '../boards/views';
-import { type NewcomersController } from './controller';
+import { type GreetCardAnswer, type GreetedChat, type NewcomersController } from './controller';
 import { batchDispatch, createBatch, isBatchAction } from '../boards/batch';
 import { createCardGreeting, type PassGreetingDeps } from './greeting';
 import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQuery, type PassRow, type PassState } from './source';
@@ -65,6 +66,8 @@ export const PASS_SEARCH_DEBOUNCE_MS = 150;
  * checked by then stays on the card for the person's own Hi.
  */
 export const GREET_CARD_WAIT_MS = 45_000;
+/** A reminder's Hi that leaves the fan's card to the person. */
+const ON_CARD: GreetCardAnswer = { s: 'card' };
 /** Conversations kept in the tab at once (up to 750 messages each): the fans looked at last; an older one is read again. */
 export const PASS_HISTORIES_KEPT = 12;
 
@@ -488,20 +491,21 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   }
 
   /**
-   * «Hi» of a greeting reminder's toast (2026-10-25), the window opened by the same click: the list shows «К обработке»
-   * with no search or filter, so the fan is in it; the card goes to the fan as soon as their row is there, a fan not
-   * checked yet is checked next, and the pass's handle comes back once the fan is checked — Hi then starts under that
-   * click, and its greeting goes into the fan's chat. Not listed or not checked within GREET_CARD_WAIT_MS: null, the
-   * card's own Hi is the person's next click.
+   * «Hi» of a greeting reminder's toast (2026-10-25), the window opened by the same click: the list shows «Все» with no
+   * search or filter, so the fan is in it whatever the pass found — a fan somebody wrote to meanwhile is not in «К
+   * обработке» (the owner: «если один нажал на hi и там месага уже есть — ошибка и чат открылся»). The card goes to the
+   * fan as soon as their row is there, a fan not checked yet is checked next; once checked: `hi` with the pass's handle
+   * (Hi then starts under that click, and its greeting goes into the fan's chat), or `greeted` with their chat. Not
+   * listed or not checked within GREET_CARD_WAIT_MS: `card`, the card's own Hi is the person's next click.
    */
-  async function greetCard(handle: TargetHandle): Promise<TargetHandle | null> {
+  async function greetCard(handle: TargetHandle): Promise<GreetCardAnswer> {
     const fan = parseFanHandle(handle);
-    if (disposed || fan === null || fan.source !== 'newcomers') return null;
+    if (disposed || fan === null || fan.source !== 'newcomers') return ON_CARD;
     const fanRef = fan.fanRef;
     const deadline = clock.now() + GREET_CARD_WAIT_MS;
     const left = (): number => Math.max(0, deadline - clock.now());
-    const query = tab !== 'todo' || filter !== 'any' || applied !== '' || typed !== '';
-    tab = 'todo';
+    const query = tab !== 'all' || filter !== 'any' || applied !== '' || typed !== '';
+    tab = 'all';
     filter = 'any';
     typed = '';
     applied = '';
@@ -509,19 +513,52 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     searchTimer = null;
     if (query) await queryChanged();
     const shown = (): TargetHandle | null => (pass === null || stage !== 'live' || listed(fanRef) === null ? null : passHandle(pass.passId, fanRef));
-    if (!(await until(() => shown() !== null, left()))) return null;
+    if (!(await until(() => shown() !== null, left()))) return ON_CARD;
     selected = fanRef;
     pin(fanRef);
     nudge(fanRef);
     changed();
     ensureHistory();
     const target = shown();
-    const checked = (): boolean => {
+    const settled = (): boolean => {
       const row = rowOf(fanRef);
-      return row !== null && (row.check === 'ready' || row.check === 'reply') && row.conversationRef !== null;
+      return row !== null && (row.check === 'greeted' || ((row.check === 'ready' || row.check === 'reply') && row.conversationRef !== null));
     };
-    if (target === null || card === null || !(await until(checked, left())) || shown() !== target) return null;
-    return target;
+    if (target === null || card === null || !(await until(settled, left())) || shown() !== target) return ON_CARD;
+    const greeted = greetedChat(handle);
+    return greeted === null ? { s: 'hi', handle: target } : { s: 'greeted', ...greeted };
+  }
+
+  /**
+   * The reminder's fan as the pass knows them now: somebody wrote to them — the row is «Уже писали», or the card's Hi
+   * stopped on the history read again while it generated (`CG-SEND-PART`) — their chat; null — not that.
+   */
+  function greetedChat(handle: TargetHandle): GreetedChat | null {
+    const fan = parseFanHandle(handle);
+    const binding = context.current().binding;
+    if (fan === null || fan.source !== 'newcomers' || binding === null || fan.pageId !== binding.pageId || pass === null) return null;
+    const row = rowOf(fan.fanRef);
+    if (row === null) return null;
+    const ended = card?.stateOf(pass.passId, fan.fanRef) ?? null;
+    if (row.check !== 'greeted' && !(ended?.s === 'not-drafted' && ended.failure.code === 'CG-SEND-PART')) return null;
+    return { chat: { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fan.fanRef }, conversationRef: row.conversationRef, name: nameOf(row) };
+  }
+
+  /**
+   * «Hi» of a reminder about another model's fan, pressed in this tab (2026-10-25): the click's `navigate` token goes to
+   * the site, which brings a tab of that model forward and greets there. null — the fan is this tab's page. `grant` —
+   * the click's grant of that one navigation, opened right before its token is asked for.
+   */
+  async function greetElsewhere(handle: TargetHandle, grant: () => void): Promise<boolean | null> {
+    const fan = parseFanHandle(handle);
+    const ctx = context.current();
+    if (fan === null || fan.source !== 'newcomers' || ctx.phase !== 'ready' || ctx.binding?.pageId === fan.pageId) return null;
+    const rpc = deps.greeting?.rpc;
+    if (rpc === undefined || source.handover === undefined) return false;
+    grant();
+    const issued = await issueCause(rpc, 'navigate', 'newcomers');
+    if (!issued.ok) return false;
+    return source.handover(fan.pageId, fan.fanRef, issued.cause).catch(() => false);
   }
 
   /**
@@ -1002,6 +1039,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     greeting,
     refresh: () => start(false),
     greetCard,
+    greetedChat,
+    greetElsewhere,
     draftsChanged: () => undefined,
     fromBatch: (opId) => card?.fromBatch(opId) ?? false,
     inCard: (opId) => open() && (card?.fromCard(opId) ?? false),

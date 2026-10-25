@@ -505,6 +505,28 @@ export const FANSLY_TAB_REQUESTS = {
     hosts: FANSLY,
   },
   /**
+   * 1.62.0 (the owner, 2026-10-25: «если один нажал на hi и там месага уже есть — чтобы генерация стопнулась»): the
+   * card's Hi reads the fan's history again while it generates — the send's own check (NF-036), read-only. The
+   * history's revision now; a personal message of the creator's makes the row «Уже писали» (`CG-SEND-PART`).
+   */
+  'fansly.followers.recheck': {
+    req: z.strictObject({ ...PassRef, fanRef: NativeIdSchema }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), historyRevision: UuidSchema }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * 1.62.0: «Hi» of a greeting reminder's toast pressed in a tab of another model: the background redeems the click's
+   * `navigate` token, brings a tab of the fan's model to the front and hands it the click (`greet.start`). `delivered:
+   * false` — no tab of that model, or the token was refused.
+   */
+  'fansly.greet.handover': {
+    req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema, cause: HumanCauseSchema }),
+    res: z.strictObject({ delivered: z.boolean() }),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
    * 1.15.0 R20 P10c (NF-012, FS-NEW-6): the card's draft — read without `text`, written with it (an empty one clears
    * it). The background keeps it per creator and fan (the shared `newcomers.drafts`, at most 7 days) and knows its revision at
    * the send's final check.

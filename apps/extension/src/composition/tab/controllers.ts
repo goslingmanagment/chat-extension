@@ -22,6 +22,7 @@ import type { SendAttemptView } from '@cg/contracts/send';
 import type { HostPort } from '@cg/contracts/host';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
+import type { GreetedChat } from '@cg/core/application/newcomers';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
 import { toastKindOf } from '@cg/core/domain/errors';
 import type { Logger } from '@cg/core/domain/logging';
@@ -464,24 +465,41 @@ export async function startBoards(
    * owner: «по hi нажимая начиналась генерация сообщения сразу и в чате уже оказалось оно»): once the greeting is
    * written, the fan's chat opens with it in the site's field, for the person's own send. Each step rides the click's
    * deferred greet grant (action-gate.ts, `afterGreet`). A person who moved on meanwhile — the window closed, another
-   * fan's card — keeps the greeting on the card; whatever then holds Hi (the fan was greeted meanwhile) the card says.
+   * fan's card — keeps the greeting on the card.
+   * 2026-10-25 (the owner: «может приходит только в одно окно активное?», «если один нажал на hi и там месага уже есть —
+   * ошибка "кто-то уже поприветствовал его" и чат открылся»): a fan of another model goes to a tab of that model
+   * (`greetElsewhere`); a fan somebody wrote to already — found before Hi or while it generates — is not greeted twice:
+   * their chat opens and the toast says «Кто-то уже поприветствовал …».
    */
   async function greet(handle: string): Promise<ActionReceipt> {
     const as = (receipt: ActionReceipt): ActionReceipt => ({ ...receipt, type: 'GreetNewcomer' });
+    const away = (await newcomers.greetElsewhere?.(handle, () => void world.gate.afterGreet('Navigate'))) ?? null;
+    if (away !== null) {
+      if (!away) toasts.show({ kind: 'warning', code: null, scope: 'greet.handover', title: { key: 'toast.greetNoTab' }, body: { key: 'toast.greetNoTabBody' } });
+      return { ok: true, type: 'GreetNewcomer', outcome: away ? 'opened' : 'noop' };
+    }
     await router.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
     // 2026-10-25: «Новые» checked by a pass (Fansly) find the fan themselves — the card opens, and the handle Hi starts
     // on comes back once the fan is checked; otherwise the card's own Hi is the person's.
     if (newcomers.greetCard !== undefined) {
-      const hi = await newcomers.greetCard(handle);
+      const found = await newcomers.greetCard(handle);
+      if (found.s === 'greeted') return greetedAlready(found);
+      const hi = found.s === 'hi' ? found.handle : null;
       const onCard = (): boolean => hi !== null && surfaces.current().newcomers && newcomers.getSnapshot({ of: 'newcomers' }).pass?.card?.handle === hi;
       if (hi === null || !onCard()) return { ok: true, type: 'GreetNewcomer', outcome: 'opened' };
       // The card's own Hi (NewcomersWindow): one greeting, its options the card's; it resolves with the field written.
       world.gate.afterGreet('Generate');
       const started = await router.dispatch({ type: 'Generate', targetHandle: hi, feature: 'hi', options: {} });
+      // The chat read again while Hi generated: somebody wrote meanwhile.
+      const greeted = started.ok ? null : (newcomers.greetedChat?.(handle) ?? null);
+      if (greeted !== null) return greetedAlready(greeted);
       if (!started.ok || !onCard() || world.gate.afterGreet('InsertNewcomerGreeting') !== null) return as(started);
       return as(await router.dispatch({ type: 'InsertNewcomerGreeting', targetHandle: hi }));
     }
-    if (newcomers.directory.resolve(handle) === null) await newcomers.refresh();
+    // The hub's list is read again first: a colleague's greeting since the reminder is in it.
+    await newcomers.refresh();
+    const greeted = newcomers.greetedChat?.(handle) ?? null;
+    if (greeted !== null) return greetedAlready(greeted);
     const opened = await router.dispatch({ type: 'OpenPreview', targetHandle: handle });
     if (!opened.ok) return as(opened);
     world.gate.afterGreet('Generate');
@@ -490,6 +508,22 @@ export async function startBoards(
     if (opId === undefined || !(await preview.ended(opId, GREET_RESULT_WAIT_MS))) return as(started);
     if (surfaces.current().preview.newcomers !== handle || world.gate.afterGreet('OpenAndInsertPart') !== null) return as(started);
     return as(await router.dispatch({ type: 'OpenAndInsertPart', operationId: opId, variant: 0, part: 0 }));
+  }
+
+  /** Somebody wrote to the reminder's fan already: no second greeting — the window goes, their chat opens, the toast says why. */
+  async function greetedAlready(greeted: GreetedChat): Promise<ActionReceipt> {
+    surfaces.setList('newcomers', false);
+    world.gate.afterGreet('Navigate');
+    const opened = await navigator.open(greeted.chat, 'newcomers', ['newcomers'], greeted.conversationRef ?? undefined);
+    const shown = opened.state === 'navigated';
+    toasts.show({
+      kind: 'warning',
+      code: null,
+      scope: `greet.${greeted.chat.platformFanId}`,
+      title: { key: 'toast.greetedAlready', params: { fan: greeted.name ?? i18n.t('newcomers.col.fan') } },
+      body: { key: shown ? 'toast.greetedAlreadyOpened' : 'toast.greetedAlreadyClosed' },
+    });
+    return { ok: true, type: 'GreetNewcomer', outcome: shown ? 'opened' : 'noop' };
   }
   offs.push(
     router.register(

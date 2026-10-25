@@ -238,7 +238,8 @@ export const UI_TEXT_KEYS = [
   // 2026-10-22: the sheet's one-line descriptions, as the old Fansly sheet had them.
   'cheatsheet.row.reply', 'cheatsheet.row.fix', 'cheatsheet.row.hi', 'cheatsheet.row.ping', 'cheatsheet.row.review', 'cheatsheet.row.recap',
   'cheatsheet.row.coach', 'cheatsheet.row.spendersBoard', 'cheatsheet.row.newcomers', 'cheatsheet.row.splitSeries',
-  'toast.aiReady', 'toast.greetDue', 'toast.greetWaiting', 'toast.later', 'toast.closeAria', 'toast.hubSettingsUpdating', 'toast.splitOn', 'toast.splitOff', 'toast.noUnread',
+  'toast.aiReady', 'toast.greetDue', 'toast.greetWaiting', 'toast.greetWaitingAt', 'toast.later', 'toast.greetedAlready', 'toast.greetedAlreadyOpened',
+  'toast.greetedAlreadyClosed', 'toast.greetNoTab', 'toast.greetNoTabBody', 'toast.closeAria', 'toast.hubSettingsUpdating', 'toast.splitOn', 'toast.splitOff', 'toast.noUnread',
   'popup.pill.chatspace', 'popup.pill.chatspace.connected', 'popup.pill.chatspace.partial', 'popup.pill.chatspace.copyOnly',
   'popup.pill.chatspace.closed', 'popup.pill.hub', 'popup.pill.hub.online', 'popup.pill.hub.offline', 'popup.persona', 'popup.personaFor',
   'popup.personaNone', 'popup.notConnected', 'popup.account', 'popup.signOut', 'popup.dialog', 'popup.dialogAccount', 'popup.copiedId', 'popup.copyChatId',

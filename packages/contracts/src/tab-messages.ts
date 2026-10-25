@@ -151,6 +151,11 @@ export const BackgroundToastSchema = z.strictObject({
       username: z.optional(z.nullable(displayText(64))),
       avatarUrl: z.optional(z.nullable(HiFanAvatarUrlSchema)),
       since: z.optional(IsoTimestampSchema),
+      /**
+       * 1.62.0: the model's name, when the toast stands in a tab of another model (the one the person looks at): its
+       * «Hi» goes to a tab of that model (`greet.start`).
+       */
+      page: z.optional(displayText(256)),
     }),
   ),
 });
@@ -931,6 +936,12 @@ export const TAB_EVENTS = {
    * human action — a navigation, never an insert, a send or a generation.
    */
   'tab.command': { payload: z.strictObject({ command: PageCommandSchema }), to: TAB },
+  /**
+   * 1.62.0: «Hi» of a greeting reminder's toast pressed in a tab of another model (the owner, 2026-10-25: «может
+   * приходит только в одно окно активное?»). The background redeemed that tab's token of the click, brought a tab of
+   * the fan's model to the front and hands the click to it: the tab runs `GreetNewcomer` of this fan as that click.
+   */
+  'greet.start': { payload: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema }), to: TAB },
 } as const satisfies Record<string, TabEventSpec>;
 
 export type TabEventType = keyof typeof TAB_EVENTS;

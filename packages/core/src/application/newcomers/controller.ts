@@ -12,7 +12,7 @@
 import { type CgCode, type CgErrorView, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
 import { type ClaimState } from '@cg/contracts/hub';
-import { chatKeyOf } from '@cg/contracts/ids';
+import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
 import {
   type ActionReceipt,
   type ClaimVM,
@@ -113,11 +113,35 @@ export interface NewcomersController extends SurfaceController<'newcomers'> {
   inCard?(opId: string): boolean;
   /**
    * 2026-10-25, «Hi» of a greeting reminder's toast on a list checked by a pass (Fansly), the window open: the card of
-   * the toast's fan (`fanHandle('newcomers', …)`) opens, and the handle Hi may start on now comes back — null while the
-   * fan is not checked yet (the card's own Hi is then the person's). Absent — the hub's list: the preview's own way.
+   * the toast's fan (`fanHandle('newcomers', …)`) opens; `hi` — the handle Hi may start on now, `greeted` — somebody
+   * wrote to the fan already, `card` — the fan is not checked yet (the card's own Hi is then the person's). Absent — the
+   * hub's list: the preview's own way.
    */
-  greetCard?(handle: TargetHandle): Promise<TargetHandle | null>;
+  greetCard?(handle: TargetHandle): Promise<GreetCardAnswer>;
+  /**
+   * 2026-10-25 (the owner: «если один нажал на hi и там месага уже есть — ошибка "кто-то уже поприветствовал его" и чат
+   * открылся»): the toast's fan as the list knows them now — their chat when somebody wrote to them already; null — not
+   * greeted, or not this list's fan.
+   */
+  greetedChat?(handle: TargetHandle): GreetedChat | null;
+  /**
+   * 2026-10-25: «Hi» of a reminder about a fan of another page (the toast stood in this tab, the fan's model is another
+   * tab's): handed over to a tab of that model under this click — true; false — no way there; null — the fan is this
+   * tab's page. `grant` opens the click's grant of that navigation right before its token is asked for. Absent — no tab
+   * of another model is ever reminded here.
+   */
+  greetElsewhere?(handle: TargetHandle, grant: () => void): Promise<boolean | null>;
 }
+
+/** Somebody wrote to the reminder's fan already: their chat, and their name for the toast. */
+export interface GreetedChat {
+  readonly chat: ChatRef;
+  /** The conversation when it is not the fan (Fansly's group). */
+  readonly conversationRef: string | null;
+  readonly name: string | null;
+}
+
+export type GreetCardAnswer = { readonly s: 'hi'; readonly handle: TargetHandle } | ({ readonly s: 'greeted' } & GreetedChat) | { readonly s: 'card' };
 
 export function createNewcomersController(deps: NewcomersControllerDeps): NewcomersController {
   const { rpc, host, i18n, clock, context, surfaces, navigator } = deps;
@@ -848,6 +872,13 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     directory,
     greeting,
     refresh,
+    // 2026-10-25: the reminder's fan as the hub's list says now — greeted by a colleague, by hand or through us.
+    greetedChat(handle) {
+      const fanRef = own(handle);
+      const binding = context.current().binding;
+      if (fanRef === null || binding === null || hiBlock(statusOf(fanRef)) !== 'greeted') return null;
+      return { chat: { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, conversationRef: null, name: rowOf(fanRef)?.name ?? null };
+    },
     draftsChanged() {
       if (!disposed) cell.invalidate();
     },

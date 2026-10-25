@@ -283,6 +283,8 @@ function toastsOf(ctx: ScenarioCtx): ToastVM[] {
     // A greeting reminder: with the fan's picture (a drawn stand-in, nobody's photo), and with none — the initial.
     greetToast(ctx, 'g1', { name: 'Anya', handle: 'anya_k', avatarUrl: GALLERY_AVATAR, minutesAgo: 11 }),
     greetToast(ctx, 'g2', { name: 'Theodore Whitfield', handle: null, avatarUrl: null, minutesAgo: 14 }),
+    // 1.62.0: the same reminder in a tab of another model — the accent line names the fan's model.
+    greetToast(ctx, 'g3', { name: 'Evil Broseph', handle: 'Evilbroseph87', avatarUrl: GALLERY_AVATAR, minutesAgo: 11, page: 'Lora' }),
     toast(ctx, 'i', 'info', { title: ctx.lang === 'ru' ? 'Split включён: ответ придёт частями' : 'Split is on: the answer comes in parts' }),
   ];
 }

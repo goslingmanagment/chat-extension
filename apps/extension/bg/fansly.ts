@@ -359,6 +359,9 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         const answer = await kit.settingsExt.state();
         return answer.ok ? ok(answer.state.ext.windows) : { ok: false, error: answer.error };
       }
+      // 2026-10-25: «Hi» of a greeting reminder's toast pressed in a tab of another model.
+      case 'fansly.greet.handover':
+        return ok(await handoverGreet(kit, payload as FanslyTabRequestPayload<'fansly.greet.handover'>, tab));
       default:
         // «Новые» (R20 P10b1, P10b2): the pass, its queue and the exclusions; P10c: the card's greeting.
         if (newcomers?.handles(type) === true) return ok(await newcomers.answer(type, payload, tab));
@@ -495,10 +498,14 @@ function startGreetReminder(kit: BackgroundKit, newcomers: FanslyNewcomers): Fan
       const ids = idsOf(creator);
       const page = bootstrap.pages.find((entry) => entry.platform === 'fansly' && entry.platformAccountId !== null && ids.includes(entry.platformAccountId));
       if (page === undefined || !flagUsable(bootstrap, page.pageId, 'newcomers')) return null;
-      const rank = (tab: SiteTabRegistration): number => (tab.visible === true ? 2 : 0) + (tab.focused === true ? 1 : 0);
-      const tabs = (kit.siteTabs?.registered() ?? []).filter((tab) => tab.accounts.some((account) => ids.includes(account)));
-      const best = [...tabs].sort((a, b) => rank(b) - rank(a) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
-      return best === undefined ? null : { tabSessionId: best.tabSessionId, pageId: page.pageId };
+      const registered = kit.siteTabs?.registered() ?? [];
+      const best = creatorTab(registered, ids);
+      if (best === null) return null;
+      // 2026-10-25: every other tab on screen too — a chatter on another model's tab sees it there.
+      const elsewhere = registered
+        .filter((tab) => tab.visible === true && tab.tabSessionId !== best.tabSessionId && tab.accounts.length > 0)
+        .map((tab) => ({ tabSessionId: tab.tabSessionId, foreign: !tab.accounts.some((account) => ids.includes(account)) }));
+      return { tabSessionId: best.tabSessionId, pageId: page.pageId, page: page.title || page.pageLabel, elsewhere };
     },
     sameAccount: (creator, accountId) => idsOf(creator).includes(accountId),
     toast: (tab, toast) => kit.router.events.emit(tab, 'toast', { toast }),
@@ -507,6 +514,31 @@ function startGreetReminder(kit: BackgroundKit, newcomers: FanslyNewcomers): Fan
     uuid: () => kit.ids.uuid(),
     log: kit.log.service,
   });
+}
+
+/**
+ * «Hi» of a greeting reminder's toast pressed in a tab of another model (2026-10-25): the click's own `navigate` token is
+ * spent first — nothing is handed over that no click of that tab stands behind —, then a tab of the fan's model comes to
+ * the front and gets the click (`greet.start`): it greets there as the toast's Hi does in its own tab.
+ */
+async function handoverGreet(kit: BackgroundKit, request: FanslyTabRequestPayload<'fansly.greet.handover'>, tab: string): Promise<{ readonly delivered: boolean }> {
+  if (kit.siteActive?.() === false || kit.siteTabs === undefined) return { delivered: false };
+  const page = kit.hub.bootstrap()?.pages.find((entry) => entry.pageId === request.pageId && entry.platform === 'fansly') ?? null;
+  if (page === null || page.platformAccountId === null) return { delivered: false };
+  if (!kit.tokens.redeem({ tabSessionId: tab, kind: 'navigate', surface: 'newcomers', actionToken: request.cause.actionToken })) return { delivered: false };
+  const ids = [page.platformAccountId, ...(kit.networkSession?.aliases(page.platformAccountId) ?? [])];
+  const best = creatorTab(kit.siteTabs.registered(), ids);
+  if (best === null || best.tabSessionId === tab || !(await kit.siteTabs.focus(best.tabId))) return { delivered: false };
+  kit.router.events.emit(best.tabSessionId, 'greet.start', { pageId: page.pageId, fanRef: request.fanRef });
+  kit.log.service({ level: 'info', scope: 'bg.fansly.greet', msg: 'greeting handed over to the model tab', fields: { pageId: page.pageId } });
+  return { delivered: true };
+}
+
+/** The creator's tab the person looks at, else the one they were on last; null — no tab of the creator. */
+function creatorTab(registered: readonly SiteTabRegistration[], ids: readonly string[]): SiteTabRegistration | null {
+  const rank = (tab: SiteTabRegistration): number => (tab.visible === true ? 2 : 0) + (tab.focused === true ? 1 : 0);
+  const tabs = registered.filter((tab) => tab.accounts.some((account) => ids.includes(account)));
+  return [...tabs].sort((a, b) => rank(b) - rank(a) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0] ?? null;
 }
 
 /** The tab is registered and on this creator's account (its aliases count); one that has not said its account yet is not refused. */

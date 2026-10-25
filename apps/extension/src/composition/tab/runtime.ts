@@ -143,7 +143,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     if (registry !== null) return registry(kind, type, payload);
     // A page command may come before the registry is loaded (the tab shows no chat yet): it is kept as it came
     // and checked against its schema once the application — and the registry with it — is in (below).
-    if (kind === 'evt' && type === 'tab.command') return { ok: true, payload };
+    if (kind === 'evt' && (type === 'tab.command' || type === 'greet.start')) return { ok: true, payload };
     if (kind !== 'res') return { ok: false };
     if (type === 'tab.register') {
       const parsed = TabRegisterResponseSchema.safeParse(payload);
@@ -348,6 +348,24 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
     );
   });
   life.addEventListener('abort', offCommand);
+  // 2026-10-25: a greeting reminder's «Hi» pressed in a tab of another model, handed to this tab by the background.
+  const offGreet = rpc.onEvent('greet.start', (raw) => {
+    if (life.aborted) return;
+    ensureApp().then(
+      (ready) => {
+        if (life.aborted) return;
+        const checked = registry?.('evt', 'greet.start', raw) ?? { ok: false as const };
+        if (!checked.ok) return;
+        const { pageId, fanRef } = checked.payload as typeof raw;
+        ready.greet(pageId, fanRef);
+      },
+      (error: unknown) => {
+        app = null;
+        if (!life.aborted) probe?.set('appError', String(error));
+      },
+    );
+  });
+  life.addEventListener('abort', offGreet);
   // The dock's place — or a place of the site's own where no composer is (R20 P13b): the application comes for it.
   const onMounts = (): void => {
     if (host.mounts.points().dock.kind !== 'none' || host.wantsApp?.current() === true) wake();

@@ -43,6 +43,9 @@ export type FanslyFollowersRequest =
   | 'fansly.followers.exclude'
   // R20 P10c: the card's greeting.
   | 'fansly.followers.proof'
+  | 'fansly.followers.recheck'
+  // 2026-10-25: a reminder's Hi pressed in a tab of another model.
+  | 'fansly.greet.handover'
   | 'fansly.followers.draft'
   | 'fansly.followers.outcomes'
   | 'fansly.followers.send'
@@ -113,6 +116,10 @@ export function createFanslyNewcomersSource(port: FanslyFollowersPort, origin: s
     onChange: (listener) => port.onChanged((change) => listener(passChangeOf(change))),
     onReconnect: (listener) => port.onReconnect(listener),
     chatHref: (conversationRef) => `${origin}${fanslyChatPath(conversationRef)}`,
+    async handover(pageId, fanRef, cause) {
+      const answer = await port.request('fansly.greet.handover', { pageId, fanRef, cause });
+      return answer.ok && answer.payload.delivered;
+    },
     greeting: greetingSource(port),
   };
 }
@@ -148,6 +155,11 @@ function greetingSource(port: FanslyFollowersPort): PassGreetingSource {
       const { groupId, ...proof } = payload.proof;
       // The group the pass resolved: the conversation, never the fan's id (FS-IDN-6).
       return { ok: true, value: { ...proof, conversationRef: groupId } };
+    },
+    async recheck(passId, fanRef) {
+      const answer = await port.request('fansly.followers.recheck', { passId, fanRef });
+      if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
+      return answer.payload.ok ? { ok: true, value: answer.payload.historyRevision } : { ok: false, failure: failureOf(answer.payload.error) };
     },
     async draft(passId, fanRef, text, generation) {
       const answer = await port.request('fansly.followers.draft', { passId, fanRef, ...(text === undefined ? {} : { text }), ...(generation === undefined ? {} : { generation }) });

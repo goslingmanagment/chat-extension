@@ -58,6 +58,11 @@ export interface NewcomersPassSource {
   onReconnect(listener: () => void): () => void;
   /** «Открыть … ↗» (NF-011): the address of the fan's chat on the site, opened by the person in a new tab; null — none. */
   chatHref(conversationRef: string): string | null;
+  /**
+   * 2026-10-25: «Hi» of a greeting reminder's toast pressed in a tab of another model — `cause` is that click's
+   * `navigate` token: the site brings a tab of the fan's model forward and greets there. True — handed over.
+   */
+  handover?(pageId: number, fanRef: string, cause: HumanCause): Promise<boolean>;
   /** R20 P10c: the card's greeting (FS-NEW-3, FS-NEW-6, FS-NEW-7); absent — the site greets from no card. */
   readonly greeting?: PassGreetingSource;
 }
@@ -128,6 +133,11 @@ export interface PassNativeSend {
 
 export interface PassGreetingSource {
   proof(passId: string, fanRef: string): Promise<SourceAnswer<PassGreetingProof>>;
+  /**
+   * 2026-10-25: the fan's history read again while Hi generates (read-only) — its revision now; a personal message of the
+   * creator's makes the row «Уже писали» (`CG-SEND-PART`). Absent — the site checks only at the send.
+   */
+  recheck?(passId: string, fanRef: string): Promise<SourceAnswer<string>>;
   /** Without `text` — reads the draft; with it — writes it (an empty one clears it). */
   draft(passId: string, fanRef: string, text?: string, generation?: { readonly opId: string; readonly historyRevision: string }): Promise<SourceAnswer<PassDraft>>;
   /**
