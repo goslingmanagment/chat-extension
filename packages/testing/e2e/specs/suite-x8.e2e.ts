@@ -22,7 +22,7 @@ import { PAGE } from '../../src/scenarios/hub';
 import { composerText, historyLoads, pageJournal, pageJournalMark, PANEL, queueAdds, sendsOf, serverSince, typeDraft } from '../support/chat';
 import { useFakeHub } from '../support/fake-hub';
 import { useNetworkTrap } from '../support/network-trap';
-import { ours, oursBox, oursExists, oursText, pressOurs, readOurs, waitOursText } from '../support/ours';
+import { ours, oursExists, oursText, pressOurs, readOurs, waitOursText } from '../support/ours';
 import { dockIs, startShift, type Shift } from '../support/shift';
 import { callStand, chatPath, foreignCalls, openStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
 
@@ -46,6 +46,11 @@ const markingLoads = (entries: readonly ServerJournalEntry[]): ServerJournalEntr
   historyLoads(entries).filter((entry) => !(entry.origin === 'ours' && READ_MARK.test(entry.path ?? '') && entry.detail?.['unreadBefore'] === 0));
 const MEDIA_READ = /^\/api\/v0\/(platforms\/onlyfans\/accounts\/\d+\/(vault\/folders|fans\/\d+\/medias\/stats)|accounts\/\d+\/platforms\/onlyfans\/vault\/media\/release-forms)/;
 const reply = (fan: string): readonly [string, string] => [`Hey you, thanks for writing! @${fan}`, `How was your day? @${fan}`];
+/**
+ * Board.tsx `DOUBLE_CLICK_MS`: a click on a fan's row unfolds the preview at once, and the board brings the row and its
+ * preview into view this long after the click — the row stays under the pointer for a second click.
+ */
+const ROW_REVEAL_MS = 500;
 
 describe('§12 п. 4 on the wired extension — X8: a part sent from a preview by one click, through ChatSpace’s own queue, under the hub’s custody', () => {
   useNetworkTrap();
@@ -53,6 +58,8 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
   let shift: Shift;
   let journalStart = 0;
   let firstTab = '';
+  /** When openPreview pressed the fan's row (the runner's clock, which is the browser's: one machine). */
+  let rowPressedAt = 0;
 
   const openPreview = async (name: string): Promise<void> => {
     if (!(await oursExists('modal', '[aria-label="Spenders"]'))) await browser.keys([...PANEL, 'm']);
@@ -68,6 +75,7 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
       { timeout: 20_000, interval: 100, timeoutMsg: `the board did not narrow to ${name}` },
     );
     await pressOurs('modal', '[data-cg-key^="fan:"]', new RegExp(`^${name}`));
+    rowPressedAt = Date.now();
     await waitOursText('modal', name, `the preview of ${name}`, { selector: '.cg-pv' });
     await ours('modal', '.cg-sp__search input').setValue('');
     await browser.keys(Key.Enter);
@@ -105,6 +113,47 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     return last;
   };
   const pressSendOf = (index: number): Promise<void> => pressOurs('modal', `${part(index)} .cg-pvs__send`, /^Отправить/);
+  /**
+   * A button of the open preview where a pointer will find it: the board has brought the clicked row's preview into
+   * view (ROW_REVEAL_MS after the row's click — the stand's hub answers a Generate well within that), the button is in
+   * view, it has kept its place for several frames of the page, and nothing lies over its centre. Aimed earlier, a
+   * pointer meets the list scrolling under it: on CI a burst came ~500 ms after the row's click, the list moved 170 px
+   * first, and every click fell on the feed above the button.
+   */
+  const restingButton = async (selector: string): Promise<WebdriverIO.Element> => {
+    await browser.pause(Math.max(0, rowPressedAt + ROW_REVEAL_MS - Date.now()));
+    const button = await ours('modal', selector).getElement();
+    const node = button as unknown as HTMLElement;
+    // The list's own scroller and the preview's: only as far as the button needs, so the row stays where the board put it.
+    await browser.execute((element: HTMLElement) => element.scrollIntoView({ block: 'nearest' }), node);
+    const rest = await browser.execute(
+      (element: HTMLElement, frames: number) =>
+        new Promise<string>((resolve) => {
+          let last = '';
+          let still = 0;
+          let left = 300;
+          const tick = (): void => {
+            const box = element.getBoundingClientRect();
+            const place = `${box.x},${box.y},${box.width},${box.height}`;
+            still = element.isConnected && place === last ? still + 1 : 0;
+            last = place;
+            left -= 1;
+            if (still < frames) {
+              if (left > 0) requestAnimationFrame(tick);
+              else resolve(element.isConnected ? `still moving (at ${place})` : 'gone');
+              return;
+            }
+            const hit = (element.getRootNode() as ShadowRoot).elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            resolve(hit !== null && element.contains(hit) ? 'ok' : `under ${hit === null ? 'nothing' : `${hit.tagName.toLowerCase()}.${String(hit.className)}`} at ${place}`);
+          };
+          requestAnimationFrame(tick);
+        }),
+      node,
+      6,
+    );
+    if (rest !== 'ok') throw new Error(`${selector} is not where a pointer can press it: ${rest}`);
+    return button;
+  };
   /** The hub's custody calls for a fan since `mark`: `action:status[:error/reason]`. */
   const custody = async (mark: number, fan: string): Promise<string[]> =>
     callsTo((await hub().journal(mark)).entries, 'clientFanClaim')
@@ -204,25 +253,11 @@ describe('§12 п. 4 on the wired extension — X8: a part sent from a preview b
     await generate(a6);
     // Every «Отправить» rests SEND_PACE_MS after the last click: the burst lands on the button once it is back.
     await waitSend(0, 'available', 'the pause after the last test’s send is over');
-    const send = `${part(0)} .cg-pvs__send`;
-    // X66: the preview unfolds inside the list. Viewport pointer actions, unlike element.click(), do not scroll its button into view.
-    await ours('modal', send).scrollIntoView({ block: 'center' });
-    // The burst goes to fixed viewport coordinates: read them once the list has stopped moving (on a loaded runner the
-    // scroll and the virtual list settle late, and a burst at the old place clicked nothing — the part stayed «available»).
-    let box = await oursBox('modal', send);
-    await browser.waitUntil(
-      async () => {
-        const next = await oursBox('modal', send);
-        const still = next !== null && box !== null && next.x === box.x && next.y === box.y;
-        box = next;
-        return still;
-      },
-      { timeout: 5000, interval: 150, timeoutMsg: 'the send button did not stop moving' },
-    );
-    expect(box).not.toBeNull();
-    const x = Math.round((box?.x ?? 0) + (box?.width ?? 0) / 2);
-    const y = Math.round((box?.y ?? 0) + (box?.height ?? 0) / 2);
-    let burst = browser.action('pointer', { parameters: { pointerType: 'mouse' } }).move({ x, y, origin: 'viewport' });
+    // X66: the preview unfolds inside the list. Pointer actions, unlike element.click(), neither scroll the button into
+    // view nor wait for it to keep still: the burst goes once the list is as it will stay, to the button's centre as the
+    // browser finds it when the pointer moves, and every click after the first lands where the button stood.
+    const button = await restingButton(`${part(0)} .cg-pvs__send`);
+    let burst = browser.action('pointer', { parameters: { pointerType: 'mouse' } }).move({ origin: button });
     for (let click = 0; click < 20; click += 1) burst = burst.down().up();
     await burst.perform();
     await waitSend(0, /^(accepted|sent)$/, 'the part is on its way');
