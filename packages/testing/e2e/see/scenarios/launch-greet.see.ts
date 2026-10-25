@@ -1,5 +1,5 @@
-// launch-greet: the greeting reminder's pictures for 3.0's notes (changes/greet-toast-hi-into-chat.md,
-// changes/greet-reminder-team.md) in the showcase world at 2×.
+// launch-greet: the greeting reminder's pictures in the showcase world at 2× (3.0's note about it,
+// changes/launch-newcomers.md, shows launch.see.ts's launch-greet-toast).
 //
 //   pnpm see launch-greet                — ChatSpace: Hi in «Ждёт приветствия» opens Liam's chat with the greeting in
 //                                          the field, Send left to press;

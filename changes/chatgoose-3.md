@@ -7,8 +7,11 @@ release: 3.0.0
 # ChatGoose 3.0 — одно расширение для OnlyFans и Fansly
 
 Расширение для Fansly, расширение для ChatSpace и приложение ChatGoose Desktop стали одним расширением для
-Firefox. На OnlyFans и Fansly — те же кнопки, клавиши и окна, а всё новое приходит сразу на оба сайта. Ниже —
-что оно умеет.
+Firefox. На OnlyFans и Fansly — одна панель, одни клавиши и одни окна, а новое теперь приходит сразу на оба
+сайта.
+
+Reply, Fix, Hi и Ping над полем ввода, Coach с Recap и Review, Spenders и «Новые» — на месте и работают как
+раньше. Ниже — что появилось нового.
 
 Если ChatGoose у вас уже стоит, версия 3.0 придёт сама в течение дня. Если ещё работает старое расширение для
 Fansly (2.x) или Desktop — их можно удалить: как перейти, написано в конце.
@@ -16,7 +19,10 @@ Fansly (2.x) или Desktop — их можно удалить: как пере�
 Сайт тоже один: [chatgoose.gosling-agency.ru](https://chatgoose.gosling-agency.ru/) — установка, руководство и
 что нового.
 
-![OnlyFans в ChatSpace: Reply пишет ответ частями над полем ввода](launch-reply-onlyfans.png)
+![OnlyFans в ChatSpace: панель ChatGoose над полем ввода, Reply пишет ответ частями](launch-reply-onlyfans.png)
+![Fansly: та же панель и те же клавиши](launch-reply-fansly.png)
+![Coach: вопрос о чате, совет с черновиками и Review](launch-coach.png)
+![«Новые фоловеры» на Fansly: кому ещё не писали и Hi в карточке фана](launch-newcomers.png)
 
 ## Как это устроено
 

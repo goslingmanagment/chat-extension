@@ -56,7 +56,9 @@ chatter's words, who it is for and why, `## Как это устроено` (the
 screenshots from `pnpm see`. The format, the tone and the commands — `changes/README.md`.
 `pnpm check` (`pnpm gates`) fails a `feat`/`fix` PR without a note, unless its description says
 `No chatter note: <why>`. `pnpm release notes` checks the notes, names the next version and writes
-previews of the page and the post to `.cache/notes/`.
+previews of the page and the post to `.cache/notes/`. A released note may be corrected (a typo, an
+inaccuracy), never renamed: the next release republishes the pages, or at once, from a clean `main` —
+`pnpm release pages --confirm <version>` (the pages alone, for the version the feed serves).
 
 **Versions** — the rules for agents:
 
