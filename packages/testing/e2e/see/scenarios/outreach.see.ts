@@ -110,7 +110,7 @@ scenario(
     await s.browser.pause(800);
     await shot(s, 'outreach-chip');
     await s.press(/Рассылка/, 'panel', '.cg-ow-chip');
-    await s.see('modal', 'Версия для', 20_000);
+    await s.browser.waitUntil(async () => (await s.has('modal', '.cg-ow__card')) || (await s.has('modal', '.cg-ow__end')), { timeout: 20_000, interval: 200, timeoutMsg: 'the window did not come back where it was' });
 
     // Every version this window can send, one click each (half a second apart).
     for (let i = 0; i < 12; i += 1) {
