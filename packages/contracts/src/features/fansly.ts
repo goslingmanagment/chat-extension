@@ -59,7 +59,8 @@ const FEATURES = {
   recap: { base: { flags: ['recap'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['dock', 'result-expanded', 'fan-panel'], source: 'hub' },
   coach: { base: { flags: ['coach'], hostCapabilities: [] }, actions: { generate: NOTHING, insert: INSERT }, surfaces: ['coach'], source: 'hub' },
   // `stats`: the statistics and the «waiting» queue of the board; `preview`: the archive feed of a fan's preview.
-  spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview'], source: 'hub', switches: ['stats', 'preview'] },
+  // 2026-10-25: «Рассылка» is the board's own window (its fans, its tiers) and its chip; each version goes by our send.
+  spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview', 'outreach', 'outreach-chip'], source: 'hub', switches: ['stats', 'preview'] },
   // Б17: the list is a pass of the background over Fansly's API; a greeting needs `newcomers` alone (HF-3).
   newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: NOTHING }, surfaces: ['newcomers'], source: 'host-pass' },
   'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub' },
