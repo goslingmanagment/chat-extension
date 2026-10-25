@@ -54,6 +54,14 @@
 // DEFERRED_INSERT_TTL_MS — the longest a Fix may run. A newer Fix click replaces it; a click of anything else never
 // opens one, and a deferred request never takes an ordinary grant or the event in flight.
 //
+// One click goes on later, by design, too: «Hi» of a greeting reminder's toast (2026-10-25, the owner: «по hi нажимая
+// начиналась генерация сообщения сразу и в чате уже оказалось оно»). The click opens «Новые» on the fan's card, which
+// may first wait for the fan's check, then the Hi runs, then the fan's chat opens with the greeting in the site's
+// field — for the person's own send. Its click keeps a DEFERRED GREET grant: one `generate` and one `navigate`, within
+// DEFERRED_GREET_TTL_MS, handed out only by `afterGreet` — the toast's own chain naming the next action of it (the
+// card's Generate, then its «Открыть и вставить» or the preview's), as an ordinary grant of that one action. A newer
+// toast Hi replaces it; it can never insert by itself or send.
+//
 // One human action happens outside this document: a click on our own popup
 // or options page that acts in ChatSpace (`tab.command`, §9.9). The
 // background brings this tab to the front and hands the command over its
@@ -183,7 +191,8 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   InsertNewcomerGreeting: ['navigate'],
   // «Рассылка» of Spenders on Fansly: a row's «Отправить» is a send by this click.
   SendOutreach: ['send'],
-  // 2026-10-24: «Hi» of a greeting reminder's toast opens the fan's card and starts its Hi.
+  // 2026-10-24: «Hi» of a greeting reminder's toast opens the fan's card and starts its Hi; 2026-10-25 — and opens the
+  // chat with it (its deferred greet grant, `afterGreet`).
   GreetNewcomer: ['generate'],
   // 1.47.0: Voice. The chip writes the script when the studio opens over a draft; a preset, «Переписать» and «Новый
   // войс» write one; «Озвучить» and «Проверить» are the paid create (the same request again for «Проверить»); only
@@ -202,6 +211,14 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
 export const GRANT_TTL_MS = 10_000;
 /** X68: how long the Fix a click started may still write its result — the longest a Fix runs, and some room. */
 export const DEFERRED_INSERT_TTL_MS = OP_TIMEOUTS.fix.maxMs + 15_000;
+/**
+ * 2026-10-25: how long «Hi» of a greeting reminder's toast may go on: the card's wait for the fan's check (45 s), the Hi
+ * itself (OP_TIMEOUTS.hi), and room for the reads around them.
+ */
+export const DEFERRED_GREET_TTL_MS = 45_000 + OP_TIMEOUTS.hi.maxMs + 15_000;
+/** The token kinds the toast's Hi goes on with, and the actions of its chain that may take them. */
+const GREET_KINDS: readonly ActionKind[] = ['generate', 'navigate'];
+const GREET_CHAIN: readonly UiAction['type'][] = ['Generate', 'InsertNewcomerGreeting', 'OpenAndInsertPart'];
 /** A kept key is handed over within the dispatcher's own bound (KEPT_KEY_TTL_MS, 5 s); a little room for the hand-over itself. */
 export const KEPT_KEY_MAX_AGE_MS = 6_000;
 /** Open grants kept; more is a stuck controller, the oldest go. */
@@ -221,6 +238,11 @@ export interface GestureGate {
   claim(kind: ActionKind, surface: Surface): GestureRefusal | null;
   /** X68: the one insert token of the last Fix click, for the dock, asked for when that Fix is done. */
   claimDeferred(kind: ActionKind, surface: Surface): GestureRefusal | null;
+  /**
+   * 2026-10-25: the toast's Hi goes on with `action` (its card's Generate, then the chat's «Открыть и вставить»): a grant
+   * of that action's kinds from the Hi's own click, if it has them left; null — opened, else why not.
+   */
+  afterGreet(action: UiAction['type']): GestureRefusal | null;
   /** Hands in an event this gate could not see itself (stopped before `window`'s listeners of this chunk). */
   note(event: Event): void;
   /**
@@ -270,6 +292,8 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
   let batch: BatchGrant | null = null;
   /** X68: the deferred insert of the last Fix click (see the head of this file). */
   let deferred: { readonly gesture: Gesture; readonly at: number } | null = null;
+  /** The toast's Hi of the last such click and the kinds it has left (see the head of this file). */
+  let greet: { readonly gesture: Gesture; readonly at: number; readonly kinds: Set<ActionKind> } | null = null;
   // A synthetic event never replaces the human one in flight (a page script may dispatch its own inside it).
   const note = (event: Event): void => {
     if (event.isTrusted) current = event;
@@ -308,6 +332,20 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       grants = [...grants.filter((grant) => now() - grant.at <= GRANT_TTL_MS), { gesture, kinds: new Set(kinds), at: now() }].slice(-GRANTS_KEPT);
       // A Fix of the open chat's composer: the click on the dock, or a key (⌘I in the field) — never another surface's.
       if (deferInsert && action === 'Generate' && (gesture.via === null || gesture.via === env.mounts.dock.host)) deferred = { gesture, at: now() };
+      if (action === 'GreetNewcomer') greet = { gesture, at: now(), kinds: new Set(GREET_KINDS) };
+      return null;
+    },
+    afterGreet(action) {
+      const grant = greet;
+      const kinds = GRANTED_KINDS[action] ?? [];
+      if (grant === null || !GREET_CHAIN.includes(action) || kinds.length === 0 || !kinds.every((kind) => grant.kinds.has(kind))) return 'not-granted';
+      if (now() - grant.at > DEFERRED_GREET_TTL_MS) {
+        greet = null;
+        return 'expired';
+      }
+      for (const kind of kinds) grant.kinds.delete(kind);
+      if (grant.kinds.size === 0) greet = null;
+      grants = [...grants.filter((open) => now() - open.at <= GRANT_TTL_MS), { gesture: grant.gesture, kinds: new Set(kinds), at: now() }].slice(-GRANTS_KEPT);
       return null;
     },
     claimDeferred(kind, surface) {
@@ -380,6 +418,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       grants = [];
       batch = null;
       deferred = null;
+      greet = null;
     },
   };
 }

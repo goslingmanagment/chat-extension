@@ -300,6 +300,11 @@ export interface PreviewController extends SurfaceController<'preview'> {
   /** A batch started this generation: its end is said by its row, not by a toast. */
   fromBatch(opId: string): boolean;
   /**
+   * 2026-10-25, «Hi» of a greeting reminder's toast: resolves once the operation's result is on its card — true when it
+   * is done, false when it failed, went or did not end within `ms`.
+   */
+  ended(opId: string, ms: number): Promise<boolean>;
+  /**
    * X59 on a hub's «Новые»: the row's own «Отправить» of the fan's greeting — can the result's next part go now by
    * the card's own send, and why the last click on it was refused; null — no part of a «Новые» result waits.
    */
@@ -355,6 +360,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   const batched = new Map<TargetHandle, string>();
   const shadows = new Set<TargetHandle>();
   const batchWaiters = new Map<string, (outcome: BatchOutcome) => void>();
+  /** `ended`: who waits for an operation's result, by operation. */
+  const endWaiters = new Map<string, Set<(ok: boolean) => void>>();
   const batchListeners = new Set<() => void>();
   /** «Рассылка» is open on Spenders (X8 sites only): the rows of its batch send their fan's result. */
   let outreachOn = false;
@@ -1125,6 +1132,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (view.stale?.reason === 'fan-wrote') markFanWrote(track, view.stale.at);
       schedulePrune();
       changedFor(track.handle);
+      const waiters = endWaiters.get(track.opId);
+      endWaiters.delete(track.opId);
+      for (const wake of waiters ?? []) wake(view.state === 'done');
     };
     if (view.state !== 'done' || track.mirror.done !== null || localGate(track, view).ok === false) return apply();
     refreshPreflight(track, view).then(apply, apply);
@@ -2796,6 +2806,20 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       };
     },
     batchStart,
+    ended(opId, ms) {
+      const track = tracks.get(opId);
+      if (disposed || track === undefined) return Promise.resolve(false);
+      if (track.mirror.done !== null) return Promise.resolve(track.mirror.done.state === 'done');
+      return new Promise<boolean>((resolve) => {
+        const wake = (ok: boolean): void => {
+          clock.clearTimer(timer);
+          endWaiters.get(opId)?.delete(wake);
+          resolve(ok);
+        };
+        const timer = clock.setTimer(ms, () => wake(false));
+        endWaiters.set(opId, (endWaiters.get(opId) ?? new Set()).add(wake));
+      });
+    },
     batchLive,
     batchSend,
     setOutreach(on) {
@@ -2854,6 +2878,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       batchListeners.clear();
       for (const settle of [...batchWaiters.values()]) settle({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
       batchWaiters.clear();
+      for (const wake of [...endWaiters.values()].flatMap((waiters) => [...waiters])) wake(false);
+      endWaiters.clear();
       offStore?.();
       draftListeners.clear();
       manualInserts.clear();

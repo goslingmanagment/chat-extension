@@ -16,6 +16,7 @@ import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { ChatRef } from '@cg/contracts/ids';
+import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { HostPort } from '@cg/contracts/host';
@@ -326,6 +327,8 @@ export interface BoardsDock {
 
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
 const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette'];
+/** The toast's Hi on a hub's «Новые» waits this long for its result before the chat opens with it. */
+const GREET_RESULT_WAIT_MS = OP_TIMEOUTS.hi.maxMs + 15_000;
 
 /**
  * Resolves once the boards know whose they are. They are made with the first
@@ -455,26 +458,36 @@ export async function startBoards(
   const offs = controllers.map((controller) => router.register(adopt(controller as unknown as LooseController)));
 
   /**
-   * 2026-10-24: «Hi» of a greeting reminder's toast — «Новые» opens on the fan's card and its Hi starts, under that
-   * one click's `generate` grant. A fan the list does not have yet is read for once; whatever then holds Hi (the fan
-   * was greeted meanwhile) the card says itself.
+   * 2026-10-24: «Hi» of a greeting reminder's toast — «Новые» opens on the fan's card and its Hi starts. 2026-10-25 (the
+   * owner: «по hi нажимая начиналась генерация сообщения сразу и в чате уже оказалось оно»): once the greeting is
+   * written, the fan's chat opens with it in the site's field, for the person's own send. Each step rides the click's
+   * deferred greet grant (action-gate.ts, `afterGreet`). A person who moved on meanwhile — the window closed, another
+   * fan's card — keeps the greeting on the card; whatever then holds Hi (the fan was greeted meanwhile) the card says.
    */
   async function greet(handle: string): Promise<ActionReceipt> {
+    const as = (receipt: ActionReceipt): ActionReceipt => ({ ...receipt, type: 'GreetNewcomer' });
     await router.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
     // 2026-10-25: «Новые» checked by a pass (Fansly) find the fan themselves — the card opens, and the handle Hi starts
-    // on comes back once the fan is checked (within the click's grant); otherwise the card's own Hi is the person's.
+    // on comes back once the fan is checked; otherwise the card's own Hi is the person's.
     if (newcomers.greetCard !== undefined) {
       const hi = await newcomers.greetCard(handle);
-      if (hi === null) return { ok: true, type: 'GreetNewcomer', outcome: 'opened' };
-      // The card's own Hi (NewcomersWindow): one greeting, its options the card's.
+      const onCard = (): boolean => hi !== null && surfaces.current().newcomers && newcomers.getSnapshot({ of: 'newcomers' }).pass?.card?.handle === hi;
+      if (hi === null || !onCard()) return { ok: true, type: 'GreetNewcomer', outcome: 'opened' };
+      // The card's own Hi (NewcomersWindow): one greeting, its options the card's; it resolves with the field written.
+      world.gate.afterGreet('Generate');
       const started = await router.dispatch({ type: 'Generate', targetHandle: hi, feature: 'hi', options: {} });
-      return { ...started, type: 'GreetNewcomer' };
+      if (!started.ok || !onCard() || world.gate.afterGreet('InsertNewcomerGreeting') !== null) return as(started);
+      return as(await router.dispatch({ type: 'InsertNewcomerGreeting', targetHandle: hi }));
     }
     if (newcomers.directory.resolve(handle) === null) await newcomers.refresh();
     const opened = await router.dispatch({ type: 'OpenPreview', targetHandle: handle });
-    if (!opened.ok) return { ...opened, type: 'GreetNewcomer' };
+    if (!opened.ok) return as(opened);
+    world.gate.afterGreet('Generate');
     const started = await router.dispatch({ type: 'Generate', targetHandle: handle, feature: 'hi', options: { variants: 1 } });
-    return { ...started, type: 'GreetNewcomer' };
+    const opId = started.ok ? started.opId : undefined;
+    if (opId === undefined || !(await preview.ended(opId, GREET_RESULT_WAIT_MS))) return as(started);
+    if (surfaces.current().preview.newcomers !== handle || world.gate.afterGreet('OpenAndInsertPart') !== null) return as(started);
+    return as(await router.dispatch({ type: 'OpenAndInsertPart', operationId: opId, variant: 0, part: 0 }));
   }
   offs.push(
     router.register(
