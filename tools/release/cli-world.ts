@@ -10,7 +10,7 @@
 // are files a test writes into the checkout's changes/, with the commit that
 // added each (`World.added`).
 
-import { cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -136,6 +136,25 @@ const buildOf = (version: string): readonly ZipEntry[] => [
 ];
 const BUILD = buildOf(VERSION);
 
+/**
+ * A small site of its own, every page the release checks (site.ts): the tests do not hang on what the real pages say
+ * or show (the 3.0 landing declares its launch and shows the screenshots of its own notes).
+ */
+const page = (title: string, body: string, head = ''): string =>
+  `<!doctype html>\n<html lang="ru">\n<head>\n  <meta charset="utf-8">${head}\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>${title}</title>\n  <link rel="stylesheet" href="site.css">\n</head>\n<body>\n${body}\n</body>\n</html>\n`;
+const nav = '<nav><a href="index.html">Установка</a> <a href="start.html">Как начать</a> <a href="guide.html">Руководство</a> <a href="whats-new.html">Что нового</a> <a href="changelog.html">История версий</a> <a href="privacy.html">О данных</a></nav>';
+const region = (name: string): string => `  <!-- cg:begin ${name} -->\n  <!-- cg:end ${name} -->`;
+export const FIXTURE_SITE: ReadonlyMap<string, string> = new Map([
+  ['index.html', page('ChatGoose', `${nav}\n<h1>ChatGoose</h1>\n<p><a data-cg="xpi" href="firefox/chatgoose-0.0.0.xpi">Установить в Firefox</a> Версия <b data-cg="version">0.0.0</b> · Firefox <b data-cg="firefox">142</b></p>`)],
+  ['start.html', page('Как начать — ChatGoose', `${nav}\n<h1>Как начать</h1>`)],
+  ['guide.html', page('Руководство — ChatGoose', `${nav}\n<h1>Руководство</h1>`)],
+  ['whats-new.html', page('Что нового — ChatGoose', `${nav}\n<h1>Что нового</h1>\n${region('whats-new')}\n<p>ChatGoose <span data-cg="version">0.0.0</span></p>`)],
+  ['changelog.html', page('История версий — ChatGoose', `${nav}\n<h1>История версий</h1>\n${region('changelog')}`)],
+  ['privacy.html', page('О данных — ChatGoose', `${nav}\n<h1>О данных</h1>`)],
+  ['404.html', page('Страницы нет — ChatGoose', `${nav}\n<h1>Такой страницы нет</h1>`, '\n  <base href="/">')],
+  ['site.css', 'body { margin: 0; }\n'],
+]);
+
 const OUTWARD_RE = /^(?:git (?:fetch|ls-remote|push|tag )|ssh |scp |web-ext |gh )/;
 
 export function makeHarness(): Harness {
@@ -147,7 +166,7 @@ export function makeHarness(): Harness {
     writeFileSync(join(checkout, relative), data);
   };
   for (const file of [VERSION_FILE, CHANGELOG_FILE]) put(file, readFileSync(join(REPO_ROOT, file)));
-  cpSync(join(REPO_ROOT, SITE_DIR), join(checkout, SITE_DIR), { recursive: true });
+  for (const [name, text] of FIXTURE_SITE) put(join(SITE_DIR, name), text);
   put('vendor/kernel-sdk/kernel-sdk.vendor.json', JSON.stringify({ contractHash: SDK_HASH, sourceCommit: SDK_COMMIT }));
   put('vendor/chatgoose-hotkeys/chatgoose-hotkeys.vendor.json', JSON.stringify({ sha256: HOTKEYS }));
   put('tests/vendor-pins.json', JSON.stringify({ kernelSdk: { contractHash: SDK_HASH, sourceCommit: SDK_COMMIT }, chatgooseHotkeys: { sha256: HOTKEYS } }));
