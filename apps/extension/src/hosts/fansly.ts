@@ -33,12 +33,13 @@ export const FANSLY_TEST: TestHostConfig = { pageMatches: FANSLY_STAND_MATCHES }
  * Fansly page loads with MAIN's first frame. With the dock (R20 P7d) comes the application: the shared entries the
  * tab's application loads — built again from the same source, cut by the same plan of layers as ChatSpace's (the
  * dock, the schemas, the protocol, the application, the AI and navigation controllers) — with Fansly's own `tab-app`
- * (the application's half of its adapter) and its texts (the shared catalog with Fansly's codes). The surfaces
- * ChatSpace alone has — its palette with its cached chats, the preview window of X8, its «Новые» of the hub — are not
- * in it; Fansly's panels and «Новые» come with their work packages: its AI policy (`ai-fansly`, P8b1) and the vault's
- * panel (P13b) are here, and with the vault Fansly's `tab-protocol`, which lets Fansly's own types through to the
- * site's code; «Новые» of the background's pass (P10a) are Fansly's own `boards` and `newcomers`, under the shared
- * names the tab asks for.
+ * (the application's half of its adapter) and its texts (the shared catalog with Fansly's codes). What ChatSpace alone
+ * has — the send of X8 from a preview, its «Новые» of the hub — is not in it. The palette ⌘K is the shared window
+ * (2026-10-26), over the hub's rows of Spenders, with the preview window of its «Онлайн» (a group only ChatSpace's own
+ * list fills so far). Fansly's
+ * panels and «Новые» come with their work packages: its AI policy (`ai-fansly`, P8b1) and the vault's panel (P13b) are
+ * here, and with the vault Fansly's `tab-protocol`, which lets Fansly's own types through to the site's code; «Новые»
+ * of the background's pass (P10a) are Fansly's own `boards` and `newcomers`, under the shared names the tab asks for.
  */
 export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   'bridge-validation': 'fansly/bridge-validation.ts',
@@ -64,6 +65,9 @@ export const FANSLY_LAZY_ENTRIES: Readonly<Record<string, string>> = {
   dialogs: 'entries/dialogs.ts',
   spenders: 'entries/spenders.ts',
   'fan-panel': 'entries/fan-panel.ts',
+  // The palette ⌘K and its preview window (2026-10-26): the shared ones.
+  palette: 'entries/palette.ts',
+  preview: 'entries/preview.ts',
   // «Рассылка»: the shared window, its chip above the page's own launcher.
   outreach: 'fansly/outreach.ts',
   // Fansly's AI policy (§1.6, §3.1): the proof of a start from MAIN's snapshot, loaded with the dock (R20 P8b1).

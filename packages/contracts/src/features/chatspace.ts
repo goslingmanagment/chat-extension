@@ -2,8 +2,7 @@
 // §1.4): what each feature needs on ChatSpace — the owner's switches of the
 // page, the capabilities of ChatSpace's contract report, where it is shown and
 // where its data come from — and the features only ChatSpace has: sending from
-// a preview through ChatSpace's own queue (X8), our navigation between chats,
-// the palette.
+// a preview through ChatSpace's own queue (X8) and our navigation between chats.
 //
 // A site module: imported by its subpath only (`@cg/contracts/features/chatspace`),
 // by ChatSpace's own composition roots and by the roots that serve every site
@@ -65,6 +64,8 @@ const FEATURES = {
   // 1.21.0 (decision X48): who sent each message, told to the hub. The send is seen as `human-send` sees it (the page's
   // own `wsTap`), and the hub must record it (`send-attribution-v1`). No switch of its own: the owner asked for it.
   'send-attribution': { base: { flags: ['wsTap'], hostCapabilities: ['sendObserve'], clientNeeds: ['send-attribution-v1'] }, actions: {}, surfaces: [], source: 'page' },
+  // The window itself needs no switch; the chats it lists are ChatSpace's loaded lists and the hub's rows, opened by `navigation`.
+  palette: { base: NOTHING, actions: {}, surfaces: ['palette'], source: 'page' },
 
   // ── only ChatSpace ──
   // `wsTap`: the passive freshness of the chat a part is sent to (CG-SEND-FRESHNESS without it); the AI mark of the send.
@@ -77,8 +78,6 @@ const FEATURES = {
     switches: ['wsTap', 'previewSendMarkAiGenerated'],
   },
   navigation: { kind: 'host-action', base: { flags: ['navigation'], hostCapabilities: ['navigate'] }, actions: {}, surfaces: ['quick-jump'], source: 'page' },
-  // The window itself needs no switch; the chats it lists are opened by `navigation`.
-  palette: { kind: 'panel', base: NOTHING, actions: {}, surfaces: ['palette'], source: 'page' },
 } as const;
 
 export const CHATSPACE_FEATURES: SiteFeatures<typeof FEATURES, ChatSpaceFeatureFlag> = FEATURES;

@@ -5,12 +5,14 @@
 // navigation spends a one-time `navigate` token the background issued for it
 // (§14). The order comes from the list ChatSpace already holds; nothing is
 // loaded for navigation, and a chat is never opened by a timer, a toast or a
-// finished generation.
+// finished generation. A site without our navigation (Fansly) has the palette
+// alone: its «перейти» opens the chat the way the site's board opens a fan's.
 
 import { type CgCode } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
 import { type FeatureSlice } from '@cg/contracts/features/types';
-import { type HostPort, type NavigationItem } from '@cg/contracts/host';
+import { type HostPort, type NavigationItem, type NavigationReceipt } from '@cg/contracts/host';
+import { type ChatRef } from '@cg/contracts/ids';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 import { type ActionReceipt, type I18n, type NavigationTarget, type ToastPort, type UiAction } from '@cg/contracts/vm';
 
@@ -96,11 +98,18 @@ export interface NavigationControllerDeps {
   readonly toasts?: ToastPort;
   readonly cause?: CauseHint;
   /**
-   * The site's slice of the feature manifest (R20 §1.4): a window or a walk whose feature the site has not — the
-   * palette and our chat navigation are ChatSpace's — opens nothing, quietly, as a key the reference does not list
-   * (its chunk is not in the site's build either). Absent — every one is there.
+   * The site's slice of the feature manifest (R20 §1.4): a window or a walk whose feature the site has not — our chat
+   * navigation is ChatSpace's — opens nothing, quietly, as a key the reference does not list (its chunk is not in the
+   * site's build either). Absent — every one is there.
    */
   readonly features?: FeatureSlice;
+  /**
+   * 2026-10-26: how a chat chosen in the palette opens on a site without our navigation (Fansly, where the hub has no
+   * `navigation` switch): as the site's board opens a fan's chat — the board's switch on the page, the board's token
+   * (decision X13; boards/navigate.ts). `conversationRef` — the chat's conversation when it is not the fan. Absent —
+   * our navigation's way there too.
+   */
+  readonly board?: (chat: ChatRef, conversationRef: string | undefined) => Promise<NavigationReceipt>;
 }
 
 export interface NavigationController extends SurfaceController {
@@ -177,6 +186,26 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     }
   };
 
+  /**
+   * A chat chosen in the palette on a site without our navigation: the board's way (`deps.board`) — its switch on the
+   * page, its token — never `navigation`. One at a time, as ours; the windows that led to it close once it is open.
+   */
+  const pick = async (board: NonNullable<NavigationControllerDeps['board']>, target: { readonly hostAccountId: string; readonly platformFanId: string; readonly conversationRef?: string }): Promise<ActionReceipt> => {
+    if (inFlight) return done('noop');
+    inFlight = true;
+    try {
+      const receipt = await board({ host: host.kind, hostAccountId: target.hostAccountId, platformFanId: target.platformFanId }, target.conversationRef);
+      if (receipt.state !== 'navigated') return fail(receipt.code);
+      overlays.set('palette', false);
+      overlays.set('quick-jump', false);
+      return done('opened');
+    } catch {
+      return fail('CG-NAV-FAILED');
+    } finally {
+      inFlight = false;
+    }
+  };
+
   const walk = async (to: Extract<NavigationTarget, { kind: 'chat-step' | 'next-unread' | 'chat-slot' }>, cause: 'click' | 'key'): Promise<ActionReceipt> => {
     const accountId = currentAccountId();
     if ((await deps.ownerSwitch?.(accountId)) === false) return fail('CG-FEATURE-DISABLED');
@@ -229,7 +258,11 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     }
     if (to.kind === 'chat') {
       const chat = parseChatHandle(to.targetHandle);
-      return chat === null ? null : open(chat, cause);
+      if (chat === null) return null;
+      // 2026-10-26: a row of the palette (while it is open every action is one of its rows: the composition's
+      // `closesPalette`) on a site without our navigation goes the board's way.
+      if (deps.board !== undefined && overlays.isOpen('palette') && !rowPresent('chat-next', deps.features)) return pick(deps.board, chat);
+      return open(chat, cause);
     }
     if (to.kind === 'account') {
       const hostAccountId = parseAccountHandle(to.accountHandle);

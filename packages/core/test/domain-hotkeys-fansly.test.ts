@@ -16,7 +16,7 @@ const key = (command: DispatcherCommandId, row: 'scheme' | 'extra' | 'plain' = '
 });
 
 /** Fansly's rules as its adapter gives them (apps/extension/src/entrypoints/fansly.ts). */
-const FANSLY: SiteKeyRules = { lenient: true, absent: ['palette', 'chat-next', 'chat-previous', 'next-unread', 'quick-jump'] };
+const FANSLY: SiteKeyRules = { lenient: true, absent: ['chat-next', 'chat-previous', 'next-unread', 'quick-jump'] };
 
 const BASE: KeyContext = { composing: false, nativeModal: false, focus: 'page', route: 'chat', overlays: [], dockSheet: false, combo: true };
 
@@ -47,7 +47,8 @@ describe('the key policy on Fansly', () => {
       ['⌘⇧O over the window', key('tone'), { overlays: ['result-expanded'] }, 'refuse overlay-open', 'refuse overlay-open'],
       ['⌘⇧H', key('help'), {}, 'run help', 'refuse help-removed'],
       ['J outside a field', key('chat-next', 'plain'), { combo: false }, 'pass', 'run chat-next'],
-      ['⌘K', key('palette', 'extra'), {}, 'pass', 'run palette'],
+      // 2026-10-26: the palette is on both sites; J/K and ⌘U stay ChatSpace's alone.
+      ['⌘K', key('palette', 'extra'), {}, 'run palette', 'run palette'],
       ['⌘U in the message field', key('next-unread', 'extra'), { focus: 'composer' }, 'pass', 'refuse in-field'],
     ];
     for (const [what, verdict, page, fansly, chatspace] of cases) {

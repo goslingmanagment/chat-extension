@@ -1223,6 +1223,7 @@ export const EN: I18nCatalog<'en'> = {
   'palette.foot.allKeys': 'all shortcuts',
   'palette.partial': 'Some lists are not loaded: not every chat is found.',
   'palette.foot.chats': { one: 'Chats: Spenders and New, {n} fan', other: 'Chats: Spenders and New, {n} fans' },
+  'palette.foot.spenders': { one: 'Chats: Spenders, {n} fan', other: 'Chats: Spenders, {n} fans' },
   'quickJump.title': 'Quick jump',
   'quickJump.empty': 'No loaded chats to jump to',
   'quickJump.unread': { one: '{n} new', other: '{n} new' },

@@ -22,7 +22,7 @@
 
 import type { CgCode, CgErrorView, I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import type { HostContractReport, HostContractShape, HostPort } from '@cg/contracts/host';
+import type { HostContractReport, HostContractShape, HostPort, NavigationReceipt } from '@cg/contracts/host';
 import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
 import { DEFAULT_LOCALE, type Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
@@ -438,7 +438,12 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     if (!receipt.ok && !disposed) say(receipt.code, 'palette.online', null);
     return receipt;
   };
-  const navigation = startNavigation(world, navigationChunk, catalog, ai, { coach: openCoach, preview: openOnline });
+  /**
+   * 2026-10-26: a chat of the palette on a site without our navigation (Fansly): the Spenders board's way, with the
+   * boards. A refusal is the palette's row's toast (client.ts paletteReceiptToast).
+   */
+  const openChosen = (chat: ChatRef, conversationRef: string | undefined): Promise<NavigationReceipt> => ensureBoards().then((started) => started.openChat(chat, conversationRef));
+  const navigation = startNavigation(world, navigationChunk, catalog, ai, { coach: openCoach, preview: openOnline, chat: openChosen });
   offs.push(() => navigation.dispose());
   offs.push(router.register(adopt(dockChatBridge(aiChunk, navigation.navigation, gate))));
 

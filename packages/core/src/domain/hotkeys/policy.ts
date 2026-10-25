@@ -183,7 +183,7 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
   const ourContext = inChat || context.overlays.length > 0;
 
   if (verdict.kind === 'swallow') return ourContext ? claim(null) : PASS;
-  // A row of a feature the site has not (ChatSpace's palette and chat walk on Fansly): the page's key, as if nothing of ours matched it.
+  // A row of a feature the site has not (ChatSpace's chat walk on Fansly): the page's key, as if nothing of ours matched it.
   if (!servesRow(verdict.command, context.rules)) return decideUnmatched(context);
   const lenient = context.rules?.lenient === true;
 

@@ -453,7 +453,8 @@ export const UI_PLURAL_KEYS = [
   'spenders.headOf',
   'fanPanel.footer', 'fanPanel.footerCoverage',
   'coach.archiveLag', 'coach.recap.none',
-  'palette.foot.chats',
+  // 2026-10-26: a site whose «Новые» are not the hub's list (Fansly): the palette looked in Spenders alone.
+  'palette.foot.chats', 'palette.foot.spenders',
   'quickJump.unread',
   'settings.status.needActions', 'settings.status.warnings', 'settings.status.row.quotaLeft', 'settings.status.row.runningCount',
   // 1.30.0 (X53)
