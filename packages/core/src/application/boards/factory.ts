@@ -11,6 +11,7 @@ import { type ActionReceipt, type I18n } from '@cg/contracts/vm';
 import { type BoardHandover } from '../board-handover';
 import { createFanPanelController, type FanPanelController } from '../fanpanel/controller';
 import { createNewcomersController, type NewcomersController } from '../newcomers/controller';
+import { createOnlineController, type OnlineController } from '../online/controller';
 import { createOutreachController, type OutreachController } from '../outreach/controller';
 import { createPreviewController, type PreviewController, type PreviewControllerDeps } from '../preview/controller';
 import { createPaletteDirectory, openOnlinePreview, type OnlineChat, type PaletteDirectory } from '../preview/palette';
@@ -62,6 +63,8 @@ export interface BoardsControllers {
   readonly newcomers: NewcomersController;
   /** «Рассылка»: each fan's version goes by the fan's card's own send (X8), as on ChatSpace. */
   readonly outreach: OutreachController;
+  /** «Онлайн»: who of the page is online and why to write now, one click per fan (the card's own send, X8). */
+  readonly online: OnlineController;
   readonly fanPanel: FanPanelController;
   /** The fans ChatSpace shows online, for the palette's group (CS-030). */
   readonly palette: PaletteDirectory;
@@ -117,6 +120,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     draftOf: (pageId, fanRef) => late.preview?.draftOf('newcomers', pageId, fanRef) ?? null,
   });
   const outreach = createOutreachController({ rpc, i18n, clock, context, surfaces, board: spenders.outreachBoard });
+  const online = createOnlineController({ rpc, i18n, clock, context, surfaces, navigator });
   const rowOf = (pageId: number, fanRef: string) => spenders.row(pageId, fanRef);
   const rowsChanged = (listener: () => void): (() => void) => spenders.directory.subscribe(listener);
   const palette = createPaletteDirectory({ host, context, rowOf, rowsChanged });
@@ -129,7 +133,7 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
     context,
     surfaces,
     navigator,
-    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette, outreach: outreach.directory },
+    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette, outreach: outreach.directory, online: online.directory },
     greeting: newcomers.greeting,
     sender: deps.sender ?? null,
     drafts: deps.drafts ?? null,
@@ -144,15 +148,17 @@ export function createBoardsControllers(deps: BoardsDeps): BoardsControllers {
   spenders.attachBatch(preview);
   newcomers.attachBatch?.(preview);
   outreach.attachBatch(preview);
+  online.attachBatch(preview);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = createFanPanelController({ rpc, host, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(deps.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
-  const controllers: readonly SurfaceController[] = [preview, spenders, newcomers, fanPanel, outreach] as readonly SurfaceController[];
+  const controllers: readonly SurfaceController[] = [preview, spenders, newcomers, fanPanel, outreach, online] as readonly SurfaceController[];
   return {
     spenders,
     preview,
     newcomers,
     outreach,
+    online,
     fanPanel,
     palette,
     openOnline: (chat, shown) => openOnlinePreview(palette, preview, i18n, chat, shown),

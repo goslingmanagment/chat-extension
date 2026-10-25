@@ -437,10 +437,10 @@ export const UiActionSchema = z.discriminatedUnion('type', [
     refresh: z.optional(z.literal(true)),
   }),
   /**
-   * 1.65.0: a fan of «Онлайн» chosen — a click on the row, J / K: their card opens and, where the AI writes, their text is
-   * written by this click. Nothing is sent.
+   * 1.65.0: a fan of «Онлайн» chosen — a click on the row, or J / K (`keys`: the card follows once the keys stop): their
+   * card opens and, where the AI writes, their text and the next fan's are written by this click. Nothing is sent.
    */
-  act('SelectOnline', { targetHandle: HandleSchema }),
+  act('SelectOnline', { targetHandle: HandleSchema, keys: z.optional(z.literal(true)) }),
   /**
    * 1.65.0: «Отправить →» of a fan of «Онлайн»: the text, one click, one message, one attempt; the next fan's card opens and
    * its text is written by the same click. `anyway` passes the card's warning («Отправить всё равно»).

@@ -17,18 +17,20 @@ export interface SurfacesState {
   readonly outreach: boolean;
   /** «Рассылка» folded into its chip in the page's corner: its outreach goes on while the person works in the chats. */
   readonly outreachChip: boolean;
+  /** 1.65.0: the window of «Онлайн». */
+  readonly online: boolean;
   readonly fanPanel: boolean;
   /** The fan each preview shows; null — closed. */
   readonly preview: Readonly<Record<PreviewSource, TargetHandle | null>>;
 }
 
-const NO_PREVIEW: SurfacesState['preview'] = { spenders: null, newcomers: null, palette: null, outreach: null };
-const CLOSED: SurfacesState = { spenders: false, newcomers: false, outreach: false, outreachChip: false, fanPanel: false, preview: NO_PREVIEW };
-type List = 'spenders' | 'newcomers' | 'outreach';
-const LISTS: readonly List[] = ['spenders', 'newcomers', 'outreach'];
+const NO_PREVIEW: SurfacesState['preview'] = { spenders: null, newcomers: null, palette: null, outreach: null, online: null };
+const CLOSED: SurfacesState = { spenders: false, newcomers: false, outreach: false, outreachChip: false, online: false, fanPanel: false, preview: NO_PREVIEW };
+type List = 'spenders' | 'newcomers' | 'outreach' | 'online';
+const LISTS: readonly List[] = ['spenders', 'newcomers', 'outreach', 'online'];
 
 /**
- * Open state of the R12 overlays. The lists — Spenders, «Новые», «Рассылка» — are
+ * Open state of the R12 overlays. The lists — Spenders, «Новые», «Рассылка», «Онлайн» — are
  * one window at a time: opening one closes the others with their previews. The
  * palette's preview (CS-030) is a window of its own and one of them too: it
  * closes the lists, and a list closes it. «Рассылка» may fold into a chip that
@@ -57,11 +59,13 @@ export class Surfaces {
       next.newcomers === previous.newcomers &&
       next.outreach === previous.outreach &&
       next.outreachChip === previous.outreachChip &&
+      next.online === previous.online &&
       next.fanPanel === previous.fanPanel &&
       next.preview.spenders === previous.preview.spenders &&
       next.preview.newcomers === previous.preview.newcomers &&
       next.preview.palette === previous.preview.palette &&
-      next.preview.outreach === previous.preview.outreach
+      next.preview.outreach === previous.preview.outreach &&
+      next.preview.online === previous.preview.online
     ) {
       return;
     }
@@ -78,7 +82,7 @@ export class Surfaces {
     // One list at a time: the others close with their previews, and so does the palette's.
     const preview = { ...s.preview, palette: null };
     for (const other of LISTS) if (other !== list) preview[other] = null;
-    this.set({ ...s, spenders: list === 'spenders', newcomers: list === 'newcomers', outreach: list === 'outreach', preview });
+    this.set({ ...s, spenders: list === 'spenders', newcomers: list === 'newcomers', outreach: list === 'outreach', online: list === 'online', preview });
   }
 
   /** «Свернуть» of «Рассылка» and back: the chip in the page's corner. */
@@ -93,7 +97,7 @@ export class Surfaces {
   setPreview(source: PreviewSource, handle: TargetHandle | null): void {
     const s = this.state;
     // The palette's preview opens in its own window: the lists and their previews close.
-    if (source === 'palette' && handle !== null) this.set({ ...s, spenders: false, newcomers: false, outreach: false, preview: { ...NO_PREVIEW, palette: handle } });
+    if (source === 'palette' && handle !== null) this.set({ ...s, spenders: false, newcomers: false, outreach: false, online: false, preview: { ...NO_PREVIEW, palette: handle } });
     else this.set({ ...s, preview: { ...s.preview, [source]: handle } });
   }
 
@@ -103,7 +107,7 @@ export class Surfaces {
    */
   closeBoards(): void {
     const s = this.state;
-    this.set({ ...s, spenders: false, newcomers: false, outreach: false, outreachChip: s.outreachChip || s.outreach, preview: NO_PREVIEW });
+    this.set({ ...s, spenders: false, newcomers: false, outreach: false, online: false, outreachChip: s.outreachChip || s.outreach, preview: NO_PREVIEW });
   }
 
   closeAll(): void {

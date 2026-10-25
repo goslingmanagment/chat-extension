@@ -292,7 +292,7 @@ export interface OutreachCardRow {
 /** What a list's batch asks of the preview (its controller, bound late: the preview is made after the lists). */
 export interface BatchPreviewPort {
   /** `outreach` — «Рассылка»: a Fix of the common text made personal for the fan (the card's draft stays as it is). */
-  batchStart(source: 'spenders' | 'newcomers' | 'outreach', handle: string, feature: 'reply' | 'ping' | 'hi' | 'fix', outreach?: { readonly draft: string }): Promise<BatchOutcome>;
+  batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online', handle: string, feature: 'reply' | 'ping' | 'hi' | 'fix', outreach?: { readonly draft: string }): Promise<BatchOutcome>;
   batchLive(handle: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** X59 on a hub's «Новые»: the row's own «Отправить» of the fan's greeting; null — no part waits (absent — none here). */
   batchSend?(handle: string): NewcomerRowSendVM | null;
@@ -310,6 +310,8 @@ export interface BatchPreviewPort {
   outreachEdit?(handle: string, text: string | null): boolean;
   /** What these fans got of these media, as the site's vault says (bought, sent unbought, free); null — the site cannot tell. */
   outreachStates?(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
+  /** «Онлайн»: a text of the team's guide becomes the fan's open card's result, for its own send (X8); false — not now. */
+  onlineText?(handle: string, text: string): Promise<boolean>;
   onBatch(listener: () => void): () => void;
 }
 

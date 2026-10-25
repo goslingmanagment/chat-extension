@@ -101,6 +101,14 @@ const PATHS = {
       <path d="M2 13.2c.5-2.4 2.2-3.8 4.4-3.8s3.9 1.4 4.4 3.8M12.6 4.8v4.4M10.4 7h4.4" />
     </>
   ),
+  /** «Онлайн» (1.65.0): a fan with the green dot of presence. */
+  online: (
+    <>
+      <circle cx="6.4" cy="5.6" r="2.6" />
+      <path d="M2 13.2c.5-2.4 2.2-3.8 4.4-3.8s3.9 1.4 4.4 3.8" />
+      <circle cx="12.4" cy="5.8" r="1.7" fill="currentColor" stroke="none" />
+    </>
+  ),
   /** Voice (1.47.0): a microphone on its stand. */
   mic: (
     <>

@@ -16,7 +16,7 @@
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type TargetHandle } from './selectors';
 import { type DataStamp, type VmView } from './view';
-import { type OutreachSendVM, type OutreachWarningVM } from './outreach';
+import { type OutreachMediaVM, type OutreachSendVM, type OutreachWarningVM } from './outreach';
 
 /** «К разбору» — the fans to write to, not done yet; «Все онлайн» — everyone online, the set aside and the done too. */
 export const ONLINE_TABS = ['todo', 'all'] as const;
@@ -42,8 +42,8 @@ export const ONLINE_ACTS = ['reply', 'hi', 'ping', 'template', 'none'] as const;
 export type OnlineAct = (typeof ONLINE_ACTS)[number];
 
 /**
- * How fresh the fan's presence is: `now` — active within 10 minutes, or online by the platform's own state; `fading` —
- * 10 to 30 minutes ago; `gone` — longer.
+ * How fresh the fan's presence is: `now` — the site itself shows the fan online, or active within 10 minutes; `fading` —
+ * 10 to 30 minutes ago, or online by OnlyFansAPI's state (its «offline» comes ~30 minutes late); `gone` — longer.
  */
 export type OnlinePresence = 'now' | 'fading' | 'gone';
 
@@ -96,8 +96,10 @@ export interface OnlineRowVM {
   readonly lifetime: MoneyMills | null;
   /** The fan's last activity. */
   readonly seenAt: IsoTimestamp | null;
-  /** Online now by the platform's own state, since this moment (OnlyFans). */
+  /** Online now by OnlyFansAPI's state, since this moment (OnlyFans): «зашёл N мин назад». */
   readonly onlineSince: IsoTimestamp | null;
+  /** The site itself shows the fan online right now (ChatSpace's own dot): «в сети». */
+  readonly live: boolean;
   readonly presence: OnlinePresence;
   readonly reason: OnlineReasonVM;
   readonly aside: OnlineAsideVM | null;
@@ -128,14 +130,18 @@ export interface OnlineCardVM {
   readonly last30: MoneyMills | null;
   readonly seenAt: IsoTimestamp | null;
   readonly onlineSince: IsoTimestamp | null;
+  readonly live: boolean;
   readonly presence: OnlinePresence;
   /** The subscription as the hub knows it; null — not a subscriber now. */
   readonly subscription: { readonly startedAt: IsoTimestamp | null; readonly endsAt: IsoTimestamp | null; readonly autoRenew: boolean | null } | null;
   readonly reason: OnlineReasonVM;
   readonly aside: OnlineAsideVM | null;
   readonly act: OnlineAct;
-  /** A text of the team's guide: its id, its group (A — talked before, B — never wrote), whether the fan's name stands in it. */
-  readonly template: { readonly id: string; readonly group: 'a' | 'b'; readonly named: boolean } | null;
+  /**
+   * A text of the team's guide: its id, its group (A — talked before, B — never wrote), whether the fan's name stands in
+   * it in place of «love» (null — the text has no «love»).
+   */
+  readonly template: { readonly id: string; readonly group: 'a' | 'b'; readonly named: boolean | null; readonly greeting: string | null } | null;
   readonly state: OnlineFanState;
   readonly version: string | null;
   readonly edited: boolean;
@@ -147,6 +153,8 @@ export interface OnlineCardVM {
   readonly write: boolean;
   readonly send: OutreachSendVM | null;
   readonly warning: OutreachWarningVM | null;
+  /** What goes with the text: media the person picked for the fan on another card of theirs; null — the text alone. */
+  readonly media: OutreachMediaVM | null;
   /** The archive's time the text was written by: «по архиву на 19:12». */
   readonly archiveAt: IsoTimestamp | null;
   readonly sentAt: IsoTimestamp | null;
@@ -190,6 +198,8 @@ export interface OnlineWindowVM {
   /** Where «who is online» comes from on this site: OnlyFansAPI through the hub, or the Fansly page itself. */
   readonly source: 'onlyfans' | 'fansly';
   readonly minutes: OnlinePeriod;
+  /** «Зашли за»'s choices with how many fans each holds now. */
+  readonly periods: readonly { readonly minutes: OnlinePeriod; readonly count: number }[];
   readonly tab: OnlineTab;
   readonly tabs: { readonly todo: number; readonly all: number };
   readonly query: string;
