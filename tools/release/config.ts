@@ -85,13 +85,6 @@ export const recordNameOf = (xpiFile: string): string => `${xpiFile.replace(/\.x
 /** The record of a version signed now. */
 export const recordName = (version: string): string => recordNameOf(signedXpiName(version));
 
-/**
- * The site for chatters: the folder of `SITE_BASE`, served at the root of its own host since 3.0 (the pages under
- * `SITE_BASE` redirect there; the feed and its XPIs stay where the manifest looks for them). The post and its buttons
- * point here.
- */
-export const PUBLIC_SITE = 'https://chatgoose.gosling-agency.ru/';
-
 /** Environment variables the outward steps read. Values never go to the repository, a log or a command line. */
 export const ENV = {
   /** AMO API credentials, read by web-ext itself (JWT issuer and JWT secret). */
