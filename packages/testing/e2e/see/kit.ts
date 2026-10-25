@@ -67,7 +67,8 @@ export const SEE_AI_TEXTS: Readonly<Record<string, string>> = {
 
 /**
  * The same shift in the showcase world (`--showcase`, src/showcase.ts): the open chat's fan is Jamie, back from a trip,
- * and Hi introduces the page's own model — Mia Rose on OnlyFans, Sofia Lane on Fansly. Everything else is the mockup's.
+ * and Hi introduces the page's own model — Mia Rose on OnlyFans, Sofia Lane on Fansly. Recap and Coach speak Russian,
+ * as they do to the team's chatters; what goes to a fan (drafts, Hi, Reply) stays English.
  */
 export function showcaseAiTexts(site: Site): Readonly<Record<string, string>> {
   const model = site === 'fansly' ? 'Sofia' : 'Mia';
@@ -75,7 +76,9 @@ export function showcaseAiTexts(site: Site): Readonly<Record<string, string>> {
     ...SEE_AI_TEXTS,
     'hi-greeting': `hey you 👋 so glad you’re here! tell me one thing about your day [VARIANT] welcome, handsome ☺️ I was hoping you’d come by — what brought you to me? [VARIANT] hi! I’m ${model} 💛 I read every message myself, so say hi back`,
     'voice-script': '[warmly] Hey you… welcome home, traveler. I missed you.',
-    'fan-summary': '## Who he is\nJamie, 34, flies a lot for work. Answers in the evening, Chicago time.\n\n## What he bought\n- the «Morning» set for $25, yesterday\n- two paid messages at $12 last week\n\n## What he answers to\n- questions about trips and coffee\n- short messages, no pressure\n\n## What to avoid\n- long texts and discounts in the first message',
+    'fan-summary': '## Кто он\nJamie, 34, часто летает по работе. Отвечает по вечерам, по времени Чикаго.\n\n## Что покупал\n- сет «Morning» за $25, вчера\n- два платных сообщения по $12 на прошлой неделе\n\n## На что отвечает\n- вопросы про поездки и кофе\n- короткие сообщения без давления\n\n## Чего избегать\n- длинных текстов и скидок в первом сообщении',
+    'coach-chat':
+      'Да, но не первым сообщением. Про сет он спросил сам — зацепитесь за это: сначала про полёт, потом тизер.\n\n```draft\nhow was the flight, my traveler? ☀️ [NEXT] you remembered the set 🙈 there is a second part… even cuter. want a little peek first?\n```',
   };
 }
 

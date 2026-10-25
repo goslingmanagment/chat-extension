@@ -1,6 +1,6 @@
 // launch: ChatGoose 3.0's pictures for the landing page and the first post to chatters — the showcase world at 2×.
 //
-//   pnpm see launch                — on ChatSpace (OnlyFans): Reply, Coach, Recap, Voice, «Память», «Очередь», the popup,
+//   pnpm see launch                — on ChatSpace (OnlyFans): Reply, Recap, Coach, Voice, «Память», «Очередь», the popup,
 //                                    «Статус», and «Включить Fansly» as a fresh install sees it;
 //   pnpm see launch --site fansly  — on Fansly: Reply, Spenders and a fan's preview, «Новые фоловеры», «Ждёт приветствия».
 //
@@ -159,19 +159,7 @@ async function chatspace(s: See): Promise<void> {
   const panel = await pageBox(s, 'section.conversation-panel');
   await s.shot('reply', { file: 'launch-reply-onlyfans', clip: box(list.x, 0, panel.x + panel.width + 8 - list.x, 900) });
 
-  // Coach: a question, and the answer with its drafts. (Its Review turn does not fit the same frame: Coach's window
-  // keeps its height and scrolls the dialog; the «Review» chip stays in sight under the answer.)
-  await s.press(/^Coach/);
-  await s.browser.waitUntil(() => s.has('panel', COACH_FIELD), { timeout: 10_000, timeoutMsg: 'the Coach window did not open' });
-  await s.h.ours('panel', COACH_FIELD).click();
-  await s.keys('Is now a good time to offer him the new set?');
-  await s.keys(s.Key.Enter);
-  await s.see('panel', 'Yes, but not as the first message', 30_000);
-  await restPointer(s);
-  await s.shot('coach', { file: 'launch-coach', clip: around([await windowOf(s, 'panel')], 28) });
-  await s.closeAll();
-
-  // Recap: Jamie in sections.
+  // Recap: Jamie in sections (Coach below reads it).
   await s.press(/^Recap/);
   await s.h.dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
   await s.press(/^Собрать полностью/, 'dock', '.cg-dock button');
@@ -180,6 +168,18 @@ async function chatspace(s: See): Promise<void> {
   const header = await pageBox(s, '[data-stand-conversation-header]');
   const recap = around([await windowOf(s, 'modal')], 28);
   await s.shot('recap', { file: 'launch-recap', clip: { ...recap, y: header.y, height: recap.y + recap.height - header.y } });
+  await s.closeAll();
+
+  // Coach, with the Recap just made: a question, and the answer with its drafts. (Its Review turn does not fit the same
+  // frame: Coach's window keeps its height and scrolls the dialog; the «Review» chip stays in sight under the answer.)
+  await s.press(/^Coach/);
+  await s.browser.waitUntil(() => s.has('panel', COACH_FIELD), { timeout: 10_000, timeoutMsg: 'the Coach window did not open' });
+  await s.h.ours('panel', COACH_FIELD).click();
+  await s.keys('Сейчас хороший момент предложить ему новый сет?');
+  await s.keys(s.Key.Enter);
+  await s.see('panel', 'Да, но не первым сообщением', 30_000);
+  await restPointer(s);
+  await s.shot('coach', { file: 'launch-coach', clip: around([await windowOf(s, 'panel')], 28) });
   await s.closeAll();
 
   // Voice: the draft in the field, its script, two takes, the second chosen; nothing plays.
