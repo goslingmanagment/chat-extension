@@ -74,6 +74,12 @@ export const HUB_ROUTES = {
   /** Chat Memory week 3: «Очередь» — the win-back list, a chatter's approach pick, the shift handoff. No owner switch. */
   clientWinBack: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['win-back-v1'], narrowToken: true },
   clientWinBackAttempt: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['win-back-v1'], narrowToken: true },
+  /** «Онлайн»: the page's fans seen online, why to write now and with what (hub #879). */
+  clientOnline: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
+  /** A Fansly tab's report of the fans it saw active: their presence on the hub. */
+  clientOnlinePresence: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
+  /** A message sent from «Онлайн», «Не предлагать» and its undo: journaled, shared by the team. */
+  clientOnlineAttempt: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
   clientHandoff: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['handoff-v1'], narrowToken: true },
   /** Chat Memory week 4: a custom written into the fan's card, and its paid / delivered / cancel / edit. No owner switch. */
   clientFanCustomCreate: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-customs-v1'], narrowToken: true },

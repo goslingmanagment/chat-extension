@@ -140,7 +140,10 @@ const ROUTES: readonly Route[] = [
     path: /^\/account\/(\d+)\/followersnew$/,
     run: ({ world, params, match }) => {
       if (match[1] !== world.creatorId) return { response: { followers: [], aggregationData: { accounts: [] } } };
-      return { response: world.wireFollowersPage(cursor(params.get('before')), count(params.get('limit'), 100, 100)) };
+      // `lastSeenAfter` (ms; empty — none, as the pass and the page send it): only the followers Fansly saw after it.
+      const after = params.get('lastSeenAfter') ?? '';
+      const lastSeenAfter = /^[1-9]\d{0,15}$/.test(after) ? Number(after) : null;
+      return { response: world.wireFollowersPage(cursor(params.get('before')), count(params.get('limit'), 100, 100), lastSeenAfter) };
     },
   },
   {

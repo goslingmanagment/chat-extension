@@ -162,6 +162,13 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [{ ok: true, last: { messageId: F.group, direction: 'model', sentAt: null, read: 'yes', readAt: null } }, { ok: true }, unknownFailure],
     },
   },
+  'fansly.online.seen': {
+    req: { valid: [{ pageId: 12, hostAccountId: F.creator }], invalid: [{ pageId: 12 }, { pageId: 12, hostAccountId: 123 }, { pageId: 12, hostAccountId: F.creator, lastSeenAfter: '0' }] },
+    res: {
+      valid: [{ ok: true, seen: 7, recorded: 6 }, { ok: true, seen: 0, recorded: 0 }, failure, sharedFailure],
+      invalid: [{ ok: true, seen: 7 }, { ok: true, seen: -1, recorded: 0 }, { ok: true, seen: 7, recorded: 6, fans: [F.fan] }, unknownFailure],
+    },
+  },
   'fansly.registration.read': {
     req: { valid: [{ pageId: 12, hostAccountId: F.creator, groupId: F.group }], invalid: [{ pageId: 12, hostAccountId: F.creator }, { pageId: 12, hostAccountId: F.creator, groupId: 123 }] },
     res: { valid: [{ ok: true, fanId: F.fan }, failure, sharedFailure], invalid: [{ ok: true, fanId: 123 }, { ok: true, groupId: F.group }, unknownFailure] },

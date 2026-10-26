@@ -22,6 +22,7 @@
     "./spenders": "./src/spenders/index.ts",
     "./newcomers": "./src/newcomers/index.ts",
     "./outreach": "./src/outreach/index.ts",
+    "./online": "./src/online/index.ts",
     "./fanpanel": "./src/fanpanel/index.ts",
     "./palette": "./src/palette/index.ts",
     "./preview": "./src/preview/index.ts",

@@ -118,6 +118,11 @@ export type FakeFanslyCommand =
    * `POST /group` makes; `agoMs` — the follow happened this long ago (its id's moment; the frame comes now).
    */
   | { readonly op: 'follow'; readonly followerId?: string; readonly silent?: boolean; readonly dmRulesUnmet?: boolean; readonly agoMs?: number }
+  /**
+   * «Онлайн»: Fansly sees the account active `agoMs` before every read from now on (it stays online), or — `null` — saw
+   * it now and no more (it drops out of `followersnew?lastSeenAfter=` as the window passes). No frame.
+   */
+  | { readonly op: 'seen'; readonly fanId: string; readonly agoMs: number | null }
   /** Replace only the followers with this pass fixture; profiles, notes and optional histories use normal API shapes. No socket events. */
   | { readonly op: 'newcomers'; readonly followers: readonly NewcomerSeed[] }
   /**

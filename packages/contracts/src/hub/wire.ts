@@ -205,6 +205,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * hub that lists it.
    */
   'hi-fan-account-v1',
+  /** «Онлайн»: the page's fans seen online with why to write now (`clientOnline`), Fansly presence reports, the window's rows. */
+  'online-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

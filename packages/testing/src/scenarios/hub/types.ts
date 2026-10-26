@@ -50,6 +50,10 @@ export const HUB_ROUTE_PATHS = {
   clientWinBack: '/api/v1/client/pages/:pageLabel/win-back',
   clientWinBackAttempt: '/api/v1/client/pages/:pageLabel/win-back/attempts',
   clientHandoff: '/api/v1/client/pages/:pageLabel/handoff',
+  // «Онлайн» (hub #879): the list, a Fansly tab's presence report, what a chatter did in the window.
+  clientOnline: '/api/v1/client/pages/:pageLabel/online',
+  clientOnlinePresence: '/api/v1/client/pages/:pageLabel/online/presence',
+  clientOnlineAttempt: '/api/v1/client/pages/:pageLabel/online/attempts',
   clientFanCustomCreate: '/api/v1/client/pages/:pageLabel/fans/:fanRef/customs',
   clientFanCustomChange: '/api/v1/client/pages/:pageLabel/fans/:fanRef/customs/:customId',
   // 1.47.0: the voice-notes lane (`:id` is the note's integer id).

@@ -32,6 +32,11 @@ export const FEATURES_COMMON = {
   voice: { kind: 'panel', chip: { group: 'voice', priority: 10, icon: 'mic' } },
   /** Fresh page text of the open chat for a draft (D-14): not a button, a part of Reply, Fix, Hi and Ping. */
   'fresh-text': { kind: 'service' },
+  /**
+   * 1.65.0: «Онлайн» — the page's fans who came online, why to write to each now, and a pass through them one click per
+   * fan. Its chip stands first in the bar's right block, with the count of fans worth a message now.
+   */
+  online: { kind: 'board', chip: { group: 'windows', priority: 5, icon: 'online' } },
   spenders: { kind: 'board', chip: { group: 'windows', priority: 10, icon: 'bill' }, hotkey: 'spenders' },
   newcomers: { kind: 'board', chip: { group: 'windows', priority: 20, icon: 'userPlus' } },
   'fan-panel': { kind: 'panel' },

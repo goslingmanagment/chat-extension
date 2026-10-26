@@ -38,6 +38,7 @@ import {
 import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
 import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
 import { HandoffQuerySchema, HandoffSchema, WinBackAttemptRequestSchema, WinBackAttemptResultSchema, WinBackListSchema, WinBackQuerySchema } from './queue';
+import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineQuerySchema } from './online';
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
 import { PageFanParamsSchema, PageParamsSchema } from './wire';
@@ -83,6 +84,9 @@ export const HUB_ROUTE_SCHEMAS = {
   clientWinBack: { request: WinBackQuerySchema, response: WinBackListSchema },
   clientWinBackAttempt: { request: WinBackAttemptRequestSchema, response: WinBackAttemptResultSchema },
   clientHandoff: { request: HandoffQuerySchema, response: HandoffSchema },
+  clientOnline: { request: OnlineQuerySchema, response: OnlineListSchema },
+  clientOnlinePresence: { request: OnlinePresenceRequestSchema, response: OnlinePresenceResultSchema },
+  clientOnlineAttempt: { request: OnlineAttemptRequestSchema, response: OnlineAttemptResultSchema },
   clientFanCustomCreate: { request: FanCustomCreateRequestSchema, response: FanFactChangeResultSchema },
   clientFanCustomChange: { request: FanCustomChangeRequestSchema, response: FanFactChangeResultSchema },
   voiceNoteCreate: { request: VoiceNoteCreateRequestSchema, response: VoiceNoteViewSchema },

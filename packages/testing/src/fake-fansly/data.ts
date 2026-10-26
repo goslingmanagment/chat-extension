@@ -50,6 +50,24 @@ export const FAKE_FANSLY_MEDIA_HOST = 'cdn3.fansly.com';
 export const SEED_FOLLOWERS = 150;
 /** Of them, the first ones already have a conversation (a fan of the inbox); the rest have none yet. */
 export const SEED_FOLLOWERS_WITH_CHAT = 40;
+/**
+ * «Онлайн» (`followersnew?lastSeenAfter=`): the seeded followers Fansly sees active a few minutes before every read —
+ * by their place among the follows (newest first) and how many minutes ago —, so they stay online however long the
+ * stand runs: in the synthetic world the first five have a chat and the rest none; in the showcase world the last two
+ * are fans of the inbox. Every other follower was last seen hours to days before the start.
+ */
+export const ONLINE_FOLLOWERS: ReadonlyArray<readonly [index: number, minutesAgo: number]> = [
+  [0, 2],
+  [3, 6],
+  [8, 1],
+  [15, 11],
+  [27, 4],
+  [44, 3],
+  [52, 9],
+  [71, 13],
+  [112, 5],
+  [118, 8],
+];
 
 const FOLLOWER_ACCOUNT_BASE = 930_000_000_000_000_000n;
 const BROADCAST_GROUP_ID = '805000000000000009';
@@ -71,7 +89,9 @@ export interface FakeAccount {
   displayName: string;
   /** 1 online, 2 away, 3 offline, 4 hidden. */
   statusId: number;
+  /** When Fansly last saw the account (ms); `seenAgoMs` — active this long before every read instead (it stays online). */
   lastSeenAt: number;
+  seenAgoMs?: number;
   about: string;
   followsCreator: boolean;
   /** The creator's notes on this account, in Fansly's own order (as stored). */
@@ -243,7 +263,12 @@ export class FanslyWorld {
         this.accounts.set(followerId, SHOWCASE ? this.newAccount(followerId, person.username, person.displayName, index % 4 === 0 ? 1 : 3, person.about) : this.newAccount(followerId, `stand_follower_${index + 1}`, `Stand Follower ${index + 1}`, 3));
       }
       const account = this.accounts.get(followerId);
-      if (account !== undefined) account.followsCreator = true;
+      if (account !== undefined) {
+        account.followsCreator = true;
+        const online = ONLINE_FOLLOWERS.find(([at]) => at === index);
+        if (online === undefined) account.lastSeenAt = startedAt - (2 + (index % 17) * 5) * 3_600_000;
+        else account.seenAgoMs = online[1] * 60_000;
+      }
       this.follows.push({ id: snowflakeAt(followedAt, index), followerId });
     }
 
@@ -268,6 +293,21 @@ export class FanslyWorld {
 
   private newAccount(id: string, username: string, displayName: string, statusId: number, about?: string): FakeAccount {
     return { id, username, displayName, statusId, lastSeenAt: this.startedAt - 60_000, about: about ?? `About ${username}`, followsCreator: false, notes: [] };
+  }
+
+  /** When Fansly last saw the account (ms): `seenAgoMs` before `now` for one that stays online, else its stored moment. */
+  seenAt(account: FakeAccount, now = Date.now()): number {
+    return account.seenAgoMs === undefined ? account.lastSeenAt : now - account.seenAgoMs;
+  }
+
+  /** «Онлайн» of a test: the account is active `agoMs` before every read from now on; null — last seen now, and no more. */
+  setSeen(id: string, agoMs: number | null, now = Date.now()): FakeAccount {
+    const account = this.ensureAccount(id);
+    if (agoMs === null) {
+      account.lastSeenAt = now;
+      delete account.seenAgoMs;
+    } else account.seenAgoMs = agoMs;
+    return account;
   }
 
   /** The account, made up on first mention (a fan a test names, a guest of a group chat); a person with a name in the showcase world. */
@@ -444,14 +484,23 @@ export class FanslyWorld {
     const account = this.ensureAccount(id);
     account.followsCreator = true;
     const follow: FakeFollow = { id: agoMs === undefined ? this.nextId() : snowflakeAt(Date.now() - agoMs, this.follows.length), followerId: id };
+    // Following is being active: Fansly saw the fan then.
+    if (account.seenAgoMs === undefined) account.lastSeenAt = Math.max(account.lastSeenAt, Date.now() - (agoMs ?? 0));
     this.follows.unshift(follow);
     return follow;
   }
 
-  /** `GET /account/<id>/followersnew`: follows older than `before` (null — from the newest), newest first. */
-  followersPage(before: string | null, limit: number): FakeFollow[] {
+  /**
+   * `GET /account/<id>/followersnew`: follows older than `before` (null — from the newest), newest first; with
+   * `lastSeenAfter` (ms) only the followers Fansly saw after it (the read of «Онлайн» and of FBuddy).
+   */
+  followersPage(before: string | null, limit: number, lastSeenAfter: number | null = null, now = Date.now()): FakeFollow[] {
     const older = before === null ? this.follows : this.follows.filter((follow) => compareIds(follow.id, before) < 0);
-    return older.slice(0, limit);
+    const seen = (follow: FakeFollow): boolean => {
+      const account = this.accounts.get(follow.followerId);
+      return account !== undefined && this.seenAt(account, now) > (lastSeenAfter ?? 0);
+    };
+    return (lastSeenAfter === null ? older : older.filter(seen)).slice(0, limit);
   }
 
   // ── notes ──
@@ -590,7 +639,7 @@ export class FanslyWorld {
       followCount: 12,
       subscriberCount: 0,
       statusId: account.statusId,
-      lastSeenAt: account.lastSeenAt,
+      lastSeenAt: this.seenAt(account),
       about: account.about,
       location: '',
       profileAccessFlags: 0,
@@ -629,10 +678,14 @@ export class FanslyWorld {
     return { id: follow.id, accountId: this.creatorId, followerId: follow.followerId };
   }
 
-  wireFollowersPage(before: string | null, limit: number): WireFollowersPage {
-    const page = this.followersPage(before, limit);
+  wireFollowersPage(before: string | null, limit: number, lastSeenAfter: number | null = null): WireFollowersPage {
+    const page = this.followersPage(before, limit, lastSeenAfter);
+    const seen = (id: string): number => {
+      const account = this.accounts.get(id);
+      return account === undefined ? 0 : this.seenAt(account);
+    };
     return {
-      followers: page.map((follow) => ({ id: follow.id, followerId: follow.followerId, lastSeenAt: this.accounts.get(follow.followerId)?.lastSeenAt ?? 0 })),
+      followers: page.map((follow) => ({ id: follow.id, followerId: follow.followerId, lastSeenAt: seen(follow.followerId) })),
       aggregationData: { accounts: page.flatMap((follow) => this.accounts.get(follow.followerId) ?? []).map((account) => this.wireAccount(account)) },
     };
   }

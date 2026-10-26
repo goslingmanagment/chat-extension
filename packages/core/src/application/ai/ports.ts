@@ -102,6 +102,8 @@ export interface AiPorts {
   readonly files?: FileSaver;
   /** This build's version (the manifest's): below the bootstrap's `minVersion` the dock says so before a click. Absent — only the hub's own word (`client_outdated`) is read. */
   readonly extensionVersion?: string;
+  /** 1.65.0: «Онлайн N» — the fans of the open chat's page worth a message now (the hub's, read every minute). Absent — no number. */
+  readonly online?: { count(): number | null; subscribe(listener: () => void): () => void; touch?(): void };
 }
 
 /**

@@ -24,10 +24,10 @@ export type PageHandle = string;
 export type ToastId = string;
 
 /**
- * Where a preview is open: the Spenders board, the «Новые» card, the palette's online fans (CS-030), or the card of
- * «Рассылка» (1.63.0).
+ * Where a preview is open: the Spenders board, the «Новые» card, the palette's online fans (CS-030), the card of
+ * «Рассылка» (1.63.0), or the card of «Онлайн» (1.65.0).
  */
-export const PREVIEW_SOURCES = ['spenders', 'newcomers', 'palette', 'outreach'] as const;
+export const PREVIEW_SOURCES = ['spenders', 'newcomers', 'palette', 'outreach', 'online'] as const;
 export type PreviewSource = (typeof PREVIEW_SOURCES)[number];
 
 /** Journals of the debug mode (§9.2, §9.3, NF-029), read by `journal.read`. */
@@ -54,6 +54,8 @@ export const MOUNT_SURFACES = [
   /** 1.63.0: the window of «Рассылка»; its chip over the page while the window is folded. */
   'outreach',
   'outreach-chip',
+  /** 1.65.0: the window of «Онлайн». */
+  'online',
   'preview',
   'palette',
   'quick-jump',
@@ -67,7 +69,7 @@ export const MOUNT_SURFACES = [
 export type MountSurfaceKind = (typeof MOUNT_SURFACES)[number];
 
 /** Overlays the person opens and closes (Navigate); a preview closes back to its list. */
-export const OVERLAY_SURFACES = ['spenders', 'newcomers', 'outreach', 'preview', 'fan-panel', 'coach', 'palette', 'quick-jump', 'cheatsheet'] as const;
+export const OVERLAY_SURFACES = ['spenders', 'newcomers', 'outreach', 'online', 'preview', 'fan-panel', 'coach', 'palette', 'quick-jump', 'cheatsheet'] as const;
 export type OverlaySurface = (typeof OVERLAY_SURFACES)[number];
 
 export const VIEW_NAMES = [
@@ -80,6 +82,7 @@ export const VIEW_NAMES = [
   'preview',
   'newcomers',
   'outreach',
+  'online',
   'fan-panel',
   'palette',
   'quick-jump',
@@ -107,6 +110,8 @@ export const ViewSelectorSchema = z.discriminatedUnion('of', [
   z.strictObject({ of: view('newcomers') }),
   /** 1.63.0: the window of «Рассылка». */
   z.strictObject({ of: view('outreach') }),
+  /** 1.65.0: the window of «Онлайн». */
+  z.strictObject({ of: view('online') }),
   z.strictObject({ of: view('fan-panel') }),
   z.strictObject({ of: view('palette') }),
   z.strictObject({ of: view('quick-jump') }),

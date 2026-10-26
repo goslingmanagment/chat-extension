@@ -33,6 +33,8 @@ export const LAZY_ENTRIES = {
   newcomers: 'entries/newcomers.ts',
   // «Рассылка»: its window and the chip it folds into.
   outreach: 'entries/outreach.ts',
+  // «Онлайн»: its window, one on both sites.
+  online: 'entries/online.ts',
   'fan-panel': 'entries/fan-panel.ts',
   palette: 'entries/palette.ts',
   // The preview's own window, for a fan of the palette's «Онлайн» (X24).

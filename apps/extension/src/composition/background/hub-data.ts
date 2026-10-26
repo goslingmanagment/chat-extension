@@ -54,6 +54,8 @@ type DataRequest =
   | 'queue.winback'
   | 'queue.winback.pick'
   | 'queue.handoff'
+  | 'online.list'
+  | 'online.attempt'
   | 'newcomers.list'
   | 'usage.get';
 
@@ -143,6 +145,14 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
     'queue.winback.pick': (request, sender) =>
       onPage(request.pageId, sender, (page) => deps.hub().winBackAttempt({ pageLabel: page.pageLabel, fanRef: request.fanRef, approachId: request.approachId })),
     'queue.handoff': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().handoff({ pageLabel: page.pageLabel })),
+    // «Онлайн» (hub `online-v1`): the page's fans seen online within the window; what a chatter did there — one call,
+    // never repeated (a message sent, «Не предлагать», its undo). Nothing is sent to a fan here.
+    'online.list': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().online({ pageLabel: page.pageLabel, minutes: request.minutes })),
+    'online.attempt': (request, sender) =>
+      onPage(request.pageId, sender, (page) => {
+        const { pageId: _pageId, ...attempt } = request;
+        return deps.hub().onlineAttempt({ ...attempt, pageLabel: page.pageLabel });
+      }),
     'newcomers.list': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
         deps.hub().audienceNew({ pageLabel: page.pageLabel, windowHours: request.windowHours, ...(request.cursor === null ? {} : { cursor: request.cursor }) }),

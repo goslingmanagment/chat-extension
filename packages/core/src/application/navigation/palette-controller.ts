@@ -322,6 +322,8 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       item('action.newcomers', text({ key: 'palette.item.newcomers' }), { type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } }, { hotkey: hotkeyOf(catalog.entry('newcomers').hotkey) }),
       // 1.63.0: «Рассылка» — its window, the outreach where it stands (no key of its own).
       item('action.outreach', text({ key: 'palette.item.outreach' }), { type: 'Navigate', to: { kind: 'surface', surface: 'outreach', open: true } }, {}),
+      // 1.65.0: «Онлайн» — who of the page came online and why to write now; its own action, as the bar's chip.
+      item('action.online', text({ key: 'palette.item.online' }), { type: 'SetOnline', open: true }, {}),
       item('action.cheatsheet', text({ key: 'palette.item.cheatsheet' }), { type: 'Navigate', to: { kind: 'surface', surface: 'cheatsheet', open: true } }, { hotkey: hotkeyOf(catalog.entry('cheatsheet').hotkey) }),
       item('action.settings', text({ key: 'palette.item.settings' }), { type: 'OpenSettings', route: { section: 'status' } }, { hotkey: hotkeyOf(catalog.entry('settings').hotkey) }),
     );

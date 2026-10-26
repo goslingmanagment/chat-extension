@@ -212,6 +212,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
         label={name}
         {...(chip.group === LEAD ? { class: 'cg-act--main' } : {})}
         {...(chip.icon === null ? {} : { class: 'cg-act--ico', iconable: true, leading: <Icon name={chip.icon} size={14} /> })}
+        {...(chip.count === undefined || chip.count === null || chip.count <= 0 ? {} : { trailing: <b class="cg-act__n cg-num">{chip.count}</b> })}
         hotkey={chip.enabled ? chip.hotkey : null}
         active={chip.active}
         busy={chip.busy}

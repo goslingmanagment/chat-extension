@@ -612,6 +612,18 @@ export const FANSLY_TAB_REQUESTS = {
     from: TAB, hosts: FANSLY,
   },
   /**
+   * «Онлайн» on Fansly: who of the creator's followers was active lately — one `followersnew?lastSeenAfter=` (FS-NET-1
+   * `online`, a read in the creator's own session, nothing while the creator cools down) —, reported to the hub as their
+   * presence (`clientOnlinePresence`) so the window's list knows them. The background asks Fansly at most once a minute
+   * per creator: a tab's call within that minute is answered from the last read. `seen` — followers it found active,
+   * `recorded` — the ones the hub kept (linked to the page).
+   */
+  'fansly.online.seen': {
+    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), seen: CountSchema, recorded: CountSchema }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
    * A fan's preview rests on the fan: whether the fan read the group's newest message (`GET /group/<id>/`, its
    * `lastMessage` and the fan's `readAt`) — once, nothing while the creator cools down; never `POST /message/ack`.
    * `last` null — the group has no message, or it is not this fan's.

@@ -62,6 +62,9 @@ const FEATURES = {
   // 2026-10-25: «Рассылка» is the board's own window (its fans, its tiers) and its chip; each version goes by our send.
   spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview', 'outreach', 'outreach-chip'], source: 'hub', switches: ['stats', 'preview'] },
   // Б17: the list is a pass of the background over Fansly's API; a greeting needs `newcomers` alone (HF-3).
+  // 1.65.0: «Онлайн» — the hub's list (`online-v1`), fed by the followers the tab saw active (`fansly.online.seen`); the
+  // card is the fan's preview, each text leaves by the background's send (as «Рассылка»'s).
+  online: { base: { flags: ['preview'], hostCapabilities: [], clientNeeds: ['online-v1'] }, actions: { send: NOTHING }, surfaces: ['online', 'preview'], source: 'hub' },
   newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: NOTHING }, surfaces: ['newcomers'], source: 'host-pass' },
   'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub' },
   sound: { base: { flags: ['sound'], hostCapabilities: [] }, actions: {}, surfaces: [] },

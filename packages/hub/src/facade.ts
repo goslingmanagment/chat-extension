@@ -84,6 +84,12 @@ import {
   type WinBackAttemptResult,
   type WinBackList,
   type WinBackQuery,
+  type OnlineAttemptRequest,
+  type OnlineAttemptResult,
+  type OnlineList,
+  type OnlinePresenceRequest,
+  type OnlinePresenceResult,
+  type OnlineQuery,
   type FanFactChangeRequest,
   type FanFactChangeResult,
   type FanLinkDecideRequest,
@@ -951,6 +957,27 @@ export class ChatExtensionHub implements HubFacade {
   /** Chat Memory week 3: the shift handoff of a page granted by this bootstrap; refused without `handoff-v1`. */
   async handoff(query: HandoffQuery): Promise<Handoff> {
     return (await this.client('clientHandoff', query, query.pageLabel)) as Handoff;
+  }
+
+  /**
+   * «Онлайн» (hub #879): the fans of a page granted by this bootstrap seen online within `minutes`, each with why to
+   * write now and with what. Refused without `online-v1`; no owner switch on the hub's side.
+   */
+  async online(query: OnlineQuery): Promise<OnlineList> {
+    return (await this.client('clientOnline', query, query.pageLabel)) as OnlineList;
+  }
+
+  /**
+   * The followers a Fansly tab saw active, as their presence on the hub (an OnlyFans page is the hub's to refuse:
+   * OnlyFansAPI reports its presence). Never repeated here: a lost report is just lost, the next read reports again.
+   */
+  async onlinePresence(request: OnlinePresenceRequest): Promise<OnlinePresenceResult> {
+    return (await this.client('clientOnlinePresence', request, request.pageLabel)) as OnlinePresenceResult;
+  }
+
+  /** What a chatter did in «Онлайн». Never repeated here: a lost answer is the person's to act on again. */
+  async onlineAttempt(request: OnlineAttemptRequest): Promise<OnlineAttemptResult> {
+    return (await this.client('clientOnlineAttempt', request, request.pageLabel)) as OnlineAttemptResult;
   }
 
   /**
