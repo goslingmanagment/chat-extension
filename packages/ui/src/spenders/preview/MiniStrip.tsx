@@ -37,7 +37,7 @@ const TONE_KEYS: Readonly<Record<Tone, I18nKey>> = {
 
 /** The tones in the chatters' own language, as in the dock's capsule. */
 const TONE_EMOJI: Readonly<Record<Tone, string>> = { casual: '😌', flirty: '😏', upsell: '💰', spicy: '🔥' };
-const SEGMENT_LETTERS: Readonly<Partial<Record<PingSegmentVM['segment'], string>>> = { 'segment-a': 'A', 'segment-b': 'B' };
+export const SEGMENT_LETTERS: Readonly<Partial<Record<PingSegmentVM['segment'], string>>> = { 'segment-a': 'A', 'segment-b': 'B' };
 
 /** «Фан молчит 19 д, сегмент B»: what the hub computed with the generation's own window rules; unknown stays unknown. */
 export function pingHint(i18n: I18n, ping: PingSegmentVM): string {
@@ -61,25 +61,21 @@ export function reasonText(i18n: I18n, action: string, vm: DockActionVM): string
   return i18n.t('dock.action.unavailable', { action, reason: vm.reason === null ? i18n.t('common.unknown') : i18n.text(vm.reason.text) });
 }
 
-export interface MiniStripProps {
-  readonly vm: PreviewVM;
-  /** A hint at the Hi button (the «Новые» card: «AI ничего не отправляет сам…», NF-028). */
-  readonly hiHint?: string | null;
-  /** Chips another place of the preview carries: Fix inside the draft field of the Spenders panel (X65). */
-  readonly omit?: readonly PreviewActionId[];
-}
-
-export function MiniStrip({ vm, hiHint = null, omit = [] }: MiniStripProps): JSX.Element {
+/**
+ * Reply's capsule, as in the dock: the four tones for the next Reply and, where a text may go in parts, Split. A tone is
+ * chosen for the next Reply only; a second click takes it off (X68, AI-006). «Онлайн» writes one message: no Split there.
+ * `held` — why Reply cannot run: the tones are off with it.
+ */
+export function ToneCapsule({ vm, split = true, held = null }: { readonly vm: PreviewVM; readonly split?: boolean; readonly held?: string | null }): JSX.Element {
   const i18n = useI18n();
   const hints = useHints();
   const dispatch = useDispatch();
-  const barRef = useRef<HTMLDivElement>(null);
   const { bar } = vm;
-  const ids = ORDER.filter((id) => bar.actions[id] !== undefined && !omit.includes(id));
-  const first = ids[0];
   const locked = bar.locked;
-
-  const toneReason = locked
+  // `held` — why Reply itself cannot run here: its tones are off with it.
+  const toneReason = held !== null
+    ? held
+    : locked
     ? i18n.t('dock.option.toneLocked')
     : bar.toneReason === null
       ? null
@@ -89,24 +85,11 @@ export function MiniStrip({ vm, hiHint = null, omit = [] }: MiniStripProps): JSX
     : bar.splitReason === null
       ? null
       : i18n.t('dock.option.splitUnavailable', { reason: i18n.text(bar.splitReason.text) });
-
-  // One tab stop for the strip, arrows inside (ui-design §6.4).
-  const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
-    const buttons = [...(barRef.current?.querySelectorAll<HTMLElement>('[data-cg-strip] > button') ?? [])];
-    const current = buttons.findIndex((button) => button === event.target);
-    if (current < 0) return;
-    const next = rovingIndex(event.key, current, buttons.length, 'horizontal');
-    if (next === null || next === current) return;
-    event.preventDefault();
-    focusQuietly(buttons[next]);
-  };
-
-  // X68: a tone is chosen for the next Reply, as in the dock and the old extension; a second click takes it off (AI-006).
   const chooseTone = (tone: Tone): void => {
     if (vm.handle === null) return;
     void dispatch({ type: 'SetTone', targetHandle: vm.handle, tone: tone === bar.tone ? null : tone });
   };
-  const capsule = (
+  return (
     <span class="cg-tones">
       <span class="cg-tones__track" role="group" aria-label={i18n.t('dock.option.tone')} data-cg-strip="tone">
         {bar.tones.map((tone) => {
@@ -130,22 +113,58 @@ export function MiniStrip({ vm, hiHint = null, omit = [] }: MiniStripProps): JSX
           );
         })}
       </span>
-      <span class="cg-tones__seam" aria-hidden="true" />
-      <span data-cg-strip="split" class="cg-pvb__slot">
-        <StripButton
-          label={i18n.t('dock.option.split')}
-          class="cg-opt cg-split"
-          pressed={bar.split}
-          reason={splitReason}
-          tooltip={hints ? `${i18n.t('dock.option.splitTooltip', { hotkey: '' }).trim()}\n${i18n.t('dock.hint.split')}` : null}
-          tabIndex={-1}
-          leading={<CheckGlyph on={bar.split} />}
-          onClick={() => void dispatch({ type: 'SetPreference', key: 'generation.split', value: !bar.split })}
-        />
-      </span>
+      {split ? (
+        <>
+          <span class="cg-tones__seam" aria-hidden="true" />
+          <span data-cg-strip="split" class="cg-pvb__slot">
+            <StripButton
+              label={i18n.t('dock.option.split')}
+              class="cg-opt cg-split"
+              pressed={bar.split}
+              reason={splitReason}
+              tooltip={hints ? `${i18n.t('dock.option.splitTooltip', { hotkey: '' }).trim()}\n${i18n.t('dock.hint.split')}` : null}
+              tabIndex={-1}
+              leading={<CheckGlyph on={bar.split} />}
+              onClick={() => void dispatch({ type: 'SetPreference', key: 'generation.split', value: !bar.split })}
+            />
+          </span>
+        </>
+      ) : null}
       {locked ? <Icon name="lock" size={12} class="cg-lock" /> : null}
     </span>
   );
+}
+
+/** One tab stop for a strip, arrows inside (ui-design §6.4): its chips are the buttons of its `[data-cg-strip]` slots. */
+export function stripKeys(bar: { readonly current: HTMLDivElement | null }): (event: TargetedKeyboardEvent<HTMLDivElement>) => void {
+  return (event) => {
+    const buttons = [...(bar.current?.querySelectorAll<HTMLElement>('[data-cg-strip] > button') ?? [])];
+    const current = buttons.findIndex((button) => button === event.target);
+    if (current < 0) return;
+    const next = rovingIndex(event.key, current, buttons.length, 'horizontal');
+    if (next === null || next === current) return;
+    event.preventDefault();
+    focusQuietly(buttons[next]);
+  };
+}
+
+export interface MiniStripProps {
+  readonly vm: PreviewVM;
+  /** A hint at the Hi button (the «Новые» card: «AI ничего не отправляет сам…», NF-028). */
+  readonly hiHint?: string | null;
+  /** Chips another place of the preview carries: Fix inside the draft field of the Spenders panel (X65). */
+  readonly omit?: readonly PreviewActionId[];
+}
+
+export function MiniStrip({ vm, hiHint = null, omit = [] }: MiniStripProps): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const barRef = useRef<HTMLDivElement>(null);
+  const { bar } = vm;
+  const ids = ORDER.filter((id) => bar.actions[id] !== undefined && !omit.includes(id));
+  const first = ids[0];
+  const onKeyDown = stripKeys(barRef);
+  const capsule = <ToneCapsule vm={vm} />;
 
   return (
     <div ref={barRef} class="cg-pvb" role="toolbar" aria-label={i18n.t('dock.label')} onKeyDown={onKeyDown}>

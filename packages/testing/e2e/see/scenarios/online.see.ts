@@ -1,7 +1,9 @@
 // «Онлайн» — who of the page came online, why to write to each now, one click per fan (2026-10-26), on both sites:
 // «Онлайн N» on the bar; the window with the fans by why (who waits for an answer first) and the first fan's card with
-// their conversation and «Reply · Hi · Ping · Шаблон», nothing written (2026-10-26); the advised one pressed — the text;
-// «Отправить →» — the next fan's card opens by itself, again with nothing written; «Пропустить»; «Все онлайн» with the
+// their conversation, the text's box and the usual strip (Reply with its tones, Hi, Ping, «Шаблон»), nothing written
+// (2026-10-26); the advised chip pressed — the text in the box;
+// «Отправить →» — the next fan's card opens by itself, again with nothing written; the person's own words with Fix;
+// «Пропустить»; «Все онлайн» with the
 // set aside and the reasonless; a fan with nothing to write about.
 
 import { SEE_AI_TEXTS, scenario, showcaseAiTexts, type See } from '../kit';
@@ -12,11 +14,12 @@ const ONLINE_TEXTS = {
   ping: 'hey you 👋 I was just scrolling through our old chats and smiled. how have you been?',
 } as const;
 
-/** The card's advised «Reply» / «Hi» / «Ping» / «Шаблон» (else the first one it offers) pressed, and its text waited for. */
+/** The strip's advised chip (else the first one that works) pressed, and the text waited for. */
 async function write(s: See): Promise<void> {
-  await s.browser.waitUntil(() => s.has('modal', '[data-cg-online-pick] .cg-btn'), { timeout: 30_000, interval: 300, timeoutMsg: 'the card offers nothing to write' });
-  const advised = (await s.has('modal', '[data-cg-online-pick] .cg-btn.is-advice:not([aria-disabled="true"])')) ? '.is-advice' : ':not([aria-disabled="true"])';
-  await s.h.ours('modal', `[data-cg-online-pick] .cg-btn${advised}`).click();
+  const chip = '[data-cg-online-pick] .cg-pvb__slot > .cg-act';
+  await s.browser.waitUntil(() => s.has('modal', chip), { timeout: 30_000, interval: 300, timeoutMsg: 'the card offers nothing to write' });
+  const advised = (await s.has('modal', `${chip}.cg-act--main:not([aria-disabled="true"])`)) ? '.cg-act--main' : ':not([aria-disabled="true"])';
+  await s.h.ours('modal', `${chip}${advised}`).click();
   await s.browser.waitUntil(() => s.has('modal', '[data-cg-zone="draft"], [data-cg-zone="unwritten"]'), { timeout: 60_000, interval: 300, timeoutMsg: 'the card has no text' });
 }
 
@@ -66,6 +69,19 @@ scenario(
     await s.browser.waitUntil(() => s.has('modal', '[data-cg-zone="idle"], [data-cg-zone="draft"]'), { timeout: 30_000, interval: 300, timeoutMsg: 'the next card did not open' });
     await s.browser.pause(1_000);
     await shot(s, 'online-next');
+
+    // «Свой текст» with Fix inside, as in the Spenders chat: the person's own words, rewritten for this fan, stand as
+    // the text over the field; nothing goes until «Отправить →».
+    await s.h.ours('modal', '[data-cg-online-compose] textarea').click();
+    await s.keys('miss you, how was your day?');
+    await s.browser.pause(500);
+    // A fan the AI cannot write for (Fansly: no chat of the fan yet) says why on Fix; the words still go by «Отправить».
+    if (!(await s.has('modal', '[data-cg-online-compose] [data-cg-strip="fix"] button[aria-disabled="true"]'))) {
+      await s.h.ours('modal', '[data-cg-online-compose] [data-cg-strip="fix"] button').click();
+      await s.see('modal', 'Fix для', 30_000);
+      await s.browser.pause(600);
+    }
+    await shot(s, 'online-fix');
 
     // «Пропустить» (S): this pass only; the card after it.
     await s.press(/^Пропустить/, 'modal', '.cg-ow__acts .cg-btn');

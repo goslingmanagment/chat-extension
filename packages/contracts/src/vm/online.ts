@@ -35,11 +35,14 @@ export type OnlineGroupId = (typeof ONLINE_GROUPS)[number];
 export const ONLINE_FAN_STATES = ['idle', 'writing', 'unwritten', 'ready', 'sending', 'accepted', 'sent', 'failed', 'uncertain'] as const;
 export type OnlineFanState = (typeof ONLINE_FAN_STATES)[number];
 
-/** What writes the fan's text: the AI's Reply, Hi or Ping, or a text of the team's guide; `none` — nothing to write about. */
-export const ONLINE_ACTS = ['reply', 'hi', 'ping', 'template', 'none'] as const;
+/**
+ * What writes the fan's text: the AI's Reply, Hi or Ping, a text of the team's guide, the AI's Fix of the person's own
+ * words, or those words as they are (`own`); `none` — nothing to write about.
+ */
+export const ONLINE_ACTS = ['reply', 'hi', 'ping', 'template', 'fix', 'own', 'none'] as const;
 export type OnlineAct = (typeof ONLINE_ACTS)[number];
 
-/** One of the card's «Reply», «Hi», «Ping», «Шаблон»: a click writes that text (again, when it is the card's already). */
+/** One of the card's «Reply», «Hi», «Ping», «Шаблон», «Fix»: a click writes that text (again, when it is the card's already). */
 export interface OnlineChoiceVM {
   readonly act: OnlineChoice;
   /** The hub's advice for the fan now («советуем»). */
@@ -147,7 +150,10 @@ export interface OnlineCardVM {
   readonly act: OnlineAct;
   /** The hub's advice for the fan now; null — nothing to write about. */
   readonly advice: OnlineChoice | null;
-  /** «Reply», «Hi», «Ping» and, where the guide has texts, «Шаблон» (held while a text is written); empty — the text went. */
+  /**
+   * «Reply», «Hi», «Ping», «Fix» and, where the guide has texts, «Шаблон» (held while a text is written); empty — the text
+   * went.
+   */
   readonly choices: readonly OnlineChoiceVM[];
   /**
    * A text of the team's guide: its id, its group (A — talked before, B — never wrote), whether the fan's name stands in

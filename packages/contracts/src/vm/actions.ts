@@ -443,12 +443,14 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('SelectOnline', { targetHandle: HandleSchema, keys: z.optional(z.literal(true)) }),
   /**
    * 1.65.0: «Отправить →» of a fan of «Онлайн»: the text, one click, one message, one attempt; the next fan's card opens
-   * (nothing is written there by itself). `anyway` passes the card's warning («Отправить всё равно»).
+   * (nothing is written there by itself). `anyway` passes the card's warning («Отправить всё равно»). `own` — the field
+   * «Свой текст»'s «Отправить»: the person's own words become the fan's text and go by this click, unless a warning holds them.
    */
-  act('SendOnline', { targetHandle: HandleSchema, anyway: z.optional(z.literal(true)) }),
+  act('SendOnline', { targetHandle: HandleSchema, anyway: z.optional(z.literal(true)), own: z.optional(z.string().check(z.minLength(1), z.maxLength(5_000))) }),
   /**
    * 1.65.0: «Ещё раз» — the AI writes the fan's text again —, «Другой шаблон» — the guide's next text. 2026-10-26: `act` —
-   * the card's «Reply», «Hi», «Ping» or «Шаблон»: that text is written for the fan (the AI's by this click). Nothing is sent.
+   * the card's «Reply», «Hi», «Ping», «Шаблон» or «Fix» (the person's own words rewritten): that text is written for the
+   * fan (the AI's by this click). Nothing is sent.
    */
   act('RewriteOnline', { targetHandle: HandleSchema, act: z.optional(z.enum(ONLINE_CHOICES)) }),
   /** 1.65.0: «Править» — the person's own words for the fan's text (null — back to the AI's or the guide's). Nothing is sent. */

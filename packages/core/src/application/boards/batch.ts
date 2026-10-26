@@ -312,6 +312,8 @@ export interface BatchPreviewPort {
   outreachStates?(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
   /** «Онлайн»: a text of the team's guide becomes the fan's open card's result, for its own send (X8); false — not now. */
   onlineText?(handle: string, text: string): Promise<boolean>;
+  /** «Онлайн»: the fan's draft (the card's field «Свой текст») emptied once its words became the card's text. */
+  clearDraft?(handle: string): void;
   onBatch(listener: () => void): () => void;
 }
 

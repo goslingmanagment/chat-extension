@@ -19,7 +19,7 @@
 // «Пропустить» is this pass's only; «Не предлагать» is the team's (the hub keeps it, `online.attempt`).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
-import { type OnlineItem, type OnlineList, type OnlineTemplate, type SendAttributionComposedWith } from '@cg/contracts/hub';
+import { ONLINE_SENT_ACTS, type OnlineItem, type OnlineList, type OnlineSentAct, type OnlineTemplate, type SendAttributionComposedWith } from '@cg/contracts/hub';
 import { CHAT_IS_FAN, ONLINE_CAPABILITY } from '@cg/contracts/ids';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import {
@@ -152,8 +152,8 @@ interface OwnSend {
 /** What text a fan gets now. */
 interface How {
   readonly act: OnlineAct;
-  /** The AI's feature; null — the guide's text, or nothing. */
-  readonly feature: 'reply' | 'hi' | 'ping' | null;
+  /** The AI's feature; null — the guide's text, the person's own words, or nothing. */
+  readonly feature: 'reply' | 'hi' | 'ping' | 'fix' | null;
   readonly template: OnlineTemplate | null;
 }
 
@@ -172,13 +172,16 @@ interface PassFan {
   dismiss: { readonly to: 'dismissed' | 'restored'; readonly at: number } | null;
   /** The guide's text of the fan in its group's turn; «Другой шаблон» moves it on. */
   template: number | null;
-  /** What the person picked on the card: «Reply», «Hi», «Ping» or «Шаблон»; null — nothing yet, nothing is written. */
-  chosen: OnlineChoice | null;
+  /**
+   * What the person picked on the card: «Reply», «Hi», «Ping», «Шаблон», «Fix», or their own words sent from «Свой текст»
+   * (`own`); null — nothing yet, nothing is written.
+   */
+  chosen: OnlineChoice | 'own' | null;
   /** ChatSpace: the card's result this window made (the AI's or the guide's text). */
   textOp: TextOp | null;
   /** ChatSpace: the guide's text is being put on the card. */
   making: boolean;
-  /** Fansly: the person's own words for the text. */
+  /** The person's own words for the text (Fansly: any text's; ChatSpace: the guide's or their own, which the card holds). */
   edit: string | null;
   /** Fansly: the background's send, and the words it took. */
   own: OwnSend | null;
@@ -443,11 +446,13 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   const groupFor = (item: OnlineItem): 'a' | 'b' => (item.act === 'template_a' ? 'a' : item.act === 'template_b' ? 'b' : item.messageCount > 0 ? 'a' : 'b');
 
   const NO_TEXT: How = { act: 'none', feature: null, template: null };
+  const OWN_TEXT: How = { act: 'own', feature: null, template: null };
 
   /** What writes the fan's text: the person's pick on the card, nothing before it. */
   function howOf(fanRef: string, item: OnlineItem): How {
     const chosen = pass.get(fanRef)?.chosen ?? null;
     if (chosen === null) return NO_TEXT;
+    if (chosen === 'own') return OWN_TEXT;
     if (chosen !== 'template') return { act: chosen, feature: chosen, template: null };
     const template = templateFor(fanRef, groupFor(item));
     return template === null ? NO_TEXT : { act: 'template', feature: null, template };
@@ -459,8 +464,12 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     return how.act !== 'none' ? how.act : (adviceOf(fanRef, item) ?? 'none');
   };
 
-  const keyOf = (how: How): string => (how.template !== null ? `t:${how.template.id}` : `a:${how.feature ?? ''}`);
+  const keyOf = (how: How): string => (how.template !== null ? `t:${how.template.id}` : how.act === 'own' ? 'own' : `a:${how.feature ?? ''}`);
   const templateText = (item: OnlineItem, template: OnlineTemplate): string => fillTemplate(template.text, item.greetingName);
+  /** The text is no AI's: the guide's, or the person's own words — on ChatSpace it goes onto the card as its result. */
+  const manual = (how: How): boolean => how.template !== null || how.act === 'own';
+  /** The words of such a text: the person's, else the guide's. */
+  const manualText = (fan: PassFan | undefined, item: OnlineItem, how: How): string => fan?.edit ?? (how.template === null ? '' : templateText(item, how.template));
 
   // ── each fan's text and send, one shape for both sites ──
 
@@ -525,9 +534,9 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       const key = keyOf(how);
       const op = fan?.textOp ?? null;
       const ours = card !== null && fan !== undefined && op !== null && card.opId === op.opId && op.key === key && !(again && card.opId === fan.sent?.opId);
-      if (how.template !== null) {
-        const wanted = fan?.edit ?? templateText(item, how.template);
-        const edited = (fan?.edit ?? null) !== null;
+      if (manual(how)) {
+        const wanted = manualText(fan, item, how);
+        const edited = how.template !== null && (fan?.edit ?? null) !== null;
         // The guide's text (or the person's words for it) is the open card's result: the card's send takes it.
         if (ours && op.text === wanted) {
           const facts = cardFacts(fan, card);
@@ -551,7 +560,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     }
     if (how.act === 'none') return NONE;
     let version: string | null;
-    if (how.template !== null) version = fan?.edit ?? templateText(item, how.template);
+    if (manual(how)) version = manualText(fan, item, how);
     else {
       const ai = aiFacts(fanRef, handle, keyOf(how));
       if (ai.state !== 'ready') return ai;
@@ -564,7 +573,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       ...NONE,
       state: failed ? 'failed' : 'ready',
       version,
-      edited: fan?.edit !== null && fan?.edit !== undefined,
+      edited: how.act !== 'own' && fan?.edit !== null && fan?.edit !== undefined,
       editable: true,
       code: failed ? sent.code : null,
       failedAt: failed ? iso(sent.at) : null,
@@ -854,7 +863,8 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   /** The hub's record of a send from the window, for the page it went from: once, never repeated; a failure changes nothing here. */
   function report(id: number | null, fanRef: string, reason: string, sent: NonNullable<PassFan['sent']>): void {
     if (id === null) return;
-    const act = sent.act === 'none' ? undefined : sent.act;
+    // The hub counts the acts it knows; Fix and the person's own words go without one.
+    const act = (ONLINE_SENT_ACTS as readonly OnlineAct[]).includes(sent.act) ? (sent.act as OnlineSentAct) : undefined;
     void rpc
       .request('online.attempt', {
         pageId: id,
@@ -976,12 +986,12 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     const fan = passOf(fanRef);
     const how = howOf(fanRef, item);
     const handle = handleOf(fanRef);
-    if (how.template === null || fan.making || surfaces.current().preview.online !== handle) {
+    if (!manual(how) || fan.making || surfaces.current().preview.online !== handle) {
       changed();
       return;
     }
     const key = keyOf(how);
-    const wanted = fan.edit ?? templateText(item, how.template);
+    const wanted = manualText(fan, item, how);
     const card = port.outreachRow?.(handle) ?? null;
     if (fan.textOp !== null && fan.textOp.key === key && fan.textOp.text === wanted && card !== null && card.opId === fan.textOp.opId) return;
     fan.making = true;
@@ -1111,8 +1121,10 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     // Another card was asked for meanwhile (a click, the keys): that one opens, not this.
     if (disposed || atEpoch !== epoch || run !== opening || !surfaces.current().online || pending !== null) return;
     surfaces.setPreview('online', handle);
-    // ChatSpace: a guide's text the person picked before goes back onto the card (no AI: the card's send takes it, X8).
-    if (pass.get(fanRef)?.chosen === 'template') void ensureManual(fanRef);
+    // ChatSpace: a guide's text (or the person's own words) picked before goes back onto the card (no AI: the card's
+    // send takes it, X8).
+    const chosen = pass.get(fanRef)?.chosen ?? null;
+    if (chosen === 'template' || chosen === 'own') void ensureManual(fanRef);
     changed();
   }
 
@@ -1158,6 +1170,37 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       return receipt;
     }
     return sendOwn(type, fanRef, item, fan, facts);
+  }
+
+  /**
+   * «Отправить» of the field «Свой текст»: the person's own words become the fan's text and go by this click, as the
+   * card's «Отправить →» would send them. A warning of the card (the archive not checked, a colleague talking) holds
+   * them on the card instead: the person passes it there with «Отправить всё равно».
+   */
+  async function sendWords(type: UiActionType, fanRef: string, words: string): Promise<ActionReceipt> {
+    const item = items.get(fanRef);
+    if (item === undefined) return refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n));
+    const text = words.trim().slice(0, ONLINE_TEXT_MAX);
+    if (text.length === 0) return refused(type, localError('CG-SEND-PART', i18n));
+    const fan = passOf(fanRef);
+    const before = factsOf(fanRef, item);
+    if (MOVING.includes(before.state) || before.state === 'writing') return refused(type, localError('CG-SEND-BUSY', i18n));
+    if (WENT.includes(before.state) && !answered(item, fan)) return refused(type, localError('CG-SEND-PART', i18n));
+    fan.chosen = 'own';
+    fan.edit = text;
+    fan.aiKey = null;
+    fan.manualFailedAt = null;
+    if (fan.own?.state === 'failed') fan.own = null;
+    batch.drop([handleOf(fanRef)]);
+    // The words are the card's text now: the field is free for the next ones.
+    batchPort?.clearDraft?.(handleOf(fanRef));
+    // ChatSpace: the words go onto the open card first; its own send takes them (X8).
+    if (own === null) await ensureManual(fanRef);
+    changed();
+    const now = items.get(fanRef);
+    if (disposed || now === undefined) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    if (factsOf(fanRef, now).send?.kind === 'anyway') return done(type, 'started');
+    return send(type, fanRef, false);
   }
 
   /** The site's own send (Fansly): the click's token, the fan's chat, one request. */
@@ -1224,7 +1267,8 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (MOVING.includes(before.state) || before.state === 'writing') return refused(type, localError('CG-SEND-BUSY', i18n));
     if (WENT.includes(before.state) && !answered(item, fan)) return refused(type, localError('CG-SEND-PART', i18n));
     const pick = act ?? fan.chosen;
-    if (pick === null) return refused(type, localError('CG-SEND-PART', i18n));
+    // The person's own words are not written again: «Fix» rewrites them.
+    if (pick === null || pick === 'own') return refused(type, localError('CG-SEND-PART', i18n));
     if (pick === 'template' && fan.chosen === 'template' && fan.template !== null) fan.template += 1;
     fan.chosen = pick;
     const how = howOf(fanRef, item);
@@ -1253,7 +1297,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     const text = words === null ? null : words.slice(0, ONLINE_TEXT_MAX);
     const how = howOf(fanRef, item);
     // ChatSpace: the AI's text is edited on its card, as «Рассылка»'s versions.
-    if (own === null && how.template === null) {
+    if (own === null && !manual(how)) {
       const ok = batchPort?.outreachEdit?.(handleOf(fanRef), text) ?? false;
       changed();
       return ok ? done(type) : refused(type, localError('CG-SEND-PART', i18n));
@@ -1363,7 +1407,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (action.type === 'SendOnline' || action.type === 'RewriteOnline' || action.type === 'EditOnline' || action.type === 'SkipOnline' || action.type === 'DismissOnline') {
       const fanRef = fanOf(action.targetHandle);
       if (fanRef === null) return null;
-      if (action.type === 'SendOnline') return send(action.type, fanRef, action.anyway === true);
+      if (action.type === 'SendOnline') return action.own === undefined ? send(action.type, fanRef, action.anyway === true) : sendWords(action.type, fanRef, action.own);
       if (action.type === 'RewriteOnline') return Promise.resolve(rewrite(action.type, fanRef, action.act));
       if (action.type === 'EditOnline') return Promise.resolve(edit(action.type, fanRef, action.text));
       if (action.type === 'SkipOnline') return Promise.resolve(skip(action.type, fanRef, action.skip));

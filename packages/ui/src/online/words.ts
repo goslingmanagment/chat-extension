@@ -10,7 +10,7 @@ export function timeLeft(i18n: I18n, at: IsoTimestamp, now = Date.now()): string
   return Number.isNaN(end) ? i18n.t('common.unknown') : i18n.formatAge(2 * now - end, now);
 }
 
-/** What wrote the text: «Reply», «Hi», «Ping», «Шаблон». */
+/** What wrote the text: «Reply», «Hi», «Ping», «Шаблон», «Fix», «Свой текст». */
 export function actWord(i18n: I18n, act: OnlineAct | null): string {
   switch (act) {
     case 'reply':
@@ -21,6 +21,10 @@ export function actWord(i18n: I18n, act: OnlineAct | null): string {
       return i18n.t('online.act.ping');
     case 'template':
       return i18n.t('online.act.template');
+    case 'fix':
+      return i18n.t('online.act.fix');
+    case 'own':
+      return i18n.t('online.act.own');
     case 'none':
     case null:
       return i18n.t('online.act.text');
@@ -33,7 +37,7 @@ export function reasonShort(i18n: I18n, reason: OnlineReasonVM, sentAct: OnlineA
     case 'waiting':
       return reason.since === null ? i18n.t('online.why.waitingNow') : i18n.t('online.why.waiting', { age: i18n.formatAge(reason.since) });
     case 'answered':
-      return i18n.t('online.why.answered', { act: sentAct === 'template' ? i18n.t('online.act.templateLower') : actWord(i18n, sentAct), age: reason.at === null ? i18n.t('common.unknown') : i18n.formatAge(reason.at) });
+      return i18n.t('online.why.answered', { act: sentAct === 'template' ? i18n.t('online.act.templateLower') : sentAct === 'own' ? i18n.t('online.act.ownLower') : actWord(i18n, sentAct), age: reason.at === null ? i18n.t('common.unknown') : i18n.formatAge(reason.at) });
     case 'new':
       return reason.subscribedAt === null ? i18n.t('online.why.newNow') : i18n.t('online.why.new', { age: i18n.formatAge(reason.subscribedAt) });
     case 'expiring':
