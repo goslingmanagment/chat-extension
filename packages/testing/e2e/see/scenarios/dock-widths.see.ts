@@ -5,8 +5,8 @@
 
 import { scenario } from '../kit';
 
-/** Window widths, the widest first; on Fansly the bars are ~670, ~630, ~570, ~520, ~480 and ~460 px. */
-const WINDOWS = { fansly: [1130, 1065, 960, 880, 812, 782], chatspace: [1300, 1040, 960, 900] } as const;
+/** Window widths, the widest first; on Fansly the bars are ~670, ~630, ~612 (a 1512 px Mac's chat), ~570, ~520, ~480 and ~460 px. */
+const WINDOWS = { fansly: [1130, 1065, 1035, 960, 880, 812, 782], chatspace: [1300, 1040, 960, 900] } as const;
 /** «Обычный»: the mockup's window and Fansly's 1728 px one (a ~620 px composer). */
 const NORMAL_WINDOWS = [1440, 1040] as const;
 const HEIGHT = 900;
