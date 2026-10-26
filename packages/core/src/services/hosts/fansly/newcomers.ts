@@ -43,6 +43,11 @@
 // and the new ones checked (2026-10-23).
 // Its metadata journal is a separate port (P10b3, NF-029, FS-NEW-5): IDB with rotation and only a small memory tail.
 //
+// 2026-10-26 (a fan a colleague greeted sat in «Не писали» an hour on, his card «Личной переписки ещё нет»): «Не
+// писали» is what a check read at its moment. While a window holds the pass the inbox's newest chats are looked at
+// once a minute (WATCH_MS, one request) and a row whose chat got a message since is checked again; the card's chat and
+// a Hi's proof (the card's and a batch's) never rest on a check older than READY_FRESH_MS — it is made again first.
+//
 // As the old extension (2.13.0), 2026-10-21 (audit regression 7):
 // - what a pass proved outlives it (`NEWCOMERS_KNOWN_PREFIX`): a fan written to — the creator's personal message or a
 //   greeting of ours that went — is «Уже писали» on the next window without a request, and a fan's chat is a lead
@@ -228,6 +233,15 @@ export const RECHECK_DELAY_MS = 3000;
  * on every later refresh too. A fan already in the pass is never taken twice.
  */
 const REFRESH_OVERLAP_MS = 5 * 60_000;
+/**
+ * 2026-10-26 (the owner: «не видно истории в новых хотя она есть, плюс фан с историей сидит»): «Не писали» is what a
+ * check read at its moment, and a colleague may write to the fan an hour later. While a window holds the pass, the
+ * newest chats of the inbox (one request) are looked at this often: a «Не писали» row whose chat there has a message the
+ * check did not see is checked again.
+ */
+export const WATCH_MS = 60_000;
+/** A «Не писали» row checked longer ago is checked again before its card shows the chat and before a Hi takes it. */
+export const READY_FRESH_MS = 2 * 60_000;
 
 /** What the greeting (P10c) takes of a checked row (FS-NEW-7): only a history walked to its empty page has one. */
 export interface PassRowProof {
@@ -281,6 +295,10 @@ interface Row {
   proof: PassRowProof | null;
   /** R20 P10c (FX-018): the avatar's address of the profile the pass read; null — none fit to send. */
   avatar: string | null;
+  /** The last time the row was checked again on purpose (its card, a Hi, the inbox's news): one try per READY_FRESH_MS. */
+  triedAt?: number;
+  /** The inbox's newest message of the chat a check already went for: the same one is not gone for again. */
+  looked?: string;
 }
 
 interface Work {
@@ -347,6 +365,8 @@ interface Pass {
   readonly dirty: Set<Row>;
   passDirty: boolean;
   flushing: boolean;
+  /** The inbox is looked at while a window holds the pass (WATCH_MS). */
+  watching: boolean;
 }
 
 type Payload<T extends keyof typeof REQUESTS> = FanslyTabRequestPayload<T>;
@@ -1266,7 +1286,99 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (!deps.tabOn(tab, pass.creator)) return false;
     pass.watchers.add(tab);
     windows.set(tab, { passId: pass.id, creator: pass.creator });
+    watch(pass);
     return true;
+  }
+
+  // ── what changed since a check (2026-10-26) ──
+
+  /** The newest message id a row's check saw: of its history, or the head its chat named. */
+  function headOf(row: Row): string | null {
+    const ids = [row.kept.at(-1)?.id, row.chat?.lastMessageId].filter((id): id is string => id !== undefined && id !== null);
+    return ids.sort(compareNativeIds).at(-1) ?? null;
+  }
+
+  /** «Не писали» as read longer than READY_FRESH_MS ago, and not tried again since. */
+  function stale(row: Row): boolean {
+    if (row.view.status !== 'ready' || row.proof === null) return false;
+    const checked = row.view.checkedAt === null ? 0 : Date.parse(row.view.checkedAt);
+    return deps.now() - Math.max(Number.isFinite(checked) ? checked : 0, row.triedAt ?? 0) > READY_FRESH_MS;
+  }
+
+  /**
+   * A «Не писали» row checked again now (its card, a Hi, the inbox's news), as the check right before a send reads it:
+   * a personal message of the creator's since makes it «Уже писали», a new message a new revision. A failure leaves the
+   * row as it was; nothing is created. `click` — the person waits on it: first in the pacer, a cooldown refuses at once.
+   */
+  async function again(pass: Pass, row: Row, reason: 'card' | 'hi' | 'inbox', click: boolean): Promise<void> {
+    if (row.view.status !== 'ready' || row.proof === null || pass.life.aborted) return;
+    row.triedAt = deps.now();
+    note(pass, 'row.recheck', { fanRef: row.view.fanRef, groupId: row.chat?.groupId, reason });
+    const before = row.view;
+    const stop = new AbortSwitch();
+    pass.life.addEventListener('abort', () => stop.abort());
+    try {
+      await check(pass, workOf(stop), row, false, click);
+    } catch (error) {
+      if (byId_.get(pass.id) === pass && (row.view.status as FanslyFollowerRow['status']) === 'checking') set(pass, row, { status: before.status, error: before.error ?? null });
+      if (!(error instanceof Aborted)) note(pass, 'row.recheck', { fanRef: row.view.fanRef, reason, code: failureOf(error).wire.code });
+    }
+  }
+
+  /**
+   * While a window holds the pass: the inbox's newest chats every WATCH_MS, one request. A «Не писали» row whose chat
+   * there has a message newer than its check saw — a colleague's greeting, the fan's answer — is checked again. Not
+   * while the pass reads its list, stands paused or stopped, or the creator's lane cools down; it ends with the last
+   * window (FS-NEW-4).
+   */
+  function watch(pass: Pass): void {
+    if (pass.watching) return;
+    pass.watching = true;
+    void (async () => {
+      try {
+        while (!pass.life.aborted && pass.watchers.size > 0) {
+          await deps.sleep(WATCH_MS, pass.life);
+          if (pass.life.aborted || pass.watchers.size === 0) break;
+          if (pass.base === 'scanning' || pass.base === 'paused' || pass.base === 'stopped' || deps.api.coolingUntil(pass.creator) > deps.now()) continue;
+          await lookAgain(pass);
+        }
+      } catch {
+        // A look that failed is the next one's to make.
+      } finally {
+        pass.watching = false;
+      }
+    })();
+  }
+
+  async function lookAgain(pass: Pass): Promise<void> {
+    const ready = new Map(pass.rows.filter((row) => row.view.status === 'ready' && row.chat !== null).map((row) => [row.view.fanRef, row]));
+    if (ready.size === 0) return;
+    const stop = new AbortSwitch();
+    pass.life.addEventListener('abort', () => stop.abort());
+    let page: ReturnType<typeof readInboxPage>;
+    try {
+      page = readInboxPage(
+        await ask(pass, workOf(stop), {
+          route: 'messaging.groups',
+          query: { sortOrder: '1', flags: '0', subscriptionTierId: '', listIds: '', search: '', limit: String(PASS_BOUNDS.inboxPage), offset: '0' },
+        }),
+        pass.creator,
+        new Set(ready.keys()),
+        deps.now(),
+      );
+    } catch {
+      return;
+    }
+    note(pass, 'inbox.page', { page: 1, count: page?.count ?? 0, reason: 'watch' });
+    for (const chat of page?.chats ?? []) {
+      const row = ready.get(chat.fanRef);
+      const head = chat.lastMessageId;
+      if (row === undefined || head === null || chat.groupId !== row.chat?.groupId || row.looked === head) continue;
+      const seen = headOf(row);
+      if (seen !== null && compareNativeIds(head, seen) <= 0) continue;
+      row.looked = head;
+      await again(pass, row, 'inbox', false);
+    }
   }
 
   const running = (pass: Pass): boolean => pass.work !== null && !pass.work.stop.aborted;
@@ -1338,6 +1450,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       dirty: new Set(),
       passDirty: false,
       flushing: false,
+      watching: false,
     };
     passes.set(creator, pass);
     byId_.set(pass.id, pass);
@@ -1489,6 +1602,9 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const pass = find(payload.passId, tab);
     const row = pass?.byFan.get(payload.fanRef);
     if (pass === null || pass === undefined || row === undefined) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
+    // 2026-10-26: the card shows the chat as it is now, not as the check read it an hour ago — a «Не писали» row read
+    // longer ago is checked again first (a colleague's greeting since makes it «Уже писали»).
+    if (payload.before === null && stale(row) && deps.api.coolingUntil(pass.creator) <= deps.now()) await again(pass, row, 'card', true);
     const groupId = row.chat?.groupId ?? null;
     if (groupId === null || row.view.status === 'pending' || row.view.status === 'checking') return { ok: false, error: { code: 'CG-FNEW-UNVERIFIED' } };
     const older = (id: string, than: string | null): boolean => than === null || compareNativeIds(id, than) < 0;
@@ -1589,6 +1705,18 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return row.view.status === 'ready' && row.proof !== null ? { ok: true, historyRevision: row.proof.historyRevision } : { ok: false, code: notReady(row.view) };
   }
 
+  /**
+   * 2026-10-26: what «Сгенерировать» takes — of the card and of a batch — is never a check older than READY_FRESH_MS: such
+   * a row is checked again first, and one written to since answers «Уже писали» (`CG-SEND-PART`) instead of a proof. A
+   * check again that cannot be made now (a cooldown, a blip) leaves the proof the pass has: the send reads the chat again.
+   */
+  async function freshProof(passId: string, fanRef: string, tab: string): Promise<ReturnType<typeof greetingProof>> {
+    const pass = exact(passId, tab);
+    const row = pass?.byFan.get(fanRef);
+    if (pass !== null && row !== undefined && stale(row) && deps.api.coolingUntil(pass.creator) <= deps.now()) await again(pass, row, 'hi', true);
+    return greetingProof(passId, fanRef, tab);
+  }
+
   /** The send's tuple now, from memory (§8.6 step 2): the row as the pass holds it; null — not a checked row any more. */
   function live(passId: string, fanRef: string): { readonly hostAccountId: string; readonly groupId: string; readonly fanRef: string; readonly historyRevision: string } | null {
     const pass = byId_.get(passId);
@@ -1656,6 +1784,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       dirty: new Set(),
       passDirty: false,
       flushing: false,
+      watching: false,
     };
     try {
       pass.welcome = (await freshWelcome(creator)) ?? (await welcomeTexts(pass, work));
@@ -1800,6 +1929,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       return byId_.get(passId)?.byFan.get(fanRef)?.proof ?? null;
     },
     greetingProof,
+    freshProof,
     row: rowFor,
     /** The creator of the tab's pass (exactly this pass); null — no such pass for this tab. */
     creatorOf: (passId: string, tab: string): string | null => exact(passId, tab)?.creator ?? null,

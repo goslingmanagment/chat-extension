@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
-import { COOLING_LOOK_MS, KNOWN_FLUSH_MS, NEWCOMERS_KNOWN_PREFIX, RECHECK_DELAY_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
+import { COOLING_LOOK_MS, KNOWN_FLUSH_MS, NEWCOMERS_KNOWN_PREFIX, READY_FRESH_MS, RECHECK_DELAY_MS, WATCH_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
 const C = '700000000000000017';
@@ -681,6 +681,74 @@ describe('[host:fansly] what the greeting takes of the pass (R20 P10c)', () => {
     expect(await t.row(passId, fan)).toMatchObject({ status: 'greeted', historyRevision: null });
     expect(t.service.greetingProof(passId, fan, TAB)).toEqual({ ok: false, code: 'CG-SEND-PART' });
     expect(t.heard.at(-1)?.change.rows.map((entry) => [entry.fanRef, entry.status])).toContainEqual([fan, 'greeted']);
+  });
+});
+
+describe('[host:fansly] «Новые» after the check (2026-10-26: a fan a colleague greeted sat in «Не писали» with an empty card)', () => {
+  const personal = (text: string) => ({ id: sf(Date.now()), senderId: C, type: 1, content: text, correlationId: null, inReplyTo: null });
+  const reads = (t: ReturnType<typeof setup>, groupId: string, from: number): number =>
+    t.world.calls.slice(from).filter((call) => call.route === 'message.history' && call.query?.['groupId'] === groupId).length;
+
+  it('[2026-10-26] while the window is open the inbox is looked at once a minute: only a chat with a message the check did not see is read again, and a colleague’s greeting makes it «Уже писали»', async () => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(5));
+    const quiet = t.world.follow(2, T0 - minutes(6));
+    const chat = t.world.chat(fan, [], 'full');
+    const quietChat = t.world.chat(quiet, [], 'full');
+    const passId = await t.scan();
+    await t.settle();
+    expect((await t.rows(passId)).map((row) => row.status)).toEqual(['ready', 'ready']);
+
+    chat.messages.push(personal('hi, welcome ♡ nice to see a new face here'));
+    const before = t.world.calls.length;
+    await vi.advanceTimersByTimeAsync(WATCH_MS);
+    await t.settle();
+    expect(await t.row(passId, fan)).toMatchObject({ status: 'greeted' });
+    expect(await t.row(passId, quiet)).toMatchObject({ status: 'ready' });
+    expect([t.world.calls.slice(before).filter((call) => call.route === 'messaging.groups').length, reads(t, chat.id, before), reads(t, quietChat.id, before)]).toEqual([1, 1, 0]);
+
+    // Nothing new: the next look reads no chat.
+    const after = t.world.calls.length;
+    await vi.advanceTimersByTimeAsync(WATCH_MS);
+    await t.settle();
+    expect(t.world.calls.slice(after).map((call) => call.route)).toEqual(['messaging.groups']);
+
+    // The last window closed: no more looks.
+    await t.ask('fansly.followers.close', { passId });
+    const closed = t.world.calls.length;
+    await vi.advanceTimersByTimeAsync(WATCH_MS * 3);
+    expect(t.world.calls.length).toBe(closed);
+  });
+
+  it('[2026-10-26] a check older than a couple of minutes is made again before the card shows the chat and before a Hi takes it; a fresh one is not', async () => {
+    const t = setup();
+    const carded = t.world.follow(1, T0 - minutes(5));
+    const hi = t.world.follow(2, T0 - minutes(6));
+    const fresh = t.world.follow(3, T0 - minutes(7));
+    // Chats the inbox does not list: only the card and the Hi can see what changed.
+    const cardChat = t.world.chat(carded, [], 'no');
+    const hiChat = t.world.chat(hi, [], 'no');
+    const freshChat = t.world.chat(fresh, [], 'no');
+    const passId = await t.scan();
+    await t.settle();
+    const start = t.world.calls.length;
+    expect(await t.ask('fansly.followers.history', { passId, fanRef: fresh, before: null, limit: 25 })).toMatchObject({ ok: true, messages: [] });
+    expect((await t.service.freshProof(passId, fresh, TAB)).ok).toBe(true);
+    expect(reads(t, freshChat.id, start)).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(READY_FRESH_MS + 1000);
+    cardChat.messages.push(personal('hey you'));
+    hiChat.messages.push(personal('heyy, thanks for the follow'));
+    const history = await t.ask('fansly.followers.history', { passId, fanRef: carded, before: null, limit: 25 });
+    expect(history.ok && history.messages.map((message) => message.text)).toEqual(['hey you']);
+    expect(await t.row(passId, carded)).toMatchObject({ status: 'greeted' });
+    expect(await t.service.freshProof(passId, hi, TAB)).toEqual({ ok: false, code: 'CG-SEND-PART' });
+    expect(await t.row(passId, hi)).toMatchObject({ status: 'greeted' });
+    // Checked just now: the Hi takes the proof as it is.
+    const now = t.world.calls.length;
+    expect((await t.service.freshProof(passId, fresh, TAB)).ok).toBe(true);
+    expect((await t.service.freshProof(passId, fresh, TAB)).ok).toBe(true);
+    expect(reads(t, freshChat.id, now)).toBe(1);
   });
 });
 

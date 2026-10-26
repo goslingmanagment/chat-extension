@@ -62,7 +62,7 @@ function world() {
     newcomers: {
       row: (passId, fanRef, tab) => (passId === PASS && fanRef === FAN && tab === TAB && state.row !== null ? { creator: state.creator, view: state.row, proof: state.row.status === 'ready' && state.row.historyRevision !== null ? { groupId: GROUP, historyRevision: state.row.historyRevision, window: [], startProof: { v: 1, source: 'pass-empty-page', groupId: GROUP, startWitnessId: null, coveredCount: 0, personalCount: 0, automatedIds: [] } } : null } : null),
       creatorOf: (passId, tab) => (passId === PASS && tab === TAB ? state.creator : null),
-      greetingProof: () => ({ ok: false, code: 'CG-FNEW-UNVERIFIED' }),
+      freshProof: () => Promise.resolve({ ok: false, code: 'CG-FNEW-UNVERIFIED' }),
       recheck() {
         log.push('recheck');
         if (state.recheck.ok && state.row !== null) state.row = { ...state.row, historyRevision: state.recheck.historyRevision };

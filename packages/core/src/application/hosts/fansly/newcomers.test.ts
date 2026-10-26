@@ -487,6 +487,27 @@ function greetingWorld(rows: FanslyFollowerRow[] = [wireRow(1), wireRow(2)], opt
 
 describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10c)', () => {
 
+  it('[2026-10-26] a fan checked again while the card is open (a colleague wrote): the card reads the chat again — never the old one under a new verdict; a check under way changes nothing yet', async () => {
+    const w = greetingWorld([wireRow(1)]);
+    await w.open();
+    await w.pick(1);
+    expect(w.card()?.history).toMatchObject({ s: 'ready', messages: [] });
+    const passId = w.background.last().view.passId;
+    const reads = (): number => w.background.requests.filter((request) => request.type === 'fansly.followers.history').length;
+    const first = reads();
+    // «Проверяем…» and back to the same history: the conversation shown stays.
+    w.background.change(passId, [wireRow(1, { status: 'checking' })]);
+    await settle();
+    w.background.change(passId, [wireRow(1)]);
+    await settle();
+    expect(reads()).toBe(first);
+    w.background.passes.get(passId)?.history.set(fan(1), [{ messageId: '600000000000000099', fromFan: false, at: minutesAgo(1), text: 'hi, welcome ♡', automated: false, attachments: 0 }]);
+    w.background.change(passId, [wireRow(1, { status: 'greeted', historyRevision: null })]);
+    await settle();
+    expect(reads()).toBe(first + 1);
+    expect(w.card()?.history.messages.map((message) => message.text)).toEqual(['hi, welcome ♡']);
+  });
+
   it('[FS-NEW-3] sent and uncertain survive reopening and another tab: a sent greeting is never sent or inserted again (X5); an unknown one says so and lets the person send again by their own click', async () => {
     for (const state of ['uncertain', 'sent'] as const) {
       const w = greetingWorld();

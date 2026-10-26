@@ -4,7 +4,7 @@
 // (./send.ts), and it is the «now» of the send's final check: the pass's row and the draft's revision, from memory.
 //
 // - `proof` — what «Сгенерировать» takes of the pass (FS-NEW-7): the checked history's ids, the start, the avatar of the
-//   profile the pass read (FX-018). The generation itself is the tab's: the hub builds it from its own history (X4).
+//   profile the pass read (FX-018); a check older than a couple of minutes is made again first (2026-10-26). The generation itself is the tab's: the hub builds it from its own history (X4).
 //   `recheck` — the history read again while Hi generates (2026-10-25): a colleague's greeting stops it.
 // - `draft` — the card's field (NF-012): kept per creator (its hub page) and fan in the shared `newcomers.drafts` (5000
 //   characters, until sent or cleared, at most 7 days), merged draft by draft with what the tabs wrote; read without a text, written with one. The
@@ -51,7 +51,7 @@ export interface GreetingGeneration {
 }
 
 export interface FanslyGreetingDeps {
-  readonly newcomers: Pick<FanslyNewcomers, 'row' | 'creatorOf' | 'greetingProof' | 'recheck' | 'live' | 'greeted'>;
+  readonly newcomers: Pick<FanslyNewcomers, 'row' | 'creatorOf' | 'freshProof' | 'recheck' | 'live' | 'greeted'>;
   readonly send: Pick<FanslySend, 'send' | 'native' | 'onChange' | 'status' | 'latest'>;
   /** storage.local: the drafts (the shared `newcomers.drafts`). */
   readonly local: KeyValuePort;
@@ -187,8 +187,9 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
 
   // ── the generation's proof (FS-NEW-7) ──
 
-  function proof(payload: Payload<'fansly.followers.proof'>, tab: string): Answer<'fansly.followers.proof'> {
-    const answer = deps.newcomers.greetingProof(payload.passId, payload.fanRef, tab);
+  /** 2026-10-26: never on a check older than a couple of minutes — the card's Hi and a batch's alike (newcomers.ts `freshProof`). */
+  async function proof(payload: Payload<'fansly.followers.proof'>, tab: string): Promise<Answer<'fansly.followers.proof'>> {
+    const answer = await deps.newcomers.freshProof(payload.passId, payload.fanRef, tab);
     return answer.ok ? { ok: true, proof: answer.proof } : { ok: false, error: { code: answer.code } };
   }
 
