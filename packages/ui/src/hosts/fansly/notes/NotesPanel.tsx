@@ -6,9 +6,12 @@
 //   an empty one deletes it), the fan's @handle, «Обновить», «Где показывать» (the view, ⌘⇧K), «Закрыть».
 // - «Анкета»: a table, the label, its facts, the month a fact was said at the right. A click on a row opens that field in
 //   place, one fact per line: Enter writes it to Fansly, Esc puts it away. The fields with nothing written are «+ Метка».
-//   «✨ Дополнить из чата» in the section's head: while the hub reads the chat, its stage line and «Остановить»; then
-//   what the Goose found, ticked, with the fan's words, and one «Записать в анкету (N)». The fields it wrote are marked ✦.
 //   «Править текстом» and «Удалить анкету» under the table.
+// - Filling it from the chat is the main way (the owner, 2026-10-27: «это основная фича»): a fan without a
+//   questionnaire gets a card with «✨ Заполнить из чата» (and «Заполнить вручную» for the fields); a filled one has
+//   «✨ Дополнить из чата» in the section's head. While the hub reads the chat, its stage line and «Остановить»; then
+//   the Goose's draft in the same table: what it adds in its serif on a warm row, what a rewrite drops struck, ✕ on each
+//   of its rows, the fan's words on hover, and one «Сохранить анкету». The fields it wrote are marked ✦.
 // - «Заметки»: a box at the top (a line typed and Enter makes a note), then the notes, newest first, the date at the
 //   left; «Изменить» and «Удалить» on a note under the pointer. FBuddy's note and a long one are read only.
 
@@ -18,10 +21,10 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { I18nKey } from '@cg/contracts/errors';
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NotesClient, NotesCopy, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillVM, NotesFindingVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM } from '@cg/contracts/notes-fansly';
+import type { NotesClient, NotesCopy, NotesDateVM, NotesDraftFactVM, NotesDraftRowVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM } from '@cg/contracts/notes-fansly';
 import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
 
-import { Button, CheckGlyph, Dot, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit } from '../../../kit';
+import { Button, Dot, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit } from '../../../kit';
 import { useNotesTick, type NotesTexts } from './NotesButton';
 
 type Props = { readonly client: NotesClient; readonly copy: NotesCopy };
@@ -244,91 +247,77 @@ function FieldEditor({ client, copy, field }: Props & { readonly field: NotesFie
   );
 }
 
-/** One thing the Goose found: the whole row ticks it. */
-function Finding({ client, copy, finding, off }: Props & { readonly finding: NotesFindingVM; readonly off: boolean }): JSX.Element {
-  const toggle = (): void => {
-    if (!off) client.dispatch({ type: 'finding', index: finding.index, checked: !finding.checked });
-  };
+/** A fact of the Goose's draft: what stays plain, the Goose's own in its serif (the fan's words on hover), what goes
+ * struck. */
+function DraftFact({ copy, fact, quotes }: { readonly copy: NotesCopy; readonly fact: NotesDraftFactVM; readonly quotes: readonly string[] }): JSX.Element {
+  const said = fact.mark === 'added' && quotes.length > 0 ? `${copy.quotes}: ${quotes.map((quote) => `«${quote}»`).join(' ')}` : null;
+  return (
+    <span class={`cg-notes__fact is-${fact.mark}`} {...(said === null ? {} : { title: said })}>
+      <span class="cg-notes__fact-t">{fact.text}</span>
+      {fact.date === null ? null : <span class="cg-notes__fact-date">{fact.date}</span>}
+    </span>
+  );
+}
+
+/** A row of the draft: a field the Goose wrote into is warm and has ✕ (put it aside); put aside, «Вернуть». */
+function DraftRow({ client, copy, row, saving }: Props & { readonly row: Extract<NotesDraftRowVM, { kind: 'field' }>; readonly saving: boolean }): JSX.Element {
+  const index = row.finding;
+  const reason = saving ? { reason: copy.saving } : {};
   return (
     <div
-      class={`cg-notes__find${finding.checked ? '' : ' is-off'}`}
-      role="checkbox"
-      aria-checked={finding.checked ? 'true' : 'false'}
-      tabIndex={0}
-      data-notes-finding={finding.label}
-      {...(off ? { 'aria-disabled': 'true' } : {})}
-      onClick={toggle}
-      onKeyDown={(event) => {
-        if (event.key !== ' ' && event.key !== 'Enter') return;
-        event.preventDefault();
-        toggle();
-      }}
+      class={`cg-notes__drow${index === null ? '' : row.checked ? ' is-found' : ' is-off'}${row.added ? ' is-added' : ''}`}
+      data-notes-draft-row={row.label}
+      {...(index === null ? {} : { 'data-checked': row.checked ? 'true' : 'false' })}
     >
-      <span class="cg-notes__find-box">
-        <CheckGlyph on={finding.checked} size={14} />
+      <span class="cg-notes__label">{row.label}</span>
+      <span class="cg-notes__value" {...(row.facts.length > 1 ? { 'data-many': '' } : {})}>
+        {row.facts.map((fact, at) => (
+          <DraftFact key={at} copy={copy} fact={fact} quotes={row.quotes} />
+        ))}
       </span>
-      <span class="cg-notes__find-b">
-        <span class="cg-notes__find-h">
-          <span class="cg-notes__find-l">{finding.label}</span>
-          {finding.kind === 'new' ? <span class="cg-notes__kind">{copy.kindNew}</span> : finding.kind === 'change' ? <span class="cg-notes__kind">{copy.kindChange}</span> : null}
-        </span>
-        {finding.removed.map((fact, index) => (
-          <del key={`-${String(index)}`} class="cg-notes__find-del">
-            <Fact copy={copy} fact={fact} />
-          </del>
-        ))}
-        {finding.added.map((fact, index) => (
-          <ins key={`+${String(index)}`} class="cg-notes__find-add">
-            <Fact copy={copy} fact={fact} />
-          </ins>
-        ))}
-        {finding.quotes.length === 0 ? null : (
-          <span class="cg-notes__quotes" aria-label={copy.quotes}>
-            {finding.quotes.slice(0, 2).map((quote, index) => (
-              <span key={index} class="cg-notes__quote">
-                «{quote}»
-              </span>
-            ))}
-          </span>
+      <span class="cg-notes__drow-act">
+        {index === null ? null : row.checked ? (
+          <Button variant="quiet" size="sm" iconOnly icon="x" label={copy.drop} {...reason} onClick={() => client.dispatch({ type: 'finding', index, checked: false })} />
+        ) : (
+          <Button variant="quiet" size="sm" label={copy.restore} {...reason} onClick={() => client.dispatch({ type: 'finding', index, checked: true })} />
         )}
       </span>
     </div>
   );
 }
 
-/** What the Goose found, ticked; «Записать в анкету (N)» writes the ticked ones in one go. */
-function Review({ client, copy, fill }: Props & { readonly fill: NotesFillVM }): JSX.Element {
+/** The Goose's draft in the questionnaire's own table; one «Сохранить анкету» writes it, «Отмена» drops it. */
+function Draft({ client, copy, form, fill }: Props & { readonly form: NotesFormVM; readonly fill: NotesFillVM }): JSX.Element {
   const errorText = useErrorText();
-  const ticked = fill.findings.filter((finding) => finding.checked).length;
-  const all = ticked === fill.findings.length;
-  const off = fill.saving || fill.blocked || ticked === 0;
+  const off = fill.saving || fill.blocked;
   return (
-    <div class="cg-notes__review" data-notes-review="">
-      <p class="cg-notes__review-t">{copy.fillAsk}</p>
-      <div class="cg-notes__finds" role="group" aria-label={copy.fillAsk}>
-        {fill.findings.map((finding) => (
-          <Finding key={finding.index} client={client} copy={copy} finding={finding} off={fill.saving} />
-        ))}
+    <div class="cg-notes__draft" data-notes-draft="">
+      <p class="cg-notes__draft-t">
+        <span aria-hidden="true">✨</span>
+        {form.noteId === null ? copy.draftNew : copy.draftMore}
+      </p>
+      <div class="cg-notes__table" data-notes-table="">
+        {fill.rows.map((row, at) =>
+          row.kind === 'text' ? (
+            <div key={`t${String(at)}`} class="cg-notes__free">
+              {row.text}
+            </div>
+          ) : (
+            <DraftRow key={`f${row.label}`} client={client} copy={copy} row={row} saving={fill.saving} />
+          ),
+        )}
       </div>
+      {fill.unfound.length === 0 ? null : <p class="cg-notes__unfound">{copy.unfound.replace('{labels}', fill.unfound.join(', '))}</p>}
       {fill.problem === null ? null : (
         <p class="cg-notes__problem" role="alert" data-notes-problem={fill.problem.kind}>
           {problemText(fill.problem, copy.fillProblem, errorText, copy.problem.empty)}
         </p>
       )}
       <div class="cg-notes__acts cg-notes__review-acts">
-        <button
-          type="button"
-          class={`cg-act cg-act--main${fill.saving ? ' is-busy' : ''}`}
-          data-notes-apply=""
-          title={ticked === 0 ? copy.fillApplyNone : copy.saveHint}
-          {...(off ? { 'aria-disabled': 'true' } : {})}
-          onClick={() => off || client.dispatch({ type: 'fill-apply' })}
-        >
-          <span class="cg-act__t">{fill.saving ? copy.saving : `${copy.fillApply} (${String(ticked)})`}</span>
+        <button type="button" class={`cg-act cg-act--main${fill.saving ? ' is-busy' : ''}`} data-notes-apply="" title={copy.saveHint} {...(off ? { 'aria-disabled': 'true' } : {})} onClick={() => off || client.dispatch({ type: 'fill-apply' })}>
+          <span class="cg-act__t">{fill.saving ? copy.saving : copy.fillApply}</span>
         </button>
         <Button variant="plain" label={copy.cancel} {...(fill.saving ? { reason: copy.saving } : {})} onClick={() => client.dispatch({ type: 'fill-close' })} />
-        <span class="cg-notes__spacer" />
-        {fill.findings.length < 2 ? null : <Button variant="quiet" size="sm" label={all ? copy.fillNone : copy.fillAll} {...(fill.saving ? { reason: copy.saving } : {})} onClick={() => client.dispatch({ type: 'findings-all', checked: !all })} />}
       </div>
     </div>
   );
@@ -352,22 +341,41 @@ function FillNotice({ client, copy, fill }: Props & { readonly fill: NotesFillVM
   );
 }
 
-/** The section head's «✨ Дополнить из чата» (or «Остановить» while it reads). */
-function FillButton({ client, copy, form }: Props & { readonly form: NotesFormVM }): JSX.Element | null {
-  const fill = form.fill;
-  if (fill === null || fill.status === 'review') return null;
-  if (fill.status === 'running') return <Button variant="quiet" size="sm" label={copy.fillStop} class="cg-notes__stop" onClick={() => client.dispatch({ type: 'fill-stop' })} />;
-  const reason = fill.reason === 'editing' ? copy.fillEditing : fill.reason === 'writing' ? copy.fillWriting : null;
+/** Why the fill cannot start now, in the button's tooltip. */
+function fillReason(copy: NotesCopy, fill: NotesFillVM): string | null {
+  return fill.reason === 'editing' ? copy.fillEditing : fill.reason === 'writing' ? copy.fillWriting : null;
+}
+
+/** While the hub reads the chat: its stage and timer, and «Остановить». */
+function Running({ client, copy, fill }: Props & { readonly fill: NotesFillVM }): JSX.Element | null {
+  if (fill.phase === null) return null;
   return (
-    <Button
-      variant="quiet"
-      size="sm"
-      label={form.noteId === null ? copy.fillNew : copy.fill}
-      tooltip={copy.fillHint}
-      class="cg-notes__fill-act"
-      {...(reason === null ? {} : { reason })}
-      onClick={() => client.dispatch({ type: 'fill' })}
-    />
+    <div class="cg-notes__running" role="status" data-notes-fill-line="">
+      <StageLine phase={fill.phase} startedAt={fill.phase.startedAt} />
+      <span class="cg-notes__spacer" />
+      <Button variant="quiet" size="sm" label={copy.fillStop} class="cg-notes__stop" onClick={() => client.dispatch({ type: 'fill-stop' })} />
+    </div>
+  );
+}
+
+/** A fan without a questionnaire: the Goose fills it from the chat, the panel's first action. */
+function Start({ client, copy, fill, manual, onManual }: Props & { readonly fill: NotesFillVM; readonly manual: boolean; readonly onManual: () => void }): JSX.Element {
+  const reason = fillReason(copy, fill);
+  return (
+    <div class="cg-notes__start" data-notes-start="">
+      {fill.status === 'running' ? (
+        <Running client={client} copy={copy} fill={fill} />
+      ) : (
+        <>
+          <p class="cg-notes__start-t">{copy.startTitle}</p>
+          <p class="cg-notes__start-s">{copy.startText}</p>
+          <div class="cg-notes__start-acts">
+            <Button variant="line" label={copy.fillNew} tooltip={copy.fillHint} class="cg-notes__ai cg-notes__ai--lg" {...(reason === null ? {} : { reason })} onClick={() => client.dispatch({ type: 'fill' })} />
+            {manual ? null : <Button variant="quiet" label={copy.manual} onClick={onManual} />}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -440,8 +448,10 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
   );
 }
 
-/** «Анкета»: the table, a field open in place, «+ Метка», the fill and what it found. */
+/** «Анкета»: the table, a field open in place, «+ Метка»; the fill, its draft in the same table. A fan without one: the
+ * card that fills it from the chat. */
 function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPanelVM; readonly form: NotesFormVM }): JSX.Element {
+  const [manual, setManual] = useState(false);
   const fill = form.fill;
   const asText = vm.editor !== null && form.noteId !== null && vm.editor.noteId === form.noteId;
   const status = fill?.status ?? 'idle';
@@ -451,6 +461,11 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
   const off = form.locked || running || vm.writing || (field !== null && field.saving);
   const asked = form.noteId !== null && vm.confirmDelete === form.noteId;
   const blank = form.blank.filter((label) => !(field?.blank === true && field.label === label));
+  // No questionnaire yet: the card with «✨ Заполнить из чата» stands first; the fields wait behind «Заполнить вручную».
+  const start = form.noteId === null && fill !== null && status !== 'review';
+  // While the Goose fills a new one, the fields wait for it.
+  const chips = !start || field !== null || (manual && !running);
+  const reason = fill === null ? null : fillReason(copy, fill);
   return (
     <section class="cg-notes__sec cg-notes__form" data-notes-form={form.noteId ?? 'none'} aria-label={copy.form} {...(running ? { 'data-busy': '' } : {})}>
       <div class="cg-notes__sec-head">
@@ -462,21 +477,20 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           </span>
         ) : null}
         <span class="cg-notes__spacer" />
-        {asText ? null : <FillButton client={client} copy={copy} form={form} />}
+        {asText || start || fill === null || running || status === 'review' ? null : (
+          <Button variant="line" size="sm" label={copy.fill} tooltip={copy.fillHint} class="cg-notes__ai" {...(reason === null ? {} : { reason })} onClick={() => client.dispatch({ type: 'fill' })} />
+        )}
       </div>
-      {running && fill?.phase !== null && fill?.phase !== undefined ? (
-        <div class="cg-notes__running" role="status" data-notes-fill-line="">
-          <StageLine phase={fill.phase} startedAt={fill.phase.startedAt} />
-        </div>
-      ) : null}
       {asText && vm.editor !== null ? (
         <Editor client={client} copy={copy} editor={vm.editor} />
       ) : status === 'review' && fill !== null ? (
-        <Review client={client} copy={copy} fill={fill} />
+        <Draft client={client} copy={copy} form={form} fill={fill} />
       ) : (
         <>
           {fill !== null && (status === 'empty' || status === 'failed') ? <FillNotice client={client} copy={copy} fill={fill} /> : null}
-          {form.noteId === null && field === null && !running ? <p class="cg-notes__none">{fill === null ? copy.formNoneManual : copy.formNone}</p> : null}
+          {start && fill !== null ? <Start client={client} copy={copy} fill={fill} manual={chips} onManual={() => setManual(true)} /> : null}
+          {running && !start && fill !== null ? <Running client={client} copy={copy} fill={fill} /> : null}
+          {form.noteId === null && fill === null && field === null ? <p class="cg-notes__none">{copy.formNoneManual}</p> : null}
           {form.parts.length === 0 ? null : (
             <div class="cg-notes__table" data-notes-table="">
               {form.parts.map((part, at) =>
@@ -493,7 +507,7 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
             </div>
           )}
           {field !== null && field.blank ? <FieldEditor client={client} copy={copy} field={field} /> : null}
-          {blank.length === 0 || form.locked ? null : (
+          {blank.length === 0 || form.locked || !chips ? null : (
             <div class="cg-notes__blank" data-notes-blank="">
               {blank.map((label) => (
                 <button key={label} type="button" class="cg-notes__chip" data-notes-add={label} {...(off ? { 'aria-disabled': 'true' } : {})} onClick={() => off || client.dispatch({ type: 'field-open', label })}>
@@ -653,7 +667,8 @@ function Body({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }): JSX.
   }
   return (
     <>
-      {vm.form === null ? null : <FormSection client={client} copy={copy} vm={vm} form={vm.form} />}
+      {/* Keyed by the fan: «Заполнить вручную» opened for one fan is not open for the next. */}
+      {vm.form === null ? null : <FormSection key={`${vm.fan?.handle ?? ''}|${vm.form.noteId ?? ''}`} client={client} copy={copy} vm={vm} form={vm.form} />}
       <NotesSection client={client} copy={copy} vm={vm} />
     </>
   );

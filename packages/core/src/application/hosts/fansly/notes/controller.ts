@@ -8,10 +8,12 @@
 //   its bytes, and it is written into the note as Fansly holds it now (a field typed in another tab stays). The fields
 //   with nothing written are «+ Метка»: the questionnaire's own empty ones and the template's it lacks. A fan without a
 //   questionnaire gets one with the first field written (the template, «Анкета»).
-// - «✨ Дополнить из чата» (FS-NOTE-6, fill.ts): the site operation `notes-fill` through the shared admission, with the
-//   questionnaire's labels and the values of their lines (X43); its answer is a list of what the Goose found, ticked,
-//   and nothing is written before «Записать», which writes the ticked ones in one edit: a field's line takes the hub's
-//   value only while it still holds what the hub saw. «Остановить» or «Отмена» drop it and its late answer.
+// - «✨ Заполнить из чата» / «✨ Дополнить из чата» (FS-NOTE-6, fill.ts): the site operation `notes-fill` through the
+//   shared admission, with the questionnaire's labels and the values of their lines (X43). 2026-10-27 (the owner: «это
+//   основная фича»): a fan without a questionnaire gets it as the panel's first action, and the answer is the Goose's
+//   draft in the questionnaire's own table, a row put aside by ✕; nothing is written before «Сохранить анкету», which
+//   writes the rest in one edit: a field's line takes the hub's value only while it still holds what the hub saw.
+//   «Остановить» or «Отменить» drop it and its late answer.
 // - A free note is the box at the top of the notes: a line typed and Enter makes it a note (no title). Any note, the
 //   questionnaire included («Править текстом»), opens as text; a delete asks first.
 // - Views (FS-NOTE-2): «Справа по кнопке» (default) and «Окно по центру» open by the button or ⌘⇧K; «Всегда справа»
@@ -28,14 +30,14 @@
 //   the hub's request body: nothing is logged.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
-import type { NotesAction, NotesClient, NotesDateVM, NotesFillVM, NotesFindingVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
+import type { NotesAction, NotesClient, NotesDateVM, NotesDraftRowVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
 import type { Phase, SiteOpView } from '@cg/contracts/ops';
 import type { PhaseVM } from '@cg/contracts/vm';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
-import { applyNoteFindings, noteFillRequest, noteFindings, type NoteFinding } from './fill';
-import { NOTE_FIELDS_MAX, diffNoteFacts, noteLabelKey, parseNoteForm, splitFactDate, splitNoteFacts, writeNoteField, type NoteFormPart } from './form';
+import { applyNoteFindings, noteDraft, noteFillRequest, noteFindings, type NoteFinding } from './fill';
+import { NOTE_FIELDS_MAX, noteLabelKey, parseNoteForm, splitFactDate, writeNoteField, type NoteFormPart } from './form';
 import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
 
 /** «Всегда справа» follows the open chat only once the person stays on it this long (FS-NOTE-3). */
@@ -75,10 +77,9 @@ export function fillPhaseVM(startedAt: number, phase: Phase | null): PhaseVM {
   return { startedAt, stages, retryAt, cancel: null };
 }
 
-/** A finding as the list shows it: the facts it adds and drops, each with its month apart. */
-function findingVM(finding: NoteFinding, index: number, checked: boolean): NotesFindingVM {
-  const { added, removed } = finding.current === '' ? { added: splitNoteFacts(finding.proposed), removed: [] } : diffNoteFacts(finding.current, finding.proposed);
-  return { index, label: finding.label, kind: finding.kind, added: added.map(splitFactDate), removed: removed.map(splitFactDate), quotes: finding.quotes, checked };
+/** The Goose's draft as the table shows it: each fact with its month apart. */
+function draftVM(base: string, findings: readonly NoteFinding[], checked: readonly boolean[]): NotesDraftRowVM[] {
+  return noteDraft(base, findings, checked).map((row) => (row.kind === 'text' ? row : { ...row, facts: row.facts.map((fact) => ({ ...splitFactDate(fact.text), mark: fact.mark })) }));
 }
 
 /** The open one-to-one chat where the owner switched «Заметки» on. `fanId` null — MAIN has not named its fan. */
@@ -164,10 +165,10 @@ interface Quick {
   problem: NotesProblem | null;
 }
 
-/** «✨ Дополнить из чата» of a fan's questionnaire: `base` — the text it was asked with (the template for none). */
+/** «✨ Заполнить из чата» of a fan's questionnaire: `base` — the text it was asked with (the template for none). */
 type Fill =
   | { readonly status: 'running'; opId: string | null; readonly startedAt: number; phase: Phase | null; readonly base: string }
-  | { readonly status: 'review'; readonly findings: readonly NoteFinding[]; readonly checked: boolean[]; saving: boolean; blocked: boolean; problem: NotesProblem | null }
+  | { readonly status: 'review'; readonly base: string; readonly findings: readonly NoteFinding[]; readonly checked: boolean[]; saving: boolean; blocked: boolean; problem: NotesProblem | null }
   | { readonly status: 'empty' }
   | { readonly status: 'failed'; readonly error: CgAnyErrorWire };
 
@@ -329,6 +330,7 @@ export function createNotesController(port: NotesPort): NotesController {
     const edit = fields.get(fanId);
     const fill = fills.get(fanId);
     const locked = note?.cut === true;
+    const blank = [...own.filter((field) => field.facts.length === 0).map((field) => field.label), ...missing];
     const fillVM: NotesFillVM | null =
       locked || (!port.fillAllowed() && fill === undefined)
         ? null
@@ -337,7 +339,8 @@ export function createNotesController(port: NotesPort): NotesController {
             reason: fillReason(fanId, note),
             phase: fill?.status === 'running' ? fillPhaseVM(fill.startedAt, fill.phase) : null,
             error: fill?.status === 'failed' ? fill.error : null,
-            findings: fill?.status === 'review' ? fill.findings.map((finding, index) => findingVM(finding, index, fill.checked[index] === true)) : [],
+            rows: fill?.status === 'review' ? draftVM(fill.base, fill.findings, fill.checked) : [],
+            unfound: fill?.status === 'review' ? blank.filter((label) => !fill.findings.some((finding) => noteLabelKey(finding.label) === noteLabelKey(label))) : [],
             saving: fill?.status === 'review' && fill.saving,
             blocked: fill?.status === 'review' && fill.blocked,
             problem: fill?.status === 'review' ? fill.problem : null,
@@ -346,7 +349,7 @@ export function createNotesController(port: NotesPort): NotesController {
       noteId: note?.noteId ?? null,
       title: note?.title ?? NOTE_TEMPLATE_TITLE,
       parts: shown,
-      blank: [...own.filter((field) => field.facts.length === 0).map((field) => field.label), ...missing],
+      blank,
       locked,
       field: edit === undefined ? null : { label: edit.label, value: edit.value, blank: edit.blank, saving: edit.saving, blocked: edit.blocked, problem: edit.problem },
       fill: fillVM,
@@ -900,7 +903,7 @@ export function createNotesController(port: NotesPort): NotesController {
     if (run?.status !== 'running' || run.opId !== done.opId) return;
     if (done.state === 'done' && done.result?.kind === 'note-fields') {
       const found = noteFindings(run.base, done.result.fields, done.result.proposed ?? []);
-      fills.set(fanId, found.length === 0 ? { status: 'empty' } : { status: 'review', findings: found, checked: found.map(() => true), saving: false, blocked: false, problem: null });
+      fills.set(fanId, found.length === 0 ? { status: 'empty' } : { status: 'review', base: run.base, findings: found, checked: found.map(() => true), saving: false, blocked: false, problem: null });
     } else if (done.state === 'canceled') fills.delete(fanId);
     else fills.set(fanId, { status: 'failed', error: done.error ?? { code: 'CG-OUTPUT-UNUSABLE' } });
     emit();
@@ -914,7 +917,7 @@ export function createNotesController(port: NotesPort): NotesController {
     emit();
   }
 
-  /** «Записать»: the ticked findings into the questionnaire as Fansly holds it now, in one write. */
+  /** «Сохранить анкету»: the draft's rows not put aside into the questionnaire as Fansly holds it now, in one write. */
   async function applyFill(): Promise<void> {
     const data = current();
     const to = data === null ? null : who(data);
@@ -923,7 +926,11 @@ export function createNotesController(port: NotesPort): NotesController {
     const fill = fills.get(fanId);
     if (fill?.status !== 'review' || fill.saving || fill.blocked) return;
     const chosen = fill.findings.filter((_, index) => fill.checked[index] === true);
-    if (chosen.length === 0) return;
+    // Every row put aside: nothing to write, the draft is done.
+    if (chosen.length === 0) {
+      fills.delete(fanId);
+      return emit();
+    }
     const note = formNote(data);
     if (note?.cut === true) return;
     const base = note?.text ?? NOTE_TEMPLATE_TEXT;
@@ -996,14 +1003,11 @@ export function createNotesController(port: NotesPort): NotesController {
         if (fanId === null || fills.get(fanId)?.status !== 'running') return;
         stopFill(fanId);
         return emit();
-      case 'finding':
-      case 'findings-all': {
+      case 'finding': {
         const fill = fanId === null ? undefined : fills.get(fanId);
         if (fill?.status !== 'review' || fill.saving) return;
-        if (action.type === 'finding') {
-          if (action.index < 0 || action.index >= fill.checked.length) return;
-          fill.checked[action.index] = action.checked;
-        } else fill.checked.fill(action.checked);
+        if (action.index < 0 || action.index >= fill.checked.length) return;
+        fill.checked[action.index] = action.checked;
         return emit();
       }
       case 'fill-apply':

@@ -8,17 +8,18 @@
 //   other notes and the custom name never leave the tab.
 // - The answer: `Label: =` — nothing for that field; `Label: value` — the field's value as the chat makes it, with the
 //   fan's words behind it; `+ Label: value` — a field the hub named itself.
-// - 2026-10-26: the answer is a list of findings to tick (`noteFindings`): a value for an empty field, the hub's rewrite
-//   of a filled one shown as the facts it adds and drops, a template's field the note lacks, a field the hub named.
-//   «Записать» (`applyNoteFindings`) writes the ticked ones into the questionnaire as it is then, never wiping what the
-//   chatter wrote (FX-016): a field's line takes the hub's value only while it still holds what the hub saw; the lines
-//   written under it stay; a new line goes after the last field and the lines under it while the questionnaire has
-//   room under 30, and one that cannot have a line of its own joins «Другое» as `Label: value` (`mergeNoteFill`), or is
-//   named. The fan's words stay beside the findings, never in the note.
+// - 2026-10-26: the answer is a list of findings (`noteFindings`): a value for an empty field, the hub's rewrite of a
+//   filled one (the facts it adds and drops), a template's field the note lacks, a field the hub named. 2026-10-27 (the
+//   owner: the list was «неочевидный»): they are shown in the questionnaire's own table, its draft (`noteDraft`), each
+//   row put aside by ✕. «Сохранить анкету» (`applyNoteFindings`) writes the rest into the questionnaire as it is then,
+//   never wiping what the chatter wrote (FX-016): a field's line takes the hub's value only while it still holds what
+//   the hub saw; the lines written under it stay; a new line goes after the last field and the lines under it while
+//   the questionnaire has room under 30, and one that cannot have a line of its own joins «Другое» as `Label: value`
+//   (`mergeNoteFill`), or is named. The fan's words stay on the draft's hover, never in the note.
 
 import { NOTE_FILL_LIMITS } from '@cg/contracts/limits';
 
-import { NOTE_FIELDS_MAX, appendNoteFact, applyFieldSuggestion, diffNoteFacts, noteFieldLineValue, noteFieldValue, noteLabelKey, parseNoteForm, parseNoteTemplate, sameNoteValue, withNoteFieldValue, type NoteFieldSuggestion, type NoteFormField, type NoteFormPart } from './form';
+import { NOTE_FIELDS_MAX, appendNoteFact, applyFieldSuggestion, diffNoteFacts, noteFieldLineValue, noteFieldValue, noteLabelKey, parseNoteForm, parseNoteTemplate, sameNoteValue, splitNoteFacts, withNoteFieldValue, type NoteFieldSuggestion, type NoteFormField, type NoteFormPart } from './form';
 import { NOTE_OTHER_LABEL, NOTE_TEMPLATE_LABELS } from './template';
 
 const isField = (part: NoteFormPart): part is NoteFormField => part.kind === 'field';
@@ -192,8 +193,7 @@ export function mergeNoteFill(text: string, answer: readonly AnswerField[], name
 }
 
 /**
- * A fact the Goose found (2026-10-26: the fill's answer is a list to tick, nothing joins the questionnaire before
- * «Записать»): `add` — into a field with nothing written, a template's field the questionnaire lacks (`missing`), or
+ * A fact the Goose found (nothing joins the questionnaire before «Сохранить анкету»): `add` — into a field with nothing written, a template's field the questionnaire lacks (`missing`), or
  * the hub's rewrite of a filled field that only adds to it; `change` — a rewrite that also drops what is written;
  * `new` — a field the hub named itself.
  */
@@ -202,9 +202,9 @@ export interface NoteFinding {
   readonly kind: 'add' | 'change' | 'new';
   /** The value of the field's own line the hub saw: '' — nothing written, or no such field. */
   readonly current: string;
-  /** The hub's value for that line: «Записать» puts it there. */
+  /** The hub's value for that line: «Сохранить анкету» puts it there. */
   readonly proposed: string;
-  /** The questionnaire has no such field: «Записать» adds its line. */
+  /** The questionnaire has no such field: «Сохранить анкету» adds its line. */
   readonly missing: boolean;
   /** The fan's words behind it: shown, never saved. */
   readonly quotes: readonly string[];
@@ -257,7 +257,7 @@ export interface NoteFindingsApplied {
 }
 
 /**
- * «Записать» (2026-10-26): the ticked findings into the questionnaire's text as it is now. A field's line takes the
+ * «Сохранить анкету»: the findings not put aside into the questionnaire's text as it is now. A field's line takes the
  * hub's value only while it still holds what the hub saw (a field typed since is skipped, never written over, FX-016);
  * a field the questionnaire lacks and a field the hub named get a line after the last field, while there is room under
  * 30 — the rest join «Другое» or are named (`mergeNoteFill`).
@@ -295,4 +295,61 @@ export function applyNoteFindings(text: string, findings: readonly NoteFinding[]
     unplaced = merged.unplaced;
   }
   return { text: out, wrote, skipped, unplaced };
+}
+
+/** A fact of the draft: `kept` — written and staying, `added` — the Goose's, `gone` — not there after «Сохранить». */
+export interface NoteDraftFact {
+  readonly text: string;
+  readonly mark: 'kept' | 'added' | 'gone';
+}
+
+/** A row of the draft: see `NotesDraftRowVM`. */
+export type NoteDraftRow =
+  | { readonly kind: 'field'; readonly label: string; readonly facts: NoteDraftFact[]; readonly finding: number | null; readonly checked: boolean; readonly added: boolean; readonly quotes: readonly string[] }
+  | { readonly kind: 'text'; readonly text: string };
+
+/**
+ * The Goose's draft of the questionnaire (2026-10-27): the text the fill was asked with, row by row in note order, each
+ * finding in its field's row — the facts of the field's own line kept or dropped by the rewrite, then the Goose's,
+ * then the lines written under the field —, and the fields the questionnaire lacks after the last one. A row put aside
+ * (`checked` false) keeps what is written and shows the Goose's facts as gone. A field with nothing written and nothing
+ * found has no row.
+ */
+export function noteDraft(base: string, findings: readonly NoteFinding[], checked: readonly boolean[]): NoteDraftRow[] {
+  const parts = parseNoteForm(base) ?? [];
+  const at = new Map<string, number>();
+  findings.forEach((finding, index) => {
+    const key = noteLabelKey(finding.label);
+    if (!at.has(key)) at.set(key, index);
+  });
+  const used = new Set<number>();
+  const row = (finding: NoteFinding, index: number, under: readonly string[], added: boolean): NoteDraftRow => {
+    const on = checked[index] === true;
+    const own = splitNoteFacts(finding.current);
+    const diff = diffNoteFacts(finding.current, finding.proposed);
+    const facts: NoteDraftFact[] = on
+      ? [...own.map((text) => ({ text, mark: diff.removed.includes(text) ? ('gone' as const) : ('kept' as const) })), ...diff.added.map((text) => ({ text, mark: 'added' as const })), ...under.map((text) => ({ text, mark: 'kept' as const }))]
+      : [...own.map((text) => ({ text, mark: 'kept' as const })), ...under.map((text) => ({ text, mark: 'kept' as const })), ...diff.added.map((text) => ({ text, mark: 'gone' as const }))];
+    return { kind: 'field', label: finding.label, facts, finding: index, checked: on, added, quotes: finding.quotes };
+  };
+  const rows: NoteDraftRow[] = [];
+  for (const part of parts) {
+    if (part.kind === 'text') {
+      rows.push({ kind: 'text', text: part.text });
+      continue;
+    }
+    const index = at.get(noteLabelKey(part.label));
+    const finding = index === undefined || used.has(index) ? undefined : findings[index];
+    if (index === undefined || finding === undefined) {
+      if (part.facts.length > 0) rows.push({ kind: 'field', label: part.label, facts: part.facts.map((text) => ({ text, mark: 'kept' })), finding: null, checked: false, added: false, quotes: [] });
+      continue;
+    }
+    used.add(index);
+    // The field's own line is what the hub saw; the lines written under it stay under it.
+    rows.push(row(finding, index, part.facts.slice(splitNoteFacts(finding.current).length), false));
+  }
+  findings.forEach((finding, index) => {
+    if (!used.has(index)) rows.push(row(finding, index, [], true));
+  });
+  return rows;
 }

@@ -143,7 +143,7 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(w.notes.panel().items.map((item) => item.noteId)).toEqual(['2', '3']);
   });
 
-  it('[FS-NOTE-6] «Дополнить из чата»: what the Goose found is ticked and waits; «Записать» writes the ticked ones in one edit', async () => {
+  it('[FS-NOTE-6] «Дополнить из чата»: the Goose’s draft in the table waits; «Сохранить анкету» writes the rows not put aside in one edit', async () => {
     const w = await opened();
     w.notes.dispatch({ type: 'fill' });
     await w.settle();
@@ -154,17 +154,22 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(values?.slice(0, 4)).toEqual(['Алекс', 'Рига', '', 'бег']);
     expect(w.notes.panel().form?.fill?.status).toBe('running');
     w.notes.fillDone(w.answer('op1', { Имя: '', Локация: 'Рига, Латвия (10.2026)', Работа: 'врач', Хобби: 'бег; плавание', Возраст: '34' }, { Питомцы: 'кот' }));
-    const fill = w.notes.panel().form?.fill;
-    expect(fill?.status).toBe('review');
-    expect(fill?.findings.map((finding) => [finding.label, finding.kind, finding.added.map((fact) => fact.text), finding.removed.map((fact) => fact.text), finding.checked])).toEqual([
-      ['Локация', 'change', ['Рига, Латвия'], ['Рига'], true],
-      ['Работа', 'add', ['врач'], [], true],
-      ['Хобби', 'add', ['плавание'], [], true],
-      ['Возраст', 'add', ['34'], [], true],
-      ['Питомцы', 'new', ['кот'], [], true],
+    const rows = (): unknown[] =>
+      (w.notes.panel().form?.fill?.rows ?? []).map((row) => (row.kind === 'text' ? row.text : [row.label, row.facts.map((fact) => `${fact.mark} ${fact.text}`), row.finding, row.checked, row.added]));
+    expect(w.notes.panel().form?.fill?.status).toBe('review');
+    // The table as «Сохранить» leaves it: a rewrite drops «Рига», the lines under «Хобби» stay, the fields it lacks after the last one.
+    expect(rows()).toEqual([
+      ['Имя', ['kept Алекс'], null, false, false],
+      ['Локация', ['gone Рига', 'added Рига, Латвия'], 0, true, false],
+      ['Работа', ['added врач'], 1, true, false],
+      ['Хобби', ['kept бег', 'added плавание', 'kept по утрам'], 2, true, false],
+      ['Возраст', ['added 34'], 3, true, true],
+      ['Питомцы', ['added кот'], 4, true, true],
     ]);
     expect(w.port.edit).not.toHaveBeenCalled();
+    // ✕: what is written stays, the Goose's fact goes.
     w.notes.dispatch({ type: 'finding', index: 0, checked: false });
+    expect(rows()[1]).toEqual(['Локация', ['kept Рига', 'gone Рига, Латвия'], 0, false, false]);
     w.notes.dispatch({ type: 'fill-apply' });
     await w.settle();
     expect(w.port.edit).toHaveBeenCalledExactlyOnceWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач\nХобби: бег; плавание\nпо утрам\nВозраст: 34\nПитомцы: кот', { title: 'Анкета', text: FORM });
@@ -173,7 +178,7 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(form?.parts.flatMap((part) => (part.kind === 'field' && part.fresh === true ? [part.label] : []))).toEqual(['Работа', 'Хобби', 'Возраст', 'Питомцы']);
   });
 
-  it('[FX-016] «Записать» never writes over a field typed since the Goose read it: it writes the rest into Fansly’s newer version', async () => {
+  it('[FX-016] «Сохранить анкету» never writes over a field typed since the Goose read it: it writes the rest into Fansly’s newer version', async () => {
     const w = await opened();
     w.notes.dispatch({ type: 'fill' });
     await w.settle();

@@ -1,6 +1,6 @@
-// Fansly «Заметки» of a fan with no questionnaire yet (2026-10-26): every template field as «+ Метка», and
-// «✨ Заполнить из чата» — what the Goose found, ticked, and «Записать в анкету» creates «Анкета» in one press. Each
-// picture is the panel alone.
+// Fansly «Заметки» of a fan with no questionnaire yet (2026-10-27, the owner: filling it from the chat is the main
+// way): the card with «✨ Заполнить из чата» first, «Заполнить вручную» behind it; the stage line; the Goose's draft in
+// the questionnaire's table; «Сохранить анкету» creates «Анкета» in one press. Each picture is the panel alone.
 
 import { WORLD } from '../../../src/scenarios/hub';
 import { SHOWCASE } from '../../../src/showcase';
@@ -61,11 +61,18 @@ scenario(
     await s.press('Окно по центру', 'panel');
     await s.wait(400);
     await panel(s, 'new-none');
+    await s.press(/^Заполнить вручную/, 'panel');
+    await s.wait(300);
+    await panel(s, 'new-manual');
+    await s.hub.command({ op: 'config', patch: { aiChunkDelayMs: 120 } });
     await s.press(/Заполнить из чата/, 'panel');
-    await s.see('panel', /Отметьте, что записать/, 60_000);
+    await s.see('panel', /Читаю переписку|Заполняю анкету/);
+    await s.wait(600);
+    await panel(s, 'new-running');
+    await s.see('panel', /Лишнее уберите/, 60_000);
     await s.wait(400);
     await panel(s, 'new-found');
-    await s.press(/^Записать в анкету/, 'panel', '[data-notes-apply]');
+    await s.press(/^Сохранить анкету/, 'panel', '[data-notes-apply]');
     await s.see('panel', /Дополнить из чата/);
     await s.wait(600);
     await panel(s, 'new-written');

@@ -41,9 +41,10 @@ gate, pressed, then «Скачать лог» in the popup; the files land in
 the run's `downloads/`). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over
 the hub's rows of Spenders: a found row and a row of «Ждут ответа» each open their fan's chat),
 `review`, `pages`, `fansly-hi` (Hi after a cold load), `fansly-notes` («Заметки» on one screen: a field edited in
-place, «+ Метка», «✨ Дополнить из чата» with what the Goose found ticked and «Записать в анкету», a quick note; on the
-stand also a long note and an edit after someone else's change), `fansly-notes-new` (a fan without a questionnaire:
-«✨ Заполнить из чата» creates one), `fansly-switch` (the switch from the old extension: «Включить Fansly» in the popup, the
+place, «+ Метка», «✨ Дополнить из чата» with the Goose's draft in the table, a row put aside by ✕ and «Сохранить
+анкету», a quick note; on the stand also a long note and an edit after someone else's change), `fansly-notes-new` (a
+fan without a questionnaire: the card with «✨ Заполнить из чата», «Заполнить вручную», the draft, «Сохранить анкету»
+creates one), `fansly-switch` (the switch from the old extension: «Включить Fansly» in the popup, the
 no-direct-connection hint, the old extension's notice, its personas carried over), `fansly-ppv` (Reply's
 PPV state in `hub-calls.json`), `fansly-seen` (a Spenders preview: «не прочитано», then «прочитано в …»),
 `fansly-newcomers` («Новые фоловеры»: a fresh follower checked by the pass, the card, «Сгенерировать» — the same
