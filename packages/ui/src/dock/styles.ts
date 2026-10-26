@@ -22,16 +22,16 @@
 //   < 820   no lock in the capsule while a generation runs
 //   < 690   the status in the windows' place while the chat loads is its
 //           spinner alone; Hi variants in a column below 680
-//   < 634   the words' chips 6 px in, the capsule's cells narrower, 24 px
-//           from one to the next: every word, Voice's too, fits on ~570 px
-//           of bar (all of them at full padding need ~625; Fansly's composer
-//           is 600–940 px wide, ChatSpace's ~540–1020) — 2026-10-23, the bar
-//           without Review (a turn of Coach since 1.51.0)
-//   < 576   Voice is its 🎙, its name in its hint (the row needs ~550)
-//   < 556   Recap and Coach are their icons too (the row needs ~506)
-//   < 512   no seams (the row of icons needs ~470); below that it scrolls,
+//   < 648   the words' chips 6 px in, the capsule's cells narrower, 24 px
+//           from one to the next: every word fits on ~585 px of bar (all of
+//           them at full padding need ~638; Fansly's composer is 600–940 px
+//           wide, ChatSpace's ~540–1020) — 2026-10-26, the bar with «Онлайн»
+//           (its number at the icon's corner, the chip 30 px like its
+//           neighbours), Voice its 🎙, no Review
+//   < 596   Recap and Coach are their icons too (the row needs ~542)
+//   < 552   no seams (the row of icons needs ~506); below that it scrolls,
 //           as the old bar did
-//   < 420   the four icons in «Ещё» at once; while the chat loads, the
+//   < 420   the five icons in «Ещё» at once; while the chat loads, the
 //           status spinner in its place
 //   ≤ 420   no head meta; Insert under the text
 //   < 360   «Ещё раз» is ↻; the buttons of a Recap head take a second
@@ -54,16 +54,17 @@ const VISUALLY_HIDDEN = 'position: absolute; width: 1px; height: 1px; margin: -1
  * drops; it stands where a CSS comment would.
  */
 /**
- * The steps of a narrow bar, in px of the bar's own width whatever the text size (2026-10-22: in the root's text they
- * folded at ~703 px under «Крупнее», on every Fansly composer), each a few px above the width its row needs (measured
- * on both sites' stands, 2026-10-23, the bar without Review, Voice its 🎙): below `TIGHT_BELOW` the words' chips and
- * the capsule close up, below `ICONS_BELOW` Recap and Coach are their icons, below `SEAMS_BELOW` the seams go, below
- * `MORE_BELOW` the four icons go into «Ещё». Above `ICONS_BELOW` the bar shows every word; nothing scrolls above
- * `SEAMS_BELOW`.
+ * The steps of a narrow bar, in px of the dock's width whatever the text size (2026-10-22: in the root's text they
+ * folded at ~703 px under «Крупнее», on every Fansly composer), each a few px above the width its row needs plus the
+ * dock's 8 px around the bar on Fansly (measured on both sites' stands, 2026-10-26, the bar with «Онлайн», Voice its
+ * 🎙, no Review; a new chip on the bar means measuring again, `pnpm see dock-widths`): below `TIGHT_BELOW` the words'
+ * chips and the capsule close up, below `ICONS_BELOW` Recap and Coach are their icons, below `SEAMS_BELOW` the seams
+ * go, below `MORE_BELOW` the five icons go into «Ещё». Above `ICONS_BELOW` the bar shows every word; nothing scrolls
+ * above `SEAMS_BELOW`.
  */
-export const TIGHT_BELOW = 614;
-export const ICONS_BELOW = 556;
-export const SEAMS_BELOW = 512;
+export const TIGHT_BELOW = 648;
+export const ICONS_BELOW = 596;
+export const SEAMS_BELOW = 552;
 export const MORE_BELOW = 420;
 
 export const DOCK_CSS = `
@@ -101,11 +102,11 @@ ${/* Spenders and «Новые» are their icons at every width, on both sites (
 .cg-slot--voice .cg-act--ico > .cg-ico, .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
 .cg-slot--voice .cg-act--ico > .cg-act__t, .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 .cg-act.is-busy > .cg-ico { opacity: 0.35; }
-${/* «Онлайн N» (1.65.0): the window's icon with the number of fans worth a message now, in the green of presence. */ ''}
-.cg-strip .cg-slot--boards .cg-act--ico:has(> .cg-act__n) { width: auto; padding: 0 6px 0 8px; gap: 5px; }
+${/* «Онлайн N»: the number of fans worth a message now, in the green of presence, at the icon's corner as the quota sits at Reply's (2026-10-26: beside the icon it took ~30 px the bar did not have). The chip stays 30 px whatever the number; the corner leans into the room before the windows' block, inside the bar. */ ''}
 .cg-act__n {
-  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; box-sizing: border-box; background: var(--cg-good-bg); box-shadow: inset 0 0 0 1px var(--cg-good-line);
-  color: var(--cg-good-ink); font-size: var(--cg-text-2xs); line-height: 16px; font-weight: 600; text-align: center;
+  position: absolute; top: -3px; left: -7px; z-index: 2; min-width: 15px; height: 13px; padding: 0 3px; border-radius: var(--cg-r-pill); box-sizing: border-box;
+  background: var(--cg-good-bg); box-shadow: inset 0 0 0 1px var(--cg-good-line), 0 0 0 2px var(--cg-raised); color: var(--cg-good-ink);
+  font-family: var(--cg-mono); font-size: var(--cg-text-kbd); line-height: 13px; font-weight: 600; text-align: center; pointer-events: none;
 }
 .cg-slot--more { display: none; }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
@@ -256,7 +257,7 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
 @container cg (max-width: ${TIGHT_BELOW - 1}px) {
   .cg-strip__opts { padding-left: 4px; }
   .cg-strip .cg-div { margin: 0 2px; }
-  ${/* The words' chips 6 px in (2026-10-23): every word still fits a ~560 px composer; an icon's chip keeps its own width. */ ''}
+  ${/* The words' chips 6 px in (2026-10-23): every word, «Онлайн» on the bar, still fits a ~595 px composer; an icon's chip keeps its own width. */ ''}
   .cg-strip .cg-act:not(.cg-opt) { padding: 0 6px; }
   .cg-strip .cg-slot--voice .cg-act--ico, .cg-strip .cg-slot--boards .cg-act--ico { padding: 0; }
   ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
@@ -270,7 +271,7 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
   .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 }
 @container cg (max-width: ${MORE_BELOW - 1}px) {
-  ${/* The four icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. Nothing scrolls then, and «Ещё» opens above the bar. */ ''}
+  ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. Nothing scrolls then, and «Ещё» opens above the bar. */ ''}
   .cg-strip { overflow: visible; }
   .cg-slot--two, .cg-slot--boards { display: none; }
   .cg-slot--more { display: inline-flex; }
