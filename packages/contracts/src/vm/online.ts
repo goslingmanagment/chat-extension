@@ -3,8 +3,9 @@
 // nobody greeted, an ending subscription, the payer who went quiet, the free fan who went quiet, the fan who never
 // wrote), the freshest and the richest first; on the right — the chosen fan's card: why now, their conversation from
 // the hub's archive (the chat is not opened and stays unread), and the text that would go — Reply, Hi or Ping written
-// by the AI, or, where the chat is too short for Ping, a text of the team's reactivation guide word for word. «Отправить
-// →» sends it and opens the next fan. Nothing goes by itself: one click — one message (X8 on ChatSpace, the
+// by the AI, or a text of the team's reactivation guide word for word — written only when the person picks one on the
+// card (2026-10-26, the owner: nothing is written by itself; the hub's advice is marked). «Отправить →» sends it and
+// opens the next fan. Nothing goes by itself: one click — one message (X8 on ChatSpace, the
 // background's send on Fansly), every «Отправить» rests half a second after a click, «Неизвестно, ушло ли» is never
 // sent again by our button. A fan another chatter talks to, one the page wrote to lately, one written to from here in
 // the last three weeks, one marked «Не предлагать» is set aside, never hidden: «Все онлайн» shows them and a click may
@@ -18,7 +19,7 @@ import { type TargetHandle } from './selectors';
 import { type DataStamp, type VmView } from './view';
 import { type OutreachMediaVM, type OutreachSendVM, type OutreachWarningVM } from './outreach';
 
-import { type OnlinePeriod, type OnlineTab } from './online-ids';
+import { type OnlineChoice, type OnlinePeriod, type OnlineTab } from './online-ids';
 
 export * from './online-ids';
 /** The list's groups, in its order; `aside` — «Не предлагаем», `none` — «Без повода» (both under «Все онлайн» only). */
@@ -37,6 +38,15 @@ export type OnlineFanState = (typeof ONLINE_FAN_STATES)[number];
 /** What writes the fan's text: the AI's Reply, Hi or Ping, or a text of the team's guide; `none` — nothing to write about. */
 export const ONLINE_ACTS = ['reply', 'hi', 'ping', 'template', 'none'] as const;
 export type OnlineAct = (typeof ONLINE_ACTS)[number];
+
+/** One of the card's «Reply», «Hi», «Ping», «Шаблон»: a click writes that text (again, when it is the card's already). */
+export interface OnlineChoiceVM {
+  readonly act: OnlineChoice;
+  /** The hub's advice for the fan now («советуем»). */
+  readonly suggested: boolean;
+  /** The card's text is this one's. */
+  readonly current: boolean;
+}
 
 /**
  * How fresh the fan's presence is: `now` — the site itself shows the fan online, or active within 10 minutes; `fading` —
@@ -133,7 +143,12 @@ export interface OnlineCardVM {
   readonly subscription: { readonly startedAt: IsoTimestamp | null; readonly endsAt: IsoTimestamp | null; readonly autoRenew: boolean | null } | null;
   readonly reason: OnlineReasonVM;
   readonly aside: OnlineAsideVM | null;
+  /** The act of the card's text: the person's pick, else the hub's advice; `none` — neither. */
   readonly act: OnlineAct;
+  /** The hub's advice for the fan now; null — nothing to write about. */
+  readonly advice: OnlineChoice | null;
+  /** «Reply», «Hi», «Ping» and, where the guide has texts, «Шаблон» (held while a text is written); empty — the text went. */
+  readonly choices: readonly OnlineChoiceVM[];
   /**
    * A text of the team's guide: its id, its group (A — talked before, B — never wrote), whether the fan's name stands in
    * it in place of «love» (null — the text has no «love»).
@@ -146,8 +161,6 @@ export interface OnlineCardVM {
   readonly editable: boolean;
   /** «Ещё раз» (the AI writes again) or «Другой шаблон» (the next text of the guide). */
   readonly rewrite: boolean;
-  /** «Написать Ping»: a fan with nothing to write about (or set aside), written to on request. */
-  readonly write: boolean;
   readonly send: OutreachSendVM | null;
   readonly warning: OutreachWarningVM | null;
   /** What goes with the text: media the person picked for the fan on another card of theirs; null — the text alone. */

@@ -8,3 +8,7 @@ export type OnlineTab = (typeof ONLINE_TABS)[number];
 /** «Зашли за»: the presence window, minutes. */
 export const ONLINE_PERIODS = [10, 30, 120] as const;
 export type OnlinePeriod = (typeof ONLINE_PERIODS)[number];
+
+/** What the person may have written for a fan by a click on the card: the AI's Reply, Hi or Ping, or the guide's text. */
+export const ONLINE_CHOICES = ['reply', 'hi', 'ping', 'template'] as const;
+export type OnlineChoice = (typeof ONLINE_CHOICES)[number];

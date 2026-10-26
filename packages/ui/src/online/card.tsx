@@ -1,15 +1,16 @@
 // The chosen fan's card of «Онлайн», chat-like (the twin of «Рассылка»'s): who they are and how fresh their presence
 // is, why to write now in one calm box (or why they are set aside: a warning, never a block), their conversation from
-// the hub's archive (the chat is not opened and stays unread), and under it the text that would go — the AI's Reply,
-// Hi or Ping, or a text of the team's guide — in the draft look, with «Ещё раз» / «Другой шаблон», «Править»,
-// «Пропустить», «Не предлагать» and the blue «Отправить →». One click, one message; an unknown outcome is never sent
-// again by our button: the person looks in the chat.
+// the hub's archive (the chat is not opened and stays unread), and under it «Reply», «Hi», «Ping», «Шаблон» (the hub's
+// advice marked): nothing is written until the person picks one (2026-10-26, the owner). The text — the AI's, or a
+// text of the team's guide — stands in the draft look, with «Ещё раз» / «Другой шаблон», «Править», «Пропустить»,
+// «Не предлагать» and the blue «Отправить →». One click, one message; an unknown outcome is never sent again by our
+// button: the person looks in the chat.
 
 import { type JSX } from 'preact';
 import { useRef } from 'preact/hooks';
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { type I18n, type OnlineCardVM, type PartVM, type PreviewVM } from '@cg/contracts/vm';
+import { type I18n, type OnlineCardVM, type OnlineChoice, type PartVM, type PreviewVM } from '@cg/contracts/vm';
 
 import { Button, Dot, Icon, Spinner, TextField, useDispatch, useI18n, useTooltip } from '../kit';
 import { Feed } from '../spenders/preview/Feed';
@@ -101,11 +102,11 @@ function Why({ card }: { readonly card: OnlineCardVM }): JSX.Element {
       break;
     case 'silent':
       lead = i18n.t('online.card.lead.silent', { money: i18n.formatMoneyMills(reason.lifetime), age: reason.since === null ? i18n.t('common.unknown') : i18n.formatAge(reason.since) });
-      tail = i18n.t(card.act === 'template' ? 'online.card.why.short' : 'online.card.why.ping');
+      tail = i18n.t(card.advice === 'template' ? 'online.card.why.short' : 'online.card.why.ping');
       break;
     case 'quiet':
       lead = reason.since === null ? i18n.t('online.why.quietNow') : i18n.t('online.why.quiet', { age: i18n.formatAge(reason.since) });
-      tail = i18n.t(card.act === 'template' ? 'online.card.why.short' : 'online.card.why.ping');
+      tail = i18n.t(card.advice === 'template' ? 'online.card.why.short' : 'online.card.why.ping');
       break;
     case 'never':
       lead = reason.subscribedAt === null ? i18n.t('online.why.never') : i18n.t('online.why.neverFor', { age: i18n.formatAge(reason.subscribedAt) });
@@ -231,6 +232,53 @@ function PassButtons({ card, busy }: { readonly card: OnlineCardVM; readonly bus
   );
 }
 
+/**
+ * «Написать: Reply · Hi · Ping · Шаблон»: the person picks what is written, the hub's advice marked «советуем»; the AI
+ * writes only by this click. A button the card's own gate holds (a short chat for Ping, no chat of the fan) says why.
+ */
+function Choices({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  if (card.choices.length === 0) return null;
+  const ours = preview.handle === card.handle;
+  const writing = card.state === 'writing';
+  const heldOf = (act: OnlineChoice): string | null => {
+    const gate = act === 'template' || !ours ? null : (preview.bar.actions[act] ?? null);
+    return gate !== null && !gate.enabled && !gate.busy && gate.reason !== null ? i18n.text(gate.reason.text) : null;
+  };
+  // Hi or Ping advised where the AI cannot write them (no chat of the fan yet, a short chat): the guide's text is the
+  // advice instead. Never for Reply: a reactivation text is no answer.
+  const advised = card.choices.find((choice) => choice.suggested)?.act ?? null;
+  const toTemplate = (advised === 'hi' || advised === 'ping') && heldOf(advised) !== null && card.choices.some((choice) => choice.act === 'template');
+  return (
+    <div class="ol-pick" role="group" aria-label={i18n.t('online.pick.lead')} data-cg-online-pick="1">
+      <span class="ol-pick__lead">{i18n.t('online.pick.lead')}</span>
+      {card.choices.map((choice) => {
+        const act = actWord(i18n, choice.act);
+        const held = heldOf(choice.act);
+        const suggested = toTemplate ? choice.act === 'template' : choice.suggested;
+        const busy = writing && choice.current;
+        const reason = busy ? null : writing ? i18n.t('online.row.writing', { act: actWord(i18n, card.act) }) : held;
+        const tooltip = choice.current ? i18n.t('online.pick.again', { act }) : choice.act === 'template' ? i18n.t('online.pick.template') : i18n.t('online.pick.tooltip', { act });
+        return (
+          <Button
+            key={choice.act}
+            label={act}
+            variant="line"
+            size="sm"
+            pressed={choice.current}
+            busy={busy}
+            reason={reason}
+            tooltip={tooltip}
+            {...(suggested ? { class: 'is-advice', trailing: <span class="ol-pick__tag">{i18n.t('online.pick.advice')}</span> } : {})}
+            onClick={() => void dispatch({ type: 'RewriteOnline', targetHandle: card.handle, act: choice.act })}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 /** The text's zone under the conversation, by where the fan stands. */
 function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
   const i18n = useI18n();
@@ -298,26 +346,21 @@ function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview
         </div>
       );
     case 'idle':
-      if (card.write) {
-        return (
-          <div class="cg-ow__dzone is-empty" data-cg-zone="none">
-            <span>{i18n.t('online.card.noReason')}</span>
-            <span class="cg-nw__grow" />
-            <Button label={i18n.t('online.card.write')} variant="line" size="sm" onClick={again} />
+      // Nothing written yet: the person picks what to write. The choice stands first in every state of the zone, so a
+      // click on it keeps its focus (and the window's keys) as the text is written.
+      return (
+        <div class="cg-ow__dzone" data-cg-zone="idle">
+          <Choices card={card} preview={preview} />
+          {card.advice === null ? <span class="ol-pick__none">{i18n.t('online.card.noReason')}</span> : null}
+          <div class="cg-ow__acts">
             <PassButtons card={card} busy={false} />
           </div>
-        );
-      }
-      return (
-        <div class="cg-ow__dzone is-empty" data-cg-zone="idle">
-          <span>{i18n.t(card.reason.kind === 'answered' ? 'online.card.replyLater' : 'online.card.later', { act })}</span>
-          <span class="cg-nw__grow" />
-          <Button label={i18n.t('online.card.writeAct', { act })} variant="line" size="sm" onClick={again} />
         </div>
       );
     case 'writing':
       return (
         <div class="cg-ow__dzone" data-cg-zone="writing">
+          <Choices card={card} preview={preview} />
           <div class="cg-ow__dcard is-busy">
             <div class="cg-ow__dhead">
               <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
@@ -334,12 +377,20 @@ function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview
       );
     case 'unwritten':
       return (
-        <div class="cg-ow__dzone is-empty" data-cg-zone="unwritten" {...(card.code === null ? {} : { 'data-cg-code': card.code })}>
-          <Dot kind="ink" size={6} />
-          <span>{card.code === null ? i18n.t('online.card.unwritten', { act }) : `${i18n.t('online.card.unwritten', { act })} · ${card.code}`}</span>
-          <span class="cg-nw__grow" />
-          {card.rewrite ? <Button label={i18n.t('online.card.again')} variant="line" size="sm" onClick={again} /> : null}
-          <PassButtons card={card} busy={false} />
+        <div class="cg-ow__dzone" data-cg-zone="unwritten" {...(card.code === null ? {} : { 'data-cg-code': card.code })}>
+          <Choices card={card} preview={preview} />
+          <div class="cg-nc__gst">
+            <Dot kind="ink" size={6} />
+            <b>{i18n.t('online.card.unwritten', { act })}</b>
+            {card.code === null ? null : (
+              <span class="cg-nc__gcode">
+                <b>ChatGoose · {card.code}:</b> {codeTail(i18n, card.code)}
+              </span>
+            )}
+          </div>
+          <div class="cg-ow__acts">
+            <PassButtons card={card} busy={false} />
+          </div>
         </div>
       );
     case 'ready':
@@ -360,6 +411,7 @@ function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview
   const reason = send === null ? (busy ? null : i18n.t('outreach.cannot')) : send.can ? null : send.paused ? i18n.t('online.card.paused') : send.reason === null ? i18n.t('outreach.cannot') : i18n.text(send.reason);
   return (
     <div class="cg-ow__dzone" data-cg-zone="draft">
+      <Choices card={card} preview={preview} />
       <div class={`cg-ow__dcard${busy ? ' is-busy' : ''}`}>
         <div class="cg-ow__dhead">
           {card.template === null ? (

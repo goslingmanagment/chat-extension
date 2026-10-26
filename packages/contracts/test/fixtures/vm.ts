@@ -94,7 +94,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   SetOnline: { type: 'SetOnline', open: true, tab: 'all', minutes: 120, refresh: true },
   SelectOnline: { type: 'SelectOnline', targetHandle: 'online:42:700000000000000002', keys: true },
   SendOnline: { type: 'SendOnline', targetHandle: 'online:42:700000000000000002', anyway: true },
-  RewriteOnline: { type: 'RewriteOnline', targetHandle: 'online:42:700000000000000002' },
+  RewriteOnline: { type: 'RewriteOnline', targetHandle: 'online:42:700000000000000002', act: 'ping' },
   EditOnline: { type: 'EditOnline', targetHandle: 'online:42:700000000000000002', text: 'hey love 👋' },
   SkipOnline: { type: 'SkipOnline', targetHandle: 'online:42:700000000000000002', skip: true },
   DismissOnline: { type: 'DismissOnline', targetHandle: 'online:42:700000000000000002', dismiss: false },

@@ -47,14 +47,6 @@
 // BATCH_LIMITS.grantTtlMs, kept apart from the grants of single actions (which are asked first), and replaced by
 // the next batch click. It can never insert, send or navigate.
 //
-// One click writes a little ahead, too: «Онлайн» (2026-10-26). A click or a key that moves its pass to a fan — the
-// window opened, a fan of its list, its «Отправить →», «Пропустить» or «Не предлагать» (the client says which,
-// `movesOnlinePass`) — has the AI write that fan's text and the next one's, so the next card is ready when the person gets
-// there. Its grant is an ONLINE grant: generate tokens only, at most ONLINE_GRANT_TOKENS of them, for
-// ONLINE_GRANT_TTL_MS, claimable only for a preview's generation while the tab is on screen, replaced by the next such
-// action and dropped when the window closes (`dropOnline`). It can never insert, send or navigate; the send of
-// «Отправить →» is its own ordinary grant of that click.
-//
 // One click writes later, by design: Fix (decision X68, the owner: «как в старом» — the old Fansly extension's Fix
 // put its result into the field by itself). The person's Fix click or key, in the dock or the composer, opens with
 // its `generate` grant a DEFERRED insert grant: one `insert` token, for the dock, claimable only by a request that
@@ -207,8 +199,8 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   // (the versions of many are `GenerateBatch`, the batch's own grant).
   SendOutreach: ['send'],
   RewriteOutreach: ['generate'],
-  // «Онлайн»: «Отправить →» is a send by this click; «Ещё раз» / «Написать …» writes that one fan's text. The texts of the
-  // fan the pass moves to, and the next one, are the online grant's (ONLINE_ACTIONS).
+  // «Онлайн»: «Отправить →» is a send by this click; the card's «Reply» / «Hi» / «Ping» and «Ещё раз» write that one fan's
+  // text. Opening the window or a fan's card writes nothing (2026-10-26, the owner).
   SendOnline: ['send'],
   RewriteOnline: ['generate'],
   // 2026-10-24: «Hi» of a greeting reminder's toast; 2026-10-26 — opens the fan's chat, starts the dock's Hi there and
@@ -254,9 +246,7 @@ export interface GestureGate {
    * synchronous step of the click or the key; null — a grant is open (or the
    * action needs no token), else why not.
    */
-  open(action: UiAction['type'], deferInsert?: boolean, online?: boolean): GestureRefusal | null;
-  /** «Онлайн» closed: what its last action left of the online grant goes. */
-  dropOnline(): void;
+  open(action: UiAction['type'], deferInsert?: boolean): GestureRefusal | null;
   /** A token for the action that was granted it: the newest open grant that has this kind left. */
   claim(kind: ActionKind, surface: Surface): GestureRefusal | null;
   /** X68: the one insert token of the last Fix click, for the dock, asked for when that Fix is done. */
@@ -306,12 +296,6 @@ interface BatchGrant {
 
 /** The action whose one click is a batch of generations. */
 export const BATCH_ACTION: UiAction['type'] = 'GenerateBatch';
-/** «Онлайн»: the actions that move its pass to a fan whose text — and the next one's — the AI writes. */
-export const ONLINE_ACTIONS: readonly UiAction['type'][] = ['SetOnline', 'SelectOnline', 'SendOnline', 'SkipOnline', 'DismissOnline'];
-/** The fan the pass moved to and the next one. */
-export const ONLINE_GRANT_TOKENS = 2;
-/** Long enough for a send to go and the next card to open (and the background's «limit of the tab» to pass). */
-export const ONLINE_GRANT_TTL_MS = 60_000;
 
 export function createGestureGate(win: Window, env: GateEnv, now: () => number = () => Date.now()): GestureGate {
   let current: Event | null = null;
@@ -320,8 +304,6 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
   const given = new WeakMap<Event, Set<ActionKind>>();
   let grants: Grant[] = [];
   let batch: BatchGrant | null = null;
-  /** «Онлайн»'s grant of its last click or key (see the head of this file). */
-  let online: BatchGrant | null = null;
   /** X68: the deferred insert of the last Fix click (see the head of this file). */
   let deferred: { readonly gesture: Gesture; readonly at: number } | null = null;
   /** The toast's Hi of the last such click and the kinds it has left (see the head of this file). */
@@ -350,11 +332,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       if (refusal !== null) return refusal;
       return spend(gesture.event, kind) ? null : 'spent';
     },
-    open(action, deferInsert = false, onlinePass = false) {
-      if (onlinePass && ONLINE_ACTIONS.includes(action)) {
-        const gesture = inFlight();
-        if (typeof gesture !== 'string') online = { gesture, left: ONLINE_GRANT_TOKENS, at: now() };
-      }
+    open(action, deferInsert = false) {
       if (action === BATCH_ACTION) {
         const gesture = inFlight();
         if (typeof gesture === 'string') return gesture;
@@ -370,9 +348,6 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       if (deferInsert && action === 'Generate' && (gesture.via === null || gesture.via === env.mounts.dock.host)) deferred = { gesture, at: now() };
       if (action === 'GreetNewcomer') greet = { gesture, at: now(), kinds: new Set(GREET_KINDS) };
       return null;
-    },
-    dropOnline() {
-      online = null;
     },
     afterGreet(action) {
       const grant = greet;
@@ -414,19 +389,6 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         grant.kinds.delete(kind);
         if (grant.kinds.size === 0) grants.splice(index, 1);
         return spend(grant.gesture.event, kind) ? null : 'spent';
-      }
-      // «Онлайн»'s texts: counted, not «one per event» — the click named the fan and the next one. A preview's generation
-      // only (the window's cards), and only while the tab is on screen.
-      if (kind === 'generate' && online !== null && surface === 'preview' && env.doc.visibilityState === 'visible') {
-        if (now() - online.at > ONLINE_GRANT_TTL_MS || online.left <= 0) online = null;
-        else {
-          const refused = kindRefusal(online.gesture, kind, surface, env);
-          if (refused === null) {
-            online.left -= 1;
-            return null;
-          }
-          refusal = refused;
-        }
       }
       // A batch's next start: counted, not «one per event» — the one click named every fan of it.
       if (kind === 'generate' && batch !== null) {
@@ -471,7 +433,6 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       resumed = null;
       grants = [];
       batch = null;
-      online = null;
       deferred = null;
       greet = null;
     },
@@ -497,9 +458,9 @@ export interface TabActionTokens {
   ask(kind: ActionKind, surface: Surface, deferred?: boolean): Promise<TokenAnswer>;
   /**
    * The AppClient took `action` from the UI or the hotkey runner, in the step of the click or the key; `deferInsert` — a
-   * Fix (X68); `onlinePass` — it moves «Онлайн»'s pass to a fan (the online grant).
+   * Fix (X68).
    */
-  granted(action: UiAction['type'], deferInsert?: boolean, onlinePass?: boolean): void;
+  granted(action: UiAction['type'], deferInsert?: boolean): void;
   /** The hotkey dispatcher hands in a key press it stopped before this chunk's listeners could see it (§9.1). */
   noteGesture(event: Event): void;
   /** A click on an extension page, brought here by the background (`tab.command`): its navigation may get a token. */
@@ -547,8 +508,8 @@ export function createActionTokens(deps: ActionTokensDeps): {
     tokens: {
       issue: (kind, surface) => ask(kind, surface).then((answer) => (answer.ok ? answer.actionToken : null)),
       ask,
-      granted(action, deferInsert, onlinePass) {
-        const refusal = deps.gate.open(action, deferInsert, onlinePass);
+      granted(action, deferInsert) {
+        const refusal = deps.gate.open(action, deferInsert);
         // An action without a person behind it gets no grant; whether it needed one shows when it asks.
         if (refusal !== null) deps.onUngranted?.({ action, refusal });
       },

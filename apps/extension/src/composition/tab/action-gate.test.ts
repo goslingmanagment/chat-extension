@@ -6,7 +6,7 @@ import type { Surface } from '@cg/contracts/features';
 import { createShadowRootRegistry } from '@cg/host-chatspace/isolated';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, ONLINE_GRANT_TOKENS, ONLINE_GRANT_TTL_MS, createActionTokens, createGestureGate, gestureRefusal, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
+import { GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, createActionTokens, createGestureGate, gestureRefusal, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
 
 type DockKind = 'in-flow' | 'fixed-overlay' | 'copy-only-row' | 'none';
 
@@ -244,56 +244,25 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
-  it('«Онлайн»: a click on a fan writes its text and the next one\'s — two preview generations within a minute, nothing else', async () => {
-    let clock = 1_000_000;
-    const s = seam(() => clock);
-    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SelectOnline', false, true));
-    await Promise.resolve();
-    // Later, as the card opens and the next fan's text is written: counted, not «one per event».
-    expect(await s.tokens.issue('generate', 'preview')).toBe('token-1-0123456789abcdef');
-    expect(await s.tokens.issue('generate', 'preview')).toBe('token-2-0123456789abcdef');
-    expect(ONLINE_GRANT_TOKENS).toBe(2);
-    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
-    expect(await s.tokens.issue('send', 'preview')).toBeNull();
-    expect(await s.tokens.issue('insert', 'preview')).toBeNull();
-    // A new click opens a new grant; past its minute nothing is left.
-    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SkipOnline', false, true));
-    clock += ONLINE_GRANT_TTL_MS + 1;
-    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
-    expect(s.asked).toEqual([['generate', 'preview'], ['generate', 'preview']]);
-    s.gate.dispose();
-  });
-
-  it('«Онлайн»: its grant is the window\'s — never the dock\'s, never with the tab hidden, gone when the window closes or for «Вернуть»', async () => {
+  it('«Онлайн»: opening the window, a fan\'s card, «Отправить →» or «Пропустить» writes nothing; the card\'s «Ping» writes one text', async () => {
     const s = seam();
-    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SelectOnline', false, true));
-    await Promise.resolve();
-    expect(await s.tokens.issue('generate', 'dock')).toBeNull();
-    s.w.visibility = 'hidden';
-    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
-    s.w.visibility = 'visible';
-    s.gate.dropOnline();
-    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
-    // «Вернуть» moves the pass nowhere: no grant.
-    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SkipOnline', false, false));
-    await Promise.resolve();
-    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
-    expect(s.asked).toEqual([]);
-    s.gate.dispose();
-  });
-
-  it('«Онлайн»: «Отправить →» sends by its own click once and writes the next fans\' texts; a synthetic click opens nothing', async () => {
-    const s = seam();
-    during(s.w.overlayButton, event('click', false), () => s.tokens.granted('SendOnline', false, true));
-    await Promise.resolve();
-    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    for (const action of ['SetOnline', 'SelectOnline', 'SkipOnline', 'DismissOnline'] as const) {
+      during(s.w.overlayButton, event('click', true), () => s.tokens.granted(action));
+      await Promise.resolve();
+      expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    }
     const sent = await during(s.w.overlayButton, event('click', true), () => {
-      s.tokens.granted('SendOnline', false, true);
+      s.tokens.granted('SendOnline');
       return s.tokens.issue('send', 'preview');
     });
     expect(sent).toBe('token-1-0123456789abcdef');
-    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    // The person's pick on the card: one generation, later, as the card's batch starts it.
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('RewriteOnline'));
+    await Promise.resolve();
     expect(await s.tokens.issue('generate', 'preview')).toBe('token-2-0123456789abcdef');
+    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    expect(s.asked).toEqual([['send', 'preview'], ['generate', 'preview']]);
     s.gate.dispose();
   });
 

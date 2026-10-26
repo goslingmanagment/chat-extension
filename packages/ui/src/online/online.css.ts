@@ -69,6 +69,14 @@ ${/* The card: why now, the conversation, the text. */ ''}
 .ol-sent .cg-btn { margin-left: auto; }
 .ol .cg-ow__dzone.is-sent { min-height: 0; }
 
+${/* «Написать: Reply · Hi · Ping · Шаблон»: the advice in clay, the card's text pressed. */ ''}
+.ol-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.ol-pick__lead { margin-right: 2px; font-size: var(--cg-text-sm2); color: var(--cg-ink-muted); }
+.ol-pick .cg-btn.is-advice { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); }
+.ol-pick .cg-btn[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--cg-clay-ink); color: var(--cg-clay-ink); font-weight: 600; }
+.ol-pick__tag { margin-left: 6px; font-size: var(--cg-text-2xs); font-weight: 400; opacity: .85; }
+.ol-pick__none { font-size: var(--cg-text-sm2); color: var(--cg-ink-muted); }
+
 ${/* The end of the pass, and the pane with no card. */ ''}
 .ol-end { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; padding: 32px 40px; }
 .ol-end h3 { margin: 0; font: 600 26px/1.15 var(--cg-serif); color: var(--cg-ink-strong); }
