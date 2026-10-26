@@ -1086,6 +1086,7 @@ export const EN: I18nCatalog<'en'> = {
   'online.end.showAll': 'Show everyone online',
   'online.reason.openCard': 'Open the fan\'s card',
   'online.reason.making': 'Preparing the text…',
+  'online.reason.retry': 'The text did not go onto the card, trying again',
   'online.reason.empty': 'The text is empty',
   'newcomers.range': 'From {from} to {to} · local time',
   'newcomers.cardMeta': '{kind} {age} ago',

@@ -79,6 +79,12 @@ export const ONLINE_PACE_MS = 500;
 export const ONLINE_ARRIVED_MS = 30_000;
 /** The search waits this long after the last keystroke. */
 export const ONLINE_SEARCH_DEBOUNCE_MS = 150;
+/** Fansly: the list waits this long for the site's read of who is active; a slower one goes into the next read. */
+export const ONLINE_SEEN_WAIT_MS = 2_500;
+/** ChatSpace: the person's words for a guide's text go onto the card this long after the last key. */
+export const ONLINE_EDIT_SETTLE_MS = 500;
+/** ChatSpace: a guide's text that did not go onto the open card is tried again this much later. */
+export const ONLINE_MANUAL_RETRY_MS = 3_000;
 /** One text at most (the preview's draft limit). */
 export const ONLINE_TEXT_MAX = 5_000;
 /** What the AI's refusal says when it cannot write here: no chat of the fan is known (Fansly), or the chat is short. */
@@ -155,6 +161,8 @@ interface How {
 interface TextOp {
   readonly opId: string;
   readonly key: string;
+  /** The words the result holds (the guide's text, or the person's for it). */
+  readonly text: string;
 }
 
 /** A fan of this pass: what the person did and what went. */
@@ -188,8 +196,20 @@ interface PassFan {
   replied: { readonly at: IsoTimestamp; readonly to: number } | null;
   /** Fansly: the fan's chat the page's memory or the inbox search found. */
   group: string | null;
+  /** The act the AI's text was written for (`keyOf`): a text of another act is no text for this one. */
+  aiKey: string | null;
+  /** ChatSpace: the guide's text did not go onto the open card: when (it is tried again a moment later). */
+  manualFailedAt: number | null;
+  /** What the click sent: its act and the guide's text it was, for the hub's record. */
+  clickAct: { readonly act: OnlineAct; readonly templateId: string | null } | null;
   /** Came online while the window was open: when this tab first saw them. */
   arrivedAt: number | null;
+}
+
+/** A page's pass: its fans and the guide's turns. */
+interface PassState {
+  readonly fans: Map<string, PassFan>;
+  readonly turns: Record<'a' | 'b', number>;
 }
 
 /** A fan as the rows and the card see them. */
@@ -252,13 +272,29 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   let pending: string | null = null;
   let settleTimer: number | null = null;
   let advanceTimer: number | null = null;
+  let manualTimer: number | null = null;
+  /** The window was opened and its first card is to open once the list is there. */
+  let startPending = false;
+  /** Grows with every card opened: a late lookup of an earlier one opens nothing. */
+  let opening = 0;
   /** The card open when the window last closed: it opens again with the window while its fan is online. */
   let lastCard: string | null = null;
 
-  // ── the pass ──
-  const pass = new Map<string, PassFan>();
+  // ── the pass: one per hub, person and page, so an account switched away and back finds what went from here ──
+  const passes = new Map<string, PassState>();
+  const passStateOf = (state: PageContextState): PassState => {
+    const key = `${state.session?.hubOrigin ?? ''}|${state.session?.userId ?? ''}|${state.binding?.pageId ?? ''}`;
+    let found = passes.get(key);
+    if (found === undefined) {
+      found = { fans: new Map(), turns: { a: 0, b: 0 } };
+      passes.set(key, found);
+    }
+    return found;
+  };
+  let passState = passStateOf(context.current());
+  let pass = passState.fans;
   /** The next guide text of each group: neighbours get different ones. */
-  const turns: Record<'a' | 'b', number> = { a: 0, b: 0 };
+  let turns = passState.turns;
   let pacedUntil = 0;
   let paceTimer: number | null = null;
 
@@ -280,7 +316,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   const passOf = (fanRef: string): PassFan => {
     let fan = pass.get(fanRef);
     if (fan === undefined) {
-      fan = { skipped: false, dismiss: null, template: null, write: false, fallback: false, textOp: null, making: false, edit: null, own: null, ownText: null, sent: null, clickedAt: null, advanced: false, reported: false, replied: null, group: null, arrivedAt: null };
+      fan = { skipped: false, dismiss: null, template: null, write: false, fallback: false, textOp: null, making: false, edit: null, own: null, ownText: null, sent: null, clickedAt: null, advanced: false, reported: false, replied: null, group: null, arrivedAt: null, aiKey: null, manualFailedAt: null, clickAct: null };
       pass.set(fanRef, fan);
     }
     return fan;
@@ -295,15 +331,18 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       if (port === null || fanRef === null || item === undefined) return { s: 'failed', code: 'CG-CONTEXT-CHANGED' };
       const how = howOf(fanRef, item);
       if (how.feature === null) return { s: 'failed', code: 'CG-FEATURE-DISABLED' };
-      const outcome = await port.batchStart('online', handle, how.feature);
       const fan = passOf(fanRef);
-      if (outcome.s === 'failed' && FALLBACK_CODES.includes(outcome.code)) {
-        // The AI cannot write for this fan here: the guide's text goes instead (made at once, no AI).
+      fan.aiKey = keyOf(how);
+      const outcome = await port.batchStart('online', handle, how.feature);
+      if (outcome.s === 'failed' && FALLBACK_CODES.includes(outcome.code) && how.feature !== 'reply') {
+        // The AI cannot write for this fan here: the guide's text goes instead (made at once, no AI). Never to a fan who
+        // waits for an answer: a reactivation text is no answer, the card says why the AI could not write instead.
         fan.fallback = true;
+        fan.aiKey = null;
         void ensureManual(fanRef);
       } else if (outcome.s === 'ready' && own === null) {
         const row = port.outreachRow?.(handle) ?? null;
-        fan.textOp = row === null ? null : { opId: row.opId, key: keyOf(how) };
+        fan.textOp = row === null ? null : { opId: row.opId, key: keyOf(how), text: row.text };
       }
       return outcome;
     },
@@ -481,13 +520,24 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
         if (MOVING.includes(facts.state) || WENT.includes(facts.state) || facts.state === 'failed') return facts;
       }
       if (how.act === 'none') return NONE;
-      if (card !== null && fan?.textOp !== null && fan?.textOp !== undefined && card.opId === fan.textOp.opId && fan.textOp.key === keyOf(how) && !(again && card.opId === fan.sent?.opId)) return cardFacts(fan, card);
+      const key = keyOf(how);
+      const op = fan?.textOp ?? null;
+      const ours = card !== null && fan !== undefined && op !== null && card.opId === op.opId && op.key === key && !(again && card.opId === fan.sent?.opId);
       if (how.template !== null) {
-        // The guide's text is the card's result once its card opened; until then the row shows it as it will go.
-        const text = templateText(item, how.template);
-        return { ...NONE, state: 'ready', version: text, send: { can: false, kind: 'send', paused: false, reason: msg(fan?.making === true ? 'online.reason.making' : 'online.reason.openCard') } };
+        const wanted = fan?.edit ?? templateText(item, how.template);
+        const edited = (fan?.edit ?? null) !== null;
+        // The guide's text (or the person's words for it) is the open card's result: the card's send takes it.
+        if (ours && op.text === wanted) {
+          const facts = cardFacts(fan, card);
+          return facts.state === 'ready' || facts.state === 'failed' ? { ...facts, version: wanted, edited, editable: true } : facts;
+        }
+        // Not on the card yet (its card is not open, the person's words are on their way there): the row shows what will go.
+        const making = fan?.making === true || ours;
+        const reason = making ? 'online.reason.making' : (fan?.manualFailedAt ?? null) !== null ? 'online.reason.retry' : 'online.reason.openCard';
+        return { ...NONE, state: 'ready', version: wanted, edited, editable: true, send: { can: false, kind: 'send', paused: false, reason: msg(reason) } };
       }
-      return aiFacts(handle);
+      if (ours) return cardFacts(fan, card);
+      return aiFacts(fanRef, handle, key);
     }
     // The site's own send (Fansly).
     const sent = fan?.own;
@@ -501,7 +551,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     let version: string | null;
     if (how.template !== null) version = fan?.edit ?? templateText(item, how.template);
     else {
-      const ai = aiFacts(handle);
+      const ai = aiFacts(fanRef, handle, keyOf(how));
       if (ai.state !== 'ready') return ai;
       version = fan?.edit ?? ai.version;
     }
@@ -520,9 +570,11 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     };
   }
 
-  /** The AI's text as the window's batch has it: not started, written, or why not. */
-  function aiFacts(handle: TargetHandle): Facts {
+  /** The AI's text as the window's batch has it: not started, written, or why not — for the act it is wanted for. */
+  function aiFacts(fanRef: string, handle: TargetHandle, key: string): Facts {
     if (batchPort === null) return NONE;
+    // A text written for another act (the fan answered a Ping meanwhile) is no text for this one.
+    if (pass.get(fanRef)?.aiKey !== key) return NONE;
     const row = batch.row(handle);
     switch (row.state) {
       case null:
@@ -769,28 +821,29 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       const item = items.get(fanRef);
       if (item === undefined) continue;
       const facts = factsOf(fanRef, item);
-      const went = facts.state === 'sent' || facts.state === 'accepted';
+      // «Неизвестно, ушло ли» counts as went for the hub (the safe side: the fan is set aside, with a warning, for the
+      // whole team and after a reload), but the pass stays on its card: the person looks in the chat.
+      const went = facts.state === 'sent' || facts.state === 'accepted' || facts.state === 'uncertain';
       if (!went) continue;
       if (fan.sent === null || fan.sent.at < fan.clickedAt) {
         const how = howOf(fanRef, item);
-        fan.sent = { text: facts.version ?? '', act: how.act, templateId: how.template?.id ?? null, at: timeOf(facts.sentAt) ?? clock.now(), opId: own === null ? (batchPort?.outreachRow?.(handleOf(fanRef))?.opId ?? null) : null };
+        const act = fan.clickAct ?? { act: how.act, templateId: how.template?.id ?? null };
+        fan.sent = { text: facts.version ?? '', act: act.act, templateId: act.templateId, at: timeOf(facts.sentAt) ?? clock.now(), opId: own === null ? (batchPort?.outreachRow?.(handleOf(fanRef))?.opId ?? null) : null };
       }
       if (!fan.reported) {
         fan.reported = true;
-        report(fanRef, item, fan);
+        report(pageId(), fanRef, item.reason, fan.sent);
       }
       if (!fan.advanced) {
         fan.advanced = true;
-        if (fanRef === open) scheduleAdvance(fanRef);
+        if (fanRef === open && facts.state !== 'uncertain') scheduleAdvance(fanRef);
       }
     }
   }
 
-  /** The hub's record of a send from the window: once, never repeated; a failure changes nothing here. */
-  function report(fanRef: string, item: OnlineItem, fan: PassFan): void {
-    const id = pageId();
-    const sent = fan.sent;
-    if (id === null || sent === null) return;
+  /** The hub's record of a send from the window, for the page it went from: once, never repeated; a failure changes nothing here. */
+  function report(id: number | null, fanRef: string, reason: string, sent: NonNullable<PassFan['sent']>): void {
+    if (id === null) return;
     const act = sent.act === 'none' ? undefined : sent.act;
     void rpc
       .request('online.attempt', {
@@ -799,7 +852,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
         action: 'sent',
         ...(act === undefined ? {} : { act }),
         ...(sent.templateId === null ? {} : { templateId: sent.templateId }),
-        ...(item.reason.length > 0 && item.reason.length <= 64 ? { reason: item.reason } : {}),
+        ...(reason.length > 0 && reason.length <= 64 ? { reason } : {}),
       })
       .catch(() => undefined);
   }
@@ -836,8 +889,12 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     loading = true;
     changed(true);
     // Fansly: who of the creator's followers was active, told to the hub first (the background asks the site at most
-    // once a minute per creator; a failure leaves the hub's own last word).
-    if (own !== null) await own.seen(binding.pageId, binding.platformAccountId).catch(() => undefined);
+    // once a minute per creator; a failure leaves the hub's own last word). A slow site never holds the list: what it
+    // tells after ONLINE_SEEN_WAIT_MS goes into the next read.
+    if (own !== null) {
+      const seen = own.seen(binding.pageId, binding.platformAccountId).catch(() => undefined);
+      await Promise.race([seen, new Promise<void>((resolve) => void clock.setTimer(ONLINE_SEEN_WAIT_MS, resolve))]);
+    }
     if (disposed || run !== reads || atEpoch !== epoch) return;
     const answer = await rpc.request('online.list', { pageId: binding.pageId, minutes: ONLINE_READ_MINUTES }).catch(() => null);
     if (disposed || run !== reads || atEpoch !== epoch) return;
@@ -850,6 +907,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     }
     loadedAt = clock.now();
     changed();
+    tryStart();
   }
 
   /** A new read: who came meanwhile lights up, who answered a text from here waits again. */
@@ -878,7 +936,21 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
         fan.advanced = false;
         fan.reported = false;
         fan.textOp = null;
+        fan.aiKey = null;
+        fan.skipped = false;
+        fan.clickAct = null;
         batch.drop([handleOf(item.fanRef)]);
+      }
+      // The hub's act for the fan changed (he wrote, the subscription moved): a text written for the old act goes,
+      // unless it is on its way or went.
+      if (fan.aiKey !== null && fan.aiKey !== keyOf(howOf(item.fanRef, item))) {
+        const facts = factsOf(item.fanRef, item);
+        if (!MOVING.includes(facts.state) && !WENT.includes(facts.state)) {
+          batch.drop([handleOf(item.fanRef)]);
+          fan.aiKey = null;
+          fan.textOp = null;
+          fan.edit = null;
+        }
       }
     }
   }
@@ -931,17 +1003,36 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       return;
     }
     const key = keyOf(how);
+    const wanted = fan.edit ?? templateText(item, how.template);
     const card = port.outreachRow?.(handle) ?? null;
-    if (fan.textOp !== null && fan.textOp.key === key && card !== null && card.opId === fan.textOp.opId) return;
+    if (fan.textOp !== null && fan.textOp.key === key && fan.textOp.text === wanted && card !== null && card.opId === fan.textOp.opId) return;
     fan.making = true;
     changed();
     const atEpoch = epoch;
-    const ok = await port.onlineText(handle, templateText(item, how.template)).catch(() => false);
-    if (disposed || atEpoch !== epoch) return;
+    const ok = await port.onlineText(handle, wanted).catch(() => false);
     fan.making = false;
+    if (disposed || atEpoch !== epoch) return;
     const row = ok ? (port.outreachRow?.(handle) ?? null) : null;
-    if (row !== null) fan.textOp = { opId: row.opId, key };
+    if (row !== null) {
+      fan.textOp = { opId: row.opId, key, text: wanted };
+      fan.manualFailedAt = null;
+      // The person typed on meanwhile: what stands now goes onto the card in its turn.
+      if ((fan.edit ?? wanted) !== wanted) scheduleManual(fanRef, ONLINE_EDIT_SETTLE_MS);
+    } else {
+      // Something of the fan is in flight, or the card was replaced: tried again a moment later, while the card is open.
+      fan.manualFailedAt = clock.now();
+      scheduleManual(fanRef, ONLINE_MANUAL_RETRY_MS);
+    }
     changed();
+  }
+
+  /** The guide's text (or the person's words for it) goes onto the open card `ms` later; one at a time. */
+  function scheduleManual(fanRef: string, ms: number): void {
+    if (manualTimer !== null) clock.clearTimer(manualTimer);
+    manualTimer = clock.setTimer(ms, () => {
+      manualTimer = null;
+      if (!disposed && openFan() === fanRef) void ensureManual(fanRef);
+    });
   }
 
   // ── the directory of the preview from `online` ──
@@ -1011,18 +1102,22 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   function open(type: UiActionType): ActionReceipt {
     surfaces.setList('online', true);
     schedulePoll();
+    startPending = true;
     const stale = loadedAt === null || clock.now() - loadedAt > ONLINE_POLL_MS / 3;
-    const first = stale ? read() : Promise.resolve();
-    void first.then(() => {
-      if (disposed || !surfaces.current().online || openFan() !== null || pending !== null) return;
-      // Where the person was, while that fan is online; else the first fan to write to.
-      const entries = entriesOf(minutes, liveNow());
-      const back = lastCard !== null && entries.some((entry) => entry.fanRef === lastCard) ? lastCard : null;
-      const start = back ?? nextTodo(null, entries);
-      if (start !== null) void openCard(start);
-    });
+    if (stale) void read();
+    else tryStart();
     changed();
     return done(type, 'opened');
+  }
+
+  /** The window's first card, once its list is there: where the person was while that fan waits for a message, else the first fan to write to. */
+  function tryStart(): void {
+    if (!startPending || disposed || list === null || !surfaces.current().online || openFan() !== null || pending !== null) return;
+    startPending = false;
+    const entries = entriesOf(minutes, liveNow());
+    const back = lastCard !== null && entries.some((entry) => entry.fanRef === lastCard && todoOf(entry)) ? lastCard : null;
+    const start = back ?? nextTodo(null, entries);
+    if (start !== null) void openCard(start);
   }
 
   /** The fan's card opens; their text is written, and the next fan's. */
@@ -1030,10 +1125,13 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (settleTimer !== null) clock.clearTimer(settleTimer);
     settleTimer = null;
     pending = null;
+    startPending = false;
+    const run = ++opening;
     const handle = handleOf(fanRef);
     const atEpoch = epoch;
     await directory.prepare?.(handle).catch(() => undefined);
-    if (disposed || atEpoch !== epoch || !surfaces.current().online || pending !== null) return;
+    // Another card was asked for meanwhile (a click, the keys): that one opens, not this.
+    if (disposed || atEpoch !== epoch || run !== opening || !surfaces.current().online || pending !== null) return;
     surfaces.setPreview('online', handle);
     ensureText(fanRef);
     const next = nextTodo(fanRef, entriesOf(minutes, liveNow()));
@@ -1073,7 +1171,9 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (own === null) {
       const port = batchPort;
       if (port?.outreachSend === undefined) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
+      const how = howOf(fanRef, item);
       fan.clickedAt = clock.now();
+      fan.clickAct = { act: how.act, templateId: how.template?.id ?? null };
       fan.advanced = false;
       fan.reported = false;
       const receipt = await port.outreachSend(type, handleOf(fanRef), anyway || facts.send.kind === 'anyway');
@@ -1099,15 +1199,26 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     fan.advanced = false;
     fan.reported = false;
     const sentNow = { text: body, act: how.act, templateId: how.template?.id ?? null, opId: null };
+    fan.clickAct = { act: how.act, templateId: sentNow.templateId };
+    const pageAt = binding.pageId;
+    const reason = item.reason;
     pace();
     changed();
-    const atEpoch = epoch;
+    // The end is the fan's of the page it went from (its pass outlives an account switch), and the hub hears of it
+    // for that page: an unknown outcome too, the safe side — the fan is set aside, with a warning, for everyone.
     const end = (state: OwnSend['state'], code: string | null): ActionReceipt => {
-      if (atEpoch === epoch && fan.own === sending) {
+      if (fan.own === sending) {
         sending.state = state;
         sending.code = code;
         sending.at = clock.now();
-        if (state !== 'failed') fan.sent = { ...sentNow, at: sending.at };
+        if (state !== 'failed') {
+          const sent = { ...sentNow, at: sending.at };
+          fan.sent = sent;
+          if (!fan.reported) {
+            fan.reported = true;
+            report(pageAt, fanRef, reason, sent);
+          }
+        }
         changed();
       }
       return state === 'sent' ? done(type) : refused(type, localError(state === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-REJECTED', i18n, code ?? undefined));
@@ -1141,6 +1252,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       how = howOf(fanRef, item);
     }
     fan.edit = null;
+    fan.manualFailedAt = null;
     if (fan.own?.state === 'failed') fan.own = null;
     if (how.feature !== null) batch.queue([handleOf(fanRef)]);
     else if (how.template !== null) void ensureManual(fanRef);
@@ -1153,19 +1265,26 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (item === undefined) return refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n));
     const facts = factsOf(fanRef, item);
     if (!facts.editable) return refused(type, localError('CG-SEND-PART', i18n));
-    if (own === null) {
-      const ok = batchPort?.outreachEdit?.(handleOf(fanRef), words === null ? null : words.slice(0, ONLINE_TEXT_MAX)) ?? false;
+    const text = words === null ? null : words.slice(0, ONLINE_TEXT_MAX);
+    const how = howOf(fanRef, item);
+    // ChatSpace: the AI's text is edited on its card, as «Рассылка»'s versions.
+    if (own === null && how.template === null) {
+      const ok = batchPort?.outreachEdit?.(handleOf(fanRef), text) ?? false;
       changed();
       return ok ? done(type) : refused(type, localError('CG-SEND-PART', i18n));
     }
-    passOf(fanRef).edit = words === null ? null : words.slice(0, ONLINE_TEXT_MAX);
+    passOf(fanRef).edit = text;
+    // ChatSpace: the person's words for the guide's text go onto the card a moment after the last key.
+    if (own === null) scheduleManual(fanRef, ONLINE_EDIT_SETTLE_MS);
     changed();
     return done(type);
   }
 
   /** «Пропустить» (this pass only) and «Вернуть»; the next fan's card opens after a skip. */
   function skip(type: UiActionType, fanRef: string, on: boolean): ActionReceipt {
-    if (!items.has(fanRef)) return refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n));
+    const item = items.get(fanRef);
+    if (item === undefined) return refused(type, localError('CG-GATE-FAN-UNKNOWN', i18n));
+    if (on && MOVING.includes(factsOf(fanRef, item).state)) return refused(type, localError('CG-SEND-BUSY', i18n));
     passOf(fanRef).skipped = on;
     if (on && openFan() === fanRef) advance(fanRef);
     changed();
@@ -1278,7 +1397,8 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
 
   // ── life ──
 
-  function reset(): void {
+  /** Another sign-in, hub or account: the list goes; the pass of that page waits for it to come back (what went stays known). */
+  function reset(state: PageContextState): void {
     batch.reset();
     list = null;
     items = new Map();
@@ -1287,26 +1407,28 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     loadedAt = null;
     present = null;
     reads += 1;
-    pass.clear();
-    turns.a = 0;
-    turns.b = 0;
+    passState = passStateOf(state);
+    pass = passState.fans;
+    turns = passState.turns;
     pending = null;
+    startPending = false;
     lastCard = null;
     typed = '';
     applied = '';
     tab = 'todo';
     minutes = ONLINE_DEFAULT_MINUTES;
-    for (const timer of [settleTimer, advanceTimer, searchTimer]) if (timer !== null) clock.clearTimer(timer);
+    for (const timer of [settleTimer, advanceTimer, searchTimer, manualTimer]) if (timer !== null) clock.clearTimer(timer);
     settleTimer = null;
     advanceTimer = null;
     searchTimer = null;
+    manualTimer = null;
   }
 
   const offContext = context.subscribe((state) => {
     if (state.epoch !== epoch) {
-      // Another sign-in, hub or account: the pass of the old one goes with everything it held.
+      // Another sign-in, hub or account: the window closes; the list is read again for the new one.
       epoch = state.epoch;
-      reset();
+      reset(state);
       surfaces.setList('online', false);
     } else if (surfaces.current().online && list === null && !loading && usable(state)) void read();
     changed();
@@ -1320,6 +1442,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       if (settleTimer !== null) clock.clearTimer(settleTimer);
       settleTimer = null;
       pending = null;
+      startPending = false;
     }
     if (state.online !== previous.online || state.preview.online !== previous.preview.online) changed();
   });
@@ -1346,7 +1469,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       offSurfaces();
       offLive?.();
       offLanguage();
-      for (const timer of [pollTimer, settleTimer, advanceTimer, searchTimer, paceTimer]) if (timer !== null) clock.clearTimer(timer);
+      for (const timer of [pollTimer, settleTimer, advanceTimer, searchTimer, paceTimer, manualTimer]) if (timer !== null) clock.clearTimer(timer);
       directoryListeners.clear();
       cell.clear();
     },

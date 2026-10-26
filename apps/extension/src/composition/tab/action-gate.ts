@@ -47,11 +47,13 @@
 // BATCH_LIMITS.grantTtlMs, kept apart from the grants of single actions (which are asked first), and replaced by
 // the next batch click. It can never insert, send or navigate.
 //
-// One click writes a little ahead, too: «Онлайн» (2026-10-26). A click or a key on a fan of its list, its «Отправить →»,
-// «Пропустить» or «Не предлагать» moves the pass to a fan whose text the AI writes — that fan's and the next one's, so
-// the next card is ready when the person gets there. Its grant is an ONLINE grant: generate tokens only, at most
-// ONLINE_GRANT_TOKENS of them, for ONLINE_GRANT_TTL_MS, replaced by the next such click or key. It can never insert,
-// send or navigate; the send of «Отправить →» is its own ordinary grant of that click.
+// One click writes a little ahead, too: «Онлайн» (2026-10-26). A click or a key that moves its pass to a fan — the
+// window opened, a fan of its list, its «Отправить →», «Пропустить» or «Не предлагать» (the client says which,
+// `movesOnlinePass`) — has the AI write that fan's text and the next one's, so the next card is ready when the person gets
+// there. Its grant is an ONLINE grant: generate tokens only, at most ONLINE_GRANT_TOKENS of them, for
+// ONLINE_GRANT_TTL_MS, claimable only for a preview's generation while the tab is on screen, replaced by the next such
+// action and dropped when the window closes (`dropOnline`). It can never insert, send or navigate; the send of
+// «Отправить →» is its own ordinary grant of that click.
 //
 // One click writes later, by design: Fix (decision X68, the owner: «как в старом» — the old Fansly extension's Fix
 // put its result into the field by itself). The person's Fix click or key, in the dock or the composer, opens with
@@ -253,7 +255,9 @@ export interface GestureGate {
    * synchronous step of the click or the key; null — a grant is open (or the
    * action needs no token), else why not.
    */
-  open(action: UiAction['type'], deferInsert?: boolean): GestureRefusal | null;
+  open(action: UiAction['type'], deferInsert?: boolean, online?: boolean): GestureRefusal | null;
+  /** «Онлайн» closed: what its last action left of the online grant goes. */
+  dropOnline(): void;
   /** A token for the action that was granted it: the newest open grant that has this kind left. */
   claim(kind: ActionKind, surface: Surface): GestureRefusal | null;
   /** X68: the one insert token of the last Fix click, for the dock, asked for when that Fix is done. */
@@ -347,8 +351,8 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       if (refusal !== null) return refusal;
       return spend(gesture.event, kind) ? null : 'spent';
     },
-    open(action, deferInsert = false) {
-      if (ONLINE_ACTIONS.includes(action)) {
+    open(action, deferInsert = false, onlinePass = false) {
+      if (onlinePass && ONLINE_ACTIONS.includes(action)) {
         const gesture = inFlight();
         if (typeof gesture !== 'string') online = { gesture, left: ONLINE_GRANT_TOKENS, at: now() };
       }
@@ -367,6 +371,9 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       if (deferInsert && action === 'Generate' && (gesture.via === null || gesture.via === env.mounts.dock.host)) deferred = { gesture, at: now() };
       if (action === 'GreetNewcomer') greet = { gesture, at: now(), kinds: new Set(GREET_KINDS) };
       return null;
+    },
+    dropOnline() {
+      online = null;
     },
     afterGreet(action) {
       const grant = greet;
@@ -409,8 +416,9 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         if (grant.kinds.size === 0) grants.splice(index, 1);
         return spend(grant.gesture.event, kind) ? null : 'spent';
       }
-      // «Онлайн»'s texts: counted, not «one per event» — the click named the fan and the next one.
-      if (kind === 'generate' && online !== null) {
+      // «Онлайн»'s texts: counted, not «one per event» — the click named the fan and the next one. A preview's generation
+      // only (the window's cards), and only while the tab is on screen.
+      if (kind === 'generate' && online !== null && surface === 'preview' && env.doc.visibilityState === 'visible') {
         if (now() - online.at > ONLINE_GRANT_TTL_MS || online.left <= 0) online = null;
         else {
           const refused = kindRefusal(online.gesture, kind, surface, env);
@@ -488,8 +496,11 @@ export interface TabActionTokens {
   issue(kind: ActionKind, surface: Surface): Promise<string | null>;
   /** The same, with the background's reason when it is the one that refused; `deferred` — the Fix's own write (X68). */
   ask(kind: ActionKind, surface: Surface, deferred?: boolean): Promise<TokenAnswer>;
-  /** The AppClient took `action` from the UI or the hotkey runner, in the step of the click or the key; `deferInsert` — a Fix (X68). */
-  granted(action: UiAction['type'], deferInsert?: boolean): void;
+  /**
+   * The AppClient took `action` from the UI or the hotkey runner, in the step of the click or the key; `deferInsert` — a
+   * Fix (X68); `onlinePass` — it moves «Онлайн»'s pass to a fan (the online grant).
+   */
+  granted(action: UiAction['type'], deferInsert?: boolean, onlinePass?: boolean): void;
   /** The hotkey dispatcher hands in a key press it stopped before this chunk's listeners could see it (§9.1). */
   noteGesture(event: Event): void;
   /** A click on an extension page, brought here by the background (`tab.command`): its navigation may get a token. */
@@ -537,8 +548,8 @@ export function createActionTokens(deps: ActionTokensDeps): {
     tokens: {
       issue: (kind, surface) => ask(kind, surface).then((answer) => (answer.ok ? answer.actionToken : null)),
       ask,
-      granted(action, deferInsert) {
-        const refusal = deps.gate.open(action, deferInsert);
+      granted(action, deferInsert, onlinePass) {
+        const refusal = deps.gate.open(action, deferInsert, onlinePass);
         // An action without a person behind it gets no grant; whether it needed one shows when it asks.
         if (refusal !== null) deps.onUngranted?.({ action, refusal });
       },

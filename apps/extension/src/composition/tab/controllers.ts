@@ -605,6 +605,10 @@ export async function startBoards(
     if (overlays.previewFrom() !== from) overlays.setPreview(from);
   };
   const offSurfaces = surfaces.subscribe(mirror);
+  // «Онлайн» closed: its click's grant of texts goes with it (action-gate.ts).
+  const offOnlineGrant = surfaces.subscribe((state, previous) => {
+    if (previous.online && !state.online) world.gate.dropOnline();
+  });
   mirror();
 
   // A read that fails is a state the boards show by themselves (not signed in, no binding): nothing to wait for.
@@ -620,6 +624,7 @@ export async function startBoards(
       win.removeEventListener('online', onOnline);
       win.removeEventListener('offline', onOnline);
       offSurfaces();
+      offOnlineGrant();
       offDrafts();
       driver.dispose();
       for (const off of offs.splice(0)) off();

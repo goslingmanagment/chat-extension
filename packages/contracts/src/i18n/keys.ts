@@ -242,7 +242,7 @@ export const UI_TEXT_KEYS = [
   'online.elsewhere.lead', 'online.elsewhere.done', 'online.elsewhere.other', 'online.empty.onlyfans', 'online.empty.fansly', 'online.empty.period',
   'online.empty.todo', 'online.empty.search', 'online.foot.sent', 'online.foot.skipped', 'online.foot.replied', 'online.foot.keys',
   'online.pane.pick', 'online.pane.nobody', 'online.end.title', 'online.end.sent', 'online.end.skipped', 'online.end.replied',
-  'online.end.noReplies', 'online.end.note', 'online.end.showAll', 'online.reason.openCard', 'online.reason.making', 'online.reason.empty',
+  'online.end.noReplies', 'online.end.note', 'online.end.showAll', 'online.reason.openCard', 'online.reason.making', 'online.reason.retry', 'online.reason.empty',
   'newcomers.title', 'newcomers.personaNote', 'newcomers.col.fan', 'newcomers.col.kind', 'newcomers.col.subscription', 'newcomers.col.greeting',
   'newcomers.kind.new', 'newcomers.kind.renewed', 'newcomers.kind.returning', 'newcomers.status.none', 'newcomers.status.sendingOther',
   'newcomers.status.sending', 'newcomers.status.stopped',

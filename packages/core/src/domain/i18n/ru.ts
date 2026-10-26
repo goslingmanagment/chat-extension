@@ -1124,6 +1124,7 @@ export const RU: I18nCatalog<'ru'> = {
   'online.end.showAll': 'Показать всех онлайн',
   'online.reason.openCard': 'Откройте карточку фана',
   'online.reason.making': 'Готовим текст…',
+  'online.reason.retry': 'Текст не встал в карточку, пробуем ещё раз',
   'online.reason.empty': 'Текст пустой',
   'newcomers.range': 'С {from} до {to} · местное время',
   'newcomers.cardMeta': '{kind} {age} назад',

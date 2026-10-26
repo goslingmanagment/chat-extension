@@ -239,7 +239,9 @@ function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview
   const act = actWord(i18n, card.act);
   const again = (): void => void dispatch({ type: 'RewriteOnline', targetHandle: card.handle });
 
-  if (card.skipped || (card.aside?.kind === 'dismissed' && card.state !== 'sent')) {
+  const went = card.state === 'sending' || card.state === 'accepted' || card.state === 'sent' || card.state === 'uncertain';
+  // «Пропущен» and the person's own «Не предлагать» (a teammate's mark is a warning over the text, never a block).
+  if (!went && (card.skipped || (card.aside?.kind === 'dismissed' && card.aside.by === null))) {
     const skipped = card.skipped;
     return (
       <div class="cg-ow__dzone is-empty" data-cg-zone={skipped ? 'skipped' : 'dismissed'}>
@@ -397,7 +399,7 @@ function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview
           maxLength={5_000}
           class="cg-ow__dta"
           inputRef={field}
-          reason={card.editable ? null : busy ? i18n.t('outreach.card.going') : null}
+          reason={card.editable ? null : i18n.t(busy ? 'outreach.card.going' : 'outreach.cannot')}
           onValue={(text) => void dispatch({ type: 'EditOnline', targetHandle: card.handle, text })}
         />
         <MediaLine card={card} />

@@ -2166,8 +2166,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const code: CgCode = rows.order !== null ? 'CG-SEND-BUSY' : rows.send.s === 'unavailable' || rows.send.s === 'rejected' ? rows.send.code : rows.send.s === 'held-stale' ? 'CG-SEND-STALE' : rows.send.s === 'unverified' ? 'CG-SEND-FRESHNESS' : rows.send?.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY';
       return refused(type, localError(code, i18n));
     }
-    // The person's own text passes no freshness warning: it was written looking at the chat.
-    const accept = anyway || track.manual !== null;
+    // The person's own text passes no freshness warning: it was written looking at the chat. A text of the team's guide
+    // «Онлайн» put on the card when it opened was not: what the fan wrote since warns, as for an AI's text.
+    const accept = anyway || (track.manual !== null && track.source !== 'online');
     // Sent anyway, a result restored after a reload goes with a checkpoint taken now: the page's own document and chat.
     const checkpoint = track.checkpoint ?? (accept ? await host.checkpoint(track.target.chat).catch(() => null) : null);
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
@@ -2538,6 +2539,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     currentOp.set(handle, view.opId);
     pruneTracks();
     changedFor(handle);
+    // MAIN's word on the send before the click (a newer message of the fan, the open chat), as for a generation's result.
+    void refreshPreflight(track);
     return true;
   }
 
@@ -2966,7 +2969,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (deps.sender === null || (!outreachOn && !online)) return Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n)));
       const next = rowPart(handle);
       if (next === null) return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
-      adoptOutreach(next.track.target.chat);
+      // Only «Рассылка»'s fans take its media: «Онлайн»'s text goes with what its card shows (the fan's own picks), nothing else.
+      if (next.track.source === 'outreach') adoptOutreach(next.track.target.chat);
       return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index, anyway);
     },
     outreachEdit(handle, text) {
