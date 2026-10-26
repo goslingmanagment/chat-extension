@@ -112,18 +112,20 @@ export interface NewcomersController extends SurfaceController<'newcomers'> {
   /** The open window's card shows this generation's result in its field (a pass's card): no «AI готово» over it. */
   inCard?(opId: string): boolean;
   /**
-   * 2026-10-25, «Hi» of a greeting reminder's toast on a list checked by a pass (Fansly), the window open: the card of
-   * the toast's fan (`fanHandle('newcomers', …)`) opens; `hi` — the handle Hi may start on now, `greeted` — somebody
-   * wrote to the fan already, `card` — the fan is not checked yet (the card's own Hi is then the person's). Absent — the
-   * hub's list: the preview's own way.
+   * 2026-10-26 (the owner: «жму, он чето грузит, открывает всех, прогружает, потом генерирует — неудобно и долго»):
+   * «Hi» of a greeting reminder's toast goes straight to the fan's chat — no window, no list, no check of every fan.
+   * The chat of the toast's fan (`fanHandle('newcomers', …)`) to open: on Fansly its group, the one the pass or the
+   * page already knows, else found or made by this click (`POST /group`, get-or-create by identity). null — not this
+   * list's fan, or no way to their chat now.
    */
-  greetCard?(handle: TargetHandle): Promise<GreetCardAnswer>;
+  greetChat?(handle: TargetHandle): Promise<GreetChat | null>;
   /**
    * 2026-10-25 (the owner: «если один нажал на hi и там месага уже есть — ошибка "кто-то уже поприветствовал его" и чат
-   * открылся»): the toast's fan as the list knows them now — their chat when somebody wrote to them already; null — not
-   * greeted, or not this list's fan.
+   * открылся»): somebody wrote to the toast's fan already — the hub's list read again (ChatSpace), or the pass's row and
+   * the open chat's start as the page holds it (Fansly) — their chat; null — nobody, as far as it can be told now.
+   * Asked while the greeting is written, never before it: the chat is open already.
    */
-  greetedChat?(handle: TargetHandle): GreetedChat | null;
+  greetedNow?(handle: TargetHandle, chat: GreetChat): Promise<GreetedChat | null>;
   /**
    * 2026-10-25: «Hi» of a reminder about a fan of another page (the toast stood in this tab, the fan's model is another
    * tab's): handed over to a tab of that model under this click — true; false — no way there; null — the fan is this
@@ -133,15 +135,16 @@ export interface NewcomersController extends SurfaceController<'newcomers'> {
   greetElsewhere?(handle: TargetHandle, grant: () => void): Promise<boolean | null>;
 }
 
-/** Somebody wrote to the reminder's fan already: their chat, and their name for the toast. */
-export interface GreetedChat {
+/** The reminder's fan's chat for its «Hi» (2026-10-26): what to open, and the fan's name for a toast. */
+export interface GreetChat {
   readonly chat: ChatRef;
   /** The conversation when it is not the fan (Fansly's group). */
   readonly conversationRef: string | null;
   readonly name: string | null;
 }
 
-export type GreetCardAnswer = { readonly s: 'hi'; readonly handle: TargetHandle } | ({ readonly s: 'greeted' } & GreetedChat) | { readonly s: 'card' };
+/** Somebody wrote to the reminder's fan already: their chat, and their name for the toast. */
+export type GreetedChat = GreetChat;
 
 export function createNewcomersController(deps: NewcomersControllerDeps): NewcomersController {
   const { rpc, host, i18n, clock, context, surfaces, navigator } = deps;
@@ -872,12 +875,19 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     directory,
     greeting,
     refresh,
-    // 2026-10-25: the reminder's fan as the hub's list says now — greeted by a colleague, by hand or through us.
-    greetedChat(handle) {
+    // 2026-10-26: the reminder's fan's chat is the fan on ChatSpace — nothing to find or make.
+    greetChat(handle) {
       const fanRef = own(handle);
       const binding = context.current().binding;
-      if (fanRef === null || binding === null || hiBlock(statusOf(fanRef)) !== 'greeted') return null;
-      return { chat: { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, conversationRef: null, name: rowOf(fanRef)?.name ?? null };
+      if (fanRef === null || binding === null) return Promise.resolve(null);
+      return Promise.resolve({ chat: { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, conversationRef: null, name: rowOf(fanRef)?.name ?? null });
+    },
+    // 2026-10-25: the reminder's fan as the hub's list says once read again — greeted by a colleague, by hand or through us.
+    async greetedNow(handle, chat) {
+      await refresh();
+      const fanRef = own(handle);
+      if (disposed || fanRef === null || hiBlock(statusOf(fanRef)) !== 'greeted') return null;
+      return { ...chat, name: rowOf(fanRef)?.name ?? chat.name };
     },
     draftsChanged() {
       if (!disposed) cell.invalidate();

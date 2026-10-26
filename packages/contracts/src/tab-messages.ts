@@ -142,7 +142,7 @@ export const BackgroundToastSchema = z.strictObject({
   fanLabel: z.nullable(displayText(256)),
   /**
    * 1.54.0: a fan of «Новые» nobody greeted ten minutes after subscribing (the greeting reminder). The toast stays
-   * until it is closed, and its «Hi» opens the fan's card in «Новые» and starts Hi there, by that click.
+   * until it is closed, and its «Hi» opens the fan's chat and puts the dock's greeting into its field, by that click.
    */
   greet: z.optional(
     z.strictObject({

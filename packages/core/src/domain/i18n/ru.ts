@@ -1528,7 +1528,6 @@ export const RU: I18nCatalog<'ru'> = {
   'toast.greetWaitingAt': 'Ждёт приветствия · {page}',
   'toast.greetedAlready': 'Кто-то уже поприветствовал {fan}',
   'toast.greetedAlreadyOpened': 'Открыли его чат: посмотрите, что ему написали.',
-  'toast.greetedAlreadyClosed': 'Откройте его чат, чтобы посмотреть, что ему написали.',
   'toast.greetNoTab': 'Не нашли вкладку этой модели',
   'toast.greetNoTabBody': 'Откройте Fansly этой модели, Hi сработает там.',
   'toast.later': 'Позже',

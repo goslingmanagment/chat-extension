@@ -1442,7 +1442,6 @@ export const EN: I18nCatalog<'en'> = {
   'toast.greetWaitingAt': 'Waiting for a greeting · {page}',
   'toast.greetedAlready': 'Someone already greeted {fan}',
   'toast.greetedAlreadyOpened': 'Their chat is open: see what they were sent.',
-  'toast.greetedAlreadyClosed': 'Open their chat to see what they were sent.',
   'toast.greetNoTab': 'No tab of this model',
   'toast.greetNoTabBody': 'Open this model on Fansly; Hi works there.',
   'toast.later': 'Later',

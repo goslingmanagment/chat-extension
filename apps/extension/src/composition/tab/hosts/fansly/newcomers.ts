@@ -14,11 +14,16 @@ import { createFanslyNewcomersSource, type FanslyFollowersPort } from '@cg/core/
 import type { NewcomersController, NewcomersControllerDeps } from '@cg/core/application/newcomers';
 import { createPassNewcomersController } from '@cg/core/application/newcomers/pass';
 import { verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
+import type { FanslyPort } from '@cg/host-fansly/isolated';
 
 import { fanslyEvent, fanslyRequest } from './requests';
 
 /** A read of the pass waits for the background's module like the vault's (it may wake the event page first). */
 export const NEWCOMERS_REQUEST_TIMEOUT_MS = 15_000;
+/** The fan's group found or made for a reminder's «Hi»: above the background's own budget (RESOLVE_BUDGET_MS, 15 s), as Spenders. */
+export const GREET_CHAT_TIMEOUT_MS = 17_000;
+/** The check window of the open chat's snapshot a reminder's «Hi» reads the start of (the pass's own window, P1a). */
+const GREET_CHECK_WINDOW = 30;
 
 /** The boards' port to the background (the shared `TabRpc`), as the window of «Новые» asks Fansly's module. */
 export function fanslyFollowersPort(rpc: NewcomersControllerDeps['rpc'], timeoutMs = NEWCOMERS_REQUEST_TIMEOUT_MS): FanslyFollowersPort {
@@ -54,6 +59,25 @@ export function createFanslyNewcomersController(deps: NewcomersControllerDeps, o
       ids: { uuid: () => globalThis.crypto.randomUUID() },
       // The generation's own evidence is its current one too: the card has no newer window of the pass to add.
       verdict: (view) => verdictMark(view, view.freshnessProof?.fingerprint ?? null)?.reason ?? null,
+    },
+    // 2026-10-26: «Hi» of a greeting reminder opens the fan's chat straight away. Its group: the one the page already
+    // received (MAIN's memory, no request), else Spenders' own way under the click — the inbox is not searched without a
+    // name, `POST /group` gets or makes the fan's direct group by identity (FS-NET-1 `spenders`, one attempt).
+    greet: {
+      async conversationOf(creatorId, fanRef) {
+        const host = deps.host as Partial<FanslyPort>;
+        const known = (await host.groupForFan?.(creatorId, fanRef).catch(() => null)) ?? null;
+        if (known !== null) return known;
+        const answer = await fanslyRequest(deps.rpc, 'fansly.spenders.resolve', { hostAccountId: creatorId, fanRef, displayName: null, username: null }, GREET_CHAT_TIMEOUT_MS);
+        return answer.ok && answer.payload.ok ? answer.payload.groupId : null;
+      },
+      // The creator's personal messages in the open chat as MAIN holds it — only once it proved the conversation's
+      // start (Hi's own count: welcome texts and automations left out); null — not proven, or no snapshot.
+      async personalIn(chat, conversationRef) {
+        const freshness = (deps.host as Partial<FanslyPort>).freshness;
+        const snapshot = (await freshness?.snapshot(chat, { conversationRef, feature: 'hi', window: GREET_CHECK_WINDOW, withText: false }).catch(() => null)) ?? null;
+        return snapshot?.startProof?.personalCount ?? null;
+      },
     },
   });
 }

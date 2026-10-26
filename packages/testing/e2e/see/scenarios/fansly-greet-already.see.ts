@@ -1,10 +1,9 @@
 // Fansly: the greeting reminder's «Hi» on a fan somebody greeted meanwhile (the owner, 2026-10-25: «если один нажал на
 // hi и там месага уже есть — чтобы генерация стопнулась и показало ошибку "кто-то уже попривествовал его" и чат
 // открылся»). A fan followed 11 minutes ago and nobody wrote: the toast comes. The window was opened once (a shift's
-// usual state), so its pass has the fan checked — then a colleague writes to them from another browser. «Hi»: the card's
-// Hi reads the chat again while it generates, finds the colleague's message, stops; the window goes, the fan's chat
-// opens, and the toast says «Кто-то уже поприветствовал …».
-
+// usual state), so its pass has the fan checked — then a colleague writes to them from another browser. «Hi» (2026-10-26):
+// the fan's chat opens at once with the colleague's message, the Hi there stops once the page shows it, nothing goes into
+// the field, and the toast says «Кто-то уже поприветствовал …».
 import { WORLD } from '../../../src/scenarios/hub';
 import { pageRpc, writeLocalStorage } from '../../support/extension';
 import { QUIET_PAGE } from '../../support/fake-hub';

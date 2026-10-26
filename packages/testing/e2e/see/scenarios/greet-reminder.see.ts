@@ -1,6 +1,6 @@
 // The greeting reminder: a fan subscribed 12 minutes ago and nobody greeted them — the toast «Ждёт приветствия · …»,
-// then its «Hi»: «Новые» opens on the fan's card, Hi writes the greeting, and the fan's chat opens with it in
-// ChatSpace's own field (2026-10-25). The list is read once (the palette row «Новые») so the reminder hears it at once
+// then its «Hi»: the fan's chat opens at once, the dock's Hi writes the greeting there, and it stands in ChatSpace's own
+// field (2026-10-26: no window on the way). The list is read once (the palette row «Новые») so the reminder hears it at once
 // instead of the background's next minute.
 
 import { EDITOR } from '../../support/chat';

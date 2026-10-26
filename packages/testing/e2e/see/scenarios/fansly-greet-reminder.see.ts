@@ -1,7 +1,7 @@
 // Fansly: the greeting reminder — a fan followed 11 minutes ago and nobody wrote to them: the follow's `3/2` frame
 // reaches the background, the check (reads only: no chat is made) finds nobody wrote, and the toast «Ждёт приветствия ·
-// …» comes. Then «Hi» (2026-10-25): «Новые фоловеры» open cold on the fan's card, the pass checks the fan, Hi writes the
-// greeting, and the fan's chat opens with it in Fansly's own field — for the person's own send.
+// …» comes. Then «Hi» (2026-10-26): the fan's chat opens at once (no window), the dock's Hi writes the greeting there,
+// and it stands in Fansly's own field — for the person's own send.
 
 import { WORLD } from '../../../src/scenarios/hub';
 import { writeLocalStorage } from '../../support/extension';
