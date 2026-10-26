@@ -8,6 +8,7 @@ export { createFanPanelController } from '@cg/core/application/fanpanel';
 export { createNewcomersController } from '@cg/core/application/newcomers';
 export { createPaletteDirectory } from '@cg/core/application/preview';
 import type { HostPort } from '@cg/contracts/host';
+import { createOnlineController as createOnline, type OnlineControllerDeps } from '@cg/core/application/online';
 import { createOutreachController as create, type OutreachControllerDeps } from '@cg/core/application/outreach';
 import { createSpendersController as createSpenders, type SpendersControllerDeps } from '@cg/core/application/spenders';
 
@@ -19,3 +20,9 @@ export const createSpendersController = (deps: SpendersControllerDeps & { readon
  * (X53) or the fan's own — the controller has no send of its own here.
  */
 export const createOutreachController = (deps: OutreachControllerDeps & { readonly host: HostPort }) => create(deps);
+
+/**
+ * «Онлайн» on ChatSpace: who is online is the hub's (OnlyFansAPI), ChatSpace's own dots say «в сети»; each fan's text
+ * goes by the fan's card's own send (X8) — the controller has no send of its own here.
+ */
+export const createOnlineController = (deps: OnlineControllerDeps & { readonly host: HostPort }) => createOnline(deps);

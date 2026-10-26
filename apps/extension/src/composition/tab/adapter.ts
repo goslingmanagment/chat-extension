@@ -259,6 +259,11 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    */
   ai(lazy: <T>(entry: LazyEntryName) => Promise<T>, rpc: TabRpcClient): AiHostPolicy | Promise<AiHostPolicy>;
   /**
+   * 1.65.0, «Онлайн»: the site reads who of the creator's followers was active and tells the hub (Fansly's background,
+   * at most once a minute per creator) before the hub's list is read. Absent — the hub knows by itself (OnlyFansAPI).
+   */
+  readonly onlineSeen?: (rpc: TabRpcClient, pageId: number, hostAccountId: string) => Promise<void>;
+  /**
    * The site's own surfaces, started once with the application (R20 P13b: Fansly's vault panel and its entry): they
    * mount into our layers, load their chunks of the site's build and stop with the answer. Absent — none (ChatSpace).
    */

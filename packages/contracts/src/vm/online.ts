@@ -18,12 +18,9 @@ import { type TargetHandle } from './selectors';
 import { type DataStamp, type VmView } from './view';
 import { type OutreachMediaVM, type OutreachSendVM, type OutreachWarningVM } from './outreach';
 
-/** «К разбору» — the fans to write to, not done yet; «Все онлайн» — everyone online, the set aside and the done too. */
-export const ONLINE_TABS = ['todo', 'all'] as const;
-export type OnlineTab = (typeof ONLINE_TABS)[number];
-/** «Зашли за»: the presence window, minutes. */
-export const ONLINE_PERIODS = [10, 30, 120] as const;
-export type OnlinePeriod = (typeof ONLINE_PERIODS)[number];
+import { type OnlinePeriod, type OnlineTab } from './online-ids';
+
+export * from './online-ids';
 /** The list's groups, in its order; `aside` — «Не предлагаем», `none` — «Без повода» (both under «Все онлайн» only). */
 export const ONLINE_GROUPS = ['waiting', 'new', 'expiring', 'silent', 'quiet', 'never', 'none', 'aside'] as const;
 export type OnlineGroupId = (typeof ONLINE_GROUPS)[number];

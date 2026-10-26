@@ -65,7 +65,7 @@ ${/* The card: why now, the conversation, the text. */ ''}
 .ol-why.is-warn .cg-ico { color: var(--cg-amber-ink); }
 .ol .cg-ow__acts kbd { margin-left: 4px; font: 500 var(--cg-text-2xs)/16px var(--cg-font); padding: 0 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-muted); }
 .ol-sent { display: flex; align-items: center; gap: 10px; min-height: 46px; font-size: var(--cg-text-sm2); color: var(--cg-ink-2); }
-.ol-sent b { display: inline-flex; align-items: center; gap: 7px; font-weight: 500; color: var(--cg-ink-strong); }
+.ol-sent b { flex: none; display: inline-flex; align-items: center; gap: 7px; font-weight: 500; color: var(--cg-ink-strong); white-space: nowrap; }
 .ol-sent .cg-btn { margin-left: auto; }
 .ol .cg-ow__dzone.is-sent { min-height: 0; }
 

@@ -124,6 +124,8 @@ export interface OnlineControllerDeps {
   readonly live?: { online(): ReadonlySet<string>; subscribe(listener: () => void): () => void };
   /** The tab is on screen: the list is read every minute only then. Absent — always. */
   readonly visible?: () => boolean;
+  /** The fan whose chat is open on the page: the person is with them already, the pass does not go there by itself. */
+  readonly openChat?: () => string | null;
 }
 
 export interface OnlineController extends SurfaceController<'online'> {
@@ -566,7 +568,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     readonly name: string;
   }
 
-  const nameOf = (item: OnlineItem): string => item.alias ?? item.displayName ?? (item.username === null ? `#${item.fanRef}` : `@${item.username}`);
+  const nameOf = (item: OnlineItem): string => item.alias ?? item.displayName ?? item.username ?? `#${item.fanRef}`;
 
   /** Every fan of the read within «Зашли за», with what this pass knows of them, in the window's order. */
   function entriesOf(period: number, live: ReadonlySet<string>): Entry[] {
@@ -603,9 +605,13 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     return entries.filter((entry) => (tab === 'all' || todoOf(entry) || entry.fanRef === open || entry.fanRef === pending) && matches(entry));
   }
 
-  /** The next fan of the pass after `from`: whoever waits for an answer first, then the next one down the list. */
+  /**
+   * The next fan of the pass after `from`: whoever waits for an answer first, then the next one down the list — never
+   * the fan whose chat is open on the page (the person is with them already).
+   */
   function nextTodo(from: string | null, entries: readonly Entry[]): string | null {
-    const todo = entries.filter((entry) => todoOf(entry) && entry.fanRef !== from && matches(entry));
+    const here = deps.openChat?.() ?? null;
+    const todo = entries.filter((entry) => todoOf(entry) && entry.fanRef !== from && entry.fanRef !== here && matches(entry));
     const waiting = todo.find((entry) => entry.group === 'waiting');
     if (waiting !== undefined) return waiting.fanRef;
     const order = entries.filter(matches).map((entry) => entry.fanRef);

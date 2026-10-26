@@ -9,13 +9,23 @@ import { type JSX } from 'preact';
 import { useRef } from 'preact/hooks';
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { type I18n, type OnlineCardVM, type OnlineWindowVM, type PreviewVM } from '@cg/contracts/vm';
+import { type I18n, type OnlineCardVM, type OnlineWindowVM, type PartVM, type PreviewVM } from '@cg/contracts/vm';
 
 import { Button, Dot, Icon, Spinner, TextField, useDispatch, useI18n, useTooltip } from '../kit';
 import { Feed } from '../spenders/preview/Feed';
 import { priceText } from '../spenders/preview/MediaPicker';
+import { offersOpenInsert, openAndInsert } from '../spenders/preview/SendRow';
+import { blockedReason } from '../outreach/rows';
 import { OnlineAvatar } from './rows';
 import { actWord, asideText, firstName, seenLong, timeLeft } from './words';
+
+/** The text as the card's preview holds it: what «Открыть и вставить» puts into the fan's chat. */
+function textPart(preview: PreviewVM, handle: string): { readonly opId: string; readonly part: PartVM } | null {
+  const result = preview.result;
+  if (preview.handle !== handle || result === null || result.state !== 'done') return null;
+  const part = (result.parts ?? result.variants?.[0]?.parts ?? [])[0];
+  return part === undefined ? null : { opId: result.opId, part };
+}
 
 /** The registry's text of a shared code, or nothing for a site's own code. */
 function codeTail(i18n: I18n, code: string): string {
@@ -267,7 +277,7 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
         <div class="cg-ow__dzone" data-cg-zone="uncertain">
           <div class="cg-ow__dcard is-went">
             <div class="cg-ow__dhead">
-              <b>{i18n.t('online.card.textFor', { act, name: firstName(card.name) })}</b>
+              <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
               <span>{card.clickedAt === null ? null : i18n.t('outreach.card.clicked', { time: { time: card.clickedAt } })}</span>
             </div>
             <div class="cg-ow__dtext">{card.version}</div>
@@ -308,7 +318,7 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
         <div class="cg-ow__dzone" data-cg-zone="writing">
           <div class="cg-ow__dcard is-busy">
             <div class="cg-ow__dhead">
-              <b>{i18n.t('online.card.textFor', { act, name: firstName(card.name) })}</b>
+              <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
             </div>
             <div class="cg-ow__dwait">
               <Spinner />
@@ -339,6 +349,11 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
   const busy = card.state === 'sending' || card.state === 'accepted';
   const send = card.send;
   const anyway = send?.kind === 'anyway' || card.aside !== null;
+  // Held where this window cannot send it (the chat open on the page, a fan who takes no messages): why, and the chat's
+  // own way — «Открыть и вставить», the person sends there (never for a fan who takes no messages).
+  const blocked = busy ? null : blockedReason(i18n, send, card.state === 'failed' ? 'failed' : 'ready');
+  const insert = blocked === null || send?.reason?.key === 'send.reason.fan' ? null : textPart(preview, card.handle);
+  const insertState = insert === null || !offersOpenInsert(insert.part) ? undefined : insert.part.openInsert;
   const label = send?.kind === 'retry' ? 'online.card.retry' : anyway ? 'online.card.sendAnyway' : 'online.card.send';
   const reason = send === null ? (busy ? null : i18n.t('outreach.cannot')) : send.can ? null : send.paused ? i18n.t('online.card.paused') : send.reason === null ? i18n.t('outreach.cannot') : i18n.text(send.reason);
   return (
@@ -347,7 +362,7 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
         <div class="cg-ow__dhead">
           {card.template === null ? (
             <>
-              <b>{i18n.t('online.card.textFor', { act, name: firstName(card.name) })}</b>
+              <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
               <span>
                 {i18n.t('online.card.draft')}
                 {card.edited ? ` · ${i18n.t('outreach.card.edited')}` : null}
@@ -388,6 +403,14 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
         <MediaLine card={card} />
       </div>
       <Calm card={card} preview={preview} />
+      {blocked === null ? null : (
+        <div class="cg-ow__calm is-held" data-cg-blocked="1">
+          <Dot kind="ink" size={6} />
+          <span>
+            <b>{i18n.t('outreach.card.blocked')}:</b> {blocked}
+          </span>
+        </div>
+      )}
       {card.noChat && card.state === 'ready' ? (
         <div class="cg-ow__calm" data-cg-online-nochat="1">
           <Dot kind="ink" size={6} />
@@ -429,6 +452,17 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
         />
         <PassButtons card={card} busy={busy} />
         <span class="cg-nw__grow" />
+        {insert !== null && insertState !== undefined && insertState.s !== 'hidden' ? (
+          <Button
+            label={i18n.t('send.openAndInsert')}
+            variant="line"
+            class="cg-ow__cinsert"
+            busy={insertState.s === 'waiting'}
+            tooltip={i18n.t('outreach.card.insertTooltip')}
+            reason={insertState.s === 'unavailable' ? i18n.text(insertState.reason.text) : null}
+            onClick={() => void dispatch(openAndInsert(insert.opId, insert.part))}
+          />
+        ) : (
         <Button
           label={`${i18n.t(label)} →`}
           variant="send"
@@ -441,6 +475,7 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
             void dispatch(send.kind === 'anyway' ? { type: 'SendOnline', targetHandle: card.handle, anyway: true } : { type: 'SendOnline', targetHandle: card.handle });
           }}
         />
+        )}
       </div>
     </div>
   );
@@ -455,7 +490,7 @@ export function OnlineCard({ vm, card, preview }: { readonly vm: OnlineWindowVM;
       <Head vm={vm} card={card} preview={preview} />
       <Why card={card} />
       <div class="cg-ow__conv">
-        {ours ? <ArchivePill preview={preview} /> : null}
+        {ours && preview.archive.stamp.asOf !== null ? <ArchivePill preview={preview} /> : null}
         <Feed handle={ours ? preview.handle : null} feed={ours ? preview.feed : { items: [], hasOlder: false, loadingOlder: false, olderError: null }} empty={!ours || preview.view.s === 'loading' ? null : { key: 'online.card.noFeed' }} loading={!ours || preview.view.s === 'loading'} seen={ours ? preview.seen : null} {...(tail === undefined ? {} : { tail })} />
       </div>
       <Zone vm={vm} card={card} preview={preview} />

@@ -59,6 +59,12 @@ import { QUOTA_LOW_AT, isOwnSurface, type AiWorkspace, type RefusalState, type S
 import { flagReasonVm } from '../flag-reason';
 import { createPartFocus } from './focus-part';
 
+/**
+ * 1.65.0: «Онлайн» opens by its own action — the click is the person's start of a pass, its first texts written by it
+ * (the tab's online grant) — with the number of fans worth a message now beside it.
+ */
+const ONLINE_CHIP = (count: number | null): Readonly<Record<string, { readonly action: UiAction; readonly count: number | null }>> => ({ online: { action: { type: 'SetOnline', open: true }, count } });
+
 /** A hub page as the dock's «Нет персоны» menu names it: the settings page's own handle form (`page-<id>`). */
 const dockPageHandle = (pageId: number): string => `page-${String(pageId)}`;
 
@@ -387,7 +393,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       },
       actions: actionVms,
       // The bar's chips as data: what has a chip on this site, in the manifest's order (`dockChips`, domain/features/admission.ts).
-      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey, panels(situation, handle, sheet)),
+      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey, panels(situation, handle, sheet), ONLINE_CHIP(ws.ports.online?.count() ?? null)),
       result,
       focusPart,
       analysis: sheet?.kind === 'recap' ? 'recap' : null,
@@ -635,12 +641,23 @@ export function createDockController(ws: AiWorkspace): DockController {
     },
   };
 
+  // «Онлайн N»: a new number draws the bar again; the open chat's page is read soon after it changed.
+  const offOnline = ws.ports.online?.subscribe(() => ws.bump()) ?? null;
+  let onlinePage: number | null = null;
+  const offOnlinePage = ws.subscribe(() => {
+    const page = ws.situation().pageId ?? null;
+    if (page === onlinePage) return;
+    onlinePage = page;
+    ws.ports.online?.touch?.();
+  });
   return createSurface(ws, {
     kinds: ['dock'],
     build,
     handlers,
     dispose: () => {
       offOps();
+      offOnline?.();
+      offOnlinePage();
     },
   });
 }

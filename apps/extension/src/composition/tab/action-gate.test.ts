@@ -6,7 +6,7 @@ import type { Surface } from '@cg/contracts/features';
 import { createShadowRootRegistry } from '@cg/host-chatspace/isolated';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, createActionTokens, createGestureGate, gestureRefusal, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
+import { GRANTED_KINDS, GRANT_TTL_MS, KEPT_KEY_MAX_AGE_MS, ONLINE_GRANT_TOKENS, ONLINE_GRANT_TTL_MS, createActionTokens, createGestureGate, gestureRefusal, type ActionKind, type GateEnv, type GestureRefusal } from './action-gate';
 
 type DockKind = 'in-flow' | 'fixed-overlay' | 'copy-only-row' | 'none';
 
@@ -244,6 +244,41 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
+  it('«Онлайн»: a click on a fan writes its text and the next one\'s — two generations within a minute, never an insert or a send', async () => {
+    let clock = 1_000_000;
+    const s = seam(() => clock);
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SelectOnline'));
+    await Promise.resolve();
+    // Later, as the card opens and the next fan's text is written: counted, not «one per event».
+    expect(await s.tokens.issue('generate', 'preview')).toBe('token-1-0123456789abcdef');
+    expect(await s.tokens.issue('generate', 'preview')).toBe('token-2-0123456789abcdef');
+    expect(ONLINE_GRANT_TOKENS).toBe(2);
+    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    expect(await s.tokens.issue('insert', 'preview')).toBeNull();
+    // A new click opens a new grant; past its minute nothing is left.
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SkipOnline'));
+    clock += ONLINE_GRANT_TTL_MS + 1;
+    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    expect(s.asked).toEqual([['generate', 'preview'], ['generate', 'preview']]);
+    s.gate.dispose();
+  });
+
+  it('«Онлайн»: «Отправить →» sends by its own click once and writes the next fans\' texts; a synthetic click opens nothing', async () => {
+    const s = seam();
+    during(s.w.overlayButton, event('click', false), () => s.tokens.granted('SendOnline'));
+    await Promise.resolve();
+    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    const sent = await during(s.w.overlayButton, event('click', true), () => {
+      s.tokens.granted('SendOnline');
+      return s.tokens.issue('send', 'preview');
+    });
+    expect(sent).toBe('token-1-0123456789abcdef');
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    expect(await s.tokens.issue('generate', 'preview')).toBe('token-2-0123456789abcdef');
+    s.gate.dispose();
+  });
+
   it('[BG-001] a grant covers only what its action may need: a Generate click never inserts, navigates or sends', async () => {
     const s = seam();
     during(s.w.overlayButton, event('click', true), () => s.tokens.granted('Generate'));
@@ -273,6 +308,8 @@ describe('the action tokens of a tab', () => {
       InsertNewcomerGreeting: ['navigate'],
       SendOutreach: ['send'],
       RewriteOutreach: ['generate'],
+      SendOnline: ['send'],
+      RewriteOnline: ['generate'],
       GreetNewcomer: ['generate'],
       ShowVoice: ['generate'],
       WriteVoiceScript: ['generate'],

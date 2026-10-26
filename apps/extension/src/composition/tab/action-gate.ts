@@ -47,6 +47,12 @@
 // BATCH_LIMITS.grantTtlMs, kept apart from the grants of single actions (which are asked first), and replaced by
 // the next batch click. It can never insert, send or navigate.
 //
+// One click writes a little ahead, too: «Онлайн» (2026-10-26). A click or a key on a fan of its list, its «Отправить →»,
+// «Пропустить» or «Не предлагать» moves the pass to a fan whose text the AI writes — that fan's and the next one's, so
+// the next card is ready when the person gets there. Its grant is an ONLINE grant: generate tokens only, at most
+// ONLINE_GRANT_TOKENS of them, for ONLINE_GRANT_TTL_MS, replaced by the next such click or key. It can never insert,
+// send or navigate; the send of «Отправить →» is its own ordinary grant of that click.
+//
 // One click writes later, by design: Fix (decision X68, the owner: «как в старом» — the old Fansly extension's Fix
 // put its result into the field by itself). The person's Fix click or key, in the dock or the composer, opens with
 // its `generate` grant a DEFERRED insert grant: one `insert` token, for the dock, claimable only by a request that
@@ -199,6 +205,10 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   // (the versions of many are `GenerateBatch`, the batch's own grant).
   SendOutreach: ['send'],
   RewriteOutreach: ['generate'],
+  // «Онлайн»: «Отправить →» is a send by this click; «Ещё раз» / «Написать …» writes that one fan's text. The texts of the
+  // fan the pass moves to, and the next one, are the online grant's (ONLINE_ACTIONS).
+  SendOnline: ['send'],
+  RewriteOnline: ['generate'],
   // 2026-10-24: «Hi» of a greeting reminder's toast opens the fan's card and starts its Hi; 2026-10-25 — and opens the
   // chat with it, or the chat of a fan somebody greeted meanwhile, or hands the click to the fan's model's tab (its
   // deferred greet grant, `afterGreet`).
@@ -293,6 +303,12 @@ interface BatchGrant {
 
 /** The action whose one click is a batch of generations. */
 export const BATCH_ACTION: UiAction['type'] = 'GenerateBatch';
+/** «Онлайн»: the actions that move its pass to a fan whose text — and the next one's — the AI writes. */
+export const ONLINE_ACTIONS: readonly UiAction['type'][] = ['SetOnline', 'SelectOnline', 'SendOnline', 'SkipOnline', 'DismissOnline'];
+/** The fan the pass moved to and the next one. */
+export const ONLINE_GRANT_TOKENS = 2;
+/** Long enough for a send to go and the next card to open (and the background's «limit of the tab» to pass). */
+export const ONLINE_GRANT_TTL_MS = 60_000;
 
 export function createGestureGate(win: Window, env: GateEnv, now: () => number = () => Date.now()): GestureGate {
   let current: Event | null = null;
@@ -301,6 +317,8 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
   const given = new WeakMap<Event, Set<ActionKind>>();
   let grants: Grant[] = [];
   let batch: BatchGrant | null = null;
+  /** «Онлайн»'s grant of its last click or key (see the head of this file). */
+  let online: BatchGrant | null = null;
   /** X68: the deferred insert of the last Fix click (see the head of this file). */
   let deferred: { readonly gesture: Gesture; readonly at: number } | null = null;
   /** The toast's Hi of the last such click and the kinds it has left (see the head of this file). */
@@ -330,6 +348,10 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       return spend(gesture.event, kind) ? null : 'spent';
     },
     open(action, deferInsert = false) {
+      if (ONLINE_ACTIONS.includes(action)) {
+        const gesture = inFlight();
+        if (typeof gesture !== 'string') online = { gesture, left: ONLINE_GRANT_TOKENS, at: now() };
+      }
       if (action === BATCH_ACTION) {
         const gesture = inFlight();
         if (typeof gesture === 'string') return gesture;
@@ -387,6 +409,18 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         if (grant.kinds.size === 0) grants.splice(index, 1);
         return spend(grant.gesture.event, kind) ? null : 'spent';
       }
+      // «Онлайн»'s texts: counted, not «one per event» — the click named the fan and the next one.
+      if (kind === 'generate' && online !== null) {
+        if (now() - online.at > ONLINE_GRANT_TTL_MS || online.left <= 0) online = null;
+        else {
+          const refused = kindRefusal(online.gesture, kind, surface, env);
+          if (refused === null) {
+            online.left -= 1;
+            return null;
+          }
+          refusal = refused;
+        }
+      }
       // A batch's next start: counted, not «one per event» — the one click named every fan of it.
       if (kind === 'generate' && batch !== null) {
         if (now() - batch.at > BATCH_LIMITS.grantTtlMs || batch.left <= 0) {
@@ -430,6 +464,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       resumed = null;
       grants = [];
       batch = null;
+      online = null;
       deferred = null;
       greet = null;
     },

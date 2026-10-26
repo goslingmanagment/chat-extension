@@ -290,7 +290,7 @@ export const UI_TEXT_KEYS = [
   'coach.chip.review', 'coach.chip.reviewHint', 'coach.reviewOnly.title', 'coach.reviewOnly.body', 'coach.reviewOnly.placeholder',
   'palette.label', 'palette.placeholder', 'palette.group.actions', 'palette.group.running', 'palette.group.waiting', 'palette.group.chats',
   'palette.group.accounts', 'palette.group.navigation', 'palette.group.online', 'palette.empty', 'palette.foot.hostOnly',
-  'palette.item.running', 'palette.item.waiting', 'palette.item.spenders', 'palette.item.newcomers', 'palette.item.outreach', 'palette.item.tone', 'palette.item.split',
+  'palette.item.running', 'palette.item.waiting', 'palette.item.spenders', 'palette.item.newcomers', 'palette.item.outreach', 'palette.item.online', 'palette.item.tone', 'palette.item.split',
   'palette.item.cheatsheet', 'palette.item.settings', 'palette.foot.select', 'palette.foot.run', 'palette.foot.allKeys', 'palette.partial',
   'quickJump.title', 'quickJump.empty',
   'cheatsheet.title', 'cheatsheet.group.ai', 'cheatsheet.group.windows', 'cheatsheet.group.before', 'cheatsheet.group.result',

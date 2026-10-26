@@ -6,3 +6,5 @@
 // `ai-coach`).
 
 export { AiWorkspace, createDockController, readTargetHandle, type AiController, type AiPorts, type FileSaver } from '@cg/core/application/ai';
+// «Онлайн N» on the dock's chip: the hub's count of the open chat's page, read every minute.
+export { createOnlineCount, type OnlineCount } from '@cg/core/application/online/count';

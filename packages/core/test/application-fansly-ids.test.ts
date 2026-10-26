@@ -215,7 +215,7 @@ describe('[host:fansly] R20 P8a: a preview of a Fansly fan whose chat its list d
       context: fanslyContext,
       surfaces,
       navigator,
-      directories: { spenders: directory, newcomers: null, palette: null, outreach: null },
+      directories: { spenders: directory, newcomers: null, palette: null, outreach: null, online: null },
       greeting: null,
       sender: null,
       drafts: null,

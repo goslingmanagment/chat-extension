@@ -16,6 +16,8 @@ import {
   type GreetingStatusVM,
   type NewcomerRowVM,
   type NewcomersVM,
+  type OnlineRowVM,
+  type OnlineWindowVM,
   type OutreachRowVM,
   type OutreachWindowVM,
   type PreviewActionId,
@@ -391,6 +393,71 @@ export function outreach(ctx: ScenarioCtx, view: VmView, rows: readonly Outreach
     sheet: null,
     picker: null,
     posts: null,
+    ...patch,
+  };
+}
+
+// ── «Онлайн» (1.65.0) ──
+
+export function onlineRow(ctx: ScenarioCtx, fan: FanFixture, patch: Partial<OnlineRowVM> = {}): OnlineRowVM {
+  return {
+    handle: handles.online(fan),
+    name: fan.name,
+    username: fan.username,
+    lifetime: usd(560),
+    seenAt: iso(ctx.now - 3 * MIN),
+    onlineSince: null,
+    live: false,
+    presence: 'now',
+    reason: { kind: 'silent', since: iso(ctx.now - 12 * DAY), lifetime: usd(560) },
+    aside: null,
+    act: 'ping',
+    state: 'idle',
+    version: null,
+    sentAct: null,
+    sentAt: null,
+    skipped: false,
+    selected: false,
+    arrived: false,
+    replied: null,
+    code: null,
+    ...patch,
+  };
+}
+
+export const defaultOnlineRows = (ctx: ScenarioCtx): OnlineRowVM[] => [
+  onlineRow(ctx, FANS.hubert, { lifetime: usd(2840), reason: { kind: 'waiting', since: iso(ctx.now - MIN) }, act: 'reply', live: true, state: 'ready', version: 'haha okay you got me 😏 what did you order?' }),
+  onlineRow(ctx, FANS.marco, { selected: true, state: 'ready', version: 'okay I need your vote again 😅 you picked the third one last time and you were right. still around?' }),
+  onlineRow(ctx, FANS.theodore, { lifetime: null, reason: { kind: 'never', subscribedAt: iso(ctx.now - 30 * DAY) }, act: 'template', seenAt: iso(ctx.now - 18 * MIN), presence: 'fading', state: 'ready', version: 'hey Theodore 👋 I keep seeing you here but we\'ve never actually talked? that\'s giving mystery vibes lol. shy or just picky?' }),
+];
+
+export function onlineWindow(ctx: ScenarioCtx, view: VmView, rows: readonly OnlineRowVM[], patch: Partial<OnlineWindowVM> = {}): OnlineWindowVM {
+  const groups: OnlineWindowVM['groups'] = [
+    { id: 'waiting', left: rows.filter((row) => row.reason.kind === 'waiting').length, rows: rows.filter((row) => row.reason.kind === 'waiting') },
+    { id: 'silent', left: rows.filter((row) => row.reason.kind === 'silent').length, rows: rows.filter((row) => row.reason.kind === 'silent') },
+    { id: 'never', left: rows.filter((row) => row.reason.kind === 'never').length, rows: rows.filter((row) => row.reason.kind === 'never') },
+  ].filter((group) => group.rows.length > 0) as OnlineWindowVM['groups'];
+  return {
+    view,
+    pageName: PERSONA.pageName,
+    creator: null,
+    persona: PERSONA.label,
+    stamp: stamp(ctx),
+    source: 'onlyfans',
+    minutes: 30,
+    periods: [
+      { minutes: 10, count: 2 },
+      { minutes: 30, count: rows.length },
+      { minutes: 120, count: rows.length + 4 },
+    ],
+    tab: 'todo',
+    tabs: { todo: rows.length, all: rows.length + 2 },
+    query: '',
+    groups,
+    elsewhere: rows.length === 0 ? null : { done: 0, other: 2 },
+    totals: { online: rows.length + 2, worth: rows.length, sent: 0, skipped: 0, replied: 0 },
+    card: null,
+    end: null,
     ...patch,
   };
 }

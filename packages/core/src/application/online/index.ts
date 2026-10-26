@@ -2,3 +2,4 @@
 // one click per fan.
 
 export * from './controller';
+export * from './count';

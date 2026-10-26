@@ -75,7 +75,7 @@ export interface TabJournal {
 }
 
 /** Where a board's preview is drawn: the board's own window, or the palette's preview window. */
-const PREVIEW_WINDOW: Readonly<Record<PreviewSource, string>> = { spenders: 'spenders', newcomers: 'newcomers', palette: 'preview', outreach: 'outreach' };
+const PREVIEW_WINDOW: Readonly<Record<PreviewSource, string>> = { spenders: 'spenders', newcomers: 'newcomers', palette: 'preview', outreach: 'outreach', online: 'online' };
 /** How long a burst of changes of the configuration is waited out before its snapshot. */
 const CONFIG_SETTLE_MS = 600;
 /**

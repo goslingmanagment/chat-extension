@@ -263,8 +263,8 @@ export function OnlineWindow(): JSX.Element {
     list = (
       <div class="cg-nw__list" ref={listRef} role="listbox" aria-label={i18n.t('online.listLabel')}>
         {vm.groups.map((group) => (
-          <div key={group.id} role="group" aria-label={i18n.t(GROUP_KEYS[group.id])}>
-            <div class={`cg-ow__group${group.id === 'none' || group.id === 'aside' ? ' is-quiet' : ''}`} role="presentation" data-cg-online-group={group.id}>
+          <div key={group.id} role="group" aria-label={i18n.t(GROUP_KEYS[group.id])} data-cg-online-group={group.id}>
+            <div class={`cg-ow__group${group.id === 'none' || group.id === 'aside' ? ' is-quiet' : ''}`} role="presentation">
               {i18n.t(GROUP_KEYS[group.id])}
               <span class="cg-num">{group.left}</span>
               <i />

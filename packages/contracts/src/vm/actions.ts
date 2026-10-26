@@ -17,7 +17,7 @@ import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMI
 import { type SpendersPeriodSchema } from '../tab-messages';
 import { BATCH_LISTS } from './batch';
 import { OUTREACH_CONDITIONS, OUTREACH_PANES, OUTREACH_TABS } from './outreach-ids';
-import { ONLINE_TABS } from './online';
+import { ONLINE_TABS } from './online-ids';
 
 /** The old Fansly extension's persona export may carry the old local persona texts too: a generous bound. */
 export const LEGACY_PERSONAS_MAX_CHARS = 4_000_000;

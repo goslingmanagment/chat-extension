@@ -1419,6 +1419,7 @@ export const RU: I18nCatalog<'ru'> = {
   'palette.item.spenders': 'Spenders',
   'palette.item.newcomers': 'Новые',
   'palette.item.outreach': 'Рассылка',
+  'palette.item.online': 'Онлайн: кому написать сейчас',
   'palette.item.tone': 'Тон на один ответ',
   'palette.item.split': 'Split',
   'palette.item.cheatsheet': 'Шпаргалка клавиш',

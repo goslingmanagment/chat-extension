@@ -1364,6 +1364,7 @@ export const EN: I18nCatalog<'en'> = {
   'palette.item.spenders': 'Spenders',
   'palette.item.newcomers': 'New',
   'palette.item.outreach': 'Outreach',
+  'palette.item.online': 'Online: whom to write to now',
   'palette.item.tone': 'Tone for one answer',
   'palette.item.split': 'Split',
   'palette.item.cheatsheet': 'Shortcut cheat sheet',

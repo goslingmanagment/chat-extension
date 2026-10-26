@@ -101,6 +101,12 @@ ${/* Spenders and «Новые» are their icons at every width, on both sites (
 .cg-slot--voice .cg-act--ico > .cg-ico, .cg-slot--boards .cg-act--ico > .cg-ico { display: block; }
 .cg-slot--voice .cg-act--ico > .cg-act__t, .cg-slot--boards .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
 .cg-act.is-busy > .cg-ico { opacity: 0.35; }
+${/* «Онлайн N» (1.65.0): the window's icon with the number of fans worth a message now, in the green of presence. */ ''}
+.cg-strip .cg-slot--boards .cg-act--ico:has(> .cg-act__n) { width: auto; padding: 0 6px 0 8px; gap: 5px; }
+.cg-act__n {
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; box-sizing: border-box; background: var(--cg-good-bg); box-shadow: inset 0 0 0 1px var(--cg-good-line);
+  color: var(--cg-good-ink); font-size: var(--cg-text-2xs); line-height: 16px; font-weight: 600; text-align: center;
+}
 .cg-slot--more { display: none; }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
 .cg-strip .cg-menu--top { bottom: calc(100% + 9px); }

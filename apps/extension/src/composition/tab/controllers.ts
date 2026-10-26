@@ -15,7 +15,7 @@
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
-import type { ChatRef } from '@cg/contracts/ids';
+import { ONLINE_CAPABILITY, type ChatRef } from '@cg/contracts/ids';
 import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
@@ -84,6 +84,8 @@ export interface TabWorld {
   readonly files: AiChunk.FileSaver;
   /** What stands over the page without being a window: «Рассылка» folded into its chip. Absent — nothing. */
   readonly pins?: PinState;
+  /** 1.65.0: the site reads who of the creator's followers is active and tells the hub (Fansly); absent — the hub knows. */
+  readonly onlineSeen?: (pageId: number, hostAccountId: string) => Promise<void>;
 }
 
 const done = (type: UiAction['type'], outcome: Extract<ActionReceipt, { ok: true }>['outcome'] = 'done'): ActionReceipt => ({ ok: true, type, outcome });
@@ -101,6 +103,22 @@ export interface TabAi {
 
 export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionCatalog): TabAi {
   const { router, keys, gate, logger } = world;
+  // «Онлайн N» on the dock's chip: the open chat's page, read every minute while the tab is on screen.
+  const late: { workspace: AiChunk.AiWorkspace | null } = { workspace: null };
+  const online = chunk.createOnlineCount({
+    clock: world.clock,
+    visible: () => world.win.document.visibilityState === 'visible',
+    page: () => {
+      const ready = late.workspace?.situation().ready ?? null;
+      if (ready === null || world.features['online'] === undefined || !ready.bootstrap.capabilities.includes(ONLINE_CAPABILITY)) return null;
+      return { pageId: ready.target.binding.pageId, account: ready.target.binding.platformAccountId };
+    },
+    async read(page: { readonly pageId: number; readonly account: string }, minutes: number) {
+      await world.onlineSeen?.(page.pageId, page.account).catch(() => undefined);
+      const answer = await world.rpc.request('online.list', { pageId: page.pageId, minutes });
+      return answer.ok ? answer.payload : null;
+    },
+  });
   const ports: AiChunk.AiPorts = {
     rpc: world.rpc,
     host: world.host,
@@ -118,8 +136,10 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     journal: { write: (entry) => void logger.write(entry.level, entry.scope, entry.msg, { ...(entry.code === undefined ? {} : { code: entry.code }), ...(entry.fields === undefined ? {} : { fields: entry.fields }), ...(entry.ctx === undefined ? {} : { ctx: entry.ctx }) }) },
     // R11 opens and closes Coach through this switch; what is open is R17's one state.
     overlays: { open: (surface) => keys.overlays.set(surface, true), close: (surface) => keys.overlays.set(surface, false), isOpen: (surface) => keys.overlays.isOpen(surface) },
+    online,
   };
   const workspace = new chunk.AiWorkspace(ports);
+  late.workspace = workspace;
   const controllers: AiChunk.AiController[] = [];
   const offs: (() => void)[] = [];
   /**
@@ -142,6 +162,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     dispose() {
       for (const off of offs.splice(0)) off();
       for (const controller of controllers.splice(0)) controller.dispose();
+      online.dispose();
       workspace.dispose();
     },
   };
@@ -332,7 +353,7 @@ export interface BoardsDock {
 }
 
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
-const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette', 'outreach'];
+const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette', 'outreach', 'online'];
 /** The toast's Hi on a hub's «Новые» waits this long for its result before the chat opens with it. */
 const GREET_RESULT_WAIT_MS = OP_TIMEOUTS.hi.maxMs + 15_000;
 
@@ -401,6 +422,20 @@ export async function startBoards(
   const rowOf = (pageId: number, fanRef: string) => spenders.row(pageId, fanRef);
   const rowsChanged = (listener: () => void): (() => void) => spenders.directory.subscribe(listener);
   const palette = chunk.createPaletteDirectory({ host: boardsHost, context, rowOf, rowsChanged });
+  // «Онлайн»: the hub's list of who came online; the site's own dots (ChatSpace's loaded chats) say «в сети» (the chunk
+  // says how each site reads who is active and sends).
+  const online = chunk.createOnlineController({
+    rpc,
+    host: boardsHost,
+    i18n,
+    clock,
+    context,
+    surfaces,
+    navigator,
+    live: { online: () => new Set(palette.online().map((fan) => fan.fanRef)), subscribe: (listener) => palette.subscribe(listener) },
+    visible: () => win.document.visibilityState === 'visible',
+    openChat: () => boardsHost.current().route.chat?.platformFanId ?? null,
+  });
 
   // X8: one click — one attempt. The driver asks MAIN, then the background, then MAIN's queue; every state goes on.
   const sendListeners = new Set<(view: SendAttemptView) => void>();
@@ -433,7 +468,7 @@ export async function startBoards(
     context,
     surfaces,
     navigator,
-    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette, outreach: outreach.directory },
+    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette, outreach: outreach.directory, online: online.directory },
     greeting: newcomers.greeting,
     sender: {
       send: (click) => driver.send(click),
@@ -458,12 +493,13 @@ export async function startBoards(
   spenders.attachBatch(preview);
   newcomers.attachBatch?.(preview);
   outreach.attachBatch(preview);
+  online.attachBatch(preview);
   dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
   // R12's order: the preview first — it answers for the parts of its own results.
-  const controllers = [preview, spenders, newcomers, fanPanel, outreach];
+  const controllers = [preview, spenders, newcomers, fanPanel, outreach, online];
   const offs = controllers.map((controller) => router.register(adopt(controller as unknown as LooseController)));
 
   /**
@@ -548,6 +584,7 @@ export async function startBoards(
       ['spenders', state.spenders],
       ['newcomers', state.newcomers],
       ['outreach', state.outreach],
+      ['online', state.online],
       ['fan-panel', state.fanPanel],
     ];
     world.pins?.set('outreach-chip', state.outreachChip && !state.outreach);
