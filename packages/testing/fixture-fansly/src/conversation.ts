@@ -21,6 +21,10 @@ import { NgIf, anchor, el, host, scope, setAttr, setText, type Scope, type View 
 import type { Group, GroupService } from './store';
 import { picture } from './world';
 
+/** Fansly's chat header cuts the display name at 10 characters (`app-account-username`, maxLength 10): «Stand Fan ...». */
+const HEADER_NAME_MAX = 10;
+const headerName = (name: string): string => (name.length > HEADER_NAME_MAX ? `${name.substring(0, HEADER_NAME_MAX)}...` : name);
+
 const STATUS_TEXT: Readonly<Record<1 | 2 | 3, string>> = { 1: 'Active now', 2: 'Away', 3: 'Offline' };
 
 interface HeaderView extends View {
@@ -172,7 +176,7 @@ export class ConversationRoute {
       'click',
       handler(() => this.setGalleryAccount(this.partners()[0]?.id ?? '')),
     );
-    const displayName = el(s, 'span', { class: 'display-name' }, [partner?.displayName ?? '']);
+    const displayName = el(s, 'span', { class: 'display-name' }, [headerName(partner?.displayName ?? '')]);
     const userName = el(s, 'span', { class: 'user-name' }, [`@${partner?.username ?? ''}`]);
     const link = el(s, 'a', { class: 'username-wrapper', attrs: { href: `/${partner?.username ?? ''}` } }, [el(s, 'div', { class: 'icon-wrapper flex-row flex-align-center' }, [displayName]), userName]);
     const contact = el(s, 'div', { class: 'message-content-header-contact' }, [
@@ -199,7 +203,7 @@ export class ConversationRoute {
    */
   private refreshContact(contact: ContactView): void {
     const partner = this.partners()[0];
-    setText(contact.displayName, partner?.displayName ?? '');
+    setText(contact.displayName, headerName(partner?.displayName ?? ''));
     setText(contact.userName, `@${partner?.username ?? ''}`);
     setAttr(contact.link, 'href', `/${partner?.username ?? ''}`);
     const status = this.group?.status ?? 4;

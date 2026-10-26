@@ -120,12 +120,17 @@ export function createViews(observation: Observation, identity: Identity, string
       let loaded = 0;
       for (let i = 0; chat !== undefined && i < chat.ids.length; i += 1) if (!deleted(chat, i)) loaded += 1;
       const whole = complete(chat);
+      const fanId = identity.fan(groupId);
+      // The fan's names, whole: Fansly's chat header cuts the display name at 10 characters (2026-10-26).
+      const names = fanId === null ? null : identity.account(fanId);
       return {
         groupId,
-        fanId: identity.fan(groupId),
+        fanId,
         kind: identity.kind(groupId),
         dmAllowed: identity.dm(groupId),
         routeEpoch,
+        ...(names?.displayName === undefined ? {} : { fanDisplayName: names.displayName }),
+        ...(names?.username === undefined ? {} : { fanUsername: names.username }),
         window: {
           loaded,
           newestId: chat?.ids[newest] ?? null,
