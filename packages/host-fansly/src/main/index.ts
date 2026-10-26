@@ -436,6 +436,14 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     if (id === observation.focus) observation.dirty = true;
   };
 
+  /** A fan's account of an answer; the focused chat's own fan — its `fx.chat` goes again if that changed its names. */
+  const account = (value: unknown): void => {
+    const { identity, observation } = world();
+    identity.readAccount(value);
+    const focus = observation.focus;
+    if (focus !== null && isPlain(value) && idOf(value['id']) === identity.fan(focus)) observation.dirty = true;
+  };
+
   const respond = (read: ResponseRead, stamp: XhrStamp | undefined): void => {
     const { identity, automation, observation } = world();
     const r = read.response;
@@ -502,7 +510,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'groups': {
         const aggregation = (r as Plain)['aggregationData'];
         for (const item of listOf(isPlain(aggregation) ? aggregation['groups'] : null)) group(item, seen, stamp);
-        for (const item of listOf(isPlain(aggregation) ? aggregation['accounts'] : null)) identity.readAccount(item);
+        for (const item of listOf(isPlain(aggregation) ? aggregation['accounts'] : null)) account(item);
         for (const item of listOf((r as Plain)['data'])) {
           const groupId = isPlain(item) ? idOf(item['groupId']) : null;
           const last = isPlain(item) ? idOf(item['lastMessageId']) : null;
@@ -511,7 +519,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         return;
       }
       case 'accounts':
-        for (const item of r as unknown[]) identity.readAccount(item);
+        for (const item of r as unknown[]) account(item);
         return;
       case 'automated':
         automation.read(r as unknown[]);

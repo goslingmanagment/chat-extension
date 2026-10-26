@@ -64,7 +64,7 @@ import { digest } from '@cg/host-kit/common/digest';
 import { photosAsLiveImages } from '@cg/host-kit/isolated/photos';
 import { sameReport } from '@cg/host-kit/isolated/report';
 
-import { DOM_ANCHORS_NOT_YET, judgeAnchors, type AnchorStats, type AnchorWatcher, type DomAnchorStates } from './anchors';
+import { DOM_ANCHORS_NOT_YET, FANSLY_SELECTORS, judgeAnchors, type AnchorStats, type AnchorWatcher, type DomAnchorStates } from './anchors';
 import { BridgeCallError, type FanslyMainBridgeClient } from './bridge-client';
 import { FANSLY_ADAPTER_VERSION, buildFanslyReport, buildOf, type Observation } from './contract';
 import { fanslyCdnFetch } from './cdn-photos';
@@ -84,6 +84,7 @@ import type { FanslyTheme } from './theme';
 import { consumeStream, type StreamStats } from './stream';
 import type { ValidationLoader } from './validation';
 import { createVoiceAttach, type AttachTimer, type VoiceAttachStats } from './voice-attach';
+import { createWholeName } from './whole-name';
 
 /** What the host tells the tab's log: an event, its code, a few plain facts — never a text, a name or an id of a fan. */
 export interface FanslyDiagnostic {
@@ -199,6 +200,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const { win, bridge, mounts, theme, route, anchors, redeem, validation } = options;
   const doc = win.document;
   const header = createHeaderSlots(doc, mounts.registry);
+  const wholeName = createWholeName(FANSLY_SELECTORS.headerName);
   const clock = options.now ?? (() => Date.now());
   const adapterVersion = options.adapterVersion ?? FANSLY_ADAPTER_VERSION;
   const diag = (diagnostic: FanslyDiagnostic): void => options.onDiagnostic?.(diagnostic);
@@ -440,6 +442,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const slotMoved = JSON.stringify(nextSlot) !== JSON.stringify(slot);
     slot = nextSlot;
     header.sync(routeState.name === 'chat' && routeState.conversationKind !== 'group' ? anchors.current().conversation?.subRow ?? null : null);
+    // The fan's whole name in place of Fansly's 10-character cut: the open direct chat's own header only. Fansly shows
+    // the display name, or the handle when there is none.
+    const account = routeState.chat === null ? null : (conversation?.contact?.querySelector(FANSLY_SELECTORS.headerAccount) ?? null);
+    wholeName.sync(account, chatWire?.fanDisplayName ?? chatWire?.fanUsername ?? null);
 
     if (routeMoved) emit({ type: 'route', route: routeState });
     if (seen !== composerSeen) {
@@ -764,6 +770,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     anchors.dispose();
     mounts.dispose();
     header.dispose();
+    wholeName.dispose();
     theme.dispose();
     options.coexistence?.dispose();
     eventListeners.clear();
@@ -905,9 +912,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // MAIN's group/fan identity remains the source of every target and every insert guard.
       const contact = composer?.ready === true ? anchors.current().conversation?.contact : null;
       const text = (selector: string): string | null => contact?.querySelector(selector)?.textContent?.trim().slice(0, 256) || null;
-      const displayName = text('app-account-username .display-name') ?? text('app-account-username .user-name') ?? cached?.displayName ?? null;
+      // The page's account answers first: the header cuts the display name at 10 characters (whole-name.ts).
+      const displayName = chatWire.fanDisplayName ?? chatWire.fanUsername ?? text('app-account-username .display-name') ?? text('app-account-username .user-name') ?? cached?.displayName ?? null;
       // The header's «@handle» (the old Fansly extension's notes and panel named the fan by it): display data alone.
-      const handle = text('app-account-username .user-name')?.replace(/^@/, '') ?? null;
+      const handle = chatWire.fanUsername ?? text('app-account-username .user-name')?.replace(/^@/, '') ?? null;
       const username = handle !== null && FAN_HANDLE.test(handle) ? handle : (cached?.username ?? null);
       const fan = { ...fanOf(chat, chatWire), displayName, username };
       if (displayName !== null) {

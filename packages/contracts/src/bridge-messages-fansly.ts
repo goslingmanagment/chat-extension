@@ -21,7 +21,7 @@ import {
   type FromMainFanslyType,
   type ToMainFanslyType,
 } from './bridge-fansly';
-import { FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslySnapshotFeatureSchema, FanslySnapshotSchema } from './fansly';
+import { FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslySnapshotFeatureSchema, FanslySnapshotSchema, HI_FAN_ACCOUNT_LIMITS } from './fansly';
 import { ANCHOR_STATES, ConversationKindSchema, type FanScript } from './host';
 import { CountSchema, DigestSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema } from './primitives';
 
@@ -86,6 +86,8 @@ export const FanslyChatWindowSchema = z.strictObject({
 });
 export type FanslyChatWindow = z.infer<typeof FanslyChatWindowSchema>;
 
+const FanNameSchema = z.string().check(z.minLength(1), z.maxLength(HI_FAN_ACCOUNT_LIMITS.nameMaxChars));
+
 /**
  * `fx.chat` (§5.7, §6): a group as MAIN knows it from the page's answers. A direct chat has its one fan; a group chat
  * (more members) has none — no AI and no header slot (FS-IDN-3); before the members are known both are null.
@@ -100,6 +102,13 @@ export const FanslyChatWireSchema = z
     /** The route epoch of the `fx.focus` this group was focused with; a lower one is stale (FS-RTE-4). */
     routeEpoch: CountSchema,
     window: FanslyChatWindowSchema,
+    /**
+     * The fan's display name and handle from the page's account answers, whole (2026-10-26): Fansly's chat header cuts
+     * the name (the handle when the fan has none) at 10 characters, and the tab shows it whole there. Absent until an
+     * answer named the fan.
+     */
+    fanDisplayName: z.optional(FanNameSchema),
+    fanUsername: z.optional(FanNameSchema),
   })
   .check(z.refine((c) => (c.kind === 'direct') === (c.fanId !== null), { message: 'a direct chat names its fan; a group chat or an unknown one does not' }));
 export type FanslyChatWire = z.infer<typeof FanslyChatWireSchema>;

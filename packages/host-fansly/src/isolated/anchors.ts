@@ -64,6 +64,9 @@ export const FANSLY_SELECTORS = {
   backButton: '.back-button',
   headerContact: '.message-content-header-contact',
   headerSubRow: '.content-header-sub-row',
+  /** The contact block's name: Fansly's account component and its display name, cut at 10 characters (whole-name.ts). */
+  headerAccount: 'app-account-username',
+  headerName: '.display-name',
   gallery: 'app-group-media-offers',
   /** A direct child of the container. */
   composer: 'app-group-message-input',
