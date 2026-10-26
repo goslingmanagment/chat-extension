@@ -7,17 +7,16 @@ import { type VaultPanelAction, type VaultPanelVM } from '@cg/contracts/vault-fa
 
 import { AVAILABLE, Collect, off, type AvailabilityMap } from '../../journal/availability';
 
-/** Fansly's «Заметки»: the button (admitted in this chat), the panel's read, its editor's lock, the fill. */
+/** Fansly's «Заметки»: the button (admitted in this chat), the panel's read, its text editor's lock, the fill. */
 export function notesAvailability(trigger: NotesTriggerVM, panel: NotesPanelVM): AvailabilityMap {
   const out = new Collect();
   out.set('button', trigger.shown ? AVAILABLE : off('not-admitted', null, null));
   if (panel.shown) {
     out.set('read', panel.body === 'error' ? off('read-failed', panel.error?.code ?? null, null) : panel.body === 'loading' ? null : AVAILABLE);
     const editor = panel.editor;
-    if (editor !== null) {
-      out.set('save', editor.blocked ? off('create-unconfirmed', null, null) : AVAILABLE);
-      if (editor.fill !== null) out.set('fill', editor.fill.status === 'failed' ? off('fill-failed', editor.fill.error?.code ?? null, null) : editor.fill.status === 'running' ? null : AVAILABLE);
-    }
+    if (editor !== null) out.set('save', editor.blocked ? off('create-unconfirmed', null, null) : AVAILABLE);
+    const fill = panel.form?.fill ?? null;
+    if (fill !== null) out.set('fill', fill.status === 'failed' ? off('fill-failed', fill.error?.code ?? null, null) : fill.status === 'running' || fill.reason !== null ? null : AVAILABLE);
   }
   return out.map;
 }

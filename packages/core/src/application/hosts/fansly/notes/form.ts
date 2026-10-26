@@ -165,29 +165,30 @@ export function setNoteFieldFacts(text: string, label: string, facts: readonly s
   return lines.join('\n');
 }
 
-/**
- * «В Другое» (the Fansly extension 2.11.0, decision 164): a field the Goose named itself leaves its line (and the lines
- * written under it) and joins «Другое» as one fact `Label: a; b` — at the end of «Другое»'s own line (the lines under
- * «Другое» stay), or, with no «Другое» in the note, as a «Другое» line where it stood. `fact` — what joined «Другое»,
- * null when nothing did: a pending rewrite of «Другое» takes it on both sides, so «Принять» still applies. A text
- * without that field, or that field being «Другое», comes back as is.
- */
-export function moveFieldToOther(text: string, label: string, otherLabel: string): { readonly text: string; readonly fact: string | null } {
-  const parts = parseNoteForm(text);
+/** The value of a field's own line, found past 30 `Label: value` lines too; null — the text has no such field. */
+export function noteFieldValue(text: string, label: string): string | null {
   const key = noteLabelKey(label);
-  const otherKey = noteLabelKey(otherLabel);
-  const field = parts?.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === key);
-  if (parts === null || field === undefined || key === otherKey) return { text, fact: null };
-  const fact = field.facts.length === 0 ? null : `${field.label}: ${field.facts.join('; ')}`;
-  const other = parts.find((part): part is NoteFormField => part.kind === 'field' && noteLabelKey(part.label) === otherKey);
+  return fieldLines(text).find((entry) => noteLabelKey(entry.label) === key)?.value ?? null;
+}
+
+/**
+ * A field typed in place (2026-10-26): its facts written back as its one line (`setNoteFieldFacts`), or — a field the
+ * questionnaire lacks (a template's «+ Метка») — a new line after the last field and the lines written under it. Nothing
+ * typed for a field it lacks leaves the text as is.
+ */
+export function writeNoteField(text: string, label: string, facts: readonly string[]): string {
+  const key = noteLabelKey(label);
+  const parts = parseNoteForm(text);
+  const fields = (parts ?? []).filter((part): part is NoteFormField => part.kind === 'field');
+  if (fields.some((field) => noteLabelKey(field.label) === key)) return setNoteFieldFacts(text, label, facts);
+  const value = facts
+    .map((fact) => fact.trim())
+    .filter(Boolean)
+    .join('; ');
+  if (value === '') return text;
   const lines = text.split('\n');
-  if (other === undefined) {
-    lines.splice(field.line, field.lastLine - field.line + 1, ...(fact === null ? [] : [`${otherLabel}: ${fact}`]));
-    return { text: lines.join('\n'), fact: null };
-  }
-  if (fact !== null) lines[other.line] = withValue(lines[other.line] ?? '', appendNoteFact(noteFieldLineValue(lines[other.line] ?? ''), fact));
-  lines.splice(field.line, field.lastLine - field.line + 1);
-  return { text: lines.join('\n'), fact };
+  lines.splice((fields.at(-1)?.lastLine ?? lines.length - 1) + 1, 0, `${label.trim()}: ${value}`);
+  return lines.join('\n');
 }
 
 /** «Флорида (08.2026)»: the fact and the month the Goose stamped on it. */

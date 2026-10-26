@@ -20,7 +20,7 @@
 import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
 import type { SiteOpView } from '@cg/contracts/ops';
 import { chatKeyOf } from '@cg/contracts/ids';
-import type { NotesClient } from '@cg/contracts/notes-fansly';
+import type { NotesAction, NotesClient } from '@cg/contracts/notes-fansly';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext, failureClass, type PageContextState } from '@cg/core/application/boards';
@@ -42,6 +42,8 @@ import { fanslyRequest } from './requests';
 export const NOTES_REQUEST_TIMEOUT_MS = 45_000;
 /** The header's order of «Заметки»: after «Регистрация» (10). */
 const NOTES_ORDER = 20;
+/** The panel's typing: never a line of the chatter's log. */
+const TYPING: ReadonlySet<NotesAction['type']> = new Set(['input', 'field-input', 'quick-input', 'name-input']);
 
 type Wire = { readonly ok: false; readonly error: { readonly code: string } };
 
@@ -170,7 +172,8 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     trigger: () => controller.trigger(),
     subscribe: (listener) => controller.subscribe(listener),
     dispatch(action) {
-      env.journal?.action('notes', `notes.${action.type}`, notesActionFacts(action));
+      // A keystroke is no click: typing is not written, its save is.
+      if (!TYPING.has(action.type)) env.journal?.action('notes', `notes.${action.type}`, notesActionFacts(action));
       controller.dispatch(action);
     },
   };
@@ -190,9 +193,19 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
   let panel: KitMount | null = null;
   const report = (): void => {
     if (env.probe === null) return;
-    const { shown, view, place, body, notes, editor, name } = controller.panel();
+    const { shown, view, place, body, form, items, editor, name } = controller.panel();
     // Test builds: what the e2e reads — states and ids, never a note's text.
-    env.probe.set('notes', { shown, view, place: place?.kind ?? null, body, notes: notes.map((note) => ({ id: note.noteId, foreign: note.foreign, ...(note.cut === true ? { cut: true } : {}) })), editor: editor === null ? null : { noteId: editor.noteId, saving: editor.saving, blocked: editor.blocked, problem: editor.problem?.kind ?? null }, name: name.status, count: controller.trigger().count });
+    env.probe.set('notes', {
+      shown,
+      view,
+      place: place?.kind ?? null,
+      body,
+      form: form === null ? null : { id: form.noteId, field: form.field?.saving === true ? 'saving' : form.field === null ? null : 'open', fill: form.fill?.status ?? null },
+      notes: items.map((note) => ({ id: note.noteId, foreign: note.foreign, ...(note.cut ? { cut: true } : {}) })),
+      editor: editor === null ? null : { noteId: editor.noteId, saving: editor.saving, blocked: editor.blocked, problem: editor.problem?.kind ?? null },
+      name: name.status,
+      count: controller.trigger().count,
+    });
   };
   const sync = (): void => {
     if (env.life.aborted) return;

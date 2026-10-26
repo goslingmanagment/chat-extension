@@ -1,25 +1,24 @@
-// «✨ Дополнить из чата» (R20 P11c, P11b2; FS-NOTE-5, FS-NOTE-6; FX-014…FX-016, FX-021…FX-024; the Fansly extension
-// 2.10–2.13, decisions 159–161, 164, 166): what a fill asks of the hub and how its answer joins the questionnaire. Pure.
+// «✨ Дополнить из чата» (FS-NOTE-5, FS-NOTE-6; FX-014…FX-016, FX-021…FX-024): what a fill asks of the hub and how its
+// answer joins the questionnaire. Pure.
 //
 // - Asked (the owner's ruling of 2026-10-17, decision X43): the questionnaire's labels in note order with the value of
 //   each field's own line, then the template's labels it lacks with `''`, at most 30 — the hub's merge mode
-//   (`noteFields` + `noteValues`), as the old extension sends it since 2.11.0. A value is one line (its line breaks
-//   flattened), trimmed; a field whose value is over 2000 characters is not asked, and the merge never touches it. The
-//   lines written under a field, the free lines, the other notes and the custom name never leave the tab.
+//   (`noteFields` + `noteValues`). A value is one line (its line breaks flattened), trimmed; a field whose value is over
+//   2000 characters is not asked, and nothing here touches it. The lines written under a field, the free lines, the
+//   other notes and the custom name never leave the tab.
 // - The answer: `Label: =` — nothing for that field; `Label: value` — the field's value as the chat makes it, with the
 //   fan's words behind it; `+ Label: value` — a field the hub named itself.
-// - Joined, never wiping what the chatter wrote (FX-016): an empty field takes the answer in place; a filled one with
-//   another value gets the hub's whole rewrite of its line as a suggestion under it, shown as the facts it adds and drops
-//   («Принять» rewrites that line alone, the lines under it stay; «Не нужно» drops it); a template label the note lacked
-//   becomes a new line after the last field and the lines written under it, and so does a field the hub named itself
-//   (`proposed`: «В Другое» moves it) while the questionnaire has room under 30; one that cannot have a line of its own
-//   joins «Другое» as `Label: value` — on both sides of a pending «Другое» rewrite —, and one with no place at all is
-//   named (`unplaced`). Nothing is written to Fansly before «Создать» or «Сохранить».
-// - The fan's words stay beside the draft (`sources`, a rewrite's `quotes`), never in it.
+// - 2026-10-26: the answer is a list of findings to tick (`noteFindings`): a value for an empty field, the hub's rewrite
+//   of a filled one shown as the facts it adds and drops, a template's field the note lacks, a field the hub named.
+//   «Записать» (`applyNoteFindings`) writes the ticked ones into the questionnaire as it is then, never wiping what the
+//   chatter wrote (FX-016): a field's line takes the hub's value only while it still holds what the hub saw; the lines
+//   written under it stay; a new line goes after the last field and the lines under it while the questionnaire has
+//   room under 30, and one that cannot have a line of its own joins «Другое» as `Label: value` (`mergeNoteFill`), or is
+//   named. The fan's words stay beside the findings, never in the note.
 
 import { NOTE_FILL_LIMITS } from '@cg/contracts/limits';
 
-import { NOTE_FIELDS_MAX, appendNoteFact, noteFieldLineValue, noteLabelKey, parseNoteForm, parseNoteTemplate, sameNoteValue, withNoteFieldValue, type NoteFieldSuggestion, type NoteFormField, type NoteFormPart } from './form';
+import { NOTE_FIELDS_MAX, appendNoteFact, applyFieldSuggestion, diffNoteFacts, noteFieldLineValue, noteFieldValue, noteLabelKey, parseNoteForm, parseNoteTemplate, sameNoteValue, withNoteFieldValue, type NoteFieldSuggestion, type NoteFormField, type NoteFormPart } from './form';
 import { NOTE_OTHER_LABEL, NOTE_TEMPLATE_LABELS } from './template';
 
 const isField = (part: NoteFormPart): part is NoteFormField => part.kind === 'field';
@@ -75,7 +74,7 @@ export interface NoteFillMerge {
   /** Its rewrites of filled fields: the line's value the hub saw, then the hub's — accepted, that line takes it. */
   readonly suggestions: NoteFieldSuggestion[];
   readonly sources: NoteFillSource[];
-  /** The fields the hub named itself that got a line of their own: «В Другое» on each. */
+  /** The fields the hub named itself that got a line of their own. */
   readonly proposed: string[];
   /** The fields the hub named itself that found no place — no line of their own and no «Другое» to join: named. */
   readonly unplaced: string[];
@@ -190,4 +189,110 @@ export function mergeNoteFill(text: string, answer: readonly AnswerField[], name
     proposed: proposedLines.map((field) => field.label),
     unplaced,
   };
+}
+
+/**
+ * A fact the Goose found (2026-10-26: the fill's answer is a list to tick, nothing joins the questionnaire before
+ * «Записать»): `add` — into a field with nothing written, a template's field the questionnaire lacks (`missing`), or
+ * the hub's rewrite of a filled field that only adds to it; `change` — a rewrite that also drops what is written;
+ * `new` — a field the hub named itself.
+ */
+export interface NoteFinding {
+  readonly label: string;
+  readonly kind: 'add' | 'change' | 'new';
+  /** The value of the field's own line the hub saw: '' — nothing written, or no such field. */
+  readonly current: string;
+  /** The hub's value for that line: «Записать» puts it there. */
+  readonly proposed: string;
+  /** The questionnaire has no such field: «Записать» adds its line. */
+  readonly missing: boolean;
+  /** The fan's words behind it: shown, never saved. */
+  readonly quotes: readonly string[];
+}
+
+/** What the Goose found against the questionnaire's text the fill was asked with: its answer field by field, then the
+ * fields it named itself. A value equal to what is written, or a rewrite that only reorders or respaces, is nothing. */
+export function noteFindings(text: string, answer: readonly AnswerField[], named: readonly AnswerField[] = []): NoteFinding[] {
+  const parts = parseNoteForm(text);
+  if (parts === null) return [];
+  const lines = text.split('\n');
+  const byKey = new Map(parts.filter(isField).map((field) => [noteLabelKey(field.label), field] as const));
+  const seen = new Set<string>();
+  const found: NoteFinding[] = [];
+  for (const { label, value: raw, quotes } of answer) {
+    const value = raw.trim();
+    const key = noteLabelKey(label);
+    if (value === '' || seen.has(key)) continue;
+    seen.add(key);
+    const field = byKey.get(key);
+    if (field === undefined) {
+      found.push({ label, kind: 'add', current: '', proposed: value, missing: true, quotes: quotes ?? [] });
+      continue;
+    }
+    const current = noteFieldLineValue(lines[field.line] ?? '');
+    // A value over the bound was not asked: left alone.
+    if (!sendable(oneLine(current)) || sameNoteValue(current, value)) continue;
+    const { added, removed } = diffNoteFacts(current, value);
+    if (added.length === 0 && removed.length === 0) continue;
+    found.push({ label: field.label, kind: removed.length === 0 ? 'add' : 'change', current, proposed: value, missing: false, quotes: quotes ?? [] });
+  }
+  for (const { label, value: raw, quotes } of named) {
+    const value = raw.trim();
+    const key = noteLabelKey(label);
+    if (value === '' || seen.has(key) || byKey.has(key)) continue;
+    seen.add(key);
+    found.push({ label, kind: 'new', current: '', proposed: value, missing: true, quotes: quotes ?? [] });
+  }
+  return found;
+}
+
+export interface NoteFindingsApplied {
+  readonly text: string;
+  /** The fields written, as the questionnaire names them («Другое» when a fact joined it). */
+  readonly wrote: string[];
+  /** Findings whose field changed since the Goose read it: left as they are, never written over. */
+  readonly skipped: string[];
+  /** Findings with no place: 30 fields and no «Другое» to join. */
+  readonly unplaced: string[];
+}
+
+/**
+ * «Записать» (2026-10-26): the ticked findings into the questionnaire's text as it is now. A field's line takes the
+ * hub's value only while it still holds what the hub saw (a field typed since is skipped, never written over, FX-016);
+ * a field the questionnaire lacks and a field the hub named get a line after the last field, while there is room under
+ * 30 — the rest join «Другое» or are named (`mergeNoteFill`).
+ */
+export function applyNoteFindings(text: string, findings: readonly NoteFinding[]): NoteFindingsApplied {
+  let out = text;
+  const wrote: string[] = [];
+  const skipped: string[] = [];
+  const lines: AnswerField[] = [];
+  const named: AnswerField[] = [];
+  for (const finding of findings) {
+    if (finding.kind === 'new') {
+      named.push({ label: finding.label, value: finding.proposed });
+      continue;
+    }
+    const now = noteFieldValue(out, finding.label);
+    if (now === null) {
+      lines.push({ label: finding.label, value: finding.proposed });
+      continue;
+    }
+    if (sameNoteValue(now, finding.proposed)) continue;
+    if (!sameNoteValue(now, finding.current)) {
+      skipped.push(finding.label);
+      continue;
+    }
+    const next = applyFieldSuggestion(out, { label: finding.label, current: finding.current, proposed: finding.proposed, quotes: [] });
+    if (next !== out) wrote.push(finding.label);
+    out = next;
+  }
+  let unplaced: string[] = [];
+  if (lines.length > 0 || named.length > 0) {
+    const merged = mergeNoteFill(out, lines, named);
+    out = merged.text;
+    wrote.push(...merged.wrote.filter((label) => !wrote.some((entry) => noteLabelKey(entry) === noteLabelKey(label))));
+    unplaced = merged.unplaced;
+  }
+  return { text: out, wrote, skipped, unplaced };
 }

@@ -132,7 +132,8 @@ describe('[host:fansly] two tabs editing the same fan', () => {
     // Nothing of B's went out, and its list already holds A's text.
     expect(w.stored[0]?.note).toBe('Имя: Алекс\nРабота: врач');
     expect(w.writes()).toEqual(['notes.edit']);
-    expect(w.b.panel().notes[0]?.text).toBe('Имя: Алекс\nРабота: врач');
+    // A's text is a questionnaire now: B's panel reads it as one.
+    expect(w.b.panel().form).toMatchObject({ noteId: '801', parts: [{ label: 'Имя' }, { label: 'Работа' }] });
     w.b.dispatch({ type: 'save' });
     await vi.waitFor(() => expect(w.b.panel().editor).toBeNull());
     expect(w.stored[0]?.note).toBe(draft);
