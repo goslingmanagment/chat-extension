@@ -10,9 +10,9 @@
 // debug block (DB-007), «Скопировать код» of an error card (ER-006).
 //
 // The greeting reminder's toast (2026-10-24) «Ждёт приветствия · {фан}» stays
-// until it is closed: its «Hi» opens the fan's card in «Новые», starts Hi
-// there and opens the fan's chat with the greeting in its field (2026-10-25;
-// `GreetNewcomer`, answered by the boards), and the click closes it.
+// until it is closed: its «Hi» opens the fan's chat, starts the dock's Hi
+// there and puts the greeting into its field (2026-10-26; `GreetNewcomer`,
+// answered by the boards), and the click closes it.
 //
 // A toast the UI or a controller raises by itself (a key's reason, a render
 // failure) goes through ToastPort and is the overlay host's own queue; the
@@ -216,7 +216,7 @@ export function createShellController(ports: ShellPorts): ShellController {
         }
         return Promise.resolve(done(action.type));
       }
-      // «Hi» of a reminder: its toast goes; the boards open the card, start Hi and put it into the chat.
+      // «Hi» of a reminder: its toast goes; the boards open the fan's chat, start Hi there and put it into the field.
       if (action.type === 'GreetNewcomer') {
         for (const entry of entries.filter((item) => item.toast.greet !== undefined && fanHandle('newcomers', item.toast.greet.pageId, item.toast.greet.fanRef) === action.targetHandle)) remove(entry.toast.toastId);
         return null;

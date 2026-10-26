@@ -4,17 +4,19 @@
 //   pnpm see launch-greet                — ChatSpace: Hi in «Ждёт приветствия» opens Liam's chat with the greeting in
 //                                          the field, Send left to press;
 //   pnpm see launch-greet --site fansly  — Fansly: the same for Matt; Hi on Jordan, whom a colleague greeted meanwhile
-//                                          (his chat open, «Кто-то уже поприветствовал …»); the reminder as a tab of
-//                                          another model shows it (the kit gallery's toast: the stand runs one creator).
+//                                          (his chat open, nothing in the field, «Кто-то уже поприветствовал …»); the
+//                                          reminder as a tab of another model shows it (the kit gallery's toast: the
+//                                          stand runs one creator).
+//
+// 2026-10-26: Hi of a reminder opens the fan's chat straight away and writes the greeting there (no «Новые» window).
 //
 // The flows are greet-reminder.see.ts, fansly-greet-reminder.see.ts and fansly-greet-already.see.ts; the pictures are
 // `greet-*.png` in the run's folder.
 
 import { WORLD } from '../../../src/scenarios/hub';
 import { EDITOR } from '../../support/chat';
-import { pageRpc, writeLocalStorage } from '../../support/extension';
+import { writeLocalStorage } from '../../support/extension';
 import { QUIET_PAGE } from '../../support/fake-hub';
-import { followFrame } from '../../../fixture-fansly/src/wire';
 import { FANSLY_MAIN, fakeFansly } from '../../support/fansly-stand';
 import { STAND_IDS, standOrigin } from '../../support/stand';
 import { scenario, showcaseAiTexts, STAND_PAGE, type Box, type See } from '../kit';
@@ -35,16 +37,6 @@ async function pageBox(s: See, selector: string): Promise<Box> {
   const found = await s.rect('page', selector);
   if (found === null) throw new Error(`no ${selector} on the page`);
   return found;
-}
-
-/** «Новые фоловеры» opened by the popup's command (Fansly has no palette), as during a shift. */
-async function openNewcomers(s: See): Promise<void> {
-  await s.toPages();
-  await s.browser.url(s.page('popup.html'));
-  await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } });
-  await s.browser.url(s.page(QUIET_PAGE));
-  await s.toChat();
-  await s.browser.waitUntil(() => s.has('modal', '.cg-fnw'), { timeout: 20_000, timeoutMsg: 'the window did not open' });
 }
 
 /** The pointer off our buttons: no hint over what a picture shows. */
@@ -79,45 +71,20 @@ async function fansly(s: See): Promise<void> {
   await s.browser.url(s.page(QUIET_PAGE));
   await s.toChat();
 
-  // Matt followed eleven minutes ago too; his follow's frame comes later (below): the window's pass lists him now, and
-  // his reminder comes after Jordan's.
-  const matt = (await fakeFansly().command({ op: 'follow', followerId: MATT, agoMs: 11 * MIN, silent: true })).follow;
-  if (matt === undefined) throw new Error('no follow of Matt');
-
-  // Jordan followed eleven minutes ago and his reminder came; meanwhile a colleague greeted him from another browser,
-  // and the window, opened as during a shift, has him «Уже писали». Hi on his reminder writes nothing: his chat opens
-  // with the colleague's greeting, and the toast says somebody was faster.
+  // Jordan followed eleven minutes ago and his reminder came; meanwhile a colleague greeted him from another browser.
+  // Hi on his reminder opens his chat with the colleague's greeting, writes nothing into the field, and the toast says
+  // somebody was faster.
   await fakeFansly().command({ op: 'follow', followerId: JORDAN, agoMs: 11 * MIN });
   await s.see('toast', 'Ждёт приветствия', 30_000);
   for (const text of COLLEAGUE) await fakeFansly().command({ op: 'message', groupId: groups.get(JORDAN) ?? '', from: 'creator', text, silent: true });
-  await openNewcomers(s);
-  // Checked and «Уже писали»: he leaves «К обработке», which then counts one fewer than «Все».
-  await s.browser.waitUntil(
-    async () => {
-      const text = await s.text('modal');
-      const todo = /К обработке\s*(\d+)/.exec(text)?.[1];
-      const all = /Все\s*(\d+)/.exec(text)?.[1];
-      return text.includes('Проверено') && todo !== undefined && all !== undefined && Number(todo) < Number(all);
-    },
-    { timeout: 90_000, timeoutMsg: 'Jordan was not found greeted' },
-  );
-  await s.browser.keys('Escape');
-  await s.wait(600);
   await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
   // The toast goes by itself in a few seconds: the picture is taken as soon as it is there.
   await s.see('toast', 'Кто-то уже поприветствовал', 30_000);
   await s.shot('already-greeted', { file: 'greet-reminder-team', clip: box(0, 0, 1440, 900) });
 
-  // «Новые фоловеры» open on Matt's card (the pass checked him: nobody wrote) when his follow's frame comes and with it
-  // his reminder. Hi writes the greeting, and his chat opens with it in Fansly's own field. (Hi from the toast on a fan
-  // the pass checked before, with the window closed, meets the card's draft still loading — CG-DATA-NOT-READY.)
-  await openNewcomers(s);
-  const mattRow = `.cg-nw__row[data-cg-fan$=":${MATT}"]`;
-  await s.browser.waitUntil(async () => (await s.h.readOurs('modal', mattRow, (node) => node.getAttribute('data-cg-check'))) === 'ready', { timeout: 60_000, timeoutMsg: 'Matt was not checked' });
-  await s.h.ours('modal', mattRow).click();
-  await s.browser.waitUntil(() => s.has('modal', '.cg-nc__greet'), { timeout: 10_000, timeoutMsg: 'Matt\'s card did not open' });
-  await s.wait(800);
-  await fakeFansly().command({ op: 'frames', frames: [followFrame(matt)] });
+  // Matt followed eleven minutes ago too, and nobody wrote to him: Hi on his reminder opens his chat at once, Hi writes
+  // the greeting there, and it stands in Fansly's own field.
+  await fakeFansly().command({ op: 'follow', followerId: MATT, agoMs: 11 * MIN });
   await s.see('toast', 'Matt Riley', 30_000);
   await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
   await s.browser.waitUntil(async () => ((await s.browser.$(FANSLY_MAIN.field).getValue().catch(() => '')) as string).trim() !== '', { timeout: 90_000, timeoutMsg: 'the greeting did not land in the chat' });

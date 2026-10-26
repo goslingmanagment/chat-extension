@@ -49,7 +49,7 @@ import type * as DockChunk from '../../../lazy/entries/dock';
 import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type * as HealthChunk from '../../../lazy/entries/tab-health';
-import { createActionTokens, createGestureGate, type TabActionTokens } from './action-gate';
+import { createActionTokens, createGestureGate, onScreen, type TabActionTokens } from './action-gate';
 import type { HostAppAdapter, HostDiagnostic, HostMounts, HostThemeSource, SiteAppEnv, TokenRedeemer } from './adapter';
 import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, paletteReceiptToast } from './client';
 import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
@@ -117,6 +117,8 @@ const UNKNOWN_SETTINGS: UiSettings = { locale: DEFAULT_LOCALE, theme: 'host', te
 
 /** Rows of ChatSpace's cached chat list read for the name of a toast's fan. */
 const TOAST_NAME_ROWS = 200;
+/** A greeting reminder's «Hi» looks this often whether the fan's chat is the dock's yet and its greeting written. */
+const GREET_LOOK_MS = 200;
 
 /**
  * The host contract in one word, for the e2e report: every capability is on, some are not, some broke — but for the
@@ -779,6 +781,30 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       });
     });
 
+  /**
+   * What `read` gives once it is no longer null, or null after `ms`: read at every change of the AI workspace and every
+   * GREET_LOOK_MS besides (the dock's own element is drawn after the change that shows it).
+   */
+  function waitFor<T>(read: () => T | null, ms: number): Promise<T | null> {
+    const now = read();
+    if (now !== null || disposed) return Promise.resolve(now);
+    return new Promise((resolve) => {
+      const until = Date.now() + ms;
+      let over = false;
+      const look = (): void => {
+        if (over) return;
+        const value = disposed ? null : read();
+        if (value === null && !disposed && Date.now() < until) return;
+        over = true;
+        win.clearInterval(tick);
+        off();
+        resolve(value);
+      };
+      const tick = win.setInterval(look, GREET_LOOK_MS);
+      const off = ai.workspace.subscribe(look);
+    });
+  }
+
   function ensureBoards(): Promise<TabBoards> {
     return (boards ??= Promise.all([stageTwo, env.lazy<typeof BoardsChunk>('boards'), env.lazy<typeof PreviewChunk>('boards-preview')]).then(
       ([, chunk, preview]) =>
@@ -796,6 +822,26 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
               if (left !== null) say(left.code, left.scope, left.title);
             });
           },
+          // 2026-10-26: a greeting reminder's «Hi» goes on in the dock of the fan's chat it opened.
+          readyFor: (chat, ms) => {
+            const key = chatKeyOf(chat);
+            return waitFor(() => {
+              const situation = ai.workspace.situation();
+              if (situation.chat === null || situation.chat.key !== key || situation.ready === null) return null;
+              // The dock's click is what the generation's token is checked against: it must be on screen.
+              return mounts.points().dock.kind !== 'none' && onScreen(mounts.dock.host) ? situation.chat.handle : null;
+            }, ms);
+          },
+          fanName: (chat) => {
+            const situation = ai.workspace.situation();
+            const name = situation.chat !== null && situation.chat.key === chatKeyOf(chat) ? situation.fanName?.replace(/^@/, '').trim() : undefined;
+            return name === undefined || name === '' ? null : name;
+          },
+          ended: (opId, ms) =>
+            waitFor(() => {
+              const state = ai.workspace.ops.get(opId)?.view.state;
+              return state === 'done' || state === 'failed' || state === 'canceled' || state === 'interrupted' ? state : null;
+            }, ms),
         }).then((ready) => (boardsReady = ready)),
       (error: unknown) => {
         boards = null;

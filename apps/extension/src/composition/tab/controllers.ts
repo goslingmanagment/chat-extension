@@ -17,10 +17,10 @@ import type { CgCode } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { ONLINE_CAPABILITY, type ChatRef } from '@cg/contracts/ids';
 import { OP_TIMEOUTS } from '@cg/contracts/limits';
-import type { AiHostPolicy } from '@cg/contracts/ops';
+import type { AiHostPolicy, OpState } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { HostPort, NavigationReceipt } from '@cg/contracts/host';
-import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
+import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, TargetHandle, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
 import type { GreetedChat } from '@cg/core/application/newcomers';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
@@ -34,7 +34,7 @@ import type * as BoardsChunk from '../../../lazy/entries/boards';
 import type * as PreviewChunk from '../../../lazy/entries/boards-preview';
 import type * as NavigationChunk from '../../../lazy/entries/navigation';
 import type { GestureGate } from './action-gate';
-import { adopt, type ControllerRpc, type LooseController } from './client';
+import { adopt, chatOnScreen, type ControllerRpc, type LooseController } from './client';
 import { boardsHostOver, type HostFacts } from './host-facts';
 import type { PinState } from './surfaces';
 import type { TabKeys } from './keys';
@@ -362,11 +362,22 @@ export interface BoardsDock {
   handover(handover: PreviewChunk.BoardHandover): void;
   /** Chat Memory week 1: «в разговоре» of the tab (the navigation family's): the preview's X8 warning reads it. */
   readonly talking?: NavigationChunk.TalkingController;
+  /**
+   * 2026-10-26: a greeting reminder's «Hi» goes on in the fan's chat it opened. The dock's handle of `chat` once its dock
+   * can start a generation there; null — not within `ms`.
+   */
+  readyFor(chat: ChatRef, ms: number): Promise<TargetHandle | null>;
+  /** The fan's name as the dock shows it now, while `chat` is the open one; null — another chat, or no name. */
+  fanName(chat: ChatRef): string | null;
+  /** How the dock's operation ended within `ms`: its terminal state; null — still running, or unknown here. */
+  ended(opId: string, ms: number): Promise<Exclude<OpState, 'admitted' | 'requesting' | 'streaming'> | null>;
 }
 
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
 const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette', 'outreach', 'online'];
-/** The toast's Hi on a hub's «Новые» waits this long for its result before the chat opens with it. */
+/** A greeting reminder's «Hi» (2026-10-26): the fan's chat it opened becomes the dock's within this long, or Hi is the person's. */
+export const GREET_CHAT_READY_MS = 15_000;
+/** …and its greeting is written within this long, or it stays in the dock for the person to put in. */
 const GREET_RESULT_WAIT_MS = OP_TIMEOUTS.hi.maxMs + 15_000;
 
 /**
@@ -515,69 +526,75 @@ export async function startBoards(
   const offs = controllers.map((controller) => router.register(adopt(controller as unknown as LooseController)));
 
   /**
-   * 2026-10-24: «Hi» of a greeting reminder's toast — «Новые» opens on the fan's card and its Hi starts. 2026-10-25 (the
-   * owner: «по hi нажимая начиналась генерация сообщения сразу и в чате уже оказалось оно»): once the greeting is
-   * written, the fan's chat opens with it in the site's field, for the person's own send. Each step rides the click's
-   * deferred greet grant (action-gate.ts, `afterGreet`). A person who moved on meanwhile — the window closed, another
-   * fan's card — keeps the greeting on the card.
-   * 2026-10-25 (the owner: «может приходит только в одно окно активное?», «если один нажал на hi и там месага уже есть —
-   * ошибка "кто-то уже поприветствовал его" и чат открылся»): a fan of another model goes to a tab of that model
-   * (`greetElsewhere`); a fan somebody wrote to already — found before Hi or while it generates — is not greeted twice:
-   * their chat opens and the toast says «Кто-то уже поприветствовал …».
+   * «Hi» of a greeting reminder's toast (2026-10-24; 2026-10-25, the owner: «по hi нажимая начиналась генерация сообщения
+   * сразу и в чате уже оказалось оно»). 2026-10-26 (the owner: «жму, он чето грузит, открывает всех, прогружает, потом
+   * генерирует — это неудобно и долго»): no window and no list any more — the fan's chat opens at once, the dock's own Hi
+   * writes one greeting there, and it goes into the site's field for the person's own send. Each step rides the click's
+   * deferred greet grant (action-gate.ts, `afterGreet`): the navigation, the generation, the insert — never a send.
+   * A fan of another model goes to a tab of that model (`greetElsewhere`). A fan somebody wrote to meanwhile (the owner:
+   * «если один нажал на hi и там месага уже есть — ошибка "кто-то уже поприветствовал его" и чат открылся») gets no
+   * greeting in the field: the toast says «Кто-то уже поприветствовал …», the chat is open already. A person who went
+   * on to another chat meanwhile keeps the greeting in the dock of the fan's chat.
    */
   async function greet(handle: string): Promise<ActionReceipt> {
     const as = (receipt: ActionReceipt): ActionReceipt => ({ ...receipt, type: 'GreetNewcomer' });
+    // Said by a toast of its own: the reminder's toast is gone with the click.
+    const failed = (code: CgCode): ActionReceipt => {
+      notify(code, 'greet.open');
+      return { ok: true, type: 'GreetNewcomer', outcome: 'noop' };
+    };
     const away = (await newcomers.greetElsewhere?.(handle, () => void world.gate.afterGreet('Navigate'))) ?? null;
     if (away !== null) {
       if (!away) toasts.show({ kind: 'warning', code: null, scope: 'greet.handover', title: { key: 'toast.greetNoTab' }, body: { key: 'toast.greetNoTabBody' } });
       return { ok: true, type: 'GreetNewcomer', outcome: away ? 'opened' : 'noop' };
     }
-    await router.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } });
-    // 2026-10-25: «Новые» checked by a pass (Fansly) find the fan themselves — the card opens, and the handle Hi starts
-    // on comes back once the fan is checked; otherwise the card's own Hi is the person's.
-    if (newcomers.greetCard !== undefined) {
-      const found = await newcomers.greetCard(handle);
-      if (found.s === 'greeted') return greetedAlready(found);
-      const hi = found.s === 'hi' ? found.handle : null;
-      const onCard = (): boolean => hi !== null && surfaces.current().newcomers && newcomers.getSnapshot({ of: 'newcomers' }).pass?.card?.handle === hi;
-      if (hi === null || !onCard()) return { ok: true, type: 'GreetNewcomer', outcome: 'opened' };
-      // The card's own Hi (NewcomersWindow): one greeting, its options the card's; it resolves with the field written.
-      world.gate.afterGreet('Generate');
-      const started = await router.dispatch({ type: 'Generate', targetHandle: hi, feature: 'hi', options: {} });
-      // The chat read again while Hi generated: somebody wrote meanwhile.
-      const greeted = started.ok ? null : (newcomers.greetedChat?.(handle) ?? null);
-      if (greeted !== null) return greetedAlready(greeted);
-      if (!started.ok || !onCard() || world.gate.afterGreet('InsertNewcomerGreeting') !== null) return as(started);
-      return as(await router.dispatch({ type: 'InsertNewcomerGreeting', targetHandle: hi }));
-    }
-    // The hub's list is read again first: a colleague's greeting since the reminder is in it.
-    await newcomers.refresh();
-    const greeted = newcomers.greetedChat?.(handle) ?? null;
-    if (greeted !== null) return greetedAlready(greeted);
-    const opened = await router.dispatch({ type: 'OpenPreview', targetHandle: handle });
-    if (!opened.ok) return as(opened);
-    world.gate.afterGreet('Generate');
-    const started = await router.dispatch({ type: 'Generate', targetHandle: handle, feature: 'hi', options: { variants: 1 } });
-    const opId = started.ok ? started.opId : undefined;
-    if (opId === undefined || !(await preview.ended(opId, GREET_RESULT_WAIT_MS))) return as(started);
-    if (surfaces.current().preview.newcomers !== handle || world.gate.afterGreet('OpenAndInsertPart') !== null) return as(started);
-    return as(await router.dispatch({ type: 'OpenAndInsertPart', operationId: opId, variant: 0, part: 0 }));
-  }
-
-  /** Somebody wrote to the reminder's fan already: no second greeting — the window goes, their chat opens, the toast says why. */
-  async function greetedAlready(greeted: GreetedChat): Promise<ActionReceipt> {
+    const target = (await newcomers.greetChat?.(handle)) ?? null;
+    // No way to the fan's chat now (Fansly could not find or make it): «Новые» open, the fan is there for the person.
+    if (target === null) return as(await router.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } }));
     surfaces.setList('newcomers', false);
     world.gate.afterGreet('Navigate');
-    const opened = await navigator.open(greeted.chat, 'newcomers', ['newcomers'], greeted.conversationRef ?? undefined);
-    const shown = opened.state === 'navigated';
+    const opened = await navigator.open(target.chat, 'newcomers', ['newcomers'], target.conversationRef ?? undefined);
+    if (opened.state !== 'navigated') return failed(opened.code);
+    const dockHandle = await dock.readyFor(target.chat, GREET_CHAT_READY_MS);
+    // The chat did not become the dock's in time (the person went on, the page is slow): the chat is open, Hi is theirs.
+    if (dockHandle === null) return { ok: true, type: 'GreetNewcomer', outcome: 'opened' };
+    world.gate.afterGreet('Generate');
+    const started = await router.dispatch({ type: 'Generate', targetHandle: dockHandle, feature: 'hi', options: { variants: 1 } });
+    // A refused start is the dock's to show (its sheet says why); a Hi already running there is the person's own.
+    const opId = started.ok && started.outcome === 'started' ? started.opId : undefined;
+    if (opId === undefined) return as(started);
+    // Whether somebody wrote to the fan is asked while Hi writes: a «yes» stops it at once.
+    const early = (newcomers.greetedNow?.(handle, target) ?? Promise.resolve(null)).catch(() => null);
+    const first = await Promise.race([dock.ended(opId, GREET_RESULT_WAIT_MS), early.then((found) => found ?? new Promise<never>(() => undefined))]);
+    if (first !== null && typeof first === 'object') return greetedAlready(first, opId);
+    if (first !== 'done') return as(started);
+    // Asked again once it is written: the page has loaded the chat by now (Fansly), a colleague may have just written.
+    const greeted = (await early) ?? (await newcomers.greetedNow?.(handle, target).catch(() => null)) ?? null;
+    if (greeted !== null) return greetedAlready(greeted, opId);
+    if (!chatOnScreen(host.current().route, target.chat) || world.gate.afterGreet('InsertPart') !== null) return as(started);
+    return as(await router.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 0 }));
+  }
+
+  function notify(code: CgCode, scope: string): void {
+    void toasts.show({ kind: toastKindOf(code), code, scope, title: { key: CG_REGISTRY[code].title }, body: { key: CG_REGISTRY[code].body } });
+  }
+
+  /**
+   * Somebody wrote to the reminder's fan already: the Hi stops and its sheet goes — nothing to put into the field —, the
+   * chat is open with what they were sent, and the toast says why.
+   */
+  async function greetedAlready(greeted: GreetedChat, opId: string): Promise<ActionReceipt> {
+    await router.dispatch({ type: 'CancelGeneration', operationId: opId });
+    await router.dispatch({ type: 'HideResult', operationId: opId });
     toasts.show({
       kind: 'warning',
       code: null,
       scope: `greet.${greeted.chat.platformFanId}`,
-      title: { key: 'toast.greetedAlready', params: { fan: greeted.name ?? i18n.t('newcomers.col.fan') } },
-      body: { key: shown ? 'toast.greetedAlreadyOpened' : 'toast.greetedAlreadyClosed' },
+      // The dock's name of the fan, read now: the site draws its header a moment after the chat opens.
+      title: { key: 'toast.greetedAlready', params: { fan: greeted.name ?? dock.fanName(greeted.chat) ?? i18n.t('newcomers.col.fan') } },
+      body: { key: 'toast.greetedAlreadyOpened' },
     });
-    return { ok: true, type: 'GreetNewcomer', outcome: shown ? 'opened' : 'noop' };
+    return { ok: true, type: 'GreetNewcomer', outcome: 'opened' };
   }
   offs.push(
     router.register(

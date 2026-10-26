@@ -63,12 +63,12 @@
 // opens one, and a deferred request never takes an ordinary grant or the event in flight.
 //
 // One click goes on later, by design, too: «Hi» of a greeting reminder's toast (2026-10-25, the owner: «по hi нажимая
-// начиналась генерация сообщения сразу и в чате уже оказалось оно»). The click opens «Новые» on the fan's card, which
-// may first wait for the fan's check, then the Hi runs, then the fan's chat opens with the greeting in the site's
-// field — for the person's own send. Its click keeps a DEFERRED GREET grant: one `generate` and one `navigate`, within
+// начиналась генерация сообщения сразу и в чате уже оказалось оно»; 2026-10-26: straight into the chat, no window).
+// The click opens the fan's chat, the dock's Hi writes one greeting there, and it goes into the site's field — for the
+// person's own send. Its click keeps a DEFERRED GREET grant: one `navigate`, one `generate` and one `insert`, within
 // DEFERRED_GREET_TTL_MS, handed out only by `afterGreet` — the toast's own chain naming the next action of it (the
-// card's Generate, then its «Открыть и вставить» or the preview's), as an ordinary grant of that one action. A newer
-// toast Hi replaces it; it can never insert by itself or send.
+// chat's `Navigate`, the dock's `Generate`, then its `InsertPart`), as an ordinary grant of that one action. A newer
+// toast Hi replaces it; it can never send.
 //
 // One human action happens outside this document: a click on our own popup
 // or options page that acts in ChatSpace (`tab.command`, §9.9). The
@@ -211,9 +211,8 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   // fan the pass moves to, and the next one, are the online grant's (ONLINE_ACTIONS).
   SendOnline: ['send'],
   RewriteOnline: ['generate'],
-  // 2026-10-24: «Hi» of a greeting reminder's toast opens the fan's card and starts its Hi; 2026-10-25 — and opens the
-  // chat with it, or the chat of a fan somebody greeted meanwhile, or hands the click to the fan's model's tab (its
-  // deferred greet grant, `afterGreet`).
+  // 2026-10-24: «Hi» of a greeting reminder's toast; 2026-10-26 — opens the fan's chat, starts the dock's Hi there and
+  // puts its greeting into the field, or hands the click to the fan's model's tab (its deferred greet grant, `afterGreet`).
   GreetNewcomer: ['generate'],
   // 1.47.0: Voice. The chip writes the script when the studio opens over a draft; a preset, «Переписать» and «Новый
   // войс» write one; «Озвучить» and «Проверить» are the paid create (the same request again for «Проверить»); only
@@ -233,14 +232,14 @@ export const GRANT_TTL_MS = 10_000;
 /** X68: how long the Fix a click started may still write its result — the longest a Fix runs, and some room. */
 export const DEFERRED_INSERT_TTL_MS = OP_TIMEOUTS.fix.maxMs + 15_000;
 /**
- * 2026-10-25: how long «Hi» of a greeting reminder's toast may go on: the card's wait for the fan's check (45 s), the Hi
- * itself (OP_TIMEOUTS.hi), and room for the reads around them.
+ * 2026-10-26: how long «Hi» of a greeting reminder's toast may go on: the fan's chat found or made and opened, and its
+ * dock ready (45 s at most), the Hi itself (OP_TIMEOUTS.hi), and room for the reads around them.
  */
 export const DEFERRED_GREET_TTL_MS = 45_000 + OP_TIMEOUTS.hi.maxMs + 15_000;
 /** The token kinds the toast's Hi goes on with, and the actions of its chain that may take them. */
-const GREET_KINDS: readonly ActionKind[] = ['generate', 'navigate'];
-// `Navigate` (2026-10-25): the chat of a fan somebody greeted meanwhile, or the click handed to the fan's model's tab.
-const GREET_CHAIN: readonly UiAction['type'][] = ['Generate', 'InsertNewcomerGreeting', 'OpenAndInsertPart', 'Navigate'];
+const GREET_KINDS: readonly ActionKind[] = ['navigate', 'generate', 'insert'];
+// `Navigate`: the fan's chat, or the click handed to the fan's model's tab; `Generate`: the dock's Hi; `InsertPart`: its greeting into the field.
+const GREET_CHAIN: readonly UiAction['type'][] = ['Navigate', 'Generate', 'InsertPart'];
 /** A kept key is handed over within the dispatcher's own bound (KEPT_KEY_TTL_MS, 5 s); a little room for the hand-over itself. */
 export const KEPT_KEY_MAX_AGE_MS = 6_000;
 /** Open grants kept; more is a stuck controller, the oldest go. */
@@ -263,7 +262,7 @@ export interface GestureGate {
   /** X68: the one insert token of the last Fix click, for the dock, asked for when that Fix is done. */
   claimDeferred(kind: ActionKind, surface: Surface): GestureRefusal | null;
   /**
-   * 2026-10-25: the toast's Hi goes on with `action` (its card's Generate, then the chat's «Открыть и вставить»): a grant
+   * 2026-10-25: the toast's Hi goes on with `action` (the fan's chat, the dock's Generate, then its InsertPart): a grant
    * of that action's kinds from the Hi's own click, if it has them left; null — opened, else why not.
    */
   afterGreet(action: UiAction['type']): GestureRefusal | null;
