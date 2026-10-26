@@ -734,7 +734,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       creator: ctx.account?.username ?? null,
       persona: ctx.persona?.label ?? null,
       stamp: stamp(iso(loadedAt), list === null ? 'unknown' : 'complete'),
-      source: ctx.binding?.platform === 'fansly' ? 'fansly' : 'onlyfans',
+      seenBy: own !== null ? 'tab' : 'hub',
       minutes,
       periods: ONLINE_PERIODS.map((period) => ({ minutes: period, count: list === null ? 0 : list.items.filter((item) => inPeriod(item, period, live)).length })),
       tab,

@@ -2,7 +2,7 @@
 // text. One place for the rows and the card, so the two never say it differently.
 
 import { type IsoTimestamp } from '@cg/contracts/primitives';
-import { type I18n, type OnlineAct, type OnlineAsideVM, type OnlineCardVM, type OnlineReasonVM, type OnlineRowVM, type OnlineWindowVM } from '@cg/contracts/vm';
+import { type I18n, type OnlineAct, type OnlineAsideVM, type OnlineCardVM, type OnlineReasonVM, type OnlineRowVM } from '@cg/contracts/vm';
 
 /** «через 2 д»: the time left until `at` in the age's own words. */
 export function timeLeft(i18n: I18n, at: IsoTimestamp, now = Date.now()): string {
@@ -72,12 +72,12 @@ export function seenShort(i18n: I18n, fan: Pick<OnlineRowVM, 'live' | 'onlineSin
   return at === null ? i18n.t('common.unknown') : i18n.formatAge(at);
 }
 
-/** The same in a sentence for the card and the tooltip: «в сети сейчас», «зашёл 3 мин назад», «был активен 12 мин назад». */
-export function seenLong(i18n: I18n, fan: Pick<OnlineCardVM, 'live' | 'onlineSince' | 'seenAt'>, source: OnlineWindowVM['source']): string {
+/** The same in a sentence for the card: «в сети сейчас», «зашёл 3 мин назад», «был 12 мин назад». */
+export function seenLong(i18n: I18n, fan: Pick<OnlineCardVM, 'live' | 'onlineSince' | 'seenAt'>): string {
   if (fan.live) return i18n.t('online.seen.liveLong');
   if (fan.onlineSince !== null) return i18n.t('online.seen.came', { age: i18n.formatAge(fan.onlineSince) });
   if (fan.seenAt === null) return i18n.t('online.seen.unknown');
-  return i18n.t(source === 'fansly' ? 'online.seen.active' : 'online.seen.was', { age: i18n.formatAge(fan.seenAt) });
+  return i18n.t('online.seen.was', { age: i18n.formatAge(fan.seenAt) });
 }
 
 /** The first word of a name: «Ivan» of «Ivan Petrov». */

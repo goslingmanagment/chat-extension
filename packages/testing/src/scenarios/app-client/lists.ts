@@ -443,7 +443,7 @@ export function onlineWindow(ctx: ScenarioCtx, view: VmView, rows: readonly Onli
     creator: null,
     persona: PERSONA.label,
     stamp: stamp(ctx),
-    source: 'onlyfans',
+    seenBy: 'hub',
     minutes: 30,
     periods: [
       { minutes: 10, count: 2 },

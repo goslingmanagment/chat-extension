@@ -59,7 +59,7 @@ function Line({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null {
     <div class="cg-nw__line cg-ow__line">
       <span>{parts.flatMap((part, index) => (index === 0 ? [part] : [' · ', part]))}</span>
       <span class="cg-num">
-        {i18n.t(vm.source === 'fansly' ? 'online.line.sourceFansly' : 'online.line.sourceOnlyFans')}
+        {i18n.t(vm.seenBy === 'tab' ? 'online.line.sourceTab' : 'online.line.sourceHub')}
         {vm.stamp.asOf === null ? null : ` · ${i18n.t('common.dataAsOf', { time: { time: vm.stamp.asOf } })}`}
       </span>
     </div>
@@ -325,7 +325,7 @@ export function OnlineWindow(): JSX.Element {
           {list}
           <Foot vm={vm} />
         </aside>
-        {vm.card !== null ? <OnlineCard vm={vm} card={vm.card} preview={preview} /> : <EndPane vm={vm} />}
+        {vm.card !== null ? <OnlineCard card={vm.card} preview={preview} /> : <EndPane vm={vm} />}
       </div>
     </NewcomersFrame>
   );

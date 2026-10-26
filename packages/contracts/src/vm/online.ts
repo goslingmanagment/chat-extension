@@ -192,8 +192,11 @@ export interface OnlineWindowVM {
   readonly persona: string | null;
   /** When the list was read: «данные на 19:12». */
   readonly stamp: DataStamp;
-  /** Where «who is online» comes from on this site: OnlyFansAPI through the hub, or the Fansly page itself. */
-  readonly source: 'onlyfans' | 'fansly';
+    /**
+   * Where «who is online» comes from on this page: `hub` — the hub's own presence (OnlyFansAPI), `tab` — the site's page
+   * itself, read by the tab once a minute and reported to the hub.
+   */
+  readonly seenBy: 'hub' | 'tab';
   readonly minutes: OnlinePeriod;
   /** «Зашли за»'s choices with how many fans each holds now. */
   readonly periods: readonly { readonly minutes: OnlinePeriod; readonly count: number }[];

@@ -9,7 +9,7 @@ import { type JSX } from 'preact';
 import { useRef } from 'preact/hooks';
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { type I18n, type OnlineCardVM, type OnlineWindowVM, type PartVM, type PreviewVM } from '@cg/contracts/vm';
+import { type I18n, type OnlineCardVM, type PartVM, type PreviewVM } from '@cg/contracts/vm';
 
 import { Button, Dot, Icon, Spinner, TextField, useDispatch, useI18n, useTooltip } from '../kit';
 import { Feed } from '../spenders/preview/Feed';
@@ -32,7 +32,7 @@ function codeTail(i18n: I18n, code: string): string {
   return Object.hasOwn(CG_REGISTRY, code) ? i18n.t(CG_REGISTRY[code as keyof typeof CG_REGISTRY].body) : '';
 }
 
-function Head({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
+function Head({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const money = [card.username === null ? null : `@${card.username}`, card.lifetime === null ? i18n.t('online.row.notPaid') : i18n.formatMoneyMills(card.lifetime)].filter((part): part is string => part !== null);
@@ -54,7 +54,7 @@ function Head({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
         <div class="cg-nc__meta">
           <span class="ol-meta2">
             <i class={`ol-sdot${card.presence === 'now' ? '' : card.presence === 'fading' ? ' is-fading' : ' is-gone'}`} aria-hidden="true" />
-            {seenLong(i18n, card, vm.source)}
+            {seenLong(i18n, card)}
           </span>
           {subscribed === null ? null : ` · ${i18n.t('online.card.subscribed', { date: { time: subscribed, style: 'date' } })}`}
         </div>
@@ -156,7 +156,7 @@ function bubbleShown(card: OnlineCardVM, preview: PreviewVM): boolean {
   return !preview.feed.items.some((item) => item.sender === 'model' && item.text.trim() === text && (item.at === null || Number.isNaN(since) || Date.parse(item.at) >= since));
 }
 
-function SentBubble({ card, vm }: { readonly card: OnlineCardVM; readonly vm: OnlineWindowVM }): JSX.Element | null {
+function SentBubble({ card }: { readonly card: OnlineCardVM }): JSX.Element | null {
   const i18n = useI18n();
   if (card.version === null) return null;
   const at = card.state === 'sent' ? card.sentAt : card.clickedAt;
@@ -165,7 +165,7 @@ function SentBubble({ card, vm }: { readonly card: OnlineCardVM; readonly vm: On
       {card.version}
       <small class="cg-num">
         {at === null ? '' : i18n.formatTime(at)}
-        {card.state === 'sent' ? ` · ${i18n.t(vm.source === 'fansly' ? 'online.card.viaFansly' : 'online.card.viaChatSpace')}` : ` · ${i18n.t('online.row.sending')}`}
+        {card.state === 'sent' ? ` · ${i18n.t('online.card.sentFrom')}` : ` · ${i18n.t('online.row.sending')}`}
       </small>
     </div>
   );
@@ -232,7 +232,7 @@ function PassButtons({ card, busy }: { readonly card: OnlineCardVM; readonly bus
 }
 
 /** The text's zone under the conversation, by where the fan stands. */
-function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
+function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const field = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
@@ -265,7 +265,7 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
               {card.sentAt === null ? i18n.t('online.row.sentNow', { act }) : i18n.t('online.row.sent', { act, time: { time: card.sentAt } })}
             </b>
             <span>
-              {i18n.t(vm.source === 'fansly' ? 'online.card.viaFansly' : 'online.card.viaChatSpace')} · {i18n.t('online.card.sentTail')}
+              {i18n.t('online.card.sentTail')}
             </span>
             {card.next === null ? null : <Button label={i18n.t('online.card.next', { name: card.next.name })} variant="line" size="sm" trailing={<Icon name="arrowRight" size={14} />} onClick={() => void dispatch({ type: 'SelectOnline', targetHandle: card.next?.handle ?? card.handle })} />}
           </div>
@@ -481,19 +481,19 @@ function Zone({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly car
   );
 }
 
-export function OnlineCard({ vm, card, preview }: { readonly vm: OnlineWindowVM; readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
+export function OnlineCard({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
   const i18n = useI18n();
   const ours = preview.handle === card.handle;
-  const tail = ours && bubbleShown(card, preview) ? <SentBubble card={card} vm={vm} /> : undefined;
+  const tail = ours && bubbleShown(card, preview) ? <SentBubble card={card} /> : undefined;
   return (
     <section class="cg-nc cg-ow__card" aria-label={i18n.t('online.card.label', { name: card.name })} data-cg-online-card={card.state}>
-      <Head vm={vm} card={card} preview={preview} />
+      <Head card={card} preview={preview} />
       <Why card={card} />
       <div class="cg-ow__conv">
         {ours && preview.archive.stamp.asOf !== null ? <ArchivePill preview={preview} /> : null}
         <Feed handle={ours ? preview.handle : null} feed={ours ? preview.feed : { items: [], hasOlder: false, loadingOlder: false, olderError: null }} empty={!ours || preview.view.s === 'loading' ? null : { key: 'online.card.noFeed' }} loading={!ours || preview.view.s === 'loading'} seen={ours ? preview.seen : null} {...(tail === undefined ? {} : { tail })} />
       </div>
-      <Zone vm={vm} card={card} preview={preview} />
+      <Zone card={card} preview={preview} />
     </section>
   );
 }
