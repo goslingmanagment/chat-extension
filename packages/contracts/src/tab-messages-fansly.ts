@@ -40,7 +40,7 @@ import { SoundBatchSchema } from './sound';
 import { CgAnyErrorWireSchema } from './errors-fansly';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
-import { HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
+import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { SEND_ATTRIBUTION_COMPOSED_WITH } from './hub/attribution';
 import { ChatKeySchema, HumanCauseSchema } from './ids';
 import { ChatReadStateSchema, FanslyPhotoRefSchema, LiveTextMessageSchema } from './host';
@@ -229,6 +229,8 @@ export const FanslyGreetingProofSchema = z
     knownFanMessageIds: z.array(NativeIdSchema).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax)),
     startProof: StartProofV1Schema,
     fanAvatarUrl: z.nullable(HiFanAvatarUrlSchema),
+    /** 2026-10-26: the fan's names and «about» of the profile the pass read; absent — none, or an older background. */
+    fanAccount: z.optional(HiFanAccountSchema),
     /** 1.41.0 (X69): when the pass read these confirmed texts; absent on older backgrounds. */
     capturedAt: z.optional(IsoTimestampSchema),
     tail: z.optional(z.array(LiveTextMessageSchema).check(z.maxLength(LIVE_TEXT_LIMITS.maxItems))),

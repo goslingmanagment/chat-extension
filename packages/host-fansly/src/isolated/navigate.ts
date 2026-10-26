@@ -2,6 +2,9 @@
 // architecture.md §7.6; FS-INS-4; SP-036, NEW-01). Only on a human action: the
 // port spends the click's token before it gets here.
 //
+// - The target's group: the one the target names, the open chat's for its own
+//   fan, else (2026-10-26) the fan's direct group MAIN already received from
+//   the page (`fx.groupForFan`). None of them: nothing moves.
 // - The way in: a click on the inbox row's own link `a[href="/messages/<id>"]`
 //   in `div.messages-list-wrapper` when the row is rendered — the list is
 //   virtual (20 groups a page, the rows near the view only), so a rendered row
@@ -78,6 +81,11 @@ export interface NavigatorEnv {
   readonly load?: (path: string) => void;
   /** Each change of the port's route as it happens (after the port took it); returns the unsubscription. */
   readonly onRoute: (listener: () => void) => () => void;
+  /**
+   * The fan's direct group as the page already received it (MAIN's memory, `fx.groupForFan`; no request of ours), for a
+   * target that names no conversation (2026-10-26: a row of the palette the hub named no chat for). Absent — none.
+   */
+  readonly groupForFan?: (creatorId: string, fanId: string) => Promise<string | null>;
   /** Each navigation's way and outcome, for the tab's log. */
   readonly onNavigate?: (way: NavigationWay, receipt: NavigationReceipt) => void;
 }
@@ -109,6 +117,8 @@ export function createNavigator(env: NavigatorEnv): Navigator {
    * open chat and the port's end stop it — its check never loads a chat over what came after (review of P7e).
    */
   let current: { readonly stop: () => void } | null = null;
+  /** Grows with every navigation and every stop: a navigation still asking MAIN for its group is no longer the latest. */
+  let latest = 0;
 
   /** Into the chat the way a person goes: its inbox row, else the address and a `popstate` Angular reads. */
   const enter = (groupId: string, path: string): NavigationWay => {
@@ -122,7 +132,7 @@ export function createNavigator(env: NavigatorEnv): Navigator {
     return 'popstate';
   };
 
-  const navigate = (intent: NavigationIntent, options: NavigateOptions = {}): Promise<NavigationReceipt> => {
+  const navigate = async (intent: NavigationIntent, options: NavigateOptions = {}): Promise<NavigationReceipt> => {
     const then = intent.thenInsert;
     const target = intent.target;
     let way: NavigationWay = 'here';
@@ -134,15 +144,23 @@ export function createNavigator(env: NavigatorEnv): Navigator {
     // A newer navigation stops the older one: its insert is given up, its check will load nothing.
     current?.stop();
     current = null;
-    if (disposed) return Promise.resolve(failed('CG-NAV-FAILED'));
-    const start = env.open();
+    const mine = (latest += 1);
+    if (disposed) return failed('CG-NAV-FAILED');
+    let start = env.open();
     // Fansly's tab is one creator's: another account cannot be opened from it.
-    if (target.hostAccountId !== env.creator()) return Promise.resolve(failed('CG-NAV-FAILED'));
+    if (target.hostAccountId !== env.creator()) return failed('CG-NAV-FAILED');
     // The account itself (Б13): it is the one open.
-    if (target.platformFanId === null) return Promise.resolve(said({ state: 'navigated', routeEpoch: start.generation, insert: null }));
-    // The fan's conversation is its group (FS-IDN-6): named by the target, or the open chat's when it is that fan's.
-    const groupId = target.conversationRef ?? (start.fanId === target.platformFanId ? start.groupId : null);
-    if (groupId === null) return Promise.resolve(failed('CG-NAV-FAILED'));
+    if (target.platformFanId === null) return said({ state: 'navigated', routeEpoch: start.generation, insert: null });
+    // The fan's conversation is its group (FS-IDN-6): named by the target, or the open chat's when it is that fan's,
+    // else (2026-10-26) the fan's direct group as the page already received it — MAIN's memory, never a request of ours.
+    let groupId = target.conversationRef ?? (start.fanId === target.platformFanId ? start.groupId : null);
+    if (groupId === null && env.groupForFan !== undefined) {
+      groupId = await env.groupForFan(target.hostAccountId, target.platformFanId).catch(() => null);
+      // A newer navigation, a write of ours or the port's end meanwhile, or another creator: this one is over.
+      if (disposed || mine !== latest || target.hostAccountId !== env.creator()) return failed('CG-NAV-FAILED');
+      start = env.open();
+    }
+    if (groupId === null) return failed('CG-NAV-FAILED');
     const path = `/messages/${groupId}`;
     const already = start.groupId === groupId;
     /** A field of this generation or before is not the target's: the field to write into comes after the click. */
@@ -252,7 +270,10 @@ export function createNavigator(env: NavigatorEnv): Navigator {
 
   return {
     navigate,
-    cancel: () => current?.stop(),
+    cancel() {
+      latest += 1;
+      current?.stop();
+    },
     dispose() {
       disposed = true;
       current?.stop();

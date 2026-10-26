@@ -7,7 +7,7 @@
 import * as z from 'zod/mini';
 
 import { TONES, type FeatureId } from '../features';
-import { HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from '../hi-start-proof';
+import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from '../hi-start-proof';
 import { LiveImagesSchema } from '../host';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS } from '../limits';
 import { CoverageDeletedIdsSchema, CoverageWindowSchema, LivePpvStateSchema, coverageIdsOnce, livePpvShapeIs } from '../ops';
@@ -63,6 +63,7 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   startProof: ['hi-greeting'],
   personalMessageCount: ['hi-greeting'],
   fanAvatarUrl: ['hi-greeting'],
+  fanAccount: ['hi-greeting'],
   summaryMode: ['fan-summary'],
   chatterQuestion: ['coach-chat'],
   coachHistory: ['coach-chat'],
@@ -268,6 +269,11 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   personalMessageCount: z.optional(CountSchema),
   /** FX-018: same schema as the old clientContext avatar; the hub forwards it as an image, never fetches it. */
   fanAvatarUrl: z.optional(HiFanAvatarUrlSchema),
+  /**
+   * 2026-10-26: the fan's names and «about» as the page or the pass read his account — only Fansly hi-greeting under
+   * `hi-fan-account-v1`. The hub keeps its own values where it has them and fills the rest from these.
+   */
+  fanAccount: z.optional(HiFanAccountSchema),
   /** 1.48.0: «с Recap» unticked for the chat (`StartOp.recap`) — only to a hub that lists `recap-off-v1`. */
   recap: z.optional(z.literal('off')),
   /** «Рассылка» (`StartOp.draftPurpose`): Fix of a mass message for one fan — only to a hub that lists `outreach-fix-v1`. */
@@ -304,6 +310,9 @@ export const HubStreamRequestSchema = z
     }),
     z.refine((r) => !hasHiStartFields(r.body) || (r.body.platform === 'fansly' && r.capabilities.includes('hi-start-proof-v1')) || (r.body.platform === 'onlyfans' && hasOnlyPersonalCount(r.body)), {
       message: 'Hi fields need Fansly and hi-start-proof-v1; OnlyFans takes the personal count alone',
+    }),
+    z.refine((r) => r.body.fanAccount === undefined || (r.body.platform === 'fansly' && r.capabilities.includes('hi-fan-account-v1')), {
+      message: 'fanAccount needs Fansly and hi-fan-account-v1',
     }),
     z.refine((r) => hiStartProofMatches(r.body, r.body.conversationRef), { message: 'start_proof_mismatch' }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),

@@ -80,6 +80,8 @@ export interface PassGreetingProof {
   readonly startProof: NonNullable<StartOp['startProof']>;
   /** The avatar of the profile the pass read (FX-018); null — none fit to send. */
   readonly fanAvatarUrl: string | null;
+  /** 2026-10-26: the names and «about» of the profile the pass read; absent — none. */
+  readonly fanAccount?: StartOp['fanAccount'];
   readonly capturedAt?: string | undefined;
   readonly tail?: LiveTextTail['messages'] | undefined;
 }

@@ -279,9 +279,12 @@ export const UI_TEXT_KEYS = [
   // 2026-10-22: what Coach stands on, said in its topbar and under every answer; what a Reply or a Ping stood on.
   'coach.recap.use', 'coach.recap.age', 'coach.recap.ageBoth', 'coach.recap.ageShort', 'coach.turn.recapOff', 'result.meta.recapOff',
   'recap.tick', 'recap.tick.onHint', 'recap.tick.offHint', 'recap.usedBy.off', 'result.recap.onHint', 'result.recap.offHint', 'coach.recap.noneSome', 'coach.recap.ahead', 'coach.recap.aheadShort',
-  'coach.recap.aheadRefresh', 'coach.recap.building', 'coach.recap.build', 'coach.recap.refresh', 'coach.recap.buildFull',
+  'coach.recap.aheadRefresh', 'coach.recap.building', 'coach.recap.build', 'coach.recap.refresh',
   // 2026-10-24: a Recap built from Coach opens no sheet of the dock behind the window; a failed build is said in Coach.
   'coach.recap.failed',
+  // 2026-10-26: «Собрать Recap ▾» / «Обновить Recap ▾» in Coach asks which one: the full or the short.
+  'coach.recap.menu.full', 'coach.recap.menu.short', 'coach.recap.menu.fullTime', 'coach.recap.menu.shortTime', 'coach.recap.menu.have',
+  'coach.recap.menu.missing', 'coach.recap.menu.depth',
   'coach.turn.recap', 'coach.turn.recapBoth', 'coach.turn.recapShort', 'coach.turn.noRecap', 'result.meta.recap',
   'recap.usedBy.full', 'recap.usedBy.short', 'recap.usedBy.one', 'recap.usedBy.some', 'recap.picker.explain', 'coach.newDialog.confirm', 'coach.newDialog.keep',
   // The old card's line under a Coach draft in Cyrillic for a fan who does not write Cyrillic: neither Insert nor Copy.
@@ -479,7 +482,11 @@ export const UI_PLURAL_KEYS = [
   'spenders.headOf',
   'fanPanel.footer', 'fanPanel.footerCoverage',
   'coach.archiveLag', 'coach.recap.none',
-  'palette.foot.chats',
+  // 2026-10-26: what each Recap of Coach's menu reads, and the line while one is built.
+  'coach.recap.menu.fullWhat', 'coach.recap.menu.shortWhat', 'coach.recap.menu.fullAgain', 'coach.recap.menu.shortAgain',
+  'coach.recap.buildingFull', 'coach.recap.buildingShort',
+  // 2026-10-26: a site whose «Новые» are not the hub's list (Fansly): the palette looked in Spenders alone.
+  'palette.foot.chats', 'palette.foot.spenders',
   'quickJump.unread',
   'settings.status.needActions', 'settings.status.warnings', 'settings.status.row.quotaLeft', 'settings.status.row.runningCount',
   // 1.30.0 (X53)

@@ -24,7 +24,8 @@ second): open it for the owner in the Claude desktop browser pane. `--gif`
 makes `see.gif` from the run's frames (needs `ffmpeg`).
 
 Scenarios: `dock`, `reply`, `reply-wait` (the sheet at the click while the start still reads the open chat), `coach`, `coach-recap` (what a
-Recap is used by: the Recap picker's words, Coach «Recap нет» and an answer «без Recap», «Собрать Recap» from Coach,
+Recap is used by: the Recap picker's words, Coach «Recap нет» and an answer «без Recap», «Собрать Recap ▾» from Coach with
+its menu (the full or the short one) and the line while the full one is built, «Обновить Recap ▾» with each one's age,
 the next answer «с Recap», «Учитывать Recap» unticked and an answer «без Recap — выключен», a Reply whose head still shows
 «с Recap» ticked, the head's tick pressed and the Reply made again without it, the Recap's «в этом чате его учитывают только
 Fix и Ping»), `recap`,
@@ -37,7 +38,8 @@ version this window cannot send with why and «Открыть и вставит�
 `fan-panel`, `pages` (popup and settings), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
 first), `log-download` (Hi on in a long chat, Ping off in a short one by its
 gate, pressed, then «Скачать лог» in the popup; the files land in
-the run's `downloads/`). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`,
+the run's `downloads/`). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over
+the hub's rows of Spenders: a found row and a row of «Ждут ответа» each open their fan's chat),
 `review`, `pages`, `fansly-hi` (Hi after a cold load), `fansly-notes` («Заметки»: a long note, an edit after
 someone else's change), `fansly-switch` (the switch from the old extension: «Включить Fansly» in the popup, the
 no-direct-connection hint, the old extension's notice, its personas carried over), `fansly-ppv` (Reply's

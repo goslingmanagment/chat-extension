@@ -33,10 +33,10 @@
 
 import { type ReadonlySignal } from '@preact/signals';
 import { type JSX } from 'preact';
-import { useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { COACH_LIMITS } from '@cg/contracts/limits';
-import { type CoachTurnVM, type CoachVM, type MountDeps } from '@cg/contracts/vm';
+import { type CoachTurnVM, type CoachVM, type MountDeps, type RecapLength, type RecapPickerVM } from '@cg/contracts/vm';
 
 import {
   Button,
@@ -46,6 +46,8 @@ import {
   ErrorCard,
   Icon,
   Markdown,
+  Menu,
+  MenuAnchor,
   OverlayLayer,
   Spinner,
   StageLine,
@@ -53,6 +55,7 @@ import {
   ViewState,
   focusQuietly,
   hotkeyText,
+  menuTriggerKeys,
   mountKitSurface,
   useDispatch,
   useI18n,
@@ -62,6 +65,7 @@ import {
   useView,
   type KitMount,
   type KitMountOptions,
+  type MenuItem,
   type StyleSource,
   type SurfaceDefinition,
 } from '../../kit';
@@ -242,9 +246,10 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
  * What Coach stands on (AI-095), said before anything is asked: «☑ Учитывать Recap · 3 д назад» — the Recaps the hub
  * attaches to every question, unfolding into their texts; the tick is the dock's «с Recap» of the chat, and unticked
  * the next question goes without them — or «Recap нет — Coach видит только последние
- * 100 сообщений»; one button by it builds or refreshes the full Recap (the one Reply and Ping use too), as the dock's
- * Recap sheet builds it. While one is built: «Собираю Recap — обычно около полутора минут»; one that failed: «Recap не
- * собрался · CG-…» by that button.
+ * 100 сообщений». «Собрать Recap ▾» / «Обновить Recap ▾» by it asks which one to build (2026-10-26, the owner: the
+ * button built the full one without a word): the full or the short one, what each reads and who uses it, as the dock's
+ * Recap sheet builds them. While one is built: «Собираю полный Recap: вся переписка, до 3000 сообщений…»; one that
+ * failed: «Recap не собрался · CG-…» by that button.
  */
 function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
   const i18n = useI18n();
@@ -254,11 +259,10 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
   const picker = useSteadyView(useView({ of: 'recap.picker' })).value;
   const full = vm.recaps.find((recap) => recap.length === 'full') ?? null;
   const short = vm.recaps.find((recap) => recap.length === 'short') ?? null;
-  const build = picker.build.full;
-  // The full Recap's last build (from here or the dock) that failed: said here, by the button that builds it again.
+  // The last build of either length (from here or the dock) that failed: said here, by the button that builds again.
   const followed = useSteadyView(useView({ of: 'recap.view' })).value;
   const failure =
-    followed.length === 'full' && (followed.state === 'failed' || followed.state === 'interrupted') ? (followed.refreshFailed?.error ?? (followed.view.s === 'error' ? followed.view.error : null)) : null;
+    followed.state === 'failed' || followed.state === 'interrupted' ? (followed.refreshFailed?.error ?? (followed.view.s === 'error' ? followed.view.error : null)) : null;
   const failed =
     failure === null ? null : (
       <span class="cg-co__recap-fail" role="status" title={failure.title}>
@@ -269,25 +273,17 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
       </span>
     );
   const age = (at: string): string => i18n.formatAge(at, now());
-  // Built from here, the Recap opens no window over Coach and no sheet of the dock behind it: this line follows it and
-  // says when it is done or that it failed.
-  const action = (label: string): JSX.Element => (
-    <Button
-      label={label}
-      size="sm"
-      variant="line"
-      class="cg-co__recap-btn"
-      reason={build.enabled ? null : build.reason === null ? i18n.t('common.unknown') : i18n.text(build.reason.text)}
-      onClick={() => void dispatch(build.action.type === 'RefreshRecap' ? { ...build.action, panel: true } : build.action)}
-    />
-  );
-  if (vm.recapRunning === true)
+  if (vm.recapRunning === 'full' || vm.recapRunning === 'short') {
+    const n = vm.recapWindows?.[vm.recapRunning] ?? null;
     return (
       <span class="cg-co__recap is-running" role="status">
         <Spinner />
-        <span>{i18n.t('coach.recap.building')}</span>
+        <span>{n === null ? i18n.t('coach.recap.building') : i18n.plural(vm.recapRunning === 'full' ? 'coach.recap.buildingFull' : 'coach.recap.buildingShort', n)}</span>
       </span>
     );
+  }
+  // The length the dock's Recap last showed or built leads the menu: Enter builds it again.
+  const build = <RecapBuild picker={picker} windows={vm.recapWindows ?? null} lead={followed.length} label={i18n.t(full === null && short === null ? 'coach.recap.build' : 'coach.recap.refresh')} />;
   if (full === null && short === null) {
     const said =
       vm.autoRecapNext === 'full'
@@ -302,7 +298,7 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
         <Icon name="dossier" size={14} />
         <span>{said}</span>
         {failed}
-        {action(i18n.t('coach.recap.build'))}
+        {build}
       </span>
     );
   }
@@ -347,8 +343,77 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
         </div>
       </details>
       {failed}
-      {action(i18n.t(full === null ? 'coach.recap.buildFull' : 'coach.recap.refresh'))}
+      {build}
     </span>
+  );
+}
+
+/**
+ * «Собрать Recap ▾» / «Обновить Recap ▾»: a menu of the two Recaps — what each reads, how long it takes and who uses
+ * it, or, when one is saved already, how old each is. A click on one builds it at once. Built from here, the Recap
+ * opens no window over Coach and no sheet of the dock behind it: the line follows it and says when it is done.
+ */
+function RecapBuild({ picker, windows, lead, label }: { readonly picker: RecapPickerVM; readonly windows: CoachVM['recapWindows'] | null; readonly lead: RecapLength; readonly label: string }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const now = useNowFn();
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const returnFocus = useCallback(() => trigger.current, []);
+  const reasonOf = (length: RecapLength): string | null => {
+    const build = picker.build[length];
+    return build.enabled ? null : build.reason === null ? i18n.t('common.unknown') : i18n.text(build.reason.text);
+  };
+  // Nothing saved: each says its time; something saved: each says how old it is, and the time goes into its line.
+  const saved = picker.slots.full !== null || picker.slots.short !== null;
+  const item = (length: RecapLength): MenuItem => {
+    const slot = picker.slots[length];
+    const n = windows?.[length] ?? null;
+    const what =
+      length === 'full' ? (saved ? 'coach.recap.menu.fullAgain' : 'coach.recap.menu.fullWhat') : saved ? 'coach.recap.menu.shortAgain' : 'coach.recap.menu.shortWhat';
+    const note = saved
+      ? slot === null
+        ? i18n.t('coach.recap.menu.missing')
+        : i18n.t('coach.recap.menu.have', { age: i18n.formatAge(slot.generatedAt, now()) })
+      : i18n.t(length === 'full' ? 'coach.recap.menu.fullTime' : 'coach.recap.menu.shortTime');
+    return { id: length, label: i18n.t(length === 'full' ? 'coach.recap.menu.full' : 'coach.recap.menu.short'), note, ...(n === null ? {} : { detail: i18n.plural(what, n) }), reason: reasonOf(length) };
+  };
+  // Neither can be built (a build runs, the page has no Recap): the button says why, the menu does not open.
+  const blocked = reasonOf('full') !== null && reasonOf('short') !== null ? reasonOf('full') : null;
+  return (
+    <MenuAnchor>
+      <Button
+        label={label}
+        size="sm"
+        variant="line"
+        class="cg-co__recap-btn"
+        buttonRef={trigger}
+        haspopup="menu"
+        expanded={open}
+        reason={blocked}
+        trailing={<Icon name="chevronDown" size={14} />}
+        onClick={() => setOpen((before) => !before)}
+        onKeyDown={(event) => {
+          if (!open) menuTriggerKeys(event, () => setOpen(true));
+        }}
+      />
+      <Menu
+        open={open}
+        kind="action"
+        label={label}
+        items={[item('full'), item('short')]}
+        placement="bottom"
+        focusId={lead}
+        footer={i18n.t('coach.recap.menu.depth')}
+        onClose={close}
+        returnFocusTo={returnFocus}
+        onSelect={(id) => {
+          const action = picker.build[id === 'short' ? 'short' : 'full'].action;
+          void dispatch(action.type === 'RefreshRecap' ? { ...action, panel: true } : action);
+        }}
+      />
+    </MenuAnchor>
   );
 }
 

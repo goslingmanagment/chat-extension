@@ -371,6 +371,7 @@ function proofOf(n: number, personal = 1): FanslyGreetingProof {
     knownFanMessageIds: [fans],
     startProof: { v: 1, source: 'pass-empty-page', groupId: group(n), startWitnessId: welcome, coveredCount: Math.max(2, personal + 1), personalCount: personal, automatedIds: [welcome] },
     fanAvatarUrl: AVATAR,
+    fanAccount: { username: `fan_${n}`, displayName: `Fan ${n}` },
   };
 }
 
@@ -607,6 +608,7 @@ describe('[host:fansly] «Новые» on Fansly: the card’s greeting (R20 P10
       startProof: proof.startProof,
       personalMessageCount: 1,
       fanAvatarUrl: AVATAR,
+      fanAccount: { username: 'fan_1', displayName: 'Fan 1' },
     });
     expect(start?.target.conversationRef).not.toBe(fan(1));
     expect(w.tab.tokens).toEqual(['generate']);

@@ -228,8 +228,13 @@ export interface CoachVM {
    * question goes without the Recaps. Absent or null — no tick: the hub cannot leave them out.
    */
   readonly recapOn?: boolean | null;
-  /** A Recap of this chat is being built (from the topbar's «Собрать Recap», the strip or a turn's auto-recap step): «Recap собирается…». */
-  readonly recapRunning?: boolean;
+  /**
+   * The length of a Recap of this chat being built (from the topbar's «Собрать Recap ▾», the strip or a turn's
+   * auto-recap step): «Собираю полный Recap…». Absent or null — none.
+   */
+  readonly recapRunning?: RecapLength | null;
+  /** How many of the chat's latest messages each Recap reads (the full one: the deep window); null — not known yet. */
+  readonly recapWindows?: { readonly full: number; readonly short: number } | null;
   readonly turns: readonly CoachTurnVM[];
   /** `generation.coach.historyLimit`. */
   readonly historyLimit: number;

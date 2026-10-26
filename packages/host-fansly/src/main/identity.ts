@@ -20,7 +20,11 @@
 //   shared/followers.ts:101-129: a variant ≤ 512 px wide first, the CDN
 //   location, its signature folded into the query) and the hub's
 //   (`fanslyAvatarUrlSchema`: https, a `*.fansly.com` host, ≤ 4096
-//   characters). A string only: nobody here loads it (X37).
+//   characters). A string only: nobody here loads it (X37);
+// - the fan's names and «about» (2026-10-26): `username`, `displayName` and
+//   `about` of the same account answers, trimmed and cut (the «about» to
+//   ACCOUNT_ABOUT_MAX_CHARS). Hi sends them: the hub learns a new follower only
+//   after the greeting goes, and without them a first message named nobody.
 // Bounded: MAX_GROUPS groups and MAX_AVATARS avatars, the least recently
 // touched forgotten first — a group whose chat the observation holds only
 // when no other is left; both are in the memory account (memory.ts).
@@ -28,7 +32,7 @@
 import { idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 
 import type { Memory } from './memory';
-import { AVATAR_MAX_CHARS, AVATAR_PATTERN, COST_GROUP, COST_MEMBER, COST_RECORD, COST_TEXT, KIND_DIRECT, KIND_GROUP, MAX_AVATARS, MAX_GROUPS } from './protocol';
+import { ACCOUNT_ABOUT_MAX_CHARS, ACCOUNT_NAME_MAX_CHARS, AVATAR_MAX_CHARS, AVATAR_PATTERN, COST_GROUP, COST_MEMBER, COST_RECORD, COST_TEXT, KIND_DIRECT, KIND_GROUP, MAX_AVATARS, MAX_GROUPS } from './protocol';
 
 export type Kind = typeof KIND_DIRECT | typeof KIND_GROUP;
 
@@ -115,11 +119,45 @@ export function avatarOf(account: Plain, Url: typeof URL): string | null {
   return null;
 }
 
+/** What Hi takes of a fan's account besides the avatar: each value trimmed, cut, absent when empty. */
+export interface AccountNames {
+  readonly username?: string;
+  readonly displayName?: string;
+  readonly about?: string;
+}
+
+interface Account {
+  readonly avatar: string | null;
+  readonly names: AccountNames | null;
+}
+
+/** A text of an account answer, trimmed and cut at `max` without half of a surrogate pair; null — none. */
+function textOf(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null;
+  let text = value.trim();
+  if (text.length > max) {
+    text = text.slice(0, max);
+    const last = text.charCodeAt(text.length - 1);
+    if (last >= 0xd800 && last <= 0xdbff) text = text.slice(0, -1);
+    text = text.trim();
+  }
+  return text === '' ? null : text;
+}
+
+/** The names and «about» of an account answer; null — none of them. */
+export function namesOf(account: Plain): AccountNames | null {
+  const username = textOf(typeof account['username'] === 'string' ? account['username'].replace(/^@/, '') : null, ACCOUNT_NAME_MAX_CHARS);
+  const displayName = textOf(account['displayName'], ACCOUNT_NAME_MAX_CHARS);
+  const about = textOf(account['about'], ACCOUNT_ABOUT_MAX_CHARS);
+  if (username === null && displayName === null && about === null) return null;
+  return { ...(username === null ? {} : { username }), ...(displayName === null ? {} : { displayName }), ...(about === null ? {} : { about }) };
+}
+
 export interface Identity {
   creator: string | null;
   /** A group of an answer asked at observation `seen` (`/group/<id>/`, `aggregationData.groups[]`): its id, or null — not a group. */
   readGroup(value: unknown, seen: number): string | null;
-  /** An account of an answer: its avatar, if it has one fit to send. */
+  /** An account of an answer: its avatar, if it has one fit to send, and its names and «about». */
   readAccount(value: unknown): void;
   /** A member added (4/6) or removed (4/7) at observation `seen`; true — the group's fan or kind changed. */
   member(groupId: string, userId: string | null, added: boolean, seen: number): boolean;
@@ -129,9 +167,11 @@ export interface Identity {
   fan(groupId: string): string | null;
   dm(groupId: string): boolean | null;
   avatar(fanId: string): string | null;
+  /** The fan's names and «about» the page's answers gave; null — none known. */
+  account(fanId: string): AccountNames | null;
   /** Forgets the least recently touched group but `keep`; false — none to forget. */
   evict(keep: string | null): boolean;
-  /** Forgets the least recently seen avatar; false — none left. */
+  /** Forgets the least recently seen account (its avatar and names); false — none left. */
   evictAvatar(): boolean;
 }
 
@@ -141,9 +181,11 @@ export interface Identity {
  */
 export function createIdentity(memory: Memory, parse: (text: string) => unknown, Url: typeof URL, held: (groupId: string) => boolean = () => false): Identity {
   const groups = new Map<string, Group>();
-  const avatars = new Map<string, string>();
+  const accounts = new Map<string, Account>();
   const groupCost = (group: Group): number => COST_GROUP + COST_MEMBER * (group.members?.length ?? 0);
-  const avatarCost = (url: string): number => COST_RECORD + COST_TEXT + 2 * url.length;
+  const textCost = (text: string | null | undefined): number => (text === null || text === undefined ? 0 : COST_TEXT + 2 * text.length);
+  const accountCost = (account: Account): number =>
+    COST_RECORD + textCost(account.avatar) + textCost(account.names?.username) + textCost(account.names?.displayName) + textCost(account.names?.about);
 
   /** The group, touched: last in the map's order. */
   const take = (id: string): Group | undefined => {
@@ -167,9 +209,9 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
     return group;
   };
 
-  const forgetAvatar = (id: string, url: string): void => {
-    avatars.delete(id);
-    memory.groups -= avatarCost(url);
+  const forgetAccount = (id: string, account: Account): void => {
+    accounts.delete(id);
+    memory.groups -= accountCost(account);
   };
 
   const identity: Identity = {
@@ -211,13 +253,15 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
     readAccount(value) {
       if (!isPlain(value)) return;
       const id = idOf(value['id']);
-      const url = id === null || id === identity.creator ? null : avatarOf(value, Url);
-      if (id === null || url === null) return;
-      const old = avatars.get(id);
-      if (old !== undefined) forgetAvatar(id, old);
-      avatars.set(id, url);
-      memory.groups += avatarCost(url);
-      if (avatars.size > MAX_AVATARS) identity.evictAvatar();
+      if (id === null || id === identity.creator) return;
+      const old = accounts.get(id);
+      // An answer without an avatar keeps the earlier avatar, one without names the earlier names (the inbox's accounts and `/account?ids=` differ).
+      const account: Account = { avatar: avatarOf(value, Url) ?? old?.avatar ?? null, names: namesOf(value) ?? old?.names ?? null };
+      if (account.avatar === null && account.names === null) return;
+      if (old !== undefined) forgetAccount(id, old);
+      accounts.set(id, account);
+      memory.groups += accountCost(account);
+      if (accounts.size > MAX_AVATARS) identity.evictAvatar();
     },
     member(groupId, userId, added, seen) {
       // A group the page never showed us is remembered by the frame alone: an answer asked before it cannot undo it.
@@ -247,10 +291,11 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
       return groups.get(groupId)?.members?.find((id) => id !== identity.creator) ?? null;
     },
     dm: (groupId) => groups.get(groupId)?.dm ?? null,
-    avatar: (fanId) => avatars.get(fanId) ?? null,
+    avatar: (fanId) => accounts.get(fanId)?.avatar ?? null,
+    account: (fanId) => accounts.get(fanId)?.names ?? null,
     evictAvatar() {
-      for (const [id, url] of avatars) {
-        forgetAvatar(id, url);
+      for (const [id, account] of accounts) {
+        forgetAccount(id, account);
         return true;
       }
       return false;

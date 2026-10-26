@@ -40,6 +40,8 @@ export const FEATURES_COMMON = {
   spenders: { kind: 'board', chip: { group: 'windows', priority: 10, icon: 'bill' }, hotkey: 'spenders' },
   newcomers: { kind: 'board', chip: { group: 'windows', priority: 20, icon: 'userPlus' } },
   'fan-panel': { kind: 'panel' },
+  /** The palette ⌘K (a row of the reference outside the scheme). 2026-10-26: on both sites; each says where its chats come from. */
+  palette: { kind: 'panel' },
   sound: { kind: 'service' },
   /**
    * 1.15.0 (R20 P7i). A person's own send of a part of ours, taken for known (`op.reportSent`: telemetry `sent`, the

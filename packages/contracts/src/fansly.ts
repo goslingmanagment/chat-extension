@@ -15,7 +15,7 @@
 import * as z from 'zod/mini';
 
 import { FeatureIdSchema } from './features';
-import { HiFanAvatarUrlSchema as FanslyAvatarUrlSchema, START_PROOF_LIMITS, StartProofV1Schema } from './hi-start-proof';
+import { HiFanAccountSchema, HiFanAvatarUrlSchema as FanslyAvatarUrlSchema, START_PROOF_LIMITS, StartProofV1Schema } from './hi-start-proof';
 import type { Unsubscribe } from './host';
 import { LIVE_TEXT_LIMITS } from './limits';
 import { nativeIdsAscending as ascending, CountSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText, type NativeId } from './primitives';
@@ -129,7 +129,8 @@ export type FanslyCoverageReason = (typeof FANSLY_COVERAGE_REASONS)[number];
 
 // The page and the shared wire use the same Hi schemas. Preserve the site's subpath API from P4a2.
 export { HI_FAN_AVATAR_URL_PATTERN as FANSLY_AVATAR_URL_PATTERN, HiFanAvatarUrlSchema as FanslyAvatarUrlSchema, START_PROOF_SOURCES, StartProofV1Schema } from './hi-start-proof';
-export type { StartProofSource, StartProofV1 } from './hi-start-proof';
+export type { HiFanAccount, StartProofSource, StartProofV1 } from './hi-start-proof';
+export { HI_FAN_ACCOUNT_LIMITS, HiFanAccountSchema, hiFanAccountOf } from './hi-start-proof';
 
 // ── FanslySnapshot (§5.8, FS-TAIL-6) ───────────────────────────────────────
 
@@ -171,6 +172,8 @@ const snapshotShape = {
   startProof: z.optional(StartProofV1Schema),
   /** Hi only: the fan's avatar, when the page loaded it (FX-018). */
   fanAvatarUrl: z.optional(FanslyAvatarUrlSchema),
+  /** Hi only (2026-10-26): the fan's names and «about», when the page loaded the account. */
+  fanAccount: z.optional(HiFanAccountSchema),
   /**
    * The texts of the window, oldest first, for a start admitted to fresh text.
    * Empty is a lawful tail (a chat without a text); absent — not requested or no texts held.
@@ -189,6 +192,7 @@ type SnapshotShape = {
   readonly deletedIds: readonly string[];
   readonly startProof?: { readonly groupId: string } | undefined;
   readonly fanAvatarUrl?: string | undefined;
+  readonly fanAccount?: object | undefined;
   readonly tail?: ReadonlyArray<{ readonly platformMessageId: string; readonly direction: 'fan' | 'model' }> | undefined;
   readonly truncated: boolean;
 };
@@ -214,9 +218,9 @@ function snapshotStateHolds(s: SnapshotShape): boolean {
   return !s.truncated || s.tail !== undefined;
 }
 
-/** The start proof and the avatar are only for Hi, of this very chat. */
+/** The start proof, the avatar and the fan's account are only for Hi, of this very chat. */
 function snapshotFeatureHolds(s: SnapshotShape): boolean {
-  if ((s.startProof !== undefined || s.fanAvatarUrl !== undefined) && s.feature !== 'hi') return false;
+  if ((s.startProof !== undefined || s.fanAvatarUrl !== undefined || s.fanAccount !== undefined) && s.feature !== 'hi') return false;
   if (s.startProof !== undefined && s.startProof.groupId !== s.identity.groupId) return false;
   return s.identity.creatorId !== s.identity.fanId;
 }

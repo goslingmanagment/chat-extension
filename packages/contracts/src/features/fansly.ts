@@ -1,8 +1,8 @@
 // The feature manifest, fansly.com (R20, docs/project-unite/architecture.md
 // §1.4, §11.1): what each feature needs on Fansly and the features only Fansly
 // has — the fan's notes and «Заполнить из чата», «Регистрация»,
-// the vault, «Fansly через вкладку». Nothing of ChatSpace's X8, navigation or
-// palette: they do not exist here.
+// the vault, «Fansly через вкладку». Nothing of ChatSpace's X8 or navigation:
+// they do not exist here.
 //
 // A site module: imported by its subpath only (`@cg/contracts/features/fansly`),
 // by Fansly's own composition roots; no ChatSpace bundle and no core of the
@@ -74,6 +74,9 @@ const FEATURES = {
   // Chat Memory week 1: who sent each message, told to the hub (`send-attribution-v1`): every message the page sent from
   // this tab (its own `POST /api/v1/message`), and the background's sends of a person's click. No owner switch.
   'send-attribution': { base: { flags: [], hostCapabilities: ['sendObserve'], clientNeeds: ['send-attribution-v1'] }, actions: {}, surfaces: [], source: 'page' },
+  // 2026-10-26: ⌘K. The window needs no switch; its chats are the hub's rows of Spenders («Ждут ответа», the board), each
+  // opened as the board opens a fan's chat (`spenders` on the page, decision X13): Fansly has no navigation of ours.
+  palette: { base: NOTHING, actions: {}, surfaces: ['palette'], source: 'hub' },
 
   // A script from the draft and its paid voicing (the hub, HF-4); the MP3 goes into the field of this chat through
   // Fansly's own input and upload modal (§7.10, HostPort.attachFile).

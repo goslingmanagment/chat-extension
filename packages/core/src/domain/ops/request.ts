@@ -127,6 +127,9 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // proof too: the hub's Fansly manifest asks for the capability. Hi has no message limit (2026-10-21).
   const hiByProof = start.feature === 'hi' && HI_BY_START_PROOF[start.target.binding.platform] && hasCapability(ctx.bootstrap.capabilities, 'hi-start-proof-v1');
   if (hiByProof) capabilities.push('hi-start-proof-v1');
+  // 2026-10-26: the fan's names and «about» for Hi on Fansly, to a hub that takes them; else they stay home.
+  const fanAccount = hiByProof && start.fanAccount !== undefined && hasCapability(ctx.bootstrap.capabilities, 'hi-fan-account-v1') ? start.fanAccount : undefined;
+  if (fanAccount !== undefined) capabilities.push('hi-fan-account-v1');
 
   const window = Math.max(Math.min(start.window, Math.max(AI_REQUEST_LIMITS.messageCountMin, ctx.bootstrap.limits.deepMax)), proof?.window.length ?? 0);
   const body: { -readonly [K in keyof AiFeatureStreamBody]: AiFeatureStreamBody[K] } = {
@@ -152,6 +155,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // 2026-10-21; the hub still takes it). A site with a proof sends both on its lane above.
   else if (start.feature === 'hi' && start.startProof === undefined && start.personalMessageCount !== undefined) body.personalMessageCount = start.personalMessageCount;
   if (hiByProof && start.fanAvatarUrl !== undefined) body.fanAvatarUrl = start.fanAvatarUrl;
+  if (fanAccount !== undefined) body.fanAccount = { ...fanAccount };
   if (start.feature === 'recap-short') body.summaryMode = 'short';
   if (start.feature === 'coach' && start.coach !== undefined) {
     // A preset's question lives on the hub: the hub refuses a body that names both («coach-chat preset forbids

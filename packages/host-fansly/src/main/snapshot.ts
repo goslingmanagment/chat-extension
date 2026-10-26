@@ -194,6 +194,9 @@ export function createViews(observation: Observation, identity: Identity, string
         }
         const avatar = identity.avatar(fanId);
         if (avatar !== null) out['fanAvatarUrl'] = avatar;
+        // 2026-10-26: the fan's names and «about» the page's answers gave, for the hub that has not met them yet.
+        const account = identity.account(fanId);
+        if (account !== null) out['fanAccount'] = { ...account };
       }
 
       if (request.withText) {

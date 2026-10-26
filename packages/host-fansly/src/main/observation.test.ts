@@ -130,6 +130,27 @@ describe('[host:fansly] who is who: the creator, the group’s fan, the DM rules
     await settle();
     expect(await meta(c)).toMatchObject({ fanId: FAN, kind: 'direct' });
   });
+
+  it('2026-10-26: Hi’s snapshot carries the fan’s names and «about» of the page’s account answers, trimmed and cut; another feature’s and the creator’s never', async () => {
+    const { c } = await tab();
+    const about = `  ${'guitar and cats. '.repeat(100)}`;
+    request(c.win, `${API}/account?ids=${FAN},${CREATOR}&ngsw-bypass=true`).respond(200, ok([
+      { id: FAN, username: '@romamai ', displayName: ' Roma ', about },
+      { id: CREATOR, username: 'model', displayName: 'Model', about: 'mine' },
+    ]));
+    fresh(c.win).respond(200, freshEnd(conversation(1, 3)));
+    await settle();
+    const account = { username: 'romamai', displayName: 'Roma', about: about.trim().slice(0, 1500).trim() };
+    expect((await snap(c, { feature: 'hi' }))?.fanAccount).toEqual(account);
+    expect((await snap(c))?.fanAccount).toBeUndefined();
+    // A later answer of the account with no names (its avatar alone) keeps them; one with names gives the newest.
+    request(c.win, `${API}/account?ids=${FAN}&ngsw-bypass=true`).respond(200, ok([{ id: FAN, avatar: { location: 'https://cdn3.fansly.com/a/1.jpeg' } }]));
+    await settle();
+    expect(await snap(c, { feature: 'hi' })).toMatchObject({ fanAccount: account, fanAvatarUrl: 'https://cdn3.fansly.com/a/1.jpeg' });
+    request(c.win, `${API}/account?ids=${FAN}&ngsw-bypass=true`).respond(200, ok([{ id: FAN, username: 'roma_m' }]));
+    await settle();
+    expect(await snap(c, { feature: 'hi' })).toMatchObject({ fanAccount: { username: 'roma_m' }, fanAvatarUrl: 'https://cdn3.fansly.com/a/1.jpeg' });
+  });
 });
 
 describe('[host:fansly] completeness and certificates (FS-TAIL-4, §5.6)', () => {

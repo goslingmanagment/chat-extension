@@ -36,6 +36,7 @@ import { type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { RECAP_OFF_CAPABILITY, chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { COVERAGE_LEVELS, type COACH_BLOCK_KINDS, type CoverageLevel, type ReviewDoc } from '@cg/contracts/ops';
+import { type SettingsExt } from '@cg/contracts/settings-ext';
 import {
   type ActionButtonVM,
   type ActionReceipt,
@@ -104,6 +105,8 @@ const HINT_GROUPS: readonly { readonly label: I18nKey; readonly questions: reado
 ];
 /** Built views of exchanges of other dialogs are dropped once this many pile up beyond the shown feed. */
 const COACH_BUILT_SLACK = 50;
+/** How often the shown window reads the site's deep window again (the Recap menu's count). */
+const DEEP_WINDOW_REREAD_MS = 60_000;
 /** Chats whose archive point («Переписка на 09:20») is remembered; the one refreshed longest ago goes first. */
 export const COACH_ARCHIVES_MAX = 32;
 /** AI-094: follow-ups under the latest answer; «Разбор ситуации» first, as the old window had it on every turn. */
@@ -165,6 +168,23 @@ export function createCoachController(ws: AiWorkspace): CoachController {
   const pages = new Map<string, number>();
 
   const keyOf = (ready: ReadyTarget): CoachSessionKey => ({ chatKey: chatKeyOf(ready.target.chat), personaDefinitionId: ready.persona.definitionId });
+
+  // The deep window the site keeps (Fansly's settings.ext, R20 §12) for the Recap menu's «до N сообщений»: read in the
+  // background at most once a minute while the window is shown; until it is known, the v1 window stands.
+  let extended: SettingsExt['windows'] | undefined;
+  let extendedAt = Number.NEGATIVE_INFINITY;
+  function deepWindows(): SettingsExt['windows'] | undefined {
+    const now = clock.now();
+    if (now - extendedAt >= DEEP_WINDOW_REREAD_MS) {
+      extendedAt = now;
+      void ws.windows().then((read) => {
+        if (read?.deep === extended?.deep) return;
+        extended = read;
+        ws.bump();
+      });
+    }
+    return extended;
+  }
 
   /** The page of a session; pages of sessions the store no longer keeps (five at most) go. */
   function rememberPage(sessionId: string, pageId: number): void {
@@ -768,8 +788,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     if (slots.full !== null) recaps.push({ length: 'full', generatedAt: slots.full.revision, summary: slots.full.markdown });
     if (slots.short !== null && (slots.full === null || Date.parse(slots.short.revision) > Date.parse(slots.full.revision)))
       recaps.push({ length: 'short', generatedAt: slots.short.revision, summary: slots.short.markdown });
-    // A Recap of this chat being built — from «Recap ▾», the strip or a turn's own step: the topbar says so.
-    const recapRunning = running !== null && (running.view.feature === 'recap' || running.view.feature === 'recap-short');
+    // A Recap of this chat being built — from «Recap ▾», the strip or a turn's own step: the topbar says which.
+    const recapRunning = running === null ? null : running.view.feature === 'recap' ? 'full' : running.view.feature === 'recap-short' ? 'short' : null;
     // The follow-ups are about an answer of Coach; before one — a Review alone, too — the opening questions stand. Where
     // Coach's questions are off (its Review on) there are none.
     const hasExchange = session !== null && exchangesOf(session).length > 0;
@@ -803,6 +823,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       },
       recaps,
       recapRunning,
+      recapWindows:
+        ready === null
+          ? null
+          : { full: windowFor('recap', undefined, ready.settings, ready.bootstrap, deepWindows()), short: windowFor('recap-short', undefined, ready.settings, ready.bootstrap) },
       window: ready === null ? null : windowFor('coach', undefined, ready.settings, ready.bootstrap),
       recapOn,
       // Before the first question of a session only; a page without Recap builds none (AI-096), nor an unticked chat.

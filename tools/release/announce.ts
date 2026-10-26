@@ -5,7 +5,7 @@
 // that links to each; then ✨ Новое / 🛠 Улучшено / 🐛 Исправлено, each note
 // with its title, its sites, who it is for and why, every screenshot full
 // width with its caption and «Как это устроено» folded; at the end how the
-// update comes and two buttons — «Что нового» on the site and «Установить».
+// update comes.
 //
 // The screenshots go up with the request itself (multipart/form-data: the
 // HTML shows `tg://photo?id=<id>`, the part named `<id>` is the file), so a
@@ -31,7 +31,6 @@
 import { EXTENSION_NAME } from '../../apps/extension/build/manifest.ts';
 import type { Block, Inline } from './changelog.ts';
 import { KIND_EMOJI, KIND_LABEL, sitesLabel, TECH_HEADING, type Note, type NoteImage } from './changes.ts';
-import { PUBLIC_SITE } from './config.ts';
 import { groups, NOTHING_NEW, releaseLabel, type Release } from './notes.ts';
 import { noteImageHref } from './site.ts';
 
@@ -114,10 +113,8 @@ export interface Upload extends PostPhoto {
   readonly data: Buffer | null;
 }
 
-/**
- * The post of a release. `site` is the public site (with its slash): the buttons point there.
- */
-export function composePost(release: Release, site: string = PUBLIC_SITE): Post {
+/** The post of a release. */
+export function composePost(release: Release): Post {
   const photos: PostPhoto[] = [];
   // Each screenshot full width with its own caption: a collage shrinks screenshots of different shapes past reading.
   const figure = (image: NoteImage): string => {
@@ -150,7 +147,6 @@ export function composePost(release: Release, site: string = PUBLIC_SITE): Post 
   lines.push(
     '<hr/>',
     '<footer>Firefox поставит обновление сам в течение дня. Чтобы сразу: ☰ → «Дополнения и темы» → ⚙ → «Проверить наличие обновлений». Потом перезагрузите открытые вкладки OnlyFans (ChatSpace) и Fansly.</footer>',
-    `<tg-button-row><tg-button type="url" url="${esc(`${site}whats-new.html#v${release.version}`)}">Что нового на сайте</tg-button><tg-button type="url" url="${esc(site)}">Установить</tg-button></tg-button-row>`,
   );
   return { version: release.version, html: lines.join('\n'), photos, notes: notes.length, silent: !notes.some((note) => note.kind === 'new' || note.kind === 'intro') };
 }
@@ -160,9 +156,9 @@ export function composePost(release: Release, site: string = PUBLIC_SITE): Post 
 /** The text of the post as Telegram counts it: what is shown, without the tags. */
 export const postCharacters = (html: string): number => [...html.replace(/<[^>]*>/g, '').replace(/&(?:lt|gt|amp|quot);/g, '_')].length;
 
-/** Its blocks, counted generously: every block element, list item, caption, summary, button and anchor. */
+/** Its blocks, counted generously: every block element, list item, caption, summary and anchor. */
 export const postBlocks = (html: string): number =>
-  [...html.matchAll(/<(?:h[1-6]|p|ul|ol|li|figure|figcaption|details|summary|hr|footer|blockquote|pre|table|tr|aside|tg-button-row|tg-button)\b|<a name="/g)].length;
+  [...html.matchAll(/<(?:h[1-6]|p|ul|ol|li|figure|figcaption|details|summary|hr|footer|blockquote|pre|table|tr|aside)\b|<a name="/g)].length;
 
 /** The pixel size and type of a PNG or a JPEG; null — neither. */
 export function imageSize(data: Buffer): { readonly width: number; readonly height: number; readonly type: 'image/png' | 'image/jpeg' } | null {
@@ -222,7 +218,7 @@ export function describePost(post: Post, uploads: readonly Upload[]): string {
 
 /**
  * A local page that draws the post about as Telegram does — a channel bubble, the
- * screenshots from the copy next to it (changes/), «Как это устроено» folded, the buttons —
+ * screenshots from the copy next to it (changes/), «Как это устроено» folded —
  * for `pnpm release notes`. Not what Telegram renders, near enough to judge the text and the pictures.
  */
 export function telegramPreview(post: Post): string {
@@ -231,8 +227,6 @@ export function telegramPreview(post: Post): string {
     const file = files.get(id);
     return file === undefined ? whole : noteImageHref(file);
   });
-  const row = /<tg-button-row>[\s\S]*<\/tg-button-row>/;
-  const buttons = (row.exec(local)?.[0] ?? '').replace(/<tg-button type="url" url="([^"]*)">([\s\S]*?)<\/tg-button>/g, '<a class="button" href="$1">$2</a>');
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -250,16 +244,13 @@ export function telegramPreview(post: Post): string {
   summary { cursor: pointer; color: #6ab3f3; font-weight: 600; }
   footer { color: #8ba3b8; font-size: 13px; }
   code { font: 13px ui-monospace, Menlo, monospace; }
-  tg-button-row { display: flex; gap: 6px; margin: 10px auto 0; max-width: 520px; }
-  .button { flex: 1; padding: 9px; border-radius: 8px; background: #2b5278; color: #f5f5f5; text-align: center; font-weight: 600; text-decoration: none; }
   .meta { max-width: 520px; margin: 10px auto 0; color: #8ba3b8; font-size: 13px; text-align: center; }
 </style>
 </head>
 <body>
 <div class="bubble">
-${local.replace(row, '')}
+${local}
 </div>
-${buttons}
 <p class="meta">${post.silent ? 'Уйдёт без уведомления: только улучшения и исправления.' : 'Уйдёт с уведомлением: есть новое.'} Скриншотов в посте: ${post.photos.length}.</p>
 </body>
 </html>

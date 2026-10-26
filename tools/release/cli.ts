@@ -52,7 +52,7 @@ import { writeZip } from '../lib/zip-write.ts';
 import { readZip } from '../lib/zip.ts';
 import { ANNOUNCE_FROM, AnnounceError, composePost, describePost, postProblems, sendPost, telegramPreview, type FetchLike, type Post, type Upload } from './announce.ts';
 import { KIND_EMOJI, KIND_LABEL, NOTES_DIR, bumpOf, releaseProblems, sortNotes, type Note } from './changes.ts';
-import { BEYOND_DOCUMENTS, CHANGELOG_FILE, DEFAULT_HUB_REPO, ENV, EXTENSION_REPO, HUB_HEALTH_PATH, MAIN_CI_JOBS, OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS, PUBLIC_SITE, signedXpiName, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
+import { BEYOND_DOCUMENTS, CHANGELOG_FILE, DEFAULT_HUB_REPO, ENV, EXTENSION_REPO, HUB_HEALTH_PATH, MAIN_CI_JOBS, OPTIONAL_SITE_API, OPTIONAL_SITE_ORIGINS, signedXpiName, SITE_DIR, VERSION_FILE, type ReleaseTarget } from './config.ts';
 import { mustRun, renderCommand, runSteps, type Exec, type Print, type Step } from './exec.ts';
 import { evaluateFeedAhead, evaluateHubAncestry, evaluateHubCompatibility, evaluateMainCi, evaluateTagFree, evaluateVendor, evaluateVersions, type Verdict } from './gate.ts';
 import { Checkout, heldFor } from './local.ts';
@@ -253,7 +253,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     if (release.kind !== 'notes' || release.notes.length === 0) return { kind: 'none', why: `${version} has no note for chatters: nothing to tell them` };
     const earlier = checkout.announced(version);
     if (earlier !== null) return { kind: 'none', why: `a post of ${version} went out earlier (${earlier.state}, ${earlier.at})` };
-    const post = composePost(release, PUBLIC_SITE);
+    const post = composePost(release);
     return { kind: 'post', post, uploads: uploadsOf(post) };
   }
 
@@ -637,7 +637,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     // Every page of the site as this version would publish it: the landing and the guides too, for the owner's look.
     const pages = new Map(SITE_PAGES.map((page) => [page, checkout.read(join(SITE_DIR, page))]));
     for (const [page, text] of renderSite(pages, context)) writeFileSync(join(out, page), text);
-    const post = composePost(releaseOf(history, version), PUBLIC_SITE);
+    const post = composePost(releaseOf(history, version));
     writeFileSync(join(out, 'telegram.html'), telegramPreview(post));
     print(`previews of ${version}: ${join(out, 'index.html')} and the other pages (the site), ${join(out, 'telegram.html')} (the post, as near as a browser draws it)`);
     const uploads = uploadsOf(post);
@@ -903,7 +903,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     if (!released && !preview && !values.check) refuse(`${version} is not released (no tag v${version}): the channel hears of released versions. Its post: pnpm release notes, or announce ${version} --preview to the owner's test chat.`);
     if (!released && latest !== null && compareVersions(version, latest) < 0) refuse(`${version} was never released and is below the last release v${latest}: no notes are its.`);
     const history: History = released ? await checkout.history() : await checkout.history({ version, head: 'HEAD', day: deps.now().toISOString().slice(0, 10), uncommitted: true });
-    const post = composePost(releaseOf(history, version), PUBLIC_SITE);
+    const post = composePost(releaseOf(history, version));
     const uploads = uploadsOf(post);
     const problems = postProblems(post, uploads);
     if (values.check) {
@@ -975,7 +975,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   /**
    * The pages alone, for the release the feed serves: a released note was corrected (changes/README.md), and «Что
-   * нового», the history and the post's «Что нового на сайте» say so now, not with the next release. Only what the
+   * нового», and the history say so now, not with the next release. Only what the
    * notes render may differ from the tag: changed pages and the stylesheet go out with a release, or here with
    * `--with-site` once checked to describe only released work (a wording fix of the site).
    */

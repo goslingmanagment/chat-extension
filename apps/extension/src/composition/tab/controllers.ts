@@ -19,7 +19,7 @@ import { ONLINE_CAPABILITY, type ChatRef } from '@cg/contracts/ids';
 import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
-import type { HostPort } from '@cg/contracts/host';
+import type { HostPort, NavigationReceipt } from '@cg/contracts/host';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
 import type { GreetedChat } from '@cg/core/application/newcomers';
@@ -191,6 +191,8 @@ export interface NavigationOpeners {
   coach(): Promise<ActionReceipt>;
   /** The palette's «Онлайн» choice: OUR preview of the fan in its own window (the boards' `openOnline`, X24). */
   preview(chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt>;
+  /** 2026-10-26: a chat of the palette on a site without our navigation, the way its board opens a fan's (the boards' `openChat`). */
+  chat(chat: ChatRef, conversationRef: string | undefined): Promise<NavigationReceipt>;
 }
 
 export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, catalog: ActionCatalog, ai: TabAi, open: NavigationOpeners): TabNavigation {
@@ -213,6 +215,8 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     ownerSwitch: (hostAccountId) => ai.workspace.accountFlag(hostAccountId, 'navigation'),
     // What the site has (R20 §1.4): a window or a walk of a feature its slice lacks opens nothing.
     features: world.features,
+    // A site without our navigation (its slice says so): the palette's chats open as its board opens a fan's.
+    board: (chat, conversationRef) => open.chat(chat, conversationRef),
   });
   const dockView = (): DockVM | null => (router.serves('dock') ? router.getSnapshot({ of: 'dock' }) : null);
   const palette = chunk.createPaletteController({
@@ -225,6 +229,8 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     dock: { get: dockView, subscribe: (listener) => router.subscribe({ of: 'dock' }, () => listener()) },
     // «Онлайн» (CS-030): a fan ChatSpace shows online opens in our preview window; no chat is opened (X24).
     preview: { open: (chat, shown) => open.preview(chat, shown) },
+    // Its «Новые» are the hub's only where the site's slice says so.
+    features: world.features,
   });
   const quickJump = chunk.createQuickJumpController({ host, i18n, overlays, clock });
   const cheatsheet = chunk.createCheatsheetController({ catalog, features: world.features });
@@ -331,6 +337,12 @@ export function dockChatBridge(ai: typeof AiChunk, navigation: NavigationChunk.N
 export interface TabBoards {
   /** The palette's «Онлайн» choice: OUR preview of the fan in its own window, walking the list the palette showed (X24). */
   openOnline(chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt>;
+  /**
+   * 2026-10-26: a chat the person chose in the palette on a site without our navigation (Fansly): opened as the Spenders
+   * board opens its fan's — the page's `spenders`, the board's token (decision X13) — with the chat the palette's row
+   * named, never a search of the site's inbox (and so never a new group of Fansly's).
+   */
+  openChat(chat: ChatRef, conversationRef: string | undefined): Promise<NavigationReceipt>;
   /** A list's batch started this generation: its row says how it ended, a toast does not. */
   fromBatch(opId: string): boolean;
   /** The open «Новые» card (a pass's) shows this generation's result in its field. */
@@ -600,6 +612,7 @@ export async function startBoards(
 
   return {
     openOnline: (chat, shown) => previewChunk.openOnlinePreview(palette, preview, i18n, chat, shown),
+    openChat: (chat, conversationRef) => navigator.open(chat, 'preview', ['spenders'], conversationRef),
     fromBatch: (opId) => preview.fromBatch(opId) || (newcomers.fromBatch?.(opId) ?? false),
     inCard: (opId) => newcomers.inCard?.(opId) ?? false,
     dispose() {
