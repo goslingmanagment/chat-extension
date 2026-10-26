@@ -1,20 +1,23 @@
 // The chosen fan's card of «Онлайн», chat-like (the twin of «Рассылка»'s): who they are and how fresh their presence
 // is, why to write now in one calm box (or why they are set aside: a warning, never a block), their conversation from
-// the hub's archive (the chat is not opened and stays unread), and under it «Reply», «Hi», «Ping», «Шаблон» (the hub's
-// advice marked): nothing is written until the person picks one (2026-10-26, the owner). The text — the AI's, or a
-// text of the team's guide — stands in the draft look, with «Ещё раз» / «Другой шаблон», «Править», «Пропустить»,
+// the hub's archive (the chat is not opened and stays unread), and under it the usual window (2026-10-26, the owner):
+// the text's box, always there, and the strip of the dock and the preview — the goose, Reply with its tones, Hi, Ping —
+// with «Шаблон», the hub's advice its main chip. Nothing is written until the person clicks one. The text — the AI's,
+// or a text of the team's guide — stands in the box with «Ещё раз» / «Другой шаблон», «Править», «Пропустить»,
 // «Не предлагать» and the blue «Отправить →». One click, one message; an unknown outcome is never sent again by our
 // button: the person looks in the chat.
 
-import { type JSX } from 'preact';
+import { Fragment, type JSX } from 'preact';
 import { useRef } from 'preact/hooks';
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type I18n, type OnlineCardVM, type OnlineChoice, type PartVM, type PreviewVM } from '@cg/contracts/vm';
 
-import { Button, Dot, Icon, Spinner, TextField, useDispatch, useI18n, useTooltip } from '../kit';
+import { Button, Dot, GooseMark, Icon, Spinner, StripButton, TextField, useDispatch, useHints, useI18n, useTooltip } from '../kit';
 import { Feed } from '../spenders/preview/Feed';
 import { priceText } from '../spenders/preview/MediaPicker';
+import { SEGMENT_LETTERS, ToneCapsule, reasonText, stripKeys } from '../spenders/preview/MiniStrip';
+import { useOwnEchoes } from '../spenders/ownEchoes';
 import { offersOpenInsert, openAndInsert } from '../spenders/preview/SendRow';
 import { blockedReason } from '../outreach/rows';
 import { OnlineAvatar } from './rows';
@@ -232,49 +235,337 @@ function PassButtons({ card, busy }: { readonly card: OnlineCardVM; readonly bus
   );
 }
 
+/** Why the card's own gate holds a chip (a short chat for Ping, no chat of the fan); null — it works. */
+function heldOf(i18n: I18n, card: OnlineCardVM, preview: PreviewVM, act: OnlineChoice): string | null {
+  const gate = act === 'template' || preview.handle !== card.handle ? null : (preview.bar.actions[act] ?? null);
+  return gate !== null && !gate.enabled && !gate.busy && gate.reason !== null ? i18n.text(gate.reason.text) : null;
+}
+
 /**
- * «Написать: Reply · Hi · Ping · Шаблон»: the person picks what is written, the hub's advice marked «советуем»; the AI
- * writes only by this click. A button the card's own gate holds (a short chat for Ping, no chat of the fan) says why.
+ * The advice the card shows: the hub's; Hi or Ping advised where the AI cannot write them (no chat of the fan yet, a
+ * short chat) — the guide's text instead. Never for Reply: a reactivation text is no answer.
  */
-function Choices({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element | null {
+function adviceShown(i18n: I18n, card: OnlineCardVM, preview: PreviewVM): OnlineChoice | null {
+  const advice = card.choices.find((choice) => choice.suggested)?.act ?? null;
+  return (advice === 'hi' || advice === 'ping') && heldOf(i18n, card, preview, advice) !== null && card.choices.some((choice) => choice.act === 'template') ? 'template' : advice;
+}
+
+/**
+ * The strip beside the field «Свой текст», the dock's and the preview's own: the goose, Reply with its tones, Hi,
+ * Ping, and «Шаблон» (the guide's text, no AI). The AI writes only by a click here; the hub's advice is the main chip.
+ * A chip the card's own gate holds (a short chat for Ping, no chat of the fan) says why.
+ */
+function Strip({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element | null {
   const i18n = useI18n();
+  const hints = useHints();
   const dispatch = useDispatch();
-  if (card.choices.length === 0) return null;
+  const bar = useRef<HTMLDivElement>(null);
+  // Fix stands in the field «Свой текст»: it works on those words.
+  const chips = card.choices.filter((choice) => choice.act !== 'fix');
+  if (chips.length === 0) return null;
   const ours = preview.handle === card.handle;
   const writing = card.state === 'writing';
-  const heldOf = (act: OnlineChoice): string | null => {
-    const gate = act === 'template' || !ours ? null : (preview.bar.actions[act] ?? null);
-    return gate !== null && !gate.enabled && !gate.busy && gate.reason !== null ? i18n.text(gate.reason.text) : null;
-  };
-  // Hi or Ping advised where the AI cannot write them (no chat of the fan yet, a short chat): the guide's text is the
-  // advice instead. Never for Reply: a reactivation text is no answer.
-  const advised = card.choices.find((choice) => choice.suggested)?.act ?? null;
-  const toTemplate = (advised === 'hi' || advised === 'ping') && heldOf(advised) !== null && card.choices.some((choice) => choice.act === 'template');
+  const advice = adviceShown(i18n, card, preview);
+  const letter = ours && preview.ping !== null ? SEGMENT_LETTERS[preview.ping.segment] : undefined;
   return (
-    <div class="ol-pick" role="group" aria-label={i18n.t('online.pick.lead')} data-cg-online-pick="1">
-      <span class="ol-pick__lead">{i18n.t('online.pick.lead')}</span>
-      {card.choices.map((choice) => {
-        const act = actWord(i18n, choice.act);
-        const held = heldOf(choice.act);
-        const suggested = toTemplate ? choice.act === 'template' : choice.suggested;
-        const busy = writing && choice.current;
-        const reason = busy ? null : writing ? i18n.t('online.row.writing', { act: actWord(i18n, card.act) }) : held;
-        const tooltip = choice.current ? i18n.t('online.pick.again', { act }) : choice.act === 'template' ? i18n.t('online.pick.template') : i18n.t('online.pick.tooltip', { act });
-        return (
-          <Button
-            key={choice.act}
-            label={act}
-            variant="line"
-            size="sm"
-            pressed={choice.current}
-            busy={busy}
-            reason={reason}
-            tooltip={tooltip}
-            {...(suggested ? { class: 'is-advice', trailing: <span class="ol-pick__tag">{i18n.t('online.pick.advice')}</span> } : {})}
-            onClick={() => void dispatch({ type: 'RewriteOnline', targetHandle: card.handle, act: choice.act })}
+    <div ref={bar} class="cg-pvb ol-strip" role="toolbar" aria-label={i18n.t('online.pick.lead')} data-cg-online-pick="1" onKeyDown={stripKeys(bar)}>
+      <span class="cg-pvb__mark" aria-hidden="true">
+        <GooseMark />
+      </span>
+      <div class="cg-pvb__acts">
+        {chips.flatMap((choice, index) => {
+          const act = actWord(i18n, choice.act);
+          const busy = writing && choice.current;
+          const reason = busy ? null : writing ? i18n.t('online.row.writing', { act: actWord(i18n, card.act) }) : heldOf(i18n, card, preview, choice.act);
+          const tooltip = choice.current ? i18n.t('online.pick.again', { act }) : choice.act === 'template' ? i18n.t('online.pick.template') : i18n.t('online.pick.tooltip', { act });
+          return [
+            <span key={choice.act} data-cg-strip={choice.act} class="cg-pvb__slot">
+              <StripButton
+                label={act}
+                {...(choice.act === advice ? { class: 'cg-act--main' } : {})}
+                active={choice.current && !writing}
+                busy={busy}
+                reason={reason}
+                tooltip={hints ? tooltip : null}
+                tabIndex={index === 0 ? 0 : -1}
+                trailing={choice.act === 'ping' && letter !== undefined ? <span class="cg-pvb__seg">{letter}</span> : null}
+                onClick={() => void dispatch({ type: 'RewriteOnline', targetHandle: card.handle, act: choice.act })}
+              />
+            </span>,
+            // The tones are Reply's own: right after it, as in the dock.
+            choice.act === 'reply' && ours ? (
+              <Fragment key="capsule">
+                <ToneCapsule vm={preview} split={false} held={reason} />
+              </Fragment>
+            ) : null,
+          ];
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The composer of the Spenders chat: the field «Свой текст» across the card with Fix inside it (and its «Отправить» once
+ * it holds words: they go to the fan as they are), then the strip — Reply with its tones, Hi, Ping, «Шаблон» — with
+ * «Пропустить» and «Не предлагать» on its right. Fix rewrites the words into the card's text above. The words are the
+ * fan's draft of Spenders (one draft per fan).
+ */
+function Composer({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const ours = preview.handle === card.handle;
+  const draft = useOwnEchoes(ours ? preview.draft.text : '', card.handle);
+  const going = card.state === 'sending' || card.state === 'accepted';
+  const writing = card.state === 'writing';
+  const fix = card.choices.find((choice) => choice.act === 'fix') ?? null;
+  const fixGate = ours ? (preview.bar.actions.fix ?? null) : null;
+  const fixLabel = i18n.t('dock.action.fix');
+  const fixReason = fix === null ? i18n.t('outreach.cannot') : writing && !fix.current ? i18n.t('online.row.writing', { act: actWord(i18n, card.act) }) : fixGate !== null && !fixGate.enabled && !fixGate.busy ? reasonText(i18n, fixLabel, fixGate) : null;
+  const words = draft.shown.trim();
+  const sendReason = going ? i18n.t('outreach.card.going') : writing ? i18n.t('online.row.writing', { act: actWord(i18n, card.act) }) : null;
+  return (
+    <div class="ol-compose" data-cg-online-compose="1">
+      <div class="ol-compose__draft">
+        <div class="ol-compose__box">
+          <TextField
+            value={draft.shown}
+            label={i18n.t('preview.draft.aria')}
+            placeholder={i18n.text(preview.draft.placeholder)}
+            multiline
+            minHeight={36}
+            maxHeight={120}
+            maxLength={preview.draft.maxChars}
+            reason={ours && !going ? null : i18n.t('outreach.card.going')}
+            onValue={(typed) => {
+              if (!ours) return;
+              const text = typed.slice(0, preview.draft.maxChars);
+              draft.sent(text);
+              void dispatch({ type: 'SetPreviewDraft', targetHandle: card.handle, text });
+            }}
           />
-        );
-      })}
+          <span class="ol-compose__fix" data-cg-strip="fix">
+            <StripButton
+              label={fixLabel}
+              active={fix?.current === true && !writing}
+              busy={writing && fix?.current === true}
+              reason={fixReason}
+              tooltip={i18n.t('online.compose.fix')}
+              onClick={() => void dispatch({ type: 'RewriteOnline', targetHandle: card.handle, act: 'fix' })}
+            />
+          </span>
+        </div>
+        {words.length === 0 ? null : (
+          <Button
+            label={`${i18n.t('preview.draft.send')} →`}
+            variant="send"
+            class="ol-compose__send"
+            tooltip={i18n.t('online.compose.sendTooltip')}
+            reason={sendReason}
+            onClick={() => void dispatch({ type: 'SendOnline', targetHandle: card.handle, own: words })}
+          />
+        )}
+      </div>
+      <div class="cg-ow__acts ol-compose__row">
+        <Strip card={card} preview={preview} />
+        <span class="cg-nw__grow" />
+        <PassButtons card={card} busy={going} />
+      </div>
+    </div>
+  );
+}
+
+/** The text over the composer, as the Spenders chat shows a result: whose it is, «Ещё раз», the text and its buttons. */
+function Text({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const field = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
+  const act = actWord(i18n, card.act);
+  const again = (): void => void dispatch({ type: 'RewriteOnline', targetHandle: card.handle });
+
+  switch (card.state) {
+    case 'idle': {
+      // Nothing written yet: the line says what we advise and where the text will stand — or why the AI cannot write.
+      const templates = card.choices.some((choice) => choice.act === 'template');
+      const held = (['reply', 'hi', 'ping'] as const).map((one) => heldOf(i18n, card, preview, one));
+      const advice = adviceShown(i18n, card, preview);
+      return (
+        <div class="ol-hint">
+          {advice === null ? null : <b>{i18n.t('online.pick.advice', { act: actWord(i18n, advice) })}. </b>}
+          {held.every((why) => why !== null) ? i18n.t(templates ? 'online.card.noAi' : 'online.card.noAiNoTemplate', { reason: held[0] ?? '' }) : i18n.t('online.card.empty')}
+        </div>
+      );
+    }
+    case 'writing':
+      return (
+        <div class="ol-text">
+          <div class="cg-ow__dhead">
+            <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
+          </div>
+          <div class="cg-ow__dcard is-busy">
+            <div class="cg-ow__dwait">
+              <Spinner />
+              {i18n.t('online.row.writing', { act })}
+            </div>
+          </div>
+        </div>
+      );
+    case 'unwritten':
+      return (
+        <div class="ol-text" {...(card.code === null ? {} : { 'data-cg-code': card.code })}>
+          <div class="cg-ow__dhead">
+            <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
+          </div>
+          <div class="cg-nc__gst">
+            <Dot kind="ink" size={6} />
+            <b>{i18n.t('online.card.unwritten', { act })}</b>
+            {card.code === null ? null : (
+              <span class="cg-nc__gcode">
+                <b>ChatGoose · {card.code}:</b> {codeTail(i18n, card.code)}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    case 'ready':
+    case 'failed':
+    case 'sending':
+    case 'accepted':
+    case 'sent':
+    case 'uncertain':
+      break;
+  }
+
+  const busy = card.state === 'sending' || card.state === 'accepted';
+  const send = card.send;
+  const anyway = send?.kind === 'anyway' || card.aside !== null;
+  // Held where this window cannot send it (the chat open on the page, a fan who takes no messages): why, and the chat's
+  // own way — «Открыть и вставить», the person sends there (never for a fan who takes no messages).
+  const blocked = busy ? null : blockedReason(i18n, send, card.state === 'failed' ? 'failed' : 'ready');
+  const insert = blocked === null || send?.reason?.key === 'send.reason.fan' ? null : textPart(preview, card.handle);
+  const insertState = insert === null || !offersOpenInsert(insert.part) ? undefined : insert.part.openInsert;
+  const label = send?.kind === 'retry' ? 'online.card.retry' : anyway ? 'online.card.sendAnyway' : 'online.card.send';
+  const reason = send === null ? (busy ? null : i18n.t('outreach.cannot')) : send.can ? null : send.paused ? i18n.t('online.card.paused') : send.reason === null ? i18n.t('outreach.cannot') : i18n.text(send.reason);
+  return (
+    <div class="ol-text">
+      <div class="cg-ow__dhead">
+        {card.template === null ? (
+          <>
+            <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
+            <span>
+              {i18n.t('online.card.draft')}
+              {card.edited ? ` · ${i18n.t('outreach.card.edited')}` : null}
+            </span>
+          </>
+        ) : (
+          <>
+            <b>{i18n.t('online.card.template', { id: card.template.id })}</b>
+            <span>
+              {i18n.t('online.card.fromGuide')}
+              {card.edited ? ` · ${i18n.t('outreach.card.edited')}` : null}
+            </span>
+          </>
+        )}
+        <span class="cg-nw__grow" />
+        {card.edited && card.editable ? (
+          <button type="button" class="cg-ow__link" onClick={() => void dispatch({ type: 'EditOnline', targetHandle: card.handle, text: null })}>
+            {i18n.t('online.card.restore')}
+          </button>
+        ) : card.rewrite ? (
+          <button type="button" class="cg-ow__link" onClick={again}>
+            {i18n.t(card.template === null ? 'online.card.again' : 'online.card.otherTemplate')}
+          </button>
+        ) : null}
+      </div>
+      <div class={`cg-ow__dcard${busy ? ' is-busy' : ''}`}>
+        <TextField
+          value={card.version ?? ''}
+          label={i18n.t('online.card.textFor', { act, name: card.name })}
+          multiline
+          minHeight={21}
+          maxHeight={168}
+          maxLength={5_000}
+          class="cg-ow__dta"
+          inputRef={field}
+          reason={card.editable ? null : i18n.t(busy ? 'outreach.card.going' : 'outreach.cannot')}
+          onValue={(text) => void dispatch({ type: 'EditOnline', targetHandle: card.handle, text })}
+        />
+        <MediaLine card={card} />
+        <div class="ol-text__acts">
+          {insert !== null && insertState !== undefined && insertState.s !== 'hidden' ? (
+            <Button
+              label={i18n.t('send.openAndInsert')}
+              variant="line"
+              size="sm"
+              class="cg-ow__cinsert"
+              busy={insertState.s === 'waiting'}
+              tooltip={i18n.t('outreach.card.insertTooltip')}
+              reason={insertState.s === 'unavailable' ? i18n.text(insertState.reason.text) : null}
+              onClick={() => void dispatch(openAndInsert(insert.opId, insert.part))}
+            />
+          ) : (
+            <Button
+              label={`${i18n.t(label)} →`}
+              variant="send"
+              size="sm"
+              class="cg-ow__csend"
+              busy={busy}
+              tooltip={i18n.t(send?.kind === 'retry' ? 'outreach.retryTooltip' : send?.kind === 'anyway' ? (card.warning?.kind === 'stale' ? 'outreach.anywayStale' : card.warning?.kind === 'talking' ? 'outreach.anywayTalking' : 'outreach.anywayArchive') : 'online.card.sendTooltip')}
+              reason={busy ? null : reason}
+              onClick={() => {
+                if (send === null || !send.can || busy) return;
+                void dispatch(send.kind === 'anyway' ? { type: 'SendOnline', targetHandle: card.handle, anyway: true } : { type: 'SendOnline', targetHandle: card.handle });
+              }}
+            />
+          )}
+          <Button
+            label={i18n.t('online.card.edit')}
+            icon="pencil"
+            variant="quiet"
+            size="sm"
+            reason={card.editable ? null : busy ? i18n.t('outreach.card.going') : i18n.t('outreach.cannot')}
+            onClick={() => {
+              const node = field.current;
+              if (node === null) return;
+              node.focus();
+              node.setSelectionRange(node.value.length, node.value.length);
+            }}
+          />
+        </div>
+      </div>
+      <Calm card={card} preview={preview} />
+      {blocked === null ? null : (
+        <div class="cg-ow__calm is-held" data-cg-blocked="1">
+          <Dot kind="ink" size={6} />
+          <span>
+            <b>{i18n.t('outreach.card.blocked')}:</b> {blocked}
+          </span>
+        </div>
+      )}
+      {card.noChat && card.state === 'ready' ? (
+        <div class="cg-ow__calm" data-cg-online-nochat="1">
+          <Dot kind="ink" size={6} />
+          <span>{i18n.t('online.card.noChat')}</span>
+        </div>
+      ) : null}
+      {card.state === 'failed' ? (
+        <div class="cg-nc__gst" {...(card.code === null ? {} : { 'data-cg-code': card.code })}>
+          <Dot kind="danger" />
+          <b>{i18n.t('online.row.failed')}</b>
+          {card.failedAt === null ? null : <span>{i18n.t('outreach.card.at', { time: { time: card.failedAt } })}</span>}
+          {card.code === null ? null : (
+            <span class="cg-nc__gcode">
+              <b>ChatGoose · {card.code}:</b> {codeTail(i18n, card.code)}
+            </span>
+          )}
+        </div>
+      ) : null}
+      {busy ? (
+        <div class="cg-nc__gst">
+          {card.state === 'accepted' ? <Dot kind="pulse" /> : <Spinner />}
+          <b>{i18n.t(card.state === 'accepted' ? 'send.accepted' : 'online.row.sending')}</b>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -283,9 +574,7 @@ function Choices({ card, preview }: { readonly card: OnlineCardVM; readonly prev
 function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const field = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
   const act = actWord(i18n, card.act);
-  const again = (): void => void dispatch({ type: 'RewriteOnline', targetHandle: card.handle });
 
   const went = card.state === 'sending' || card.state === 'accepted' || card.state === 'sent' || card.state === 'uncertain';
   // «Пропущен» and the person's own «Не предлагать» (a teammate's mark is a warning over the text, never a block).
@@ -346,191 +635,21 @@ function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview
         </div>
       );
     case 'idle':
-      // Nothing written yet: the person picks what to write. The choice stands first in every state of the zone, so a
-      // click on it keeps its focus (and the window's keys) as the text is written.
-      return (
-        <div class="cg-ow__dzone" data-cg-zone="idle">
-          <Choices card={card} preview={preview} />
-          {card.advice === null ? <span class="ol-pick__none">{i18n.t('online.card.noReason')}</span> : null}
-          <div class="cg-ow__acts">
-            <PassButtons card={card} busy={false} />
-          </div>
-        </div>
-      );
     case 'writing':
-      return (
-        <div class="cg-ow__dzone" data-cg-zone="writing">
-          <Choices card={card} preview={preview} />
-          <div class="cg-ow__dcard is-busy">
-            <div class="cg-ow__dhead">
-              <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
-            </div>
-            <div class="cg-ow__dwait">
-              <Spinner />
-              {i18n.t('online.row.writing', { act })}
-            </div>
-          </div>
-          <div class="cg-ow__acts">
-            <PassButtons card={card} busy={false} />
-          </div>
-        </div>
-      );
     case 'unwritten':
-      return (
-        <div class="cg-ow__dzone" data-cg-zone="unwritten" {...(card.code === null ? {} : { 'data-cg-code': card.code })}>
-          <Choices card={card} preview={preview} />
-          <div class="cg-nc__gst">
-            <Dot kind="ink" size={6} />
-            <b>{i18n.t('online.card.unwritten', { act })}</b>
-            {card.code === null ? null : (
-              <span class="cg-nc__gcode">
-                <b>ChatGoose · {card.code}:</b> {codeTail(i18n, card.code)}
-              </span>
-            )}
-          </div>
-          <div class="cg-ow__acts">
-            <PassButtons card={card} busy={false} />
-          </div>
-        </div>
-      );
     case 'ready':
     case 'failed':
     case 'sending':
     case 'accepted':
       break;
   }
-  const busy = card.state === 'sending' || card.state === 'accepted';
-  const send = card.send;
-  const anyway = send?.kind === 'anyway' || card.aside !== null;
-  // Held where this window cannot send it (the chat open on the page, a fan who takes no messages): why, and the chat's
-  // own way — «Открыть и вставить», the person sends there (never for a fan who takes no messages).
-  const blocked = busy ? null : blockedReason(i18n, send, card.state === 'failed' ? 'failed' : 'ready');
-  const insert = blocked === null || send?.reason?.key === 'send.reason.fan' ? null : textPart(preview, card.handle);
-  const insertState = insert === null || !offersOpenInsert(insert.part) ? undefined : insert.part.openInsert;
-  const label = send?.kind === 'retry' ? 'online.card.retry' : anyway ? 'online.card.sendAnyway' : 'online.card.send';
-  const reason = send === null ? (busy ? null : i18n.t('outreach.cannot')) : send.can ? null : send.paused ? i18n.t('online.card.paused') : send.reason === null ? i18n.t('outreach.cannot') : i18n.text(send.reason);
+  // Before the text went: the text (or where it will stand), the composer, the card's last line — in this order in every
+  // state, so a click on the composer keeps its focus (and the window's keys) as the text is written.
+  const zone = card.state === 'idle' || card.state === 'writing' || card.state === 'unwritten' ? card.state : 'draft';
   return (
-    <div class="cg-ow__dzone" data-cg-zone="draft">
-      <Choices card={card} preview={preview} />
-      <div class={`cg-ow__dcard${busy ? ' is-busy' : ''}`}>
-        <div class="cg-ow__dhead">
-          {card.template === null ? (
-            <>
-              <b>{i18n.t('online.card.textFor', { act, name: card.name })}</b>
-              <span>
-                {i18n.t('online.card.draft')}
-                {card.edited ? ` · ${i18n.t('outreach.card.edited')}` : null}
-              </span>
-            </>
-          ) : (
-            <>
-              <b>{i18n.t('online.card.template', { id: card.template.id })}</b>
-              <span>
-                {i18n.t('online.card.fromGuide')}
-                {card.edited ? ` · ${i18n.t('outreach.card.edited')}` : null}
-              </span>
-            </>
-          )}
-          <span class="cg-nw__grow" />
-          {card.edited && card.editable ? (
-            <button type="button" class="cg-ow__link" onClick={() => void dispatch({ type: 'EditOnline', targetHandle: card.handle, text: null })}>
-              {i18n.t('online.card.restore')}
-            </button>
-          ) : card.template !== null && card.rewrite ? (
-            <button type="button" class="cg-ow__link" onClick={again}>
-              {i18n.t('online.card.otherTemplate')}
-            </button>
-          ) : null}
-        </div>
-        <TextField
-          value={card.version ?? ''}
-          label={i18n.t('online.card.textFor', { act, name: card.name })}
-          multiline
-          minHeight={21}
-          maxHeight={168}
-          maxLength={5_000}
-          class="cg-ow__dta"
-          inputRef={field}
-          reason={card.editable ? null : i18n.t(busy ? 'outreach.card.going' : 'outreach.cannot')}
-          onValue={(text) => void dispatch({ type: 'EditOnline', targetHandle: card.handle, text })}
-        />
-        <MediaLine card={card} />
-      </div>
-      <Calm card={card} preview={preview} />
-      {blocked === null ? null : (
-        <div class="cg-ow__calm is-held" data-cg-blocked="1">
-          <Dot kind="ink" size={6} />
-          <span>
-            <b>{i18n.t('outreach.card.blocked')}:</b> {blocked}
-          </span>
-        </div>
-      )}
-      {card.noChat && card.state === 'ready' ? (
-        <div class="cg-ow__calm" data-cg-online-nochat="1">
-          <Dot kind="ink" size={6} />
-          <span>{i18n.t('online.card.noChat')}</span>
-        </div>
-      ) : null}
-      {card.state === 'failed' ? (
-        <div class="cg-nc__gst" {...(card.code === null ? {} : { 'data-cg-code': card.code })}>
-          <Dot kind="danger" />
-          <b>{i18n.t('online.row.failed')}</b>
-          {card.failedAt === null ? null : <span>{i18n.t('outreach.card.at', { time: { time: card.failedAt } })}</span>}
-          {card.code === null ? null : (
-            <span class="cg-nc__gcode">
-              <b>ChatGoose · {card.code}:</b> {codeTail(i18n, card.code)}
-            </span>
-          )}
-        </div>
-      ) : null}
-      {busy ? (
-        <div class="cg-nc__gst">
-          {card.state === 'accepted' ? <Dot kind="pulse" /> : <Spinner />}
-          <b>{i18n.t(card.state === 'accepted' ? 'send.accepted' : 'online.row.sending')}</b>
-        </div>
-      ) : null}
-      <div class="cg-ow__acts">
-        {card.template === null ? <Button label={i18n.t('online.card.again')} icon="refresh" variant="quiet" size="sm" reason={card.rewrite ? null : busy ? i18n.t('outreach.card.going') : i18n.t('outreach.cannot')} onClick={again} /> : null}
-        <Button
-          label={i18n.t('online.card.edit')}
-          icon="pencil"
-          variant="quiet"
-          size="sm"
-          reason={card.editable ? null : busy ? i18n.t('outreach.card.going') : i18n.t('outreach.cannot')}
-          onClick={() => {
-            const node = field.current;
-            if (node === null) return;
-            node.focus();
-            node.setSelectionRange(node.value.length, node.value.length);
-          }}
-        />
-        <PassButtons card={card} busy={busy} />
-        <span class="cg-nw__grow" />
-        {insert !== null && insertState !== undefined && insertState.s !== 'hidden' ? (
-          <Button
-            label={i18n.t('send.openAndInsert')}
-            variant="line"
-            class="cg-ow__cinsert"
-            busy={insertState.s === 'waiting'}
-            tooltip={i18n.t('outreach.card.insertTooltip')}
-            reason={insertState.s === 'unavailable' ? i18n.text(insertState.reason.text) : null}
-            onClick={() => void dispatch(openAndInsert(insert.opId, insert.part))}
-          />
-        ) : (
-        <Button
-          label={`${i18n.t(label)} →`}
-          variant="send"
-          class="cg-ow__csend"
-          busy={busy}
-          tooltip={i18n.t(send?.kind === 'retry' ? 'outreach.retryTooltip' : send?.kind === 'anyway' ? (card.warning?.kind === 'stale' ? 'outreach.anywayStale' : card.warning?.kind === 'talking' ? 'outreach.anywayTalking' : 'outreach.anywayArchive') : 'online.card.sendTooltip')}
-          reason={busy ? null : reason}
-          onClick={() => {
-            if (send === null || !send.can || busy) return;
-            void dispatch(send.kind === 'anyway' ? { type: 'SendOnline', targetHandle: card.handle, anyway: true } : { type: 'SendOnline', targetHandle: card.handle });
-          }}
-        />
-        )}
-      </div>
+    <div class="cg-ow__dzone ol-zone" data-cg-zone={zone} {...(zone === 'unwritten' && card.code !== null ? { 'data-cg-code': card.code } : {})}>
+      <Text card={card} preview={preview} />
+      <Composer card={card} preview={preview} />
     </div>
   );
 }

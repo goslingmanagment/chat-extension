@@ -1,11 +1,12 @@
 // The look of «Онлайн» (2026-10-26, the owner's demo): «Новые»'s frame and rows and «Рассылка»'s card as they are, and
 // what the window adds in the family's tokens — the live dot of the title, the presence dots (green: now, amber: within
 // half an hour, grey: longer), the groups' heads, the rows of an auto height with the text under them, the period's
-// menu, the card's «why now» box, the line of what went, and the end of the pass. Green is only presence and answers;
+// menu, the card's «why now» box, its composer, the line of what went, and the end of the pass. Green is only presence and answers;
 // blue only «Отправить».
 // A note here is a JS comment: a CSS one would ship in the window's chunk, prose for nobody.
 
 import { type StyleSource } from '../kit';
+import { MINI_STRIP_CSS } from '../spenders/preview/MiniStrip';
 
 export const ONLINE_CSS = `
 .ol .cg-nw__title { display: flex; align-items: center; gap: 10px; }
@@ -69,13 +70,23 @@ ${/* The card: why now, the conversation, the text. */ ''}
 .ol-sent .cg-btn { margin-left: auto; }
 .ol .cg-ow__dzone.is-sent { min-height: 0; }
 
-${/* «Написать: Reply · Hi · Ping · Шаблон»: the advice in clay, the card's text pressed. */ ''}
-.ol-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.ol-pick__lead { margin-right: 2px; font-size: var(--cg-text-sm2); color: var(--cg-ink-muted); }
-.ol-pick .cg-btn.is-advice { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); }
-.ol-pick .cg-btn[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--cg-clay-ink); color: var(--cg-clay-ink); font-weight: 600; }
-.ol-pick__tag { margin-left: 6px; font-size: var(--cg-text-2xs); font-weight: 400; opacity: .85; }
-.ol-pick__none { font-size: var(--cg-text-sm2); color: var(--cg-ink-muted); }
+${/* Under the conversation, as in the Spenders chat: the text (or the line where it will stand), then the composer — the field «Свой текст» with Fix inside, its «Отправить», the strip — then «Пропустить», «Не предлагать» and the advice. */ ''}
+${MINI_STRIP_CSS}
+.ol .ol-zone { gap: 10px; }
+.ol-hint { font-size: var(--cg-text-sm2); line-height: 18px; color: var(--cg-ink-muted); }
+.ol-hint b { font-weight: 600; color: var(--cg-ink-2); }
+.ol-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ol-text > .cg-ow__dhead { padding: 0 2px; }
+.ol-text__acts { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+.ol-text__acts .cg-btn--send { margin-right: 6px; }
+.ol-compose { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ol-compose__draft { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }
+.ol-compose__box { position: relative; flex: 1 1 auto; min-width: 0; }
+.ol-compose__box .cg-field--area { min-height: 36px; padding-right: 60px; }
+.ol-compose__fix { position: absolute; right: 4px; bottom: 4px; display: inline-flex; }
+.ol-compose__send { flex: none; }
+.ol .ol-compose__row { min-height: 38px; }
+.ol .ol-compose__row > .cg-pvb { flex: none; padding: 0; margin-left: -7px; }
 
 ${/* The end of the pass, and the pane with no card. */ ''}
 .ol-end { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; padding: 32px 40px; }

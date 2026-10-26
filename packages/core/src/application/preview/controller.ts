@@ -115,7 +115,7 @@ const SOURCES = ['spenders', 'newcomers', 'palette', 'outreach', 'online'] as co
 const WINDOW_SOURCES: readonly PreviewSource[] = ['outreach', 'online'];
 const fromWindow = (source: PreviewSource): boolean => WINDOW_SOURCES.includes(source);
 const DRAFT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
-const ONLINE_FEATURES = ['reply', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
+const ONLINE_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
 const CLOSE_PREVIEW: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'preview', open: false } };
 /** The fan's name as the list shows it, when it is a name and not the bare id. */
 function fanLabelOf(info: PreviewTargetInfo): string | null {
@@ -338,6 +338,8 @@ export interface PreviewController extends SurfaceController<'preview'> {
   outreachStates(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
   /** «Онлайн»: a text of the team's guide becomes the open card's result, for its «Отправить →»; false — not now. */
   onlineText(handle: TargetHandle, text: string): Promise<boolean>;
+  /** «Онлайн»: the fan's draft emptied — its words became the card's text («Свой текст»'s «Отправить»). */
+  clearDraft(handle: TargetHandle): void;
 }
 
 export function createPreviewController(deps: PreviewControllerDeps): PreviewController {
@@ -2498,6 +2500,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    * and holds the fan like any part's. It takes the card's place of the result; nothing is sent. False — not now: no
    * open card of the fan, something of the fan is in flight, or this page sends nothing from a preview.
    */
+  function clearDraft(handle: TargetHandle): void {
+    const state = targets.get(handle) ?? null;
+    if (state !== null && draftText(state) !== '') setDraft(state, '');
+  }
+
   async function onlineText(handle: TargetHandle, text: string): Promise<boolean> {
     const sha256 = deps.sha256;
     const state = targets.get(handle) ?? null;
@@ -2979,6 +2986,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       return editPart(track.source === 'online' ? 'EditOnline' : 'EditOutreach', track, 0, 0, text).ok;
     },
     onlineText,
+    clearDraft,
     async outreachStates(fans, ids) {
       const port = host.media;
       const binding = context.current().binding;
