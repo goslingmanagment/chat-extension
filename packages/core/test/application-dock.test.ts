@@ -189,6 +189,24 @@ describe('dock: Reply from the click to the parts', () => {
     expect(result(h)).toMatchObject({ state: 'done' });
     expect(partsOf(h).map((part) => part.text)).toEqual(['hey you']);
   });
+
+  it('[AI-124] a chat switch while the click is still gathered (ChatSpace reads the open chat) stops nothing either (2026-10-27)', async () => {
+    const h = await start();
+    h.script(h.streamOf('fast-reply', ['hey you']));
+    // The person is in another chat before the read of the click's chat is over.
+    const read = h.host.readVisibleTail.bind(h.host);
+    h.host.readVisibleTail = (expected, max) => {
+      h.host.openChat(previewChat);
+      return read(expected, max);
+    };
+    expect(await h.generate('reply')).toMatchObject({ ok: true, outcome: 'started' });
+    expect((h.bg.callsOf('op.start')[0] as { target: { chat: unknown } }).target.chat).toEqual(openChat);
+    await h.finish();
+    expect(h.dock().result).toBeNull();
+    h.host.openChat(openChat);
+    await h.settle();
+    expect(partsOf(h).map((part) => part.text)).toEqual(['hey you']);
+  });
 });
 
 describe('dock: fresh page text', () => {

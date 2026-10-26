@@ -325,6 +325,9 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
 
   const batch = createBatch({
     clock,
+    // Each Reply, Hi or Ping is its own click: it starts at once (2026-10-27: a fourth fan's Reply waited its turn
+    // past its click's token and ended with nothing written).
+    parallel: Number.POSITIVE_INFINITY,
     async start(handle) {
       const fanRef = fanOf(handle);
       const item = fanRef === null ? undefined : items.get(fanRef);
@@ -335,6 +338,9 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       const fan = passOf(fanRef);
       fan.aiKey = keyOf(how);
       const outcome = await port.batchStart('online', handle, how.feature);
+      // The tab's three generations are taken: the card says so and its button writes again (a retry by itself would
+      // have no token of the click).
+      if (outcome.s === 'busy') return { s: 'failed', code: 'CG-OP-TAB-LIMIT' };
       // A refusal (a short chat for Ping, no chat of the fan known) stays on the card with why: the person picks another.
       if (outcome.s === 'ready' && own === null) {
         const row = port.outreachRow?.(handle) ?? null;

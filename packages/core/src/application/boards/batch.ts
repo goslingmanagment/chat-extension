@@ -53,6 +53,11 @@ export interface BatchDeps {
   pickable?(handle: string): boolean;
   /** What the fan's result is now — its card may have sent it; null — as the batch last heard. */
   live?(handle: string): { readonly text: string | null; readonly sent: boolean } | null;
+  /**
+   * Starts at once (default BATCH_LIMITS.parallel). «Онлайн» starts every click at once: its click's token lives
+   * seconds, so a click left waiting its turn would end with nothing written.
+   */
+  readonly parallel?: number;
   changed(): void;
 }
 
@@ -105,7 +110,7 @@ export function createBatch(deps: BatchDeps): Batch {
   function pump(): void {
     if (disposed) return;
     for (const [handle, item] of items) {
-      if (retry !== null || generating() >= BATCH_LIMITS.parallel) return;
+      if (retry !== null || generating() >= (deps.parallel ?? BATCH_LIMITS.parallel)) return;
       if (item.state !== 'queued') continue;
       item.state = 'generating';
       void launch(handle, item);

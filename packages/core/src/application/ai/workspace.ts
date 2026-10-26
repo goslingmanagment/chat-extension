@@ -802,7 +802,9 @@ export class AiWorkspace {
    * Starts a feature in the open chat: the gates, the draft and the site's
    * proof (on ChatSpace the fresh tail it may carry), the token, the plan,
    * the admission. Nothing is spent on a refusal; what was typed stays with
-   * the person.
+   * the person. A chat switch while the start is gathered stops nothing: the
+   * click was for this chat, everything is read for it, and its result waits
+   * there (AI-124, as a switch after the admission).
    */
   async startFeature(request: StartRequest): Promise<StartResult> {
     const situation = this.situation();
@@ -870,8 +872,9 @@ export class AiWorkspace {
     if (late !== null) return failed(late.code);
     const token = await this.token('generate', surface, request.cause);
     if (!token.ok) return failed(token.error.code, token.error);
-    // The person switched chats while the page was read: this click was for the chat that is gone.
-    if (this.ports.host.current().route.epoch !== chat.routeEpoch) return failed('CG-CONTEXT-CHANGED');
+    // The person may be in another chat by now (ChatSpace reads the open chat and the fan's photos for up to ~3 s):
+    // the start still goes for the chat of the click. It used to stop here without a word (2026-10-27, «жмешь реплай,
+    // свичаешь чат, и она прерывается»).
 
     const plan = planStart({
       feature,
