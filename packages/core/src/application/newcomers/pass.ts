@@ -91,6 +91,8 @@ export interface PassNewcomersDeps {
 /** The selected fan's conversation, per pass. */
 interface History {
   s: 'loading' | 'ready' | 'failed';
+  /** The row's check it was read on (`checkOf`): another verdict or history revision since reads it again. */
+  of: string;
   /** Oldest first. */
   messages: NewcomerMessageVM[];
   more: boolean;
@@ -100,6 +102,9 @@ interface History {
 }
 
 const NO_FAILURE = null;
+
+/** What a card's conversation was read on: the row's verdict and the revision of the history the pass checked. */
+const checkKey = (row: PassRow): string => `${row.check}|${row.historyRevision ?? ''}`;
 
 /** A failure the shared registry knows renders as its own card; a site's own code reads as «данные недоступны» there (its words are the site's). */
 function sharedCode(failure: NewcomersFailureVM): CgCode {
@@ -425,6 +430,13 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (disposed || !open() || pass === null || change.pass.passId !== pass.passId) return;
     // The pinned fan's row as the pass tells it, also once it is out of the list on screen.
     track(change.rows);
+    // 2026-10-26: a fan checked again (a colleague wrote, the fan answered) — the card's conversation is read again, never
+    // the old one under a new verdict.
+    // A check under way («Проверяем…») is no verdict yet: the conversation waits for the one it ends with.
+    for (const row of change.rows) {
+      const known = histories.get(row.fanRef);
+      if (known !== undefined && historyReadable(row.check, row.conversationRef) && known.of !== checkKey(row)) histories.delete(row.fanRef);
+    }
     if (reading || loadingMore) {
       held.push(change);
       return;
@@ -551,7 +563,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     } else if (known !== undefined && (known.s === 'loading' || (mode === 'first' && known.s !== 'failed'))) return;
     const mine = run;
     const passId = pass.passId;
-    const history: History = known ?? { s: 'loading', messages: [], more: false, loadingMore: false, capped: false, failure: NO_FAILURE };
+    const history: History = known ?? { s: 'loading', of: checkKey(row), messages: [], more: false, loadingMore: false, capped: false, failure: NO_FAILURE };
     if (older) history.loadingMore = true;
     else history.s = 'loading';
     history.failure = NO_FAILURE;
@@ -598,7 +610,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (selected !== null && pass !== null) card?.open(pass.passId, selected);
   }
 
-  /** The card shows the selected fan's conversation when the pass read it: asked once per fan and pass. */
+  /** The card shows the selected fan's conversation when the pass read it: asked once per fan and check of the fan (`checkKey`). */
   function ensureHistory(): void {
     if (disposed) return;
     const fanRef = selected;
