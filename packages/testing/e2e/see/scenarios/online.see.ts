@@ -3,7 +3,13 @@
 // their conversation and the text that would go; «Отправить →» — the next fan's card opens by itself; «Пропустить»;
 // «Все онлайн» with the set aside and the reasonless; a fan with nothing to write about and «Написать».
 
-import { scenario, type See } from '../kit';
+import { SEE_AI_TEXTS, scenario, showcaseAiTexts, type See } from '../kit';
+
+/** Texts that fit any fan of the list: the stand's hub writes no prose, and «Онлайн» shows several fans' texts at once. */
+const ONLINE_TEXTS = {
+  'fast-reply': 'haha poor you 😅 I’m just lying in bed thinking about you… what are you up to tonight?',
+  ping: 'hey you 👋 I was just scrolling through our old chats and smiled. how have you been?',
+} as const;
 
 /** The pointer off our window before a picture: no tooltip of the last press stands in it. */
 async function shot(s: See, name: string): Promise<void> {
@@ -16,6 +22,7 @@ scenario(
   'online',
   async (s) => {
     await s.ready();
+    await s.hub.command({ op: 'config', patch: { aiTexts: { ...(s.showcase ? showcaseAiTexts(s.site) : SEE_AI_TEXTS), ...ONLINE_TEXTS } } });
     if (s.site === 'fansly') await s.browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
     else await s.leaveField();
 

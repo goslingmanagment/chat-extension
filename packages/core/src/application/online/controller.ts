@@ -371,20 +371,13 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (fan?.dismiss?.to === 'restored' && hub === 'dismissed') return null;
     // An answer to a text from here lifts the fan out of «писали недавно».
     if (answered(item, fan) && (hub === 'attempted_recently' || hub === 'wrote_recently')) return null;
-    switch (hub) {
-      case 'in_conversation':
-        return { kind: 'talking', names: item.asideBy ?? '', at: item.asideAt };
-      case 'wrote_recently':
-        return { kind: 'wrote', at: item.asideAt };
-      case 'attempted_recently':
-        return { kind: 'tried', at: item.asideAt };
-      case 'dismissed':
-        return { kind: 'dismissed', by: item.asideBy, at: item.asideAt };
-      case 'unreachable':
-        return { kind: 'unreachable' };
-      default:
-        return null;
-    }
+    // An aside this client does not know reads as none (the hub's answers are open).
+    if (hub === 'in_conversation') return { kind: 'talking', names: item.asideBy ?? '', at: item.asideAt };
+    if (hub === 'wrote_recently') return { kind: 'wrote', at: item.asideAt };
+    if (hub === 'attempted_recently') return { kind: 'tried', at: item.asideAt };
+    if (hub === 'dismissed') return { kind: 'dismissed', by: item.asideBy, at: item.asideAt };
+    if (hub === 'unreachable') return { kind: 'unreachable' };
+    return null;
   }
 
   function groupOf(reason: OnlineReasonVM, aside: OnlineAsideVM | null): OnlineGroupId {
@@ -657,7 +650,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     const writing = facts.state === 'writing';
     const went = WENT.includes(facts.state) || MOVING.includes(facts.state);
     const template = how.template === null ? null : { id: how.template.id, group: how.template.group === 'b' ? ('b' as const) : ('a' as const), named: /\blove\b/.test(how.template.text) ? item.greetingName !== null : null, greeting: item.greetingName };
-    const noChat = own !== null && item.conversationRef === null && fan?.group == null;
+    const noChat = own !== null && item.conversationRef === null && (fan?.group ?? null) === null;
     return {
       handle: handleOf(entry.fanRef),
       name: entry.name,
@@ -1247,48 +1240,40 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   }
 
   function dispatch(action: UiAction): Promise<ActionReceipt> | null {
-    switch (action.type) {
-      case 'Navigate': {
-        const to = action.to;
-        if (to.kind === 'surface' && to.surface === 'online') {
-          if (to.open) return Promise.resolve(open(action.type));
-          surfaces.setList('online', false);
-          return Promise.resolve(done(action.type));
-        }
-        if (to.kind !== 'chat') return null;
-        const fanRef = fanOf(to.targetHandle);
-        return fanRef === null ? null : openChat(action.type, fanRef);
+    if (action.type === 'Navigate') {
+      const to = action.to;
+      if (to.kind === 'surface' && to.surface === 'online') {
+        if (to.open) return Promise.resolve(open(action.type));
+        surfaces.setList('online', false);
+        return Promise.resolve(done(action.type));
       }
-      case 'SetOnline':
-        return Promise.resolve(setOnline(action));
-      case 'SelectOnline': {
-        const fanRef = fanOf(action.targetHandle);
-        return fanRef === null ? null : Promise.resolve(select(action.type, fanRef, action.keys === true));
-      }
-      case 'SendOnline':
-      case 'RewriteOnline':
-      case 'EditOnline':
-      case 'SkipOnline':
-      case 'DismissOnline': {
-        const fanRef = fanOf(action.targetHandle);
-        if (fanRef === null) return null;
-        if (action.type === 'SendOnline') return send(action.type, fanRef, action.anyway === true);
-        if (action.type === 'RewriteOnline') return Promise.resolve(rewrite(action.type, fanRef));
-        if (action.type === 'EditOnline') return Promise.resolve(edit(action.type, fanRef, action.text));
-        if (action.type === 'SkipOnline') return Promise.resolve(skip(action.type, fanRef, action.skip));
-        return dismiss(action.type, fanRef, action.dismiss);
-      }
-      case 'Search':
-        return action.list === 'online' ? Promise.resolve(search(action.query, action.now === true)) : null;
-      case 'ReloadView':
-        if (action.selector.of !== 'online') return null;
-        return (context.current().phase === 'ready' ? Promise.resolve() : context.refresh()).then(async () => {
-          await read();
-          return done(action.type);
-        });
-      default:
-        return null;
+      if (to.kind !== 'chat') return null;
+      const fanRef = fanOf(to.targetHandle);
+      return fanRef === null ? null : openChat(action.type, fanRef);
     }
+    if (action.type === 'SetOnline') return Promise.resolve(setOnline(action));
+    if (action.type === 'SelectOnline') {
+      const fanRef = fanOf(action.targetHandle);
+      return fanRef === null ? null : Promise.resolve(select(action.type, fanRef, action.keys === true));
+    }
+    if (action.type === 'SendOnline' || action.type === 'RewriteOnline' || action.type === 'EditOnline' || action.type === 'SkipOnline' || action.type === 'DismissOnline') {
+      const fanRef = fanOf(action.targetHandle);
+      if (fanRef === null) return null;
+      if (action.type === 'SendOnline') return send(action.type, fanRef, action.anyway === true);
+      if (action.type === 'RewriteOnline') return Promise.resolve(rewrite(action.type, fanRef));
+      if (action.type === 'EditOnline') return Promise.resolve(edit(action.type, fanRef, action.text));
+      if (action.type === 'SkipOnline') return Promise.resolve(skip(action.type, fanRef, action.skip));
+      return dismiss(action.type, fanRef, action.dismiss);
+    }
+    if (action.type === 'Search') return action.list === 'online' ? Promise.resolve(search(action.query, action.now === true)) : null;
+    if (action.type === 'ReloadView') {
+      if (action.selector.of !== 'online') return null;
+      return (context.current().phase === 'ready' ? Promise.resolve() : context.refresh()).then(async () => {
+        await read();
+        return done(action.type);
+      });
+    }
+    return null;
   }
 
   // ── life ──

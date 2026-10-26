@@ -21,7 +21,8 @@ export function actWord(i18n: I18n, act: OnlineAct | null): string {
       return i18n.t('online.act.ping');
     case 'template':
       return i18n.t('online.act.template');
-    default:
+    case 'none':
+    case null:
       return i18n.t('online.act.text');
   }
 }

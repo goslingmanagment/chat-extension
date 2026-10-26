@@ -129,8 +129,8 @@ export function fanslyApp(): HostAppAdapter<FanslyPort, null> {
     // «Онлайн»: Fansly's followers active lately, read by the background and told to the hub (its answer is not needed
     // here: the hub's list says the rest). A Fansly type over the shared port, unchecked on the way back by design.
     onlineSeen: async (rpc, pageId, hostAccountId) => {
-      const request = rpc.request as unknown as (type: string, payload: unknown, options?: { readonly timeoutMs?: number }) => Promise<unknown>;
-      await request('fansly.online.seen', { pageId, hostAccountId }, { timeoutMs: 30_000 }).catch(() => undefined);
+      const port = rpc as unknown as { request(type: string, payload: unknown, options?: { readonly timeoutMs?: number }): Promise<unknown> };
+      await port.request('fansly.online.seen', { pageId, hostAccountId }, { timeoutMs: 30_000 }).catch(() => undefined);
     },
     start: (env) => startFanslySurfaces(env),
     registrationOf: (fanId, i18n) => {
