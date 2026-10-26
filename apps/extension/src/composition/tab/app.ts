@@ -337,7 +337,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   const needsBoards = (action: UiAction): boolean =>
     action.type === 'OpenPreview' ||
     action.type === 'GreetNewcomer' ||
-    // «Онлайн» opens by its own action (the bar's chip: the click's grant writes the first texts).
+    // «Онлайн» opens by its own action (the bar's chip).
     (action.type === 'SetOnline' && action.open === true) ||
     (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface));
   /** What a board could not say itself (it has closed, or its row keeps nothing of it): a toast with the code. */

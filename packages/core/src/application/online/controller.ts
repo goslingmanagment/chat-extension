@@ -1,14 +1,15 @@
 // «Онлайн» (2026-10-26, the owner's demo became the window; view `online`): the page's fans who came online, why to
-// write to each now, and a fast pass through them — one click per fan. Who is online and why is the hub's
+// write to each now, and a fast pass through them. Who is online and why is the hub's
 // (`clientOnline`, `online-v1`): OnlyFansAPI's presence on OnlyFans; on Fansly the creator's followers the tab saw
 // active (`fansly.online.seen`, at most once a minute per creator, the background's), reported to the hub first.
 // ChatSpace's own dot says «в сети» where it shows one; OnlyFansAPI's word is «зашёл N мин назад» (its «offline» comes
 // ~30 minutes late). The list is read when the window opens and every minute while it is open and the tab is on screen.
 //
 // Each fan gets one text: Reply, Hi or Ping written by the AI through the fan's card (the preview from `online`), or a
-// text of the team's guide word for word — A where they talked before but the chat is too short for Ping, B where the
-// fan never wrote — with the fan's name in place of «love», the neighbours on different texts. The AI writes for the
-// card the person stopped on and for the next one, never for the whole list. «Отправить →» sends the text: on
+// text of the team's guide word for word — A where they talked before, B where the fan never wrote — with the fan's
+// name in place of «love», the neighbours on different texts. Nothing is written by itself (2026-10-26, the owner: «я
+// только открываю, она уже начинает генерировать»): the card opens with the conversation and «Reply», «Hi», «Ping»,
+// «Шаблон», the hub's advice marked, and only the person's click on one writes it. «Отправить →» sends the text: on
 // ChatSpace the card's own send (X8), on Fansly our background's send; one click, one message, one attempt; an
 // unknown outcome is never sent again by our button. A moment after a send went the next card opens by itself: whoever
 // waits for an answer first, then the next one down the list.
@@ -22,6 +23,7 @@ import { type OnlineItem, type OnlineList, type OnlineTemplate, type SendAttribu
 import { CHAT_IS_FAN, ONLINE_CAPABILITY } from '@cg/contracts/ids';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import {
+  ONLINE_CHOICES,
   ONLINE_GROUPS,
   ONLINE_PERIODS,
   type ActionReceipt,
@@ -29,6 +31,7 @@ import {
   type OnlineAct,
   type OnlineAsideVM,
   type OnlineCardVM,
+  type OnlineChoice,
   type OnlineEndVM,
   type OnlineFanState,
   type OnlineGroupId,
@@ -48,7 +51,6 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
-import { MIN_MESSAGES_FOR_PING } from '../../domain/features/policy';
 import { normalizeSearch } from '../../domain/spenders/rows';
 import { createBatch, type BatchPreviewPort, type OutreachCardRow } from '../boards/batch';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
@@ -69,7 +71,7 @@ export const ONLINE_DEFAULT_MINUTES: OnlinePeriod = 30;
 export const ONLINE_FRESH_MINUTES = 10;
 /** Older than this the fan's dot is grey. */
 export const ONLINE_FADING_MINUTES = 30;
-/** The keys stopped on a fan this long: their card opens and their text is written (and the next one's). */
+/** The keys stopped on a fan this long: their card opens (nothing is written). */
 export const ONLINE_SETTLE_MS = 300;
 /** After a send went, the next fan's card opens this much later: the person sees «Отправлено» first. */
 export const ONLINE_ADVANCE_MS = 800;
@@ -87,8 +89,6 @@ export const ONLINE_EDIT_SETTLE_MS = 500;
 export const ONLINE_MANUAL_RETRY_MS = 3_000;
 /** One text at most (the preview's draft limit). */
 export const ONLINE_TEXT_MAX = 5_000;
-/** What the AI's refusal says when it cannot write here: no chat of the fan is known (Fansly), or the chat is short. */
-const FALLBACK_CODES: readonly string[] = ['CG-DATA-NOT-READY', 'CG-GATE-HISTORY'];
 /** A start the person's click gave no token for: nothing was written, a click on the card writes it. */
 const NO_TOKEN = 'CG-UI-FAILED';
 
@@ -172,10 +172,8 @@ interface PassFan {
   dismiss: { readonly to: 'dismissed' | 'restored'; readonly at: number } | null;
   /** The guide's text of the fan in its group's turn; «Другой шаблон» moves it on. */
   template: number | null;
-  /** «Написать Ping» of a fan with nothing to write about. */
-  write: boolean;
-  /** The AI could not write here (no chat of the fan known, a short chat): the guide's text instead. */
-  fallback: boolean;
+  /** What the person picked on the card: «Reply», «Hi», «Ping» or «Шаблон»; null — nothing yet, nothing is written. */
+  chosen: OnlineChoice | null;
   /** ChatSpace: the card's result this window made (the AI's or the guide's text). */
   textOp: TextOp | null;
   /** ChatSpace: the guide's text is being put on the card. */
@@ -316,7 +314,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   const passOf = (fanRef: string): PassFan => {
     let fan = pass.get(fanRef);
     if (fan === undefined) {
-      fan = { skipped: false, dismiss: null, template: null, write: false, fallback: false, textOp: null, making: false, edit: null, own: null, ownText: null, sent: null, clickedAt: null, advanced: false, reported: false, replied: null, group: null, arrivedAt: null, aiKey: null, manualFailedAt: null, clickAct: null };
+      fan = { skipped: false, dismiss: null, template: null, chosen: null, textOp: null, making: false, edit: null, own: null, ownText: null, sent: null, clickedAt: null, advanced: false, reported: false, replied: null, group: null, arrivedAt: null, aiKey: null, manualFailedAt: null, clickAct: null };
       pass.set(fanRef, fan);
     }
     return fan;
@@ -334,13 +332,8 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       const fan = passOf(fanRef);
       fan.aiKey = keyOf(how);
       const outcome = await port.batchStart('online', handle, how.feature);
-      if (outcome.s === 'failed' && FALLBACK_CODES.includes(outcome.code) && how.feature !== 'reply') {
-        // The AI cannot write for this fan here: the guide's text goes instead (made at once, no AI). Never to a fan who
-        // waits for an answer: a reactivation text is no answer, the card says why the AI could not write instead.
-        fan.fallback = true;
-        fan.aiKey = null;
-        void ensureManual(fanRef);
-      } else if (outcome.s === 'ready' && own === null) {
+      // A refusal (a short chat for Ping, no chat of the fan known) stays on the card with why: the person picks another.
+      if (outcome.s === 'ready' && own === null) {
         const row = port.outreachRow?.(handle) ?? null;
         fan.textOp = row === null ? null : { opId: row.opId, key: keyOf(how), text: row.text };
       }
@@ -439,23 +432,32 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     return texts[fan.template % texts.length] ?? null;
   }
 
-  /** What writes the fan's text now: the hub's act; the guide's text where the AI cannot write; «Написать Ping». */
-  function howOf(fanRef: string, item: OnlineItem): How {
-    const fan = pass.get(fanRef);
-    const ai = answered(item, fan) ? 'reply' : item.act === 'reply' || item.act === 'hi' || item.act === 'ping' ? item.act : null;
-    if (ai !== null && fan?.fallback !== true) return { act: ai, feature: ai, template: null };
-    let group: 'a' | 'b' | null = item.act === 'template_a' ? 'a' : item.act === 'template_b' ? 'b' : null;
-    if (ai !== null) group = item.messageCount > 0 ? 'a' : 'b';
-    if (group === null) {
-      // Nothing to write about (or an act this client does not know): only «Написать Ping» writes — Ping where the
-      // chat has ten messages, else the guide's text.
-      if (fan?.write !== true) return { act: 'none', feature: null, template: null };
-      if (item.messageCount >= MIN_MESSAGES_FOR_PING && !fan.fallback) return { act: 'ping', feature: 'ping', template: null };
-      group = item.messageCount > 0 ? 'a' : 'b';
-    }
-    const template = templateFor(fanRef, group);
-    return template === null ? { act: 'none', feature: null, template: null } : { act: 'template', feature: null, template };
+  /** The hub's advice for the fan now: Reply to one who answered a text from here; null — nothing to write about. */
+  function adviceOf(fanRef: string, item: OnlineItem): OnlineChoice | null {
+    if (answered(item, pass.get(fanRef))) return 'reply';
+    if (item.act === 'reply' || item.act === 'hi' || item.act === 'ping') return item.act;
+    return item.act === 'template_a' || item.act === 'template_b' ? 'template' : null;
   }
+
+  /** The guide's group of the fan: the hub's, else A where they talked before, B where the fan never wrote. */
+  const groupFor = (item: OnlineItem): 'a' | 'b' => (item.act === 'template_a' ? 'a' : item.act === 'template_b' ? 'b' : item.messageCount > 0 ? 'a' : 'b');
+
+  const NO_TEXT: How = { act: 'none', feature: null, template: null };
+
+  /** What writes the fan's text: the person's pick on the card, nothing before it. */
+  function howOf(fanRef: string, item: OnlineItem): How {
+    const chosen = pass.get(fanRef)?.chosen ?? null;
+    if (chosen === null) return NO_TEXT;
+    if (chosen !== 'template') return { act: chosen, feature: chosen, template: null };
+    const template = templateFor(fanRef, groupFor(item));
+    return template === null ? NO_TEXT : { act: 'template', feature: null, template };
+  }
+
+  /** The act the window speaks of for the fan: their text's, else the hub's advice. */
+  const actOf = (fanRef: string, item: OnlineItem): OnlineAct => {
+    const how = howOf(fanRef, item);
+    return how.act !== 'none' ? how.act : (adviceOf(fanRef, item) ?? 'none');
+  };
 
   const keyOf = (how: How): string => (how.template !== null ? `t:${how.template.id}` : `a:${how.feature ?? ''}`);
   const templateText = (item: OnlineItem, template: OnlineTemplate): string => fillTemplate(template.text, item.greetingName);
@@ -681,7 +683,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       presence: presenceOf(item, live),
       reason: entry.reason,
       aside: entry.aside,
-      act: howOf(entry.fanRef, item).act,
+      act: actOf(entry.fanRef, item),
       state: facts.state,
       version: facts.version,
       sentAct: fan?.sent?.act ?? null,
@@ -701,6 +703,13 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     const next = nextRef === null ? null : (entries.find((other) => other.fanRef === nextRef) ?? null);
     const writing = facts.state === 'writing';
     const went = WENT.includes(facts.state) || MOVING.includes(facts.state);
+    const advice = adviceOf(entry.fanRef, item);
+    const hasTemplates = templatesOf(groupFor(item)).length > 0;
+    // The choice stands while a text is written too (the card's buttons wait), and goes once the text went.
+    const choices =
+      batchPort === null || went
+        ? []
+        : ONLINE_CHOICES.filter((choice) => choice !== 'template' || hasTemplates).map((choice) => ({ act: choice, suggested: choice === advice, current: choice === fan?.chosen && facts.state !== 'idle' }));
     const template = how.template === null ? null : { id: how.template.id, group: how.template.group === 'b' ? ('b' as const) : ('a' as const), named: /\blove\b/.test(how.template.text) ? item.greetingName !== null : null, greeting: item.greetingName };
     const noChat = own !== null && item.conversationRef === null && (fan?.group ?? null) === null;
     return {
@@ -716,14 +725,15 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       subscription: item.subscription.isSubscriber ? { startedAt: item.subscription.startedAt, endsAt: item.subscription.endsAt, autoRenew: item.subscription.autoRenew } : null,
       reason: entry.reason,
       aside: entry.aside,
-      act: how.act,
+      act: actOf(entry.fanRef, item),
+      advice,
+      choices,
       template,
       state: facts.state,
       version: facts.version,
       edited: facts.edited,
       editable: facts.editable && !writing,
-      rewrite: batchPort !== null && !writing && !went && (how.feature !== null ? facts.state !== 'idle' || fan?.write === true : how.template !== null && templatesOf(how.template.group === 'b' ? 'b' : 'a').length > 1),
-      write: how.act === 'none' && !went,
+      rewrite: batchPort !== null && !writing && !went && (how.feature !== null ? facts.state !== 'idle' : how.template !== null && templatesOf(how.template.group === 'b' ? 'b' : 'a').length > 1),
       send: facts.send,
       warning: facts.warning,
       media: facts.media,
@@ -926,9 +936,8 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       if (fan.dismiss !== null && (item.aside === 'dismissed') === (fan.dismiss.to === 'dismissed')) fan.dismiss = null;
       if (fan.sent !== null && fan.replied?.to !== fan.sent.at && answered(item, fan) && item.lastFanMessageAt !== null) {
         fan.replied = { at: item.lastFanMessageAt, to: fan.sent.at };
-        // The fan waits for an answer again: a Reply is written for them (by a click on their card), the old text is history.
-        fan.write = false;
-        fan.fallback = false;
+        // The fan waits for an answer again: Reply is advised (written by a click on their card), the old text is history.
+        fan.chosen = null;
         fan.edit = null;
         fan.own = null;
         fan.ownText = null;
@@ -940,17 +949,6 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
         fan.skipped = false;
         fan.clickAct = null;
         batch.drop([handleOf(item.fanRef)]);
-      }
-      // The hub's act for the fan changed (he wrote, the subscription moved): a text written for the old act goes,
-      // unless it is on its way or went.
-      if (fan.aiKey !== null && fan.aiKey !== keyOf(howOf(item.fanRef, item))) {
-        const facts = factsOf(item.fanRef, item);
-        if (!MOVING.includes(facts.state) && !WENT.includes(facts.state)) {
-          batch.drop([handleOf(item.fanRef)]);
-          fan.aiKey = null;
-          fan.textOp = null;
-          fan.edit = null;
-        }
       }
     }
   }
@@ -966,26 +964,6 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   }
 
   // ── the texts ──
-
-  /** The fan's text is written now (the AI's) or put on their open card (the guide's), unless it is there already. */
-  function ensureText(fanRef: string): void {
-    const item = items.get(fanRef);
-    const port = batchPort;
-    if (item === undefined || port === null) return;
-    const fan = pass.get(fanRef);
-    const how = howOf(fanRef, item);
-    if (fan?.skipped === true) return;
-    if (how.feature !== null) {
-      const handle = handleOf(fanRef);
-      const row = batch.row(handle);
-      const facts = factsOf(fanRef, item);
-      // Written already, being written, or it went: nothing more by itself («Ещё раз» is the person's).
-      if (facts.state !== 'idle' || (row.state !== null && !(row.state === 'failed' && row.failure?.code === NO_TOKEN))) return;
-      batch.queue([handle]);
-      return;
-    }
-    if (how.template !== null) void ensureManual(fanRef);
-  }
 
   /** ChatSpace: the guide's text becomes the open card's result, so the card's own send takes it (X8). */
   async function ensureManual(fanRef: string): Promise<void> {
@@ -1120,7 +1098,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (start !== null) void openCard(start);
   }
 
-  /** The fan's card opens; their text is written, and the next fan's. */
+  /** The fan's card opens; nothing is written: the person picks on the card. */
   async function openCard(fanRef: string): Promise<void> {
     if (settleTimer !== null) clock.clearTimer(settleTimer);
     settleTimer = null;
@@ -1133,9 +1111,8 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     // Another card was asked for meanwhile (a click, the keys): that one opens, not this.
     if (disposed || atEpoch !== epoch || run !== opening || !surfaces.current().online || pending !== null) return;
     surfaces.setPreview('online', handle);
-    ensureText(fanRef);
-    const next = nextTodo(fanRef, entriesOf(minutes, liveNow()));
-    if (next !== null) ensureText(next);
+    // ChatSpace: a guide's text the person picked before goes back onto the card (no AI: the card's send takes it, X8).
+    if (pass.get(fanRef)?.chosen === 'template') void ensureManual(fanRef);
     changed();
   }
 
@@ -1235,27 +1212,35 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     return end(answer.code === 'CG-SEND-UNCERTAIN' ? 'uncertain' : 'failed', answer.code);
   }
 
-  /** «Ещё раз» (the AI writes again), «Другой шаблон» (the guide's next text), «Написать Ping» / «Написать Reply». */
-  function rewrite(type: UiActionType, fanRef: string): ActionReceipt {
+  /**
+   * The card's «Reply», «Hi», «Ping», «Шаблон» (`act`), «Ещё раз» and «Другой шаблон» (none: the card's text again): the
+   * AI writes that text by this click, or the guide's text goes onto the card. «Шаблон» again — the guide's next text.
+   */
+  function rewrite(type: UiActionType, fanRef: string, act: OnlineChoice | undefined): ActionReceipt {
     const item = items.get(fanRef);
     if (item === undefined || batchPort === null) return refused(type, localError('CG-DATA-NOT-READY', i18n));
     const fan = passOf(fanRef);
     const before = factsOf(fanRef, item);
     if (MOVING.includes(before.state) || before.state === 'writing') return refused(type, localError('CG-SEND-BUSY', i18n));
     if (WENT.includes(before.state) && !answered(item, fan)) return refused(type, localError('CG-SEND-PART', i18n));
-    let how = howOf(fanRef, item);
-    if (how.act === 'none') {
-      fan.write = true;
-      how = howOf(fanRef, item);
-    } else if (how.template !== null) {
-      fan.template = (fan.template ?? 0) + 1;
-      how = howOf(fanRef, item);
-    }
+    const pick = act ?? fan.chosen;
+    if (pick === null) return refused(type, localError('CG-SEND-PART', i18n));
+    if (pick === 'template' && fan.chosen === 'template' && fan.template !== null) fan.template += 1;
+    fan.chosen = pick;
+    const how = howOf(fanRef, item);
+    if (how.act === 'none') return refused(type, localError('CG-DATA-NOT-READY', i18n));
     fan.edit = null;
     fan.manualFailedAt = null;
     if (fan.own?.state === 'failed') fan.own = null;
-    if (how.feature !== null) batch.queue([handleOf(fanRef)]);
-    else if (how.template !== null) void ensureManual(fanRef);
+    if (how.feature !== null) {
+      fan.aiKey = keyOf(how);
+      batch.queue([handleOf(fanRef)]);
+    } else {
+      // The guide's text instead of the AI's: what the AI wrote for the fan is no text of theirs now.
+      fan.aiKey = null;
+      batch.drop([handleOf(fanRef)]);
+      void ensureManual(fanRef);
+    }
     changed();
     return done(type, 'started');
   }
@@ -1379,7 +1364,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       const fanRef = fanOf(action.targetHandle);
       if (fanRef === null) return null;
       if (action.type === 'SendOnline') return send(action.type, fanRef, action.anyway === true);
-      if (action.type === 'RewriteOnline') return Promise.resolve(rewrite(action.type, fanRef));
+      if (action.type === 'RewriteOnline') return Promise.resolve(rewrite(action.type, fanRef, action.act));
       if (action.type === 'EditOnline') return Promise.resolve(edit(action.type, fanRef, action.text));
       if (action.type === 'SkipOnline') return Promise.resolve(skip(action.type, fanRef, action.skip));
       return dismiss(action.type, fanRef, action.dismiss);

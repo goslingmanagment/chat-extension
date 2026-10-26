@@ -71,7 +71,7 @@ export function createTabClient(deps: TabClientDeps): AppClient {
     subscribe: (selector, listener) => router.subscribe(selector, listener),
     dispatch(action) {
       // Synchronously, while the click or the key is still in flight. A Fix may write its result when it is done (X68).
-      deps.tokens.granted(action.type, action.type === 'Generate' && action.feature === 'fix', movesOnlinePass(action));
+      deps.tokens.granted(action.type, action.type === 'Generate' && action.feature === 'fix');
       const answered = deps.onPressed?.(action);
       deps.onAction?.(action);
       const waiting = deps.before(action);
@@ -128,17 +128,6 @@ export function chatOnScreen(route: { readonly chat: { readonly hostAccountId: s
  * and a row that was refused (the person reads why — paletteReceiptToast — and picks another) leave it open. While the palette is
  * open every dispatched action is one of its rows: our keys are not dispatched under a window of ours.
  */
-/**
- * «Онлайн»: the actions that move its pass to a fan's card — the card's text and the next one's are written by this
- * click (action-gate.ts, the online grant). Its tab, «Зашли за», «Обновить» and the «Вернуть» buttons move nothing.
- */
-export function movesOnlinePass(action: UiAction): boolean {
-  if (action.type === 'SelectOnline' || action.type === 'SendOnline') return true;
-  if (action.type === 'SkipOnline') return action.skip;
-  if (action.type === 'DismissOnline') return action.dismiss;
-  return action.type === 'SetOnline' && action.open === true;
-}
-
 export function closesPalette(action: UiAction, receipt: ActionReceipt): boolean {
   if (!receipt.ok || action.type === 'Search') return false;
   return !(action.type === 'Navigate' && action.to.kind === 'surface' && action.to.surface === 'palette');

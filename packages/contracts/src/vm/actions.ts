@@ -17,7 +17,7 @@ import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMI
 import { type SpendersPeriodSchema } from '../tab-messages';
 import { BATCH_LISTS } from './batch';
 import { OUTREACH_CONDITIONS, OUTREACH_PANES, OUTREACH_TABS } from './outreach-ids';
-import { ONLINE_TABS } from './online-ids';
+import { ONLINE_CHOICES, ONLINE_TABS } from './online-ids';
 
 /** The old Fansly extension's persona export may carry the old local persona texts too: a generous bound. */
 export const LEGACY_PERSONAS_MAX_CHARS = 4_000_000;
@@ -438,19 +438,19 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   }),
   /**
    * 1.65.0: a fan of «Онлайн» chosen — a click on the row, or J / K (`keys`: the card follows once the keys stop): their
-   * card opens and, where the AI writes, their text and the next fan's are written by this click. Nothing is sent.
+   * card opens. Nothing is written or sent: the card's «Reply», «Hi», «Ping», «Шаблон» write (2026-10-26).
    */
   act('SelectOnline', { targetHandle: HandleSchema, keys: z.optional(z.literal(true)) }),
   /**
-   * 1.65.0: «Отправить →» of a fan of «Онлайн»: the text, one click, one message, one attempt; the next fan's card opens and
-   * its text is written by the same click. `anyway` passes the card's warning («Отправить всё равно»).
+   * 1.65.0: «Отправить →» of a fan of «Онлайн»: the text, one click, one message, one attempt; the next fan's card opens
+   * (nothing is written there by itself). `anyway` passes the card's warning («Отправить всё равно»).
    */
   act('SendOnline', { targetHandle: HandleSchema, anyway: z.optional(z.literal(true)) }),
   /**
-   * 1.65.0: «Ещё раз» — the AI writes the fan's text again —, «Другой шаблон» — the guide's next text —, or «Написать Ping»
-   * of a fan with nothing to write about. Nothing is sent.
+   * 1.65.0: «Ещё раз» — the AI writes the fan's text again —, «Другой шаблон» — the guide's next text. 2026-10-26: `act` —
+   * the card's «Reply», «Hi», «Ping» or «Шаблон»: that text is written for the fan (the AI's by this click). Nothing is sent.
    */
-  act('RewriteOnline', { targetHandle: HandleSchema }),
+  act('RewriteOnline', { targetHandle: HandleSchema, act: z.optional(z.enum(ONLINE_CHOICES)) }),
   /** 1.65.0: «Править» — the person's own words for the fan's text (null — back to the AI's or the guide's). Nothing is sent. */
   act('EditOnline', { targetHandle: HandleSchema, text: z.nullable(z.string().check(z.maxLength(5_000))) }),
   /** 1.65.0: «Пропустить» (S) — the fan leaves this pass; `skip: false` — «Вернуть». Nothing is told to anyone. */
