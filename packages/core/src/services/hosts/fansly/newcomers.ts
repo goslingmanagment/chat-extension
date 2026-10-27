@@ -279,6 +279,17 @@ function blip(kind: string, wire: CgAnyErrorWire): boolean {
 }
 /** While a call is in flight, the creator's cooldown is looked at this often, for the banner. */
 export const COOLING_LOOK_MS = 1000;
+/**
+ * No session of the creator yet (the page has not asked Fansly anything since it loaded): looked for this often, this
+ * long in all, before the pass stops with CG-FAN-SESSION. The call never left (`sent: false`).
+ */
+export const SESSION_LOOK_MS = 1000;
+export const SESSION_WAIT_MS = 20_000;
+/**
+ * `GET /account?ids=` shares its 5 s key with `followersnew` (fansly-api rules.ts, E128): the profiles are read once that
+ * long has passed since the list, between two checks, so the queue never stands waiting for the key.
+ */
+export const PROFILES_AFTER_MS = 5000;
 /** A cooldown that refused a call that never left is waited out at most this many times for one call. */
 const COOLING_ROUNDS = 3;
 
@@ -367,6 +378,8 @@ interface Pass {
   flushing: boolean;
   /** The inbox is looked at while a window holds the pass (WATCH_MS). */
   watching: boolean;
+  /** When the queue reads the profiles (PROFILES_AFTER_MS after the list); null — read, or not due. */
+  profilesAt: number | null;
 }
 
 type Payload<T extends keyof typeof REQUESTS> = FanslyTabRequestPayload<T>;
@@ -524,6 +537,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
    * a `click` (the check right before a send), which is refused at once.
    */
   async function ask(pass: Pass, work: Work, call: Omit<NewcomersCall, 'account'>): Promise<unknown> {
+    let waited = 0;
     for (let round = 0; ; round += 1) {
       if (work.stop.aborted) throw new Aborted();
       const started = monotonicNow();
@@ -537,6 +551,15 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         note(pass, 'call.failed', { route: call.route, kind, code: wire.code, httpStatus: wire.httpStatus, retryAt: wire.retryAt, durationMs: Math.max(0, monotonicNow() - started) });
         if (work.stop.aborted) throw new Aborted();
         if (call.click === true) throw error;
+        // 2026-10-27: a window that opens with the page (a reload) asks before the page's own first request gave the
+        // creator's session; nothing left, so the pass waits for it a little instead of stopping at once.
+        if (kind === 'session' && waited < SESSION_WAIT_MS && pass.watchers.size > 0) {
+          note(pass, 'call.wait', { route: call.route, waitMs: SESSION_LOOK_MS, reason: 'session' });
+          await deps.sleep(SESSION_LOOK_MS, work.stop);
+          waited += SESSION_LOOK_MS;
+          round -= 1;
+          continue;
+        }
         // `cooling` never left (POST /group in a cooldown); `rate-limited` — the reads' own retries are spent.
         const waitable = kind === 'cooling' || (kind === 'rate-limited' && round === 0);
         const until = deps.api.coolingUntil(pass.creator);
@@ -660,9 +683,17 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     await afterList(pass, work, true);
   }
 
-  /** What follows the list: what earlier passes proved, the inbox's leads, the profiles, the known chats, the queue. */
+  /**
+   * What follows the list: what earlier passes proved, the inbox's leads and what they prove at once, then the queue.
+   * 2026-10-27 (the owner: «открывает дохуя типов, цифры потом уменьшаются… непонятно что грузит»): every fan left is
+   * checked in one queue, the newest follower first — a fan with no chat (nobody wrote yet, the one to greet) is no
+   * longer checked after every fan whose chat the inbox named —, and the profiles wait for their key between two checks.
+   */
   async function afterList(pass: Pass, work: Work, retry: boolean): Promise<void> {
     const cutoff = pass.startedAt - pass.windowHours * 3_600_000;
+    // The list is read: from here the window counts the check.
+    phase(pass, 'checking');
+    pass.profilesAt = deps.now() + PROFILES_AFTER_MS;
     // What earlier passes proved: a fan written to needs no request; a known chat is a lead the inbox did not give.
     const book = await bookOf(pass.creator);
     if (work.stop.aborted) throw new Aborted();
@@ -670,25 +701,33 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
     await inbox(pass, work, cutoff);
     knownLeads(pass, book);
-    phase(pass, 'profiles');
-    await profiles(pass, work);
-    phase(pass, 'checking');
-    let fails = 0;
-    // The chats already known, newest first — the person's choice (a click on the row) before them, as it comes.
-    const seen = new Set<string>();
-    const lead = (row: Row | undefined): row is Row => row !== undefined && !seen.has(row.view.fanRef) && row.view.status === 'pending' && pass.leads.has(row.view.fanRef);
-    for (;;) {
-      const chosen = pass.preferred === null ? undefined : pass.byFan.get(pass.preferred);
-      const row = lead(chosen) ? chosen : pass.rows.find(lead);
-      if (row === undefined) break;
-      seen.add(row.view.fanRef);
-      if (pass.preferred === row.view.fanRef) pass.preferred = null;
-      fails = await checkOne(pass, work, row, false, fails);
-    }
+    for (const row of pass.rows) inboxVerdict(pass, row);
     pass.phase = null;
     pass.base = 'queue';
     touch(pass);
     await queue(pass, work, null, retry);
+  }
+
+  /**
+   * A chat the inbox listed with both users whose last message is the creator's personal one: «Уже писали» with no
+   * request (the old fast part trusted it the same way).
+   */
+  function inboxVerdict(pass: Pass, row: Row): void {
+    const chat = pass.leads.get(row.view.fanRef);
+    if (row.view.status !== 'pending' || row.chat !== null || chat === undefined || !chat.verified || chat.last === null) return;
+    if (!isCreatorPersonal(chat.last, pass.creator, pass.welcome)) return;
+    note(pass, 'chat.reuse', { fanRef: row.view.fanRef, groupId: chat.groupId, reason: 'inbox' });
+    note(pass, 'message.classify', { fanRef: row.view.fanRef, groupId: chat.groupId, messageId: chat.last.id, classification: 'creator-personal' });
+    row.chat = chat;
+    if (row.view.groupId !== chat.groupId) set(pass, row, { groupId: chat.groupId });
+    greeted(pass, row, chat.last, [chat.last]);
+  }
+
+  /** The profiles, once: by the queue when their key is free, else when it ends. */
+  async function dueProfiles(pass: Pass, work: Work, now: boolean): Promise<void> {
+    if (pass.profilesAt === null || (!now && deps.now() < pass.profilesAt)) return;
+    pass.profilesAt = null;
+    await profiles(pass, work);
   }
 
   /** A page of the creator's new followers, the newest first, before the follow `before` ('0' — from the newest). */
@@ -862,10 +901,11 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const tried = new Set<string>();
     for (;;) {
       if (work.stop.aborted) throw new Aborted();
+      await dueProfiles(pass, work, false);
       const fresh = only !== null ? (tried.has(only) ? undefined : pass.byFan.get(only)) : nextRow(pass, work, tried, wanted);
       // Nothing new is left: the blips, once each, after their pause (the end of the old queue).
       const row = fresh ?? againRow(pass, work, only);
-      if (row === undefined) return;
+      if (row === undefined) return dueProfiles(pass, work, true);
       const fan = row.view.fanRef;
       if (fresh === undefined) {
         const at = work.again.get(fan) ?? 0;
@@ -962,6 +1002,9 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     const asked = (call: Omit<NewcomersCall, 'account'>): Promise<unknown> => ask(pass, work, click ? { ...call, click: true } : call);
     let chat = row.chat ?? pass.leads.get(fan) ?? null;
     const booked = chat !== null && row.chat === null && bookChats.has(chat);
+    // A chat the inbox or the book named, confirmed: its last message is trusted as the fast part trusted it (2026-10-27:
+    // the queue checks these too); a chat `POST /group` made has its history read.
+    let lead = row.chat === null && chat !== null;
     if (chat !== null) note(pass, 'chat.reuse', { fanRef: fan, groupId: chat.groupId, reason: row.chat !== null ? 'checked' : booked ? 'known' : 'inbox' });
     if (chat === null && !create) return;
     set(pass, row, { status: 'checking', error: null });
@@ -998,6 +1041,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
           return;
         }
         chat = await make();
+        lead = false;
       } else chat = withChatHead(confirmed, chat.lastMessageId, chat.lastKnown);
     }
     row.chat = chat;
@@ -1005,7 +1049,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (row.view.groupId !== chat.groupId) set(pass, row, { groupId: chat.groupId });
     const lastPersonal = chat.last !== null && isCreatorPersonal(chat.last, pass.creator, pass.welcome) ? chat.last : null;
     // The fast part trusts a last message of the creator's own as «Уже писали» without reading the history (the old).
-    if (lastPersonal !== null && !create) {
+    if (lastPersonal !== null && (!create || lead)) {
       note(pass, 'message.classify', { fanRef: fan, groupId: chat.groupId, messageId: lastPersonal.id, classification: 'creator-personal' });
       return greeted(pass, row, lastPersonal, [lastPersonal]);
     }
@@ -1451,6 +1495,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       passDirty: false,
       flushing: false,
       watching: false,
+      profilesAt: null,
     };
     passes.set(creator, pass);
     byId_.set(pass.id, pass);
@@ -1496,7 +1541,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (query === undefined) return { pass: viewOf(pass), rows: page(all), total: all.length, seq: pass.seq };
     // The window's search, tab and filter over the WHOLE pass, then the page (P10a): counts after the search.
     const searched = all.filter((row) => matchesPassSearch(passRowOf(row), query.search));
-    const inTab = searched.filter((row) => inPassTab(checkOf(row), query.tab));
+    const inTab = searched.filter((row) => inPassTab(checkOf(row), query.tab, row.checkedAt));
     const shown = inTab.filter((row) => passesCheckFilter(checkOf(row), query.filter));
     const filters = Object.fromEntries(NEWCOMER_CHECK_FILTERS.map((id) => [id, inTab.filter((row) => passesCheckFilter(checkOf(row), id)).length])) as Record<(typeof NEWCOMER_CHECK_FILTERS)[number], number>;
     return {
@@ -1504,7 +1549,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       rows: page(shown),
       total: shown.length,
       seq: pass.seq,
-      counts: { tabs: { todo: searched.filter((row) => inPassTab(checkOf(row), 'todo')).length, all: searched.length }, filters },
+      counts: { tabs: { todo: searched.filter((row) => inPassTab(checkOf(row), 'todo', row.checkedAt)).length, all: searched.length }, filters },
     };
   }
 
@@ -1530,6 +1575,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       return { ok: true, pass: viewOf(pass) };
     }
     begin(pass, 'queue', async (work) => {
+      pass.profilesAt = null;
       await profiles(pass, work);
       await queue(pass, work, null, true);
     });
@@ -1785,6 +1831,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       passDirty: false,
       flushing: false,
       watching: false,
+      profilesAt: null,
     };
     try {
       pass.welcome = (await freshWelcome(creator)) ?? (await welcomeTexts(pass, work));
