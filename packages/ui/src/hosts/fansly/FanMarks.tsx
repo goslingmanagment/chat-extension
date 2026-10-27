@@ -216,7 +216,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
     .cg-root[data-cg-surface='header-slot'] { container-type: normal; }
     .cg-fm { display: inline-flex; align-items: center; gap: 4px; color: var(--cg-ink-muted); font-size: 12px; line-height: 14px; white-space: nowrap; }
     .cg-fm__divider { margin: 0 2px; }
-    .cg-fm__mark { all: unset; display: inline-flex; align-items: center; cursor: pointer; border-radius: 6px; font-weight: 600; }
+    .cg-fm__mark { all: unset; display: inline-flex; align-items: center; cursor: pointer; border-radius: 6px; font-weight: 500; }
     .cg-fm__mark--lists { color: var(--cg-amber-ink); }
     .cg-fm__mark--blocklist { color: var(--cg-bad-ink); }
     .cg-fm__label { display: inline-block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }

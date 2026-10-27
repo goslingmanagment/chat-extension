@@ -7,8 +7,8 @@ const day = (locale: string) => (at: number, now: number): string => {
   const date = new Date(at);
   const sameYear = date.getFullYear() === new Date(now).getFullYear();
   const text = date.toLocaleDateString(locale, sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
-  // «12 окт. 2025 г.» reads as «12 окт. 2025».
-  return text.replace(/\s*г\.$/, '');
+  // «12 окт. 2025 г.» reads as «12 окт. 2025» (and «24 авг.» keeps its month).
+  return text.replace(/(\d)\s+г\.$/, '$1');
 };
 
 export const FAN_MARKS_TEXTS: Readonly<Record<'ru' | 'en', FanMarksCopy>> = {
