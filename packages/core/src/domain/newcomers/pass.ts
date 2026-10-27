@@ -100,9 +100,14 @@ export interface PassHistoryPage {
 /**
  * «К обработке» (NF-006): whom the person can still act on — not written to already, not taken out of the queue. A
  * fan nobody can write to stays here until the person excludes them (FS-NEW-2), as with the old window.
+ * 2026-10-27 (the owner: «открывает дохуя типов… цифры потом начинают уменьшаться»): a fan the check has not reached
+ * yet is no work yet — «Все» shows them, «К обработке» grows as the check finds whom to write to. A fan checked before
+ * and being checked again stays (`checkedAt`), so a recheck never takes the row from under the card.
  */
-export function inPassTab(check: NewcomerCheck, tab: NewcomersTab): boolean {
-  return tab === 'all' || (check !== 'greeted' && check !== 'excluded');
+export function inPassTab(check: NewcomerCheck, tab: NewcomersTab, checkedAt: string | null): boolean {
+  if (tab === 'all') return true;
+  if (check === 'greeted' || check === 'excluded') return false;
+  return checkedAt !== null || (check !== 'pending' && check !== 'checking');
 }
 
 const FILTERED: Readonly<Record<Exclude<NewcomerCheckFilter, 'any'>, readonly NewcomerCheck[]>> = {
@@ -121,7 +126,7 @@ export function passesCheckFilter(check: NewcomerCheck, filter: NewcomerCheckFil
 
 /** A filter that takes only rows «К обработке» does not hold: choosing it shows «Все» (the old window's rule). */
 export function filterLeavesTodo(filter: NewcomerCheckFilter): boolean {
-  return filter === 'contacted';
+  return filter === 'contacted' || filter === 'pending';
 }
 
 export interface PassSearchable {

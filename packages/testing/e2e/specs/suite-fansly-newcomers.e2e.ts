@@ -104,8 +104,9 @@ describe('[host:fansly] «Новые» on Fansly — the window over the backgro
     expect(await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } })).toEqual({ ok: true, payload: { delivered: true } });
     await browser.url(testBuildPage(QUIET_PAGE));
     await shift.toFansly();
-    // The followers of 48 hours, as the pass read them; the queue runs and may stop.
-    await browser.waitUntil(async () => oursExists('modal', `${WINDOW} .cg-nw__row`), { timeout: 30_000, timeoutMsg: 'no row of the pass in the window' });
+    // The followers of 48 hours, as the pass read them («Все N»; «К обработке» fills only as the check finds fans to
+    // act on, 2026-10-27); the queue runs and may stop.
+    await waitOursText('modal', /Все [1-9]\d*/, 'the pass read the followers', { timeout: 30_000, selector: `${WINDOW} [role="tablist"]` });
     expect(await oursText('modal', WINDOW)).not.toMatch(/Список не загружен/);
     await waitOursByText('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза', 'the queue runs: «Пауза»', 30_000);
     await pressOurs('modal', `${WINDOW} button.cg-fnw__run`, 'Пауза');

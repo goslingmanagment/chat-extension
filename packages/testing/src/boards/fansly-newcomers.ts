@@ -156,7 +156,7 @@ export function fanslyNewcomersVM(ctx: ScenarioCtx, options: PassOptions): Newco
   const followers = options.stage === 'failed' ? [] : (options.followers ?? FOLLOWERS);
   const tab = options.tab ?? 'todo';
   const filter = options.filter ?? 'any';
-  const inTab = followers.filter((follower) => inPassTab(follower.check, tab));
+  const inTab = followers.filter((follower) => inPassTab(follower.check, tab, null));
   const visible = inTab.filter((follower) => passesCheckFilter(follower.check, filter));
   const windowHours = options.windowHours ?? 48;
   const startedAt = ctx.now - 4 * MIN;
@@ -192,7 +192,7 @@ export function fanslyNewcomersVM(ctx: ScenarioCtx, options: PassOptions): Newco
     pageName: PERSONA.pageName,
     personaLabel: null,
     tab,
-    tabs: (['todo', 'all'] as const).map((id) => ({ id, label: msg(id === 'todo' ? 'newcomers.tab.todo' : 'newcomers.tab.all'), count: live ? followers.filter((follower) => inPassTab(follower.check, id)).length : null })),
+    tabs: (['todo', 'all'] as const).map((id) => ({ id, label: msg(id === 'todo' ? 'newcomers.tab.todo' : 'newcomers.tab.all'), count: live ? followers.filter((follower) => inPassTab(follower.check, id, null)).length : null })),
     windowHours,
     windowOptions: [1, 3, 6, 12, 24, 48, 72, 168, 336, 720],
     filters: [],
