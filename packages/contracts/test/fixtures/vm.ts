@@ -45,6 +45,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   ShowRecap: { type: 'ShowRecap', length: 'full' },
   RefreshRecap: { type: 'RefreshRecap', length: 'short' },
   NewCoachDialog: { type: 'NewCoachDialog' },
+  SetCoachDepth: { type: 'SetCoachDepth', targetHandle: 'spenders:f1', window: 600 },
   RetryRecapSave: { type: 'RetryRecapSave', length: 'full' },
   ShowAnalysis: { type: 'ShowAnalysis', view: 'recap', mode: 'expanded' },
   ShowVoice: { type: 'ShowVoice', targetHandle: TARGET, open: true },

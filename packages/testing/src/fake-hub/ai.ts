@@ -66,6 +66,8 @@ export interface ModelStreamFacts {
   readonly coverageCheck?: CoverageCheckAnswer;
   /** The meta frame's `attachedRecaps`: Coach's Recaps, a Reply's or a Ping's dossier as `full` (hub #756); absent — not said. */
   readonly attachedRecaps?: Extract<HubFrame, { type: 'meta' }>['attachedRecaps'];
+  /** 2026-10-27 (`coach-depth-v1`): Coach's ```more note, at the end of its answer; absent — none. */
+  readonly more?: string;
 }
 
 const TEXTS: Readonly<Record<string, { readonly single: string; readonly split: string }>> = {
@@ -220,7 +222,8 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
   }
   if (debug) steps.push(frame({ type: 'reasoning_delta', text: 'synthetic reasoning' }));
   const written = outreachVersion(facts.texts, request) ?? facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
-  const text = facts.nameFan === true ? namedForFan(written, request) : written;
+  const named = facts.nameFan === true ? namedForFan(written, request) : written;
+  const text = facts.more === undefined ? named : `${named}\n\n\`\`\`more\n${facts.more}\n\`\`\``;
   chunks(text).forEach((piece, at) => steps.push(frame({ type: 'content_delta', text: piece }, facts.chunkDelayMs + (at === 0 ? (facts.thinkMs ?? 0) : 0))));
   if (!SHOWCASE) {
     steps.push(

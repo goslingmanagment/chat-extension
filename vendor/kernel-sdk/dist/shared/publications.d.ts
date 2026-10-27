@@ -1,12 +1,14 @@
-export declare const PUBLICATION_KINDS: readonly ["fyp_post", "subscriber_post", "paid_post", "story"];
+export declare const PUBLICATION_KINDS: readonly ["fyp_post", "subscriber_post", "paid_post", "story", "vault_album"];
 export type PublicationKind = (typeof PUBLICATION_KINDS)[number];
 /** Who may reply to a Fansly post ("Lock Replies", the contract §12.4): any of
  *  these; none named, everyone. Followers are the model's followers. */
 export declare const PUBLICATION_REPLY_LOCKS: readonly ["followers", "subscribers"];
 export type PublicationReplyLock = (typeof PUBLICATION_REPLY_LOCKS)[number];
-/** What each platform can publish: OnlyFans has no FYP (spec §6). */
+/** What each platform can publish: OnlyFans has no FYP (spec §6); a vault
+ *  album is Fansly's (0323): its text is the album's title, its files the
+ *  album as it should be, in order. */
 export declare const PUBLICATION_PLATFORM_KINDS: {
-    readonly fansly: readonly ["fyp_post", "subscriber_post", "paid_post", "story"];
+    readonly fansly: readonly ["fyp_post", "subscriber_post", "paid_post", "story", "vault_album"];
     readonly onlyfans: readonly ["subscriber_post", "paid_post", "story"];
 };
 /** spec §4, in the order a publication lives through them. */
@@ -22,8 +24,9 @@ export type PublicationActorKind = (typeof PUBLICATION_ACTOR_KINDS)[number];
  * Every allowed status change and who may make it (spec §4, §8.2). A status
  * that is not a key here, or a target it does not list, is refused.
  *
- * - draft → approved and every cancel are a person's: an agent drafts, a
- *   person approves (spec §2.5, §9).
+ * - draft → approved: a person's, or an agent's whose key the owner gave
+ *   `approve:publications` (owner 2026-10-27: the agent approves after the
+ *   owner's «да» in the chat). Every cancel is a person's.
  * - approved → draft: an edit (person or agent), or Hub's check before
  *   dispatch finding the account, binding or model changed (spec §3.3).
  * - approved → submitting / missed and everything after submitting are Hub's:
@@ -73,6 +76,11 @@ export declare const FANSLY_FILE_UPLOAD_ENABLED = true;
 export declare const PUBLICATION_TEXT_MAX_LENGTH = 5000;
 export declare const PUBLICATION_MEDIA_MAX = 20;
 export declare const PUBLICATION_PREVIEWS_MAX = 5;
+/** A vault album's files at most (0323): all their media ids go in one
+ *  request of at most one frame (~21 bytes each). */
+export declare const PUBLICATION_VAULT_ALBUM_MEDIA_MAX = 300;
+/** A vault album's title at most, in characters. */
+export declare const PUBLICATION_VAULT_ALBUM_TITLE_MAX = 120;
 /** Who sees an extra attachment of a Fansly post (the contract §12.2):
  *  everyone; the subscribers (with a price, anyone else buys it); or whoever
  *  pays (only subscribers, when it says so). */

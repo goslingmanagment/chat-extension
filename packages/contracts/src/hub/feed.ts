@@ -18,6 +18,9 @@ export const FEED_LIMITS = {
   summaryWindowDefault: 100,
   summaryWindowMin: 5,
   summaryWindowMax: 1500,
+  /** 2026-10-27 (`coach-depth-v1`): at most this many depths a first page dates, each within the AI window's bounds. */
+  depthMarksMax: 8,
+  depthMarkMax: 5000,
 } as const;
 
 export const FEED_SENDERS = ['fan', 'model', 'system', 'unknown'] as const;
@@ -38,6 +41,11 @@ export const FeedQuerySchema = z.strictObject({
   limit: z.optional(z.int().check(z.gte(1), z.lte(FEED_LIMITS.maxLimit))),
   summaryWindow: z.optional(z.int().check(z.gte(FEED_LIMITS.summaryWindowMin), z.lte(FEED_LIMITS.summaryWindowMax))),
   conversationRef: z.optional(NativeIdSchema),
+  /**
+   * 2026-10-27 (`coach-depth-v1`): the depths the first page dates — «300 сообщений · 2 недели» of Coach — as the hub
+   * takes them: counts joined by commas. Only to a hub that lists the capability; a page with a cursor ignores it.
+   */
+  depthMarks: z.optional(z.string().check(z.regex(/^[1-9]\d{0,3}(?:,[1-9]\d{0,3}){0,7}$/))),
 });
 export type FeedQuery = z.infer<typeof FeedQuerySchema>;
 
@@ -67,6 +75,21 @@ export const FeedSummarySchema = z.object({
 });
 export type FeedSummary = z.infer<typeof FeedSummarySchema>;
 
+/**
+ * 2026-10-27 (`coach-depth-v1`): how deep the conversation's archive goes, on a first page that asked (`depthMarks`):
+ * how many messages it holds (the rows the AI reads), the oldest one's time, whether it holds the chat from its start,
+ * and for each asked count up to what it holds the time of that newest-first message.
+ */
+export const FeedDepthSchema = z.object({
+  storedCount: CountSchema,
+  oldestAt: z.nullable(IsoTimestampSchema),
+  historyComplete: z.boolean(),
+  marks: z
+    .array(z.object({ count: z.int().check(z.gte(1), z.lte(FEED_LIMITS.depthMarkMax)), at: z.nullable(IsoTimestampSchema) }))
+    .check(z.maxLength(FEED_LIMITS.depthMarksMax)),
+});
+export type FeedDepth = z.infer<typeof FeedDepthSchema>;
+
 export const FeedPageSchema = z.object({
   /** 1.15.0 (R20 F6b): `conversationRef` repeats the request's; absent when it named none. */
   target: z.object({ pageLabel: z.string(), fanRef: NativeIdSchema, conversationRef: z.optional(NativeIdSchema) }),
@@ -83,5 +106,7 @@ export const FeedPageSchema = z.object({
   items: z.array(FeedItemSchema).check(z.maxLength(FEED_LIMITS.maxLimit)),
   /** First page (no cursor) only. */
   summary: z.nullable(FeedSummarySchema),
+  /** 2026-10-27: the archive's depth, on a first page that asked (`depthMarks`); absent or null — not asked or not known. */
+  depth: z.optional(z.nullable(FeedDepthSchema)),
 });
 export type FeedPage = z.infer<typeof FeedPageSchema>;

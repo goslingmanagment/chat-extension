@@ -6,6 +6,11 @@ import { publicationStatusSchema } from "./publications";
 // server's disk while any publication that uses the file is not finished, and
 // 7 days after the last one finished; a file no publication used goes 7 days
 // after its upload. Only metadata travels here.
+/** An agent's upload (write:publication_drafts): the file is the page's model's; only its name is asked. */
+export const agentPublicationFileUploadQuerySchema = z.strictObject({
+    /** The file's own name, for people and as the upload's name on the platform; Hub never trusts it for the type. */
+    name: z.string().max(255).optional(),
+});
 /** Who names the file's model: its slug, its id, or a page (the page's model). Exactly one. */
 export const publicationFileUploadQuerySchema = z.object({
     modelSlug: z.string().min(1).max(100).optional(),

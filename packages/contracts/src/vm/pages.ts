@@ -306,7 +306,8 @@ export interface GenerationBodyVM {
   readonly rememberTone?: boolean;
   /** 1.52.0: «Учитывать Recap» per feature — where a chat's «с Recap» of each starts; absent — all on. */
   readonly recapBy?: Readonly<Record<RecapReader, boolean>>;
-  readonly coach: { readonly historyLimit: number; readonly autoRecap: CoachAutoRecap };
+  /** 2026-10-27: `window` — how many of the chat's latest messages Coach reads (absent in a store — 300). */
+  readonly coach: { readonly historyLimit: number; readonly autoRecap: CoachAutoRecap; readonly window?: number };
   readonly debug: { readonly enabled: boolean; readonly renderTrace: boolean };
 }
 

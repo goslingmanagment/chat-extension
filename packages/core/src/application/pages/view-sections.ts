@@ -26,6 +26,7 @@ import {
   type SignInVM,
 } from '@cg/contracts/vm';
 
+import { coachWindowOf } from '../../domain/coach/depth';
 import { formatMicroUsd } from '../../domain/debug';
 import { recapByDefault } from '../../domain/settings';
 import { hotkeyRows } from './hotkeys';
@@ -268,7 +269,8 @@ export function generationBody(model: PagesModel): GenerationBodyVM | null {
     rememberTone: settings.generation.rememberTone !== false,
     // «Учитывать Recap» per feature (1.52.0): absent — the shared one of 1.50.0, then on.
     recapBy: { reply: recapByDefault(settings, 'reply'), fix: recapByDefault(settings, 'fix'), ping: recapByDefault(settings, 'ping'), coach: recapByDefault(settings, 'coach') },
-    coach: { ...settings.generation.coach },
+    // 2026-10-27: Coach's own depth — absent in a store from before it: 300.
+    coach: { ...settings.generation.coach, window: coachWindowOf(settings) },
     debug: { ...settings.debug },
   };
 }

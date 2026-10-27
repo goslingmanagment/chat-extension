@@ -11,7 +11,7 @@ import { CgCodeSchema, SettingsRouteSchema } from '../errors';
 import { FeatureIdSchema, RecapReaderSchema, ToneSchema } from '../features';
 import { MediaFolderIdSchema } from '../send-media';
 import { NativeIdSchema, PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
-import { SettingsV1Schema, UI_TEXT_SIZES } from '../settings';
+import { SETTINGS_RANGES, SettingsV1Schema, UI_TEXT_SIZES } from '../settings';
 import type { VoiceTone } from '../voice';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, PART_LIMITS, SEND_LIMITS, SIGN_IN_LIMITS } from '../limits';
 import { type SpendersPeriodSchema } from '../tab-messages';
@@ -59,6 +59,8 @@ export const PREFERENCE_VALUE_SCHEMAS = {
   'generation.windows.deep': generation.windows.shape.deep,
   'generation.coach.historyLimit': generation.coach.shape.historyLimit,
   'generation.coach.autoRecap': generation.coach.shape.autoRecap,
+  // 2026-10-27: stored as optional (absent — 300), set as a number in its range.
+  'generation.coach.window': z.int().check(z.gte(SETTINGS_RANGES.coachWindow.min), z.lte(SETTINGS_RANGES.coachWindow.max)),
   'sound.messages.on': sound.messages.shape.on,
   'sound.messages.tone': sound.messages.shape.tone,
   'sound.subscribers.on': sound.subscribers.shape.on,
@@ -273,6 +275,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    */
   act('RefreshRecap', { length: z.enum(RECAP_LENGTHS), panel: z.optional(z.literal(true)) }),
   act('NewCoachDialog', {}),
+  /**
+   * 2026-10-27: how many of the open chat's latest messages Coach reads from the next question on — the window's
+   * «300 сообщений ▾». For this tab's session and this chat only; the settings' number is where every chat starts.
+   */
+  act('SetCoachDepth', { targetHandle: HandleSchema, window: z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax)) }),
   /** CG-RECAP-SAVE «Сохранить ещё раз»: the idempotent dossier reference write only, never a new generation. */
   act('RetryRecapSave', { length: z.enum(RECAP_LENGTHS) }),
   /**

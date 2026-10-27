@@ -115,6 +115,10 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     // The AI feature stream takes `liveImages`, the fan's newest photos of the
     // open chat as bytes; listed while the owner's `aiLiveImagesEnabled` is on.
     "live-images-v1",
+    // The AI feature stream takes `draftMedia`, the media the chatter attached to
+    // the message being written (its pictures as bytes); listed while the
+    // owner's `aiDraftMediaEnabled` is on.
+    "draft-media-v1",
     // The AI feature stream takes `recap: "off"`: this generation reads no Recap.
     "recap-off-v1",
     // Fix takes `draftPurpose: "outreach"`: a mass message rewritten for one fan.
@@ -134,6 +138,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     "online-v1",
     // Hi on Fansly takes `fanAccount`, the fan's Fansly account as the page loaded it.
     "hi-fan-account-v1",
+    // Coach reads as deep as the chatter chooses and says when older history matters; the feed dates the depths.
+    "coach-depth-v1",
 ];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
@@ -420,6 +426,21 @@ export const CLIENT_FEED_SENDERS = ["fan", "model", "system", "unknown"];
  * other value as, and what it shows when `summary` is null.
  */
 export const CLIENT_FEED_PING_SEGMENTS = ["active", "segment-a", "segment-b", "unknown"];
+/** `depthMarks` names at most this many counts (`coach-depth-v1`). */
+export const CLIENT_FEED_DEPTH_MARKS_MAX = 8;
+/** The largest count `depthMarks` takes: the deepest AI transcript read. */
+export const CLIENT_FEED_DEPTH_MARK_MAX = 5000;
+/**
+ * `coach-depth-v1`: the counts a client wants dated, as `300,1000,3000`. On the
+ * wire one string of 1 to 8 whole numbers, each 1 to 5000, joined by commas;
+ * read as the distinct counts, ascending.
+ */
+const clientFeedDepthMarksSchema = z.string()
+    .regex(/^[1-9][0-9]{0,3}(,[1-9][0-9]{0,3}){0,7}$/)
+    .transform((value) => [...new Set(value.split(",").map(Number))].sort((left, right) => left - right))
+    .refine((marks) => marks.every((mark) => mark <= CLIENT_FEED_DEPTH_MARK_MAX), {
+    message: `every depth mark is at most ${CLIENT_FEED_DEPTH_MARK_MAX}`,
+});
 export const clientConversationFeedQuerySchema = z.object({
     /** `nextOlderCursor` of the page before; absent starts a new walk at the newest message. */
     cursor: clientCursorSchema.optional(),
@@ -433,6 +454,12 @@ export const clientConversationFeedQuerySchema = z.object({
      * and a cursor is bound to it and to the fan.
      */
     conversationRef: clientConversationRefSchema.optional(),
+    /**
+     * `coach-depth-v1`: on the first page, the answer's `depth` dates these
+     * counts of the newest messages (Coach's «300 сообщений · 2 недели»). Not
+     * read on a later page.
+     */
+    depthMarks: clientFeedDepthMarksSchema.optional(),
 }).strict();
 export const clientFeedItemSchema = z.object({
     /** The platform's message id. */
@@ -478,6 +505,28 @@ export const clientFeedSummarySchema = z.object({
     /** The instant the segment and the silence were counted at. */
     asOf: isoTimestamp,
 });
+/**
+ * `coach-depth-v1`: how deep the conversation's stored history goes, for the
+ * chatter to choose how many messages Coach reads. The messages are the ones
+ * an AI generation reads from the hub's stores, counted by its own reader
+ * (`source`) and its filters: not deleted, with content and a time. Coach's
+ * `messageCount: N` reads the N newest of them (the socket messages a Fansly
+ * generation adds are the newest of a chat and not counted here).
+ */
+export const clientFeedDepthSchema = z.object({
+    /** How many such messages the hub holds of this conversation; 0 for none. */
+    storedCount: count,
+    /** The time of the oldest of them; null when there is none. */
+    oldestAt: isoTimestamp.nullable(),
+    /** The hub holds the conversation from its first message (`coverage` is `complete`). */
+    historyComplete: z.boolean(),
+    /**
+     * One per asked count up to `storedCount`, ascending: the time of the
+     * count-th newest message (the newest is 1). A count above `storedCount` is
+     * left out: the whole history is `oldestAt`.
+     */
+    marks: z.array(z.object({ count: positive, at: isoTimestamp.nullable() })).max(CLIENT_FEED_DEPTH_MARKS_MAX),
+});
 export const clientConversationFeedResponseSchema = z.object({
     target: z.object({
         pageLabel: z.string(),
@@ -515,6 +564,8 @@ export const clientConversationFeedResponseSchema = z.object({
     items: z.array(clientFeedItemSchema).max(CLIENT_FEED_MAX_LIMIT),
     /** On the first page of a walk only; null on every later page. */
     summary: clientFeedSummarySchema.nullable(),
+    /** `coach-depth-v1`: on a first page that asked for `depthMarks` only; absent on every other. */
+    depth: clientFeedDepthSchema.optional(),
 });
 // ── own AI spend (H-15) ──────────────────────────────────────────────────────
 //
@@ -756,7 +807,9 @@ export const clientSpenderStatsResponseSchema = z.object({
 // WHO WAITS. A payer (lifetime gross at or above the lowest spender bucket, as
 // the statistics count payers) whose fan's last message in the chat is later
 // than the page's last message there, or to whom the page never wrote. A fan
-// with several chats is judged on the visible one with the newest message.
+// with several chats is judged on the visible one with the newest message. A
+// fan the page can no longer message (the page's own lookup does not find him:
+// deleted or blocked the page; an OnlyFans closed chat) is not in the queue.
 //
 // ORDER. Lifetime gross, largest first; among equals the fan waiting longest
 // first; then a fixed tie-breaker. The order is total, so a walk has no ties.
@@ -2560,8 +2613,11 @@ export const clientRouteSchemas = {
             + "fan (on Fansly the group id): the pair is checked before anything is read (409 "
             + "`conversation_fan_mismatch` for another fan's chat; required on a page whose chats have ids of their "
             + "own, 400 without it), the feed reads that conversation, `target` repeats it, and a cursor is valid "
-            + "only for the same conversation and fan. Behind the chat-extension `preview` switch: 409 "
-            + "`client_feature_disabled` with the reason.",
+            + "only for the same conversation and fan. With `coach-depth-v1`, `depthMarks` (1 to 8 counts, each 1 "
+            + "to 5000, joined by commas) asks the first page for `depth`: how many messages the hub holds of the "
+            + "conversation as an AI generation reads them, the time of the oldest, whether the history is whole, "
+            + "and the time of the count-th newest message for each count it holds. Behind the chat-extension "
+            + "`preview` switch: 409 `client_feature_disabled` with the reason.",
         params: clientPageFanParamsSchema,
         querystring: clientConversationFeedQuerySchema,
         response: {
@@ -2662,7 +2718,8 @@ export const clientRouteSchemas = {
             + "PERSONAL message there, or the page never wrote to him personally: a Fansly mass message, or one text "
             + "sent to 5 or more chats of the page within an hour (the last 30 days are sorted; an older message of "
             + "the page counts as personal), is not an answer. `everyone=true` takes every fan who wrote in the last "
-            + "30 days, not only payers. The payers and the rule are those of `queueSummary` in the Spenders "
+            + "30 days, not only payers. A fan the page can no longer message (its own account lookup does not "
+            + "find him, or an OnlyFans closed chat) is left out. The payers and the rule are those of `queueSummary` in the Spenders "
             + "statistics. Each row names the fan's primary chat (`conversationRef`) and the team's alias. Rows come "
             + "by lifetime gross, largest first, then the fan waiting longest, "
             + "`limit` (1 to 100, 50 by default) a page. `readState` is `unread`, `read` or `unknown`: a fan whose "

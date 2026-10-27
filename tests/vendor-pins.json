@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "152d417095207c653d7423f2155468cc6dbd4ba95d597a13afa8dacb4d8338cd",
-    "sourceCommit": "c32fae68424d4eff48511af3baa08472c4a7ea5c",
-    "note": "Vendored on 2026-10-26 from hub main c32fae68 (#878) with scripts/vendor-sdk.mjs: Hi on Fansly takes `fanAccount` (the fan's username, display name and «about» as the page read them) under `hi-fan-account-v1`; also carries #876's persona openers routes and #879's «Онлайн» routes (`online-v1`, not used by this client yet). Re-vendor with the same script and update this pin together."
+    "contractHash": "229354e6efc2d01e8ba61b82acccc4807137e81b88ac06bef290558965d1ad77",
+    "sourceCommit": "eb9354b81fc833b63717ae2454d855ed7bfdf680",
+    "note": "Vendored on 2026-10-27 from hub feat/coach-depth-v1 eb9354b8 with scripts/vendor-sdk.mjs: `coach-depth-v1` (Coach reads past 1500 up to `limits.deepMax`, its answer may end with a ```more note, and the feed's first page dates `depthMarks` as `depth`); also carries hub main's routes since c32fae68. Re-vendor with the same script from the deployed commit and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

@@ -36,7 +36,7 @@ import { type JSX } from 'preact';
 import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { COACH_LIMITS } from '@cg/contracts/limits';
-import { type CoachTurnVM, type CoachVM, type MountDeps, type RecapLength, type RecapPickerVM } from '@cg/contracts/vm';
+import { type CoachDepthVM, type CoachMoreVM, type CoachTurnVM, type CoachVM, type MountDeps, type RecapLength, type RecapPickerVM } from '@cg/contracts/vm';
 
 import {
   Button,
@@ -93,6 +93,20 @@ const unsent = new Map<string, string>();
 export const UNSENT_QUESTIONS_MAX = 50;
 
 /**
+ * «Не нужно» of a «Coach хочет дочитать» card (2026-10-27), by the turn it stands under: the card stays gone for that
+ * answer, in memory only. The next answer that asks for more shows its own.
+ */
+const dismissedMore = new Set<string>();
+const DISMISSED_MORE_MAX = 200;
+function dismissMore(turnId: string): void {
+  dismissedMore.add(turnId);
+  for (const oldest of dismissedMore) {
+    if (dismissedMore.size <= DISMISSED_MORE_MAX) break;
+    dismissedMore.delete(oldest);
+  }
+}
+
+/**
  * The window: top-inset, at most this share of the window's height and never taller (X63); never wider than the browser's
  * window less the inset at each side. 860 px since 2026-10-23 (720 before, as the old one): a Review's blocks and the
  * drafts take the width; prose keeps the measure it had (`proseMax`), so its lines do not grow long.
@@ -120,6 +134,8 @@ function remember(chat: string, question: string): void {
 
 function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: ReadonlySignal<CoachVM>; readonly mode: 'insert' | 'copy-only' }): JSX.Element {
   const i18n = useI18n();
+  const [, hide] = useState(0);
+  const more = turn.more ?? null;
   const text = useStreamText(raw, (coach) => coach.turns.find((item) => item.id === turn.id)?.streamText ?? null);
   const answer = turn.answer;
   const confirm = turn.confirm ?? null;
@@ -211,7 +227,16 @@ function Turn({ turn, raw, mode }: { readonly turn: CoachTurnVM; readonly raw: R
                 )}
               </div>
             ))}
-            <RecapUsed used={turn.recapsUsed} />
+            <RecapUsed used={turn.recapsUsed} depth={turn.depth ?? null} />
+            {more === null || dismissedMore.has(turn.id) ? null : (
+              <MoreCard
+                more={more}
+                onDismiss={() => {
+                  dismissMore(turn.id);
+                  hide((count) => count + 1);
+                }}
+              />
+            )}
           </>
         )}
         {turn.error === null ? null : <ErrorCard error={turn.error} tone={toneOf(turn.error)} actions={turn.errorActions} inline />}
@@ -417,11 +442,22 @@ function RecapBuild({ picker, windows, lead, label }: { readonly picker: RecapPi
   );
 }
 
-/** «с Recap · 3 д назад» / «без Recap» under an answer: what the hub put into it. Nothing when the hub did not say. */
-function RecapUsed({ used }: { readonly used: CoachTurnVM['recapsUsed'] }): JSX.Element | null {
+/**
+ * «с Recap · 3 д назад» / «без Recap» under an answer: what the hub put into it — and, since 2026-10-27, how much of the
+ * chat it read («по 300 сообщениям», «вся переписка, 412 сообщений»). Nothing of what the hub did not say.
+ */
+function RecapUsed({ used, depth }: { readonly used: CoachTurnVM['recapsUsed']; readonly depth: NonNullable<CoachTurnVM['depth']> | null }): JSX.Element | null {
   const i18n = useI18n();
   const now = useNowFn();
-  if (used === undefined || used === null) return null;
+  const read = depth === null ? null : i18n.plural(depth.all ? 'coach.turn.readAll' : 'coach.turn.read', depth.read);
+  if (used === undefined || used === null) {
+    return read === null ? null : (
+      <span class="cg-co__used">
+        <Icon name="depth" size={12} />
+        {read}
+      </span>
+    );
+  }
   const age = (at: string): string => i18n.formatAge(at, now());
   const said =
     used.full !== null && used.short !== null
@@ -434,8 +470,135 @@ function RecapUsed({ used }: { readonly used: CoachTurnVM['recapsUsed'] }): JSX.
   return (
     <span class={`cg-co__used${used.full === null && used.short === null ? ' is-none' : ''}`}>
       <Icon name="dossier" size={12} />
-      {said}
+      {read === null ? said : `${said} · ${read}`}
     </span>
+  );
+}
+
+/**
+ * «Coach хочет дочитать» (2026-10-27, the owner: «кидает какой-то попап с красивой анимацией … оптимально догрузите ещё
+ * 300, в идеале все за 3000»): under the latest answer whose note says older messages would change it — the note in
+ * Coach's words, the optimal depth (filled) and the ideal one, each asking the same question again as the next turn,
+ * and «Не нужно». The lens at its left is the chat's lines with what Coach read lit at the bottom: it reaches up once
+ * when the card comes, and up to a depth while that depth's button is under the pointer or the focus. With nothing
+ * older to read the card says so instead.
+ */
+function MoreCard({ more, onDismiss }: { readonly more: CoachMoreVM; readonly onDismiss: () => void }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const ended = more.options.length === 0;
+  const optimal = more.options.find((option) => option.kind === 'optimal') ?? null;
+  const ideal = more.options.find((option) => option.kind === 'ideal') ?? null;
+  const end = more.exhausted
+    ? more.stored === null
+      ? i18n.t('coach.more.exhaustedSome')
+      : i18n.plural('coach.more.exhausted', more.stored)
+    : more.capped === null
+      ? null
+      : i18n.t('coach.more.capped', { n: more.capped });
+  return (
+    <div class={`cg-co__more${ended ? ' is-ended' : ''}${optimal === null ? ' is-single' : ''}`} role="group" aria-label={i18n.t('coach.more.title')}>
+      <div class="cg-co__lens" aria-hidden="true">
+        <div class="cg-co__lens-lines">
+          {LENS_LINES.map((width, index) => (
+            <i key={index} style={{ width: `${width}%` }} />
+          ))}
+          <span class="cg-co__lens-frame" />
+        </div>
+        <div class="cg-co__lens-n">
+          <span class="is-read">{more.read}</span>
+          {optimal === null ? null : <span class="is-optimal">{optimal.window}</span>}
+          {ideal === null ? null : <span class="is-ideal">{ideal.window}</span>}
+        </div>
+      </div>
+      <div class="cg-co__more-body">
+        <div class="cg-co__more-cap">{i18n.t('coach.more.title')}</div>
+        <p class="cg-co__more-note">{more.note}</p>
+        {end === null ? null : <p class="cg-co__more-end">{end}</p>}
+        <div class="cg-co__more-acts">
+          {more.options.map((option) => {
+            const said = [option.detail, option.span].filter((part) => part !== null).map((part) => i18n.text(part));
+            return (
+              <Button
+                key={option.kind}
+                label={i18n.text(option.label)}
+                variant="line"
+                class={`cg-co__more-opt is-${option.kind}`}
+                trailing={said.length === 0 ? undefined : <span class="cg-co__more-detail">{said.join(', ')}</span>}
+                reason={option.enabled ? null : option.reason === null ? i18n.t('common.unknown') : i18n.text(option.reason.text)}
+                onClick={() => void dispatch(option.action)}
+              />
+            );
+          })}
+          <Button label={i18n.t(ended ? 'common.close' : 'coach.more.dismiss')} variant="quiet" size="sm" class="cg-co__more-no" onClick={onDismiss} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The lens's lines, oldest at the top: a chat's messages, the fan's and the model's, of uneven length. */
+const LENS_LINES: readonly number[] = [58, 40, 66, 34, 52, 44, 62, 38];
+
+/**
+ * «300 сообщений · 2 недели ▾» by «Спросить» (2026-10-27): how many of the chat's latest messages the next question
+ * reads, and its menu — the steps with how far back each reaches, the whole archive last, the settings' number marked
+ * «обычно». A choice is this chat's for the tab's session; the menu's footer says what the archive holds.
+ */
+function DepthChip({ depth }: { readonly depth: CoachDepthVM }): JSX.Element {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const returnFocus = useCallback(() => trigger.current, []);
+  const items: MenuItem[] = depth.options.map((option, index) => ({
+    id: String(index),
+    label: i18n.text(option.label),
+    ...(option.detail === null ? {} : { detail: i18n.text(option.detail) }),
+    ...(option.note === null ? {} : { note: i18n.text(option.note) }),
+    checked: option.checked,
+  }));
+  return (
+    <MenuAnchor>
+      <Button
+        label={i18n.text(depth.label)}
+        size="sm"
+        variant="line"
+        icon="depth"
+        class={`cg-co__depth${open ? ' is-open' : ''}`}
+        buttonRef={trigger}
+        haspopup="menu"
+        expanded={open}
+        tooltip={i18n.t('coach.depth.aria')}
+        reason={depth.enabled ? null : depth.reason === null ? i18n.t('common.unknown') : i18n.text(depth.reason.text)}
+        trailing={
+          <>
+            {depth.detail === null ? null : <span class="cg-co__depth-detail">· {i18n.text(depth.detail)}</span>}
+            <Icon name="chevronDown" size={14} />
+          </>
+        }
+        onClick={() => setOpen((before) => !before)}
+        onKeyDown={(event) => {
+          if (!open) menuTriggerKeys(event, () => setOpen(true));
+        }}
+      />
+      <Menu
+        open={open}
+        kind="radio"
+        label={i18n.t('coach.depth.aria')}
+        items={items}
+        placement="top"
+        align="end"
+        footer={i18n.text(depth.footer)}
+        onClose={close}
+        returnFocusTo={returnFocus}
+        onSelect={(id) => {
+          const option = depth.options[Number(id)];
+          if (option !== undefined) void dispatch(option.action);
+        }}
+      />
+    </MenuAnchor>
   );
 }
 
@@ -745,6 +908,8 @@ export function CoachView(): JSX.Element {
             </div>
             <div class="cg-co__send">
               <span class="cg-co__keys">{i18n.t('coach.ask.hint')}</span>
+              {/* 2026-10-27: how much of the chat the question reads, by the button that asks it. */}
+              {vm.depth === undefined || vm.depth === null ? null : <DepthChip depth={vm.depth} />}
               {cancel === null ? null : <CancelButton action={cancel} />}
               <Button label={i18n.t('coach.ask.button')} variant="line" class="cg-co__go" reason={whyNot} onClick={() => ask(question)} />
             </div>
@@ -817,7 +982,7 @@ ${/* ── the conversation: a log of its own that scrolls; questions right, an
 .cg-co__q { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 .cg-co__a { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
 .cg-co__a > * { max-width: 92%; }
-.cg-co__a > .cg-co__drafts, .cg-co__a > .cg-card, .cg-co__a > .cg-co__debug { align-self: stretch; max-width: none; }
+.cg-co__a > .cg-co__drafts, .cg-co__a > .cg-card, .cg-co__a > .cg-co__debug, .cg-co__a > .cg-co__more { align-self: stretch; max-width: none; }
 ${/* The answer's prose keeps the measure of the 720 px window: on the wider one its lines do not grow long; drafts and cards take the width. */ ''}
 .cg-co__a > .cg-co__bubble { max-width: min(92%, ${COACH_WINDOW.proseMax}px); }
 .cg-co__bubble { margin: 0; padding: 10px 12px; border-radius: 12px 12px 12px 4px; background: var(--cg-sunk); color: var(--cg-ink); font-size: var(--cg-text-base); line-height: 1.5; overflow-wrap: anywhere; min-width: 0; }
@@ -878,6 +1043,73 @@ ${/* «Спросить» filled terracotta, a step larger than the rest, as the
 .cg-co__go:not([aria-disabled="true"]) { background: var(--cg-clay); box-shadow: none; color: #fff; }
 .cg-co__go:not([aria-disabled="true"]):hover { background: var(--cg-clay-ink); }
 
+${/* ── how much of the chat a question reads (2026-10-27): the chip by «Спросить», its count strong, how far back it reaches muted ── */ ''}
+.cg-co__depth { gap: 6px; font-weight: 500; }
+.cg-co__depth .cg-btn__t { font-weight: 600; color: var(--cg-ink-strong); }
+.cg-co__depth .cg-ico { color: var(--cg-ink-muted); }
+.cg-co__depth-detail { font-weight: 400; color: var(--cg-ink-muted); white-space: nowrap; }
+.cg-co__depth.is-open, .cg-co__depth.is-open:hover { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); }
+.cg-co__depth.is-open .cg-btn__t, .cg-co__depth.is-open .cg-ico, .cg-co__depth.is-open .cg-co__depth-detail { color: var(--cg-clay-ink); }
+
+${/* ── «Coach хочет дочитать»: a terracotta card under the answer — it rises in, a ring goes out once, the lens reaches up ── */ ''}
+.cg-co__more {
+  position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 14px; margin-top: 2px; padding: 12px 14px 12px 12px;
+  border-radius: var(--cg-r-xl); background: linear-gradient(180deg, color-mix(in srgb, var(--cg-clay-bg) 90%, transparent), color-mix(in srgb, var(--cg-clay-bg) 38%, transparent));
+  box-shadow: inset 0 0 0 1px var(--cg-clay-line);
+  animation: cg-co-more-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.cg-co__more::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; animation: cg-co-more-ring 1500ms 280ms ease-out both; }
+@keyframes cg-co-more-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+@keyframes cg-co-more-ring { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cg-clay) 50%, transparent); } to { box-shadow: 0 0 0 12px color-mix(in srgb, var(--cg-clay) 0%, transparent); } }
+.cg-co__lens { display: grid; gap: 5px; justify-items: center; align-content: start; }
+.cg-co__lens-lines {
+  --cg-lens: 30%;
+  position: relative; box-sizing: border-box; width: 56px; height: 68px; padding: 7px 7px; display: flex; flex-direction: column; justify-content: space-between;
+  border-radius: 9px; overflow: hidden; background: var(--cg-surface); box-shadow: inset 0 0 0 1px var(--cg-rule-2);
+}
+.cg-co__lens-lines i { display: block; height: 4px; border-radius: 2px; background: var(--cg-rule-3); }
+.cg-co__lens-lines i:nth-child(even) { align-self: flex-end; background: var(--cg-bar-strong); opacity: 0.55; }
+${/* The unread lines above the frame: a faint light runs up them twice, after the lens has reached. */ ''}
+.cg-co__lens-lines::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(0deg, transparent 0%, color-mix(in srgb, var(--cg-clay) 22%, transparent) 50%, transparent 100%);
+  background-size: 100% 220%; background-position: 0 -120%; animation: cg-co-lens-scan 2200ms 2300ms ease-in-out 2 both;
+}
+@keyframes cg-co-lens-scan { from { background-position: 0 120%; } to { background-position: 0 -120%; } }
+.cg-co__lens-frame {
+  position: absolute; left: 3px; right: 3px; bottom: 3px; height: var(--cg-lens); border-radius: 6px;
+  background: color-mix(in srgb, var(--cg-clay) 16%, transparent); box-shadow: inset 0 0 0 1.5px var(--cg-clay);
+  transition: height 420ms var(--cg-ease); animation: cg-co-lens-reach 1700ms 520ms var(--cg-ease) backwards;
+}
+@keyframes cg-co-lens-reach { 0% { height: 30%; } 42%, 64% { height: 62%; } 100% { height: 30%; } }
+.cg-co__more.is-single .cg-co__lens-frame { animation-name: cg-co-lens-reach-all; }
+@keyframes cg-co-lens-reach-all { 0% { height: 30%; } 42%, 64% { height: calc(100% - 6px); } 100% { height: 30%; } }
+.cg-co__more:has(.is-optimal:hover, .is-optimal:focus-visible) .cg-co__lens-lines { --cg-lens: 62%; }
+.cg-co__more:has(.is-ideal:hover, .is-ideal:focus-visible) .cg-co__lens-lines, .cg-co__more.is-ended .cg-co__lens-lines { --cg-lens: calc(100% - 6px); }
+.cg-co__more.is-ended .cg-co__lens-frame, .cg-co__more.is-ended .cg-co__lens-lines::before { animation: none; }
+.cg-co__lens-n { display: grid; font-family: var(--cg-mono); font-size: 10px; line-height: 12px; font-weight: 600; color: var(--cg-clay-ink); font-variant-numeric: tabular-nums; }
+.cg-co__lens-n > span { grid-area: 1 / 1; justify-self: center; opacity: 0; transition: opacity 160ms var(--cg-ease); }
+.cg-co__lens-n > .is-read { opacity: 1; }
+.cg-co__more:has(.is-optimal:hover, .is-optimal:focus-visible) .cg-co__lens-n > .is-read, .cg-co__more:has(.is-ideal:hover, .is-ideal:focus-visible) .cg-co__lens-n > .is-read { opacity: 0; }
+.cg-co__more:has(.is-optimal:hover, .is-optimal:focus-visible) .cg-co__lens-n > .is-optimal, .cg-co__more:has(.is-ideal:hover, .is-ideal:focus-visible) .cg-co__lens-n > .is-ideal { opacity: 1; }
+.cg-co__more-body { min-width: 0; }
+.cg-co__more-cap { font-family: var(--cg-mono); font-size: 10px; line-height: 14px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cg-clay-ink); }
+.cg-co__more-note { margin: 4px 0 10px; max-width: ${COACH_WINDOW.proseMax}px; font-size: var(--cg-text-base); line-height: 1.5; color: var(--cg-ink); overflow-wrap: anywhere; }
+.cg-co__more-end { margin: -4px 0 10px; font-size: var(--cg-text-sm); line-height: 18px; color: var(--cg-ink-muted); }
+.cg-co__more-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cg-co__more-opt { font-weight: 600; }
+.cg-co__more-detail { font-weight: 500; color: var(--cg-ink-muted); white-space: nowrap; }
+${/* The optimal depth is the card's one filled button; a sheen crosses it once, after the ring. */ ''}
+.cg-co__more-opt.is-optimal { position: relative; overflow: hidden; }
+.cg-co__more-opt.is-optimal:not([aria-disabled="true"]) { background: var(--cg-clay); box-shadow: none; color: #fff; }
+.cg-co__more-opt.is-optimal:not([aria-disabled="true"]):hover { background: var(--cg-clay-ink); }
+.cg-co__more-opt.is-optimal:not([aria-disabled="true"]) .cg-co__more-detail { color: rgb(255 255 255 / 0.84); }
+.cg-co__more-opt.is-optimal:not([aria-disabled="true"])::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.32), transparent); animation: cg-co-sheen 900ms 900ms ease-in-out both;
+}
+@keyframes cg-co-sheen { from { left: -60%; } to { left: 130%; } }
+.cg-co__more-no { color: var(--cg-ink-muted); }
+
 ${/* ── a narrow window (the old ≤ 720 px rules): less padding, the headings in one column, the keys line goes ── */ ''}
 @container cg (max-width: 700px) {
   .cg-coach { padding: 14px; }
@@ -887,8 +1119,14 @@ ${/* ── a narrow window (the old ≤ 720 px rules): less padding, the headin
   .cg-co__groups { grid-template-columns: minmax(0, 1fr); }
   .cg-co__keys { display: none; }
   .cg-co__top { flex-wrap: wrap; }
+  .cg-co__depth-detail { display: none; }
+  .cg-co__more { grid-template-columns: minmax(0, 1fr); }
+  .cg-co__lens { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .cg-coach { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .cg-coach, .cg-co__more, .cg-co__more::after, .cg-co__lens-frame, .cg-co__lens-lines::before, .cg-co__more-opt.is-optimal::after { animation: none; }
+  .cg-co__lens-frame, .cg-co__lens-n > span { transition: none; }
+}
 ${REVIEW_TURN_CSS}
 `;
 export const COACH_STYLE: StyleSource = { id: 'cg-coach', css: COACH_CSS };

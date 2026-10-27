@@ -224,6 +224,10 @@ export const MENU_CSS = `
 .cg-menu--detailed .cg-menu__t { font-weight: 600; }
 .cg-menu__n { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); font-weight: 400; }
 .cg-menu__d { grid-column: 1 / -1; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); line-height: 16px; font-weight: 400; }
+${/* A chosen item of a detailed radio menu keeps its ✓ on its first line, after its note (Coach's depths), not on a line of its own. */ ''}
+.cg-menu--detailed .cg-menu__n { justify-self: end; }
+.cg-menu--detailed .cg-menu__item.is-on::after { grid-row: 1; grid-column: 2; justify-self: end; }
+.cg-menu--detailed .cg-menu__item.is-on .cg-menu__n { grid-row: 1; grid-column: 2; margin-right: 18px; }
 .cg-menu__foot { margin-top: 4px; padding: 6px 8px 4px; border-top: 1px solid var(--cg-rule); color: var(--cg-ink-faint); font-size: var(--cg-text-sm); line-height: 16px; }
 @media (prefers-reduced-motion: reduce) { .cg-menu { animation: none; } }
 `;

@@ -523,9 +523,17 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/people/:platform/:platformUserId/timeline";
     };
+    readonly agentPublicationApprove: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/publications/approve";
+    };
     readonly agentPublicationCreate: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/publications";
+    };
+    readonly agentPublicationFileUpload: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/pages/:pageLabel/publication-files";
     };
     readonly agentPublicationGet: {
         readonly method: "GET";

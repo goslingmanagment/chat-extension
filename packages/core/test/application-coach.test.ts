@@ -110,13 +110,14 @@ describe('coach: a turn', () => {
     const receipt = await ask(h, '  How do I bring him back?  ');
     expect(receipt).toMatchObject({ ok: true, type: 'Generate', outcome: 'started' });
     const started = h.bg.callsOf('op.start')[0] as { feature: string; surface: string; window: number; tone: unknown; coach: unknown; fresh?: unknown; cause: { kind: string } };
-    expect(started).toMatchObject({ feature: 'coach', surface: 'coach', window: 100, tone: null, coach: { question: 'How do I bring him back?', history: [] } });
+    // 2026-10-27: Coach reads its own 300 (the settings' default), no longer Reply's 100.
+    expect(started).toMatchObject({ feature: 'coach', surface: 'coach', window: 300, tone: null, coach: { question: 'How do I bring him back?', history: [] } });
     expect(h.bg.callsOf('token.issue')).toEqual([{ kind: 'generate', surface: 'coach' }]);
     // X52: the open chat's fresh tail goes with the question, as with a draft feature; the draft is not read.
     expect(started.fresh).toMatchObject({ messages: [{ platformMessageId: '4004', direction: 'fan', text: 'hey' }] });
     expect(h.host.reads.tail).toBe(1);
     expect(h.host.reads.draft).toBe(0);
-    expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'coach-chat', body: { chatterQuestion: 'How do I bring him back?', messageCount: 100 } });
+    expect(h.bg.hub.streams[0]).toMatchObject({ feature: 'coach-chat', body: { chatterQuestion: 'How do I bring him back?', messageCount: 300 } });
     expect(h.bg.hub.streams[0]?.body.liveTextContext?.items).toEqual([{ platformMessageId: '4004', direction: 'fan', occurredAt: '2026-10-03T09:59:00.000Z', text: 'hey' }]);
     await h.finish();
 
@@ -412,7 +413,7 @@ describe('coach: the recap it stands on', () => {
     expect(h.bg.callsOf('recap.status')).toHaveLength(1);
     // One start for the whole turn: the question, with the recap in front of it at the deep window.
     expect(h.bg.callsOf('op.start')).toHaveLength(1);
-    expect(h.bg.callsOf('op.start')[0]).toMatchObject({ feature: 'coach', surface: 'coach', window: 100, coach: { question: 'How do I reply?', history: [], autoRecap: { length: 'full', window: 3000 } } });
+    expect(h.bg.callsOf('op.start')[0]).toMatchObject({ feature: 'coach', surface: 'coach', window: 300, coach: { question: 'How do I reply?', history: [], autoRecap: { length: 'full', window: 3000 } } });
     // The admitted operation is the recap step: the question waits, the turn shows its stages and its cancel.
     const recapOp = (receipt as { opId: string }).opId;
     expect(h.ai.workspace.ops.get(recapOp)?.view).toMatchObject({ feature: 'recap', surface: 'coach' });

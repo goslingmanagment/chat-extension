@@ -291,6 +291,12 @@ export const UI_TEXT_KEYS = [
   'coach.draftLanguage',
   // 1.51.0: Review is a turn of Coach — its chip and hint by the ready questions, the window of a page whose Coach is off.
   'coach.chip.review', 'coach.chip.reviewHint', 'coach.reviewOnly.title', 'coach.reviewOnly.body', 'coach.reviewOnly.placeholder',
+  // 2026-10-27: how much of the chat Coach reads (the chip by «Спросить» and its menu), and «Coach хочет дочитать».
+  'coach.depth.aria', 'coach.depth.all', 'coach.depth.allShort', 'coach.depth.count', 'coach.depth.allDetail', 'coach.depth.allCapped', 'coach.depth.note.usual',
+  'coach.depth.note.faster', 'coach.depth.note.slower', 'coach.depth.footer', 'coach.depth.span.day', 'coach.depth.last.day', 'coach.depth.since',
+  'coach.more.title', 'coach.more.optimal', 'coach.more.upTo', 'coach.more.ideal', 'coach.more.idealUpTo', 'coach.more.ofStored', 'coach.more.dismiss',
+  'coach.more.exhaustedSome', 'coach.more.capped',
+  'settings.generation.coachWindow', 'settings.generation.coachWindowHint',
   'palette.label', 'palette.placeholder', 'palette.group.actions', 'palette.group.running', 'palette.group.waiting', 'palette.group.chats',
   'palette.group.accounts', 'palette.group.navigation', 'palette.group.online', 'palette.empty', 'palette.foot.hostOnly',
   'palette.item.running', 'palette.item.waiting', 'palette.item.spenders', 'palette.item.newcomers', 'palette.item.outreach', 'palette.item.online', 'palette.item.tone', 'palette.item.split',
@@ -485,6 +491,10 @@ export const UI_PLURAL_KEYS = [
   // 2026-10-26: what each Recap of Coach's menu reads, and the line while one is built.
   'coach.recap.menu.fullWhat', 'coach.recap.menu.shortWhat', 'coach.recap.menu.fullAgain', 'coach.recap.menu.shortAgain',
   'coach.recap.buildingFull', 'coach.recap.buildingShort',
+  // 2026-10-27: Coach's depth — «300 сообщений», how far back it reaches, what the archive holds, what an answer read.
+  'coach.depth.messages', 'coach.depth.span.days', 'coach.depth.span.weeks', 'coach.depth.span.months', 'coach.depth.last.days',
+  'coach.depth.last.weeks', 'coach.depth.last.months', 'coach.depth.footerStored', 'coach.more.exhausted', 'coach.turn.read', 'coach.turn.readAll',
+  'coach.stage.reading',
   // 2026-10-26: a site whose «Новые» are not the hub's list (Fansly): the palette looked in Spenders alone.
   'palette.foot.chats', 'palette.foot.spenders',
   'quickJump.unread',

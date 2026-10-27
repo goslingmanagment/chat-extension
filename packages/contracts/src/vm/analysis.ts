@@ -201,6 +201,79 @@ export interface CoachTurnVM {
   readonly feature?: 'coach' | 'review';
   /** 1.51.0: the finished Review of a Review turn, never with `answer`; null or absent — none (a question, or a Review not done). */
   readonly review?: CoachReviewVM | null;
+  /**
+   * 2026-10-27: how much of the chat the answer read — «по 300 сообщениям», «вся переписка, 412» under it, beside its
+   * Recap; null or absent — not known (a hub without the context frame, a Review).
+   */
+  readonly depth?: { readonly read: number; readonly all: boolean } | null;
+  /**
+   * 2026-10-27 (`coach-depth-v1`): Coach's own note that older messages would change its advice, with the depths to
+   * ask the same question again at — under the latest answer only; null or absent — it did not ask.
+   */
+  readonly more?: CoachMoreVM | null;
+}
+
+/** 2026-10-27: «Coach хочет дочитать» under an answer — its note and what to read instead. */
+export interface CoachMoreVM {
+  /** The model's own words: what it could not see and why it matters. */
+  readonly note: string;
+  /** How many messages the answer read. */
+  readonly read: number;
+  /**
+   * «Ещё 300 · до 600, месяц» (optimal) and «Всю переписку · 2 431, с 14 марта» (ideal): the same question asked again
+   * as the next turn at that depth, which then stays the chat's. Empty — nothing older to read (`exhausted`).
+   */
+  readonly options: readonly CoachMoreOptionVM[];
+  /** The archive holds nothing older than the answer read: the card says so instead of offering more. */
+  readonly exhausted: boolean;
+  /** The answer read as much as a question may (the hub's deep window): the card says so instead of offering more. */
+  readonly capped: number | null;
+  /** What the archive holds, when exhausted; null — not known. */
+  readonly stored: number | null;
+}
+
+export interface CoachMoreOptionVM extends ActionButtonVM {
+  readonly kind: 'optimal' | 'ideal';
+  readonly window: number;
+  /** «до 600», «2431, с 14 мар», «из 4100»; null — nothing to add. */
+  readonly detail: Msg | null;
+  /** How far back it reaches, after the detail: «месяц»; null — not known or said by the detail. */
+  readonly span: Msg | null;
+}
+
+/** 2026-10-27: one depth of Coach's «300 сообщений ▾». */
+export interface CoachDepthOptionVM {
+  readonly window: number;
+  /** The whole archive (or all a question may read): «Вся переписка». */
+  readonly all: boolean;
+  /** «300» / «Вся переписка». */
+  readonly label: Msg;
+  /** «последние 2 недели», «2 431, с 14 марта»; null — not known. */
+  readonly detail: Msg | null;
+  /** «обычно» (the settings' number), «быстрее», «дольше»; null — none. */
+  readonly note: Msg | null;
+  readonly checked: boolean;
+  readonly action: UiAction;
+}
+
+/**
+ * 2026-10-27: how many of the chat's latest messages the next question reads — the chip by «Спросить»
+ * («300 сообщений · 2 недели ▾») and its menu. The chat's own choice for this tab's session, else the settings' number.
+ */
+export interface CoachDepthVM {
+  readonly value: number;
+  /** «300 сообщений», «Вся переписка». */
+  readonly label: Msg;
+  /** After the label: how far back it reaches («2 недели») or what the archive holds («2431»); null — not known. */
+  readonly detail: Msg | null;
+  /** The chip's short form on a narrow window: «300», «всё». */
+  readonly short: Msg;
+  /** The menu, shallow to deep, the whole archive last. */
+  readonly options: readonly CoachDepthOptionVM[];
+  /** The menu's line under the depths: what the archive holds and where the usual number is set. */
+  readonly footer: Msg;
+  readonly enabled: boolean;
+  readonly reason: ReasonVM | null;
 }
 
 export interface CoachVM {
@@ -260,6 +333,8 @@ export interface CoachVM {
    * `ask.reason` says why. Absent — false.
    */
   readonly reviewOnly?: boolean;
+  /** 2026-10-27: how many of the chat's latest messages the next question reads; null or absent — no chat to ask about. */
+  readonly depth?: CoachDepthVM | null;
   /**
    * The ready questions of the empty dialog under their three headings —
    * «Продать», «Вернуть», «Понять», three each (1.2.0, AI-081). A click puts

@@ -76,7 +76,7 @@ import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
 import { ONLINE_SEEN_SOURCES, OnlineModel, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
 import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
-import { type FakeOnlineAttempt, type FakeOnlinePresenceReport, type SpenderSeed } from './types';
+import { type CoachDepthKnob, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type SpenderSeed } from './types';
 
 export interface Refusal {
   readonly error: HubErrorCode | (string & {});
@@ -773,7 +773,11 @@ export class DataModel {
    * and head. A forged cursor, another target's or user's, or a changed
    * generation is 400 `cursor_invalid`.
    */
-  feed(page: FakePage, query: FeedQuery, now: number, userId: number, conversation: string = query.fanRef): Read<FeedPage> {
+  /**
+   * `depth` (2026-10-27, `coach-depth-v1`): whether the hub dates depths, and the `coachDepth` knob's long conversation —
+   * null: the archive as it is.
+   */
+  feed(page: FakePage, query: FeedQuery, now: number, userId: number, conversation: string = query.fanRef, depth: { readonly served: boolean; readonly knob: CoachDepthKnob | null } = { served: false, knob: null }): Read<FeedPage> {
     // R20 F6b (hub HF-10): the conversation's archive; the fan's own chat keeps its cursor scope, another's binds it.
     const archive = this.archive(page, conversation);
     const scope = conversation === query.fanRef ? {} : { c: conversation };
@@ -820,7 +824,28 @@ export class DataModel {
       nextOlderCursor: last !== undefined && start + items.length < all.length ? this.cursors.sign('fd1', { ...snapshot, k: last.messageId }) : null,
       items,
       summary: first ? this.feedSummary(all, query.summaryWindow ?? 100, coverage, now) : null,
+      // 2026-10-27: a first page that asks dates its depths (hub `depthMarks` → `depth`), from a hub that serves it.
+      ...(first && depth.served && query.depthMarks !== undefined ? { depth: this.feedDepth(all, query.depthMarks, coverage, now, depth.knob) } : {}),
     });
+  }
+
+  /**
+   * How deep the archive goes (hub `clientConversationFeed.depth`): its count, the oldest message's time, whether it
+   * holds the chat from its start, and the time of each asked newest-first count it holds. The `coachDepth` knob stands
+   * for a long conversation: its count, its oldest message `oldestDays` ago, older messages sparser than recent ones.
+   */
+  private feedDepth(all: readonly FeedItem[], marks: string, coverage: string, now: number, knob: CoachDepthKnob | null): NonNullable<FeedPage['depth']> {
+    const counts = [...new Set(marks.split(',').map(Number))].filter((count) => Number.isInteger(count) && count >= 1).sort((a, b) => a - b);
+    if (knob !== null) {
+      const at = (count: number): string => iso(now - knob.oldestDays * DAY_MS * Math.pow(Math.min(1, count / knob.stored), 1.33));
+      return { storedCount: knob.stored, oldestAt: at(knob.stored), historyComplete: true, marks: counts.filter((count) => count <= knob.stored).map((count) => ({ count, at: at(count) })) };
+    }
+    return {
+      storedCount: all.length,
+      oldestAt: all.at(-1)?.at ?? null,
+      historyComplete: coverage === 'complete',
+      marks: counts.filter((count) => count <= all.length).map((count) => ({ count, at: all[count - 1]?.at ?? null })),
+    };
   }
 
   /** A stand-in for the hub's Ping segment (computed by the hub; the client only shows it). */

@@ -33,7 +33,7 @@ import {
   hubFeatureNeedsOn,
 } from '../scenarios/hub';
 import { iso } from './clock';
-import { type BootstrapPresetName, type FakeHubConfigPatch } from './types';
+import { type BootstrapPresetName, type CoachDepthKnob, type FakeHubConfigPatch } from './types';
 import { DEFAULT_VOICE_DAY, type VoiceDay } from './voice';
 
 /** The preset of a fake hub nobody configured: the pilot as the owner runs it (a row per page, an empty `*`). */
@@ -87,6 +87,8 @@ export interface FakeHubConfig {
   readonly voiceLaneOff: readonly string[];
   /** 1.49.0: the lane's day — the budgets, the cap of one script, what pages spent before the stand's own takes (voice.ts). */
   readonly voiceDay: VoiceDay;
+  /** 2026-10-27: a long conversation for Coach's depth and Coach's ```more note (types.ts `coachDepth`); null — none. */
+  readonly coachDepth: CoachDepthKnob | null;
 }
 
 /** The owner's `"*"` row over every switch in the contracts (the hub's own top-level names). */
@@ -116,6 +118,7 @@ const BASE = {
   aiTexts: {},
   voiceLaneOff: [],
   voiceDay: DEFAULT_VOICE_DAY,
+  coachDepth: null,
 } as const;
 
 export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
@@ -204,6 +207,7 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.aiTexts === undefined ? {} : { aiTexts: { ...patch.aiTexts } }),
     ...(patch.voiceLaneOff === undefined ? {} : { voiceLaneOff: [...patch.voiceLaneOff] }),
     ...(patch.voiceDay === undefined ? {} : { voiceDay: { ...config.voiceDay, ...patch.voiceDay, spentToday: { ...config.voiceDay.spentToday, ...patch.voiceDay.spentToday } } }),
+    ...(patch.coachDepth === undefined ? {} : { coachDepth: patch.coachDepth === null ? null : { ...patch.coachDepth } }),
   };
   const owner = ['master', 'flags', 'pageFlags', 'capabilities', 'minVersion', 'bindingsByHost', 'limits'].some((key) => key in patch);
   return owner ? { ...next, configRevision: config.configRevision + 1 } : next;

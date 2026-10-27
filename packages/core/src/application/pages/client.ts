@@ -143,6 +143,7 @@ const DEBOUNCED_KEYS: readonly PreferenceKey[] = [
   'generation.windows.improve',
   'generation.windows.deep',
   'generation.coach.historyLimit',
+  'generation.coach.window',
   'sound.volume',
 ];
 
@@ -876,6 +877,8 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         return { generation: { coach: { historyLimit: action.value } } };
       case 'generation.coach.autoRecap':
         return { generation: { coach: { autoRecap: action.value } } };
+      case 'generation.coach.window':
+        return { generation: { coach: { window: action.value } } };
       case 'sound.messages.on':
         return { sound: { messages: { on: action.value } } };
       case 'sound.messages.tone':

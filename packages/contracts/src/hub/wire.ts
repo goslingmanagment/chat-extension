@@ -207,6 +207,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'hi-fan-account-v1',
   /** «Онлайн»: the page's fans seen online with why to write now (`clientOnline`), Fansly presence reports, the window's rows. */
   'online-v1',
+  /**
+   * 2026-10-27: Coach reads as deep as the chatter chose (up to `limits.deepMax`, not the ordinary 1500), its answer may
+   * end with a ```more note that older messages would change its advice, and a feed's first page dates the depths it
+   * is asked (`depthMarks` → `depth`). Said in the AI request header too; a hub without it gets neither.
+   */
+  'coach-depth-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
@@ -235,8 +241,9 @@ export type ClientFeatureUnavailableReason = (typeof CLIENT_FEATURE_UNAVAILABLE_
  * in the context frame); only a request built from a proof does, so ChatSpace never says it.
  * `hi-start-proof-v1` (HF-5) admits the three Hi fields on Fansly; ChatSpace never says it either.
  * `hi-fan-account-v1` (2026-10-26) admits Hi's `fanAccount` on Fansly, to a hub that lists it among its capabilities.
+ * `coach-depth-v1` (2026-10-27): a Coach question reads past 1500 and may get a ```more note, from a hub that lists it.
  */
-export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1', 'hi-start-proof-v1', 'hi-fan-account-v1'] as const;
+export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1', 'hi-start-proof-v1', 'hi-fan-account-v1', 'coach-depth-v1'] as const;
 export const AiStreamCapabilitySchema = z.enum(AI_STREAM_CAPABILITIES);
 export type AiStreamCapability = z.infer<typeof AiStreamCapabilitySchema>;
 

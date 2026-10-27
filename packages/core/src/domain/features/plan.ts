@@ -24,6 +24,7 @@ import { type SettingsV1 } from '@cg/contracts/settings';
 import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { type UserOptions } from '@cg/contracts/vm';
 
+import { coachWindowOf } from '../coach/depth';
 import { messageWindowFor, splitAllowed } from '../ops/request';
 import { policyOf } from './policy';
 
@@ -32,11 +33,15 @@ export function hiVariantCount(surface: Surface): 1 | 3 {
   return surface === 'newcomers' ? 1 : 3;
 }
 
-/** Б5: the message window of a start — the person's option within bounds, else the settings window; never above `limits.deepMax`. */
+/**
+ * Б5: the message window of a start — the person's option within bounds, else the settings window; never above
+ * `limits.deepMax`. 2026-10-27: Coach has a number of its own (`generation.coach.window`, 300), no longer Reply's.
+ */
 export function windowFor(feature: FeatureId, requested: number | undefined, settings: SettingsV1, bootstrap: Bootstrap, extendedWindows?: SettingsExt['windows']): number {
   const cap = Math.max(AI_REQUEST_LIMITS.messageCountMin, Math.min(AI_REQUEST_LIMITS.messageCountMax, bootstrap.limits.deepMax));
-  if (requested === undefined) return messageWindowFor(feature, settings.generation.windows, bootstrap.limits.deepMax, extendedWindows);
-  return Math.max(AI_REQUEST_LIMITS.messageCountMin, Math.min(cap, Math.trunc(requested)));
+  const wanted = requested ?? (feature === 'coach' ? coachWindowOf(settings) : undefined);
+  if (wanted === undefined) return messageWindowFor(feature, settings.generation.windows, bootstrap.limits.deepMax, extendedWindows);
+  return Math.max(AI_REQUEST_LIMITS.messageCountMin, Math.min(cap, Math.trunc(wanted)));
 }
 
 /**

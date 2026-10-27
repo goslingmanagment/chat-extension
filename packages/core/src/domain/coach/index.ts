@@ -4,5 +4,6 @@
 // step of a composite turn. Pure: the controller owns the operations.
 
 export * from './auto-recap';
+export * from './depth';
 export * from './history';
 export * from './session';
