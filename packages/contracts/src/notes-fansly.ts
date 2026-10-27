@@ -353,7 +353,8 @@ export interface NotesCopy {
   readonly fillEditing: string;
   readonly fillWriting: string;
   readonly fillStop: string;
-  /** A running fill's line: the hub collects the chat; the model reads `{n}` `{messages}`; it checks the questionnaire
+  /** A running fill's line: the hub collects the chat; the model reads `{n}` `{messages}` («…» after it when no usual
+   * time follows); it checks the questionnaire
    * (`{label}`, `{k}` of `{n}`, found `{f}`). `messages` — the plural forms of «сообщение» (one, few, many). */
   readonly stageGather: string;
   readonly stageRead: string;

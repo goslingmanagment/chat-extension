@@ -549,7 +549,10 @@ function ProgressWords({ copy, progress, language }: { readonly copy: NotesCopy;
     const count = new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'en-US').format(progress.read);
     return (
       <>
-        <b>{copy.stageRead.replace('{n}', count).replace('{messages}', plural(progress.read, copy.messages))}</b>
+        <b>
+          {copy.stageRead.replace('{n}', count).replace('{messages}', plural(progress.read, copy.messages))}
+          {progress.eta === null ? '…' : ''}
+        </b>
         {progress.eta === null ? null : <span class="cg-notes__run-n">{` · ${copy.stageEta.replace('{s}', String(progress.eta))}`}</span>}
       </>
     );
