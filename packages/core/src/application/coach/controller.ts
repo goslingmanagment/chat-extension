@@ -336,7 +336,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const facts = factsOf(chat.key);
     // Asked for more than there was: what it was served is all the archive holds.
     const stored = facts?.stored ?? (read.short ? read.read : null);
-    const plan = moreDepths({ read: read.read, stored, cap });
+    // Served less than it asked for while the archive holds more: the hub's prompt budget cut the transcript (hub #893), and
+    // a deeper question would be cut the same way. The card says how much Coach reads at most instead of offering more.
+    const budgetCut = read.short && facts !== null && read.read < facts.stored;
+    const plan = budgetCut ? { optimal: null, ideal: null, exhausted: false, capped: true } : moreDepths({ read: read.read, stored, cap });
     const now = clock.now();
     const options: CoachMoreOptionVM[] = [];
     const option = (kind: 'optimal' | 'ideal', window: number, label: Msg, detail: Msg | null, span: Msg | null): CoachMoreOptionVM => ({
@@ -355,7 +358,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       const capped = stored !== null && stored > cap;
       options.push(option('ideal', plan.ideal, capped ? msg('coach.more.idealUpTo', { n: plan.ideal }) : msg('coach.more.ideal'), capped ? msg('coach.more.ofStored', { n: stored }) : wholeDetail(plan.ideal, cap, facts), null));
     }
-    return { note, read: read.read, options, exhausted: plan.exhausted, capped: plan.capped ? cap : null, stored };
+    return { note, read: read.read, options, exhausted: plan.exhausted, capped: plan.capped ? (budgetCut ? read.read : cap) : null, stored };
   }
 
   // The answers of the dialogs are kept as long as their sessions are.
