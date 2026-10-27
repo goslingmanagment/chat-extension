@@ -143,7 +143,7 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(w.notes.panel().items.map((item) => item.noteId)).toEqual(['2', '3']);
   });
 
-  it('[FS-NOTE-6] «Дополнить из чата»: the Goose’s draft in the table waits; «Сохранить анкету» writes the rows not put aside in one edit', async () => {
+  it('[FS-NOTE-6] «Дополнить из чата»: each finding stands in its row; one ✓ is one write, «Отменить» puts it back, «Принять все» writes the rest at once', async () => {
     const w = await opened();
     w.notes.dispatch({ type: 'fill' });
     await w.settle();
@@ -155,30 +155,45 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(w.notes.panel().form?.fill?.status).toBe('running');
     w.notes.fillDone(w.answer('op1', { Имя: '', Локация: 'Рига, Латвия (10.2026)', Работа: 'врач', Хобби: 'бег; плавание', Возраст: '34' }, { Питомцы: 'кот' }));
     const rows = (): unknown[] =>
-      (w.notes.panel().form?.fill?.rows ?? []).map((row) => (row.kind === 'text' ? row.text : [row.label, row.facts.map((fact) => `${fact.mark} ${fact.text}`), row.finding, row.checked, row.added]));
-    expect(w.notes.panel().form?.fill?.status).toBe('review');
-    // The table as «Сохранить» leaves it: a rewrite drops «Рига», the lines under «Хобби» stay, the fields it lacks after the last one.
+      (w.notes.panel().form?.parts ?? []).map((part) =>
+        part.kind === 'text' ? part.text : [part.label, part.facts.map((fact) => fact.text).join(' | '), part.suggestion === undefined ? null : `${part.suggestion.kind}: ${part.suggestion.base ?? ''}+${part.suggestion.text}`, part.ghost === true],
+      );
+    expect(w.notes.panel().form?.fill).toMatchObject({ status: 'review', pending: 5, written: 0 });
+    // In place: a refinement after the words it extends, an empty field as a faint row where it stands, an addition to
+    // what is written, the template's field and the Goose's own after the last field.
     expect(rows()).toEqual([
-      ['Имя', ['kept Алекс'], null, false, false],
-      ['Локация', ['gone Рига', 'added Рига, Латвия'], 0, true, false],
-      ['Работа', ['added врач'], 1, true, false],
-      ['Хобби', ['kept бег', 'added плавание', 'kept по утрам'], 2, true, false],
-      ['Возраст', ['added 34'], 3, true, true],
-      ['Питомцы', ['added кот'], 4, true, true],
+      ['Имя', 'Алекс', null, false],
+      ['Локация', 'Рига', 'refine: Рига+, Латвия', false],
+      ['Работа', '', 'fill: +врач', true],
+      ['Хобби', 'бег | по утрам', 'add: +плавание', false],
+      ['Возраст', '', 'fill: +34', true],
+      ['Питомцы', '', 'new: +кот', true],
     ]);
+    expect(w.notes.panel().form?.blank).not.toContain('Возраст');
     expect(w.port.edit).not.toHaveBeenCalled();
-    // ✕: what is written stays, the Goose's fact goes.
-    w.notes.dispatch({ type: 'finding', index: 0, checked: false });
-    expect(rows()[1]).toEqual(['Локация', ['kept Рига', 'gone Рига, Латвия'], 0, false, false]);
-    w.notes.dispatch({ type: 'fill-apply' });
+
+    w.notes.dispatch({ type: 'suggestion-accept', index: 0 });
     await w.settle();
-    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач\nХобби: бег; плавание\nпо утрам\nВозраст: 34\nПитомцы: кот', { title: 'Анкета', text: FORM });
-    const form = w.notes.panel().form;
-    expect(form?.fill?.status).toBe('idle');
-    expect(form?.parts.flatMap((part) => (part.kind === 'field' && part.fresh === true ? [part.label] : []))).toEqual(['Работа', 'Хобби', 'Возраст', 'Питомцы']);
+    const after = 'Имя: Алекс\nЛокация: Рига, Латвия (10.2026)\nРабота: \nХобби: бег\nпо утрам';
+    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith(expect.anything(), '1', 'Анкета', after, { title: 'Анкета', text: FORM });
+    expect(w.notes.panel().form?.fill).toMatchObject({ status: 'review', pending: 4, written: 1, undo: { labels: ['Локация'] } });
+    expect(w.notes.panel().form?.parts[1]).toMatchObject({ label: 'Локация', fresh: true });
+
+    // «Отменить»: the questionnaire as it was, the suggestion waiting again.
+    w.notes.dispatch({ type: 'suggestion-undo' });
+    await w.settle();
+    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', FORM, { title: 'Анкета', text: after });
+    expect(w.notes.panel().form?.fill).toMatchObject({ pending: 5, written: 0, undo: null });
+
+    w.notes.dispatch({ type: 'suggestion-dismiss', index: 0 });
+    w.notes.dispatch({ type: 'suggestions-accept-all' });
+    await w.settle();
+    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач\nХобби: бег; плавание\nпо утрам\nВозраст: 34\nПитомцы: кот', { title: 'Анкета', text: FORM });
+    expect(w.notes.panel().form?.fill).toMatchObject({ status: 'done', pending: 0, written: 4, dismissed: 1 });
+    expect(w.notes.panel().form?.parts.flatMap((part) => (part.kind === 'field' && part.fresh === true ? [part.label] : []))).toEqual(['Работа', 'Хобби', 'Возраст', 'Питомцы']);
   });
 
-  it('[FX-016] «Сохранить анкету» never writes over a field typed since the Goose read it: it writes the rest into Fansly’s newer version', async () => {
+  it('[FX-016] a ✓ never writes over a field typed since the Goose read it: the row asks «Заменить?», the rest goes into Fansly’s newer version', async () => {
     const w = await opened();
     w.notes.dispatch({ type: 'fill' });
     await w.settle();
@@ -186,13 +201,16 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     // Another tab wrote «Работа» meanwhile: the edit is refused as changed, with Fansly's version.
     const latest = note('1', 'Анкета', FORM.replace('Работа: ', 'Работа: юрист'));
     w.port.edit.mockResolvedValueOnce({ ok: false, error: { code: 'CG-NOTE-WRITE', detail: 'changed' }, latest } as never);
-    w.notes.dispatch({ type: 'fill-apply' });
-    await w.settle();
-    expect(w.notes.panel().form?.fill).toMatchObject({ status: 'review', problem: { kind: 'changed' } });
-    w.notes.dispatch({ type: 'fill-apply' });
+    w.notes.dispatch({ type: 'suggestions-accept-all' });
     await w.settle();
     expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига, Латвия\nРабота: юрист\nХобби: бег\nпо утрам', { title: 'Анкета', text: latest.text });
-    expect(w.notes.panel().form?.unplaced).toEqual(['Работа']);
+    const work = w.notes.panel().form?.parts.find((part) => part.kind === 'field' && part.label === 'Работа');
+    expect(work).toMatchObject({ facts: [{ text: 'юрист' }], suggestion: { state: 'conflict', now: 'юрист', value: 'врач' } });
+    // The chatter's own call: «Заменить» writes it over.
+    w.notes.dispatch({ type: 'suggestion-replace', index: 0 });
+    await w.settle();
+    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига, Латвия\nРабота: врач\nХобби: бег\nпо утрам', expect.anything());
+    expect(w.notes.panel().form?.fill).toMatchObject({ status: 'done', written: 2 });
   });
 
   it('[FS-NOTE-6] «Остановить» drops the fill and its late answer; nothing found is said once', async () => {

@@ -1,6 +1,6 @@
 // Fansly «Заметки» of a fan with no questionnaire yet (2026-10-27, the owner: filling it from the chat is the main
-// way): the card with «✨ Заполнить из чата» first, «Заполнить вручную» behind it; the stage line; the Goose's draft in
-// the questionnaire's table; «Сохранить анкету» creates «Анкета» in one press. Each picture is the panel alone.
+// way): the card with «✨ Заполнить из чата» first, «Заполнить вручную» behind it; the stage line; the Goose's
+// suggestions as faint rows; «Принять все» creates «Анкета» in one press. Each picture is the panel alone.
 
 import { WORLD } from '../../../src/scenarios/hub';
 import { SHOWCASE } from '../../../src/showcase';
@@ -69,10 +69,19 @@ scenario(
     await s.see('panel', /Читаю переписку|Заполняю анкету/);
     await s.wait(600);
     await panel(s, 'new-running');
-    await s.see('panel', /Лишнее уберите/, 60_000);
-    await s.wait(400);
+    await s.see('panel', /Гусь предлагает/, 60_000);
+    await s.wait(500);
     await panel(s, 'new-found');
-    await s.press(/^Сохранить анкету/, 'panel', '[data-notes-apply]');
+    // The same suggestions in the narrow side panel, then back in the centre.
+    await (await s.h.ours('panel', 'button[aria-label="Где показывать"]')).click();
+    await s.press('Справа по кнопке', 'panel');
+    await s.wait(500);
+    await panel(s, 'new-found-side');
+    await (await s.h.ours('panel', 'button[aria-label="Где показывать"]')).click();
+    await s.press('Окно по центру', 'panel');
+    await s.wait(400);
+    await s.press(/^Принять все/, 'panel');
+    await s.see('panel', /Анкета создана/);
     await s.see('panel', /Дополнить из чата/);
     await s.wait(600);
     await panel(s, 'new-written');

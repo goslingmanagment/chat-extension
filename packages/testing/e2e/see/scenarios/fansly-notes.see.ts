@@ -1,8 +1,9 @@
 // Fansly «Заметки» on one screen (2026-10-26): the questionnaire as a table, a field edited in place and written with
-// Enter, «+ Метка», «✨ Дополнить из чата» (2026-10-27: its stage line, the Goose's draft in the same table, a row put
-// aside by ✕, «Сохранить анкету», the ✦ of what it wrote), a quick note, a note longer than the panel holds, and a
-// note's edit after someone else changed it (Fansly's version shown under the draft, then «Сохранить» writes over it,
-// audit №13). Each picture is the panel alone.
+// Enter, «+ Метка», «✨ Дополнить из чата» (2026-10-27, «Подсказки прямо в строках»: its stage line, the Goose's
+// suggestions in their rows, the fan's words on hover, one ✓ and its «Отменить», a suggestion put aside, «Принять
+// все», the ✦ of what was written), a quick note, a note longer than the panel holds, and a note's edit after someone
+// else changed it (Fansly's version shown under the draft, then «Сохранить» writes over it, audit №13). Each picture is
+// the panel alone.
 
 import { createWorld } from '../../../fixture-fansly/src/data';
 import { fakeFansly } from '../../support/fansly-stand';
@@ -108,20 +109,26 @@ scenario(
     await s.wait(300);
     await panel(s, 'row-hover');
 
-    // «✨ Дополнить из чата»: the stage line, then the Goose's draft in the table.
+    // «✨ Дополнить из чата»: the stage line, then the Goose's suggestions in their rows.
     await s.hub.command({ op: 'config', patch: { aiChunkDelayMs: 120 } });
     await s.press(/Дополнить из чата/, 'panel');
     await s.see('panel', /Читаю переписку|Заполняю анкету/);
     await s.wait(600);
     await panel(s, 'fill-running');
-    await s.see('panel', /Лишнее уберите/, 60_000);
-    await s.wait(400);
+    await s.see('panel', /Гусь предлагает/, 60_000);
+    await s.wait(500);
     await panel(s, 'fill-found');
-    await (await s.h.ours('panel', `[data-notes-draft-row="${NEW_FIELD}"] button[aria-label="Не записывать"]`)).click();
+    await (await s.h.ours('panel', '[data-notes-field="Локация"] .cg-notes__pill-t')).moveTo();
     await s.wait(300);
-    await panel(s, 'fill-unticked');
-    await s.press(/^Сохранить анкету/, 'panel', '[data-notes-apply]');
-    await s.see('panel', /Дополнить из чата/);
+    await panel(s, 'fill-quote');
+    await (await s.h.ours('panel', '[data-notes-field="Локация"] [data-notes-accept]')).click();
+    await s.see('panel', /Записано: Локация/);
+    await s.wait(500);
+    await panel(s, 'fill-accepted');
+    await (await s.h.ours('panel', `[data-notes-field="${NEW_FIELD}"] [data-notes-dismiss]`)).click();
+    await s.wait(300);
+    await s.press(/^Принять все/, 'panel');
+    await s.see('panel', /Анкета дополнена/);
     await s.wait(600);
     await panel(s, 'fill-written');
 

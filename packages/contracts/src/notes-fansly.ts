@@ -6,9 +6,10 @@
 // 2026-10-26, the owner: «непонятно… интерфейс не очень удобный… полностью с нуля переработал». The panel is one
 // screen now: the questionnaire reads as a table and a field is edited in place (a click, Enter writes it to Fansly),
 // the empty fields are «+ Метка» to fill; a free note is one line typed and Enter. 2026-10-27, the owner on the fill
-// («это основная фича», a list to tick «неочевидный»): a fan without a questionnaire gets «✨ Заполнить из чата» as the
-// panel's first action, and what the Goose found is shown in the questionnaire's own table, its draft, saved by one
-// «Сохранить анкету».
+// («это основная фича»; of six prototypes he chose «Подсказки прямо в строках», and «чаттер должен контролировать, что
+// он делает»): a fan without a questionnaire gets «✨ Заполнить из чата» as the panel's first action, and what the
+// Goose found stands in the questionnaire's own rows as suggestions; each one is written to Fansly only by the
+// chatter's ✓ (or «Принять все»), × puts it aside.
 import type { CgAnyErrorWire } from './errors-fansly';
 import type { FanslyNotesView } from './settings-ext';
 import type { PhaseVM } from './vm/result';
@@ -52,15 +53,48 @@ export interface NotesDateVM {
   readonly iso: string;
 }
 
+/**
+ * A suggestion of the Goose in its field's row (FS-NOTE-6), written to Fansly only by the chatter's ✓:
+ * - `refine` — it extends a fact as written («Чикаго» → «Чикаго, Линкольн-Парк»): `base` is that fact, `text` the rest;
+ * - `replace` — it rewrites the field: `drops` go, `text` comes;
+ * - `add` — new facts after what is written;
+ * - `fill` — a field with nothing written (or a template's field the questionnaire lacks);
+ * - `new` — a field the Goose named itself.
+ */
+export interface NotesSuggestionVM {
+  /** What «suggestion-accept» and the rest name. */
+  readonly index: number;
+  readonly kind: 'refine' | 'replace' | 'add' | 'fill' | 'new';
+  readonly base: string | null;
+  /** The pill's words: the new facts joined with «; » (`refine` — only what it adds to `base`). */
+  readonly text: string;
+  /** The month the fan said it, at the right of the row. */
+  readonly date: string | null;
+  readonly drops: readonly NotesFactVM[];
+  /** The field's whole value after ✓ (the conflict's question names it). */
+  readonly value: string;
+  /** The fan's words behind it: on hover, never saved. */
+  readonly quotes: readonly string[];
+  /** `saving` — its write is in flight; `conflict` — the field changed since the Goose read it (`now`): «Заменить» or
+   * «Оставить». */
+  readonly state: 'pending' | 'saving' | 'conflict';
+  readonly now: string | null;
+}
+
 /** The questionnaire's parts in note order: a field with something written in it, or a line of no field. A field with
- * nothing written is not a part: it is one of `NotesFormVM.blank`. */
+ * nothing written is not a part (it is one of `NotesFormVM.blank`) unless the Goose suggests something for it: then it
+ * is a `ghost` row, in its place, or after the last field for a field the questionnaire lacks. */
 export type NotesFormPartVM =
   | {
       readonly kind: 'field';
       readonly label: string;
       readonly facts: readonly NotesFactVM[];
-      /** The Goose's last «Сохранить анкету» wrote here: marked until the panel closes. */
+      /** The chatter's ✓ wrote the Goose's suggestion here: marked until the panel closes. */
       readonly fresh?: boolean;
+      /** The Goose's suggestion for this field, waiting for ✓ or ×. */
+      readonly suggestion?: NotesSuggestionVM;
+      /** Nothing written in this field yet: the row exists for its suggestion. */
+      readonly ghost?: boolean;
     }
   | { readonly kind: 'text'; readonly text: string };
 
@@ -76,54 +110,41 @@ export interface NotesFieldVM {
   readonly problem: NotesProblem | null;
 }
 
-/** A fact of the Goose's draft: `kept` — written and staying; `added` — the Goose's, written by «Сохранить анкету»;
- * `gone` — not there after it (the Goose's rewrite drops it, or a fact of the Goose's put aside by ✕). */
-export interface NotesDraftFactVM extends NotesFactVM {
-  readonly mark: 'kept' | 'added' | 'gone';
-}
-
-/** A row of the Goose's draft of the questionnaire, in note order: a field with what the Goose found in it (`finding`
- * — its index, what «finding» names; `checked` false — put aside by ✕, nothing of it is written), a field it left as
- * it is (`finding` null), or a line of no field. `added` — a field the questionnaire lacks: «Сохранить» adds its line. */
-export type NotesDraftRowVM =
-  | {
-      readonly kind: 'field';
-      readonly label: string;
-      readonly facts: readonly NotesDraftFactVM[];
-      readonly finding: number | null;
-      readonly checked: boolean;
-      readonly added: boolean;
-      /** The fan's words behind it: on hover, never saved. */
-      readonly quotes: readonly string[];
-    }
-  | { readonly kind: 'text'; readonly text: string };
-
 /**
  * «✨ Заполнить из чата» / «✨ Дополнить из чата» of the questionnaire (FS-NOTE-6): `running` — the hub reads the chat
- * («Остановить» drops it); `review` — the Goose's draft in the questionnaire's table waits for «Сохранить анкету»
- * (nothing is written to Fansly before it); `empty` — nothing new in the chat; `failed` — why.
+ * («Остановить» drops it); `review` — its suggestions stand in the rows (`NotesFormPartVM.suggestion`), each written
+ * only by ✓; `done` — none waits any more (what was written, what was put aside); `empty` — nothing new in the chat;
+ * `failed` — why.
  */
 export interface NotesFillVM {
-  readonly status: 'idle' | 'running' | 'review' | 'empty' | 'failed';
+  readonly status: 'idle' | 'running' | 'review' | 'done' | 'empty' | 'failed';
   /** Why it cannot start now: a field or the questionnaire's text is open, or a write of this fan is in flight. */
   readonly reason: 'editing' | 'writing' | null;
   /** A running fill's stage and its m:ss timer, the kit's StageLine. */
   readonly phase: PhaseVM | null;
   readonly error: CgAnyErrorWire | null;
-  /** The draft: the questionnaire as «Сохранить анкету» leaves it. */
-  readonly rows: readonly NotesDraftRowVM[];
+  /** The suggestions waiting, written by ✓, put aside by ×. */
+  readonly pending: number;
+  readonly written: number;
+  readonly dismissed: number;
   /** The fields with nothing written that the Goose found nothing for either. */
   readonly unfound: readonly string[];
-  /** «Сохранить анкету» in flight. */
+  /** The fan had no questionnaire: the first ✓ created it. */
+  readonly created: boolean;
+  /** A write of suggestions in flight. */
   readonly saving: boolean;
-  /** A questionnaire's create failed after it may have landed: «Сохранить анкету» waits for «Обновить». */
+  /** A questionnaire's create failed after it may have landed: ✓ waits for «Обновить». */
   readonly blocked: boolean;
   readonly problem: NotesProblem | null;
+  /** The last ✓ for a few seconds: «Записано: Локация · Отменить» puts the questionnaire back as it was. */
+  readonly undo: { readonly labels: readonly string[]; readonly undoing: boolean } | null;
+  /** «Отменить» could not: the questionnaire changed since the ✓ (it would wipe that). */
+  readonly undoFailed: boolean;
 }
 
 /** The fan's questionnaire: one note of 2–30 `Label: value` lines (one per fan), or none yet. */
 export interface NotesFormVM {
-  /** null — the fan has none: the first field written or «Сохранить анкету» creates «Анкета» with the template's fields. */
+  /** null — the fan has none: the first field written or the first ✓ creates «Анкета» with the template's fields. */
   readonly noteId: string | null;
   readonly title: string;
   readonly parts: readonly NotesFormPartVM[];
@@ -135,7 +156,7 @@ export interface NotesFormVM {
   readonly field: NotesFieldVM | null;
   /** null — the page's «Дополнить из чата» is off. */
   readonly fill: NotesFillVM | null;
-  /** The facts the last «Сохранить анкету» did not write (the field changed meanwhile, or 30 fields and no «Другое»): named once. */
+  /** The suggestions a ✓ could not place (30 fields and no «Другое»): named once. */
   readonly unplaced: readonly string[];
 }
 
@@ -222,11 +243,16 @@ export type NotesAction =
   /** «✨ Заполнить из чата» / «✨ Дополнить из чата» and «Остановить». */
   | { readonly type: 'fill' }
   | { readonly type: 'fill-stop' }
-  /** A row of the draft put aside (✕) or back («Вернуть»). */
-  | { readonly type: 'finding'; readonly index: number; readonly checked: boolean }
-  /** «Сохранить анкету»: the draft's rows not put aside, written to Fansly in one write. */
-  | { readonly type: 'fill-apply' }
-  /** «Отменить», «Понятно», «Закрыть» of the fill's result: nothing is written. */
+  /** A suggestion's ✓ (written to Fansly at once), its ×, «Заменить» over a field changed since the Goose read it. */
+  | { readonly type: 'suggestion-accept'; readonly index: number }
+  | { readonly type: 'suggestion-dismiss'; readonly index: number }
+  | { readonly type: 'suggestion-replace'; readonly index: number }
+  /** «Принять все» (one write), «Скрыть» (every suggestion put aside, nothing written). */
+  | { readonly type: 'suggestions-accept-all' }
+  | { readonly type: 'suggestions-dismiss-all' }
+  /** «Отменить» of the last ✓: the questionnaire as it was before it, its suggestions waiting again. */
+  | { readonly type: 'suggestion-undo' }
+  /** «Понятно», «Закрыть», the done line's ×: nothing is written. */
   | { readonly type: 'fill-close' }
   /** The box at the top of the notes. */
   | { readonly type: 'quick-input'; readonly text: string }
@@ -298,30 +324,52 @@ export interface NotesCopy {
   readonly lockedHint: string;
   readonly unplaced: string;
 
-  /** «✨ Заполнить из чата» / «✨ Дополнить из чата» and the Goose's draft. */
+  /** «✨ Заполнить из чата» / «✨ Дополнить из чата» and the Goose's suggestions. */
   readonly fill: string;
   readonly fillNew: string;
   readonly fillHint: string;
   readonly fillEditing: string;
   readonly fillWriting: string;
   readonly fillStop: string;
-  /** The draft's line over the table: of a new questionnaire, of one filled before. */
-  readonly draftNew: string;
-  readonly draftMore: string;
-  /** A row's ✕ and its way back. */
-  readonly drop: string;
-  readonly restore: string;
+  /** The bar over the rows: `{n}` suggestions wait, `{w}` written. */
+  readonly suggestBar: string;
+  readonly suggestWritten: string;
+  readonly acceptAll: string;
+  readonly hideAll: string;
+  /** A pill: its ✓ and × and the hint under the fan's words. */
+  readonly accept: string;
+  readonly dismiss: string;
+  readonly suggestKeys: string;
+  /** The pill of a rewrite that only takes facts away. */
+  readonly dropOnly: string;
+  readonly quotes: string;
+  readonly noQuote: string;
+  /** `{old}` — what a rewrite takes away. */
+  readonly replaces: string;
+  readonly newField: string;
+  /** A field changed since the Goose read it: `{now}` — its value now, `{value}` — the Goose's. */
+  readonly conflict: string;
+  readonly replace: string;
+  readonly keepIt: string;
+  /** The last ✓: `{labels}` — the fields written. */
+  readonly undoLine: string;
+  /** More than two fields at once: `{n}` of them. */
+  readonly undoMany: string;
+  readonly undo: string;
+  readonly undoing: string;
+  readonly undoFailed: string;
+  /** None waits any more: `{w}` written, `{d}` put aside. */
+  readonly doneMore: string;
+  readonly doneNew: string;
+  readonly doneDismissed: string;
   /** `{labels}` — the fields the Goose found nothing for. */
   readonly unfound: string;
-  readonly fillApply: string;
   readonly fillNothing: string;
   readonly fillOk: string;
   readonly fillFailed: string;
   readonly fillAgain: string;
   readonly fillClose: string;
   readonly fillProblem: Readonly<Record<'too-long' | 'deleted' | 'changed' | 'failed-create' | 'failed-edit', string>>;
-  /** The hover over the Goose's fact: «Слова фана: «…»». */
-  readonly quotes: string;
 
   /** The other notes. */
   readonly notes: string;

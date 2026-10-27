@@ -10,8 +10,11 @@
 // - Filling it from the chat is the main way (the owner, 2026-10-27: «это основная фича»): a fan without a
 //   questionnaire gets a card with «✨ Заполнить из чата» (and «Заполнить вручную» for the fields); a filled one has
 //   «✨ Дополнить из чата» in the section's head. While the hub reads the chat, its stage line and «Остановить»; then
-//   the Goose's draft in the same table: what it adds in its serif on a warm row, what a rewrite drops struck, ✕ on each
-//   of its rows, the fan's words on hover, and one «Сохранить анкету». The fields it wrote are marked ✦.
+//   (of six prototypes the owner chose «Подсказки прямо в строках»; «чаттер должен контролировать, что он делает»)
+//   each finding stands in its field's row as a pill in the AI serif: after the words it extends, as a new line, or as
+//   a faint row of its own. A press or Enter writes that one to Fansly, × or Backspace puts it aside, the fan's words on
+//   hover; «Гусь предлагает N · Принять все · Скрыть» over the rows, «Записано: … · Отменить» for a few seconds after a
+//   ✓, «Заменить?» on a row changed since the Goose read it. The fields written are marked ✦.
 // - «Заметки»: a box at the top (a line typed and Enter makes a note), then the notes, newest first, the date at the
 //   left; «Изменить» and «Удалить» on a note under the pointer. FBuddy's note and a long one are read only.
 
@@ -21,7 +24,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { I18nKey } from '@cg/contracts/errors';
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NotesClient, NotesCopy, NotesDateVM, NotesDraftFactVM, NotesDraftRowVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM } from '@cg/contracts/notes-fansly';
+import type { NotesClient, NotesCopy, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
 import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
 
 import { Button, Dot, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit } from '../../../kit';
@@ -247,78 +250,181 @@ function FieldEditor({ client, copy, field }: Props & { readonly field: NotesFie
   );
 }
 
-/** A fact of the Goose's draft: what stays plain, the Goose's own in its serif (the fan's words on hover), what goes
- * struck. */
-function DraftFact({ copy, fact, quotes }: { readonly copy: NotesCopy; readonly fact: NotesDraftFactVM; readonly quotes: readonly string[] }): JSX.Element {
-  const said = fact.mark === 'added' && quotes.length > 0 ? `${copy.quotes}: ${quotes.map((quote) => `«${quote}»`).join(' ')}` : null;
+type FieldPart = Extract<NotesFormPartVM, { kind: 'field' }>;
+
+/** A suggestion of the Goose: its words in the AI serif on the draft's warm dashed pill. A press or Enter writes it to
+ * Fansly, × or Backspace puts it aside; the fan's words show on hover or focus. */
+function Pill({ client, copy, sug, words, inline }: Props & { readonly sug: NotesSuggestionVM; readonly words: string; readonly inline: boolean }): JSX.Element {
+  const saving = sug.state === 'saving';
+  const accept = (): void => {
+    if (!saving) client.dispatch({ type: 'suggestion-accept', index: sug.index });
+  };
+  const dismiss = (): void => {
+    if (!saving) client.dispatch({ type: 'suggestion-dismiss', index: sug.index });
+  };
   return (
-    <span class={`cg-notes__fact is-${fact.mark}`} {...(said === null ? {} : { title: said })}>
-      <span class="cg-notes__fact-t">{fact.text}</span>
-      {fact.date === null ? null : <span class="cg-notes__fact-date">{fact.date}</span>}
+    <span class={`cg-notes__pill${inline ? ' is-inline' : ''}${saving ? ' is-saving' : ''}`} data-notes-pill={sug.kind}>
+      <button
+        type="button"
+        class="cg-notes__pill-t"
+        aria-label={`${copy.accept}: ${words}`}
+        {...(saving ? { 'aria-disabled': 'true' } : {})}
+        onClick={accept}
+        onKeyDown={(event) => {
+          if (event.key !== 'Backspace' && event.key !== 'Delete') return;
+          event.preventDefault();
+          dismiss();
+        }}
+      >
+        {sug.kind === 'add' ? (
+          <span class="cg-notes__pill-plus" aria-hidden="true">
+            +
+          </span>
+        ) : null}
+        {words}
+      </button>
+      {saving ? (
+        <span class="cg-notes__pill-saving">{copy.saving}</span>
+      ) : (
+        <>
+          <button type="button" class="cg-notes__pill-ok" tabIndex={-1} aria-label={copy.accept} data-notes-accept="" onClick={accept}>
+            <Icon name="check" size={12} />
+          </button>
+          <button type="button" class="cg-notes__pill-no" tabIndex={-1} aria-label={copy.dismiss} data-notes-dismiss="" onClick={dismiss}>
+            <Icon name="x" size={12} />
+          </button>
+        </>
+      )}
+      <span class="cg-notes__said" role="tooltip">
+        <span class="cg-notes__said-h">{sug.quotes.length === 0 ? copy.noQuote : copy.quotes}</span>
+        {sug.quotes.slice(0, 2).map((quote, at) => (
+          <span key={at} class="cg-notes__said-q">
+            «{quote}»
+          </span>
+        ))}
+        {sug.kind === 'replace' && sug.drops.length > 0 ? <span class="cg-notes__said-r">{copy.replaces.replace('{old}', sug.drops.map((fact) => fact.text).join('; '))}</span> : null}
+        <span class="cg-notes__said-k">{copy.suggestKeys}</span>
+      </span>
     </span>
   );
 }
 
-/** A row of the draft: a field the Goose wrote into is warm and has ✕ (put it aside); put aside, «Вернуть». */
-function DraftRow({ client, copy, row, saving }: Props & { readonly row: Extract<NotesDraftRowVM, { kind: 'field' }>; readonly saving: boolean }): JSX.Element {
-  const index = row.finding;
-  const reason = saving ? { reason: copy.saving } : {};
+/** A row changed since the Goose read it: what it holds now, and the question «Заменить?». */
+function Conflict({ client, copy, sug }: Props & { readonly sug: NotesSuggestionVM }): JSX.Element {
   return (
-    <div
-      class={`cg-notes__drow${index === null ? '' : row.checked ? ' is-found' : ' is-off'}${row.added ? ' is-added' : ''}`}
-      data-notes-draft-row={row.label}
-      {...(index === null ? {} : { 'data-checked': row.checked ? 'true' : 'false' })}
-    >
-      <span class="cg-notes__label">{row.label}</span>
-      <span class="cg-notes__value" {...(row.facts.length > 1 ? { 'data-many': '' } : {})}>
-        {row.facts.map((fact, at) => (
-          <DraftFact key={at} copy={copy} fact={fact} quotes={row.quotes} />
-        ))}
+    <span class="cg-notes__conflict" role="alert" data-notes-conflict="">
+      <span class="cg-notes__conflict-t">{copy.conflict.replace('{now}', sug.now ?? '').replace('{value}', sug.value)}</span>
+      <span class="cg-notes__conflict-acts">
+        <Button variant="line" size="sm" label={copy.replace} onClick={() => client.dispatch({ type: 'suggestion-replace', index: sug.index })} />
+        <Button variant="quiet" size="sm" label={copy.keepIt} onClick={() => client.dispatch({ type: 'suggestion-dismiss', index: sug.index })} />
       </span>
-      <span class="cg-notes__drow-act">
-        {index === null ? null : row.checked ? (
-          <Button variant="quiet" size="sm" iconOnly icon="x" label={copy.drop} {...reason} onClick={() => client.dispatch({ type: 'finding', index, checked: false })} />
-        ) : (
-          <Button variant="quiet" size="sm" label={copy.restore} {...reason} onClick={() => client.dispatch({ type: 'finding', index, checked: true })} />
+    </span>
+  );
+}
+
+/** A row with the Goose's suggestion: no editor until it is taken or put aside. A refinement stands right after the
+ * words it extends, a rewrite strikes what goes, an addition is a new line, an empty field is a faint row. */
+function SuggestedRow({ client, copy, part, sug }: Props & { readonly part: FieldPart; readonly sug: NotesSuggestionVM }): JSX.Element {
+  const conflict = sug.state === 'conflict';
+  const base = sug.kind === 'refine' && !conflict ? part.facts.findIndex((fact) => fact.text === sug.base) : -1;
+  const drops = new Set(sug.kind === 'replace' && !conflict ? sug.drops.map((fact) => fact.text) : []);
+  // A refinement whose words are no longer there shows the whole value.
+  const alone = sug.kind === 'refine' && base === -1 ? sug.value : sug.text === '' ? copy.dropOnly : sug.text;
+  const lines = part.facts.length + (base === -1 && !conflict ? 1 : 0);
+  return (
+    <div class={`cg-notes__frow is-suggested${part.ghost === true ? ' is-ghost' : ''}`} data-notes-field={part.label} data-notes-suggestion={sug.kind}>
+      <span class="cg-notes__label">
+        {part.label}
+        {sug.kind === 'new' ? <span class="cg-notes__newf">✦ {copy.newField}</span> : null}
+      </span>
+      <span class="cg-notes__value" {...(lines > 1 ? { 'data-many': '' } : {})}>
+        {part.facts.map((fact, at) =>
+          at === base ? (
+            <span key={at} class="cg-notes__fact">
+              <span class="cg-notes__fact-t">
+                {fact.text}
+                <Pill client={client} copy={copy} sug={sug} words={sug.text} inline />
+              </span>
+              {(sug.date ?? fact.date) === null ? null : <span class="cg-notes__fact-date">{sug.date ?? fact.date}</span>}
+            </span>
+          ) : (
+            <span key={at} class={`cg-notes__fact${drops.has(fact.text) ? ' is-dropped' : ''}`}>
+              <span class="cg-notes__fact-t">{fact.text}</span>
+              {fact.date === null ? null : <span class="cg-notes__fact-date">{fact.date}</span>}
+            </span>
+          ),
         )}
+        {base === -1 && !conflict ? (
+          <span class="cg-notes__fact is-sug">
+            <span class="cg-notes__fact-t">
+              <Pill client={client} copy={copy} sug={sug} words={alone} inline={false} />
+            </span>
+            {sug.date === null ? null : <span class="cg-notes__fact-date">{sug.date}</span>}
+          </span>
+        ) : null}
+        {conflict ? <Conflict client={client} copy={copy} sug={sug} /> : null}
       </span>
+      <span />
     </div>
   );
 }
 
-/** The Goose's draft in the questionnaire's own table; one «Сохранить анкету» writes it, «Отмена» drops it. */
-function Draft({ client, copy, form, fill }: Props & { readonly form: NotesFormVM; readonly fill: NotesFillVM }): JSX.Element {
+/** Over the rows while suggestions wait: how many, «Принять все», «Скрыть»; when none waits: what was done. */
+function SuggestBar({ client, copy, fill }: Props & { readonly fill: NotesFillVM }): JSX.Element {
   const errorText = useErrorText();
-  const off = fill.saving || fill.blocked;
-  return (
-    <div class="cg-notes__draft" data-notes-draft="">
-      <p class="cg-notes__draft-t">
-        <span aria-hidden="true">✨</span>
-        {form.noteId === null ? copy.draftNew : copy.draftMore}
-      </p>
-      <div class="cg-notes__table" data-notes-table="">
-        {fill.rows.map((row, at) =>
-          row.kind === 'text' ? (
-            <div key={`t${String(at)}`} class="cg-notes__free">
-              {row.text}
-            </div>
-          ) : (
-            <DraftRow key={`f${row.label}`} client={client} copy={copy} row={row} saving={fill.saving} />
-          ),
-        )}
+  if (fill.status === 'done') {
+    return (
+      <div class="cg-notes__done" role="status" data-notes-done="">
+        <Icon name="check" size={13} />
+        <span class="cg-notes__done-b">
+          <span class="cg-notes__done-t">
+            {(fill.created ? copy.doneNew : copy.doneMore).replace('{w}', String(fill.written))}
+            {fill.dismissed > 0 ? copy.doneDismissed.replace('{d}', String(fill.dismissed)) : ''}
+          </span>
+          {fill.unfound.length === 0 ? null : <span class="cg-notes__done-u">{copy.unfound.replace('{labels}', fill.unfound.join(', '))}</span>}
+        </span>
+        <Button variant="quiet" size="sm" iconOnly icon="x" label={copy.fillClose} onClick={() => client.dispatch({ type: 'fill-close' })} />
       </div>
-      {fill.unfound.length === 0 ? null : <p class="cg-notes__unfound">{copy.unfound.replace('{labels}', fill.unfound.join(', '))}</p>}
+    );
+  }
+  return (
+    <>
+      <div class="cg-notes__sugbar" data-notes-sugbar="">
+        <span class="cg-notes__sugbar-t">
+          <span class="cg-notes__spark" aria-hidden="true">
+            ✦
+          </span>
+          {copy.suggestBar.replace('{n}', String(fill.pending))}
+          {fill.written > 0 ? <span class="cg-notes__sugbar-w">{` · ${copy.suggestWritten.replace('{n}', String(fill.written))}`}</span> : null}
+        </span>
+        <span class="cg-notes__spacer" />
+        {fill.pending === 0 ? null : <Button variant="line" size="sm" label={copy.acceptAll} class="cg-notes__ai" {...(fill.blocked ? { reason: copy.fillProblem['failed-create'] } : {})} onClick={() => client.dispatch({ type: 'suggestions-accept-all' })} />}
+        <Button variant="quiet" size="sm" label={copy.hideAll} onClick={() => client.dispatch({ type: 'suggestions-dismiss-all' })} />
+      </div>
       {fill.problem === null ? null : (
         <p class="cg-notes__problem" role="alert" data-notes-problem={fill.problem.kind}>
           {problemText(fill.problem, copy.fillProblem, errorText, copy.problem.empty)}
         </p>
       )}
-      <div class="cg-notes__acts cg-notes__review-acts">
-        <button type="button" class={`cg-act cg-act--main${fill.saving ? ' is-busy' : ''}`} data-notes-apply="" title={copy.saveHint} {...(off ? { 'aria-disabled': 'true' } : {})} onClick={() => off || client.dispatch({ type: 'fill-apply' })}>
-          <span class="cg-act__t">{fill.saving ? copy.saving : copy.fillApply}</span>
-        </button>
-        <Button variant="plain" label={copy.cancel} {...(fill.saving ? { reason: copy.saving } : {})} onClick={() => client.dispatch({ type: 'fill-close' })} />
-      </div>
+      {fill.undoFailed ? (
+        <p class="cg-notes__problem" role="alert">
+          {copy.undoFailed}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** «Записано: Локация · Отменить» for a few seconds after a ✓, over the panel's bottom. */
+function UndoToast({ client, copy, fill }: Props & { readonly fill: NotesFillVM }): JSX.Element | null {
+  const undo = fill.undo;
+  if (undo === null) return null;
+  return (
+    <div class="cg-notes__toast" role="status" data-notes-undo="">
+      <span class="cg-notes__toast-t">{undo.labels.length > 2 ? copy.undoMany.replace('{n}', String(undo.labels.length)) : copy.undoLine.replace('{labels}', undo.labels.join(', '))}</span>
+      <button type="button" class="cg-notes__toast-b" {...(undo.undoing ? { 'aria-disabled': 'true' } : {})} onClick={() => undo.undoing || client.dispatch({ type: 'suggestion-undo' })}>
+        {undo.undoing ? copy.undoing : copy.undo}
+      </button>
     </div>
   );
 }
@@ -462,7 +568,8 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
   const asked = form.noteId !== null && vm.confirmDelete === form.noteId;
   const blank = form.blank.filter((label) => !(field?.blank === true && field.label === label));
   // No questionnaire yet: the card with «✨ Заполнить из чата» stands first; the fields wait behind «Заполнить вручную».
-  const start = form.noteId === null && fill !== null && status !== 'review';
+  const start = form.noteId === null && fill !== null && status !== 'review' && status !== 'done';
+  const reviewing = status === 'review';
   // While the Goose fills a new one, the fields wait for it.
   const chips = !start || field !== null || (manual && !running);
   const reason = fill === null ? null : fillReason(copy, fill);
@@ -477,16 +584,15 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           </span>
         ) : null}
         <span class="cg-notes__spacer" />
-        {asText || start || fill === null || running || status === 'review' ? null : (
+        {asText || start || fill === null || running || reviewing ? null : (
           <Button variant="line" size="sm" label={copy.fill} tooltip={copy.fillHint} class="cg-notes__ai" {...(reason === null ? {} : { reason })} onClick={() => client.dispatch({ type: 'fill' })} />
         )}
       </div>
       {asText && vm.editor !== null ? (
         <Editor client={client} copy={copy} editor={vm.editor} />
-      ) : status === 'review' && fill !== null ? (
-        <Draft client={client} copy={copy} form={form} fill={fill} />
       ) : (
         <>
+          {fill !== null && (status === 'review' || status === 'done') ? <SuggestBar client={client} copy={copy} fill={fill} /> : null}
           {fill !== null && (status === 'empty' || status === 'failed') ? <FillNotice client={client} copy={copy} fill={fill} /> : null}
           {start && fill !== null ? <Start client={client} copy={copy} fill={fill} manual={chips} onManual={() => setManual(true)} /> : null}
           {running && !start && fill !== null ? <Running client={client} copy={copy} fill={fill} /> : null}
@@ -498,6 +604,8 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
                   <div key={`t${String(at)}`} class="cg-notes__free">
                     {part.text}
                   </div>
+                ) : part.suggestion !== undefined ? (
+                  <SuggestedRow key={`f${part.label}`} client={client} copy={copy} part={part} sug={part.suggestion} />
                 ) : field !== null && !field.blank && field.label === part.label ? (
                   <FieldEditor key={`f${part.label}`} client={client} copy={copy} field={field} />
                 ) : (
@@ -519,7 +627,7 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           )}
           {form.unplaced.length === 0 ? null : <p class="cg-notes__unplaced">{copy.unplaced.replace('{labels}', form.unplaced.join(', '))}</p>}
           {asked ? <Confirm client={client} copy={copy} vm={vm} ask={copy.removeFormAsk} /> : null}
-          {form.noteId === null || form.locked || running || field !== null || asked || vm.editor !== null ? null : (
+          {form.noteId === null || form.locked || running || reviewing || field !== null || asked || vm.editor !== null ? null : (
             <div class="cg-notes__form-acts">
               <Button variant="quiet" size="sm" label={copy.asText} onClick={() => client.dispatch({ type: 'edit', noteId: form.noteId as string })} />
               <Button variant="quiet" size="sm" label={copy.removeForm} onClick={() => client.dispatch({ type: 'ask-delete', noteId: form.noteId as string })} />
@@ -724,6 +832,7 @@ export function NotesPanel({ client, texts }: { readonly client: NotesClient; re
       <div class="cg-notes__body">
         <Body client={client} copy={copy} vm={vm} />
       </div>
+      {vm.form?.fill === null || vm.form?.fill === undefined ? null : <UndoToast client={client} copy={copy} fill={vm.form.fill} />}
       {vm.narrow ? <p class="cg-notes__note-foot">{copy.narrow}</p> : null}
     </section>
   );

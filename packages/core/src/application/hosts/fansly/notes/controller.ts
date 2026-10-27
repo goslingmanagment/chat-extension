@@ -10,10 +10,12 @@
 //   questionnaire gets one with the first field written (the template, «Анкета»).
 // - «✨ Заполнить из чата» / «✨ Дополнить из чата» (FS-NOTE-6, fill.ts): the site operation `notes-fill` through the
 //   shared admission, with the questionnaire's labels and the values of their lines (X43). 2026-10-27 (the owner: «это
-//   основная фича»): a fan without a questionnaire gets it as the panel's first action, and the answer is the Goose's
-//   draft in the questionnaire's own table, a row put aside by ✕; nothing is written before «Сохранить анкету», which
-//   writes the rest in one edit: a field's line takes the hub's value only while it still holds what the hub saw.
-//   «Остановить» or «Отменить» drop it and its late answer.
+//   основная фича», then «Подсказки прямо в строках» of six prototypes, «чаттер должен контролировать, что он
+//   делает»): a fan without a questionnaire gets it as the panel's first action, and each finding stands in its
+//   field's row as a suggestion. Nothing is written before the chatter's ✓: one ✓ is one write (a ✓ pressed while one
+//   is in flight joins the next), «Принять все» one write of all, × or «Скрыть» put them aside. A field's line takes
+//   the hub's value only while it still holds what the hub saw; one changed since asks «Заменить?». The last ✓ can be
+//   taken back for a few seconds («Отменить»). «Остановить» drops a running fill and its late answer.
 // - A free note is the box at the top of the notes: a line typed and Enter makes it a note (no title). Any note, the
 //   questionnaire included («Править текстом»), opens as text; a delete asks first.
 // - Views (FS-NOTE-2): «Справа по кнопке» (default) and «Окно по центру» open by the button or ⌘⇧K; «Всегда справа»
@@ -30,18 +32,20 @@
 //   the hub's request body: nothing is logged.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
-import type { NotesAction, NotesClient, NotesDateVM, NotesDraftRowVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
+import type { NotesAction, NotesClient, NotesDateVM, NotesFillVM, NotesFormPartVM, NotesSuggestionVM, NotesFormVM, NotesItemVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
 import type { Phase, SiteOpView } from '@cg/contracts/ops';
 import type { PhaseVM } from '@cg/contracts/vm';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
-import { applyNoteFindings, noteDraft, noteFillRequest, noteFindings, type NoteFinding } from './fill';
-import { NOTE_FIELDS_MAX, noteLabelKey, parseNoteForm, splitFactDate, writeNoteField, type NoteFormPart } from './form';
+import { applyNoteFindings, noteFillRequest, noteFindings, noteSuggestion, type NoteFinding } from './fill';
+import { NOTE_FIELDS_MAX, noteFieldValue, noteLabelKey, parseNoteForm, splitFactDate, splitNoteFacts, writeNoteField, type NoteFormPart } from './form';
 import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
 
 /** «Всегда справа» follows the open chat only once the person stays on it this long (FS-NOTE-3). */
 export const NOTES_FOLLOW_DELAY_MS = 700;
+/** How long the last ✓ can be taken back («Записано: … · Отменить»). */
+export const NOTES_UNDO_MS = 6000;
 /** Chats whose notes a tab keeps; a shift opens fewer. */
 const KEPT_CHATS = 300;
 
@@ -77,9 +81,23 @@ export function fillPhaseVM(startedAt: number, phase: Phase | null): PhaseVM {
   return { startedAt, stages, retryAt, cancel: null };
 }
 
-/** The Goose's draft as the table shows it: each fact with its month apart. */
-function draftVM(base: string, findings: readonly NoteFinding[], checked: readonly boolean[]): NotesDraftRowVM[] {
-  return noteDraft(base, findings, checked).map((row) => (row.kind === 'text' ? row : { ...row, facts: row.facts.map((fact) => ({ ...splitFactDate(fact.text), mark: fact.mark })) }));
+/** A suggestion as its row shows it: what kind, the pill's words, what goes, the fan's words. */
+function suggestionVM(finding: NoteFinding, index: number, mark: Mark): NotesSuggestionVM {
+  const shape = noteSuggestion(finding);
+  return {
+    index,
+    kind: shape.kind,
+    base: shape.base,
+    text: shape.text,
+    date: shape.date,
+    drops: shape.drops.map(splitFactDate),
+    value: splitNoteFacts(finding.proposed)
+      .map((fact) => splitFactDate(fact).text)
+      .join('; '),
+    quotes: finding.quotes,
+    state: mark.state === 'conflict' ? 'conflict' : mark.state === 'saving' ? 'saving' : 'pending',
+    now: mark.state === 'conflict' ? mark.now : null,
+  };
 }
 
 /** The open one-to-one chat where the owner switched «Заметки» on. `fanId` null — MAIN has not named its fan. */
@@ -165,12 +183,50 @@ interface Quick {
   problem: NotesProblem | null;
 }
 
-/** «✨ Заполнить из чата» of a fan's questionnaire: `base` — the text it was asked with (the template for none). */
+/** A suggestion: waiting for ✓ or ×, its write in flight, written, put aside, or its field changed since the Goose
+ * read it (`now` — the field's value now: «Заменить?»). */
+type Mark = { readonly state: 'pending' } | { readonly state: 'saving' } | { readonly state: 'written' } | { readonly state: 'dismissed' } | { readonly state: 'conflict'; readonly now: string };
+
+/** The last ✓ for a few seconds: the questionnaire before it (null — the ✓ created it) and after it. */
+interface Undo {
+  readonly before: string | null;
+  readonly after: string;
+  readonly noteId: string;
+  readonly indices: readonly number[];
+  readonly labels: readonly string[];
+  readonly timer: unknown;
+  undoing: boolean;
+}
+
+/** «✨ Заполнить из чата» of a fan's questionnaire: `base` — the text it was asked with (the template for none),
+ * `blank` — the fan had no questionnaire. */
 type Fill =
-  | { readonly status: 'running'; opId: string | null; readonly startedAt: number; phase: Phase | null; readonly base: string }
-  | { readonly status: 'review'; readonly base: string; readonly findings: readonly NoteFinding[]; readonly checked: boolean[]; saving: boolean; blocked: boolean; problem: NotesProblem | null }
+  | { readonly status: 'running'; opId: string | null; readonly startedAt: number; phase: Phase | null; readonly base: string; readonly blank: boolean }
+  | Review
   | { readonly status: 'empty' }
   | { readonly status: 'failed'; readonly error: CgAnyErrorWire };
+
+/** The Goose's suggestions in the rows, each written by its ✓. */
+interface Review {
+  readonly status: 'review';
+  readonly findings: readonly NoteFinding[];
+  readonly marks: Mark[];
+  readonly created: boolean;
+  /** ✓ pressed while a write was in flight: written next, together. */
+  queue: number[];
+  /** «Заменить»: written over the field's value now. */
+  readonly force: Map<number, string>;
+  writing: boolean;
+  blocked: boolean;
+  problem: NotesProblem | null;
+  undo: Undo | null;
+  undoFailed: boolean;
+}
+
+/** A suggestion still on its row: waiting, in flight, or asking «Заменить?». */
+const isOpen = (mark: Mark | undefined): boolean => mark?.state === 'pending' || mark?.state === 'saving' || mark?.state === 'conflict';
+/** A fill whose suggestions still wait for the chatter. */
+const waits = (fill: Fill | undefined): boolean => fill?.status === 'review' && fill.marks.some(isOpen);
 
 interface NameState {
   readonly status: NotesNameStatus;
@@ -297,15 +353,20 @@ export function createNotesController(port: NotesPort): NotesController {
       drafts.get(fanId)?.saving === true ||
       fields.get(fanId)?.saving === true ||
       quicks.get(fanId)?.saving === true ||
-      (fill?.status === 'review' && fill.saving) ||
+      (fill?.status === 'review' && (fill.writing || fill.undo?.undoing === true)) ||
       deleting?.fanId === fanId ||
       nameStates.get(fanId)?.status === 'saving'
     );
   };
   /** Something typed or found for this fan is not written yet: a moment without the chat never hides the panel. */
   const unsaved = (fanId: string): boolean => {
-    const fill = fills.get(fanId)?.status;
-    return drafts.has(fanId) || fields.has(fanId) || (quicks.get(fanId)?.text.trim() ?? '') !== '' || fill === 'running' || fill === 'review';
+    const fill = fills.get(fanId);
+    return drafts.has(fanId) || fields.has(fanId) || (quicks.get(fanId)?.text.trim() ?? '') !== '' || fill?.status === 'running' || waits(fill);
+  };
+  /** A fan's data in whichever kept chat holds it: a ✓ written after the chatter moved on still lands. */
+  const dataOf = (fanId: string): Data | null => {
+    for (const entry of entries.values()) if (entry.kind === 'ready' && entry.data.fanRef === fanId) return entry.data;
+    return null;
   };
   /** Why «✨ Дополнить из чата» cannot start now. */
   const fillReason = (fanId: string, form: FanslyNote | null): 'editing' | 'writing' | null => {
@@ -324,32 +385,60 @@ export function createNotesController(port: NotesPort): NotesController {
     // A template's field the questionnaire lacks is offered while it has room: past 30 fields it would read as a note.
     const room = Math.max(0, NOTE_FIELDS_MAX - own.length);
     const missing = NOTE_TEMPLATE_LABELS.filter((label) => !present.has(noteLabelKey(label))).slice(0, note === null ? undefined : room);
-    const shown: NotesFormPartVM[] = parts.flatMap((part): NotesFormPartVM[] =>
-      part.kind === 'text' ? [{ kind: 'text', text: part.text }] : part.facts.length === 0 ? [] : [{ kind: 'field', label: part.label, facts: part.facts.map(splitFactDate), ...(marks?.has(noteLabelKey(part.label)) === true ? { fresh: true } : {}) }],
-    );
+    const blank = [...own.filter((field) => field.facts.length === 0).map((field) => field.label), ...missing];
     const edit = fields.get(fanId);
     const fill = fills.get(fanId);
+    const review = fill?.status === 'review' ? fill : null;
     const locked = note?.cut === true;
-    const blank = [...own.filter((field) => field.facts.length === 0).map((field) => field.label), ...missing];
+    // The suggestions still on their rows, by field.
+    const suggested = new Map<string, { readonly label: string; readonly vm: NotesSuggestionVM }>();
+    review?.findings.forEach((finding, index) => {
+      const mark = review.marks[index];
+      if (mark !== undefined && isOpen(mark)) suggested.set(noteLabelKey(finding.label), { label: finding.label, vm: suggestionVM(finding, index, mark) });
+    });
+    const shown: NotesFormPartVM[] = [];
+    let lastField = -1;
+    for (const part of parts) {
+      if (part.kind === 'text') {
+        shown.push({ kind: 'text', text: part.text });
+        continue;
+      }
+      const key = noteLabelKey(part.label);
+      const suggestion = suggested.get(key)?.vm;
+      suggested.delete(key);
+      if (part.facts.length === 0 && suggestion === undefined) continue;
+      shown.push({ kind: 'field', label: part.label, facts: part.facts.map(splitFactDate), ...(marks?.has(key) === true ? { fresh: true } : {}), ...(suggestion === undefined ? {} : { suggestion }), ...(part.facts.length === 0 ? { ghost: true } : {}) });
+      lastField = shown.length - 1;
+    }
+    // The fields the questionnaire lacks: after its last field, where ✓ puts their lines.
+    const tail: NotesFormPartVM[] = [...suggested.values()].map(({ label, vm }) => ({ kind: 'field', label, facts: [], suggestion: vm, ghost: true }));
+    shown.splice(lastField + 1, 0, ...tail);
+    const count = (state: Mark['state']): number => review?.marks.filter((mark) => mark.state === state).length ?? 0;
     const fillVM: NotesFillVM | null =
       locked || (!port.fillAllowed() && fill === undefined)
         ? null
         : {
-            status: fill?.status ?? 'idle',
+            status: fill === undefined ? 'idle' : fill.status === 'review' ? (waits(fill) ? 'review' : 'done') : fill.status,
             reason: fillReason(fanId, note),
             phase: fill?.status === 'running' ? fillPhaseVM(fill.startedAt, fill.phase) : null,
             error: fill?.status === 'failed' ? fill.error : null,
-            rows: fill?.status === 'review' ? draftVM(fill.base, fill.findings, fill.checked) : [],
-            unfound: fill?.status === 'review' ? blank.filter((label) => !fill.findings.some((finding) => noteLabelKey(finding.label) === noteLabelKey(label))) : [],
-            saving: fill?.status === 'review' && fill.saving,
-            blocked: fill?.status === 'review' && fill.blocked,
-            problem: fill?.status === 'review' ? fill.problem : null,
+            pending: count('pending') + count('conflict'),
+            written: count('written'),
+            dismissed: count('dismissed'),
+            unfound: review === null ? [] : blank.filter((label) => !review.findings.some((finding) => noteLabelKey(finding.label) === noteLabelKey(label))),
+            created: review?.created ?? false,
+            saving: review?.writing ?? false,
+            blocked: review?.blocked ?? false,
+            problem: review?.problem ?? null,
+            undo: review?.undo === null || review?.undo === undefined ? null : { labels: review.undo.labels, undoing: review.undo.undoing },
+            undoFailed: review?.undoFailed ?? false,
           };
     return {
       noteId: note?.noteId ?? null,
       title: note?.title ?? NOTE_TEMPLATE_TITLE,
       parts: shown,
-      blank,
+      // A field waiting on its suggestion is a row now, not a «+ Метка».
+      blank: blank.filter((label) => !review?.findings.some((finding, index) => isOpen(review.marks[index]) && noteLabelKey(finding.label) === noteLabelKey(label))),
       locked,
       field: edit === undefined ? null : { label: edit.label, value: edit.value, blank: edit.blank, saving: edit.saving, blocked: edit.blocked, problem: edit.problem },
       fill: fillVM,
@@ -473,7 +562,7 @@ export function createNotesController(port: NotesPort): NotesController {
       }
     }
     const fill = fills.get(fanId);
-    if (fill?.status === 'review' && !fill.saving) {
+    if (fill?.status === 'review' && !fill.writing) {
       fill.blocked = false;
       if (fill.problem?.kind === 'failed' || fill.problem?.kind === 'changed' || fill.problem?.kind === 'deleted') fill.problem = null;
     }
@@ -555,10 +644,20 @@ export function createNotesController(port: NotesPort): NotesController {
     return true;
   }
 
-  /** The panel put away: the marks of the last «Записать» are done. */
+  /** The panel put away: the ✦ marks and the done line are over, and so is the last ✓'s «Отменить». Suggestions still
+   * waiting stay for the next time the panel opens. */
   function forget(): void {
     fresh.clear();
     unplaced.clear();
+    for (const [fanId, fill] of fills) {
+      if (fill.status !== 'review') continue;
+      if (fill.undo !== null && !fill.undo.undoing) {
+        port.clearTimer(fill.undo.timer);
+        fill.undo = null;
+      }
+      fill.undoFailed = false;
+      if (!waits(fill) && !fill.writing && fill.undo === null) fills.delete(fanId);
+    }
   }
 
   function close(): void {
@@ -702,9 +801,11 @@ export function createNotesController(port: NotesPort): NotesController {
     if (data === null) return;
     const fanId = data.fanRef;
     const note = formNote(data);
-    const fill = fills.get(fanId)?.status;
+    const fill = fills.get(fanId);
     const draft = drafts.get(fanId);
-    if (note?.cut === true || fill === 'running' || fill === 'review' || (draft !== undefined && note !== null && draft.noteId === note.noteId)) return;
+    // A field with the Goose's suggestion on it waits for ✓ or × first.
+    const suggested = fill?.status === 'review' && fill.findings.some((finding, index) => isOpen(fill.marks[index]) && noteLabelKey(finding.label) === noteLabelKey(label));
+    if (note?.cut === true || fill?.status === 'running' || suggested || (draft !== undefined && note !== null && draft.noteId === note.noteId)) return;
     const open = fields.get(fanId);
     if (open !== undefined && (open.saving || noteLabelKey(open.label) === noteLabelKey(label) || factsOf(open.value) !== factsOf(open.opened))) return;
     const field = (note === null ? [] : (partsOf(note) ?? [])).filter(isField).find((part) => noteLabelKey(part.label) === noteLabelKey(label));
@@ -853,12 +954,13 @@ export function createNotesController(port: NotesPort): NotesController {
     if (data === null || t === null || !port.fillAllowed()) return;
     const fanId = data.fanRef;
     const note = formNote(data);
-    const was = fills.get(fanId)?.status;
-    if (note?.cut === true || was === 'running' || was === 'review' || fillReason(fanId, note) !== null) return;
+    const was = fills.get(fanId);
+    if (note?.cut === true || was?.status === 'running' || waits(was) || (was?.status === 'review' && was.writing) || fillReason(fanId, note) !== null) return;
     const base = note?.text ?? NOTE_TEMPLATE_TEXT;
     const asked = noteFillRequest(base);
     if (asked === null) return;
-    const run: Fill & { status: 'running' } = { status: 'running', opId: null, startedAt: now(), phase: null, base };
+    if (was?.status === 'review' && was.undo !== null) port.clearTimer(was.undo.timer);
+    const run: Fill & { status: 'running' } = { status: 'running', opId: null, startedAt: now(), phase: null, base, blank: note === null };
     fills.set(fanId, run);
     fresh.delete(fanId);
     unplaced.delete(fanId);
@@ -889,7 +991,10 @@ export function createNotesController(port: NotesPort): NotesController {
       fillOps.delete(fill.opId);
       port.stopFill(fill.opId);
     }
-    if (fill?.status === 'review' && fill.saving) return;
+    if (fill?.status === 'review') {
+      if (fill.writing || fill.undo?.undoing === true) return;
+      if (fill.undo !== null) port.clearTimer(fill.undo.timer);
+    }
     fills.delete(fanId);
   }
 
@@ -903,7 +1008,12 @@ export function createNotesController(port: NotesPort): NotesController {
     if (run?.status !== 'running' || run.opId !== done.opId) return;
     if (done.state === 'done' && done.result?.kind === 'note-fields') {
       const found = noteFindings(run.base, done.result.fields, done.result.proposed ?? []);
-      fills.set(fanId, found.length === 0 ? { status: 'empty' } : { status: 'review', base: run.base, findings: found, checked: found.map(() => true), saving: false, blocked: false, problem: null });
+      fills.set(
+        fanId,
+        found.length === 0
+          ? { status: 'empty' }
+          : { status: 'review', findings: found, marks: found.map(() => ({ state: 'pending' })), created: run.blank, queue: [], force: new Map(), writing: false, blocked: false, problem: null, undo: null, undoFailed: false },
+      );
     } else if (done.state === 'canceled') fills.delete(fanId);
     else fills.set(fanId, { status: 'failed', error: done.error ?? { code: 'CG-OUTPUT-UNUSABLE' } });
     emit();
@@ -917,50 +1027,150 @@ export function createNotesController(port: NotesPort): NotesController {
     emit();
   }
 
-  /** «Сохранить анкету»: the draft's rows not put aside into the questionnaire as Fansly holds it now, in one write. */
-  async function applyFill(): Promise<void> {
-    const data = current();
-    const to = data === null ? null : who(data);
-    if (data === null || to === null) return;
-    const fanId = data.fanRef;
+  /**
+   * ✓ or «Принять все»: the suggestions are written at once, in one edit of the questionnaire as Fansly holds it now
+   * (or its create). One pressed while a write is in flight waits and joins the next.
+   */
+  function accept(fanId: string, indices: readonly number[]): void {
     const fill = fills.get(fanId);
-    if (fill?.status !== 'review' || fill.saving || fill.blocked) return;
-    const chosen = fill.findings.filter((_, index) => fill.checked[index] === true);
-    // Every row put aside: nothing to write, the draft is done.
-    if (chosen.length === 0) {
-      fills.delete(fanId);
+    if (fill?.status !== 'review' || fill.blocked) return;
+    const picked = indices.filter((index) => fill.marks[index]?.state === 'pending' || (fill.marks[index]?.state === 'conflict' && fill.force.has(index)));
+    if (picked.length === 0) return;
+    for (const index of picked) fill.marks[index] = { state: 'saving' };
+    fill.undoFailed = false;
+    // Another write of this questionnaire (a field typed) is fine: a `changed` refusal sends the ✓ into the newer version.
+    if (fill.writing || fill.undo?.undoing === true) {
+      fill.queue.push(...picked);
       return emit();
     }
-    const note = formNote(data);
-    if (note?.cut === true) return;
+    void writeSuggestions(fanId, fill, picked, false);
+  }
+
+  /** The chosen suggestions into the questionnaire: a field changed since the Goose read it asks «Заменить?» instead. */
+  async function writeSuggestions(fanId: string, fill: Review, picked: readonly number[], retried: boolean): Promise<void> {
+    const data = dataOf(fanId);
+    const to = data === null ? null : who(data);
+    const note = data === null ? null : formNote(data);
+    if (data === null || to === null || note?.cut === true) {
+      for (const index of picked) fill.marks[index] = { state: 'pending' };
+      return settle(fanId, fill);
+    }
     const base = note?.text ?? NOTE_TEMPLATE_TEXT;
+    const chosen = picked.map((index): NoteFinding => {
+      const finding = fill.findings[index] as NoteFinding;
+      const over = fill.force.get(index);
+      return over === undefined ? finding : { ...finding, current: over };
+    });
     const applied = applyNoteFindings(base, chosen);
-    const missed = [...applied.skipped, ...applied.unplaced];
+    const skipped = new Set(applied.skipped.map(noteLabelKey));
+    const homeless = new Set(applied.unplaced.map(noteLabelKey));
+    const going: number[] = [];
+    for (const index of picked) {
+      const finding = fill.findings[index] as NoteFinding;
+      const key = noteLabelKey(finding.label);
+      if (skipped.has(key)) fill.marks[index] = { state: 'conflict', now: noteFieldValue(base, finding.label) ?? '' };
+      else if (homeless.has(key)) {
+        fill.marks[index] = { state: 'dismissed' };
+        unplaced.set(fanId, [...(unplaced.get(fanId) ?? []), finding.label]);
+      } else going.push(index);
+    }
+    if (going.length === 0) return settle(fanId, fill);
     if (applied.text === base) {
-      fills.delete(fanId);
-      if (missed.length > 0) unplaced.set(fanId, missed);
-      return emit();
+      // Already there (the same value written meanwhile): nothing to write.
+      for (const index of going) fill.marks[index] = { state: 'written' };
+      return settle(fanId, fill);
     }
     if (applied.text.length > FANSLY_TAB_LIMITS.noteTextMaxChars) {
+      for (const index of going) fill.marks[index] = { state: 'pending' };
       fill.problem = { kind: 'too-long' };
-      return emit();
+      return settle(fanId, fill);
     }
-    fill.saving = true;
+    if (fill.undo !== null) {
+      port.clearTimer(fill.undo.timer);
+      fill.undo = null;
+    }
+    fill.writing = true;
     fill.problem = null;
     emit();
     const under = epoch;
     const answer = await writeForm(data, to, note, applied.text);
     if (disposed || under !== epoch || fills.get(fanId) !== fill) return;
-    fill.saving = false;
+    fill.writing = false;
     if (answer.ok) {
-      fills.delete(fanId);
-      fresh.set(fanId, new Set(applied.wrote.map(noteLabelKey)));
-      if (missed.length > 0) unplaced.set(fanId, missed);
+      for (const index of going) {
+        fill.marks[index] = { state: 'written' };
+        fill.force.delete(index);
+      }
+      fresh.set(fanId, new Set([...(fresh.get(fanId) ?? []), ...applied.wrote.map(noteLabelKey)]));
+      const written = formNote(dataOf(fanId) ?? data);
+      if (written !== null) {
+        const undo: Undo = { before: note === null ? null : base, after: applied.text, noteId: written.noteId, indices: going, labels: going.map((index) => fill.findings[index]?.label ?? ''), timer: null, undoing: false };
+        fill.undo = { ...undo, timer: port.setTimer(NOTES_UNDO_MS, () => expireUndo(fanId, fill)) };
+      }
+    } else if (answer.problem.kind === 'changed' && !retried) {
+      // Fansly's newer version is in the list now: the same ✓ goes into it, once, still never over a changed field.
+      return writeSuggestions(fanId, fill, going, true);
     } else {
+      for (const index of going) fill.marks[index] = { state: 'pending' };
       fill.problem = answer.problem;
       fill.blocked = answer.blocked;
     }
+    settle(fanId, fill);
+  }
+
+  /** After a write: the next waiting ✓, or — nothing waits and nothing was written — the fill is over. */
+  function settle(fanId: string, fill: Review): void {
+    if (fills.get(fanId) !== fill) return emit();
+    if (!fill.writing && fill.undo?.undoing !== true && fill.queue.length > 0 && !fill.blocked) {
+      const next = fill.queue.splice(0).filter((index) => fill.marks[index]?.state === 'saving');
+      if (next.length > 0) {
+        void writeSuggestions(fanId, fill, next, false);
+        return;
+      }
+    }
+    if (fill.blocked) {
+      for (const index of fill.queue.splice(0)) if (fill.marks[index]?.state === 'saving') fill.marks[index] = { state: 'pending' };
+    }
+    if (!waits(fill) && !fill.writing && fill.undo === null && !fill.marks.some((mark) => mark.state === 'written')) fills.delete(fanId);
     emit();
+  }
+
+  function expireUndo(fanId: string, fill: Review): void {
+    if (disposed || fills.get(fanId) !== fill || fill.undo === null || fill.undo.undoing) return;
+    fill.undo = null;
+    if (!waits(fill) && !fill.writing && !fill.marks.some((mark) => mark.state === 'written')) fills.delete(fanId);
+    emit();
+  }
+
+  /** «Отменить» of the last ✓: the questionnaire as it was before it (the one it created is deleted), its suggestions
+   * waiting again. Not over a change made since: that would wipe it. */
+  async function undoLast(fanId: string): Promise<void> {
+    const fill = fills.get(fanId);
+    const data = dataOf(fanId);
+    const to = data === null ? null : who(data);
+    if (fill?.status !== 'review' || fill.undo === null || fill.undo.undoing || fill.writing || data === null || to === null) return;
+    const undo = fill.undo;
+    port.clearTimer(undo.timer);
+    const note = formNote(data);
+    if (note === null || note.noteId !== undo.noteId || note.text !== undo.after) {
+      fill.undo = null;
+      fill.undoFailed = true;
+      return settle(fanId, fill);
+    }
+    undo.undoing = true;
+    emit();
+    const under = epoch;
+    const answer = undo.before === null ? await port.remove(to, note).catch(toFailure) : await writeForm(data, to, note, undo.before);
+    if (disposed || under !== epoch || fills.get(fanId) !== fill) return;
+    undo.undoing = false;
+    fill.undo = null;
+    if (answer.ok) {
+      if (undo.before === null) dropped(fanId, note.noteId);
+      for (const index of undo.indices) fill.marks[index] = { state: 'pending' };
+      const back = new Set(undo.labels.map(noteLabelKey));
+      fresh.set(fanId, new Set([...(fresh.get(fanId) ?? [])].filter((key) => !back.has(key))));
+    } else fill.undoFailed = true;
+    settle(fanId, fill);
   }
 
   function dispatch(action: NotesAction): void {
@@ -1003,15 +1213,40 @@ export function createNotesController(port: NotesPort): NotesController {
         if (fanId === null || fills.get(fanId)?.status !== 'running') return;
         stopFill(fanId);
         return emit();
-      case 'finding': {
+      case 'suggestion-accept':
+        if (fanId !== null) accept(fanId, [action.index]);
+        return;
+      case 'suggestion-replace': {
         const fill = fanId === null ? undefined : fills.get(fanId);
-        if (fill?.status !== 'review' || fill.saving) return;
-        if (action.index < 0 || action.index >= fill.checked.length) return;
-        fill.checked[action.index] = action.checked;
-        return emit();
+        const mark = fill?.status === 'review' ? fill.marks[action.index] : undefined;
+        if (fanId === null || fill?.status !== 'review' || mark?.state !== 'conflict') return;
+        fill.force.set(action.index, mark.now);
+        accept(fanId, [action.index]);
+        return;
       }
-      case 'fill-apply':
-        void applyFill();
+      case 'suggestions-accept-all': {
+        const fill = fanId === null ? undefined : fills.get(fanId);
+        if (fanId === null || fill?.status !== 'review') return;
+        accept(
+          fanId,
+          fill.marks.flatMap((mark, index) => (mark.state === 'pending' ? [index] : [])),
+        );
+        return;
+      }
+      case 'suggestion-dismiss':
+      case 'suggestions-dismiss-all': {
+        const fill = fanId === null ? undefined : fills.get(fanId);
+        if (fanId === null || fill?.status !== 'review') return;
+        fill.marks.forEach((mark, index) => {
+          if ((action.type === 'suggestions-dismiss-all' || index === action.index) && (mark.state === 'pending' || mark.state === 'conflict')) {
+            fill.marks[index] = { state: 'dismissed' };
+            fill.force.delete(index);
+          }
+        });
+        return settle(fanId, fill);
+      }
+      case 'suggestion-undo':
+        if (fanId !== null) void undoLast(fanId);
         return;
       case 'fill-close':
         if (fanId === null || fills.get(fanId) === undefined) return;
@@ -1034,8 +1269,8 @@ export function createNotesController(port: NotesPort): NotesController {
         // FBuddy's and a cut one (audit №13: its tail lives in Fansly alone) are read only.
         if (data === null || fanId === null || note === undefined || note.foreign || note.cut === true) return;
         const form = formNote(data);
-        const fill = fills.get(fanId)?.status;
-        if (note === form && (fields.has(fanId) || fill === 'running' || fill === 'review')) return;
+        const fill = fills.get(fanId);
+        if (note === form && (fields.has(fanId) || fill?.status === 'running' || waits(fill) || (fill?.status === 'review' && fill.writing))) return;
         return startDraft(note.noteId, note.title, note.text);
       }
       case 'input':
