@@ -24,3 +24,4 @@ export const FANSLY_CG_CATALOGS: { readonly [L in Locale]: CgFanslyCatalog } = {
 
 export { REGISTRATION_TEXTS, REGISTRATION_I18N } from './registration';
 export { NOTES_TEXTS } from './notes';
+export { FAN_MARKS_TEXTS } from './fan-marks';

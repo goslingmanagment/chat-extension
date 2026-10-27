@@ -169,6 +169,33 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [{ ok: true, seen: 7 }, { ok: true, seen: -1, recorded: 0 }, { ok: true, seen: 7, recorded: 6, fans: [F.fan] }, unknownFailure],
     },
   },
+  'fansly.marks.read': {
+    req: {
+      valid: [{ pageId: 12, hostAccountId: F.creator, fanRef: F.fan, username: 'stand_fan_1' }, { pageId: 12, hostAccountId: F.creator, fanRef: F.fan }],
+      invalid: [{ pageId: 12, hostAccountId: F.creator }, { pageId: 12, hostAccountId: F.creator, fanRef: F.fan, username: '' }, { pageId: 12, hostAccountId: F.creator, fanRef: F.fan, pageLabel: 'p' }],
+    },
+    res: {
+      valid: [
+        {
+          ok: true,
+          marks: {
+            lists: [{ here: true, name: 'Model Two', label: '💩 Бомж', since: '2026-10-20T12:00:00.000Z' }, { here: false, name: 'Model One', label: '💩 Бомж', since: null }],
+            blocklist: [{ postedAt: '2026-10-20T12:00:00.000Z', text: 'https://fansly.com/stand_fan_1\nDNP + TM', author: 'agency', link: 'https://t.me/c/1716498488/1201', handle: 'stand_fan_1' }],
+          },
+        },
+        { ok: true, marks: { lists: [], blocklist: [] } },
+        failure,
+        sharedFailure,
+      ],
+      invalid: [
+        // A link off Telegram never reaches a tab.
+        { ok: true, marks: { lists: [], blocklist: [{ postedAt: '2026-10-20T12:00:00.000Z', text: 'x', author: null, link: 'javascript:alert(1)', handle: 'x' }] } },
+        { ok: true, marks: { lists: [{ here: true, name: 'Model Two', label: '💩 Бомж' }], blocklist: [] } },
+        { ok: true, lists: [], blocklist: [] },
+        unknownFailure,
+      ],
+    },
+  },
   'fansly.registration.read': {
     req: { valid: [{ pageId: 12, hostAccountId: F.creator, groupId: F.group }], invalid: [{ pageId: 12, hostAccountId: F.creator }, { pageId: 12, hostAccountId: F.creator, groupId: 123 }] },
     res: { valid: [{ ok: true, fanId: F.fan }, failure, sharedFailure], invalid: [{ ok: true, fanId: 123 }, { ok: true, groupId: F.group }, unknownFailure] },

@@ -68,7 +68,12 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   const sync = (): void => {
     if (env.life.aborted) return;
     if (registration === null && /^\/messages(?:\/[1-9]\d*)?$/.test(env.win.location.pathname)) {
-      registration = env.lazy<typeof RegistrationChunk>('registration').then((chunk) => env.life.aborted ? null : chunk.startFanslyRegistration(env), () => {
+      // The header's chunk: «Регистрация» and, after it, the fan's warning marks.
+      registration = env.lazy<typeof RegistrationChunk>('registration').then((chunk) => {
+        if (env.life.aborted) return null;
+        const stops = [chunk.startFanslyRegistration(env), chunk.startFanslyFanMarks(env)];
+        return () => { for (const stop of stops) stop(); };
+      }, () => {
         registration = null;
         env.report({ kind: 'render', surface: 'header-slot' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'RegistrationChunk' });
         return null;

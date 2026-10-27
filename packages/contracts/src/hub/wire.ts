@@ -224,6 +224,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * is asked (`depthMarks` → `depth`). Said in the AI request header too; a hub without it gets neither.
    */
   'coach-depth-v1',
+  /**
+   * The fan's warning marks (`clientFanMarks`): the agency's Fansly lists labelled like «💩 Бомж» on any of its pages
+   * and the posts of FANSLY BLOCKLIST about the fan's username. A hub without it is never asked, and no mark shows.
+   */
+  'fan-marks-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

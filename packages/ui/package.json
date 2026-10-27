@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./hosts/fansly/registration": "./src/hosts/fansly/Registration.tsx",
+    "./hosts/fansly/fan-marks": "./src/hosts/fansly/FanMarks.tsx",
     ".": "./src/index.ts",
     "./kit": "./src/kit/index.ts",
     "./kit/tokens": "./src/kit/tokens.ts",

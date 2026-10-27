@@ -45,6 +45,8 @@ place, «+ Метка», «✨ Дополнить из чата» with the Goose
 and its «Отменить», one put aside, «Принять все», a quick note; on the stand also a long note and an edit after
 someone else's change), `fansly-notes-new` (a fan without a questionnaire: the card with «✨ Заполнить из чата»,
 «Заполнить вручную», the suggestions as faint rows in the centre and the side panel, «Принять все» creates one),
+`fansly-marks` (the open fan's warning marks after «Регистрация»: «💩 Бомж», the agency's list on this and another
+model's page, its «где» on hover, and «⛔ Блоклист» with FANSLY BLOCKLIST's posts pinned by a click),
 `fansly-switch` (the switch from the old extension: «Включить Fansly» in the popup, the
 no-direct-connection hint, the old extension's notice, its personas carried over), `fansly-ppv` (Reply's
 PPV state in `hub-calls.json`), `draft-media` (a photo in the composer, then Reply: its `draftMedia` in

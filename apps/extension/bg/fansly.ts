@@ -74,6 +74,10 @@
 // 15 minutes — one `followersnew?lastSeenAfter=` over FS-NET-1's purpose `online`, at most once a minute per creator,
 // never queued and nothing during a cooldown — reported to the hub as their presence for the window's list.
 //
+// The fan's warning marks (`fansly.marks.read`, bg/fansly/fan-marks.ts): the hub's `clientFanMarks` for the chat header
+// — the agency's «💩 Бомж» lists and FANSLY BLOCKLIST's posts — once per opened chat, each page's and fan's answer kept
+// ten minutes, a read in flight joined.
+//
 // R20 P7i: the module brings Fansly's slice of the feature manifest
 // (docs/project-unite/architecture.md §1.4). The core's graph never has a file
 // of Fansly's, so it admits a generation of a Fansly chat and an insert token
@@ -108,6 +112,7 @@ import { copiedBundles, createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer, SiteTabRegistration } from '../src/composition/background/host-module';
 import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
+import { createFanMarksReader } from './fansly/fan-marks';
 import { createNotesService } from './fansly/notes';
 import { createOnlineSeen } from './fansly/online';
 import { createOutreachService } from './fansly/outreach';
@@ -126,7 +131,7 @@ const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? o
  * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
  * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself with `CG-SITE-OFF`.
  */
-const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.copied', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState', 'fansly.online.seen']);
+const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.copied', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState', 'fansly.online.seen', 'fansly.marks.read']);
 
 /** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
 async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, type: string, payload: unknown): Promise<HostAnswer> {
@@ -255,6 +260,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const notes = createNotesService(kit, clientNow);
   const outreach = createOutreachService(kit, clientNow);
   const online = createOnlineSeen(kit, FANSLY_SLICE, clientNow);
+  const marks = createFanMarksReader(kit, FANSLY_SLICE);
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session), active });
   const accounts = kit.networkSession === undefined || kit.siteTabs === undefined ? null : createFanslyAccounts({ sessions: kit.networkSession, tabs: kit.siteTabs });
@@ -326,6 +332,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return ok(await readPreviewState(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.preview.readState'>, sender));
       case 'fansly.online.seen':
         return ok(await online.seen(payload as FanslyTabRequestPayload<'fansly.online.seen'>, sender));
+      case 'fansly.marks.read':
+        return ok(await marks.read(payload as FanslyTabRequestPayload<'fansly.marks.read'>, sender));
       case 'fansly.registration.read':
         return ok(await readRegistration(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.registration.read'>, sender));
       case 'fansly.notes.read':
@@ -400,6 +408,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       if (event.kind === 'session' && event.ownerChanged) {
         await spenders?.clear();
         online.clear();
+        marks.clear();
       }
       // The custody reports still owed go once the bootstrap names their pages again.
       if (event.kind === 'bootstrap' || event.kind === 'session') greetings?.pump();

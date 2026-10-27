@@ -89,7 +89,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -2101,6 +2101,47 @@ export declare const clientFanLinkDecideResponseSchema: z.ZodObject<{
         }, z.core.$strip>>;
         serverNow: z.ZodString;
     }, z.core.$strip>;
+}, z.core.$strip>;
+/** Blocklist posts one read lists at most, the newest first. */
+export declare const CLIENT_FAN_MARKS_MAX_POSTS = 5;
+/** A post's text is cut at this many characters, with «…». */
+export declare const CLIENT_FAN_MARKS_POST_MAX_CHARS = 600;
+export declare const clientFanMarksQuerySchema: z.ZodObject<{
+    username: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+export declare const clientFanMarkListSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    modelName: z.ZodNullable<z.ZodString>;
+    granted: z.ZodBoolean;
+    label: z.ZodString;
+    since: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
+export declare const clientFanMarkPostSchema: z.ZodObject<{
+    postedAt: z.ZodString;
+    text: z.ZodString;
+    author: z.ZodNullable<z.ZodString>;
+    link: z.ZodString;
+    handle: z.ZodString;
+}, z.core.$strip>;
+export declare const clientFanMarksResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    fanRef: z.ZodString;
+    lists: z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        modelName: z.ZodNullable<z.ZodString>;
+        granted: z.ZodBoolean;
+        label: z.ZodString;
+        since: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    blocklist: z.ZodArray<z.ZodObject<{
+        postedAt: z.ZodString;
+        text: z.ZodString;
+        author: z.ZodNullable<z.ZodString>;
+        link: z.ZodString;
+        handle: z.ZodString;
+    }, z.core.$strip>>;
+    listsReadAt: z.ZodNullable<z.ZodString>;
+    blocklistReadAt: z.ZodNullable<z.ZodString>;
 }, z.core.$strip>;
 export declare const CLIENT_WIN_BACK_REASONS: readonly ["expiring", "new_unattended", "silent"];
 /** Fans one read lists: a few per shift, never crowding out the ones who wait. */
@@ -4304,6 +4345,79 @@ export declare const clientRouteSchemas: {
                     note: z.ZodNullable<z.ZodString>;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientFanMarks: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Warnings about a Fansly fan: «бомж» lists of the agency's Fansly pages and FANSLY BLOCKLIST posts that name him";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            fanRef: z.ZodString;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            username: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                fanRef: z.ZodString;
+                lists: z.ZodArray<z.ZodObject<{
+                    pageLabel: z.ZodString;
+                    modelName: z.ZodNullable<z.ZodString>;
+                    granted: z.ZodBoolean;
+                    label: z.ZodString;
+                    since: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                blocklist: z.ZodArray<z.ZodObject<{
+                    postedAt: z.ZodString;
+                    text: z.ZodString;
+                    author: z.ZodNullable<z.ZodString>;
+                    link: z.ZodString;
+                    handle: z.ZodString;
+                }, z.core.$strip>>;
+                listsReadAt: z.ZodNullable<z.ZodString>;
+                blocklistReadAt: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 401: z.ZodObject<{
                 error: z.ZodString;
@@ -6695,6 +6809,8 @@ export type TeamWinBackApproachesResponse = z.infer<typeof teamWinBackApproaches
 export type TeamWinBackApproachSaveBody = z.infer<typeof teamWinBackApproachSaveBodySchema>;
 export type ClientFanCardPage = z.infer<typeof clientFanCardPageSchema>;
 export type ClientFanCardResponse = z.infer<typeof clientFanCardResponseSchema>;
+export type ClientFanMarksQuery = z.infer<typeof clientFanMarksQuerySchema>;
+export type ClientFanMarksResponse = z.infer<typeof clientFanMarksResponseSchema>;
 export type ClientFanLinkDecideBody = z.infer<typeof clientFanLinkDecideBodySchema>;
 export type ClientFanLinkDecideResponse = z.infer<typeof clientFanLinkDecideResponseSchema>;
 export type ClientFanFact = z.infer<typeof clientFanFactSchema>;
