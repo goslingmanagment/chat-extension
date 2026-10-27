@@ -12,14 +12,14 @@
 // change of this state; the notification is coalesced into one microtask.
 
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
-import { isRecapReader, type FeatureId, type RecapReader, type Surface, type Tone } from '@cg/contracts/features';
+import { freshTextSurface, isRecapReader, type FeatureId, type RecapReader, type Surface, type Tone } from '@cg/contracts/features';
 import type { AdmissionAction } from '@cg/contracts/features/types';
 import { type ChatWindow, type HostSnapshot, type LiveTextTail, type RouteState } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
-import { CHAT_IS_FAN, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, RECAP_OFF_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
-import { LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
-import { type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
+import { CHAT_IS_FAN, DRAFT_MEDIA_CAPABILITY, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, RECAP_OFF_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
+import { DRAFT_MEDIA_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
+import { DRAFT_MEDIA_FEATURES, type AnyActiveOpSummary, type CoachTurn } from '@cg/contracts/ops';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
@@ -850,6 +850,12 @@ export class AiWorkspace {
     const extended = rule.window === 'deep' || autoRecap === 'full' ? await this.windows() : undefined;
     // The site's proof of the open chat (R20 F10): on ChatSpace the visible tail, read only when the start may carry
     // fresh text. A proof that fails is no proof: the start goes on without one.
+    // The media attached to the message being written, read beside the proof (its pictures take up to
+    // DRAFT_MEDIA_LIMITS.waitMs): only for the starts that write that message in the open chat, to a hub that takes it.
+    const mediaRead =
+      DRAFT_MEDIA_FEATURES.has(feature) && freshTextSurface(feature) === surface && bootstrap.capabilities.includes(DRAFT_MEDIA_CAPABILITY) && host.readDraftMedia !== undefined
+        ? host.readDraftMedia(chat.identity, { waitMs: DRAFT_MEDIA_LIMITS.waitMs }).catch(() => null)
+        : Promise.resolve(null);
     let proof: unknown = null;
     try {
       proof = await policy.proof(host, {
@@ -867,6 +873,7 @@ export class AiWorkspace {
     } catch {
       // A missing or rejected proof leaves the start unverified.
     }
+    const draftMedia = await mediaRead;
     // The site's pre-check once more, now with the proof: a site whose rule needs it refuses here, before the token.
     const late = featureGate(feature, { ...facts, proof }, policy);
     if (late !== null) return failed(late.code);
@@ -897,6 +904,7 @@ export class AiWorkspace {
       splitWanted: this.split(),
       // The feature's «с Recap» likewise, to a hub that can leave the Recap out.
       recapOff: isRecapReader(feature) && !this.recapOn(chat.key, feature) && bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY),
+      draftMedia,
       // A used-up or stale answer of this chat is not what a new click asks for: the click makes a new one, never the
       // cached one again (2026-10-22, with the sheet that leaves on the chat switch).
       force: request.force === true || (original === undefined && this.spentIn(chat.key, feature)),

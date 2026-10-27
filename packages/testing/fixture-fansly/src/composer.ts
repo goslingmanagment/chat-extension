@@ -18,6 +18,11 @@
 //   detached change detector: the DOM changes only on its own refreshes.
 
 import type { MessageAttachment } from './data';
+
+/** A video's cover on the stand (Fansly shows the cover it made): a plain frame the page may draw. */
+const VIDEO_COVER =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480"><rect width="480" height="480" fill="#2f6f5e"/><circle cx="240" cy="240" r="90" fill="#f4d35e"/></svg>');
 import { handler } from './events';
 import { record } from './journal';
 import { UploadModal, type CreateTemplate, type ModalService } from './modal';
@@ -260,6 +265,32 @@ export class Composer implements View {
     element.append(el(s, 'div', { class: 'media-template' }, [audio ? el(s, 'div', { class: 'media-template-audio', attrs: { 'aria-label': 'Audio' } }, AUDIO_BARS.map((height) => el(s, 'span', { style: `height: ${height}px;` }))) : null, name, progress]));
     // The component refreshes its progress every 500 ms while it uploads (main:6552-6556).
     const timer = setInterval(() => view.refresh(), 500);
+    // Once uploaded, each medium as Fansly's composer shows it (seen live 2026-10-27): a photo's own image, a video's
+    // player with its cover and length, an audio's player — what the extension reads for the AI (`readDraftMedia`).
+    let shown = false;
+    const showMedia = (): void => {
+      if (shown) return;
+      shown = true;
+      const list = el(s, 'div', { class: 'feed-item-preview-media-list' });
+      template.files.forEach((file, index) => {
+        const mediaId = String(970_000_000_000_000_000n + BigInt(template.id * 100 + index));
+        const media = host(s, 'app-media-template', { attrs: { 'data-media-id': mediaId } });
+        if (file.type.startsWith('image/')) media.append(el(s, 'img', { attrs: { alt: '', src: file.url ?? '' } }));
+        else if (file.type.startsWith('video/'))
+          media.append(
+            el(s, 'app-video-element', {}, [
+              el(s, 'app-videojs-player', {}, [
+                el(s, 'app-media', { class: 'preview overflow-hidden' }, [el(s, 'div', { class: 'image-placeholder-wrapper cover' }, [el(s, 'img', { class: 'image cover', attrs: { src: VIDEO_COVER } })])]),
+                el(s, 'div', { class: 'play-time' }, [el(s, 'span', { class: 'progressed-time' }, ['0:00 / ']), '0:45 ']),
+              ]),
+            ]),
+          );
+        else if (file.type.startsWith('audio/')) media.append(el(s, 'div', { class: 'audio-wrapper flex-col flex-center flex-align-center' }, [el(s, 'audio', { class: 'audio', attrs: { controls: '', src: file.url ?? '' } })]));
+        list.append(host(s, 'app-account-media-template', { class: 'feed-item-preview-media' }));
+        list.lastElementChild?.append(el(s, 'div', { class: 'media-container' }, [el(s, 'div', { class: 'main-image' }, [media])]));
+      });
+      element.append(list);
+    };
     const view: TemplateView = {
       // `ng-container` around it in the composer's template: its comment stays with the element.
       nodes: [element, anchor()],
@@ -270,6 +301,7 @@ export class Composer implements View {
         if (template.isUploaded()) {
           progress.remove();
           clearInterval(timer);
+          showMedia();
         }
       },
       destroy: () => clearInterval(timer),

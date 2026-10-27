@@ -47,7 +47,8 @@ someone else's change), `fansly-notes-new` (a fan without a questionnaire: the c
 «Заполнить вручную», the suggestions as faint rows in the centre and the side panel, «Принять все» creates one),
 `fansly-switch` (the switch from the old extension: «Включить Fansly» in the popup, the
 no-direct-connection hint, the old extension's notice, its personas carried over), `fansly-ppv` (Reply's
-PPV state in `hub-calls.json`), `fansly-seen` (a Spenders preview: «не прочитано», then «прочитано в …»),
+PPV state in `hub-calls.json`), `draft-media` (a photo in the composer, then Reply: its `draftMedia` in
+`hub-calls.json`; both sites, `--live` takes a photo and a video of the vault), `fansly-seen` (a Spenders preview: «не прочитано», then «прочитано в …»),
 `fansly-newcomers` («Новые фоловеры»: a fresh follower checked by the pass, the card, «Сгенерировать» — the same
 window and card as ChatSpace's `newcomers`). `launch` (the showcase world's pictures of 3.0's launch, below).
 

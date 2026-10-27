@@ -75,6 +75,7 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "read:datasets": "read:datasets";
     "request:hydration": "request:hydration";
     "write:publication_drafts": "write:publication_drafts";
+    "approve:publications": "approve:publications";
 }>;
 export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_comments: "post_comments";
@@ -2368,6 +2369,7 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "read:datasets": "read:datasets";
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
+        "approve:publications": "approve:publications";
     }>>;
     captureState: z.ZodEnum<{
         unknown: "unknown";
@@ -2431,6 +2433,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "read:datasets": "read:datasets";
                 "request:hydration": "request:hydration";
                 "write:publication_drafts": "write:publication_drafts";
+                "approve:publications": "approve:publications";
             }>;
             granted: z.ZodBoolean;
         }, z.core.$strict>>;
@@ -2687,6 +2690,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "read:datasets": "read:datasets";
             "request:hydration": "request:hydration";
             "write:publication_drafts": "write:publication_drafts";
+            "approve:publications": "approve:publications";
         }>>;
         captureState: z.ZodEnum<{
             unknown: "unknown";
@@ -27197,6 +27201,7 @@ export declare const agentRouteSchemas: {
                             "read:datasets": "read:datasets";
                             "request:hydration": "request:hydration";
                             "write:publication_drafts": "write:publication_drafts";
+                            "approve:publications": "approve:publications";
                         }>;
                         granted: z.ZodBoolean;
                     }, z.core.$strict>>;
@@ -27453,6 +27458,7 @@ export declare const agentRouteSchemas: {
                         "read:datasets": "read:datasets";
                         "request:hydration": "request:hydration";
                         "write:publication_drafts": "write:publication_drafts";
+                        "approve:publications": "approve:publications";
                     }>>;
                     captureState: z.ZodEnum<{
                         unknown: "unknown";

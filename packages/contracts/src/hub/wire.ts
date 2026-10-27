@@ -167,6 +167,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    */
   'live-images-v1',
   /**
+   * The AI stream takes `draftMedia`, the media the person attached to the message being written in the open chat
+   * (its pictures as JPEG); listed while the owner's `aiDraftMediaEnabled` is on. A hub without it refuses the field
+   * (400), so a start reads the composer's media only for a hub that lists it.
+   */
+  'draft-media-v1',
+  /**
    * 1.48.0: the AI stream takes `recap: 'off'` — the generation reads neither the fan's dossier nor Coach's Recaps, and
    * its meta frame says none went in. A hub without it refuses the field (400), so «с Recap» shows only for a hub that
    * lists it.

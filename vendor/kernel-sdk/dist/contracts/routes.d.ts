@@ -4099,6 +4099,29 @@ export declare const aiLiveImagesSchema: z.ZodArray<z.ZodObject<{
     mediaType: z.ZodLiteral<"image/jpeg">;
     data: z.ZodString;
 }, z.core.$strict>>;
+export declare const AI_DRAFT_MEDIA_ITEMS_MAX = 40;
+export declare const AI_DRAFT_MEDIA_IMAGES_MAX = 4;
+export declare const AI_DRAFT_MEDIA_TYPES: readonly ["photo", "video", "gif", "audio"];
+/** A price the chatter may set on a message, USD. */
+export declare const AI_DRAFT_MEDIA_PRICE_MAX_USD = 10000;
+export declare const aiDraftMediaSchema: z.ZodObject<{
+    capturedAt: z.ZodString;
+    priceUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    items: z.ZodArray<z.ZodObject<{
+        type: z.ZodEnum<{
+            video: "video";
+            audio: "audio";
+            photo: "photo";
+            gif: "gif";
+        }>;
+        durationSec: z.ZodOptional<z.ZodNumber>;
+        free: z.ZodOptional<z.ZodBoolean>;
+        image: z.ZodOptional<z.ZodObject<{
+            mediaType: z.ZodLiteral<"image/jpeg">;
+            data: z.ZodString;
+        }, z.core.$strict>>;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
 export declare const aiCoverageCheckSchema: z.ZodObject<{
     window: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
@@ -4243,6 +4266,24 @@ export declare const aiFeatureStreamBodySchema: z.ZodObject<{
         mediaType: z.ZodLiteral<"image/jpeg">;
         data: z.ZodString;
     }, z.core.$strict>>>;
+    draftMedia: z.ZodOptional<z.ZodObject<{
+        capturedAt: z.ZodString;
+        priceUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+        items: z.ZodArray<z.ZodObject<{
+            type: z.ZodEnum<{
+                video: "video";
+                audio: "audio";
+                photo: "photo";
+                gif: "gif";
+            }>;
+            durationSec: z.ZodOptional<z.ZodNumber>;
+            free: z.ZodOptional<z.ZodBoolean>;
+            image: z.ZodOptional<z.ZodObject<{
+                mediaType: z.ZodLiteral<"image/jpeg">;
+                data: z.ZodString;
+            }, z.core.$strict>>;
+        }, z.core.$strict>>;
+    }, z.core.$strict>>;
     clientContext: z.ZodOptional<z.ZodObject<{
         transcript: z.ZodString;
         messageCount: z.ZodNumber;
@@ -13379,6 +13420,24 @@ declare const baseRouteSchemas: {
                 mediaType: z.ZodLiteral<"image/jpeg">;
                 data: z.ZodString;
             }, z.core.$strict>>>;
+            draftMedia: z.ZodOptional<z.ZodObject<{
+                capturedAt: z.ZodString;
+                priceUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+                items: z.ZodArray<z.ZodObject<{
+                    type: z.ZodEnum<{
+                        video: "video";
+                        audio: "audio";
+                        photo: "photo";
+                        gif: "gif";
+                    }>;
+                    durationSec: z.ZodOptional<z.ZodNumber>;
+                    free: z.ZodOptional<z.ZodBoolean>;
+                    image: z.ZodOptional<z.ZodObject<{
+                        mediaType: z.ZodLiteral<"image/jpeg">;
+                        data: z.ZodString;
+                    }, z.core.$strict>>;
+                }, z.core.$strict>>;
+            }, z.core.$strict>>;
             clientContext: z.ZodOptional<z.ZodObject<{
                 transcript: z.ZodString;
                 messageCount: z.ZodNumber;
@@ -30517,6 +30576,130 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly agentPublicationFileUpload: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            name: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 413: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 415: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 507: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                file: z.ZodObject<{
+                    id: z.ZodNumber;
+                    modelId: z.ZodNumber;
+                    modelSlug: z.ZodString;
+                    sha256: z.ZodString;
+                    byteSize: z.ZodNullable<z.ZodNumber>;
+                    mimeType: z.ZodNullable<z.ZodString>;
+                    originalName: z.ZodNullable<z.ZodString>;
+                    createdByUserId: z.ZodNullable<z.ZodNumber>;
+                    createdAt: z.ZodString;
+                    storedAt: z.ZodString;
+                    stored: z.ZodBoolean;
+                    bytesDeletedAt: z.ZodNullable<z.ZodString>;
+                    retainUntil: z.ZodNullable<z.ZodString>;
+                    uses: z.ZodArray<z.ZodObject<{
+                        publicationId: z.ZodNumber;
+                        pageLabel: z.ZodString;
+                        status: z.ZodEnum<{
+                            unknown: "unknown";
+                            cancelled: "cancelled";
+                            scheduled: "scheduled";
+                            draft: "draft";
+                            approved: "approved";
+                            submitting: "submitting";
+                            processing: "processing";
+                            published: "published";
+                            not_published: "not_published";
+                            rejected: "rejected";
+                            missed: "missed";
+                            withdrawn: "withdrawn";
+                        }>;
+                        publishAt: z.ZodString;
+                        statusChangedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                created: z.ZodBoolean;
+            }, z.core.$strip>;
+        };
+    };
     readonly adminPublicationFileList: {
         readonly auth: {
             readonly kind: "owner-session";
@@ -30752,6 +30935,7 @@ declare const baseRouteSchemas: {
                         fyp_post: "fyp_post";
                         subscriber_post: "subscriber_post";
                         paid_post: "paid_post";
+                        vault_album: "vault_album";
                     }>;
                     status: z.ZodEnum<{
                         unknown: "unknown";
@@ -30850,6 +31034,7 @@ declare const baseRouteSchemas: {
                     }, z.core.$strip>;
                     approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                     platformPostRef: z.ZodNullable<z.ZodString>;
+                    vaultAlbumRef: z.ZodNullable<z.ZodString>;
                     statusReason: z.ZodNullable<z.ZodString>;
                     previousPublicationId: z.ZodNullable<z.ZodNumber>;
                     withdrawal: z.ZodNullable<z.ZodObject<{
@@ -30881,6 +31066,7 @@ declare const baseRouteSchemas: {
                 fyp_post: "fyp_post";
                 subscriber_post: "subscriber_post";
                 paid_post: "paid_post";
+                vault_album: "vault_album";
             }>;
             text: z.ZodDefault<z.ZodString>;
             media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -30983,6 +31169,7 @@ declare const baseRouteSchemas: {
                     fyp_post: "fyp_post";
                     subscriber_post: "subscriber_post";
                     paid_post: "paid_post";
+                    vault_album: "vault_album";
                 }>;
                 status: z.ZodEnum<{
                     unknown: "unknown";
@@ -31081,6 +31268,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                 platformPostRef: z.ZodNullable<z.ZodString>;
+                vaultAlbumRef: z.ZodNullable<z.ZodString>;
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
@@ -31156,6 +31344,7 @@ declare const baseRouteSchemas: {
                     fyp_post: "fyp_post";
                     subscriber_post: "subscriber_post";
                     paid_post: "paid_post";
+                    vault_album: "vault_album";
                 }>;
                 status: z.ZodEnum<{
                     unknown: "unknown";
@@ -31254,6 +31443,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                 platformPostRef: z.ZodNullable<z.ZodString>;
+                vaultAlbumRef: z.ZodNullable<z.ZodString>;
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
@@ -31332,6 +31522,7 @@ declare const baseRouteSchemas: {
                 fyp_post: "fyp_post";
                 subscriber_post: "subscriber_post";
                 paid_post: "paid_post";
+                vault_album: "vault_album";
             }>;
             text: z.ZodDefault<z.ZodString>;
             media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -31434,6 +31625,7 @@ declare const baseRouteSchemas: {
                     fyp_post: "fyp_post";
                     subscriber_post: "subscriber_post";
                     paid_post: "paid_post";
+                    vault_album: "vault_album";
                 }>;
                 status: z.ZodEnum<{
                     unknown: "unknown";
@@ -31532,6 +31724,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                 platformPostRef: z.ZodNullable<z.ZodString>;
+                vaultAlbumRef: z.ZodNullable<z.ZodString>;
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
@@ -31618,6 +31811,7 @@ declare const baseRouteSchemas: {
                             fyp_post: "fyp_post";
                             subscriber_post: "subscriber_post";
                             paid_post: "paid_post";
+                            vault_album: "vault_album";
                         }>;
                         status: z.ZodEnum<{
                             unknown: "unknown";
@@ -31716,6 +31910,7 @@ declare const baseRouteSchemas: {
                         }, z.core.$strip>;
                         approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                         platformPostRef: z.ZodNullable<z.ZodString>;
+                        vaultAlbumRef: z.ZodNullable<z.ZodString>;
                         statusReason: z.ZodNullable<z.ZodString>;
                         previousPublicationId: z.ZodNullable<z.ZodNumber>;
                         withdrawal: z.ZodNullable<z.ZodObject<{
@@ -31793,6 +31988,7 @@ declare const baseRouteSchemas: {
                     fyp_post: "fyp_post";
                     subscriber_post: "subscriber_post";
                     paid_post: "paid_post";
+                    vault_album: "vault_album";
                 }>;
                 status: z.ZodEnum<{
                     unknown: "unknown";
@@ -31891,6 +32087,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                 platformPostRef: z.ZodNullable<z.ZodString>;
+                vaultAlbumRef: z.ZodNullable<z.ZodString>;
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
@@ -31977,6 +32174,7 @@ declare const baseRouteSchemas: {
                         fyp_post: "fyp_post";
                         subscriber_post: "subscriber_post";
                         paid_post: "paid_post";
+                        vault_album: "vault_album";
                     }>;
                     status: z.ZodEnum<{
                         unknown: "unknown";
@@ -32075,6 +32273,7 @@ declare const baseRouteSchemas: {
                     }, z.core.$strip>;
                     approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                     platformPostRef: z.ZodNullable<z.ZodString>;
+                    vaultAlbumRef: z.ZodNullable<z.ZodString>;
                     statusReason: z.ZodNullable<z.ZodString>;
                     previousPublicationId: z.ZodNullable<z.ZodNumber>;
                     withdrawal: z.ZodNullable<z.ZodObject<{
@@ -32103,6 +32302,7 @@ declare const baseRouteSchemas: {
                         fyp_post: "fyp_post";
                         subscriber_post: "subscriber_post";
                         paid_post: "paid_post";
+                        vault_album: "vault_album";
                     }>;
                     status: z.ZodEnum<{
                         unknown: "unknown";
@@ -32201,6 +32401,7 @@ declare const baseRouteSchemas: {
                     }, z.core.$strip>;
                     approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                     platformPostRef: z.ZodNullable<z.ZodString>;
+                    vaultAlbumRef: z.ZodNullable<z.ZodString>;
                     statusReason: z.ZodNullable<z.ZodString>;
                     previousPublicationId: z.ZodNullable<z.ZodNumber>;
                     withdrawal: z.ZodNullable<z.ZodObject<{
@@ -32289,6 +32490,7 @@ declare const baseRouteSchemas: {
                             fyp_post: "fyp_post";
                             subscriber_post: "subscriber_post";
                             paid_post: "paid_post";
+                            vault_album: "vault_album";
                         }>;
                         status: z.ZodEnum<{
                             unknown: "unknown";
@@ -32387,6 +32589,7 @@ declare const baseRouteSchemas: {
                         }, z.core.$strip>;
                         approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                         platformPostRef: z.ZodNullable<z.ZodString>;
+                        vaultAlbumRef: z.ZodNullable<z.ZodString>;
                         statusReason: z.ZodNullable<z.ZodString>;
                         previousPublicationId: z.ZodNullable<z.ZodNumber>;
                         withdrawal: z.ZodNullable<z.ZodObject<{
@@ -32476,6 +32679,7 @@ declare const baseRouteSchemas: {
                             fyp_post: "fyp_post";
                             subscriber_post: "subscriber_post";
                             paid_post: "paid_post";
+                            vault_album: "vault_album";
                         }>;
                         status: z.ZodEnum<{
                             unknown: "unknown";
@@ -32574,6 +32778,7 @@ declare const baseRouteSchemas: {
                         }, z.core.$strip>;
                         approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                         platformPostRef: z.ZodNullable<z.ZodString>;
+                        vaultAlbumRef: z.ZodNullable<z.ZodString>;
                         statusReason: z.ZodNullable<z.ZodString>;
                         previousPublicationId: z.ZodNullable<z.ZodNumber>;
                         withdrawal: z.ZodNullable<z.ZodObject<{
@@ -32663,6 +32868,7 @@ declare const baseRouteSchemas: {
                             fyp_post: "fyp_post";
                             subscriber_post: "subscriber_post";
                             paid_post: "paid_post";
+                            vault_album: "vault_album";
                         }>;
                         status: z.ZodEnum<{
                             unknown: "unknown";
@@ -32761,6 +32967,7 @@ declare const baseRouteSchemas: {
                         }, z.core.$strip>;
                         approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                         platformPostRef: z.ZodNullable<z.ZodString>;
+                        vaultAlbumRef: z.ZodNullable<z.ZodString>;
                         statusReason: z.ZodNullable<z.ZodString>;
                         previousPublicationId: z.ZodNullable<z.ZodNumber>;
                         withdrawal: z.ZodNullable<z.ZodObject<{
@@ -32838,6 +33045,7 @@ declare const baseRouteSchemas: {
                     fyp_post: "fyp_post";
                     subscriber_post: "subscriber_post";
                     paid_post: "paid_post";
+                    vault_album: "vault_album";
                 }>;
                 status: z.ZodEnum<{
                     unknown: "unknown";
@@ -32936,6 +33144,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                 platformPostRef: z.ZodNullable<z.ZodString>;
+                vaultAlbumRef: z.ZodNullable<z.ZodString>;
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
@@ -33222,6 +33431,7 @@ declare const baseRouteSchemas: {
                 fyp_post: "fyp_post";
                 subscriber_post: "subscriber_post";
                 paid_post: "paid_post";
+                vault_album: "vault_album";
             }>;
             text: z.ZodDefault<z.ZodString>;
             media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -33338,6 +33548,7 @@ declare const baseRouteSchemas: {
                     fyp_post: "fyp_post";
                     subscriber_post: "subscriber_post";
                     paid_post: "paid_post";
+                    vault_album: "vault_album";
                 }>;
                 status: z.ZodEnum<{
                     unknown: "unknown";
@@ -33436,6 +33647,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                 platformPostRef: z.ZodNullable<z.ZodString>;
+                vaultAlbumRef: z.ZodNullable<z.ZodString>;
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
@@ -33546,6 +33758,7 @@ declare const baseRouteSchemas: {
                         fyp_post: "fyp_post";
                         subscriber_post: "subscriber_post";
                         paid_post: "paid_post";
+                        vault_album: "vault_album";
                     }>;
                     status: z.ZodEnum<{
                         unknown: "unknown";
@@ -33644,6 +33857,7 @@ declare const baseRouteSchemas: {
                     }, z.core.$strip>;
                     approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                     platformPostRef: z.ZodNullable<z.ZodString>;
+                    vaultAlbumRef: z.ZodNullable<z.ZodString>;
                     statusReason: z.ZodNullable<z.ZodString>;
                     previousPublicationId: z.ZodNullable<z.ZodNumber>;
                     withdrawal: z.ZodNullable<z.ZodObject<{
@@ -33858,6 +34072,7 @@ declare const baseRouteSchemas: {
                     fyp_post: "fyp_post";
                     subscriber_post: "subscriber_post";
                     paid_post: "paid_post";
+                    vault_album: "vault_album";
                 }>;
                 status: z.ZodEnum<{
                     unknown: "unknown";
@@ -33956,6 +34171,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                 platformPostRef: z.ZodNullable<z.ZodString>;
+                vaultAlbumRef: z.ZodNullable<z.ZodString>;
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
@@ -34019,6 +34235,208 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly agentPublicationApprove: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly body: z.ZodObject<{
+            items: z.ZodArray<z.ZodObject<{
+                id: z.ZodNumber;
+                version: z.ZodNumber;
+            }, z.core.$strict>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                results: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    outcome: z.ZodEnum<{
+                        approved: "approved";
+                        refused: "refused";
+                    }>;
+                    reason: z.ZodNullable<z.ZodString>;
+                    publication: z.ZodNullable<z.ZodObject<{
+                        id: z.ZodNumber;
+                        pageLabel: z.ZodString;
+                        platform: z.ZodEnum<{
+                            fansly: "fansly";
+                            onlyfans: "onlyfans";
+                        }>;
+                        kind: z.ZodEnum<{
+                            story: "story";
+                            fyp_post: "fyp_post";
+                            subscriber_post: "subscriber_post";
+                            paid_post: "paid_post";
+                            vault_album: "vault_album";
+                        }>;
+                        status: z.ZodEnum<{
+                            unknown: "unknown";
+                            cancelled: "cancelled";
+                            scheduled: "scheduled";
+                            draft: "draft";
+                            approved: "approved";
+                            submitting: "submitting";
+                            processing: "processing";
+                            published: "published";
+                            not_published: "not_published";
+                            rejected: "rejected";
+                            missed: "missed";
+                            withdrawn: "withdrawn";
+                        }>;
+                        version: z.ZodNumber;
+                        text: z.ZodString;
+                        publishAt: z.ZodString;
+                        expiresAt: z.ZodNullable<z.ZodString>;
+                        wallRefs: z.ZodArray<z.ZodString>;
+                        tierRefs: z.ZodArray<z.ZodString>;
+                        priceMills: z.ZodNullable<z.ZodNumber>;
+                        repost: z.ZodBoolean;
+                        pinWallRefs: z.ZodArray<z.ZodString>;
+                        replyLock: z.ZodArray<z.ZodEnum<{
+                            subscribers: "subscribers";
+                            followers: "followers";
+                        }>>;
+                        subscribersOnly: z.ZodBoolean;
+                        extraAttachments: z.ZodArray<z.ZodObject<{
+                            attachment: z.ZodNumber;
+                            access: z.ZodEnum<{
+                                subscribers: "subscribers";
+                                everyone: "everyone";
+                                paid: "paid";
+                            }>;
+                            tierRefs: z.ZodArray<z.ZodString>;
+                            priceMills: z.ZodNullable<z.ZodNumber>;
+                            subscribersOnly: z.ZodBoolean;
+                        }, z.core.$strip>>;
+                        media: z.ZodArray<z.ZodObject<{
+                            role: z.ZodEnum<{
+                                media: "media";
+                                preview: "preview";
+                            }>;
+                            position: z.ZodNumber;
+                            source: z.ZodEnum<{
+                                file: "file";
+                                vault: "vault";
+                            }>;
+                            mediaRef: z.ZodNullable<z.ZodString>;
+                            fileId: z.ZodNullable<z.ZodNumber>;
+                            attachment: z.ZodNumber;
+                        }, z.core.$strip>>;
+                        findings: z.ZodArray<z.ZodObject<{
+                            code: z.ZodEnum<{
+                                publish_time_past: "publish_time_past";
+                                file_of_another_model: "file_of_another_model";
+                                file_deleted: "file_deleted";
+                                media_not_on_page: "media_not_on_page";
+                                repost_within_threshold: "repost_within_threshold";
+                                posted_before: "posted_before";
+                                price_range_not_set: "price_range_not_set";
+                                price_out_of_range: "price_out_of_range";
+                                paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                                volume_high: "volume_high";
+                                daily_limit_exceeded: "daily_limit_exceeded";
+                                wall_not_on_page: "wall_not_on_page";
+                                wall_default_unknown: "wall_default_unknown";
+                                tier_not_on_page: "tier_not_on_page";
+                                onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                                onlyfans_file_too_large: "onlyfans_file_too_large";
+                                fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                                platform_schedule_incomplete: "platform_schedule_incomplete";
+                            }>;
+                            severity: z.ZodEnum<{
+                                info: "info";
+                                blocking: "blocking";
+                                warning: "warning";
+                            }>;
+                            mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+                            publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+                            detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+                        }, z.core.$strip>>;
+                        blocked: z.ZodBoolean;
+                        author: z.ZodObject<{
+                            kind: z.ZodEnum<{
+                                human: "human";
+                                agent: "agent";
+                            }>;
+                            userId: z.ZodNullable<z.ZodNumber>;
+                            agentKeyId: z.ZodNullable<z.ZodNumber>;
+                        }, z.core.$strip>;
+                        approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+                        platformPostRef: z.ZodNullable<z.ZodString>;
+                        vaultAlbumRef: z.ZodNullable<z.ZodString>;
+                        statusReason: z.ZodNullable<z.ZodString>;
+                        previousPublicationId: z.ZodNullable<z.ZodNumber>;
+                        withdrawal: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        deletion: z.ZodNullable<z.ZodObject<{
+                            state: z.ZodString;
+                            errorCode: z.ZodNullable<z.ZodString>;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                        createdAt: z.ZodString;
+                        updatedAt: z.ZodString;
+                        statusChangedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
     readonly agentPublicationUpdate: {
         readonly auth: {
             readonly kind: "agentKey";
@@ -34034,6 +34452,7 @@ declare const baseRouteSchemas: {
                 fyp_post: "fyp_post";
                 subscriber_post: "subscriber_post";
                 paid_post: "paid_post";
+                vault_album: "vault_album";
             }>;
             text: z.ZodDefault<z.ZodString>;
             media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -34150,6 +34569,7 @@ declare const baseRouteSchemas: {
                     fyp_post: "fyp_post";
                     subscriber_post: "subscriber_post";
                     paid_post: "paid_post";
+                    vault_album: "vault_album";
                 }>;
                 status: z.ZodEnum<{
                     unknown: "unknown";
@@ -34248,6 +34668,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 approvedRevisionId: z.ZodNullable<z.ZodNumber>;
                 platformPostRef: z.ZodNullable<z.ZodString>;
+                vaultAlbumRef: z.ZodNullable<z.ZodString>;
                 statusReason: z.ZodNullable<z.ZodString>;
                 previousPublicationId: z.ZodNullable<z.ZodNumber>;
                 withdrawal: z.ZodNullable<z.ZodObject<{
