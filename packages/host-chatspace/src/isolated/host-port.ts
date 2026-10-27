@@ -54,7 +54,7 @@
 //   ever sent or repeated because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
-import type { AttachIntent, AttachReceipt, AttachRefusal, ChatReadRead, ChatSpaceContractReport, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveImage, LiveImageRef, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type { AttachIntent, AttachReceipt, AttachRefusal, ChatReadRead, ChatSpaceContractReport, ChatWindow, ComposerState, DraftMedia, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveImage, LiveImageRef, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
@@ -65,9 +65,9 @@ import type { MediaTags } from '@cg/contracts/send-media';
 
 import { BridgeCallError, type BridgeEvent, type MainBridgeClient } from './bridge-client';
 import { buildContractReport, type ContractWireInput } from './contract';
-import { photosAsLiveImages } from '@cg/host-kit/isolated/photos';
+import { composerMedia, photoAsJpeg, photosAsLiveImages } from '@cg/host-kit/isolated/photos';
 import { sameReport } from '@cg/host-kit/isolated/report';
-import { readStoredDraft, readStoredMedia, storedDraftAgrees, type DraftStorage, type StoredMedia } from './draft-store';
+import { readDraftMediaView, readStoredDraft, readStoredMedia, storedDraftAgrees, type DraftStorage, type StoredMedia } from './draft-store';
 import { ADAPTER_VERSION } from './host-contract';
 import type { MountManager } from './mount';
 import { loadedScriptUrls, matchReceiptProfile, receiptModules, type ReceiptMatch } from './receipt-profile';
@@ -805,6 +805,26 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       if (disposed || refs.length === 0) return [];
       const { win } = options;
       return photosAsLiveImages(win.document, refs, wait.waitMs, (callback, ms) => win.setTimeout(callback, ms)).catch(() => []);
+    },
+
+    /**
+     * The media of the message being written, as the target chat's own draft key holds it (ChatSpace keeps the
+     * composer's media there: its kind, length, free preview, the message's price and the picture it shows), the
+     * pictures drawn from the addresses the composer shows — OnlyMonster's media proxy lets the page read them. The key
+     * is the chat's own, so a start whose chat is no longer open still reads its own draft. No request of ours.
+     */
+    async readDraftMedia(expected: HostIdentity, wait: { readonly waitMs: number }): Promise<DraftMedia | null> {
+      const chat = expected.chat;
+      if (disposed || !drafts || !chat) return null;
+      const view = readDraftMediaView(drafts, chat);
+      if (view === null) return null;
+      const { win } = options;
+      const timer = (callback: () => void, ms: number) => win.setTimeout(callback, ms);
+      return composerMedia(
+        new Date(clock()).toISOString(),
+        view.priceUsd,
+        view.items.map((item) => ({ ...item, draw: item.imageUrl === null ? null : () => photoAsJpeg(win.document, item.imageUrl as string, wait.waitMs, timer) })),
+      ).catch(() => null);
     },
 
     async openChatMessages(chat: ChatRef, options: OpenChatReadOptions): Promise<OpenChatRead> {

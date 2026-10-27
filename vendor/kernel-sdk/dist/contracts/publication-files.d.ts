@@ -1,4 +1,8 @@
 import { z } from "zod";
+/** An agent's upload (write:publication_drafts): the file is the page's model's; only its name is asked. */
+export declare const agentPublicationFileUploadQuerySchema: z.ZodObject<{
+    name: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
 /** Who names the file's model: its slug, its id, or a page (the page's model). Exactly one. */
 export declare const publicationFileUploadQuerySchema: z.ZodObject<{
     modelSlug: z.ZodOptional<z.ZodString>;

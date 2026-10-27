@@ -4,6 +4,7 @@ export declare const publicationKindSchema: z.ZodEnum<{
     fyp_post: "fyp_post";
     subscriber_post: "subscriber_post";
     paid_post: "paid_post";
+    vault_album: "vault_album";
 }>;
 export declare const publicationStatusSchema: z.ZodEnum<{
     unknown: "unknown";
@@ -60,7 +61,9 @@ export declare const publicationExtraAttachmentInputSchema: z.ZodObject<{
     subscribersOnly: z.ZodDefault<z.ZodBoolean>;
 }, z.core.$strict>;
 /**
- * What a draft says. Kind decides the rest: a story is one file; previews and a
+ * What a draft says. Kind decides the rest: a vault album (Fansly) is its title
+ * in `text` and its files in order, up to PUBLICATION_VAULT_ALBUM_MEDIA_MAX,
+ * nothing else; a post has at most PUBLICATION_MEDIA_MAX; a story is one file; previews and a
  * price are a paid post's, or a Fansly subscriber post's that anyone else may
  * buy (its subscribers see it free); FYP, walls, pins, reply locks and tiers
  * exist on Fansly only, and a Fansly paid post may be for subscribers only. An empty
@@ -73,6 +76,7 @@ export declare const publicationContentSchema: z.ZodObject<{
         fyp_post: "fyp_post";
         subscriber_post: "subscriber_post";
         paid_post: "paid_post";
+        vault_album: "vault_album";
     }>;
     text: z.ZodDefault<z.ZodString>;
     media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -133,6 +137,7 @@ export declare const publicationCreateBodySchema: z.ZodObject<{
         fyp_post: "fyp_post";
         subscriber_post: "subscriber_post";
         paid_post: "paid_post";
+        vault_album: "vault_album";
     }>;
     text: z.ZodDefault<z.ZodString>;
     media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -194,6 +199,7 @@ export declare const publicationUpdateBodySchema: z.ZodObject<{
         fyp_post: "fyp_post";
         subscriber_post: "subscriber_post";
         paid_post: "paid_post";
+        vault_album: "vault_album";
     }>;
     text: z.ZodDefault<z.ZodString>;
     media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -255,6 +261,7 @@ export declare const agentPublicationCreateBodySchema: z.ZodObject<{
         fyp_post: "fyp_post";
         subscriber_post: "subscriber_post";
         paid_post: "paid_post";
+        vault_album: "vault_album";
     }>;
     text: z.ZodDefault<z.ZodString>;
     media: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -381,6 +388,7 @@ export declare const publicationSchema: z.ZodObject<{
         fyp_post: "fyp_post";
         subscriber_post: "subscriber_post";
         paid_post: "paid_post";
+        vault_album: "vault_album";
     }>;
     status: z.ZodEnum<{
         unknown: "unknown";
@@ -479,6 +487,7 @@ export declare const publicationSchema: z.ZodObject<{
     }, z.core.$strip>;
     approvedRevisionId: z.ZodNullable<z.ZodNumber>;
     platformPostRef: z.ZodNullable<z.ZodString>;
+    vaultAlbumRef: z.ZodNullable<z.ZodString>;
     statusReason: z.ZodNullable<z.ZodString>;
     previousPublicationId: z.ZodNullable<z.ZodNumber>;
     withdrawal: z.ZodNullable<z.ZodObject<{
@@ -547,6 +556,7 @@ export declare const publicationDetailSchema: z.ZodObject<{
         fyp_post: "fyp_post";
         subscriber_post: "subscriber_post";
         paid_post: "paid_post";
+        vault_album: "vault_album";
     }>;
     status: z.ZodEnum<{
         unknown: "unknown";
@@ -645,6 +655,7 @@ export declare const publicationDetailSchema: z.ZodObject<{
     }, z.core.$strip>;
     approvedRevisionId: z.ZodNullable<z.ZodNumber>;
     platformPostRef: z.ZodNullable<z.ZodString>;
+    vaultAlbumRef: z.ZodNullable<z.ZodString>;
     statusReason: z.ZodNullable<z.ZodString>;
     previousPublicationId: z.ZodNullable<z.ZodNumber>;
     withdrawal: z.ZodNullable<z.ZodObject<{
@@ -759,6 +770,7 @@ export declare const publicationListResponseSchema: z.ZodObject<{
             fyp_post: "fyp_post";
             subscriber_post: "subscriber_post";
             paid_post: "paid_post";
+            vault_album: "vault_album";
         }>;
         status: z.ZodEnum<{
             unknown: "unknown";
@@ -857,6 +869,7 @@ export declare const publicationListResponseSchema: z.ZodObject<{
         }, z.core.$strip>;
         approvedRevisionId: z.ZodNullable<z.ZodNumber>;
         platformPostRef: z.ZodNullable<z.ZodString>;
+        vaultAlbumRef: z.ZodNullable<z.ZodString>;
         statusReason: z.ZodNullable<z.ZodString>;
         previousPublicationId: z.ZodNullable<z.ZodNumber>;
         withdrawal: z.ZodNullable<z.ZodObject<{
@@ -903,6 +916,7 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                 fyp_post: "fyp_post";
                 subscriber_post: "subscriber_post";
                 paid_post: "paid_post";
+                vault_album: "vault_album";
             }>;
             status: z.ZodEnum<{
                 unknown: "unknown";
@@ -1001,6 +1015,7 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
             }, z.core.$strip>;
             approvedRevisionId: z.ZodNullable<z.ZodNumber>;
             platformPostRef: z.ZodNullable<z.ZodString>;
+            vaultAlbumRef: z.ZodNullable<z.ZodString>;
             statusReason: z.ZodNullable<z.ZodString>;
             previousPublicationId: z.ZodNullable<z.ZodNumber>;
             withdrawal: z.ZodNullable<z.ZodObject<{
@@ -1043,6 +1058,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             fyp_post: "fyp_post";
             subscriber_post: "subscriber_post";
             paid_post: "paid_post";
+            vault_album: "vault_album";
         }>;
         status: z.ZodEnum<{
             unknown: "unknown";
@@ -1141,6 +1157,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
         }, z.core.$strip>;
         approvedRevisionId: z.ZodNullable<z.ZodNumber>;
         platformPostRef: z.ZodNullable<z.ZodString>;
+        vaultAlbumRef: z.ZodNullable<z.ZodString>;
         statusReason: z.ZodNullable<z.ZodString>;
         previousPublicationId: z.ZodNullable<z.ZodNumber>;
         withdrawal: z.ZodNullable<z.ZodObject<{
@@ -1169,6 +1186,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             fyp_post: "fyp_post";
             subscriber_post: "subscriber_post";
             paid_post: "paid_post";
+            vault_album: "vault_album";
         }>;
         status: z.ZodEnum<{
             unknown: "unknown";
@@ -1267,6 +1285,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
         }, z.core.$strip>;
         approvedRevisionId: z.ZodNullable<z.ZodNumber>;
         platformPostRef: z.ZodNullable<z.ZodString>;
+        vaultAlbumRef: z.ZodNullable<z.ZodString>;
         statusReason: z.ZodNullable<z.ZodString>;
         previousPublicationId: z.ZodNullable<z.ZodNumber>;
         withdrawal: z.ZodNullable<z.ZodObject<{
@@ -1350,6 +1369,7 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
             fyp_post: "fyp_post";
             subscriber_post: "subscriber_post";
             paid_post: "paid_post";
+            vault_album: "vault_album";
         }>;
         status: z.ZodEnum<{
             unknown: "unknown";
@@ -1448,6 +1468,7 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
         }, z.core.$strip>;
         approvedRevisionId: z.ZodNullable<z.ZodNumber>;
         platformPostRef: z.ZodNullable<z.ZodString>;
+        vaultAlbumRef: z.ZodNullable<z.ZodString>;
         statusReason: z.ZodNullable<z.ZodString>;
         previousPublicationId: z.ZodNullable<z.ZodNumber>;
         withdrawal: z.ZodNullable<z.ZodObject<{
@@ -1490,6 +1511,7 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
                 fyp_post: "fyp_post";
                 subscriber_post: "subscriber_post";
                 paid_post: "paid_post";
+                vault_album: "vault_album";
             }>;
             status: z.ZodEnum<{
                 unknown: "unknown";
@@ -1588,6 +1610,7 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
             }, z.core.$strip>;
             approvedRevisionId: z.ZodNullable<z.ZodNumber>;
             platformPostRef: z.ZodNullable<z.ZodString>;
+            vaultAlbumRef: z.ZodNullable<z.ZodString>;
             statusReason: z.ZodNullable<z.ZodString>;
             previousPublicationId: z.ZodNullable<z.ZodNumber>;
             withdrawal: z.ZodNullable<z.ZodObject<{

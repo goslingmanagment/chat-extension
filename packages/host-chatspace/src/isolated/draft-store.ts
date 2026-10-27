@@ -116,3 +116,55 @@ export function storedDraftAgrees(stored: StoredDraft, text: string, mode: 'repl
   const wanted = normalizeDraftText(text);
   return mode === 'append' ? value.endsWith(wanted) : value === wanted;
 }
+
+/** A medium of the stored draft as an AI start reads it: its kind, length, free preview and the picture's address. */
+export interface DraftMediumView {
+  readonly type: 'photo' | 'video' | 'gif' | 'audio';
+  readonly durationSec?: number;
+  readonly free?: boolean;
+  /** The composer's picture of it: OnlyMonster's media proxy, a GIF's own address, or the page's blob of an upload. */
+  readonly imageUrl: string | null;
+}
+
+/** ChatSpace's kinds of a draft's medium → the hub's. */
+const DRAFT_KINDS: Readonly<Record<string, DraftMediumView['type']>> = { image: 'photo', photo: 'photo', video: 'video', gif: 'gif', audio: 'audio' };
+/** An address the page can show: https (the proxy, a GIF host) or the page's own blob of an upload. */
+const PICTURE = /^(https:\/\/[^\s"'<>]+|blob:https?:\/\/[^\s"'<>]+)$/;
+const picture = (value: unknown): string | null => (typeof value === 'string' && value.length <= 4096 && PICTURE.test(value) ? value : null);
+const seconds = (value: unknown): number | undefined => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined);
+
+/**
+ * The media of the target chat's own stored draft for an AI start (`body.media.medias`, `body.media.price`, `body.gif`):
+ * each medium in the composer's order, then the GIF. `priceUsd` — the message's price, null without one. null — no key,
+ * nothing attached, or a key this build cannot read. Never another chat's.
+ */
+export function readDraftMediaView(drafts: DraftStorage, chat: ChatRef): { readonly priceUsd: number | null; readonly items: readonly DraftMediumView[] } | null {
+  let raw: string | null;
+  try {
+    raw = drafts.getItem(draftKey(chat.hostAccountId, chat.platformFanId));
+  } catch {
+    return null;
+  }
+  if (raw === null) return null;
+  try {
+    const body = (JSON.parse(raw) as { body?: unknown } | null)?.body;
+    if (!isRecord(body)) return null;
+    const media = isRecord(body['media']) ? body['media'] : null;
+    const list = media !== null && Array.isArray(media['medias']) ? (media['medias'] as unknown[]) : [];
+    const items: DraftMediumView[] = [];
+    for (const item of list) {
+      if (!isRecord(item)) continue;
+      const type = DRAFT_KINDS[String(item['type'])];
+      if (type === undefined) continue;
+      const duration = type === 'video' || type === 'audio' ? seconds(item['duration']) : undefined;
+      items.push({ type, ...(duration === undefined ? {} : { durationSec: duration }), ...(item['isFree'] === true ? { free: true } : {}), imageUrl: type === 'audio' ? null : picture(item['imageUrl']) });
+    }
+    const gif = isRecord(body['gif']) ? body['gif'] : null;
+    if (gif !== null) items.push({ type: 'gif', imageUrl: picture(gif['url']) });
+    if (items.length === 0) return null;
+    const price = media === null ? null : media['price'];
+    return { priceUsd: typeof price === 'number' && Number.isFinite(price) && price > 0 ? price : null, items };
+  } catch {
+    return null;
+  }
+}

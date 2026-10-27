@@ -7,8 +7,8 @@
 //   https://fansly.com`), decoded from the bytes.
 // No request of ours beyond the CDN's image the page itself loads; nothing is kept.
 
-import { type LiveImage, type LiveImageRef } from '@cg/contracts/host';
-import { LIVE_IMAGE_LIMITS } from '@cg/contracts/limits';
+import { type DraftMedia, type DraftMediaType, type LiveImage, type LiveImageRef } from '@cg/contracts/host';
+import { DRAFT_MEDIA_LIMITS, LIVE_IMAGE_LIMITS } from '@cg/contracts/limits';
 
 type Timer = (callback: () => void, ms: number) => unknown;
 
@@ -105,4 +105,62 @@ export async function photosAsLiveImages(doc: Document, refs: readonly LiveImage
     }),
   );
   return drawn.filter((image): image is NonNullable<typeof image> => image !== null);
+}
+
+/** An image the page already shows, drawn as JPEG once it has loaded (within `waitMs`); null — not loaded, unreadable or too big. */
+export async function shownImageAsJpeg(doc: Document, image: HTMLImageElement, waitMs: number, setTimer: Timer): Promise<string | null> {
+  const loaded =
+    image.complete && image.naturalWidth > 0
+      ? true
+      : await new Promise<boolean>((resolve) => {
+          image.addEventListener('load', () => resolve(true), { once: true });
+          image.addEventListener('error', () => resolve(false), { once: true });
+          setTimer(() => resolve(image.complete && image.naturalWidth > 0), waitMs);
+        });
+  try {
+    return loaded ? drawJpeg(doc, image, image.naturalWidth, image.naturalHeight) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One medium of the composer as a host reads it: its picture is drawn only when asked (`draw`), null — it shows none. */
+export interface ComposerMedium {
+  readonly type: DraftMediaType;
+  readonly durationSec?: number | undefined;
+  readonly free?: boolean | undefined;
+  readonly draw: (() => Promise<string | null>) | null;
+}
+
+/**
+ * The composer's media as a start carries it (`HostPort.readDraftMedia`): every medium (at most
+ * `DRAFT_MEDIA_LIMITS.itemsMax`), the pictures of the first `imagesMax` that show one drawn at once, each within the
+ * caller's wait. null — nothing attached. Never rejects.
+ */
+export async function composerMedia(capturedAt: string, priceUsd: number | null | undefined, media: readonly ComposerMedium[]): Promise<DraftMedia | null> {
+  const kept = media.slice(0, DRAFT_MEDIA_LIMITS.itemsMax);
+  if (kept.length === 0) return null;
+  let pictures = 0;
+  const drawn = await Promise.all(
+    kept.map(async (medium) => {
+      if (medium.draw === null || pictures >= DRAFT_MEDIA_LIMITS.imagesMax) return null;
+      pictures += 1;
+      return medium.draw().catch(() => null);
+    }),
+  );
+  const price = priceUsd === undefined || priceUsd === null ? priceUsd : Math.min(Math.max(0, Math.round(priceUsd * 100) / 100), DRAFT_MEDIA_LIMITS.priceMaxUsd);
+  return {
+    capturedAt,
+    ...(price === undefined ? {} : { priceUsd: price }),
+    items: kept.map((medium, index) => {
+      const data = drawn[index] ?? null;
+      const duration = medium.durationSec === undefined ? undefined : Math.min(Math.max(0, Math.round(medium.durationSec)), DRAFT_MEDIA_LIMITS.durationMaxSec);
+      return {
+        type: medium.type,
+        ...(duration === undefined || duration === 0 ? {} : { durationSec: duration }),
+        ...(medium.free === true ? { free: true } : {}),
+        ...(data === null ? {} : { image: { mediaType: 'image/jpeg' as const, data } }),
+      };
+    }),
+  };
 }
