@@ -22,12 +22,22 @@ const KEPT = 50;
 
 const lower = (value: string): string => value.trim().replace(/^@/, '').toLowerCase();
 
+/**
+ * A list's name without the team's note after it: « 💩 Бомж - денег нет и не собирается тратить » (lilly-2, 2026-10-28)
+ * is «💩 Бомж», so the header mark stays short and the same list on two pages is one group.
+ */
+export function shortListLabel(label: string): string {
+  const whole = label.trim();
+  const head = whole.split(/\s+[-–—:|]\s+/u)[0]?.trim() ?? '';
+  return head === '' ? whole : head;
+}
+
 /** What the header shows of an answer: the lists by label (this page first), the posts that read; nothing — FAN_MARKS_NONE. */
 export function fanMarksView(marks: FanslyFanMarks, username: string | null): FanMarksView {
   const groups: { label: string; here: boolean; names: string[] }[] = [];
   // The asked page's list first, whatever order the answer has.
   for (const list of [...marks.lists].sort((a, b) => Number(b.here) - Number(a.here))) {
-    const label = list.label.trim();
+    const label = shortListLabel(list.label);
     if (label === '') continue;
     let group = groups.find((entry) => entry.label === label);
     if (group === undefined) groups.push((group = { label, here: false, names: [] }));

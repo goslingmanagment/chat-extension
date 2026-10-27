@@ -22,7 +22,7 @@ export function fakeFanMarks(page: FakePage, query: FanMarksQuery, now: number):
     ...none,
     lists: [
       { pageLabel: page.pageLabel, modelName: page.modelName, granted: true, label: '💩 Бомж', since: iso(now - 12 * DAY_MS) },
-      { ...other, granted: false, label: '💩 Бомж', since: iso(now - 41 * DAY_MS) },
+      { ...other, granted: false, label: ' 💩 Бомж - денег нет и не собирается тратить ', since: iso(now - 41 * DAY_MS) },
     ],
     blocklist: [
       { postedAt: iso(now - 3 * DAY_MS), text: `https://fansly.com/${handle}\nDNP + TM`, author: SHOWCASE ? 'Kira | Velvet Agency' : 'stand_agency', link: `${GROUP}/48211`, handle },

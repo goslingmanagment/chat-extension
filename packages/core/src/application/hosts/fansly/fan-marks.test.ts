@@ -36,6 +36,15 @@ describe('[host:fansly] the fan marks of an answer', () => {
     });
   });
 
+  it('a list named with the team note after a dash is the short name, one group with the same list elsewhere', () => {
+    const lists: FanslyFanMarks['lists'] = [
+      { here: false, name: 'Lilly', label: ' 💩 Бомж - денег нет и не собирается тратить ', since: null },
+      { here: true, name: 'Lora', label: ' 💩 Бомж ', since: T },
+    ];
+    expect(fanMarksView({ lists, blocklist: [] }, 'x').lists).toEqual({ label: '💩 Бомж', groups: [{ label: '💩 Бомж', here: true, names: ['Lilly'] }] });
+    expect(fanMarksView({ lists: [{ here: false, name: 'Ari', label: 'Бомж-список', since: null }], blocklist: [] }, 'x').lists?.label).toBe('Бомж-список');
+  });
+
   it('no list and no post is no mark; a list only elsewhere still marks; an unknown username says no post is renamed', () => {
     expect(fanMarksView({ lists: [], blocklist: [] }, 'x')).toBe(FAN_MARKS_NONE);
     expect(fanMarksView({ lists: [{ here: false, name: 'Ari', label: '  ', since: null }], blocklist: [] }, 'x')).toBe(FAN_MARKS_NONE);
