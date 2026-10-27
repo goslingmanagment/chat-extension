@@ -253,6 +253,9 @@ export declare const AGENT_CLAIM_CLASSES: {
             readonly noteText: {
                 readonly required: readonly ["fan_notes"];
             };
+            readonly noteAuthor: {
+                readonly required: readonly ["client_note_attributions"];
+            };
             readonly summaryText: {
                 readonly required: readonly ["fan_summaries"];
             };

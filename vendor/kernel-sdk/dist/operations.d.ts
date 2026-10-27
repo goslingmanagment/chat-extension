@@ -735,6 +735,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/in-conversation";
     };
+    readonly clientNoteAttributions: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/note-attributions";
+    };
     readonly clientOnline: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/online";

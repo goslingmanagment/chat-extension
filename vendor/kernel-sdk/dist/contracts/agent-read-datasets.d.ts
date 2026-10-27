@@ -548,6 +548,8 @@ export declare const AGENT_DATASETS: {
             readonly noteText: "string";
             readonly createdAt: "timestamp";
             readonly updatedAt: "timestamp";
+            readonly createdBy: "string";
+            readonly lastEditedBy: "string";
         };
         readonly defaultSort: {
             readonly field: "createdAt";
@@ -555,6 +557,30 @@ export declare const AGENT_DATASETS: {
             readonly nullsLast: false;
         };
         readonly stableKey: readonly ["noteId"];
+    };
+    readonly note_attributions: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly platformUserId: "string";
+            readonly noteRef: "string";
+            readonly platformNoteRef: "string";
+            readonly noteKind: "string";
+            readonly action: "string";
+            readonly origin: "string";
+            readonly fields: "string_array";
+            readonly authorLogin: "string";
+            readonly occurredAt: "timestamp";
+            readonly recordedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "occurredAt";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["eventId"];
     };
     readonly posts: {
         readonly moneyBearing: false;

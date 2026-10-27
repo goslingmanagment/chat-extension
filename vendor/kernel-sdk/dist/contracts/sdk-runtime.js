@@ -334,6 +334,8 @@ export const AI_STREAM_CAPABILITIES = [
     "hi-start-proof-v1",
     // Hi on Fansly takes `fanAccount`, the fan's account as the page loaded it.
     "hi-fan-account-v1",
+    // Coach reads up to the owner's deep window and may end its answer with a ```more note.
+    "coach-depth-v1",
 ];
 /** The header value for `streamAiFeature`: the union of `capabilities` and
  * (`debugPromptEcho` → `debug-input-v1`), deduplicated, in the order of

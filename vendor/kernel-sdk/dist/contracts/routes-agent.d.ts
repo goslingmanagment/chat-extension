@@ -113,6 +113,7 @@ export declare const agentPlaneNameEnum: z.ZodEnum<{
     fansly_creator_stats_geo: "fansly_creator_stats_geo";
     fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
     fan_notes: "fan_notes";
+    client_note_attributions: "client_note_attributions";
     fan_summaries: "fan_summaries";
     fan_profiles: "fan_profiles";
     fan_flags: "fan_flags";
@@ -209,6 +210,7 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     creatorStatsGeo: "creatorStatsGeo";
     creatorStatsActiveHours: "creatorStatsActiveHours";
     noteText: "noteText";
+    noteAuthor: "noteAuthor";
     summaryText: "summaryText";
     profileBody: "profileBody";
     fanFlag: "fanFlag";
@@ -296,6 +298,7 @@ export declare const agentDatasetEnum: z.ZodEnum<{
     follows: "follows";
     followers_daily: "followers_daily";
     fan_aliases: "fan_aliases";
+    note_attributions: "note_attributions";
     raw_media: "raw_media";
     post_attachments: "post_attachments";
     post_monetization: "post_monetization";
@@ -468,6 +471,7 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         fansly_creator_stats_geo: "fansly_creator_stats_geo";
         fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
         fan_notes: "fan_notes";
+        client_note_attributions: "client_note_attributions";
         fan_summaries: "fan_summaries";
         fan_profiles: "fan_profiles";
         fan_flags: "fan_flags";
@@ -553,6 +557,7 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         fansly_creator_stats_geo: "fansly_creator_stats_geo";
         fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
         fan_notes: "fan_notes";
+        client_note_attributions: "client_note_attributions";
         fan_summaries: "fan_summaries";
         fan_profiles: "fan_profiles";
         fan_flags: "fan_flags";
@@ -733,6 +738,7 @@ export declare const agentGapSchema: z.ZodObject<{
         fansly_creator_stats_geo: "fansly_creator_stats_geo";
         fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
         fan_notes: "fan_notes";
+        client_note_attributions: "client_note_attributions";
         fan_summaries: "fan_summaries";
         fan_profiles: "fan_profiles";
         fan_flags: "fan_flags";
@@ -873,6 +879,7 @@ export declare const agentSourceErrorSchema: z.ZodObject<{
         fansly_creator_stats_geo: "fansly_creator_stats_geo";
         fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
         fan_notes: "fan_notes";
+        client_note_attributions: "client_note_attributions";
         fan_summaries: "fan_summaries";
         fan_profiles: "fan_profiles";
         fan_flags: "fan_flags";
@@ -1107,6 +1114,7 @@ export declare const agentClaimSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -1235,6 +1243,7 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -1339,6 +1348,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -1424,6 +1434,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -1533,6 +1544,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -1673,6 +1685,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -1786,6 +1799,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -2307,6 +2321,7 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         follows: "follows";
         followers_daily: "followers_daily";
         fan_aliases: "fan_aliases";
+        note_attributions: "note_attributions";
         raw_media: "raw_media";
         post_attachments: "post_attachments";
         post_monetization: "post_monetization";
@@ -2561,6 +2576,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -2628,6 +2644,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             follows: "follows";
             followers_daily: "followers_daily";
             fan_aliases: "fan_aliases";
+            note_attributions: "note_attributions";
             raw_media: "raw_media";
             post_attachments: "post_attachments";
             post_monetization: "post_monetization";
@@ -2778,6 +2795,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -2899,6 +2917,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -2984,6 +3003,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -3093,6 +3113,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -3233,6 +3254,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -3346,6 +3368,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -3587,6 +3610,7 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -3747,6 +3771,7 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -4006,6 +4031,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 creatorStatsGeo: "creatorStatsGeo";
                 creatorStatsActiveHours: "creatorStatsActiveHours";
                 noteText: "noteText";
+                noteAuthor: "noteAuthor";
                 summaryText: "summaryText";
                 profileBody: "profileBody";
                 fanFlag: "fanFlag";
@@ -4224,6 +4250,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -4309,6 +4336,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -4418,6 +4446,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -4558,6 +4587,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -4671,6 +4701,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -4885,6 +4916,7 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -5125,6 +5157,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -5427,6 +5460,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 creatorStatsGeo: "creatorStatsGeo";
                 creatorStatsActiveHours: "creatorStatsActiveHours";
                 noteText: "noteText";
+                noteAuthor: "noteAuthor";
                 summaryText: "summaryText";
                 profileBody: "profileBody";
                 fanFlag: "fanFlag";
@@ -5658,6 +5692,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -5873,6 +5908,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -5958,6 +5994,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -6067,6 +6104,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -6207,6 +6245,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -6320,6 +6359,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -6559,6 +6599,7 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -6773,6 +6814,7 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -7084,6 +7126,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -7313,6 +7356,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -7398,6 +7442,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -7507,6 +7552,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -7647,6 +7693,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -7760,6 +7807,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -7979,6 +8027,7 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -8202,6 +8251,7 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -8528,6 +8578,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -8802,6 +8853,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -8887,6 +8939,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -8996,6 +9049,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -9136,6 +9190,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -9249,6 +9304,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -9466,6 +9522,7 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -9659,6 +9716,7 @@ export declare const agentMessageSchema: z.ZodObject<{
         fansly_creator_stats_geo: "fansly_creator_stats_geo";
         fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
         fan_notes: "fan_notes";
+        client_note_attributions: "client_note_attributions";
         fan_summaries: "fan_summaries";
         fan_profiles: "fan_profiles";
         fan_flags: "fan_flags";
@@ -9755,6 +9813,7 @@ export declare const agentMessageSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -10036,6 +10095,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -10132,6 +10192,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -10361,6 +10422,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -10446,6 +10508,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -10555,6 +10618,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -10695,6 +10759,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -10808,6 +10873,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -11098,6 +11164,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -11183,6 +11250,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -11292,6 +11360,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -11432,6 +11501,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -11545,6 +11615,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -11788,6 +11859,7 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -11943,6 +12015,7 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -12195,6 +12268,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -12424,6 +12498,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -12509,6 +12584,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -12618,6 +12694,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -12758,6 +12835,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -12871,6 +12949,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -13084,6 +13163,7 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -13212,6 +13292,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -13297,6 +13378,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -13406,6 +13488,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             fansly_creator_stats_geo: "fansly_creator_stats_geo";
             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
             fan_notes: "fan_notes";
+            client_note_attributions: "client_note_attributions";
             fan_summaries: "fan_summaries";
             fan_profiles: "fan_profiles";
             fan_flags: "fan_flags";
@@ -13565,6 +13648,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -13768,6 +13852,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -13853,6 +13938,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -13962,6 +14048,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -14121,6 +14208,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -14335,6 +14423,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -14420,6 +14509,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -14529,6 +14619,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -14669,6 +14760,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -14782,6 +14874,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -15086,6 +15179,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -15171,6 +15265,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -15280,6 +15375,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -15420,6 +15516,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -15533,6 +15630,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -15786,6 +15884,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -15871,6 +15970,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -15980,6 +16080,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -16120,6 +16221,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -16233,6 +16335,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -16416,6 +16519,7 @@ export declare const agentPageDatasetParamsSchema: z.ZodObject<{
         follows: "follows";
         followers_daily: "followers_daily";
         fan_aliases: "fan_aliases";
+        note_attributions: "note_attributions";
         raw_media: "raw_media";
         post_attachments: "post_attachments";
         post_monetization: "post_monetization";
@@ -16554,6 +16658,7 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -16645,6 +16750,7 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         follows: "follows";
         followers_daily: "followers_daily";
         fan_aliases: "fan_aliases";
+        note_attributions: "note_attributions";
         raw_media: "raw_media";
         post_attachments: "post_attachments";
         post_monetization: "post_monetization";
@@ -16743,6 +16849,7 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         creatorStatsGeo: "creatorStatsGeo";
         creatorStatsActiveHours: "creatorStatsActiveHours";
         noteText: "noteText";
+        noteAuthor: "noteAuthor";
         summaryText: "summaryText";
         profileBody: "profileBody";
         fanFlag: "fanFlag";
@@ -16944,6 +17051,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
         follows: "follows";
         followers_daily: "followers_daily";
         fan_aliases: "fan_aliases";
+        note_attributions: "note_attributions";
         raw_media: "raw_media";
         post_attachments: "post_attachments";
         post_monetization: "post_monetization";
@@ -17015,6 +17123,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             follows: "follows";
             followers_daily: "followers_daily";
             fan_aliases: "fan_aliases";
+            note_attributions: "note_attributions";
             raw_media: "raw_media";
             post_attachments: "post_attachments";
             post_monetization: "post_monetization";
@@ -17113,6 +17222,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -17353,6 +17463,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -17438,6 +17549,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -17547,6 +17659,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -17687,6 +17800,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -17800,6 +17914,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -18067,6 +18182,7 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -18382,6 +18498,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -18467,6 +18584,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -18576,6 +18694,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -18716,6 +18835,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -18829,6 +18949,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -19136,6 +19257,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -19221,6 +19343,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -19330,6 +19453,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -19470,6 +19594,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -19583,6 +19708,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -19911,6 +20037,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -19996,6 +20123,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -20105,6 +20233,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -20245,6 +20374,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -20358,6 +20488,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -20687,6 +20818,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -20772,6 +20904,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -20881,6 +21014,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -21021,6 +21155,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -21134,6 +21269,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -21462,6 +21598,7 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -21921,6 +22058,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -22006,6 +22144,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -22115,6 +22254,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -22255,6 +22395,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -22368,6 +22509,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -22749,6 +22891,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -22834,6 +22977,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -22943,6 +23087,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -23083,6 +23228,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -23196,6 +23342,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -23504,6 +23651,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -23589,6 +23737,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -23698,6 +23847,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -23838,6 +23988,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -23951,6 +24102,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -24260,6 +24412,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -24345,6 +24498,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -24454,6 +24608,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -24594,6 +24749,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -24707,6 +24863,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -25758,6 +25915,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -25843,6 +26001,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -25952,6 +26111,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -26092,6 +26252,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -26205,6 +26366,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -26540,6 +26702,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -26625,6 +26788,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -26734,6 +26898,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -26874,6 +27039,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 fansly_creator_stats_geo: "fansly_creator_stats_geo";
                 fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                 fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
                 fan_summaries: "fan_summaries";
                 fan_profiles: "fan_profiles";
                 fan_flags: "fan_flags";
@@ -26987,6 +27153,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             creatorStatsGeo: "creatorStatsGeo";
             creatorStatsActiveHours: "creatorStatsActiveHours";
             noteText: "noteText";
+            noteAuthor: "noteAuthor";
             summaryText: "summaryText";
             profileBody: "profileBody";
             fanFlag: "fanFlag";
@@ -27329,6 +27496,7 @@ export declare const agentRouteSchemas: {
                         fansly_creator_stats_geo: "fansly_creator_stats_geo";
                         fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                         fan_notes: "fan_notes";
+                        client_note_attributions: "client_note_attributions";
                         fan_summaries: "fan_summaries";
                         fan_profiles: "fan_profiles";
                         fan_flags: "fan_flags";
@@ -27396,6 +27564,7 @@ export declare const agentRouteSchemas: {
                         follows: "follows";
                         followers_daily: "followers_daily";
                         fan_aliases: "fan_aliases";
+                        note_attributions: "note_attributions";
                         raw_media: "raw_media";
                         post_attachments: "post_attachments";
                         post_monetization: "post_monetization";
@@ -27546,6 +27715,7 @@ export declare const agentRouteSchemas: {
                     creatorStatsGeo: "creatorStatsGeo";
                     creatorStatsActiveHours: "creatorStatsActiveHours";
                     noteText: "noteText";
+                    noteAuthor: "noteAuthor";
                     summaryText: "summaryText";
                     profileBody: "profileBody";
                     fanFlag: "fanFlag";
@@ -27667,6 +27837,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -27752,6 +27923,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -27861,6 +28033,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -28001,6 +28174,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -28114,6 +28288,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -28381,6 +28556,7 @@ export declare const agentRouteSchemas: {
                     creatorStatsGeo: "creatorStatsGeo";
                     creatorStatsActiveHours: "creatorStatsActiveHours";
                     noteText: "noteText";
+                    noteAuthor: "noteAuthor";
                     summaryText: "summaryText";
                     profileBody: "profileBody";
                     fanFlag: "fanFlag";
@@ -28549,6 +28725,7 @@ export declare const agentRouteSchemas: {
                             creatorStatsGeo: "creatorStatsGeo";
                             creatorStatsActiveHours: "creatorStatsActiveHours";
                             noteText: "noteText";
+                            noteAuthor: "noteAuthor";
                             summaryText: "summaryText";
                             profileBody: "profileBody";
                             fanFlag: "fanFlag";
@@ -28767,6 +28944,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -28852,6 +29030,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -28961,6 +29140,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -29101,6 +29281,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -29214,6 +29395,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -29478,6 +29660,7 @@ export declare const agentRouteSchemas: {
                 creatorStatsGeo: "creatorStatsGeo";
                 creatorStatsActiveHours: "creatorStatsActiveHours";
                 noteText: "noteText";
+                noteAuthor: "noteAuthor";
                 summaryText: "summaryText";
                 profileBody: "profileBody";
                 fanFlag: "fanFlag";
@@ -29719,6 +29902,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -30021,6 +30205,7 @@ export declare const agentRouteSchemas: {
                             creatorStatsGeo: "creatorStatsGeo";
                             creatorStatsActiveHours: "creatorStatsActiveHours";
                             noteText: "noteText";
+                            noteAuthor: "noteAuthor";
                             summaryText: "summaryText";
                             profileBody: "profileBody";
                             fanFlag: "fanFlag";
@@ -30252,6 +30437,7 @@ export declare const agentRouteSchemas: {
                     creatorStatsGeo: "creatorStatsGeo";
                     creatorStatsActiveHours: "creatorStatsActiveHours";
                     noteText: "noteText";
+                    noteAuthor: "noteAuthor";
                     summaryText: "summaryText";
                     profileBody: "profileBody";
                     fanFlag: "fanFlag";
@@ -30467,6 +30653,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -30552,6 +30739,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -30661,6 +30849,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -30801,6 +30990,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -30914,6 +31104,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -31177,6 +31368,7 @@ export declare const agentRouteSchemas: {
                 creatorStatsGeo: "creatorStatsGeo";
                 creatorStatsActiveHours: "creatorStatsActiveHours";
                 noteText: "noteText";
+                noteAuthor: "noteAuthor";
                 summaryText: "summaryText";
                 profileBody: "profileBody";
                 fanFlag: "fanFlag";
@@ -31413,6 +31605,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -31642,6 +31835,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -31727,6 +31921,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -31836,6 +32031,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -31976,6 +32172,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -32089,6 +32286,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -32345,6 +32543,7 @@ export declare const agentRouteSchemas: {
                 creatorStatsGeo: "creatorStatsGeo";
                 creatorStatsActiveHours: "creatorStatsActiveHours";
                 noteText: "noteText";
+                noteAuthor: "noteAuthor";
                 summaryText: "summaryText";
                 profileBody: "profileBody";
                 fanFlag: "fanFlag";
@@ -32563,6 +32762,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -32837,6 +33037,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -32922,6 +33123,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -33031,6 +33233,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -33171,6 +33374,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -33284,6 +33488,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -33545,6 +33750,7 @@ export declare const agentRouteSchemas: {
                 creatorStatsGeo: "creatorStatsGeo";
                 creatorStatsActiveHours: "creatorStatsActiveHours";
                 noteText: "noteText";
+                noteAuthor: "noteAuthor";
                 summaryText: "summaryText";
                 profileBody: "profileBody";
                 fanFlag: "fanFlag";
@@ -33757,6 +33963,7 @@ export declare const agentRouteSchemas: {
                         fansly_creator_stats_geo: "fansly_creator_stats_geo";
                         fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                         fan_notes: "fan_notes";
+                        client_note_attributions: "client_note_attributions";
                         fan_summaries: "fan_summaries";
                         fan_profiles: "fan_profiles";
                         fan_flags: "fan_flags";
@@ -33853,6 +34060,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -34082,6 +34290,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -34167,6 +34376,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -34276,6 +34486,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -34416,6 +34627,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -34529,6 +34741,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -34827,6 +35040,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -34912,6 +35126,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -35021,6 +35236,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -35161,6 +35377,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -35274,6 +35491,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -35567,6 +35785,7 @@ export declare const agentRouteSchemas: {
                     creatorStatsGeo: "creatorStatsGeo";
                     creatorStatsActiveHours: "creatorStatsActiveHours";
                     noteText: "noteText";
+                    noteAuthor: "noteAuthor";
                     summaryText: "summaryText";
                     profileBody: "profileBody";
                     fanFlag: "fanFlag";
@@ -35728,6 +35947,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -35957,6 +36177,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -36042,6 +36263,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -36151,6 +36373,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -36291,6 +36514,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -36404,6 +36628,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -36660,6 +36885,7 @@ export declare const agentRouteSchemas: {
                 creatorStatsGeo: "creatorStatsGeo";
                 creatorStatsActiveHours: "creatorStatsActiveHours";
                 noteText: "noteText";
+                noteAuthor: "noteAuthor";
                 summaryText: "summaryText";
                 profileBody: "profileBody";
                 fanFlag: "fanFlag";
@@ -36792,6 +37018,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -36877,6 +37104,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -36986,6 +37214,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -37145,6 +37374,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -37359,6 +37589,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -37444,6 +37675,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -37553,6 +37785,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -37693,6 +37926,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -37806,6 +38040,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -38124,6 +38359,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -38209,6 +38445,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -38318,6 +38555,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -38458,6 +38696,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -38571,6 +38810,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -38862,6 +39102,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -38947,6 +39188,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -39056,6 +39298,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -39196,6 +39439,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -39309,6 +39553,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -39540,6 +39785,7 @@ export declare const agentRouteSchemas: {
                 follows: "follows";
                 followers_daily: "followers_daily";
                 fan_aliases: "fan_aliases";
+                note_attributions: "note_attributions";
                 raw_media: "raw_media";
                 post_attachments: "post_attachments";
                 post_monetization: "post_monetization";
@@ -39665,6 +39911,7 @@ export declare const agentRouteSchemas: {
                     creatorStatsGeo: "creatorStatsGeo";
                     creatorStatsActiveHours: "creatorStatsActiveHours";
                     noteText: "noteText";
+                    noteAuthor: "noteAuthor";
                     summaryText: "summaryText";
                     profileBody: "profileBody";
                     fanFlag: "fanFlag";
@@ -39757,6 +40004,7 @@ export declare const agentRouteSchemas: {
                     follows: "follows";
                     followers_daily: "followers_daily";
                     fan_aliases: "fan_aliases";
+                    note_attributions: "note_attributions";
                     raw_media: "raw_media";
                     post_attachments: "post_attachments";
                     post_monetization: "post_monetization";
@@ -39828,6 +40076,7 @@ export declare const agentRouteSchemas: {
                         follows: "follows";
                         followers_daily: "followers_daily";
                         fan_aliases: "fan_aliases";
+                        note_attributions: "note_attributions";
                         raw_media: "raw_media";
                         post_attachments: "post_attachments";
                         post_monetization: "post_monetization";
@@ -39926,6 +40175,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -40166,6 +40416,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -40251,6 +40502,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -40360,6 +40612,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -40500,6 +40753,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -40613,6 +40867,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -40890,6 +41145,7 @@ export declare const agentRouteSchemas: {
                     creatorStatsGeo: "creatorStatsGeo";
                     creatorStatsActiveHours: "creatorStatsActiveHours";
                     noteText: "noteText";
+                    noteAuthor: "noteAuthor";
                     summaryText: "summaryText";
                     profileBody: "profileBody";
                     fanFlag: "fanFlag";
@@ -41113,6 +41369,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -41198,6 +41455,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -41307,6 +41565,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -41447,6 +41706,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -41560,6 +41820,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -41928,6 +42189,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -42013,6 +42275,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -42122,6 +42385,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -42262,6 +42526,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -42375,6 +42640,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -42757,6 +43023,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -42842,6 +43109,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -42951,6 +43219,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -43091,6 +43360,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -43204,6 +43474,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -43582,6 +43853,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -43667,6 +43939,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -43776,6 +44049,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -43916,6 +44190,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -44029,6 +44304,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -44290,6 +44566,7 @@ export declare const agentRouteSchemas: {
                     creatorStatsGeo: "creatorStatsGeo";
                     creatorStatsActiveHours: "creatorStatsActiveHours";
                     noteText: "noteText";
+                    noteAuthor: "noteAuthor";
                     summaryText: "summaryText";
                     profileBody: "profileBody";
                     fanFlag: "fanFlag";
@@ -44593,6 +44870,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -44678,6 +44956,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -44787,6 +45066,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -44927,6 +45207,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -45040,6 +45321,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -45482,6 +45764,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -45567,6 +45850,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -45676,6 +45960,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -45816,6 +46101,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -45929,6 +46215,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -46290,6 +46577,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -46375,6 +46663,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -46484,6 +46773,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -46624,6 +46914,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -46737,6 +47028,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -47097,6 +47389,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -47182,6 +47475,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -47291,6 +47585,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -47431,6 +47726,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -47544,6 +47840,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -48069,6 +48366,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -48154,6 +48452,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -48263,6 +48562,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -48403,6 +48703,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -48516,6 +48817,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
@@ -48896,6 +49198,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -48981,6 +49284,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -49090,6 +49394,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -49230,6 +49535,7 @@ export declare const agentRouteSchemas: {
                             fansly_creator_stats_geo: "fansly_creator_stats_geo";
                             fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
                             fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
                             fan_summaries: "fan_summaries";
                             fan_profiles: "fan_profiles";
                             fan_flags: "fan_flags";
@@ -49343,6 +49649,7 @@ export declare const agentRouteSchemas: {
                         creatorStatsGeo: "creatorStatsGeo";
                         creatorStatsActiveHours: "creatorStatsActiveHours";
                         noteText: "noteText";
+                        noteAuthor: "noteAuthor";
                         summaryText: "summaryText";
                         profileBody: "profileBody";
                         fanFlag: "fanFlag";
