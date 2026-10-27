@@ -175,6 +175,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'generationVisibleAfterMs',
   'spendersTotal',
   'aiChunkDelayMs',
+  'aiThinkMs',
   'aiNameFan',
   'aiTexts',
   'voiceLaneOff',

@@ -529,6 +529,8 @@ export const ServedContextSchema = z.strictObject({
     z.array(z.strictObject({ id: NativeIdSchema, state: z.nullable(z.enum(KNOWN_FAN_MESSAGE_STATES)) })).check(z.maxLength(SEND_LIMITS.knownFanMessagesMax)),
   ),
   live: z.strictObject({ status: z.nullable(z.enum(LIVE_TEXT_STATUSES)), accepted: CountSchema, rejected: CountSchema }),
+  /** 2026-10-27: how many messages the hub asked for and how many it served (the notes' «Читаю переписку: 860 сообщений»). */
+  window: z.optional(z.strictObject({ requested: CountSchema, served: CountSchema })),
   /**
    * 1.15.0 (R20 HF-8в): the hub's answers to the start's window check, each list in the hub's order, each state
    * narrowed by its own list (`narrowCoverageCheck`; unknown → null). Absent — the frame had none (no

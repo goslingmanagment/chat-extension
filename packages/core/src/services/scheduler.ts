@@ -759,6 +759,8 @@ export class OpScheduler {
         run.view = { ...run.view, servedContext: effect.served };
         for (const id of contextIds(effect.served)) if (!run.knownIds.includes(id)) run.knownIds.push(id);
         this.stage(run, 'context', now);
+        // The tab learns at once how much of the chat went to the model (the notes' first stage says it).
+        this.scheduleFlush(run);
         break;
       case 'delta':
         run.pending += effect.text;
@@ -1165,6 +1167,7 @@ export class OpScheduler {
         state: run.view.state,
         phase: run.view.phase,
         ...(run.view.firstChunkAt === undefined ? {} : { firstChunkAt: run.view.firstChunkAt }),
+        ...(run.view.servedContext?.window === undefined ? {} : { served: run.view.servedContext.window.served }),
       });
     } while (pending.length > 0);
   }

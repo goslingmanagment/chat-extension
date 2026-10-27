@@ -19,6 +19,10 @@
 //   warm band sweeps the table while the Goose reads, the pills come in one after another, a ✓ dissolves the pill's
 //   frame into the row's own words that land with a warm glow and a short ✓, a × fades the pill out, the rows glide to
 //   their new places and a field's «+ Метка» flies up into its row (`useFlip`). None of it under reduced motion.
+// - While the Goose works, its line says where it is (the owner: «прогресс какой-то», «1 этап улучшить тоже»): «Собираю
+//   переписку…», «Читаю переписку: 860 сообщений…» (the hub's count), then «Сверяю с анкетой: Хобби · 6 из 11 · нашёл
+//   3» with a filling bar, the field it is on lit, a quiet ✓ on one with nothing new, and what it found standing in
+//   its row at once, not yet to take («ещё пишется»).
 // - «Заметки»: a box at the top (a line typed and Enter makes a note), then the notes, newest first, the date at the
 //   left; «Изменить» and «Удалить» on a note under the pointer. FBuddy's note and a long one are read only.
 
@@ -28,10 +32,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { I18nKey } from '@cg/contracts/errors';
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NotesClient, NotesCopy, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
+import type { NotesClient, NotesCopy, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
 import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
 
-import { Button, Dot, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit, useReducedMotion } from '../../../kit';
+import { Button, Dot, ElapsedTimer, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit, useReducedMotion } from '../../../kit';
 import { useNotesTick, type NotesTexts } from './NotesButton';
 
 type Props = { readonly client: NotesClient; readonly copy: NotesCopy };
@@ -222,7 +226,7 @@ function FieldRow({ client, copy, part, off }: Props & { readonly part: Extract<
   return (
     <button
       type="button"
-      class={`cg-notes__frow${part.fresh === true ? ' is-fresh' : ''}`}
+      class={`cg-notes__frow${part.fresh === true ? ' is-fresh' : ''}${part.current === true ? ' is-current' : ''}${part.seen === true ? ' is-seen' : ''}`}
       data-notes-field={part.label}
       data-flip={`row:${part.label}`}
       title={off ? undefined : copy.fieldHint}
@@ -249,6 +253,12 @@ function FieldRow({ client, copy, part, off }: Props & { readonly part: Extract<
       )}
       {part.fresh === true ? (
         <span class="cg-notes__landed" aria-hidden="true">
+          ✓
+        </span>
+      ) : null}
+      {/* The Goose answered this field with nothing new: a quiet tick that fades. */}
+      {part.seen === true ? (
+        <span class="cg-notes__seen" aria-hidden="true">
           ✓
         </span>
       ) : null}
@@ -320,23 +330,27 @@ function Pill({ client, copy, sug, words, inline }: Props & { readonly sug: Note
     [],
   );
   const saving = sug.state === 'saving';
+  // The answer is still streaming: the pill stands, nothing to take or put aside yet.
+  const arriving = sug.state === 'arriving';
+  // A pill that came with the stream came in its own time: no stagger, now or once it can be taken.
+  const streamed = useRef(arriving);
   const accept = (): void => {
-    if (!saving && !leaving) client.dispatch({ type: 'suggestion-accept', index: sug.index });
+    if (!saving && !leaving && !arriving) client.dispatch({ type: 'suggestion-accept', index: sug.index });
   };
   const dismiss = (): void => {
-    if (saving || leaving) return;
+    if (saving || leaving || arriving) return;
     if (still) return client.dispatch({ type: 'suggestion-dismiss', index: sug.index });
     setLeaving(true);
     fade.current = setTimeout(() => client.dispatch({ type: 'suggestion-dismiss', index: sug.index }), 200);
   };
   return (
     // `--cg-i`: the pills come in one after another, in the questionnaire's order.
-    <span class={`cg-notes__pill${inline ? ' is-inline' : ''}${saving ? ' is-saving' : ''}${leaving ? ' is-leaving' : ''}`} style={`--cg-i: ${String(sug.index)}`} data-notes-pill={sug.kind}>
+    <span class={`cg-notes__pill${inline ? ' is-inline' : ''}${saving ? ' is-saving' : ''}${leaving ? ' is-leaving' : ''}${arriving ? ' is-arriving' : ''}`} style={`--cg-i: ${String(streamed.current ? 0 : sug.index)}`} data-notes-pill={sug.kind}>
       <button
         type="button"
         class="cg-notes__pill-t"
         aria-label={`${copy.accept}: ${words}`}
-        {...(saving ? { 'aria-disabled': 'true' } : {})}
+        {...(saving || arriving ? { 'aria-disabled': 'true' } : {})}
         onClick={accept}
         onKeyDown={(event) => {
           if (event.key !== 'Backspace' && event.key !== 'Delete') return;
@@ -351,7 +365,7 @@ function Pill({ client, copy, sug, words, inline }: Props & { readonly sug: Note
         ) : null}
         {words}
       </button>
-      {saving ? (
+      {arriving ? null : saving ? (
         <span class="cg-notes__pill-saving">{copy.saving}</span>
       ) : (
         <>
@@ -520,17 +534,79 @@ function fillReason(copy: NotesCopy, fill: NotesFillVM): string | null {
   return fill.reason === 'editing' ? copy.fillEditing : fill.reason === 'writing' ? copy.fillWriting : null;
 }
 
-/** While the hub reads the chat: its stage and timer, and «Остановить». */
-function Running({ client, copy, fill }: Props & { readonly fill: NotesFillVM }): JSX.Element | null {
-  if (fill.phase === null) return null;
+/** «сообщение / сообщения / сообщений» by the number (the Russian rule; English takes its first two forms). */
+function plural(count: number, forms: readonly [string, string, string]): string {
+  const ten = count % 10;
+  const hundred = count % 100;
+  return ten === 1 && hundred !== 11 ? forms[0] : ten >= 2 && ten <= 4 && (hundred < 12 || hundred > 14) ? forms[1] : forms[2];
+}
+
+/** What the Goose is doing now, in words: collecting the chat, reading it (how much), checking the questionnaire. */
+function ProgressWords({ copy, progress, language }: { readonly copy: NotesCopy; readonly progress: NotesFillProgressVM; readonly language: string }): JSX.Element {
+  if (progress.stage === 'gather') return <b>{copy.stageGather}</b>;
+  if (progress.stage === 'read') {
+    if (progress.read === null) return <b>{copy.stageReadPlain}</b>;
+    const count = new Intl.NumberFormat(language === 'ru' ? 'ru-RU' : 'en-US').format(progress.read);
+    return (
+      <>
+        <b>
+          {copy.stageRead.replace('{n}', count).replace('{messages}', plural(progress.read, copy.messages))}
+          {progress.eta === null ? '…' : ''}
+        </b>
+        {progress.eta === null ? null : <span class="cg-notes__run-n">{` · ${copy.stageEta.replace('{s}', String(progress.eta))}`}</span>}
+      </>
+    );
+  }
   return (
-    <div class="cg-notes__running" role="status" data-notes-fill-line="" data-flip="run">
+    <>
+      <b>
+        {copy.stageCheck}
+        {progress.current === null ? '' : `: ${progress.current}`}
+      </b>
+      <span class="cg-notes__run-n">{` · ${copy.stageOf.replace('{k}', String(progress.checked)).replace('{n}', String(progress.total))}`}</span>
+      {progress.found > 0 ? <span class="cg-notes__run-n">{` · ${copy.stageFound.replace('{f}', String(progress.found))}`}</span> : null}
+    </>
+  );
+}
+
+/** While the Goose works: what it does now, the m:ss timer, «Остановить», and a bar (running while it collects and
+ * reads, filling as it checks the questionnaire field by field). */
+function Running({ client, copy, fill }: Props & { readonly fill: NotesFillVM }): JSX.Element | null {
+  const language = useI18n().language;
+  const phase = fill.phase;
+  if (phase === null) return null;
+  const progress = fill.progress;
+  // The one retry after a 503 counts down in the kit's stage line.
+  if (progress === null || phase.retryAt !== null) {
+    return (
+      <div class="cg-notes__running" role="status" data-notes-fill-line="" data-flip="run">
+        <span class="cg-notes__run-mark" aria-hidden="true">
+          ✦
+        </span>
+        <StageLine phase={phase} startedAt={phase.startedAt} />
+        <span class="cg-notes__spacer" />
+        <Button variant="quiet" size="sm" label={copy.fillStop} class="cg-notes__stop" onClick={() => client.dispatch({ type: 'fill-stop' })} />
+      </div>
+    );
+  }
+  const share = progress.stage === 'check' && progress.total > 0 ? Math.min(1, progress.checked / progress.total) : null;
+  return (
+    <div class="cg-notes__running has-bar" role="status" data-notes-fill-line="" data-flip="run" data-stage={progress.stage}>
       <span class="cg-notes__run-mark" aria-hidden="true">
         ✦
       </span>
-      <StageLine phase={fill.phase} startedAt={fill.phase.startedAt} />
-      <span class="cg-notes__spacer" />
+      <span class="cg-notes__run-t">
+        <ProgressWords copy={copy} progress={progress} language={language} />
+      </span>
+      <span class="cg-timer">
+        <ElapsedTimer since={phase.startedAt} />
+      </span>
       <Button variant="quiet" size="sm" label={copy.fillStop} class="cg-notes__stop" onClick={() => client.dispatch({ type: 'fill-stop' })} />
+      {/* Checking: the share of the fields answered. Reading with a known size: it fills at the usual pace of a chat
+          this long (most of the way, the rest is the answer). Before that: it runs. */}
+      <span class={`cg-notes__run-bar${share === null ? (progress.eta === null ? ' is-busy' : ' is-eta') : ''}`} aria-hidden="true">
+        <i style={share !== null ? `width: ${String(Math.round(share * 100))}%` : progress.eta === null ? undefined : `animation-duration: ${String(progress.eta)}s`} />
+      </span>
     </div>
   );
 }
@@ -647,7 +723,13 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
   const chips = !start || field !== null || (manual && !running);
   const reason = fill === null ? null : fillReason(copy, fill);
   return (
-    <section ref={section} class="cg-notes__sec cg-notes__form" data-notes-form={form.noteId ?? 'none'} aria-label={copy.form} {...(running ? { 'data-busy': '' } : {})}>
+    <section
+      ref={section}
+      class="cg-notes__sec cg-notes__form"
+      data-notes-form={form.noteId ?? 'none'}
+      aria-label={copy.form}
+      {...(running ? { 'data-busy': '', 'data-fill-stage': fill?.progress?.stage ?? 'gather' } : {})}
+    >
       <div class="cg-notes__sec-head">
         <h3 class="cg-notes__sec-t">{form.title === '' ? copy.form : form.title}</h3>
         {form.locked ? (
@@ -673,7 +755,7 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           {form.parts.length === 0 ? null : (
             <div class="cg-notes__table" data-notes-table="">
               {/* While the Goose reads: a warm band sweeps down the questionnaire. */}
-              {running ? <span class="cg-notes__scan" aria-hidden="true" /> : null}
+              {running && fill?.progress?.stage !== 'check' ? <span class="cg-notes__scan" aria-hidden="true" /> : null}
               {form.parts.map((part, at) =>
                 part.kind === 'text' ? (
                   <div key={`t${String(at)}`} class="cg-notes__free" data-flip={`text:${String(at)}`}>
@@ -693,7 +775,13 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           {blank.length === 0 || form.locked || !chips ? null : (
             <div class="cg-notes__blank" data-notes-blank="">
               {blank.map((label) => (
-                <button key={label} type="button" class="cg-notes__chip" data-notes-add={label} data-flip={`chip:${label}`} {...(off ? { 'aria-disabled': 'true' } : {})} onClick={() => off || client.dispatch({ type: 'field-open', label })}>
+                <button
+                  key={label}
+                  type="button"
+                  class={`cg-notes__chip${fill?.progress?.current === label ? ' is-current' : ''}`}
+                  data-notes-add={label}
+                  data-flip={`chip:${label}`}
+                  {...(off ? { 'aria-disabled': 'true' } : {})} onClick={() => off || client.dispatch({ type: 'field-open', label })}>
                   <span aria-hidden="true">+</span>
                   {label}
                 </button>

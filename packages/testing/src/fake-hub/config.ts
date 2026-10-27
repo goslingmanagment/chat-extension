@@ -77,6 +77,8 @@ export interface FakeHubConfig {
   readonly generationVisibleAfterMs: number;
   readonly spendersTotal: number;
   readonly aiChunkDelayMs: number;
+  /** The model «thinks» this long before its first content chunk (the prod model's hidden thinking), ms. */
+  readonly aiThinkMs: number;
   /** The model's drafts name the fan they were written for (`@<fanRef>` after every part). */
   readonly aiNameFan: boolean;
   /** The model's whole answer per hub feature, in place of the synthetic one. */
@@ -109,6 +111,7 @@ const BASE = {
   generationVisibleAfterMs: 0,
   spendersTotal: 1240,
   aiChunkDelayMs: 0,
+  aiThinkMs: 0,
   aiNameFan: false,
   aiTexts: {},
   voiceLaneOff: [],
@@ -196,6 +199,7 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.generationVisibleAfterMs === undefined ? {} : { generationVisibleAfterMs: patch.generationVisibleAfterMs }),
     ...(patch.spendersTotal === undefined ? {} : { spendersTotal: patch.spendersTotal }),
     ...(patch.aiChunkDelayMs === undefined ? {} : { aiChunkDelayMs: patch.aiChunkDelayMs }),
+    ...(patch.aiThinkMs === undefined ? {} : { aiThinkMs: patch.aiThinkMs }),
     ...(patch.aiNameFan === undefined ? {} : { aiNameFan: patch.aiNameFan }),
     ...(patch.aiTexts === undefined ? {} : { aiTexts: { ...patch.aiTexts } }),
     ...(patch.voiceLaneOff === undefined ? {} : { voiceLaneOff: [...patch.voiceLaneOff] }),

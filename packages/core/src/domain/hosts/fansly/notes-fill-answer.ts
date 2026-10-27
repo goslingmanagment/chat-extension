@@ -1,6 +1,7 @@
 // The answer of «✨ Дополнить из чата» (R20 P11b2; FS-NOTE-6; the Fansly extension 2.11.0, `parseFilledFields`, decision 164):
 // the hub's `fan-notes-fill` in its merge mode, asked with the questionnaire's values (decision X43), read into the
-// operation's result. Pure.
+// operation's result. Pure. 2026-10-27: in core/domain, so the notes panel reads the same answer while it streams
+// (`noteFillSeen`: the fields the Goose has answered so far) as the background reads it at its end.
 //
 // - One `Label: value` line per asked label, in order: `Label: =` (the chat adds nothing to what is written) and
 //   `Label:` are nothing for that field, and the words under them are dropped; any other value is the field's value as
@@ -103,4 +104,17 @@ export function parseNoteFillAnswer(text: string, asked: readonly string[]): Ext
     ...(proposed.length === 0 ? {} : { proposed: proposed.map(withQuotes) }),
   });
   return result.success ? result.data : null;
+}
+
+/** The asked labels the answer has a line for so far, in the order they came (a stream's complete lines). */
+export function noteFillSeen(text: string, asked: readonly string[]): string[] {
+  const wanted = new Map(asked.map((label) => [labelKey(label), label] as const));
+  const seen: string[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    if (QUOTE_LINE.test(raw) || PROPOSED_LINE.test(raw)) continue;
+    const match = FIELD_LINE.exec(raw.replace(/[\u2028\u2029]+/g, ' '));
+    const label = match === null ? undefined : wanted.get(labelKey(match[1] ?? ''));
+    if (label !== undefined && !seen.includes(label)) seen.push(label);
+  }
+  return seen;
 }
