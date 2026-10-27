@@ -177,7 +177,7 @@ export const UI_TEXT_KEYS = [
   'send.reason.permission', 'send.reason.fan', 'send.reason.mimic', 'send.reason.translator', 'send.reason.freshness', 'send.reason.busy',
   'send.reason.queue', 'send.reason.part', 'send.reason.otherVariant', 'send.reason.guard',
   'send.reason.contextChanged', 'send.reason.claimBusy', 'send.reason.rateLimit', 'send.reason.otherUncertain',
-  'batch.pick', 'batch.pickAll', 'batch.picked', 'batch.generate', 'batch.generateTooltip', 'batch.unpick', 'batch.stop', 'batch.clear', 'batch.progress', 'batch.failedCount', 'batch.hint', 'batch.max', 'batch.state.queued', 'batch.state.generating', 'batch.state.ready', 'batch.state.sent', 'batch.state.failed',
+  'batch.pick', 'batch.pickAll', 'batch.picked', 'batch.generate', 'batch.generateTooltip', 'batch.unpick', 'batch.stop', 'batch.clear', 'batch.progress', 'batch.failedCount', 'batch.hint', 'batch.max', 'batch.state.queued', 'batch.state.generating', 'batch.state.ready', 'batch.state.sent', 'batch.state.failed', 'batch.sendAll', 'batch.sendAllTooltip', 'batch.sending', 'batch.sendingHeld', 'batch.sendDone', 'batch.sendFailed', 'batch.sendStop',
   // 1.63.0: the window of «Рассылка».
   'outreach.title', 'outreach.button', 'outreach.buttonTooltip', 'outreach.forPicked', 'outreach.forPickedTooltip', 'outreach.listLabel',
   'outreach.minimize', 'outreach.minimizeTooltip', 'outreach.refresh', 'outreach.writing', 'outreach.empty', 'outreach.empty.search',

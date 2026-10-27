@@ -738,6 +738,13 @@ export const RU: I18nCatalog<'ru'> = {
   'batch.state.ready': 'готово',
   'batch.state.sent': 'отправлено',
   'batch.state.failed': 'не вышло',
+  'batch.sendAll': 'Отправить всем ({n})',
+  'batch.sendAllTooltip': 'Готовые приветствия уйдут по одному, с паузой в секунду. Окно можно свернуть: отправка не остановится',
+  'batch.sending': 'Отправляем: {done} из {total}',
+  'batch.sendingHeld': 'Ждём минуту: хаб пропускает не больше {n} отправок в минуту. Продолжим сами',
+  'batch.sendDone': 'Отправлено {sent} из {total}',
+  'batch.sendFailed': 'не ушло {n}, причина в строке фана',
+  'batch.sendStop': 'Остановить отправку',
   // 1.63.0: the window of «Рассылка».
   'outreach.title': 'Рассылка',
   'outreach.button': 'Рассылка',

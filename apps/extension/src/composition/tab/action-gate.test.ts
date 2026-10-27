@@ -266,6 +266,28 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
+  it('«Отправить всем»: its click sends many, later, with the window hidden; never from a key; «Остановить» ends it', async () => {
+    const s = seam();
+    // A key press is no send's click.
+    during(s.w.pageField, event('keydown', true), () => s.tokens.granted('SendBatch'));
+    await Promise.resolve();
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    during(s.w.overlayButton, event('click', true), () => s.tokens.granted('SendBatch'));
+    await Promise.resolve();
+    expect(await s.tokens.issue('send', 'preview')).toBe('token-1-0123456789abcdef');
+    // The window and the page hidden meanwhile (the browser minimized): the run goes on.
+    s.w.hidden.add(s.w.overlayButton.getRootNode() instanceof ShadowRoot ? (s.w.overlayButton.getRootNode() as ShadowRoot).host : s.w.overlayButton);
+    s.w.visibility = 'hidden';
+    expect(await s.tokens.issue('send', 'newcomers')).toBe('token-2-0123456789abcdef');
+    // It never generates, inserts or navigates.
+    expect(await s.tokens.issue('generate', 'preview')).toBeNull();
+    s.w.visibility = 'visible';
+    during(s.w.dockButton, event('click', true), () => s.tokens.granted('StopBatchSend'));
+    await Promise.resolve();
+    expect(await s.tokens.issue('send', 'preview')).toBeNull();
+    s.gate.dispose();
+  });
+
   it('[BG-001] a grant covers only what its action may need: a Generate click never inserts, navigates or sends', async () => {
     const s = seam();
     during(s.w.overlayButton, event('click', true), () => s.tokens.granted('Generate'));

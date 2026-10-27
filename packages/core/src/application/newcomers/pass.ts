@@ -65,6 +65,8 @@ export const PASS_SEARCH_DEBOUNCE_MS = 150;
 export const PASS_HISTORIES_KEPT = 12;
 
 const SELECTOR = { of: 'newcomers' } as const;
+/** The hub admits 30 greetings a minute on Fansly (`greetingSendPerMinute`, not in the client's bootstrap). */
+const GREETINGS_PER_MINUTE = 30;
 const RELOAD: UiAction = { type: 'ReloadView', selector: SELECTOR };
 const TABS = ['todo', 'all'] as const satisfies readonly NewcomersTab[];
 const HANDLE = /^pass:([0-9a-f-]{36}):([1-9]\d{0,29})$/;
@@ -195,6 +197,23 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     live(handle) {
       const parsed = parsePassHandle(handle);
       return parsed === null || card === null ? null : card.batchLive(parsed.passId, parsed.fanRef);
+    },
+    // «Отправить всем» (the owner, 2026-10-27): each ready greeting by its row's own «Отправить», never faster than the
+    // hub's 30 greetings a minute. An unknown outcome is never sent again by the run: the person judges it.
+    sender: {
+      state(handle) {
+        const fanRef = own(handle);
+        const row = fanRef === null ? null : rowOf(fanRef);
+        if (row === null || pass === null || card === null) return 'no';
+        const state = card.stateOf(pass.passId, row.fanRef);
+        if (state?.s === 'sent') return 'done';
+        if (state?.s === 'sending') return 'wait';
+        // Unknown, or put into the site's field for its own send: the person's to finish, never the run's.
+        if (state?.s === 'uncertain' || state?.s === 'inserted') return 'no';
+        return card.vm(pass.passId, row)?.canSend === true ? 'now' : 'no';
+      },
+      send: (handle) => dispatch({ type: 'SendNewcomerGreeting', targetHandle: handle }) ?? stale('SendNewcomerGreeting'),
+      perMinute: () => GREETINGS_PER_MINUTE,
     },
     changed: () => {
       if (!disposed) cell.invalidate();

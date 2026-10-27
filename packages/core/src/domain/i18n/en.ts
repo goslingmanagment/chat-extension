@@ -700,6 +700,13 @@ export const EN: I18nCatalog<'en'> = {
   'batch.state.ready': 'ready',
   'batch.state.sent': 'sent',
   'batch.state.failed': 'failed',
+  'batch.sendAll': 'Send to all ({n})',
+  'batch.sendAllTooltip': 'The ready greetings go one by one, a second apart. You may minimize the window: sending goes on',
+  'batch.sending': 'Sending: {done} of {total}',
+  'batch.sendingHeld': 'Waiting a minute: the hub lets through at most {n} sends a minute. We go on by ourselves',
+  'batch.sendDone': 'Sent {sent} of {total}',
+  'batch.sendFailed': "{n} did not go, the fan's row says why",
+  'batch.sendStop': 'Stop sending',
   // 1.63.0: the window of «Рассылка».
   'outreach.title': 'Outreach',
   'outreach.button': 'Outreach',
