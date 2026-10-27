@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "a122c4e09f2c62e0b739e8047ea6f7091aeaf796b3828a75a04c79f75a1231d9",
-    "sourceCommit": "220304ccbf3fd33af999da6c8a7b73f9f4cde16b",
-    "note": "Vendored on 2026-10-27 from hub main 220304cc (#892) with scripts/vendor-sdk.mjs: `clientNoteAttributions` under `note-attribution-v1` (who wrote each Fansly note); also carries #891 and #893 (coach-depth-v1, not used by this client yet). Re-vendor with the same script and update this pin together."
+    "contractHash": "4250d90752abaf55a6b29c50f14df5a3c998a100e11507969a7293b83cd4ef2a",
+    "sourceCommit": "52ae2b3a77262ae210640159a10cab8d507573dc",
+    "note": "Vendored on 2026-10-28 from hub main 52ae2b3a (#900) with scripts/vendor-sdk.mjs: the contract of the deployed hub 9dc778ce (4250d907, prod’s own), with fan-marks-v1 (#896) for #418 and #899’s cross-spenders (not used by this client). #900 only fixed the vendor script. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

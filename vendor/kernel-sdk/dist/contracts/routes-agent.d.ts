@@ -156,9 +156,9 @@ export declare const agentPlaneNameEnum: z.ZodEnum<{
 }>;
 export declare const agentClaimFieldEnum: z.ZodEnum<{
     username: "username";
+    currency: "currency";
     platformUserId: "platformUserId";
     displayName: "displayName";
-    currency: "currency";
     postRef: "postRef";
     netMills: "netMills";
     textPlain: "textPlain";
@@ -350,9 +350,9 @@ export declare const agentDatasetFieldKindEnum: z.ZodEnum<{
     string: "string";
     date: "date";
     bool: "bool";
+    mills: "mills";
     int: "int";
     timestamp: "timestamp";
-    mills: "mills";
     string_array: "string_array";
 }>;
 export declare const agentCountSchema: z.ZodObject<{
@@ -1060,9 +1060,9 @@ export declare const agentProvenanceSchema: z.ZodObject<{
 export declare const agentClaimSchema: z.ZodObject<{
     fields: z.ZodArray<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -1189,9 +1189,9 @@ export declare const agentClaimSchema: z.ZodObject<{
 export declare const agentClaimQuerySchema: z.ZodObject<{
     claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -1745,9 +1745,9 @@ export declare const agentCaptureSchema: z.ZodObject<{
     }, z.core.$strict>;
     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -2401,9 +2401,9 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
             string: "string";
             date: "date";
             bool: "bool";
+            mills: "mills";
             int: "int";
             timestamp: "timestamp";
-            mills: "mills";
             string_array: "string_array";
         }>;
         filterable: z.ZodBoolean;
@@ -2724,9 +2724,9 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 string: "string";
                 date: "date";
                 bool: "bool";
+                mills: "mills";
                 int: "int";
                 timestamp: "timestamp";
-                mills: "mills";
                 string_array: "string_array";
             }>;
             filterable: z.ZodBoolean;
@@ -2741,9 +2741,9 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
     }, z.core.$strict>>;
     claimFields: z.ZodArray<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -3314,9 +3314,9 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -3556,9 +3556,9 @@ export declare const agentResolveBodySchema: z.ZodObject<{
     claim: z.ZodOptional<z.ZodObject<{
         fields: z.ZodArray<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -3717,9 +3717,9 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
     }, z.core.$strict>>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -3977,9 +3977,9 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             }, z.core.$strict>>;
             fieldStates: z.ZodRecord<z.ZodEnum<{
                 username: "username";
+                currency: "currency";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
-                currency: "currency";
                 postRef: "postRef";
                 netMills: "netMills";
                 textPlain: "textPlain";
@@ -4647,9 +4647,9 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -4862,9 +4862,9 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
     pageLabel: z.ZodOptional<z.ZodString>;
     claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -5103,9 +5103,9 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         retentionLimit: z.ZodNullable<z.ZodNumber>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -5406,9 +5406,9 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             postTipGoalRef: z.ZodNullable<z.ZodString>;
             fieldStates: z.ZodRecord<z.ZodEnum<{
                 username: "username";
+                currency: "currency";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
-                currency: "currency";
                 postRef: "postRef";
                 netMills: "netMills";
                 textPlain: "textPlain";
@@ -5638,9 +5638,9 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
     }, z.core.$strict>>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -6305,9 +6305,9 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -6545,9 +6545,9 @@ export declare const agentTimelineKindEnum: z.ZodEnum<{
 export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
     claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -6760,9 +6760,9 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
     postTipGoalRef: z.ZodNullable<z.ZodString>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -7072,9 +7072,9 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
         postTipGoalRef: z.ZodNullable<z.ZodString>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -7753,9 +7753,9 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -7973,9 +7973,9 @@ export declare const agentThreadsOrderByEnum: z.ZodEnum<{
 export declare const agentThreadsQuerySchema: z.ZodObject<{
     claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -8197,9 +8197,9 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
     retentionLimit: z.ZodNullable<z.ZodNumber>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -8524,9 +8524,9 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
         retentionLimit: z.ZodNullable<z.ZodNumber>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -9250,9 +9250,9 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -9468,9 +9468,9 @@ export declare const agentPageConversationParamsSchema: z.ZodObject<{
 export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
     claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -9759,9 +9759,9 @@ export declare const agentMessageSchema: z.ZodObject<{
     }>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -10138,9 +10138,9 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
         }>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -10819,9 +10819,9 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -11561,9 +11561,9 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -11805,9 +11805,9 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
     claim: z.ZodOptional<z.ZodObject<{
         fields: z.ZodArray<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -11961,9 +11961,9 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
     deletedAt: z.ZodNullable<z.ZodString>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -12214,9 +12214,9 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
         deletedAt: z.ZodNullable<z.ZodString>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -12895,9 +12895,9 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -13109,9 +13109,9 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
 export declare const agentCoverageQuerySchema: z.ZodObject<{
     claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -13594,9 +13594,9 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
     }, z.core.$strict>>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -14154,9 +14154,9 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
         }, z.core.$strict>>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -14820,9 +14820,9 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -15576,9 +15576,9 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -16281,9 +16281,9 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -16604,9 +16604,9 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
     claim: z.ZodOptional<z.ZodObject<{
         fields: z.ZodArray<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -16795,9 +16795,9 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
     fields: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean, z.ZodNull, z.ZodArray<z.ZodString>]>>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
+        currency: "currency";
         platformUserId: "platformUserId";
         displayName: "displayName";
-        currency: "currency";
         postRef: "postRef";
         netMills: "netMills";
         textPlain: "textPlain";
@@ -17168,9 +17168,9 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
         fields: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean, z.ZodNull, z.ZodArray<z.ZodString>]>>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -17860,9 +17860,9 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -18128,9 +18128,9 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
     claim: z.ZodOptional<z.ZodObject<{
         fields: z.ZodArray<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -18895,9 +18895,9 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -19654,9 +19654,9 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -20434,9 +20434,9 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -21215,9 +21215,9 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -21544,9 +21544,9 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
     claim: z.ZodOptional<z.ZodObject<{
         fields: z.ZodArray<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -22455,9 +22455,9 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -23288,9 +23288,9 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -24048,9 +24048,9 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -24809,9 +24809,9 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -26312,9 +26312,9 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
-            currency: "currency";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -27099,9 +27099,782 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
         }, z.core.$strict>;
         scopeFieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
+            currency: "currency";
             platformUserId: "platformUserId";
             displayName: "displayName";
+            postRef: "postRef";
+            netMills: "netMills";
+            textPlain: "textPlain";
+            textHtml: "textHtml";
+            priceMills: "priceMills";
+            isOpened: "isOpened";
+            isNew: "isNew";
+            isTip: "isTip";
+            tipAmountMills: "tipAmountMills";
+            tipTextPlain: "tipTextPlain";
+            inReplyToRef: "inReplyToRef";
+            replyMetadata: "replyMetadata";
+            mediaMetadata: "mediaMetadata";
+            deletedAt: "deletedAt";
+            conversationRef: "conversationRef";
+            messageCount: "messageCount";
+            coverageStatus: "coverageStatus";
+            purchaseState: "purchaseState";
+            contextState: "contextState";
+            capturedConversationRef: "capturedConversationRef";
+            tipMessageText: "tipMessageText";
+            messageMediaOffer: "messageMediaOffer";
+            grossMills: "grossMills";
+            feeMills: "feeMills";
+            amountMills: "amountMills";
+            transactionState: "transactionState";
+            correlationRef: "correlationRef";
+            refundState: "refundState";
+            fanEarning: "fanEarning";
+            lifetimeSpendMills: "lifetimeSpendMills";
+            revenueMixDay: "revenueMixDay";
+            payoutRequest: "payoutRequest";
+            ofapiFinancialMetric: "ofapiFinancialMetric";
+            ofapiPayoutRequest: "ofapiPayoutRequest";
+            hubLinkMoney: "hubLinkMoney";
+            payoutMethod: "payoutMethod";
+            creatorStatsRevenue: "creatorStatsRevenue";
+            creatorStatsWindow: "creatorStatsWindow";
+            membershipState: "membershipState";
+            pageAlias: "pageAlias";
+            subscriptionState: "subscriptionState";
+            subscriptionPriceMills: "subscriptionPriceMills";
+            subscriptionExpiresAt: "subscriptionExpiresAt";
+            creatorStatsSubscriptions: "creatorStatsSubscriptions";
+            followed: "followed";
+            presenceAt: "presenceAt";
+            creatorStatsFollows: "creatorStatsFollows";
+            creatorStatsLevel: "creatorStatsLevel";
+            creatorStatsGeo: "creatorStatsGeo";
+            creatorStatsActiveHours: "creatorStatsActiveHours";
+            noteText: "noteText";
+            noteAuthor: "noteAuthor";
+            summaryText: "summaryText";
+            profileBody: "profileBody";
+            fanFlag: "fanFlag";
+            postText: "postText";
+            publishedAt: "publishedAt";
+            firstObservedAt: "firstObservedAt";
+            lastObservedAt: "lastObservedAt";
+            attachmentCount: "attachmentCount";
+            fypFlags: "fypFlags";
+            wallRefs: "wallRefs";
+            rawMedia: "rawMedia";
+            vaultInventory: "vaultInventory";
+            postAttachment: "postAttachment";
+            postTargetTipAmountMills: "postTargetTipAmountMills";
+            attachmentTipAmountMills: "attachmentTipAmountMills";
+            postTipTotalMills: "postTipTotalMills";
+            tipGoalLinked: "tipGoalLinked";
+            tipGoalRef: "tipGoalRef";
+            tipGoalLabelText: "tipGoalLabelText";
+            tipGoalTargetMills: "tipGoalTargetMills";
+            tipGoalCurrentMills: "tipGoalCurrentMills";
+            tipGoalAmountsHidden: "tipGoalAmountsHidden";
+            postTipPostRef: "postTipPostRef";
+            postTipRef: "postTipRef";
+            tipSenderPlatformUserId: "tipSenderPlatformUserId";
+            postTipOccurredAt: "postTipOccurredAt";
+            postTipAmountMills: "postTipAmountMills";
+            receiverTransactionRef: "receiverTransactionRef";
+            postTipGoalRef: "postTipGoalRef";
+            postTipMessageText: "postTipMessageText";
+            linkedPostCount: "linkedPostCount";
+            trafficBucket: "trafficBucket";
+            creatorStatsViews: "creatorStatsViews";
+            creatorStatsProfile: "creatorStatsProfile";
+            creatorStatsEngagement: "creatorStatsEngagement";
+            creatorStatsTags: "creatorStatsTags";
+            creatorStatsTagSeries: "creatorStatsTagSeries";
+            creatorStatsBenchmarks: "creatorStatsBenchmarks";
+            creatorStatsMediaShown: "creatorStatsMediaShown";
+            creatorStatsMediaDay: "creatorStatsMediaDay";
+            creatorStatsMediaHour: "creatorStatsMediaHour";
+            creatorStatsMediaTotals: "creatorStatsMediaTotals";
+            creatorStatsMediaTag: "creatorStatsMediaTag";
+            creatorStatsMediaTagDay: "creatorStatsMediaTagDay";
+            creatorStatsMediaLikes: "creatorStatsMediaLikes";
+            creatorStatsMediaTop: "creatorStatsMediaTop";
+            topMediaWindow: "topMediaWindow";
+            topTagWindow: "topTagWindow";
+            mediaTagWindow: "mediaTagWindow";
+            platformTagCounter: "platformTagCounter";
+            mediaOffer: "mediaOffer";
+            vaultAlbum: "vaultAlbum";
+            vaultAlbumMember: "vaultAlbumMember";
+            subscriptionTier: "subscriptionTier";
+            subscriptionTierPlan: "subscriptionTierPlan";
+            postComment: "postComment";
+            postLike: "postLike";
+            platformNotification: "platformNotification";
+            captureCoverageRow: "captureCoverageRow";
+            linkStatRun: "linkStatRun";
+            linkStatSnapshot: "linkStatSnapshot";
+            trafficLinkBinding: "trafficLinkBinding";
+            trafficChannelContractor: "trafficChannelContractor";
+        }> & z.core.$partial, z.ZodObject<{
+            state: z.ZodEnum<{
+                unknown: "unknown";
+                discarded_at_capture: "discarded_at_capture";
+                present: "present";
+                observed_empty: "observed_empty";
+                captured_unparsed: "captured_unparsed";
+                not_captured: "not_captured";
+                source_did_not_provide: "source_did_not_provide";
+            }>;
+            remedy: z.ZodUnion<readonly [z.ZodObject<{
+                kind: z.ZodLiteral<"none">;
+                reason: z.ZodEnum<{
+                    capability_not_granted: "capability_not_granted";
+                    partition_detached: "partition_detached";
+                    no_remedy_exists: "no_remedy_exists";
+                    capture_lane_unimplemented: "capture_lane_unimplemented";
+                    journal_before_capture_start: "journal_before_capture_start";
+                    hydration_mode_off: "hydration_mode_off";
+                    discarded_at_capture: "discarded_at_capture";
+                    projection_missing: "projection_missing";
+                }>;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"local_replay">;
+                costClass: z.ZodLiteral<"free">;
+                admissible: z.ZodBoolean;
+                reason: z.ZodNullable<z.ZodEnum<{
+                    capability_not_granted: "capability_not_granted";
+                    partition_detached: "partition_detached";
+                    no_remedy_exists: "no_remedy_exists";
+                    capture_lane_unimplemented: "capture_lane_unimplemented";
+                    journal_before_capture_start: "journal_before_capture_start";
+                    hydration_mode_off: "hydration_mode_off";
+                    discarded_at_capture: "discarded_at_capture";
+                    projection_missing: "projection_missing";
+                }>>;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"hydration_request">;
+                costClass: z.ZodEnum<{
+                    vendor_paid_low: "vendor_paid_low";
+                    vendor_paid_high: "vendor_paid_high";
+                }>;
+                admissible: z.ZodBoolean;
+                reason: z.ZodNullable<z.ZodEnum<{
+                    capability_not_granted: "capability_not_granted";
+                    partition_detached: "partition_detached";
+                    no_remedy_exists: "no_remedy_exists";
+                    capture_lane_unimplemented: "capture_lane_unimplemented";
+                    journal_before_capture_start: "journal_before_capture_start";
+                    hydration_mode_off: "hydration_mode_off";
+                    discarded_at_capture: "discarded_at_capture";
+                    projection_missing: "projection_missing";
+                }>>;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"recapture">;
+                costClass: z.ZodEnum<{
+                    free: "free";
+                    vendor_paid_low: "vendor_paid_low";
+                    vendor_paid_high: "vendor_paid_high";
+                }>;
+                admissible: z.ZodBoolean;
+                reason: z.ZodNullable<z.ZodEnum<{
+                    capability_not_granted: "capability_not_granted";
+                    partition_detached: "partition_detached";
+                    no_remedy_exists: "no_remedy_exists";
+                    capture_lane_unimplemented: "capture_lane_unimplemented";
+                    journal_before_capture_start: "journal_before_capture_start";
+                    hydration_mode_off: "hydration_mode_off";
+                    discarded_at_capture: "discarded_at_capture";
+                    projection_missing: "projection_missing";
+                }>>;
+            }, z.core.$strict>]>;
+        }, z.core.$strict>>;
+    }, z.core.$strict>;
+    conclusion: z.ZodObject<{
+        blockers: z.ZodArray<z.ZodEnum<{
+            claim_not_declared: "claim_not_declared";
+            claim_field_unobservable: "claim_field_unobservable";
+            read_only_mode: "read_only_mode";
+            delivery_not_exhausted: "delivery_not_exhausted";
+            capture_floor_unknown: "capture_floor_unknown";
+            window_before_capture_floor: "window_before_capture_floor";
+            gaps_present: "gaps_present";
+            source_errors_present: "source_errors_present";
+            key_grant_narrowed_scope: "key_grant_narrowed_scope";
+            plane_not_read: "plane_not_read";
+            plane_not_indexed: "plane_not_indexed";
+            field_state_insufficient: "field_state_insufficient";
+            mutable_sort_key_traversal: "mutable_sort_key_traversal";
+            vault_inventory_unproven: "vault_inventory_unproven";
+        }>>;
+    }, z.core.$strict>;
+}, z.core.$strict>;
+export declare const agentCrossSpendersAudienceEnum: z.ZodEnum<{
+    subscribers: "subscribers";
+    followers: "followers";
+    any: "any";
+}>;
+/** The source selection on the wire: `model` (default), `all`, or page labels. */
+export declare const agentCrossSpendersSourceSelectionEnum: z.ZodEnum<{
+    all: "all";
+    model: "model";
+    listed: "listed";
+}>;
+/** What an absent field means. */
+export declare const AGENT_CROSS_SPENDERS_DEFAULTS: {
+    readonly audience: "any";
+    readonly minSourceSpendMills: 1;
+    readonly maxTargetSpendMills: 0;
+};
+export declare const agentCrossSpendersParamsSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+}, z.core.$strict>;
+export declare const agentCrossSpendersQuerySchema: z.ZodObject<{
+    audience: z.ZodOptional<z.ZodEnum<{
+        subscribers: "subscribers";
+        followers: "followers";
+        any: "any";
+    }>>;
+    sources: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodString>>, unknown>;
+    minSourceSpendMills: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+    maxTargetSpendMills: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<"any">, z.ZodCoercedNumber<unknown>]>>;
+    limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    cursor: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+export declare const agentCrossSpenderSourceSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    grossMills: z.ZodNumber;
+    lastTransactionAt: z.ZodNullable<z.ZodString>;
+}, z.core.$strict>;
+export declare const agentCrossSpenderSchema: z.ZodObject<{
+    platformUserId: z.ZodString;
+    username: z.ZodNullable<z.ZodString>;
+    displayName: z.ZodNullable<z.ZodString>;
+    isFollower: z.ZodBoolean;
+    followerSince: z.ZodNullable<z.ZodString>;
+    isSubscriber: z.ZodBoolean;
+    subscriptionExpiresAt: z.ZodNullable<z.ZodString>;
+    targetSpendMills: z.ZodNumber;
+    sourceSpendMills: z.ZodNumber;
+    lastSourceTransactionAt: z.ZodNullable<z.ZodString>;
+    sources: z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        grossMills: z.ZodNumber;
+        lastTransactionAt: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>>;
+    accountLookupMissAt: z.ZodNullable<z.ZodString>;
+}, z.core.$strict>;
+export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
+    scope: z.ZodObject<{
+        pageLabel: z.ZodString;
+        platform: z.ZodEnum<{
+            fansly: "fansly";
+            onlyfans: "onlyfans";
+        }>;
+        audience: z.ZodEnum<{
+            subscribers: "subscribers";
+            followers: "followers";
+            any: "any";
+        }>;
+        sourceSelection: z.ZodEnum<{
+            all: "all";
+            model: "model";
+            listed: "listed";
+        }>;
+        sourcePages: z.ZodArray<z.ZodString>;
+        minSourceSpendMills: z.ZodNumber;
+        maxTargetSpendMills: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strict>;
+    summary: z.ZodObject<{
+        qualifying: z.ZodNumber;
+        sources: z.ZodArray<z.ZodObject<{
+            pageLabel: z.ZodString;
+            fans: z.ZodNumber;
+            grossMills: z.ZodNumber;
+            transactionsFloorAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>>;
+        audience: z.ZodObject<{
+            newFollowersReadAt: z.ZodNullable<z.ZodString>;
+            followersWalkedAt: z.ZodNullable<z.ZodString>;
+            subscribersWalkedAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>;
+    }, z.core.$strict>;
+    items: z.ZodArray<z.ZodObject<{
+        platformUserId: z.ZodString;
+        username: z.ZodNullable<z.ZodString>;
+        displayName: z.ZodNullable<z.ZodString>;
+        isFollower: z.ZodBoolean;
+        followerSince: z.ZodNullable<z.ZodString>;
+        isSubscriber: z.ZodBoolean;
+        subscriptionExpiresAt: z.ZodNullable<z.ZodString>;
+        targetSpendMills: z.ZodNumber;
+        sourceSpendMills: z.ZodNumber;
+        lastSourceTransactionAt: z.ZodNullable<z.ZodString>;
+        sources: z.ZodArray<z.ZodObject<{
+            pageLabel: z.ZodString;
+            grossMills: z.ZodNumber;
+            lastTransactionAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strict>>;
+        accountLookupMissAt: z.ZodNullable<z.ZodString>;
+    }, z.core.$strict>>;
+    delivery: z.ZodObject<{
+        returned: z.ZodNumber;
+        matchedInScope: z.ZodObject<{
+            value: z.ZodNumber;
+            exact: z.ZodBoolean;
+            countBasis: z.ZodLiteral<"post_dedup">;
+        }, z.core.$strict>;
+        cappedBy: z.ZodNullable<z.ZodEnum<{
+            snapshot: "snapshot";
+            limit: "limit";
+            budget: "budget";
+        }>>;
+        nextCursor: z.ZodNullable<z.ZodString>;
+        snapshotExhausted: z.ZodBoolean;
+        caveats: z.ZodArray<z.ZodEnum<{
+            mutable_sort_key: "mutable_sort_key";
+            no_frozen_snapshot: "no_frozen_snapshot";
+        }>>;
+    }, z.core.$strict>;
+    capture: z.ZodObject<{
+        planes: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
+            plane: z.ZodEnum<{
+                post_comments: "post_comments";
+                fans: "fans";
+                page_dm_messages: "page_dm_messages";
+                page_dm_threads: "page_dm_threads";
+                observations: "observations";
+                sync_raw_payloads: "sync_raw_payloads";
+                message_archive: "message_archive";
+                dm_message_archive: "dm_message_archive";
+                transactions: "transactions";
+                transaction_tip_contexts: "transaction_tip_contexts";
+                message_media_offers: "message_media_offers";
+                fan_spend_daily: "fan_spend_daily";
+                fan_spend_lifetime: "fan_spend_lifetime";
+                revenue_mix_daily: "revenue_mix_daily";
+                page_payout_requests: "page_payout_requests";
+                ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
+                page_payout_methods: "page_payout_methods";
+                fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
+                fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                page_fans: "page_fans";
+                page_fan_aliases: "page_fan_aliases";
+                fan_username_aliases: "fan_username_aliases";
+                domain_events: "domain_events";
+                page_subscriptions: "page_subscriptions";
+                fansly_creator_stats_subscriptions: "fansly_creator_stats_subscriptions";
+                daily_followers: "daily_followers";
+                page_follows: "page_follows";
+                fansly_creator_stats_follows: "fansly_creator_stats_follows";
+                fansly_creator_stats_levels: "fansly_creator_stats_levels";
+                fansly_creator_stats_tier_levels: "fansly_creator_stats_tier_levels";
+                fansly_creator_stats_geo: "fansly_creator_stats_geo";
+                fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
+                fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
+                fan_summaries: "fan_summaries";
+                fan_profiles: "fan_profiles";
+                fan_flags: "fan_flags";
+                creator_posts: "creator_posts";
+                creator_raw_media: "creator_raw_media";
+                creator_vault_album_members: "creator_vault_album_members";
+                creator_vault_album_scans: "creator_vault_album_scans";
+                creator_media: "creator_media";
+                creator_media_bundles: "creator_media_bundles";
+                creator_post_tips: "creator_post_tips";
+                stats_traffic_buckets: "stats_traffic_buckets";
+                fansly_creator_stats_views: "fansly_creator_stats_views";
+                fansly_creator_stats_profile: "fansly_creator_stats_profile";
+                fansly_creator_stats_engagement: "fansly_creator_stats_engagement";
+                fansly_creator_stats_tags: "fansly_creator_stats_tags";
+                fansly_creator_stats_tag_series: "fansly_creator_stats_tag_series";
+                fansly_creator_stats_benchmarks: "fansly_creator_stats_benchmarks";
+                fansly_creator_stats_media_shown: "fansly_creator_stats_media_shown";
+                fansly_creator_stats_media_daily: "fansly_creator_stats_media_daily";
+                fansly_creator_stats_media_hourly: "fansly_creator_stats_media_hourly";
+                fansly_creator_stats_media_totals: "fansly_creator_stats_media_totals";
+                fansly_creator_stats_media_tags: "fansly_creator_stats_media_tags";
+                fansly_creator_stats_media_tag_series: "fansly_creator_stats_media_tag_series";
+                fansly_creator_stats_media_likes: "fansly_creator_stats_media_likes";
+                fansly_creator_stats_media_top: "fansly_creator_stats_media_top";
+                stats_top_media: "stats_top_media";
+                stats_top_tags: "stats_top_tags";
+                fansly_media_tag_stats: "fansly_media_tag_stats";
+                platform_tag_daily: "platform_tag_daily";
+                creator_vault_albums: "creator_vault_albums";
+                page_subscription_tiers: "page_subscription_tiers";
+                page_subscription_tier_plans: "page_subscription_tier_plans";
+                post_likes: "post_likes";
+                platform_notifications: "platform_notifications";
+                capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
+            }>;
+            state: z.ZodLiteral<"read">;
+            captureFloor: z.ZodObject<{
+                at: z.ZodNullable<z.ZodString>;
+                kind: z.ZodEnum<{
+                    unknown: "unknown";
+                    oldest_stored_row: "oldest_stored_row";
+                }>;
+            }, z.core.$strict>;
+        }, z.core.$strict>, z.ZodObject<{
+            plane: z.ZodEnum<{
+                post_comments: "post_comments";
+                fans: "fans";
+                page_dm_messages: "page_dm_messages";
+                page_dm_threads: "page_dm_threads";
+                observations: "observations";
+                sync_raw_payloads: "sync_raw_payloads";
+                message_archive: "message_archive";
+                dm_message_archive: "dm_message_archive";
+                transactions: "transactions";
+                transaction_tip_contexts: "transaction_tip_contexts";
+                message_media_offers: "message_media_offers";
+                fan_spend_daily: "fan_spend_daily";
+                fan_spend_lifetime: "fan_spend_lifetime";
+                revenue_mix_daily: "revenue_mix_daily";
+                page_payout_requests: "page_payout_requests";
+                ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
+                page_payout_methods: "page_payout_methods";
+                fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
+                fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                page_fans: "page_fans";
+                page_fan_aliases: "page_fan_aliases";
+                fan_username_aliases: "fan_username_aliases";
+                domain_events: "domain_events";
+                page_subscriptions: "page_subscriptions";
+                fansly_creator_stats_subscriptions: "fansly_creator_stats_subscriptions";
+                daily_followers: "daily_followers";
+                page_follows: "page_follows";
+                fansly_creator_stats_follows: "fansly_creator_stats_follows";
+                fansly_creator_stats_levels: "fansly_creator_stats_levels";
+                fansly_creator_stats_tier_levels: "fansly_creator_stats_tier_levels";
+                fansly_creator_stats_geo: "fansly_creator_stats_geo";
+                fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
+                fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
+                fan_summaries: "fan_summaries";
+                fan_profiles: "fan_profiles";
+                fan_flags: "fan_flags";
+                creator_posts: "creator_posts";
+                creator_raw_media: "creator_raw_media";
+                creator_vault_album_members: "creator_vault_album_members";
+                creator_vault_album_scans: "creator_vault_album_scans";
+                creator_media: "creator_media";
+                creator_media_bundles: "creator_media_bundles";
+                creator_post_tips: "creator_post_tips";
+                stats_traffic_buckets: "stats_traffic_buckets";
+                fansly_creator_stats_views: "fansly_creator_stats_views";
+                fansly_creator_stats_profile: "fansly_creator_stats_profile";
+                fansly_creator_stats_engagement: "fansly_creator_stats_engagement";
+                fansly_creator_stats_tags: "fansly_creator_stats_tags";
+                fansly_creator_stats_tag_series: "fansly_creator_stats_tag_series";
+                fansly_creator_stats_benchmarks: "fansly_creator_stats_benchmarks";
+                fansly_creator_stats_media_shown: "fansly_creator_stats_media_shown";
+                fansly_creator_stats_media_daily: "fansly_creator_stats_media_daily";
+                fansly_creator_stats_media_hourly: "fansly_creator_stats_media_hourly";
+                fansly_creator_stats_media_totals: "fansly_creator_stats_media_totals";
+                fansly_creator_stats_media_tags: "fansly_creator_stats_media_tags";
+                fansly_creator_stats_media_tag_series: "fansly_creator_stats_media_tag_series";
+                fansly_creator_stats_media_likes: "fansly_creator_stats_media_likes";
+                fansly_creator_stats_media_top: "fansly_creator_stats_media_top";
+                stats_top_media: "stats_top_media";
+                stats_top_tags: "stats_top_tags";
+                fansly_media_tag_stats: "fansly_media_tag_stats";
+                platform_tag_daily: "platform_tag_daily";
+                creator_vault_albums: "creator_vault_albums";
+                page_subscription_tiers: "page_subscription_tiers";
+                page_subscription_tier_plans: "page_subscription_tier_plans";
+                post_likes: "post_likes";
+                platform_notifications: "platform_notifications";
+                capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
+            }>;
+            state: z.ZodEnum<{
+                not_applicable: "not_applicable";
+                not_read: "not_read";
+                not_indexed: "not_indexed";
+            }>;
+            reason: z.ZodEnum<{
+                not_a_source_for_this_claim: "not_a_source_for_this_claim";
+                not_queried_by_this_operation: "not_queried_by_this_operation";
+                onlyfans_only: "onlyfans_only";
+                fansly_only: "fansly_only";
+                capability_not_granted: "capability_not_granted";
+                plane_disabled_by_config: "plane_disabled_by_config";
+                not_indexed_for_text_search: "not_indexed_for_text_search";
+                journal_starts_after_window: "journal_starts_after_window";
+                partition_detached: "partition_detached";
+                outside_sql_retention: "outside_sql_retention";
+                source_timeout: "source_timeout";
+            }>;
+        }, z.core.$strict>]>>;
+        observedRowFloor: z.ZodNullable<z.ZodString>;
+        gaps: z.ZodArray<z.ZodObject<{
+            kind: z.ZodEnum<{
+                partition_detached: "partition_detached";
+                before_capture_floor: "before_capture_floor";
+                after_capture_ceiling: "after_capture_ceiling";
+                internal_capture_gap: "internal_capture_gap";
+                proof_open_debt: "proof_open_debt";
+                parse_debt: "parse_debt";
+                rejected_rows: "rejected_rows";
+                source_error: "source_error";
+            }>;
+            from: z.ZodNullable<z.ZodString>;
+            to: z.ZodNullable<z.ZodString>;
+            plane: z.ZodEnum<{
+                post_comments: "post_comments";
+                fans: "fans";
+                page_dm_messages: "page_dm_messages";
+                page_dm_threads: "page_dm_threads";
+                observations: "observations";
+                sync_raw_payloads: "sync_raw_payloads";
+                message_archive: "message_archive";
+                dm_message_archive: "dm_message_archive";
+                transactions: "transactions";
+                transaction_tip_contexts: "transaction_tip_contexts";
+                message_media_offers: "message_media_offers";
+                fan_spend_daily: "fan_spend_daily";
+                fan_spend_lifetime: "fan_spend_lifetime";
+                revenue_mix_daily: "revenue_mix_daily";
+                page_payout_requests: "page_payout_requests";
+                ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
+                page_payout_methods: "page_payout_methods";
+                fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
+                fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                page_fans: "page_fans";
+                page_fan_aliases: "page_fan_aliases";
+                fan_username_aliases: "fan_username_aliases";
+                domain_events: "domain_events";
+                page_subscriptions: "page_subscriptions";
+                fansly_creator_stats_subscriptions: "fansly_creator_stats_subscriptions";
+                daily_followers: "daily_followers";
+                page_follows: "page_follows";
+                fansly_creator_stats_follows: "fansly_creator_stats_follows";
+                fansly_creator_stats_levels: "fansly_creator_stats_levels";
+                fansly_creator_stats_tier_levels: "fansly_creator_stats_tier_levels";
+                fansly_creator_stats_geo: "fansly_creator_stats_geo";
+                fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
+                fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
+                fan_summaries: "fan_summaries";
+                fan_profiles: "fan_profiles";
+                fan_flags: "fan_flags";
+                creator_posts: "creator_posts";
+                creator_raw_media: "creator_raw_media";
+                creator_vault_album_members: "creator_vault_album_members";
+                creator_vault_album_scans: "creator_vault_album_scans";
+                creator_media: "creator_media";
+                creator_media_bundles: "creator_media_bundles";
+                creator_post_tips: "creator_post_tips";
+                stats_traffic_buckets: "stats_traffic_buckets";
+                fansly_creator_stats_views: "fansly_creator_stats_views";
+                fansly_creator_stats_profile: "fansly_creator_stats_profile";
+                fansly_creator_stats_engagement: "fansly_creator_stats_engagement";
+                fansly_creator_stats_tags: "fansly_creator_stats_tags";
+                fansly_creator_stats_tag_series: "fansly_creator_stats_tag_series";
+                fansly_creator_stats_benchmarks: "fansly_creator_stats_benchmarks";
+                fansly_creator_stats_media_shown: "fansly_creator_stats_media_shown";
+                fansly_creator_stats_media_daily: "fansly_creator_stats_media_daily";
+                fansly_creator_stats_media_hourly: "fansly_creator_stats_media_hourly";
+                fansly_creator_stats_media_totals: "fansly_creator_stats_media_totals";
+                fansly_creator_stats_media_tags: "fansly_creator_stats_media_tags";
+                fansly_creator_stats_media_tag_series: "fansly_creator_stats_media_tag_series";
+                fansly_creator_stats_media_likes: "fansly_creator_stats_media_likes";
+                fansly_creator_stats_media_top: "fansly_creator_stats_media_top";
+                stats_top_media: "stats_top_media";
+                stats_top_tags: "stats_top_tags";
+                fansly_media_tag_stats: "fansly_media_tag_stats";
+                platform_tag_daily: "platform_tag_daily";
+                creator_vault_albums: "creator_vault_albums";
+                page_subscription_tiers: "page_subscription_tiers";
+                page_subscription_tier_plans: "page_subscription_tier_plans";
+                post_likes: "post_likes";
+                platform_notifications: "platform_notifications";
+                capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
+            }>;
+            remedy: z.ZodUnion<readonly [z.ZodObject<{
+                kind: z.ZodLiteral<"none">;
+                reason: z.ZodEnum<{
+                    capability_not_granted: "capability_not_granted";
+                    partition_detached: "partition_detached";
+                    no_remedy_exists: "no_remedy_exists";
+                    capture_lane_unimplemented: "capture_lane_unimplemented";
+                    journal_before_capture_start: "journal_before_capture_start";
+                    hydration_mode_off: "hydration_mode_off";
+                    discarded_at_capture: "discarded_at_capture";
+                    projection_missing: "projection_missing";
+                }>;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"local_replay">;
+                costClass: z.ZodLiteral<"free">;
+                admissible: z.ZodBoolean;
+                reason: z.ZodNullable<z.ZodEnum<{
+                    capability_not_granted: "capability_not_granted";
+                    partition_detached: "partition_detached";
+                    no_remedy_exists: "no_remedy_exists";
+                    capture_lane_unimplemented: "capture_lane_unimplemented";
+                    journal_before_capture_start: "journal_before_capture_start";
+                    hydration_mode_off: "hydration_mode_off";
+                    discarded_at_capture: "discarded_at_capture";
+                    projection_missing: "projection_missing";
+                }>>;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"hydration_request">;
+                costClass: z.ZodEnum<{
+                    vendor_paid_low: "vendor_paid_low";
+                    vendor_paid_high: "vendor_paid_high";
+                }>;
+                admissible: z.ZodBoolean;
+                reason: z.ZodNullable<z.ZodEnum<{
+                    capability_not_granted: "capability_not_granted";
+                    partition_detached: "partition_detached";
+                    no_remedy_exists: "no_remedy_exists";
+                    capture_lane_unimplemented: "capture_lane_unimplemented";
+                    journal_before_capture_start: "journal_before_capture_start";
+                    hydration_mode_off: "hydration_mode_off";
+                    discarded_at_capture: "discarded_at_capture";
+                    projection_missing: "projection_missing";
+                }>>;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"recapture">;
+                costClass: z.ZodEnum<{
+                    free: "free";
+                    vendor_paid_low: "vendor_paid_low";
+                    vendor_paid_high: "vendor_paid_high";
+                }>;
+                admissible: z.ZodBoolean;
+                reason: z.ZodNullable<z.ZodEnum<{
+                    capability_not_granted: "capability_not_granted";
+                    partition_detached: "partition_detached";
+                    no_remedy_exists: "no_remedy_exists";
+                    capture_lane_unimplemented: "capture_lane_unimplemented";
+                    journal_before_capture_start: "journal_before_capture_start";
+                    hydration_mode_off: "hydration_mode_off";
+                    discarded_at_capture: "discarded_at_capture";
+                    projection_missing: "projection_missing";
+                }>>;
+            }, z.core.$strict>]>;
+        }, z.core.$strict>>;
+        sourceErrors: z.ZodArray<z.ZodObject<{
+            source: z.ZodUnion<readonly [z.ZodEnum<{
+                post_comments: "post_comments";
+                fans: "fans";
+                page_dm_messages: "page_dm_messages";
+                page_dm_threads: "page_dm_threads";
+                observations: "observations";
+                sync_raw_payloads: "sync_raw_payloads";
+                message_archive: "message_archive";
+                dm_message_archive: "dm_message_archive";
+                transactions: "transactions";
+                transaction_tip_contexts: "transaction_tip_contexts";
+                message_media_offers: "message_media_offers";
+                fan_spend_daily: "fan_spend_daily";
+                fan_spend_lifetime: "fan_spend_lifetime";
+                revenue_mix_daily: "revenue_mix_daily";
+                page_payout_requests: "page_payout_requests";
+                ofapi_read_snapshots: "ofapi_read_snapshots";
+                page_link_fan_periods: "page_link_fan_periods";
+                page_link_fan_walks: "page_link_fan_walks";
+                page_payout_methods: "page_payout_methods";
+                fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
+                fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                page_fans: "page_fans";
+                page_fan_aliases: "page_fan_aliases";
+                fan_username_aliases: "fan_username_aliases";
+                domain_events: "domain_events";
+                page_subscriptions: "page_subscriptions";
+                fansly_creator_stats_subscriptions: "fansly_creator_stats_subscriptions";
+                daily_followers: "daily_followers";
+                page_follows: "page_follows";
+                fansly_creator_stats_follows: "fansly_creator_stats_follows";
+                fansly_creator_stats_levels: "fansly_creator_stats_levels";
+                fansly_creator_stats_tier_levels: "fansly_creator_stats_tier_levels";
+                fansly_creator_stats_geo: "fansly_creator_stats_geo";
+                fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
+                fan_notes: "fan_notes";
+                client_note_attributions: "client_note_attributions";
+                fan_summaries: "fan_summaries";
+                fan_profiles: "fan_profiles";
+                fan_flags: "fan_flags";
+                creator_posts: "creator_posts";
+                creator_raw_media: "creator_raw_media";
+                creator_vault_album_members: "creator_vault_album_members";
+                creator_vault_album_scans: "creator_vault_album_scans";
+                creator_media: "creator_media";
+                creator_media_bundles: "creator_media_bundles";
+                creator_post_tips: "creator_post_tips";
+                stats_traffic_buckets: "stats_traffic_buckets";
+                fansly_creator_stats_views: "fansly_creator_stats_views";
+                fansly_creator_stats_profile: "fansly_creator_stats_profile";
+                fansly_creator_stats_engagement: "fansly_creator_stats_engagement";
+                fansly_creator_stats_tags: "fansly_creator_stats_tags";
+                fansly_creator_stats_tag_series: "fansly_creator_stats_tag_series";
+                fansly_creator_stats_benchmarks: "fansly_creator_stats_benchmarks";
+                fansly_creator_stats_media_shown: "fansly_creator_stats_media_shown";
+                fansly_creator_stats_media_daily: "fansly_creator_stats_media_daily";
+                fansly_creator_stats_media_hourly: "fansly_creator_stats_media_hourly";
+                fansly_creator_stats_media_totals: "fansly_creator_stats_media_totals";
+                fansly_creator_stats_media_tags: "fansly_creator_stats_media_tags";
+                fansly_creator_stats_media_tag_series: "fansly_creator_stats_media_tag_series";
+                fansly_creator_stats_media_likes: "fansly_creator_stats_media_likes";
+                fansly_creator_stats_media_top: "fansly_creator_stats_media_top";
+                stats_top_media: "stats_top_media";
+                stats_top_tags: "stats_top_tags";
+                fansly_media_tag_stats: "fansly_media_tag_stats";
+                platform_tag_daily: "platform_tag_daily";
+                creator_vault_albums: "creator_vault_albums";
+                page_subscription_tiers: "page_subscription_tiers";
+                page_subscription_tier_plans: "page_subscription_tier_plans";
+                post_likes: "post_likes";
+                platform_notifications: "platform_notifications";
+                capture_coverage: "capture_coverage";
+                page_link_stat_runs: "page_link_stat_runs";
+                page_link_stat_snapshots: "page_link_stat_snapshots";
+                traffic_link_bindings: "traffic_link_bindings";
+                traffic_channel_contractors: "traffic_channel_contractors";
+            }>, z.ZodEnum<{
+                ofapi_certified_history: "ofapi_certified_history";
+                ofapi_message_coverage: "ofapi_message_coverage";
+            }>]>;
+            code: z.ZodEnum<{
+                partition_detached: "partition_detached";
+                statement_timeout: "statement_timeout";
+                archive_rebuilding: "archive_rebuilding";
+                plane_disabled: "plane_disabled";
+                row_budget_exhausted: "row_budget_exhausted";
+                certified_history_miss: "certified_history_miss";
+            }>;
+            excludedFromCounts: z.ZodLiteral<true>;
+        }, z.core.$strict>>;
+        scopeNarrowing: z.ZodObject<{
+            keyGrantExcludedPages: z.ZodNumber;
+            totalPagesForQuery: z.ZodNumber;
+        }, z.core.$strict>;
+        scopeFieldStates: z.ZodRecord<z.ZodEnum<{
+            username: "username";
             currency: "currency";
+            platformUserId: "platformUserId";
+            displayName: "displayName";
             postRef: "postRef";
             netMills: "netMills";
             textPlain: "textPlain";
@@ -27644,9 +28417,9 @@ export declare const agentRouteSchemas: {
                             string: "string";
                             date: "date";
                             bool: "bool";
+                            mills: "mills";
                             int: "int";
                             timestamp: "timestamp";
-                            mills: "mills";
                             string_array: "string_array";
                         }>;
                         filterable: z.ZodBoolean;
@@ -27661,9 +28434,9 @@ export declare const agentRouteSchemas: {
                 }, z.core.$strict>>;
                 claimFields: z.ZodArray<z.ZodEnum<{
                     username: "username";
+                    currency: "currency";
                     platformUserId: "platformUserId";
                     displayName: "displayName";
-                    currency: "currency";
                     postRef: "postRef";
                     netMills: "netMills";
                     textPlain: "textPlain";
@@ -28234,9 +29007,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -28502,9 +29275,9 @@ export declare const agentRouteSchemas: {
             claim: z.ZodOptional<z.ZodObject<{
                 fields: z.ZodArray<z.ZodEnum<{
                     username: "username";
+                    currency: "currency";
                     platformUserId: "platformUserId";
                     displayName: "displayName";
-                    currency: "currency";
                     postRef: "postRef";
                     netMills: "netMills";
                     textPlain: "textPlain";
@@ -28671,9 +29444,9 @@ export declare const agentRouteSchemas: {
                         }, z.core.$strict>>;
                         fieldStates: z.ZodRecord<z.ZodEnum<{
                             username: "username";
+                            currency: "currency";
                             platformUserId: "platformUserId";
                             displayName: "displayName";
-                            currency: "currency";
                             postRef: "postRef";
                             netMills: "netMills";
                             textPlain: "textPlain";
@@ -29341,9 +30114,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -29606,9 +30379,9 @@ export declare const agentRouteSchemas: {
             pageLabel: z.ZodOptional<z.ZodString>;
             claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
+                currency: "currency";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
-                currency: "currency";
                 postRef: "postRef";
                 netMills: "netMills";
                 textPlain: "textPlain";
@@ -29848,9 +30621,9 @@ export declare const agentRouteSchemas: {
                     retentionLimit: z.ZodNullable<z.ZodNumber>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -30151,9 +30924,9 @@ export declare const agentRouteSchemas: {
                         postTipGoalRef: z.ZodNullable<z.ZodString>;
                         fieldStates: z.ZodRecord<z.ZodEnum<{
                             username: "username";
+                            currency: "currency";
                             platformUserId: "platformUserId";
                             displayName: "displayName";
-                            currency: "currency";
                             postRef: "postRef";
                             netMills: "netMills";
                             textPlain: "textPlain";
@@ -30383,9 +31156,9 @@ export declare const agentRouteSchemas: {
                 }, z.core.$strict>>;
                 fieldStates: z.ZodRecord<z.ZodEnum<{
                     username: "username";
+                    currency: "currency";
                     platformUserId: "platformUserId";
                     displayName: "displayName";
-                    currency: "currency";
                     postRef: "postRef";
                     netMills: "netMills";
                     textPlain: "textPlain";
@@ -31050,9 +31823,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -31314,9 +32087,9 @@ export declare const agentRouteSchemas: {
         readonly querystring: z.ZodObject<{
             claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
+                currency: "currency";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
-                currency: "currency";
                 postRef: "postRef";
                 netMills: "netMills";
                 textPlain: "textPlain";
@@ -31551,9 +32324,9 @@ export declare const agentRouteSchemas: {
                     postTipGoalRef: z.ZodNullable<z.ZodString>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -32232,9 +33005,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -32489,9 +33262,9 @@ export declare const agentRouteSchemas: {
         readonly querystring: z.ZodObject<{
             claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
+                currency: "currency";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
-                currency: "currency";
                 postRef: "postRef";
                 netMills: "netMills";
                 textPlain: "textPlain";
@@ -32708,9 +33481,9 @@ export declare const agentRouteSchemas: {
                     retentionLimit: z.ZodNullable<z.ZodNumber>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -33434,9 +34207,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -33696,9 +34469,9 @@ export declare const agentRouteSchemas: {
         readonly querystring: z.ZodObject<{
             claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
+                currency: "currency";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
-                currency: "currency";
                 postRef: "postRef";
                 netMills: "netMills";
                 textPlain: "textPlain";
@@ -34006,9 +34779,9 @@ export declare const agentRouteSchemas: {
                     }>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -34687,9 +35460,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -35437,9 +36210,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -35731,9 +36504,9 @@ export declare const agentRouteSchemas: {
             claim: z.ZodOptional<z.ZodObject<{
                 fields: z.ZodArray<z.ZodEnum<{
                     username: "username";
+                    currency: "currency";
                     platformUserId: "platformUserId";
                     displayName: "displayName";
-                    currency: "currency";
                     postRef: "postRef";
                     netMills: "netMills";
                     textPlain: "textPlain";
@@ -35893,9 +36666,9 @@ export declare const agentRouteSchemas: {
                     deletedAt: z.ZodNullable<z.ZodString>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -36574,9 +37347,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -36831,9 +37604,9 @@ export declare const agentRouteSchemas: {
         readonly querystring: z.ZodObject<{
             claimFields: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodEnum<{
                 username: "username";
+                currency: "currency";
                 platformUserId: "platformUserId";
                 displayName: "displayName";
-                currency: "currency";
                 postRef: "postRef";
                 netMills: "netMills";
                 textPlain: "textPlain";
@@ -37320,9 +38093,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -37986,9 +38759,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -38756,9 +39529,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -39499,9 +40272,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -39857,9 +40630,9 @@ export declare const agentRouteSchemas: {
             claim: z.ZodOptional<z.ZodObject<{
                 fields: z.ZodArray<z.ZodEnum<{
                     username: "username";
+                    currency: "currency";
                     platformUserId: "platformUserId";
                     displayName: "displayName";
-                    currency: "currency";
                     postRef: "postRef";
                     netMills: "netMills";
                     textPlain: "textPlain";
@@ -40121,9 +40894,9 @@ export declare const agentRouteSchemas: {
                     fields: z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodNumber, z.ZodBoolean, z.ZodNull, z.ZodArray<z.ZodString>]>>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -40813,9 +41586,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -41091,9 +41864,9 @@ export declare const agentRouteSchemas: {
             claim: z.ZodOptional<z.ZodObject<{
                 fields: z.ZodArray<z.ZodEnum<{
                     username: "username";
+                    currency: "currency";
                     platformUserId: "platformUserId";
                     displayName: "displayName";
-                    currency: "currency";
                     postRef: "postRef";
                     netMills: "netMills";
                     textPlain: "textPlain";
@@ -41766,9 +42539,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -42586,9 +43359,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -43420,9 +44193,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -44250,9 +45023,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -44512,9 +45285,9 @@ export declare const agentRouteSchemas: {
             claim: z.ZodOptional<z.ZodObject<{
                 fields: z.ZodArray<z.ZodEnum<{
                     username: "username";
+                    currency: "currency";
                     platformUserId: "platformUserId";
                     displayName: "displayName";
-                    currency: "currency";
                     postRef: "postRef";
                     netMills: "netMills";
                     textPlain: "textPlain";
@@ -45267,9 +46040,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -46161,9 +46934,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -46974,9 +47747,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -47786,9 +48559,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -48763,9 +49536,9 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
-                        currency: "currency";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -49595,9 +50368,794 @@ export declare const agentRouteSchemas: {
                     }, z.core.$strict>;
                     scopeFieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
+                        currency: "currency";
                         platformUserId: "platformUserId";
                         displayName: "displayName";
+                        postRef: "postRef";
+                        netMills: "netMills";
+                        textPlain: "textPlain";
+                        textHtml: "textHtml";
+                        priceMills: "priceMills";
+                        isOpened: "isOpened";
+                        isNew: "isNew";
+                        isTip: "isTip";
+                        tipAmountMills: "tipAmountMills";
+                        tipTextPlain: "tipTextPlain";
+                        inReplyToRef: "inReplyToRef";
+                        replyMetadata: "replyMetadata";
+                        mediaMetadata: "mediaMetadata";
+                        deletedAt: "deletedAt";
+                        conversationRef: "conversationRef";
+                        messageCount: "messageCount";
+                        coverageStatus: "coverageStatus";
+                        purchaseState: "purchaseState";
+                        contextState: "contextState";
+                        capturedConversationRef: "capturedConversationRef";
+                        tipMessageText: "tipMessageText";
+                        messageMediaOffer: "messageMediaOffer";
+                        grossMills: "grossMills";
+                        feeMills: "feeMills";
+                        amountMills: "amountMills";
+                        transactionState: "transactionState";
+                        correlationRef: "correlationRef";
+                        refundState: "refundState";
+                        fanEarning: "fanEarning";
+                        lifetimeSpendMills: "lifetimeSpendMills";
+                        revenueMixDay: "revenueMixDay";
+                        payoutRequest: "payoutRequest";
+                        ofapiFinancialMetric: "ofapiFinancialMetric";
+                        ofapiPayoutRequest: "ofapiPayoutRequest";
+                        hubLinkMoney: "hubLinkMoney";
+                        payoutMethod: "payoutMethod";
+                        creatorStatsRevenue: "creatorStatsRevenue";
+                        creatorStatsWindow: "creatorStatsWindow";
+                        membershipState: "membershipState";
+                        pageAlias: "pageAlias";
+                        subscriptionState: "subscriptionState";
+                        subscriptionPriceMills: "subscriptionPriceMills";
+                        subscriptionExpiresAt: "subscriptionExpiresAt";
+                        creatorStatsSubscriptions: "creatorStatsSubscriptions";
+                        followed: "followed";
+                        presenceAt: "presenceAt";
+                        creatorStatsFollows: "creatorStatsFollows";
+                        creatorStatsLevel: "creatorStatsLevel";
+                        creatorStatsGeo: "creatorStatsGeo";
+                        creatorStatsActiveHours: "creatorStatsActiveHours";
+                        noteText: "noteText";
+                        noteAuthor: "noteAuthor";
+                        summaryText: "summaryText";
+                        profileBody: "profileBody";
+                        fanFlag: "fanFlag";
+                        postText: "postText";
+                        publishedAt: "publishedAt";
+                        firstObservedAt: "firstObservedAt";
+                        lastObservedAt: "lastObservedAt";
+                        attachmentCount: "attachmentCount";
+                        fypFlags: "fypFlags";
+                        wallRefs: "wallRefs";
+                        rawMedia: "rawMedia";
+                        vaultInventory: "vaultInventory";
+                        postAttachment: "postAttachment";
+                        postTargetTipAmountMills: "postTargetTipAmountMills";
+                        attachmentTipAmountMills: "attachmentTipAmountMills";
+                        postTipTotalMills: "postTipTotalMills";
+                        tipGoalLinked: "tipGoalLinked";
+                        tipGoalRef: "tipGoalRef";
+                        tipGoalLabelText: "tipGoalLabelText";
+                        tipGoalTargetMills: "tipGoalTargetMills";
+                        tipGoalCurrentMills: "tipGoalCurrentMills";
+                        tipGoalAmountsHidden: "tipGoalAmountsHidden";
+                        postTipPostRef: "postTipPostRef";
+                        postTipRef: "postTipRef";
+                        tipSenderPlatformUserId: "tipSenderPlatformUserId";
+                        postTipOccurredAt: "postTipOccurredAt";
+                        postTipAmountMills: "postTipAmountMills";
+                        receiverTransactionRef: "receiverTransactionRef";
+                        postTipGoalRef: "postTipGoalRef";
+                        postTipMessageText: "postTipMessageText";
+                        linkedPostCount: "linkedPostCount";
+                        trafficBucket: "trafficBucket";
+                        creatorStatsViews: "creatorStatsViews";
+                        creatorStatsProfile: "creatorStatsProfile";
+                        creatorStatsEngagement: "creatorStatsEngagement";
+                        creatorStatsTags: "creatorStatsTags";
+                        creatorStatsTagSeries: "creatorStatsTagSeries";
+                        creatorStatsBenchmarks: "creatorStatsBenchmarks";
+                        creatorStatsMediaShown: "creatorStatsMediaShown";
+                        creatorStatsMediaDay: "creatorStatsMediaDay";
+                        creatorStatsMediaHour: "creatorStatsMediaHour";
+                        creatorStatsMediaTotals: "creatorStatsMediaTotals";
+                        creatorStatsMediaTag: "creatorStatsMediaTag";
+                        creatorStatsMediaTagDay: "creatorStatsMediaTagDay";
+                        creatorStatsMediaLikes: "creatorStatsMediaLikes";
+                        creatorStatsMediaTop: "creatorStatsMediaTop";
+                        topMediaWindow: "topMediaWindow";
+                        topTagWindow: "topTagWindow";
+                        mediaTagWindow: "mediaTagWindow";
+                        platformTagCounter: "platformTagCounter";
+                        mediaOffer: "mediaOffer";
+                        vaultAlbum: "vaultAlbum";
+                        vaultAlbumMember: "vaultAlbumMember";
+                        subscriptionTier: "subscriptionTier";
+                        subscriptionTierPlan: "subscriptionTierPlan";
+                        postComment: "postComment";
+                        postLike: "postLike";
+                        platformNotification: "platformNotification";
+                        captureCoverageRow: "captureCoverageRow";
+                        linkStatRun: "linkStatRun";
+                        linkStatSnapshot: "linkStatSnapshot";
+                        trafficLinkBinding: "trafficLinkBinding";
+                        trafficChannelContractor: "trafficChannelContractor";
+                    }> & z.core.$partial, z.ZodObject<{
+                        state: z.ZodEnum<{
+                            unknown: "unknown";
+                            discarded_at_capture: "discarded_at_capture";
+                            present: "present";
+                            observed_empty: "observed_empty";
+                            captured_unparsed: "captured_unparsed";
+                            not_captured: "not_captured";
+                            source_did_not_provide: "source_did_not_provide";
+                        }>;
+                        remedy: z.ZodUnion<readonly [z.ZodObject<{
+                            kind: z.ZodLiteral<"none">;
+                            reason: z.ZodEnum<{
+                                capability_not_granted: "capability_not_granted";
+                                partition_detached: "partition_detached";
+                                no_remedy_exists: "no_remedy_exists";
+                                capture_lane_unimplemented: "capture_lane_unimplemented";
+                                journal_before_capture_start: "journal_before_capture_start";
+                                hydration_mode_off: "hydration_mode_off";
+                                discarded_at_capture: "discarded_at_capture";
+                                projection_missing: "projection_missing";
+                            }>;
+                        }, z.core.$strict>, z.ZodObject<{
+                            kind: z.ZodLiteral<"local_replay">;
+                            costClass: z.ZodLiteral<"free">;
+                            admissible: z.ZodBoolean;
+                            reason: z.ZodNullable<z.ZodEnum<{
+                                capability_not_granted: "capability_not_granted";
+                                partition_detached: "partition_detached";
+                                no_remedy_exists: "no_remedy_exists";
+                                capture_lane_unimplemented: "capture_lane_unimplemented";
+                                journal_before_capture_start: "journal_before_capture_start";
+                                hydration_mode_off: "hydration_mode_off";
+                                discarded_at_capture: "discarded_at_capture";
+                                projection_missing: "projection_missing";
+                            }>>;
+                        }, z.core.$strict>, z.ZodObject<{
+                            kind: z.ZodLiteral<"hydration_request">;
+                            costClass: z.ZodEnum<{
+                                vendor_paid_low: "vendor_paid_low";
+                                vendor_paid_high: "vendor_paid_high";
+                            }>;
+                            admissible: z.ZodBoolean;
+                            reason: z.ZodNullable<z.ZodEnum<{
+                                capability_not_granted: "capability_not_granted";
+                                partition_detached: "partition_detached";
+                                no_remedy_exists: "no_remedy_exists";
+                                capture_lane_unimplemented: "capture_lane_unimplemented";
+                                journal_before_capture_start: "journal_before_capture_start";
+                                hydration_mode_off: "hydration_mode_off";
+                                discarded_at_capture: "discarded_at_capture";
+                                projection_missing: "projection_missing";
+                            }>>;
+                        }, z.core.$strict>, z.ZodObject<{
+                            kind: z.ZodLiteral<"recapture">;
+                            costClass: z.ZodEnum<{
+                                free: "free";
+                                vendor_paid_low: "vendor_paid_low";
+                                vendor_paid_high: "vendor_paid_high";
+                            }>;
+                            admissible: z.ZodBoolean;
+                            reason: z.ZodNullable<z.ZodEnum<{
+                                capability_not_granted: "capability_not_granted";
+                                partition_detached: "partition_detached";
+                                no_remedy_exists: "no_remedy_exists";
+                                capture_lane_unimplemented: "capture_lane_unimplemented";
+                                journal_before_capture_start: "journal_before_capture_start";
+                                hydration_mode_off: "hydration_mode_off";
+                                discarded_at_capture: "discarded_at_capture";
+                                projection_missing: "projection_missing";
+                            }>>;
+                        }, z.core.$strict>]>;
+                    }, z.core.$strict>>;
+                }, z.core.$strict>;
+                conclusion: z.ZodObject<{
+                    blockers: z.ZodArray<z.ZodEnum<{
+                        claim_not_declared: "claim_not_declared";
+                        claim_field_unobservable: "claim_field_unobservable";
+                        read_only_mode: "read_only_mode";
+                        delivery_not_exhausted: "delivery_not_exhausted";
+                        capture_floor_unknown: "capture_floor_unknown";
+                        window_before_capture_floor: "window_before_capture_floor";
+                        gaps_present: "gaps_present";
+                        source_errors_present: "source_errors_present";
+                        key_grant_narrowed_scope: "key_grant_narrowed_scope";
+                        plane_not_read: "plane_not_read";
+                        plane_not_indexed: "plane_not_indexed";
+                        field_state_insufficient: "field_state_insufficient";
+                        mutable_sort_key_traversal: "mutable_sort_key_traversal";
+                        vault_inventory_unproven: "vault_inventory_unproven";
+                    }>>;
+                }, z.core.$strict>;
+            }, z.core.$strict>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentCrossSpenders: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strict>;
+        readonly querystring: z.ZodObject<{
+            audience: z.ZodOptional<z.ZodEnum<{
+                subscribers: "subscribers";
+                followers: "followers";
+                any: "any";
+            }>>;
+            sources: z.ZodPreprocess<z.ZodOptional<z.ZodArray<z.ZodString>>, unknown>;
+            minSourceSpendMills: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+            maxTargetSpendMills: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<"any">, z.ZodCoercedNumber<unknown>]>>;
+            limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+            cursor: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                scope: z.ZodObject<{
+                    pageLabel: z.ZodString;
+                    platform: z.ZodEnum<{
+                        fansly: "fansly";
+                        onlyfans: "onlyfans";
+                    }>;
+                    audience: z.ZodEnum<{
+                        subscribers: "subscribers";
+                        followers: "followers";
+                        any: "any";
+                    }>;
+                    sourceSelection: z.ZodEnum<{
+                        all: "all";
+                        model: "model";
+                        listed: "listed";
+                    }>;
+                    sourcePages: z.ZodArray<z.ZodString>;
+                    minSourceSpendMills: z.ZodNumber;
+                    maxTargetSpendMills: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strict>;
+                summary: z.ZodObject<{
+                    qualifying: z.ZodNumber;
+                    sources: z.ZodArray<z.ZodObject<{
+                        pageLabel: z.ZodString;
+                        fans: z.ZodNumber;
+                        grossMills: z.ZodNumber;
+                        transactionsFloorAt: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strict>>;
+                    audience: z.ZodObject<{
+                        newFollowersReadAt: z.ZodNullable<z.ZodString>;
+                        followersWalkedAt: z.ZodNullable<z.ZodString>;
+                        subscribersWalkedAt: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strict>;
+                }, z.core.$strict>;
+                items: z.ZodArray<z.ZodObject<{
+                    platformUserId: z.ZodString;
+                    username: z.ZodNullable<z.ZodString>;
+                    displayName: z.ZodNullable<z.ZodString>;
+                    isFollower: z.ZodBoolean;
+                    followerSince: z.ZodNullable<z.ZodString>;
+                    isSubscriber: z.ZodBoolean;
+                    subscriptionExpiresAt: z.ZodNullable<z.ZodString>;
+                    targetSpendMills: z.ZodNumber;
+                    sourceSpendMills: z.ZodNumber;
+                    lastSourceTransactionAt: z.ZodNullable<z.ZodString>;
+                    sources: z.ZodArray<z.ZodObject<{
+                        pageLabel: z.ZodString;
+                        grossMills: z.ZodNumber;
+                        lastTransactionAt: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strict>>;
+                    accountLookupMissAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strict>>;
+                delivery: z.ZodObject<{
+                    returned: z.ZodNumber;
+                    matchedInScope: z.ZodObject<{
+                        value: z.ZodNumber;
+                        exact: z.ZodBoolean;
+                        countBasis: z.ZodLiteral<"post_dedup">;
+                    }, z.core.$strict>;
+                    cappedBy: z.ZodNullable<z.ZodEnum<{
+                        snapshot: "snapshot";
+                        limit: "limit";
+                        budget: "budget";
+                    }>>;
+                    nextCursor: z.ZodNullable<z.ZodString>;
+                    snapshotExhausted: z.ZodBoolean;
+                    caveats: z.ZodArray<z.ZodEnum<{
+                        mutable_sort_key: "mutable_sort_key";
+                        no_frozen_snapshot: "no_frozen_snapshot";
+                    }>>;
+                }, z.core.$strict>;
+                capture: z.ZodObject<{
+                    planes: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
+                        plane: z.ZodEnum<{
+                            post_comments: "post_comments";
+                            fans: "fans";
+                            page_dm_messages: "page_dm_messages";
+                            page_dm_threads: "page_dm_threads";
+                            observations: "observations";
+                            sync_raw_payloads: "sync_raw_payloads";
+                            message_archive: "message_archive";
+                            dm_message_archive: "dm_message_archive";
+                            transactions: "transactions";
+                            transaction_tip_contexts: "transaction_tip_contexts";
+                            message_media_offers: "message_media_offers";
+                            fan_spend_daily: "fan_spend_daily";
+                            fan_spend_lifetime: "fan_spend_lifetime";
+                            revenue_mix_daily: "revenue_mix_daily";
+                            page_payout_requests: "page_payout_requests";
+                            ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
+                            page_payout_methods: "page_payout_methods";
+                            fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
+                            fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            page_fans: "page_fans";
+                            page_fan_aliases: "page_fan_aliases";
+                            fan_username_aliases: "fan_username_aliases";
+                            domain_events: "domain_events";
+                            page_subscriptions: "page_subscriptions";
+                            fansly_creator_stats_subscriptions: "fansly_creator_stats_subscriptions";
+                            daily_followers: "daily_followers";
+                            page_follows: "page_follows";
+                            fansly_creator_stats_follows: "fansly_creator_stats_follows";
+                            fansly_creator_stats_levels: "fansly_creator_stats_levels";
+                            fansly_creator_stats_tier_levels: "fansly_creator_stats_tier_levels";
+                            fansly_creator_stats_geo: "fansly_creator_stats_geo";
+                            fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
+                            fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
+                            fan_summaries: "fan_summaries";
+                            fan_profiles: "fan_profiles";
+                            fan_flags: "fan_flags";
+                            creator_posts: "creator_posts";
+                            creator_raw_media: "creator_raw_media";
+                            creator_vault_album_members: "creator_vault_album_members";
+                            creator_vault_album_scans: "creator_vault_album_scans";
+                            creator_media: "creator_media";
+                            creator_media_bundles: "creator_media_bundles";
+                            creator_post_tips: "creator_post_tips";
+                            stats_traffic_buckets: "stats_traffic_buckets";
+                            fansly_creator_stats_views: "fansly_creator_stats_views";
+                            fansly_creator_stats_profile: "fansly_creator_stats_profile";
+                            fansly_creator_stats_engagement: "fansly_creator_stats_engagement";
+                            fansly_creator_stats_tags: "fansly_creator_stats_tags";
+                            fansly_creator_stats_tag_series: "fansly_creator_stats_tag_series";
+                            fansly_creator_stats_benchmarks: "fansly_creator_stats_benchmarks";
+                            fansly_creator_stats_media_shown: "fansly_creator_stats_media_shown";
+                            fansly_creator_stats_media_daily: "fansly_creator_stats_media_daily";
+                            fansly_creator_stats_media_hourly: "fansly_creator_stats_media_hourly";
+                            fansly_creator_stats_media_totals: "fansly_creator_stats_media_totals";
+                            fansly_creator_stats_media_tags: "fansly_creator_stats_media_tags";
+                            fansly_creator_stats_media_tag_series: "fansly_creator_stats_media_tag_series";
+                            fansly_creator_stats_media_likes: "fansly_creator_stats_media_likes";
+                            fansly_creator_stats_media_top: "fansly_creator_stats_media_top";
+                            stats_top_media: "stats_top_media";
+                            stats_top_tags: "stats_top_tags";
+                            fansly_media_tag_stats: "fansly_media_tag_stats";
+                            platform_tag_daily: "platform_tag_daily";
+                            creator_vault_albums: "creator_vault_albums";
+                            page_subscription_tiers: "page_subscription_tiers";
+                            page_subscription_tier_plans: "page_subscription_tier_plans";
+                            post_likes: "post_likes";
+                            platform_notifications: "platform_notifications";
+                            capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
+                        }>;
+                        state: z.ZodLiteral<"read">;
+                        captureFloor: z.ZodObject<{
+                            at: z.ZodNullable<z.ZodString>;
+                            kind: z.ZodEnum<{
+                                unknown: "unknown";
+                                oldest_stored_row: "oldest_stored_row";
+                            }>;
+                        }, z.core.$strict>;
+                    }, z.core.$strict>, z.ZodObject<{
+                        plane: z.ZodEnum<{
+                            post_comments: "post_comments";
+                            fans: "fans";
+                            page_dm_messages: "page_dm_messages";
+                            page_dm_threads: "page_dm_threads";
+                            observations: "observations";
+                            sync_raw_payloads: "sync_raw_payloads";
+                            message_archive: "message_archive";
+                            dm_message_archive: "dm_message_archive";
+                            transactions: "transactions";
+                            transaction_tip_contexts: "transaction_tip_contexts";
+                            message_media_offers: "message_media_offers";
+                            fan_spend_daily: "fan_spend_daily";
+                            fan_spend_lifetime: "fan_spend_lifetime";
+                            revenue_mix_daily: "revenue_mix_daily";
+                            page_payout_requests: "page_payout_requests";
+                            ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
+                            page_payout_methods: "page_payout_methods";
+                            fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
+                            fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            page_fans: "page_fans";
+                            page_fan_aliases: "page_fan_aliases";
+                            fan_username_aliases: "fan_username_aliases";
+                            domain_events: "domain_events";
+                            page_subscriptions: "page_subscriptions";
+                            fansly_creator_stats_subscriptions: "fansly_creator_stats_subscriptions";
+                            daily_followers: "daily_followers";
+                            page_follows: "page_follows";
+                            fansly_creator_stats_follows: "fansly_creator_stats_follows";
+                            fansly_creator_stats_levels: "fansly_creator_stats_levels";
+                            fansly_creator_stats_tier_levels: "fansly_creator_stats_tier_levels";
+                            fansly_creator_stats_geo: "fansly_creator_stats_geo";
+                            fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
+                            fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
+                            fan_summaries: "fan_summaries";
+                            fan_profiles: "fan_profiles";
+                            fan_flags: "fan_flags";
+                            creator_posts: "creator_posts";
+                            creator_raw_media: "creator_raw_media";
+                            creator_vault_album_members: "creator_vault_album_members";
+                            creator_vault_album_scans: "creator_vault_album_scans";
+                            creator_media: "creator_media";
+                            creator_media_bundles: "creator_media_bundles";
+                            creator_post_tips: "creator_post_tips";
+                            stats_traffic_buckets: "stats_traffic_buckets";
+                            fansly_creator_stats_views: "fansly_creator_stats_views";
+                            fansly_creator_stats_profile: "fansly_creator_stats_profile";
+                            fansly_creator_stats_engagement: "fansly_creator_stats_engagement";
+                            fansly_creator_stats_tags: "fansly_creator_stats_tags";
+                            fansly_creator_stats_tag_series: "fansly_creator_stats_tag_series";
+                            fansly_creator_stats_benchmarks: "fansly_creator_stats_benchmarks";
+                            fansly_creator_stats_media_shown: "fansly_creator_stats_media_shown";
+                            fansly_creator_stats_media_daily: "fansly_creator_stats_media_daily";
+                            fansly_creator_stats_media_hourly: "fansly_creator_stats_media_hourly";
+                            fansly_creator_stats_media_totals: "fansly_creator_stats_media_totals";
+                            fansly_creator_stats_media_tags: "fansly_creator_stats_media_tags";
+                            fansly_creator_stats_media_tag_series: "fansly_creator_stats_media_tag_series";
+                            fansly_creator_stats_media_likes: "fansly_creator_stats_media_likes";
+                            fansly_creator_stats_media_top: "fansly_creator_stats_media_top";
+                            stats_top_media: "stats_top_media";
+                            stats_top_tags: "stats_top_tags";
+                            fansly_media_tag_stats: "fansly_media_tag_stats";
+                            platform_tag_daily: "platform_tag_daily";
+                            creator_vault_albums: "creator_vault_albums";
+                            page_subscription_tiers: "page_subscription_tiers";
+                            page_subscription_tier_plans: "page_subscription_tier_plans";
+                            post_likes: "post_likes";
+                            platform_notifications: "platform_notifications";
+                            capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
+                        }>;
+                        state: z.ZodEnum<{
+                            not_applicable: "not_applicable";
+                            not_read: "not_read";
+                            not_indexed: "not_indexed";
+                        }>;
+                        reason: z.ZodEnum<{
+                            not_a_source_for_this_claim: "not_a_source_for_this_claim";
+                            not_queried_by_this_operation: "not_queried_by_this_operation";
+                            onlyfans_only: "onlyfans_only";
+                            fansly_only: "fansly_only";
+                            capability_not_granted: "capability_not_granted";
+                            plane_disabled_by_config: "plane_disabled_by_config";
+                            not_indexed_for_text_search: "not_indexed_for_text_search";
+                            journal_starts_after_window: "journal_starts_after_window";
+                            partition_detached: "partition_detached";
+                            outside_sql_retention: "outside_sql_retention";
+                            source_timeout: "source_timeout";
+                        }>;
+                    }, z.core.$strict>]>>;
+                    observedRowFloor: z.ZodNullable<z.ZodString>;
+                    gaps: z.ZodArray<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            partition_detached: "partition_detached";
+                            before_capture_floor: "before_capture_floor";
+                            after_capture_ceiling: "after_capture_ceiling";
+                            internal_capture_gap: "internal_capture_gap";
+                            proof_open_debt: "proof_open_debt";
+                            parse_debt: "parse_debt";
+                            rejected_rows: "rejected_rows";
+                            source_error: "source_error";
+                        }>;
+                        from: z.ZodNullable<z.ZodString>;
+                        to: z.ZodNullable<z.ZodString>;
+                        plane: z.ZodEnum<{
+                            post_comments: "post_comments";
+                            fans: "fans";
+                            page_dm_messages: "page_dm_messages";
+                            page_dm_threads: "page_dm_threads";
+                            observations: "observations";
+                            sync_raw_payloads: "sync_raw_payloads";
+                            message_archive: "message_archive";
+                            dm_message_archive: "dm_message_archive";
+                            transactions: "transactions";
+                            transaction_tip_contexts: "transaction_tip_contexts";
+                            message_media_offers: "message_media_offers";
+                            fan_spend_daily: "fan_spend_daily";
+                            fan_spend_lifetime: "fan_spend_lifetime";
+                            revenue_mix_daily: "revenue_mix_daily";
+                            page_payout_requests: "page_payout_requests";
+                            ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
+                            page_payout_methods: "page_payout_methods";
+                            fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
+                            fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            page_fans: "page_fans";
+                            page_fan_aliases: "page_fan_aliases";
+                            fan_username_aliases: "fan_username_aliases";
+                            domain_events: "domain_events";
+                            page_subscriptions: "page_subscriptions";
+                            fansly_creator_stats_subscriptions: "fansly_creator_stats_subscriptions";
+                            daily_followers: "daily_followers";
+                            page_follows: "page_follows";
+                            fansly_creator_stats_follows: "fansly_creator_stats_follows";
+                            fansly_creator_stats_levels: "fansly_creator_stats_levels";
+                            fansly_creator_stats_tier_levels: "fansly_creator_stats_tier_levels";
+                            fansly_creator_stats_geo: "fansly_creator_stats_geo";
+                            fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
+                            fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
+                            fan_summaries: "fan_summaries";
+                            fan_profiles: "fan_profiles";
+                            fan_flags: "fan_flags";
+                            creator_posts: "creator_posts";
+                            creator_raw_media: "creator_raw_media";
+                            creator_vault_album_members: "creator_vault_album_members";
+                            creator_vault_album_scans: "creator_vault_album_scans";
+                            creator_media: "creator_media";
+                            creator_media_bundles: "creator_media_bundles";
+                            creator_post_tips: "creator_post_tips";
+                            stats_traffic_buckets: "stats_traffic_buckets";
+                            fansly_creator_stats_views: "fansly_creator_stats_views";
+                            fansly_creator_stats_profile: "fansly_creator_stats_profile";
+                            fansly_creator_stats_engagement: "fansly_creator_stats_engagement";
+                            fansly_creator_stats_tags: "fansly_creator_stats_tags";
+                            fansly_creator_stats_tag_series: "fansly_creator_stats_tag_series";
+                            fansly_creator_stats_benchmarks: "fansly_creator_stats_benchmarks";
+                            fansly_creator_stats_media_shown: "fansly_creator_stats_media_shown";
+                            fansly_creator_stats_media_daily: "fansly_creator_stats_media_daily";
+                            fansly_creator_stats_media_hourly: "fansly_creator_stats_media_hourly";
+                            fansly_creator_stats_media_totals: "fansly_creator_stats_media_totals";
+                            fansly_creator_stats_media_tags: "fansly_creator_stats_media_tags";
+                            fansly_creator_stats_media_tag_series: "fansly_creator_stats_media_tag_series";
+                            fansly_creator_stats_media_likes: "fansly_creator_stats_media_likes";
+                            fansly_creator_stats_media_top: "fansly_creator_stats_media_top";
+                            stats_top_media: "stats_top_media";
+                            stats_top_tags: "stats_top_tags";
+                            fansly_media_tag_stats: "fansly_media_tag_stats";
+                            platform_tag_daily: "platform_tag_daily";
+                            creator_vault_albums: "creator_vault_albums";
+                            page_subscription_tiers: "page_subscription_tiers";
+                            page_subscription_tier_plans: "page_subscription_tier_plans";
+                            post_likes: "post_likes";
+                            platform_notifications: "platform_notifications";
+                            capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
+                        }>;
+                        remedy: z.ZodUnion<readonly [z.ZodObject<{
+                            kind: z.ZodLiteral<"none">;
+                            reason: z.ZodEnum<{
+                                capability_not_granted: "capability_not_granted";
+                                partition_detached: "partition_detached";
+                                no_remedy_exists: "no_remedy_exists";
+                                capture_lane_unimplemented: "capture_lane_unimplemented";
+                                journal_before_capture_start: "journal_before_capture_start";
+                                hydration_mode_off: "hydration_mode_off";
+                                discarded_at_capture: "discarded_at_capture";
+                                projection_missing: "projection_missing";
+                            }>;
+                        }, z.core.$strict>, z.ZodObject<{
+                            kind: z.ZodLiteral<"local_replay">;
+                            costClass: z.ZodLiteral<"free">;
+                            admissible: z.ZodBoolean;
+                            reason: z.ZodNullable<z.ZodEnum<{
+                                capability_not_granted: "capability_not_granted";
+                                partition_detached: "partition_detached";
+                                no_remedy_exists: "no_remedy_exists";
+                                capture_lane_unimplemented: "capture_lane_unimplemented";
+                                journal_before_capture_start: "journal_before_capture_start";
+                                hydration_mode_off: "hydration_mode_off";
+                                discarded_at_capture: "discarded_at_capture";
+                                projection_missing: "projection_missing";
+                            }>>;
+                        }, z.core.$strict>, z.ZodObject<{
+                            kind: z.ZodLiteral<"hydration_request">;
+                            costClass: z.ZodEnum<{
+                                vendor_paid_low: "vendor_paid_low";
+                                vendor_paid_high: "vendor_paid_high";
+                            }>;
+                            admissible: z.ZodBoolean;
+                            reason: z.ZodNullable<z.ZodEnum<{
+                                capability_not_granted: "capability_not_granted";
+                                partition_detached: "partition_detached";
+                                no_remedy_exists: "no_remedy_exists";
+                                capture_lane_unimplemented: "capture_lane_unimplemented";
+                                journal_before_capture_start: "journal_before_capture_start";
+                                hydration_mode_off: "hydration_mode_off";
+                                discarded_at_capture: "discarded_at_capture";
+                                projection_missing: "projection_missing";
+                            }>>;
+                        }, z.core.$strict>, z.ZodObject<{
+                            kind: z.ZodLiteral<"recapture">;
+                            costClass: z.ZodEnum<{
+                                free: "free";
+                                vendor_paid_low: "vendor_paid_low";
+                                vendor_paid_high: "vendor_paid_high";
+                            }>;
+                            admissible: z.ZodBoolean;
+                            reason: z.ZodNullable<z.ZodEnum<{
+                                capability_not_granted: "capability_not_granted";
+                                partition_detached: "partition_detached";
+                                no_remedy_exists: "no_remedy_exists";
+                                capture_lane_unimplemented: "capture_lane_unimplemented";
+                                journal_before_capture_start: "journal_before_capture_start";
+                                hydration_mode_off: "hydration_mode_off";
+                                discarded_at_capture: "discarded_at_capture";
+                                projection_missing: "projection_missing";
+                            }>>;
+                        }, z.core.$strict>]>;
+                    }, z.core.$strict>>;
+                    sourceErrors: z.ZodArray<z.ZodObject<{
+                        source: z.ZodUnion<readonly [z.ZodEnum<{
+                            post_comments: "post_comments";
+                            fans: "fans";
+                            page_dm_messages: "page_dm_messages";
+                            page_dm_threads: "page_dm_threads";
+                            observations: "observations";
+                            sync_raw_payloads: "sync_raw_payloads";
+                            message_archive: "message_archive";
+                            dm_message_archive: "dm_message_archive";
+                            transactions: "transactions";
+                            transaction_tip_contexts: "transaction_tip_contexts";
+                            message_media_offers: "message_media_offers";
+                            fan_spend_daily: "fan_spend_daily";
+                            fan_spend_lifetime: "fan_spend_lifetime";
+                            revenue_mix_daily: "revenue_mix_daily";
+                            page_payout_requests: "page_payout_requests";
+                            ofapi_read_snapshots: "ofapi_read_snapshots";
+                            page_link_fan_periods: "page_link_fan_periods";
+                            page_link_fan_walks: "page_link_fan_walks";
+                            page_payout_methods: "page_payout_methods";
+                            fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
+                            fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            page_fans: "page_fans";
+                            page_fan_aliases: "page_fan_aliases";
+                            fan_username_aliases: "fan_username_aliases";
+                            domain_events: "domain_events";
+                            page_subscriptions: "page_subscriptions";
+                            fansly_creator_stats_subscriptions: "fansly_creator_stats_subscriptions";
+                            daily_followers: "daily_followers";
+                            page_follows: "page_follows";
+                            fansly_creator_stats_follows: "fansly_creator_stats_follows";
+                            fansly_creator_stats_levels: "fansly_creator_stats_levels";
+                            fansly_creator_stats_tier_levels: "fansly_creator_stats_tier_levels";
+                            fansly_creator_stats_geo: "fansly_creator_stats_geo";
+                            fansly_creator_stats_active_hours: "fansly_creator_stats_active_hours";
+                            fan_notes: "fan_notes";
+                            client_note_attributions: "client_note_attributions";
+                            fan_summaries: "fan_summaries";
+                            fan_profiles: "fan_profiles";
+                            fan_flags: "fan_flags";
+                            creator_posts: "creator_posts";
+                            creator_raw_media: "creator_raw_media";
+                            creator_vault_album_members: "creator_vault_album_members";
+                            creator_vault_album_scans: "creator_vault_album_scans";
+                            creator_media: "creator_media";
+                            creator_media_bundles: "creator_media_bundles";
+                            creator_post_tips: "creator_post_tips";
+                            stats_traffic_buckets: "stats_traffic_buckets";
+                            fansly_creator_stats_views: "fansly_creator_stats_views";
+                            fansly_creator_stats_profile: "fansly_creator_stats_profile";
+                            fansly_creator_stats_engagement: "fansly_creator_stats_engagement";
+                            fansly_creator_stats_tags: "fansly_creator_stats_tags";
+                            fansly_creator_stats_tag_series: "fansly_creator_stats_tag_series";
+                            fansly_creator_stats_benchmarks: "fansly_creator_stats_benchmarks";
+                            fansly_creator_stats_media_shown: "fansly_creator_stats_media_shown";
+                            fansly_creator_stats_media_daily: "fansly_creator_stats_media_daily";
+                            fansly_creator_stats_media_hourly: "fansly_creator_stats_media_hourly";
+                            fansly_creator_stats_media_totals: "fansly_creator_stats_media_totals";
+                            fansly_creator_stats_media_tags: "fansly_creator_stats_media_tags";
+                            fansly_creator_stats_media_tag_series: "fansly_creator_stats_media_tag_series";
+                            fansly_creator_stats_media_likes: "fansly_creator_stats_media_likes";
+                            fansly_creator_stats_media_top: "fansly_creator_stats_media_top";
+                            stats_top_media: "stats_top_media";
+                            stats_top_tags: "stats_top_tags";
+                            fansly_media_tag_stats: "fansly_media_tag_stats";
+                            platform_tag_daily: "platform_tag_daily";
+                            creator_vault_albums: "creator_vault_albums";
+                            page_subscription_tiers: "page_subscription_tiers";
+                            page_subscription_tier_plans: "page_subscription_tier_plans";
+                            post_likes: "post_likes";
+                            platform_notifications: "platform_notifications";
+                            capture_coverage: "capture_coverage";
+                            page_link_stat_runs: "page_link_stat_runs";
+                            page_link_stat_snapshots: "page_link_stat_snapshots";
+                            traffic_link_bindings: "traffic_link_bindings";
+                            traffic_channel_contractors: "traffic_channel_contractors";
+                        }>, z.ZodEnum<{
+                            ofapi_certified_history: "ofapi_certified_history";
+                            ofapi_message_coverage: "ofapi_message_coverage";
+                        }>]>;
+                        code: z.ZodEnum<{
+                            partition_detached: "partition_detached";
+                            statement_timeout: "statement_timeout";
+                            archive_rebuilding: "archive_rebuilding";
+                            plane_disabled: "plane_disabled";
+                            row_budget_exhausted: "row_budget_exhausted";
+                            certified_history_miss: "certified_history_miss";
+                        }>;
+                        excludedFromCounts: z.ZodLiteral<true>;
+                    }, z.core.$strict>>;
+                    scopeNarrowing: z.ZodObject<{
+                        keyGrantExcludedPages: z.ZodNumber;
+                        totalPagesForQuery: z.ZodNumber;
+                    }, z.core.$strict>;
+                    scopeFieldStates: z.ZodRecord<z.ZodEnum<{
+                        username: "username";
                         currency: "currency";
+                        platformUserId: "platformUserId";
+                        displayName: "displayName";
                         postRef: "postRef";
                         netMills: "netMills";
                         textPlain: "textPlain";
@@ -49937,4 +51495,8 @@ export type AgentSyncStatusQuery = z.infer<typeof agentSyncStatusQuerySchema>;
 export type AgentSyncStatusResponse = z.infer<typeof agentSyncStatusResponseSchema>;
 export type AgentSyncWhyQuery = z.infer<typeof agentSyncWhyQuerySchema>;
 export type AgentSyncWhyResponse = z.infer<typeof agentSyncWhyResponseSchema>;
+export type AgentCrossSpendersAudience = z.infer<typeof agentCrossSpendersAudienceEnum>;
+export type AgentCrossSpendersQuery = z.infer<typeof agentCrossSpendersQuerySchema>;
+export type AgentCrossSpendersResponse = z.infer<typeof agentCrossSpendersResponseSchema>;
+export type AgentCrossSpender = z.infer<typeof agentCrossSpenderSchema>;
 export {};
