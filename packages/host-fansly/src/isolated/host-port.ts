@@ -443,9 +443,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     slot = nextSlot;
     header.sync(routeState.name === 'chat' && routeState.conversationKind !== 'group' ? anchors.current().conversation?.subRow ?? null : null);
     // The fan's whole name in place of Fansly's 10-character cut: the open direct chat's own header only. Fansly shows
-    // the display name, or the handle when there is none.
+    // the creator's custom name for the fan first, else the display name, else the handle (its `getDisplayName`).
     const account = routeState.chat === null ? null : (conversation?.contact?.querySelector(FANSLY_SELECTORS.headerAccount) ?? null);
-    wholeName.sync(account, chatWire?.fanDisplayName ?? chatWire?.fanUsername ?? null);
+    wholeName.sync(account, chatWire?.fanCustomName ?? chatWire?.fanDisplayName ?? chatWire?.fanUsername ?? null);
 
     if (routeMoved) emit({ type: 'route', route: routeState });
     if (seen !== composerSeen) {

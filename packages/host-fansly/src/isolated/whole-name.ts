@@ -1,6 +1,7 @@
 // The fan's whole name in Fansly's chat header (2026-10-26). Fansly's `app-account-username` cuts the display name at
 // `maxLength` — 10 in the chat header («Chet/Austr...») — while the page's account answers hold it whole; MAIN gives it
-// with the chat (`fx.chat.fanDisplayName`, or `fanUsername` when the fan has no display name: Fansly shows the handle). Only Fansly's own cut is replaced: a text that is the whole name's first
+// with the chat (`fx.chat.fanCustomName` — the creator's custom name for the fan, which Fansly shows first — else
+// `fanDisplayName`, else `fanUsername`: Fansly's `getDisplayName`). Only Fansly's own cut is replaced: a text that is the whole name's first
 // characters and «...». Another fan's name, or a name Fansly shows whole, is never touched.
 //
 // Angular writes the text again only when its own value changes, and re-creates the block on a chat switch: one

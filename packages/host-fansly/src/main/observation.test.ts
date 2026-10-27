@@ -224,6 +224,27 @@ describe('[host:fansly] the focused chat and the stream (fx.focus, fx.chat, fx.i
     await c.client.request('fx.focus', { groupId: null, routeEpoch: 8 });
     expect((await c.state()).chat).toBeNull();
   });
+
+  it('2026-10-27: fx.chat carries the creator’s custom name for the fan (note 12002), which Fansly’s header shows cut; an answer without notes keeps it, one with notes and no such note drops it', async () => {
+    const { c } = await tab();
+    await c.client.request('fx.focus', { groupId: GROUP, routeEpoch: 3 });
+    const last = (): Record<string, unknown> | undefined => c.events().filter((e) => e.t === 'fx.chat').at(-1)?.p;
+    const notes = [
+      { id: '700000000000900001', contentType: 12000, contentId: FAN, title: 'Spent', note: 'likes feet' },
+      { id: '700000000000900002', contentType: 12002, contentId: FAN, title: 'Custom Username', note: ' Michael/Sweden ' },
+    ];
+    request(c.win, `${API}/account?ids=${FAN}&ngsw-bypass=true`).respond(200, ok([{ id: FAN, username: 'mike', displayName: 'Michael', notes }]));
+    await settle();
+    expect(last()).toMatchObject({ fanDisplayName: 'Michael', fanUsername: 'mike', fanCustomName: 'Michael/Sweden' });
+    // The inbox's accounts carry no notes: the name stays.
+    request(c.win, `${API}/messaging/groups`).respond(200, ok({ data: [], aggregationData: { groups: [], accounts: [{ id: FAN, username: 'mike', displayName: 'Mike' }] } }));
+    await settle();
+    expect(last()).toMatchObject({ fanDisplayName: 'Mike', fanCustomName: 'Michael/Sweden' });
+    // The name removed: the notes come without it.
+    request(c.win, `${API}/account?ids=${FAN}&ngsw-bypass=true`).respond(200, ok([{ id: FAN, username: 'mike', notes: notes.slice(0, 1) }]));
+    await settle();
+    expect(last()).not.toHaveProperty('fanCustomName');
+  });
 });
 
 describe('[host:fansly] the generation snapshot (FS-TAIL-6, FS-TAIL-7, §5.8)', () => {
