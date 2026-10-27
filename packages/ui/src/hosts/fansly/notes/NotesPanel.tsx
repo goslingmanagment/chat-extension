@@ -784,7 +784,8 @@ function Body({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }): JSX.
 
 export function NotesPanel({ client, texts }: { readonly client: NotesClient; readonly texts: NotesTexts }): JSX.Element | null {
   useNotesTick(client);
-  const copy = texts[useI18n().language];
+  const language = useI18n().language;
+  const copy = texts[language];
   const vm = client.panel();
   const card = useRef<HTMLElement | null>(null);
   const [naming, setNaming] = useState(false);
@@ -804,6 +805,8 @@ export function NotesPanel({ client, texts }: { readonly client: NotesClient; re
       class={`cg-notes${center ? ' is-center' : ''}`}
       role={center ? 'dialog' : 'complementary'}
       aria-label={copy.title}
+      // The words break by syllables, not mid-letter, in the narrow side panel.
+      lang={language}
       tabIndex={-1}
       data-notes-view={vm.view}
       data-notes-place={place?.kind ?? 'center'}
