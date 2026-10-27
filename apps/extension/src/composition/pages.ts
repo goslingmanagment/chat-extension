@@ -19,6 +19,7 @@
 // - the diagnostics file is saved through a Blob (§9.2), a link of the site
 //   opens in a new tab on a click and only when it is https.
 
+import { FBUDDY_MATCH } from '@cg/contracts/fan-badges';
 import { FANSLY_CONTRACT, FANSLY_STATUS_TEXTS } from '@cg/contracts/fansly-host';
 import { FANSLY_TAB_TYPE_PREFIX, parseFanslyTabPayload } from '@cg/contracts/tab-messages-fansly';
 import type { FeatureSlice } from '@cg/contracts/features/types';
@@ -242,7 +243,15 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   const access = createSiteAccessControl(OPTIONAL_HOST, rpc, sitePermissions);
   // The page's port carries Fansly's types as any other (its validator checks them by Fansly's registry).
   const fanslyRequest = ((type: string, payload: unknown) => rpc.request(type as never, payload as never)) as unknown as FanslyPagesDeps['request'];
-  const fansly = page === 'options' ? createFanslyPages({ access, request: fanslyRequest, preview: (tone, volume) => rpc.request('sound.preview', { tone, volume }) }) : null;
+  // «Алмазики FBuddy» (2026-10-28): FBuddy's address, an optional permission the person allows on Fansly's card.
+  const fbuddyAccess = createPermissionBundle({ origins: [FBUDDY_MATCH] }, api);
+  const fbuddy = {
+    has: fbuddyAccess.has,
+    request: fbuddyAccess.request,
+    remove: () => api.permissions.remove({ origins: [FBUDDY_MATCH] }).then((removed) => removed === true, () => false),
+    onChange: (listener: () => void) => fbuddyAccess.onChange(() => listener()),
+  };
+  const fansly = page === 'options' ? createFanslyPages({ access, request: fanslyRequest, preview: (tone, volume) => rpc.request('sound.preview', { tone, volume }), fbuddy }) : null;
 
   const pagesClient = createPagesClient(env, fansly === null ? ports : { ...ports, siteAccounts: [fansly.accounts] });
   // The chatter's log (2026-10-21, «Скачать лог»): every click of the page, with what it came to — never a text.

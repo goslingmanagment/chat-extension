@@ -162,6 +162,21 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [{ ok: true, last: { messageId: F.group, direction: 'model', sentAt: null, read: 'yes', readAt: null } }, { ok: true }, unknownFailure],
     },
   },
+  'fansly.online.badges': {
+    req: {
+      valid: [{ pageId: 12, hostAccountId: F.creator, fanRefs: [F.fan] }],
+      invalid: [{ pageId: 12, hostAccountId: F.creator, fanRefs: [] }, { pageId: 12, hostAccountId: F.creator, fanRefs: ['x'] }, { pageId: 12, hostAccountId: F.creator }],
+    },
+    res: {
+      valid: [
+        { ok: true, fans: [{ fanRef: F.fan, recentSpender: true, tier: 'gold' }], fbuddy: 'on' },
+        { ok: true, fans: [{ fanRef: F.fan, recentSpender: null, tier: null }], fbuddy: 'off' },
+        failure,
+        sharedFailure,
+      ],
+      invalid: [{ ok: true, fans: [{ fanRef: F.fan, recentSpender: true, tier: 'diamond' }], fbuddy: 'on' }, { ok: true, fans: [], fbuddy: 'maybe' }, { ok: true, fans: [] }, unknownFailure],
+    },
+  },
   'fansly.online.seen': {
     req: { valid: [{ pageId: 12, hostAccountId: F.creator }], invalid: [{ pageId: 12 }, { pageId: 12, hostAccountId: 123 }, { pageId: 12, hostAccountId: F.creator, lastSeenAfter: '0' }] },
     res: {

@@ -49,6 +49,32 @@ ${/* The picture with its presence dot; the dot of the row's end. */ ''}
 .ol-sdot.is-fading { background: var(--cg-amber-ink); }
 .ol-sdot.is-gone { background: var(--cg-ink-faint); }
 
+${/* The name with the fan's badges (Fansly): FBuddy's gem in its tier's colour, Fansly's blue card in its corner. */ ''}
+.ol-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ol-name > .cg-nw__name, .ol-name > .cg-nc__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ol-badge {
+  position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; height: 18px; padding: 0 5px;
+  border-radius: 999px; border: 1px solid var(--ol-badge-line); background: var(--ol-badge-bg); color: var(--ol-badge-ink);
+}
+.ol-name.is-card .ol-badge { height: 20px; padding: 0 6px; }
+.ol-badge .cg-ico { stroke-width: 1.8; }
+.ol-badge__card.cg-ico { position: absolute; right: -4px; bottom: -3px; width: 9px; height: 9px; padding: 1px; box-sizing: content-box; border-radius: 3px; background: var(--cg-surface); color: #0ea5e9; stroke-width: 2.2; }
+.ol .cg-nw__row.is-sel .ol-badge__card.cg-ico { background: var(--cg-sel); }
+.ol-badge.is-bronze { --ol-badge-ink: #b8692a; --ol-badge-line: rgb(205 127 50 / .6); --ol-badge-bg: rgb(205 127 50 / .14); }
+.ol-badge.is-silver { --ol-badge-ink: #5f6f86; --ol-badge-line: rgb(100 116 139 / .55); --ol-badge-bg: rgb(100 116 139 / .13); }
+.ol-badge.is-gold { --ol-badge-ink: #b58900; --ol-badge-line: rgb(234 179 8 / .7); --ol-badge-bg: rgb(255 215 0 / .2); }
+.ol-badge.is-platinum { --ol-badge-ink: #0891b2; --ol-badge-line: rgb(8 145 178 / .6); --ol-badge-bg: rgb(8 145 178 / .14); }
+.ol-badge.is-blue { --ol-badge-ink: #0ea5e9; --ol-badge-line: rgb(14 165 233 / .6); --ol-badge-bg: rgb(14 165 233 / .13); }
+.ol-badge.is-basic { --ol-badge-ink: #e05a72; --ol-badge-line: rgb(251 113 133 / .6); --ol-badge-bg: rgb(251 113 133 / .13); }
+:host([data-scheme="dark"]) .ol-badge.is-silver { --ol-badge-ink: #cbd5e1; --ol-badge-line: rgb(203 213 225 / .5); }
+:host([data-scheme="dark"]) .ol-badge.is-gold { --ol-badge-ink: #ffd700; }
+:host([data-scheme="dark"]) .ol-badge.is-bronze { --ol-badge-ink: #d9934f; }
+:host([data-scheme="dark"]) .ol-badge.is-platinum { --ol-badge-ink: #22d3ee; }
+:host([data-scheme="dark"]) .ol-badge.is-blue, :host([data-scheme="dark"]) .ol-badge__card.cg-ico { color: #7dd3fc; }
+:host([data-scheme="dark"]) .ol-badge.is-blue { --ol-badge-ink: #7dd3fc; }
+.ol-fbuddy { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); line-height: 16px; }
+.ol-fbuddy .cg-ico { color: #0891b2; }
+
 ${/* The bar: «Зашли за» and its menu. */ ''}
 .ol-period { display: inline-flex; align-items: center; gap: 4px; }
 

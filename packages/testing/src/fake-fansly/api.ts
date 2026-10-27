@@ -36,7 +36,10 @@ import {
   type WireSendBody,
 } from '../../fixture-fansly/src/wire';
 import { FakeFanslyCommandError, groupCreatedFrame, runCommand } from './control';
-import { HISTORY_PAGE, MESSAGE_TYPE, type FanslyWorld } from './data';
+import { HISTORY_PAGE, MESSAGE_TYPE, standFbuddyTier, type FanslyWorld } from './data';
+
+/** The stand's copy of FBuddy's batch of tiers (`<stand>/fbuddy` is a test build's FBuddy base). */
+const STAND_FBUDDY_BATCH = '/fbuddy/api/v1/fan-spend/batch';
 import { classifyCaller, hasNgswBypass, type FanslyCaller, type FanslyRoute, type FanslyVia, type RequestFacts } from './journal';
 import type { FanslySocketHub } from './socket';
 import type { FanslyState } from './state';
@@ -427,6 +430,19 @@ export async function handleFanslyApi(state: FanslyState, hub: FanslySocketHub, 
     response.writeHead(204, { 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': ALLOWED_HEADERS, 'access-control-max-age': String(PREFLIGHT_MAX_AGE_S) }).end();
     // The stand page's controls ask first too: the stand's own, never journaled.
     if (!url.pathname.startsWith(FANSLY_CONTROL_PATH)) state.journal.record({ kind: 'preflight', caller, via, method, path, status: 204 });
+    return;
+  }
+
+  if (url.pathname === STAND_FBUDDY_BATCH) {
+    // The stand's copy of FBuddy's tiers (a test build reads it instead of FBuddy, apps/extension bg/fansly/fbuddy.ts):
+    // the creator's id in its header, the fans' tiers by their ids; not Fansly's, never journaled.
+    const creator = headerText(request.headers['x-fansly-account-id']);
+    if (method !== 'GET' || creator === undefined) {
+      sendJson(response, 400, { success: false, error: 'Fansly Account ID is missing' });
+      return;
+    }
+    const fanIds = (url.searchParams.get('fanIds') ?? '').split(',').filter((id) => /^[0-9]{1,20}$/.test(id));
+    sendJson(response, 200, fanIds.flatMap((fanId) => { const tier = standFbuddyTier(fanId); return tier === null ? [] : [{ fanId, tier }]; }));
     return;
   }
 

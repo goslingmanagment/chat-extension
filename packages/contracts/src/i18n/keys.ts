@@ -241,6 +241,8 @@ export const UI_TEXT_KEYS = [
   'online.pick.tooltip', 'online.pick.again', 'online.pick.template', 'online.card.unwritten', 'online.card.byArchiveAt', 'online.card.staleTail',
   'online.elsewhere.lead', 'online.elsewhere.done', 'online.elsewhere.other', 'online.empty.onlyfans', 'online.empty.fansly', 'online.empty.period',
   'online.empty.todo', 'online.empty.search', 'online.foot.sent', 'online.foot.skipped', 'online.foot.replied', 'online.foot.keys',
+  'online.badge.tier.basic', 'online.badge.tier.bronze', 'online.badge.tier.silver', 'online.badge.tier.gold', 'online.badge.tier.platinum', 'online.badge.recent',
+  'online.fbuddy.off', 'online.fbuddy.enable', 'online.fbuddy.signedOut',
   'online.pane.pick', 'online.pane.nobody', 'online.end.title', 'online.end.sent', 'online.end.skipped', 'online.end.replied',
   'online.end.noReplies', 'online.end.note', 'online.end.showAll', 'online.reason.openCard', 'online.reason.making', 'online.reason.retry', 'online.reason.empty',
   'newcomers.title', 'newcomers.personaNote', 'newcomers.col.fan', 'newcomers.col.kind', 'newcomers.col.subscription', 'newcomers.col.greeting',

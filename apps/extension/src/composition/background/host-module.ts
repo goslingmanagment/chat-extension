@@ -305,6 +305,11 @@ export interface BackgroundKit {
    * open tabs finish what they started; nothing new starts while false. Absent — a site with no switch: always on.
    */
   readonly siteActive?: () => boolean;
+  /**
+   * 2026-10-28: the person allowed this optional address (`https://host`; FBuddy's, for «Онлайн»'s gems) — fails
+   * closed. Absent — none is.
+   */
+  readonly hostGranted?: (origin: string) => Promise<boolean>;
   readonly hub: HubPort;
   readonly storage: StoragePort;
   readonly clock: Clock;

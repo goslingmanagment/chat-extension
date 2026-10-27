@@ -19,6 +19,7 @@
 // «Пропустить» is this pass's only; «Не предлагать» is the team's (the hub keeps it, `online.attempt`).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
+import { type FanBadges, type FbuddyState } from '@cg/contracts/fan-badges';
 import { ONLINE_SENT_ACTS, type OnlineItem, type OnlineList, type OnlineSentAct, type OnlineTemplate, type SendAttributionComposedWith } from '@cg/contracts/hub';
 import { CHAT_IS_FAN, ONLINE_CAPABILITY } from '@cg/contracts/ids';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
@@ -83,6 +84,8 @@ export const ONLINE_ARRIVED_MS = 30_000;
 export const ONLINE_SEARCH_DEBOUNCE_MS = 150;
 /** Fansly: the list waits this long for the site's read of who is active; a slower one goes into the next read. */
 export const ONLINE_SEEN_WAIT_MS = 2_500;
+/** Fansly: the fans whose badges one read asks for, the list's first (the most relevant). */
+export const ONLINE_BADGES_MAX = 100;
 /** ChatSpace: the person's words for a guide's text go onto the card this long after the last key. */
 export const ONLINE_EDIT_SETTLE_MS = 500;
 /** ChatSpace: a guide's text that did not go onto the open card is tried again this much later. */
@@ -115,6 +118,11 @@ export interface OnlineOwnChannel {
    */
   group(hostAccountId: string, fan: { readonly fanRef: string; readonly username: string | null; readonly displayName: string | null }, active: boolean): Promise<string | null>;
   send(request: OnlineSendRequest): Promise<OnlineSendAnswer>;
+  /**
+   * The fans' badges (2026-10-28): Fansly's blue card and FBuddy's gem, the background's (each fan at most once in ten
+   * minutes there); null — not read. Absent — the site has none.
+   */
+  badges?(pageId: number, hostAccountId: string, fanRefs: readonly string[]): Promise<{ readonly fans: ReadonlyMap<string, FanBadges>; readonly fbuddy: FbuddyState } | null>;
 }
 
 export interface OnlineControllerDeps {
@@ -262,6 +270,10 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   let pollTimer: number | null = null;
   /** The fans of the last read: a fan absent from it who shows up in the next one came online meanwhile. */
   let present: ReadonlySet<string> | null = null;
+  /** Fansly: the fans' badges and whether FBuddy's gems could be read (null — not asked yet). */
+  let badges = new Map<string, FanBadges>();
+  let fbuddy: FbuddyState | null = null;
+  let badgesRun = 0;
 
   // ── the person's choices ──
   let minutes: OnlinePeriod = ONLINE_DEFAULT_MINUTES;
@@ -708,6 +720,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       arrived: fan?.arrivedAt !== null && fan?.arrivedAt !== undefined && clock.now() - fan.arrivedAt < ONLINE_ARRIVED_MS,
       replied: fan?.replied === null || fan?.replied === undefined ? null : { at: fan.replied.at, text: null },
       code: facts.code,
+      badges: badges.get(entry.fanRef) ?? null,
     };
   }
 
@@ -762,6 +775,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       dismiss: entry.aside?.kind === 'dismissed' ? 'restore' : 'dismiss',
       noChat,
       next: next === null ? null : { handle: handleOf(next.fanRef), name: next.name },
+      badges: badges.get(entry.fanRef) ?? null,
     };
   }
 
@@ -822,6 +836,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       totals: { online: entries.length, worth: todo.length, sent: sentFans.length, skipped, replied: repliedFans.length },
       card,
       end,
+      fbuddy: own?.badges === undefined ? null : fbuddy,
     };
   }
 
@@ -930,10 +945,30 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     else {
       take(answer.payload);
       listError = null;
+      void readBadges(binding.pageId, binding.platformAccountId, answer.payload.items.map((item) => item.fanRef));
     }
     loadedAt = clock.now();
     changed();
     tryStart();
+  }
+
+  /** Fansly: the list's fans' badges, after the list (never holding it); a failed read keeps the last ones. */
+  async function readBadges(page: number, account: string, fanRefs: readonly string[]): Promise<void> {
+    if (own?.badges === undefined || fanRefs.length === 0) return;
+    const run = ++badgesRun;
+    const atEpoch = epoch;
+    const answer = await own.badges(page, account, fanRefs.slice(0, ONLINE_BADGES_MAX)).catch(() => null);
+    if (disposed || run !== badgesRun || atEpoch !== epoch || answer === null) return;
+    // What this read could not say keeps the last word: a card not read, a tier of a FBuddy that did not answer. A tier
+    // FBuddy no longer gives (taken back, signed out) goes.
+    const next = new Map(badges);
+    for (const [fanRef, value] of answer.fans) {
+      const last = next.get(fanRef);
+      next.set(fanRef, { recentSpender: value.recentSpender ?? last?.recentSpender ?? null, tier: answer.fbuddy === 'failed' ? (value.tier ?? last?.tier ?? null) : value.tier });
+    }
+    badges = next;
+    fbuddy = answer.fbuddy;
+    changed(true);
   }
 
   /** A new read: who came meanwhile lights up, who answered a text from here waits again. */
@@ -1437,6 +1472,9 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     batch.reset();
     list = null;
     items = new Map();
+    badges = new Map();
+    fbuddy = null;
+    badgesRun += 1;
     listError = null;
     loading = false;
     loadedAt = null;

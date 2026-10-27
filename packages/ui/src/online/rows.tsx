@@ -1,5 +1,6 @@
 // A fan of «Онлайн» in the list — «Новые»'s row: the picture with the presence dot (green: active within ten
-// minutes or the site's own «в сети», amber: within half an hour, grey: longer), the name, «@handle · $560», why to
+// minutes or the site's own «в сети», amber: within half an hour, grey: longer), the name with the fan's badges on
+// Fansly (FBuddy's gem, Fansly's blue card; ./badges.tsx), «@handle · $560», why to
 // write now in words, how fresh the presence is at the end, and under it the text that would go: two lines of the
 // draft look while it waits, one muted line once it went.
 
@@ -9,6 +10,7 @@ import { type OnlineRowVM } from '@cg/contracts/vm';
 
 import { Icon, Spinner, pure, useI18n, useTooltip } from '../kit';
 import { NewcomerAvatar } from '../newcomers/frame';
+import { FanBadge } from './badges';
 import { actWord, asideText, reasonShort, seenShort } from './words';
 
 /** The picture with the presence dot. */
@@ -117,7 +119,10 @@ function RowView({ row, onSelect }: RowProps): JSX.Element {
     >
       <OnlineAvatar name={row.name} presence={row.presence} size="row" />
       <span class="cg-nw__copy">
-        <span class="cg-nw__name">{row.name}</span>
+        <span class="ol-name">
+          <span class="cg-nw__name">{row.name}</span>
+          <FanBadge badges={row.badges} />
+        </span>
         <span class="cg-nw__meta cg-num">{meta.join(' · ')}</span>
         <Status row={row} />
       </span>

@@ -251,6 +251,8 @@ export interface WireAccount {
   readonly location: string;
   readonly profileAccessFlags: number;
   readonly profileFlags: number;
+  /** Bit 2: Fansly's blue card «Recent Spender» (never on a creator). */
+  readonly userFlags: number;
   readonly followsYou: boolean;
   readonly following: boolean;
   readonly avatar: WireAvatar | null;

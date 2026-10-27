@@ -21,6 +21,7 @@ import { useOwnEchoes } from '../spenders/ownEchoes';
 import { offersOpenInsert, openAndInsert } from '../spenders/preview/SendRow';
 import { blockedReason } from '../outreach/rows';
 import { OnlineAvatar } from './rows';
+import { FanBadge } from './badges';
 import { actWord, asideText, firstName, seenLong, timeLeft } from './words';
 
 /** The text as the card's preview holds it: what «Открыть и вставить» puts into the fan's chat. */
@@ -45,7 +46,10 @@ function Head({ card, preview }: { readonly card: OnlineCardVM; readonly preview
     <header class="cg-nc__head">
       <OnlineAvatar name={card.name} presence={card.presence} size="card" />
       <div class="cg-nc__who">
-        <h3 class="cg-nc__name">{card.name}</h3>
+        <div class="ol-name is-card">
+          <h3 class="cg-nc__name">{card.name}</h3>
+          <FanBadge badges={card.badges} />
+        </div>
         <div class="cg-nc__meta cg-num">
           {money.join(' · ')}
           {card.last30 === null ? null : (

@@ -126,6 +126,27 @@ const PATHS = {
   /** A take that plays (1.47.0): «Пауза». */
   pause: <path d="M5.6 4.2v7.6M10.4 4.2v7.6" />,
   /** «Рассылка» (1.63.0): an envelope — its button in Spenders and its chip in the page's corner. */
+  /** FBuddy's spending tier of a fan («Онлайн», 2026-10-28): a gem. */
+  gem: (
+    <>
+      <path d="M4.3 2.6h7.4l2.8 3.6L8 13.6 1.5 6.2z" />
+      <path d="M1.5 6.2h13M6.6 2.6L5.4 6.2 8 13.6l2.6-7.4-1.2-3.6" />
+    </>
+  ),
+  /** Fansly's blue card «Recent Spender» («Онлайн», 2026-10-28): a bank card. */
+  card: (
+    <>
+      <rect x="1.8" y="3.6" width="12.4" height="8.8" rx="1.6" />
+      <path d="M1.8 6.6h12.4M4.4 9.9h2.6" />
+    </>
+  ),
+  /** FBuddy's «Basic»: spent nothing anywhere — a banknote crossed. */
+  noMoney: (
+    <>
+      <rect x="1.8" y="4" width="12.4" height="8" rx="1.4" />
+      <path d="M6.6 6.6l2.8 2.8M9.4 6.6L6.6 9.4" />
+    </>
+  ),
   mail: (
     <>
       <rect x="2" y="3.6" width="12" height="8.8" rx="1.6" />

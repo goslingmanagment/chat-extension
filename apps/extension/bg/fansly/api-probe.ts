@@ -48,6 +48,13 @@ export async function standFanslyClient(kit: BackgroundKit, session: FanslyNetwo
   return typeof origin === 'string' && STAND_ORIGIN.test(origin) ? createFanslyClient({ session, pacer: api.pacer, base: `${origin}/api/v1/`, transport: api.client.transport, now: () => kit.clock.now() }) : null;
 }
 
+/** «Онлайн»'s gems in a test build: the stand's copy of FBuddy's API (`<stand>/fbuddy`), never FBuddy itself; null — no stand. */
+export async function standFbuddyBase(kit: BackgroundKit): Promise<string | null> {
+  const stored = await kit.storage.local.get([FANSLY_API_PROBE_KEYS.origin]);
+  const origin = stored.ok ? stored.value[FANSLY_API_PROBE_KEYS.origin] : null;
+  return typeof origin === 'string' && STAND_ORIGIN.test(origin) ? `${origin}/fbuddy` : null;
+}
+
 export function startFanslyApiProbe(kit: BackgroundKit, session: FanslyNetworkSession, api: FanslyApi, relay: RelayHub): () => void {
   const keys = FANSLY_API_PROBE_KEYS;
   let base: string | null = null;

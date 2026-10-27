@@ -9,20 +9,29 @@
 // flight joins it. A call that provably asked Fansly nothing (no session, no frame of the tab in time, the creator
 // cooling down) is not a read and does not hold the minute. Neither the read nor the report is repeated by itself: a
 // report the hub refused is answered as its failure and goes again only with the next read. No name or text is kept.
+//
+// 2026-10-28: the window's fans' badges (`fansly.online.badges`, contracts fan-badges.ts) — Fansly's blue card from one
+// `GET /account?ids=` over the same purpose `online` (each fan at most once in ten minutes, nothing while the creator
+// cools down) and FBuddy's tier (./fbuddy.ts). Either may fail alone: the other's answer still goes.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
+import type { FbuddyTier } from '@cg/contracts/fan-badges';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { ONLINE_PRESENCE_MAX } from '@cg/contracts/hub';
 import type { FanslyTabRequestPayload, FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 import { admittedOn } from '@cg/core/domain/features';
+import { readRecentSpenders } from '@cg/core/domain/hosts/fansly/badges';
 import { readFollowersSeen } from '@cg/core/domain/hosts/fansly/newcomers';
 import { flagRefusal } from '@cg/core/domain/ops';
 import { FanslyApiError, type FanslyClient } from '@cg/fansly-api';
 
 import type { BackgroundKit, HostSiteSender } from '../../src/composition/background/host-module';
+import type { FbuddyTiers } from './fbuddy';
 
 type Request = FanslyTabRequestPayload<'fansly.online.seen'>;
 type Answer = FanslyTabResponsePayload<'fansly.online.seen'>;
+type BadgesRequest = FanslyTabRequestPayload<'fansly.online.badges'>;
+type BadgesAnswer = FanslyTabResponsePayload<'fansly.online.badges'>;
 
 export const ONLINE_SEEN = {
   /** Who was active within this long: `lastSeenAfter` is now less it. */
@@ -31,6 +40,10 @@ export const ONLINE_SEEN = {
   everyMs: 60_000,
   /** The newest hundred followers seen in the window: one page, never walked further. */
   page: 100,
+  /** A fan's blue card is kept this long: asked of Fansly again no sooner. */
+  badgeKeepMs: 10 * 60_000,
+  /** The kept blue cards at most (every creator together). */
+  badgeKeepMax: 5_000,
 } as const;
 
 /** The read's query: the head of the list (`before` and `after` 0, no search), the followers seen since `since` (epoch ms, as FBuddy sends it). */
@@ -53,14 +66,25 @@ interface Held {
 
 export interface OnlineSeen {
   seen(request: Request, sender: HostSiteSender): Promise<Answer>;
+  /** The fans' badges: Fansly's blue card and FBuddy's tier. */
+  badges(request: BadgesRequest, sender: HostSiteSender): Promise<BadgesAnswer>;
   /** Forgets the last reads (another person signed in). */
   clear(): void;
 }
 
 const fail = (error: CgAnyErrorWire): Answer => ({ ok: false, error });
 
-export function createOnlineSeen(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'networkSession' | 'log'>, slice: FeatureSlice, clientNow: () => Promise<Pick<FanslyClient, 'call'> | null>): OnlineSeen {
+type Admitted = { readonly ok: true; readonly creator: string; readonly pageLabel: string } | { readonly ok: false; readonly error: CgAnyErrorWire };
+
+export function createOnlineSeen(
+  kit: Pick<BackgroundKit, 'hub' | 'clock' | 'networkSession' | 'log'>,
+  slice: FeatureSlice,
+  clientNow: () => Promise<Pick<FanslyClient, 'call'> | null>,
+  fbuddy: FbuddyTiers | null = null,
+): OnlineSeen {
   const last = new Map<string, Held>();
+  /** Each fan's blue card, by creator and fan, and when it was read. */
+  const cards = new Map<string, { readonly at: number; readonly value: boolean | null }>();
 
   async function read(held: Held, creator: string, account: string, pageLabel: string): Promise<Answer> {
     const client = await clientNow().catch(() => null);
@@ -94,33 +118,75 @@ export function createOnlineSeen(kit: Pick<BackgroundKit, 'hub' | 'clock' | 'net
     }
   }
 
+  /** The tab's page is the creator's Fansly page and «Онлайн» is admitted there. */
+  async function admit(pageId: number, hostAccountId: string, sender: HostSiteSender): Promise<Admitted> {
+    if (sender.kind !== 'tab') return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
+    const grant = await kit.hub.page(pageId, sender);
+    if (!grant.ok) return { ok: false, error: { code: grant.code } };
+    // The creator's page (by either of the tab's ids for the creator, as the preview's read finds it).
+    const bootstrap = kit.hub.bootstrap();
+    const page = bootstrap?.pages.find((entry) => entry.pageId === pageId);
+    const ids = [hostAccountId, ...(kit.networkSession?.aliases(hostAccountId) ?? [])];
+    if (bootstrap === null || page === undefined || page.platform !== 'fansly' || page.platformAccountId === null || !ids.includes(page.platformAccountId)) return { ok: false, error: { code: 'CG-BINDING-NOT-GRANTED' } };
+    const admitted = admittedOn(slice, 'online', null, bootstrap, page);
+    if (!admitted.usable) return { ok: false, error: flagRefusal(admitted) };
+    return { ok: true, creator: page.platformAccountId, pageLabel: grant.page.pageLabel };
+  }
+
+  /** The fans' blue cards: the ones kept, the rest from one `GET /account?ids=`; a failed read leaves them unknown. */
+  async function readCards(creator: string, account: string, fanRefs: readonly string[]): Promise<Map<string, boolean | null>> {
+    const now = kit.clock.now();
+    for (const [name, entry] of cards) if (cards.size > ONLINE_SEEN.badgeKeepMax || now - entry.at >= ONLINE_SEEN.badgeKeepMs) cards.delete(name);
+    const key = (fan: string): string => `${creator}:${fan}`;
+    const missing = fanRefs.filter((fan) => !cards.has(key(fan)));
+    if (missing.length > 0) {
+      const client = await clientNow().catch(() => null);
+      try {
+        if (client === null) throw new FanslyApiError('session', { sent: false });
+        const answer = await client.call({ purpose: 'online', route: 'account.byIds', account, query: { ids: missing.join(',') } });
+        const found = readRecentSpenders(answer.response, missing);
+        if (found === null) kit.log.service({ level: 'warn', scope: 'fansly.online', msg: 'accounts malformed', fields: {} });
+        else for (const fan of missing) cards.set(key(fan), { at: kit.clock.now(), value: found.get(fan) ?? null });
+      } catch (error) {
+        const wire = error instanceof FanslyApiError ? error.toWire() : { code: 'CG-FAN-REQUEST' as const };
+        kit.log.service({ level: 'warn', scope: 'fansly.online', msg: 'accounts not read', fields: { code: wire.code } });
+      }
+    }
+    return new Map(fanRefs.map((fan) => [fan, cards.get(key(fan))?.value ?? null]));
+  }
+
   return {
     async seen(request, sender) {
-      if (sender.kind !== 'tab') return fail({ code: 'CG-CONTEXT-CHANGED' });
-      const grant = await kit.hub.page(request.pageId, sender);
-      if (!grant.ok) return fail({ code: grant.code });
-      // The creator's page (by either of the tab's ids for the creator, as the preview's read finds it).
-      const bootstrap = kit.hub.bootstrap();
-      const page = bootstrap?.pages.find((entry) => entry.pageId === request.pageId);
-      const ids = [request.hostAccountId, ...(kit.networkSession?.aliases(request.hostAccountId) ?? [])];
-      if (bootstrap === null || page === undefined || page.platform !== 'fansly' || page.platformAccountId === null || !ids.includes(page.platformAccountId)) return fail({ code: 'CG-BINDING-NOT-GRANTED' });
-      const admitted = admittedOn(slice, 'online', null, bootstrap, page);
-      if (!admitted.usable) return fail(flagRefusal(admitted));
-      const creator = page.platformAccountId;
+      const admitted = await admit(request.pageId, request.hostAccountId, sender);
+      if (!admitted.ok) return fail(admitted.error);
+      const creator = admitted.creator;
       const now = kit.clock.now();
       const held = last.get(creator);
       if (held !== undefined && (!held.settled || (held.read && now - held.at < ONLINE_SEEN.everyMs))) return held.answer;
       // Set before anything is awaited: a call that comes meanwhile joins this read.
       const next: Held = { at: now, answer: Promise.resolve(fail({ code: 'CG-FAN-REQUEST' })), settled: false, read: false };
-      next.answer = read(next, creator, request.hostAccountId, grant.page.pageLabel).finally(() => {
+      next.answer = read(next, creator, request.hostAccountId, admitted.pageLabel).finally(() => {
         next.settled = true;
         if (!next.read && last.get(creator) === next) last.delete(creator);
       });
       last.set(creator, next);
       return next.answer;
     },
+    async badges(request, sender) {
+      const admitted = await admit(request.pageId, request.hostAccountId, sender);
+      if (!admitted.ok) return { ok: false, error: admitted.error };
+      const fanRefs = [...new Set(request.fanRefs)].filter((fan) => fan !== admitted.creator);
+      const none = { state: 'failed' as const, tiers: new Map<string, FbuddyTier | null>() };
+      const [found, tiers] = await Promise.all([
+        readCards(admitted.creator, request.hostAccountId, fanRefs),
+        fbuddy === null ? Promise.resolve(none) : fbuddy.read(admitted.creator, fanRefs).catch(() => none),
+      ]);
+      return { ok: true, fans: fanRefs.map((fanRef) => ({ fanRef, recentSpender: found.get(fanRef) ?? null, tier: tiers.tiers.get(fanRef) ?? null })), fbuddy: tiers.state };
+    },
     clear() {
       last.clear();
+      cards.clear();
+      fbuddy?.clear();
     },
   };
 }
