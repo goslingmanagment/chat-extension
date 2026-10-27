@@ -164,6 +164,7 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     fits: () => measure.fits(),
     place: () => measure.place(),
     setTimer: (ms, run) => win.setTimeout(run, ms),
+    author: () => context.current().session?.login ?? null,
     clearTimer: (handle) => win.clearTimeout(handle as number),
   };
   const controller = createNotesController(port);
