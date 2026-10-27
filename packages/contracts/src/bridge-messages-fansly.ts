@@ -109,6 +109,11 @@ export const FanslyChatWireSchema = z
      */
     fanDisplayName: z.optional(FanNameSchema),
     fanUsername: z.optional(FanNameSchema),
+    /**
+     * The creator's custom name for the fan (Fansly's note 12002, 2026-10-27): the chat header shows it in place of the
+     * display name when there is one, cut at 10 characters too. Absent — none known.
+     */
+    fanCustomName: z.optional(FanNameSchema),
   })
   .check(z.refine((c) => (c.kind === 'direct') === (c.fanId !== null), { message: 'a direct chat names its fan; a group chat or an unknown one does not' }));
 export type FanslyChatWire = z.infer<typeof FanslyChatWireSchema>;

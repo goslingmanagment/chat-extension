@@ -25,6 +25,12 @@
 //   `about` of the same account answers, trimmed and cut (the «about» to
 //   ACCOUNT_ABOUT_MAX_CHARS). Hi sends them: the hub learns a new follower only
 //   after the greeting goes, and without them a first message named nobody.
+// - the creator's custom name for the fan (2026-10-27): the first note of
+//   contentType 12002 in the account's `notes[]`, as Fansly's own
+//   `getUsernameNote` picks it. The chat header shows it in place of the
+//   display name, cut at 10 characters; the tab puts it back whole. An answer
+//   without `notes` keeps the earlier name; one with `notes` and no such note
+//   drops it (the name was removed).
 // Bounded: MAX_GROUPS groups and MAX_AVATARS avatars, the least recently
 // touched forgotten first — a group whose chat the observation holds only
 // when no other is left; both are in the memory account (memory.ts).
@@ -129,7 +135,12 @@ export interface AccountNames {
 interface Account {
   readonly avatar: string | null;
   readonly names: AccountNames | null;
+  /** The creator's custom name for the fan (Fansly's note 12002); null — none known. */
+  readonly customName: string | null;
 }
+
+/** Fansly's custom name note (`getUsernameNote`: the first note of this type). */
+const CUSTOM_NAME_NOTE = 12002;
 
 /** A text of an account answer, trimmed and cut at `max` without half of a surrogate pair; null — none. */
 function textOf(value: unknown, max: number): string | null {
@@ -153,6 +164,14 @@ export function namesOf(account: Plain): AccountNames | null {
   return { ...(username === null ? {} : { username }), ...(displayName === null ? {} : { displayName }), ...(about === null ? {} : { about }) };
 }
 
+/** The custom name of an account answer: its text, null — no such note; undefined — the answer has no notes at all. */
+export function customNameOf(account: Plain): string | null | undefined {
+  const notes = account['notes'];
+  if (!Array.isArray(notes)) return undefined;
+  const note: unknown = (notes as unknown[]).find((item) => isPlain(item) && item['contentType'] === CUSTOM_NAME_NOTE);
+  return isPlain(note) ? textOf(note['note'], ACCOUNT_NAME_MAX_CHARS) : null;
+}
+
 export interface Identity {
   creator: string | null;
   /** A group of an answer asked at observation `seen` (`/group/<id>/`, `aggregationData.groups[]`): its id, or null — not a group. */
@@ -169,6 +188,8 @@ export interface Identity {
   avatar(fanId: string): string | null;
   /** The fan's names and «about» the page's answers gave; null — none known. */
   account(fanId: string): AccountNames | null;
+  /** The creator's custom name for the fan the page's answers gave; null — none known. */
+  customName(fanId: string): string | null;
   /** Forgets the least recently touched group but `keep`; false — none to forget. */
   evict(keep: string | null): boolean;
   /** Forgets the least recently seen account (its avatar and names); false — none left. */
@@ -185,7 +206,7 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
   const groupCost = (group: Group): number => COST_GROUP + COST_MEMBER * (group.members?.length ?? 0);
   const textCost = (text: string | null | undefined): number => (text === null || text === undefined ? 0 : COST_TEXT + 2 * text.length);
   const accountCost = (account: Account): number =>
-    COST_RECORD + textCost(account.avatar) + textCost(account.names?.username) + textCost(account.names?.displayName) + textCost(account.names?.about);
+    COST_RECORD + textCost(account.avatar) + textCost(account.names?.username) + textCost(account.names?.displayName) + textCost(account.names?.about) + textCost(account.customName);
 
   /** The group, touched: last in the map's order. */
   const take = (id: string): Group | undefined => {
@@ -256,8 +277,16 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
       if (id === null || id === identity.creator) return;
       const old = accounts.get(id);
       // An answer without an avatar keeps the earlier avatar, one without names the earlier names (the inbox's accounts and `/account?ids=` differ).
-      const account: Account = { avatar: avatarOf(value, Url) ?? old?.avatar ?? null, names: namesOf(value) ?? old?.names ?? null };
-      if (account.avatar === null && account.names === null) return;
+      const customName = customNameOf(value);
+      const account: Account = {
+        avatar: avatarOf(value, Url) ?? old?.avatar ?? null,
+        names: namesOf(value) ?? old?.names ?? null,
+        customName: customName === undefined ? (old?.customName ?? null) : customName,
+      };
+      if (account.avatar === null && account.names === null && account.customName === null) {
+        if (old !== undefined) forgetAccount(id, old);
+        return;
+      }
       if (old !== undefined) forgetAccount(id, old);
       accounts.set(id, account);
       memory.groups += accountCost(account);
@@ -293,6 +322,7 @@ export function createIdentity(memory: Memory, parse: (text: string) => unknown,
     dm: (groupId) => groups.get(groupId)?.dm ?? null,
     avatar: (fanId) => accounts.get(fanId)?.avatar ?? null,
     account: (fanId) => accounts.get(fanId)?.names ?? null,
+    customName: (fanId) => accounts.get(fanId)?.customName ?? null,
     evictAvatar() {
       for (const [id, account] of accounts) {
         forgetAccount(id, account);

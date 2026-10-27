@@ -16,6 +16,8 @@ export interface Account {
   readonly id: string;
   readonly username: string;
   readonly displayName: string;
+  /** The creator's custom name for the account (its note 12002): Fansly's chat header shows it instead of the display name. */
+  readonly customName?: string;
   /** The line under the name on the profile (the showcase world's; the fake Fansly makes one up otherwise). */
   readonly about?: string;
   /** The picture's address as the API gives it (its 400 px variant); the page draws it only in the showcase world (world.ts). */

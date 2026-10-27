@@ -123,6 +123,8 @@ export function createViews(observation: Observation, identity: Identity, string
       const fanId = identity.fan(groupId);
       // The fan's names, whole: Fansly's chat header cuts the display name at 10 characters (2026-10-26).
       const names = fanId === null ? null : identity.account(fanId);
+      // The header shows the creator's custom name for the fan first, when there is one (2026-10-27).
+      const customName = fanId === null ? null : identity.customName(fanId);
       return {
         groupId,
         fanId,
@@ -131,6 +133,7 @@ export function createViews(observation: Observation, identity: Identity, string
         routeEpoch,
         ...(names?.displayName === undefined ? {} : { fanDisplayName: names.displayName }),
         ...(names?.username === undefined ? {} : { fanUsername: names.username }),
+        ...(customName === null ? {} : { fanCustomName: customName }),
         window: {
           loaded,
           newestId: chat?.ids[newest] ?? null,

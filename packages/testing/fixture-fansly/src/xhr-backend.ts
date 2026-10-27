@@ -43,7 +43,9 @@ export function toMessage(wire: WireMessage): Message {
 
 const toAccount = (wire: WireAccount): Account => {
   const avatar = wire.avatar?.variants.find((variant) => variant.width === 400)?.locations[0]?.location ?? wire.avatar?.locations[0]?.location;
-  return { id: wire.id, username: wire.username, displayName: wire.displayName ?? wire.username, ...(avatar === undefined ? {} : { avatar }) };
+  // Fansly's `getUsernameNote`: the first note of the custom name, whatever its text.
+  const customName = wire.notes.find((note) => note.contentType === 12002)?.note;
+  return { id: wire.id, username: wire.username, displayName: wire.displayName ?? wire.username, ...(avatar === undefined ? {} : { avatar }), ...(customName === undefined ? {} : { customName }) };
 };
 
 /** Fansly's own answer to «may this account write to the partner?» in brief: no rule set, or one with every bit met (E155). */
