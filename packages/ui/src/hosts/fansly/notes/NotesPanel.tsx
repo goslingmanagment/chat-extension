@@ -15,11 +15,15 @@
 //   a faint row of its own. A press or Enter writes that one to Fansly, × or Backspace puts it aside, the fan's words on
 //   hover; «Гусь предлагает N · Принять все · Скрыть» over the rows, «Записано: … · Отменить» for a few seconds after a
 //   ✓, «Заменить?» on a row changed since the Goose read it. The fields written are marked ✦.
+// - The prototype's motion came with it (the owner, 2026-10-27: «показывал анимацию прикольную, а по итогу её нет»): a
+//   warm band sweeps the table while the Goose reads, the pills come in one after another, a ✓ dissolves the pill's
+//   frame into the row's own words that land with a warm glow and a short ✓, a × fades the pill out, the rows glide to
+//   their new places and a field's «+ Метка» flies up into its row (`useFlip`). None of it under reduced motion.
 // - «Заметки»: a box at the top (a line typed and Enter makes a note), then the notes, newest first, the date at the
 //   left; «Изменить» and «Удалить» on a note under the pointer. FBuddy's note and a long one are read only.
 
 import type { JSX } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import type { I18nKey } from '@cg/contracts/errors';
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
@@ -27,7 +31,7 @@ import { cgTitleKey } from '@cg/contracts/i18n/keys';
 import type { NotesClient, NotesCopy, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
 import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
 
-import { Button, Dot, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit } from '../../../kit';
+import { Button, Dot, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit, useReducedMotion } from '../../../kit';
 import { useNotesTick, type NotesTexts } from './NotesButton';
 
 type Props = { readonly client: NotesClient; readonly copy: NotesCopy };
@@ -52,6 +56,50 @@ function useFocusAtEnd(ref: { readonly current: TextElement | null }, key: unkno
     field.focus({ preventScroll: false });
     field.setSelectionRange(field.value.length, field.value.length);
   }, [key]);
+}
+
+const EASE = 'cubic-bezier(.2, .7, .3, 1)';
+
+/**
+ * The questionnaire moves instead of jumping: a block marked `data-flip` glides from where it stood before a change,
+ * one that appears fades in, and a row that took a «+ Метка» chip's place flies its label up from the chip. Measured
+ * against the section after every render; nothing moves under reduced motion or when the panel changed its width (its
+ * view).
+ */
+function useFlip(root: { readonly current: HTMLElement | null }, still: boolean): void {
+  const last = useRef<{ readonly width: number; readonly at: ReadonlyMap<string, { readonly x: number; readonly y: number }> } | null>(null);
+  useLayoutEffect(() => {
+    const host = root.current;
+    if (host === null) return;
+    const base = host.getBoundingClientRect();
+    const blocks = [...host.querySelectorAll<HTMLElement>('[data-flip]')];
+    const at = new Map<string, { readonly x: number; readonly y: number }>();
+    for (const block of blocks) {
+      const box = block.getBoundingClientRect();
+      at.set(block.dataset['flip'] ?? '', { x: box.left - base.left, y: box.top - base.top });
+    }
+    const before = last.current;
+    last.current = { width: base.width, at };
+    if (still || before === null || Math.abs(before.width - base.width) > 1 || typeof host.animate !== 'function') return;
+    for (const block of blocks) {
+      const key = block.dataset['flip'] ?? '';
+      const now = at.get(key);
+      const was = before.at.get(key);
+      if (now === undefined) continue;
+      if (was !== undefined) {
+        const dx = was.x - now.x;
+        const dy = was.y - now.y;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) block.animate([{ transform: `translate(${String(dx)}px, ${String(dy)}px)` }, { transform: 'none' }], { duration: 300, easing: EASE });
+        continue;
+      }
+      const chip = key.startsWith('row:') ? before.at.get(`chip:${key.slice(4)}`) : undefined;
+      const label = chip === undefined ? null : block.querySelector<HTMLElement>('.cg-notes__label');
+      if (chip !== undefined && label !== null) {
+        const box = label.getBoundingClientRect();
+        label.animate([{ transform: `translate(${String(chip.x + 18 - (box.left - base.left))}px, ${String(chip.y + 3 - (box.top - base.top))}px)`, opacity: 0.6 }, { transform: 'none', opacity: 1 }], { duration: 460, easing: EASE });
+      } else block.animate([{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: EASE });
+    }
+  });
 }
 
 function NameField({ client, copy, vm, onFocused }: Props & { readonly vm: NotesPanelVM; readonly onFocused: (focused: boolean) => void }): JSX.Element {
@@ -176,6 +224,7 @@ function FieldRow({ client, copy, part, off }: Props & { readonly part: Extract<
       type="button"
       class={`cg-notes__frow${part.fresh === true ? ' is-fresh' : ''}`}
       data-notes-field={part.label}
+      data-flip={`row:${part.label}`}
       title={off ? undefined : copy.fieldHint}
       {...(off ? { 'aria-disabled': 'true' } : {})}
       onClick={() => off || client.dispatch({ type: 'field-open', label: part.label })}
@@ -198,6 +247,11 @@ function FieldRow({ client, copy, part, off }: Props & { readonly part: Extract<
           <Icon name="pencil" size={12} />
         </span>
       )}
+      {part.fresh === true ? (
+        <span class="cg-notes__landed" aria-hidden="true">
+          ✓
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -214,7 +268,7 @@ function FieldEditor({ client, copy, field }: Props & { readonly field: NotesFie
   useFocusAtEnd(box, field.label);
   const off = field.saving || field.blocked;
   return (
-    <div class="cg-notes__fedit" data-notes-field-edit={field.label}>
+    <div class="cg-notes__fedit" data-notes-field-edit={field.label} data-flip={`row:${field.label}`}>
       <span class="cg-notes__label">{field.label}</span>
       <div class="cg-notes__cell">
         <TextField
@@ -255,15 +309,29 @@ type FieldPart = Extract<NotesFormPartVM, { kind: 'field' }>;
 /** A suggestion of the Goose: its words in the AI serif on the draft's warm dashed pill. A press or Enter writes it to
  * Fansly, × or Backspace puts it aside; the fan's words show on hover or focus. */
 function Pill({ client, copy, sug, words, inline }: Props & { readonly sug: NotesSuggestionVM; readonly words: string; readonly inline: boolean }): JSX.Element {
+  const still = useReducedMotion();
+  // × fades the pill out first; the suggestion is put aside as it ends (a pill gone meanwhile puts nothing aside).
+  const [leaving, setLeaving] = useState(false);
+  const fade = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (fade.current !== null) clearTimeout(fade.current);
+    },
+    [],
+  );
   const saving = sug.state === 'saving';
   const accept = (): void => {
-    if (!saving) client.dispatch({ type: 'suggestion-accept', index: sug.index });
+    if (!saving && !leaving) client.dispatch({ type: 'suggestion-accept', index: sug.index });
   };
   const dismiss = (): void => {
-    if (!saving) client.dispatch({ type: 'suggestion-dismiss', index: sug.index });
+    if (saving || leaving) return;
+    if (still) return client.dispatch({ type: 'suggestion-dismiss', index: sug.index });
+    setLeaving(true);
+    fade.current = setTimeout(() => client.dispatch({ type: 'suggestion-dismiss', index: sug.index }), 200);
   };
   return (
-    <span class={`cg-notes__pill${inline ? ' is-inline' : ''}${saving ? ' is-saving' : ''}`} data-notes-pill={sug.kind}>
+    // `--cg-i`: the pills come in one after another, in the questionnaire's order.
+    <span class={`cg-notes__pill${inline ? ' is-inline' : ''}${saving ? ' is-saving' : ''}${leaving ? ' is-leaving' : ''}`} style={`--cg-i: ${String(sug.index)}`} data-notes-pill={sug.kind}>
       <button
         type="button"
         class="cg-notes__pill-t"
@@ -332,7 +400,7 @@ function SuggestedRow({ client, copy, part, sug }: Props & { readonly part: Fiel
   const alone = sug.kind === 'refine' && base === -1 ? sug.value : sug.text === '' ? copy.dropOnly : sug.text;
   const lines = part.facts.length + (base === -1 && !conflict ? 1 : 0);
   return (
-    <div class={`cg-notes__frow is-suggested${part.ghost === true ? ' is-ghost' : ''}`} data-notes-field={part.label} data-notes-suggestion={sug.kind}>
+    <div class={`cg-notes__frow is-suggested${part.ghost === true ? ' is-ghost' : ''}`} data-notes-field={part.label} data-notes-suggestion={sug.kind} data-flip={`row:${part.label}`}>
       <span class="cg-notes__label">
         {part.label}
         {sug.kind === 'new' ? <span class="cg-notes__newf">✦ {copy.newField}</span> : null}
@@ -374,7 +442,7 @@ function SuggestBar({ client, copy, fill }: Props & { readonly fill: NotesFillVM
   const errorText = useErrorText();
   if (fill.status === 'done') {
     return (
-      <div class="cg-notes__done" role="status" data-notes-done="">
+      <div class="cg-notes__done" role="status" data-notes-done="" data-flip="done">
         <Icon name="check" size={13} />
         <span class="cg-notes__done-b">
           <span class="cg-notes__done-t">
@@ -389,7 +457,7 @@ function SuggestBar({ client, copy, fill }: Props & { readonly fill: NotesFillVM
   }
   return (
     <>
-      <div class="cg-notes__sugbar" data-notes-sugbar="">
+      <div class="cg-notes__sugbar" data-notes-sugbar="" data-flip="bar">
         <span class="cg-notes__sugbar-t">
           <span class="cg-notes__spark" aria-hidden="true">
             ✦
@@ -456,7 +524,10 @@ function fillReason(copy: NotesCopy, fill: NotesFillVM): string | null {
 function Running({ client, copy, fill }: Props & { readonly fill: NotesFillVM }): JSX.Element | null {
   if (fill.phase === null) return null;
   return (
-    <div class="cg-notes__running" role="status" data-notes-fill-line="">
+    <div class="cg-notes__running" role="status" data-notes-fill-line="" data-flip="run">
+      <span class="cg-notes__run-mark" aria-hidden="true">
+        ✦
+      </span>
       <StageLine phase={fill.phase} startedAt={fill.phase.startedAt} />
       <span class="cg-notes__spacer" />
       <Button variant="quiet" size="sm" label={copy.fillStop} class="cg-notes__stop" onClick={() => client.dispatch({ type: 'fill-stop' })} />
@@ -558,6 +629,8 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
  * card that fills it from the chat. */
 function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPanelVM; readonly form: NotesFormVM }): JSX.Element {
   const [manual, setManual] = useState(false);
+  const section = useRef<HTMLElement | null>(null);
+  useFlip(section, useReducedMotion());
   const fill = form.fill;
   const asText = vm.editor !== null && form.noteId !== null && vm.editor.noteId === form.noteId;
   const status = fill?.status ?? 'idle';
@@ -574,7 +647,7 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
   const chips = !start || field !== null || (manual && !running);
   const reason = fill === null ? null : fillReason(copy, fill);
   return (
-    <section class="cg-notes__sec cg-notes__form" data-notes-form={form.noteId ?? 'none'} aria-label={copy.form} {...(running ? { 'data-busy': '' } : {})}>
+    <section ref={section} class="cg-notes__sec cg-notes__form" data-notes-form={form.noteId ?? 'none'} aria-label={copy.form} {...(running ? { 'data-busy': '' } : {})}>
       <div class="cg-notes__sec-head">
         <h3 class="cg-notes__sec-t">{form.title === '' ? copy.form : form.title}</h3>
         {form.locked ? (
@@ -599,9 +672,11 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           {form.noteId === null && fill === null && field === null ? <p class="cg-notes__none">{copy.formNoneManual}</p> : null}
           {form.parts.length === 0 ? null : (
             <div class="cg-notes__table" data-notes-table="">
+              {/* While the Goose reads: a warm band sweeps down the questionnaire. */}
+              {running ? <span class="cg-notes__scan" aria-hidden="true" /> : null}
               {form.parts.map((part, at) =>
                 part.kind === 'text' ? (
-                  <div key={`t${String(at)}`} class="cg-notes__free">
+                  <div key={`t${String(at)}`} class="cg-notes__free" data-flip={`text:${String(at)}`}>
                     {part.text}
                   </div>
                 ) : part.suggestion !== undefined ? (
@@ -618,7 +693,7 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           {blank.length === 0 || form.locked || !chips ? null : (
             <div class="cg-notes__blank" data-notes-blank="">
               {blank.map((label) => (
-                <button key={label} type="button" class="cg-notes__chip" data-notes-add={label} {...(off ? { 'aria-disabled': 'true' } : {})} onClick={() => off || client.dispatch({ type: 'field-open', label })}>
+                <button key={label} type="button" class="cg-notes__chip" data-notes-add={label} data-flip={`chip:${label}`} {...(off ? { 'aria-disabled': 'true' } : {})} onClick={() => off || client.dispatch({ type: 'field-open', label })}>
                   <span aria-hidden="true">+</span>
                   {label}
                 </button>
@@ -628,7 +703,7 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           {form.unplaced.length === 0 ? null : <p class="cg-notes__unplaced">{copy.unplaced.replace('{labels}', form.unplaced.join(', '))}</p>}
           {asked ? <Confirm client={client} copy={copy} vm={vm} ask={copy.removeFormAsk} /> : null}
           {form.noteId === null || form.locked || running || reviewing || field !== null || asked || vm.editor !== null ? null : (
-            <div class="cg-notes__form-acts">
+            <div class="cg-notes__form-acts" data-flip="acts">
               <Button variant="quiet" size="sm" label={copy.asText} onClick={() => client.dispatch({ type: 'edit', noteId: form.noteId as string })} />
               <Button variant="quiet" size="sm" label={copy.removeForm} onClick={() => client.dispatch({ type: 'ask-delete', noteId: form.noteId as string })} />
             </div>
