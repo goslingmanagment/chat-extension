@@ -16,8 +16,10 @@
 //   is in flight joins the next), «Принять все» one write of all, × or «Скрыть» put them aside. A field's line takes
 //   the hub's value only while it still holds what the hub saw; one changed since asks «Заменить?». The last ✓ can be
 //   taken back for a few seconds («Отменить»). «Остановить» drops a running fill and its late answer.
-// - A free note is the box at the top of the notes: a line typed and Enter makes it a note (no title). Any note, the
-//   questionnaire included («Править текстом»), opens as text; a delete asks first.
+// - A free note is the box at the top of the notes: a line typed and Enter makes it a note, signed (2026-10-27, the
+//   owner: «имя автора в заметке»): its title is the hub login of the chatter who wrote it, so the name stands in Fansly
+//   itself — our panel, Fansly's own window and every colleague's tab show it, and the hub keeps nothing new. Any note,
+//   the questionnaire included («Править текстом»), opens as text and keeps its title; a delete asks first.
 // - Views (FS-NOTE-2): «Справа по кнопке» (default) and «Окно по центру» open by the button or ⌘⇧K; «Всегда справа»
 //   stands beside every one-to-one chat while there is room right of it. One view for every tab, stored by the
 //   background.
@@ -170,6 +172,8 @@ export interface NotesPort {
   clearTimer(handle: unknown): void;
   /** The chatter's clock (a note's date, decision 171); absent — `Date.now()`. */
   now?(): number;
+  /** Who is signed in to the hub (the login): a free note's title. null or absent — the note goes untitled. */
+  author?(): string | null;
 }
 
 interface Data {
@@ -205,6 +209,8 @@ interface FieldEdit {
 
 interface Quick {
   text: string;
+  /** The title the last create sent: its author. */
+  title?: string;
   saving: boolean;
   blocked: boolean;
   problem: NotesProblem | null;
@@ -636,7 +642,7 @@ export function createNotesController(port: NotesPort): NotesController {
     const quick = quicks.get(fanId);
     if (quick !== undefined && !quick.saving) {
       // A note that landed although its answer was lost: the box is done with it.
-      if (quick.blocked && notes.some((note) => note.title === '' && note.text === quick.text.trim())) quicks.delete(fanId);
+      if (quick.blocked && notes.some((note) => note.title === (quick.title ?? '') && note.text === quick.text.trim())) quicks.delete(fanId);
       else {
         quick.blocked = false;
         if (quick.problem?.kind === 'failed') quick.problem = null;
@@ -953,11 +959,13 @@ export function createNotesController(port: NotesPort): NotesController {
       quick.problem = { kind: 'too-long' };
       return emit();
     }
+    const title = (port.author?.() ?? '').trim().slice(0, FANSLY_TAB_LIMITS.noteTitleMaxChars);
     quick.saving = true;
+    quick.title = title;
     quick.problem = null;
     emit();
     const under = epoch;
-    const answer = await port.create(to, '', text).catch(toFailure);
+    const answer = await port.create(to, title, text).catch(toFailure);
     if (disposed || under !== epoch || quicks.get(fanId) !== quick) return;
     quick.saving = false;
     if (answer.ok) {
