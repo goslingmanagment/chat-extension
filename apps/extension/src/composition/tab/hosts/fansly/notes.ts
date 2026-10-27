@@ -2,8 +2,8 @@
 // notes chunk (`lazy/fansly/notes.js`), loaded with «Регистрация» the first time the tab is on /messages and kept.
 //
 // - Only where the page's owner switched «Заметки» on and the header has its slot (the manifest's `notes`: the page's
-//   flag `notes`, the host's capability `headerSlot`), in an open one-to-one chat: the button in the header slot after
-//   «Регистрация» (order 20), the panel in our layer 900, ⌘⇧K — the early dispatcher's `notes` command — while it runs.
+//   flag `notes`, the host's capability `headerSlot`), in an open one-to-one chat: the button in the header slot before
+//   «Регистрация» (order 10), the panel in our layer 900, ⌘⇧K — the early dispatcher's `notes` command — while it runs.
 // - The controller (core application/hosts/fansly/notes) asks `fansly.notes.*` of the background; the page's boxes
 //   are measured when asked (host-fansly notes-place.ts): on the route, the header, a resize — no observer of ours;
 //   the panel over the chat stops above Fansly's composer (and our dock over it), never over them.
@@ -41,8 +41,8 @@ import { fanslyRequest } from './requests';
 
 /** Above the background's own wait for Fansly (30 s, fansly-api) and for its module. */
 export const NOTES_REQUEST_TIMEOUT_MS = 45_000;
-/** The header's order of «Заметки»: after «Регистрация» (10). */
-const NOTES_ORDER = 20;
+/** The header's order of «Заметки»: before «Регистрация» (20), the owner's order of 2026-10-27. */
+const NOTES_ORDER = 10;
 /** The panel's typing: never a line of the chatter's log. */
 const TYPING: ReadonlySet<NotesAction['type']> = new Set(['input', 'field-input', 'quick-input', 'name-input']);
 

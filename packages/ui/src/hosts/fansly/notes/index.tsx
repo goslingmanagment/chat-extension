@@ -1,5 +1,5 @@
 // @cg/ui/hosts/fansly/notes — «Заметки» of a Fansly tab (R20 P11b; docs/project-unite/architecture.md §7.4, §8.9): the
-// button in the header slot after «Регистрация» and the panel in our layer 900, both drawn from the notes' own client
+// button in the header slot before «Регистрация» and the panel in our layer 900, both drawn from the notes' own client
 // (contracts notes-fansly.ts). Imported by Fansly's notes chunk alone; no ChatSpace bundle carries it.
 
 import type { NotesClient } from '@cg/contracts/notes-fansly';
