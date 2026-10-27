@@ -78,6 +78,8 @@ import {
   type InConversationResult,
   type FanCard,
   type FanCardQuery,
+  type FanMarks,
+  type FanMarksQuery,
   type FanCustomChangeRequest,
   type FanCustomCreateRequest,
   type Handoff,
@@ -933,6 +935,14 @@ export class ChatExtensionHub implements HubFacade {
   /** Chat Memory week 2: the fan's card across pages, of a page granted by this bootstrap; refused without `fan-card-v1`. */
   async fanCard(query: FanCardQuery): Promise<FanCard> {
     return (await this.client('clientFanCard', query, query.pageLabel)) as FanCard;
+  }
+
+  /**
+   * The fan's warning marks of a page granted by this bootstrap: the agency's Fansly lists like «💩 Бомж» on any of its
+   * pages and FANSLY BLOCKLIST's posts about the fan. Refused without `fan-marks-v1`; no owner switch on the hub's side.
+   */
+  async fanMarks(query: FanMarksQuery): Promise<FanMarks> {
+    return (await this.client('clientFanMarks', query, query.pageLabel)) as FanMarks;
   }
 
   /** A chatter's «Да» or «Нет» on a suggested account. Never repeated here: a lost answer is the person's to ask again. */

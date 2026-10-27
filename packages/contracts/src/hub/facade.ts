@@ -50,6 +50,7 @@ import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQ
 import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
 import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineQuery } from './online';
 import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
+import { type FanMarks, type FanMarksQuery } from './fan-marks';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
 import { type VoiceAllowance, type VoiceAllowanceQuery, type VoiceNoteCreateRequest, type VoiceNoteRef, type VoiceNoteView } from '../voice';
@@ -203,6 +204,8 @@ export interface HubFacade {
   fanLinkDecide(request: FanLinkDecideRequest): Promise<FanLinkDecideResult>;
   /** A chatter deletes or corrects a fact; never repeated by itself. */
   fanFactChange(request: FanFactChangeRequest): Promise<FanFactChangeResult>;
+  /** The fan's warning marks (lists like «💩 Бомж», FANSLY BLOCKLIST) — refused without `fan-marks-v1` and for a page not granted. */
+  fanMarks(query: FanMarksQuery): Promise<FanMarks>;
   /** Chat Memory week 4: a custom written into the fan's card; refused without `fan-customs-v1`. Never repeated by itself. */
   fanCustomCreate(request: FanCustomCreateRequest): Promise<FanFactChangeResult>;
   /** A custom marked paid, delivered, cancelled or edited, by the card's suggestions; never repeated by itself. */

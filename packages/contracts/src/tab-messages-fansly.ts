@@ -113,7 +113,35 @@ export const FANSLY_TAB_LIMITS = {
   outreachAttachmentsMax: 10,
   /** The ids of «Copied Media» checked for bundles at once (the tab's reader keeps 50 items). */
   copiedCheckMax: 50,
+  /** The fan's marks: the agency's lists of the fan (one a page, far above the pages it has), FANSLY BLOCKLIST's newest posts. */
+  fanMarkListsMax: 50,
+  fanMarkPostsMax: 5,
+  fanMarkPostMaxChars: 600,
 } as const;
+
+/**
+ * The fan's warning marks as a tab shows them (`fansly.marks.read`; hub `clientFanMarks`): the agency's lists labelled
+ * like «💩 Бомж» the fan is in (`here` — on the tab's own page; the asked page first), with the model's name of each,
+ * and FANSLY BLOCKLIST's newest posts about the fan's username. The background bounds the hub's answer to this; a
+ * post's link is a `https://t.me/` one or none.
+ */
+export const FanslyFanMarksSchema = z.strictObject({
+  lists: z
+    .array(z.strictObject({ here: z.boolean(), name: displayText(120), label: displayText(120), since: z.nullable(IsoTimestampSchema) }))
+    .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkListsMax)),
+  blocklist: z
+    .array(
+      z.strictObject({
+        postedAt: IsoTimestampSchema,
+        text: displayText(FANSLY_TAB_LIMITS.fanMarkPostMaxChars),
+        author: z.nullable(displayText(120)),
+        link: z.nullable(z.string().check(z.maxLength(200), z.regex(/^https:\/\/t\.me\/[\w/+-]+$/))),
+        handle: displayText(64),
+      }),
+    )
+    .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkPostsMax)),
+});
+export type FanslyFanMarks = z.infer<typeof FanslyFanMarksSchema>;
 
 /**
  * An item of Fansly's own «Copied …» list as a message takes it (the page's MediaService, `media_service_copied_media`
@@ -631,6 +659,16 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.online.seen': {
     req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), seen: CountSchema, recorded: CountSchema }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
+   * The open fan's warning marks for the chat's header (`clientFanMarks`): once per opened chat, never per row of a
+   * list. The background keeps each page's and fan's answer for ten minutes (a reopened chat is answered from it) and
+   * joins a read in flight. `username` — the fan's username as the page shows it, for FANSLY BLOCKLIST.
+   */
+  'fansly.marks.read': {
+    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, username: z.optional(z.string().check(z.minLength(1), z.maxLength(64))) }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), marks: FanslyFanMarksSchema }), Failure]),
     from: TAB, hosts: FANSLY,
   },
   /**

@@ -73,6 +73,8 @@ export const HUB_ROUTES = {
   clientFanCard: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
   clientFanLinkDecide: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
   clientFanFactChange: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
+  /** The fan's warning marks: the agency's «💩 Бомж» lists on any of its Fansly pages, FANSLY BLOCKLIST's posts. No owner switch. */
+  clientFanMarks: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-marks-v1'], narrowToken: true },
   /** Chat Memory week 3: «Очередь» — the win-back list, a chatter's approach pick, the shift handoff. No owner switch. */
   clientWinBack: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['win-back-v1'], narrowToken: true },
   clientWinBackAttempt: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['win-back-v1'], narrowToken: true },

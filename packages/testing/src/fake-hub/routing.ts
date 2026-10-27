@@ -160,6 +160,7 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientFanCard: { params: PAGE_FAN },
   clientFanLinkDecide: { params: PAGE_FAN, body: 'merge' },
   clientFanFactChange: { params: { pageLabel: 'pageLabel', fanRef: 'fanRef', factId: 'factId' }, body: 'merge', integers: ['factId'] },
+  clientFanMarks: { params: PAGE_FAN, query: true },
   clientWinBack: { params: PAGE },
   clientWinBackAttempt: { params: PAGE, body: 'merge' },
   clientHandoff: { params: PAGE },

@@ -89,6 +89,9 @@ const FEATURES = {
   // Who wrote each note: every write of «Заметки» Fansly confirmed, told to the hub (`note-attribution-v1`). No owner switch.
   'note-attribution': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-v1'] }, actions: {}, surfaces: [], source: 'page' },
   registration: { kind: 'panel', base: { flags: ['registration'], hostCapabilities: ['headerSlot'] }, actions: {}, surfaces: ['header-slot'], source: 'page' },
+  // The fan's warning marks after «Регистрация»: the agency's «💩 Бомж» lists and FANSLY BLOCKLIST's posts (`clientFanMarks`,
+  // `fan-marks-v1`). No owner switch: a hub that does not serve them shows nothing. Warnings only, never a block.
+  'fan-marks': { kind: 'panel', base: { flags: [], hostCapabilities: ['headerSlot'], clientNeeds: ['fan-marks-v1'] }, actions: {}, surfaces: ['header-slot'], source: 'hub' },
   vault: { kind: 'panel', base: { flags: ['vault'], hostCapabilities: ['vault'] }, actions: {}, surfaces: ['vault'], source: 'host-pass' },
   // «Fansly через вкладку»: a setting of the person, no switch of the owner.
   'via-tab': { kind: 'service', base: { flags: [], hostCapabilities: ['relay'] }, actions: {}, surfaces: [], source: 'page' },

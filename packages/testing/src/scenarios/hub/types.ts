@@ -48,6 +48,7 @@ export const HUB_ROUTE_PATHS = {
   clientFanCard: '/api/v1/client/pages/:pageLabel/fans/:fanRef/card',
   clientFanLinkDecide: '/api/v1/client/pages/:pageLabel/fans/:fanRef/links',
   clientFanFactChange: '/api/v1/client/pages/:pageLabel/fans/:fanRef/facts/:factId',
+  clientFanMarks: '/api/v1/client/pages/:pageLabel/fans/:fanRef/marks',
   clientWinBack: '/api/v1/client/pages/:pageLabel/win-back',
   clientWinBackAttempt: '/api/v1/client/pages/:pageLabel/win-back/attempts',
   clientHandoff: '/api/v1/client/pages/:pageLabel/handoff',

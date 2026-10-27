@@ -59,6 +59,7 @@ import {
   type OnlineQuery,
   type OnlineTemplate,
   type FanCardQuery,
+  type FanMarksQuery,
   type FanFactChangeRequest,
   type FanLinkDecideRequest,
   type PersonaCatalogItem,
@@ -83,6 +84,7 @@ import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagV
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
 import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
+import { fakeFanMarks } from './fan-marks';
 import { CursorSigner, DataModel, type FakeActivityBeat, type FakeNoteAttribution, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { type OnlineSeed } from './online';
@@ -1161,6 +1163,8 @@ export class FakeHub {
       }
       case 'clientFanCard':
         return { kind: 'json', status: 200, body: s.data.fanCard(need(page), (request as FanCardQuery).fanRef, now) };
+      case 'clientFanMarks':
+        return { kind: 'json', status: 200, body: fakeFanMarks(need(page), request as FanMarksQuery, now) };
       case 'clientFanLinkDecide':
         return read(s.data.fanLinkDecide(need(page), request as FanLinkDecideRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
       case 'clientFanFactChange':
