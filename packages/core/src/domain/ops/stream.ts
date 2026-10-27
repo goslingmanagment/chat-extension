@@ -102,6 +102,7 @@ export function narrowContext(frame: ContextFrame): ServedContext {
     source: narrowToken(CONTEXT_SOURCES, frame.source),
     servedHead: head !== null && head.occurredAt !== null && isNativeId(head.messageRef) ? { messageRef: head.messageRef, at: head.occurredAt } : null,
     live: { status: narrowToken(LIVE_TEXT_STATUSES, frame.live.status), accepted: frame.live.accepted, rejected: frame.live.rejected },
+    window: { requested: frame.window.requested, served: frame.window.served },
     ...(coverageCheck === undefined ? {} : { coverageCheck }),
   };
   if (frame.knownFanMessages === undefined) return served;

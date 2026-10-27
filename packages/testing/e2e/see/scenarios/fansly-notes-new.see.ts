@@ -64,11 +64,13 @@ scenario(
     await s.press(/^Заполнить вручную/, 'panel');
     await s.wait(300);
     await panel(s, 'new-manual');
-    await s.hub.command({ op: 'config', patch: { aiChunkDelayMs: 120 } });
+    await s.hub.command({ op: 'config', patch: { aiChunkDelayMs: 120, aiThinkMs: 5000 } });
     await s.press(/Заполнить из чата/, 'panel');
-    await s.see('panel', /Читаю переписку|Заполняю анкету/);
+    await s.see('panel', /Читаю переписку: \d/);
     await s.wait(600);
     await panel(s, 'new-running');
+    await s.see('panel', /нашёл 3/, 30_000);
+    await panel(s, 'new-checking');
     await s.see('panel', /Гусь предлагает/, 60_000);
     await s.wait(500);
     await panel(s, 'new-found');

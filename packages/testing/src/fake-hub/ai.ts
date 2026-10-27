@@ -53,6 +53,8 @@ export interface ModelStreamFacts {
   readonly freshTextFlag: boolean;
   readonly archive: { readonly head: { readonly messageRef: string; readonly at: string | null; readonly isFromFan: boolean } | null; readonly total: number; readonly state: (id: string) => string };
   readonly chunkDelayMs: number;
+  /** Before the first content chunk: the model's hidden thinking. */
+  readonly thinkMs?: number;
   readonly window?: { readonly requested: number; readonly limit: number };
   /** Every part of a draft ends with ` @<conversationRef>` (the `aiNameFan` knob). */
   readonly nameFan?: boolean;
@@ -219,7 +221,7 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
   if (debug) steps.push(frame({ type: 'reasoning_delta', text: 'synthetic reasoning' }));
   const written = outreachVersion(facts.texts, request) ?? facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
   const text = facts.nameFan === true ? namedForFan(written, request) : written;
-  for (const piece of chunks(text)) steps.push(frame({ type: 'content_delta', text: piece }, facts.chunkDelayMs));
+  chunks(text).forEach((piece, at) => steps.push(frame({ type: 'content_delta', text: piece }, facts.chunkDelayMs + (at === 0 ? (facts.thinkMs ?? 0) : 0))));
   if (!SHOWCASE) {
     steps.push(
       frame({

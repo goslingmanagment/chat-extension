@@ -136,6 +136,19 @@ ${p}__form-acts .cg-btn:hover { color: var(--cg-ink-2); }
 ${p}__running { display: flex; align-items: center; gap: 8px; min-height: 30px; margin: 0 0 8px; padding: 2px 4px 2px 10px; border-radius: var(--cg-r-md); background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-size: var(--cg-text-sm); }
 ${p}__running .cg-stages { flex: 0 1 auto; }
 ${p}__run-mark { font-size: 11px; animation: cg-notes-breathe 1.2s ease-in-out infinite; }
+/* The line of a running fill: what the Goose does now, its count, the timer, «Остановить»; a bar along the bottom runs
+   while it collects and reads the chat and fills as it checks the questionnaire. */
+${p}__running.has-bar { position: relative; overflow: hidden; padding-bottom: 5px; }
+${p}__run-t { flex: 1; min-width: 0; overflow: hidden; color: var(--cg-clay-ink); white-space: nowrap; text-overflow: ellipsis; }
+${p}__run-t b { color: var(--cg-ink-strong); font-weight: 500; }
+${p}__run-n { color: var(--cg-ink-2); font-variant-numeric: tabular-nums; }
+${p}__running .cg-timer { padding: 0 2px; }
+${p}__run-bar { position: absolute; left: 10px; right: 10px; bottom: 3px; height: 3px; overflow: hidden; border-radius: 3px; background: rgb(168 77 43 / 0.14); }
+${p}__run-bar > i { position: absolute; top: 0; bottom: 0; left: 0; width: 0; border-radius: 3px; background: var(--cg-clay); transition: width 300ms var(--cg-ease); }
+${p}__run-bar.is-busy > i { width: 30%; animation: cg-notes-busy 1.4s var(--cg-ease) infinite; }
+@keyframes cg-notes-busy { from { left: -30%; } to { left: 100%; } }
+${p}__run-bar.is-eta > i { width: 88%; animation: cg-notes-eta 30s cubic-bezier(0.25, 0.6, 0.4, 1) both; }
+@keyframes cg-notes-eta { from { width: 0; } }
 @keyframes cg-notes-breathe { 50% { opacity: 0.35; transform: scale(0.85); } }
 ${p}__running ${p}__stop.cg-btn { color: var(--cg-clay-ink); }
 
@@ -145,7 +158,14 @@ ${p}__start-s { margin: 0 0 12px; color: var(--cg-ink-2); font-size: var(--cg-te
 ${p}__start-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 ${p}__start > ${p}__running { margin: -4px -6px; background: none; box-shadow: none; }
 ${p}__form[data-busy] ${p}__table { position: relative; overflow: hidden; }
-${p}__form[data-busy] ${p}__table > :not(${p}__scan), ${p}__form[data-busy] ${p}__blank { opacity: 0.55; }
+${p}__form[data-busy] ${p}__table > :not(${p}__scan), ${p}__form[data-busy] ${p}__blank { opacity: 0.55; transition: opacity 200ms var(--cg-ease); }
+/* Checking field by field: what the Goose answered (or found something in) is full again, the field it is on is lit. */
+${p}__form[data-fill-stage='check'] ${p}__table > ${p}__frow.is-seen, ${p}__form[data-fill-stage='check'] ${p}__table > ${p}__frow.is-current, ${p}__form[data-fill-stage='check'] ${p}__table > ${p}__frow.is-suggested { opacity: 1; }
+${p}__frow.is-current { background: linear-gradient(90deg, rgb(217 119 87 / 0.14), rgb(217 119 87 / 0.03)); }
+${p}__frow.is-current > ${p}__label { color: var(--cg-clay-ink); }
+${p}__chip.is-current { opacity: 1; box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); }
+${p}__seen { position: absolute; right: 8px; top: 5px; color: var(--cg-good-ink); font-size: var(--cg-text-xs); font-weight: 700; line-height: 19px; pointer-events: none; animation: cg-notes-seen 1600ms linear both; }
+@keyframes cg-notes-seen { 0% { opacity: 0; transform: scale(0.7); } 12% { opacity: 0.85; transform: none; } 65% { opacity: 0.7; } 100% { opacity: 0; } }
 ${p}__scan { position: absolute; left: 0; right: 0; top: -60px; height: 60px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgb(217 119 87 / 0), rgb(217 119 87 / 0.12) 55%, rgb(217 119 87 / 0)); animation: cg-notes-scan 1.6s var(--cg-ease) infinite; }
 @keyframes cg-notes-scan { 0% { top: -60px; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
 ${p}__notice { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 8px; padding: 5px 6px 5px 10px; border-radius: var(--cg-r-md); background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule); color: var(--cg-ink-2); font-size: var(--cg-text-sm); line-height: 17px; }
@@ -195,6 +215,10 @@ ${p}__pill.is-saving ${p}__pill-t { cursor: default; font-family: var(--cg-font)
 ${p}__pill.is-saving ${p}__pill-plus { display: none; }
 ${p}__pill-saving { align-self: center; margin: 0 6px 0 8px; color: var(--cg-ink-muted); font-size: var(--cg-text-xs); animation: cg-notes-pulse 900ms ease-in-out infinite; }
 ${p}__pill.is-leaving { animation: cg-notes-pill-out 220ms var(--cg-ease) forwards; pointer-events: none; }
+/* Still being written: the pill stands, nothing to press yet. */
+${p}__pill.is-arriving { padding-right: 7px; }
+${p}__pill.is-arriving ${p}__pill-t { cursor: default; }
+${p}__pill.is-arriving:hover, ${p}__pill.is-arriving:focus-within { border-style: dashed; border-color: var(--cg-clay-line); background: var(--cg-draft); }
 @keyframes cg-notes-pill-in { 0% { opacity: 0; transform: translateY(5px) scale(0.92); } 55% { opacity: 1; transform: translateY(-1px) scale(1.015); } 100% { opacity: 1; transform: none; } }
 @keyframes cg-notes-pill-out { to { opacity: 0; transform: scale(0.94) translateX(4px); filter: blur(1px); } }
 @keyframes cg-notes-pulse { 50% { opacity: 0.45; } }
@@ -217,7 +241,8 @@ ${p}__toast-b[aria-disabled='true'] { opacity: 0.6; cursor: default; }
 @keyframes cg-notes-toast { from { opacity: 0; transform: translate(-50%, 6px); } }
 @media (prefers-reduced-motion: reduce) {
   ${p}__pill, ${p}__pill-saving, ${p}__toast, ${p}__sugbar, ${p}__done, ${p}__run-mark, ${p}__frow.is-fresh ${p}__fact-t, ${p}__frow.is-fresh > ${p}__label { animation: none; }
-  ${p}__scan, ${p}__landed { display: none; }
+  ${p}__scan, ${p}__landed, ${p}__seen { display: none; }
+  ${p}__run-bar.is-busy > i, ${p}__run-bar.is-eta > i { animation: none; left: 0; width: 100%; opacity: 0.4; }
   ${p}__pill { transition: none; }
 }
 

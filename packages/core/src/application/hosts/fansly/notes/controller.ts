@@ -32,15 +32,41 @@
 //   the hub's request body: nothing is logged.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
-import type { NotesAction, NotesClient, NotesDateVM, NotesFillVM, NotesFormPartVM, NotesSuggestionVM, NotesFormVM, NotesItemVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
+import type { NotesAction, NotesClient, NotesDateVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesSuggestionVM, NotesFormVM, NotesItemVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
 import type { Phase, SiteOpView } from '@cg/contracts/ops';
 import type { PhaseVM } from '@cg/contracts/vm';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
+import { noteFillSeen, parseNoteFillAnswer } from '../../../../domain/hosts/fansly/notes-fill-answer';
 import { applyNoteFindings, noteFillRequest, noteFindings, noteSuggestion, type NoteFinding } from './fill';
 import { NOTE_FIELDS_MAX, noteFieldValue, noteLabelKey, parseNoteForm, splitFactDate, splitNoteFacts, writeNoteField, type NoteFormPart } from './form';
 import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
+
+/**
+ * How long a fill usually takes by the messages the hub served (prod, 2026-10-27, 73 fills of Opus 5.5 at high effort
+ * with the trim pass: p50 19 s at ~90 messages, 35 s at ~380, 59 s at ~1 300, 87 s at ~3 000): the panel's «обычно ~N
+ * с» and the pace of its bar while nothing of the answer has come yet. Linear between the points, flat outside them.
+ */
+const FILL_SECONDS: readonly (readonly [number, number])[] = [
+  [90, 19],
+  [380, 35],
+  [1300, 59],
+  [3000, 87],
+];
+
+export function fillEtaSeconds(messages: number): number {
+  const first = FILL_SECONDS[0] as readonly [number, number];
+  const last = FILL_SECONDS[FILL_SECONDS.length - 1] as readonly [number, number];
+  if (messages <= first[0]) return first[1];
+  if (messages >= last[0]) return last[1];
+  for (let at = 1; at < FILL_SECONDS.length; at += 1) {
+    const [x1, y1] = FILL_SECONDS[at] as readonly [number, number];
+    const [x0, y0] = FILL_SECONDS[at - 1] as readonly [number, number];
+    if (messages <= x1) return Math.round(y0 + ((messages - x0) * (y1 - y0)) / (x1 - x0));
+  }
+  return last[1];
+}
 
 /** «Всегда справа» follows the open chat only once the person stays on it this long (FS-NOTE-3). */
 export const NOTES_FOLLOW_DELAY_MS = 700;
@@ -81,8 +107,9 @@ export function fillPhaseVM(startedAt: number, phase: Phase | null): PhaseVM {
   return { startedAt, stages, retryAt, cancel: null };
 }
 
-/** A suggestion as its row shows it: what kind, the pill's words, what goes, the fan's words. */
-function suggestionVM(finding: NoteFinding, index: number, mark: Mark): NotesSuggestionVM {
+/** A suggestion as its row shows it: what kind, the pill's words, what goes, the fan's words; `arriving` — the answer
+ * is still streaming. */
+function suggestionVM(finding: NoteFinding, index: number, mark: Mark | 'arriving'): NotesSuggestionVM {
   const shape = noteSuggestion(finding);
   return {
     index,
@@ -95,8 +122,8 @@ function suggestionVM(finding: NoteFinding, index: number, mark: Mark): NotesSug
       .map((fact) => splitFactDate(fact).text)
       .join('; '),
     quotes: finding.quotes,
-    state: mark.state === 'conflict' ? 'conflict' : mark.state === 'saving' ? 'saving' : 'pending',
-    now: mark.state === 'conflict' ? mark.now : null,
+    state: mark === 'arriving' ? 'arriving' : mark.state === 'conflict' ? 'conflict' : mark.state === 'saving' ? 'saving' : 'pending',
+    now: mark !== 'arriving' && mark.state === 'conflict' ? mark.now : null,
   };
 }
 
@@ -201,10 +228,31 @@ interface Undo {
 /** «✨ Заполнить из чата» of a fan's questionnaire: `base` — the text it was asked with (the template for none),
  * `blank` — the fan had no questionnaire. */
 type Fill =
-  | { readonly status: 'running'; opId: string | null; readonly startedAt: number; phase: Phase | null; readonly base: string; readonly blank: boolean }
+  | Running
   | Review
   | { readonly status: 'empty' }
   | { readonly status: 'failed'; readonly error: CgAnyErrorWire };
+
+/**
+ * A fill on its way: `asked` — the labels sent; `stream` — its answer so far (`op.update`), `parsed` — how much of it
+ * was read into `live` (what is new in the fields answered) and `seen` (the fields answered, in order); `read` — the
+ * messages the hub served to the model, once its `context_v1` came.
+ */
+interface Running {
+  readonly status: 'running';
+  opId: string | null;
+  readonly startedAt: number;
+  phase: Phase | null;
+  readonly base: string;
+  readonly blank: boolean;
+  readonly asked: readonly string[];
+  stream: string;
+  seq: number;
+  parsed: number;
+  read: number | null;
+  live: NoteFinding[];
+  seen: string[];
+}
 
 /** The Goose's suggestions in the rows, each written by its ✓. */
 interface Review {
@@ -271,8 +319,9 @@ export type NotesController = NotesClient & {
   toggle(): boolean;
   /** A site operation ended (`fansly.ops.done`): a fill of this tab's lands in its fan's panel. */
   fillDone(view: SiteOpView): void;
-  /** An operation's phase moved (`op.update`): a running fill of this tab's says its stage. */
-  fillPhase(opId: string, phase: Phase): void;
+  /** An operation moved (`op.update`): a running fill of this tab's says its stage, how much of the chat the model reads
+   * and, as its answer streams, the fields answered so far and what is new in them. */
+  fillUpdate(update: { readonly opId: string; readonly phase: Phase; readonly seq?: number | undefined; readonly append?: string | undefined; readonly served?: number | undefined }): void;
   dispose(): void;
 };
 
@@ -376,6 +425,22 @@ export function createNotesController(port: NotesPort): NotesController {
     return null;
   };
 
+  /** Where a running fill is: before the hub's first frame it collects the chat; then the model reads it (how many
+   * messages, once `context_v1` said); with the first field answered it checks the questionnaire, field by field. */
+  function progressVM(run: Running): NotesFillProgressVM {
+    const after = run.phase !== null && run.phase.name !== 'admitted' && run.phase.name !== 'connecting' && run.phase.name !== 'awaiting-meta';
+    const stage = run.seen.length > 0 ? 'check' : run.read !== null || after ? 'read' : 'gather';
+    return {
+      stage,
+      read: run.read,
+      eta: run.read === null ? null : fillEtaSeconds(run.read),
+      checked: run.seen.length,
+      total: run.asked.length,
+      found: run.live.length,
+      current: stage === 'check' ? (run.asked.find((label) => !run.seen.includes(label)) ?? null) : null,
+    };
+  }
+
   function formVM(fanId: string, data: Data): NotesFormVM {
     const note = formNote(data);
     const parts = note === null ? [] : (partsOf(note) ?? []);
@@ -389,13 +454,19 @@ export function createNotesController(port: NotesPort): NotesController {
     const edit = fields.get(fanId);
     const fill = fills.get(fanId);
     const review = fill?.status === 'review' ? fill : null;
+    const running = fill?.status === 'running' ? fill : null;
     const locked = note?.cut === true;
-    // The suggestions still on their rows, by field.
+    // The suggestions still on their rows, by field; while the answer streams, what it found so far.
     const suggested = new Map<string, { readonly label: string; readonly vm: NotesSuggestionVM }>();
     review?.findings.forEach((finding, index) => {
       const mark = review.marks[index];
       if (mark !== undefined && isOpen(mark)) suggested.set(noteLabelKey(finding.label), { label: finding.label, vm: suggestionVM(finding, index, mark) });
     });
+    running?.live.forEach((finding, index) => suggested.set(noteLabelKey(finding.label), { label: finding.label, vm: suggestionVM(finding, index, 'arriving') }));
+    const suggestedKeys = new Set(suggested.keys());
+    const progress = running === null ? null : progressVM(running);
+    const seenKeys = new Set(running?.seen.map(noteLabelKey) ?? []);
+    const currentKey = progress?.current === null || progress?.current === undefined ? null : noteLabelKey(progress.current);
     const shown: NotesFormPartVM[] = [];
     let lastField = -1;
     for (const part of parts) {
@@ -407,7 +478,16 @@ export function createNotesController(port: NotesPort): NotesController {
       const suggestion = suggested.get(key)?.vm;
       suggested.delete(key);
       if (part.facts.length === 0 && suggestion === undefined) continue;
-      shown.push({ kind: 'field', label: part.label, facts: part.facts.map(splitFactDate), ...(marks?.has(key) === true ? { fresh: true } : {}), ...(suggestion === undefined ? {} : { suggestion }), ...(part.facts.length === 0 ? { ghost: true } : {}) });
+      shown.push({
+        kind: 'field',
+        label: part.label,
+        facts: part.facts.map(splitFactDate),
+        ...(marks?.has(key) === true ? { fresh: true } : {}),
+        ...(suggestion === undefined ? {} : { suggestion }),
+        ...(part.facts.length === 0 ? { ghost: true } : {}),
+        ...(key === currentKey ? { current: true } : {}),
+        ...(suggestion === undefined && seenKeys.has(key) ? { seen: true } : {}),
+      });
       lastField = shown.length - 1;
     }
     // The fields the questionnaire lacks: after its last field, where ✓ puts their lines.
@@ -421,6 +501,7 @@ export function createNotesController(port: NotesPort): NotesController {
             status: fill === undefined ? 'idle' : fill.status === 'review' ? (waits(fill) ? 'review' : 'done') : fill.status,
             reason: fillReason(fanId, note),
             phase: fill?.status === 'running' ? fillPhaseVM(fill.startedAt, fill.phase) : null,
+            progress,
             error: fill?.status === 'failed' ? fill.error : null,
             pending: count('pending') + count('conflict'),
             written: count('written'),
@@ -437,8 +518,8 @@ export function createNotesController(port: NotesPort): NotesController {
       noteId: note?.noteId ?? null,
       title: note?.title ?? NOTE_TEMPLATE_TITLE,
       parts: shown,
-      // A field waiting on its suggestion is a row now, not a «+ Метка».
-      blank: blank.filter((label) => !review?.findings.some((finding, index) => isOpen(review.marks[index]) && noteLabelKey(finding.label) === noteLabelKey(label))),
+      // A field waiting on its suggestion (or one arriving) is a row now, not a «+ Метка».
+      blank: blank.filter((label) => !suggestedKeys.has(noteLabelKey(label))),
       locked,
       field: edit === undefined ? null : { label: edit.label, value: edit.value, blank: edit.blank, saving: edit.saving, blocked: edit.blocked, problem: edit.problem },
       fill: fillVM,
@@ -960,7 +1041,7 @@ export function createNotesController(port: NotesPort): NotesController {
     const asked = noteFillRequest(base);
     if (asked === null) return;
     if (was?.status === 'review' && was.undo !== null) port.clearTimer(was.undo.timer);
-    const run: Fill & { status: 'running' } = { status: 'running', opId: null, startedAt: now(), phase: null, base, blank: note === null };
+    const run: Running = { status: 'running', opId: null, startedAt: now(), phase: null, base, blank: note === null, asked: asked.fields, stream: '', seq: 0, parsed: 0, read: null, live: [], seen: [] };
     fills.set(fanId, run);
     fresh.delete(fanId);
     unplaced.delete(fanId);
@@ -1019,12 +1100,34 @@ export function createNotesController(port: NotesPort): NotesController {
     emit();
   }
 
-  function fillPhase(opId: string, phase: Phase): void {
-    const fanId = fillOps.get(opId);
+  function fillUpdate(update: { readonly opId: string; readonly phase: Phase; readonly seq?: number | undefined; readonly append?: string | undefined; readonly served?: number | undefined }): void {
+    const fanId = fillOps.get(update.opId);
     const fill = fanId === undefined ? undefined : fills.get(fanId);
-    if (disposed || fill?.status !== 'running' || fill.opId !== opId || (fill.phase?.name === phase.name && fill.phase.retryAt === phase.retryAt)) return;
-    fill.phase = phase;
-    emit();
+    if (disposed || fill?.status !== 'running' || fill.opId !== update.opId) return;
+    let moved = false;
+    if (fill.phase?.name !== update.phase.name || fill.phase.retryAt !== update.phase.retryAt) {
+      fill.phase = update.phase;
+      moved = true;
+    }
+    if (update.served !== undefined && update.served !== fill.read) {
+      fill.read = update.served;
+      moved = true;
+    }
+    const seq = update.seq ?? fill.seq + 1;
+    if (update.append !== undefined && update.append !== '' && seq > fill.seq) {
+      fill.seq = seq;
+      fill.stream += update.append;
+      // Whole lines only: a line half written would read as a cut value.
+      const whole = fill.stream.slice(0, fill.stream.lastIndexOf('\n') + 1);
+      if (whole.length !== fill.parsed) {
+        fill.parsed = whole.length;
+        const answer = parseNoteFillAnswer(whole, fill.asked);
+        fill.live = answer === null ? [] : noteFindings(fill.base, answer.fields, answer.proposed ?? []);
+        fill.seen = noteFillSeen(whole, fill.asked);
+        moved = true;
+      }
+    }
+    if (moved) emit();
   }
 
   /**
@@ -1333,7 +1436,7 @@ export function createNotesController(port: NotesPort): NotesController {
     sync,
     toggle,
     fillDone,
-    fillPhase,
+    fillUpdate,
     applyView(next) {
       if (next === view) return;
       view = next;

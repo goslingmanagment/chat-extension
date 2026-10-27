@@ -81,6 +81,8 @@ export interface FakeHubConfigPatch {
   readonly spendersTotal?: number;
   /** Delay before each model-stream content chunk, ms. */
   readonly aiChunkDelayMs?: number;
+  /** Delay before the first content chunk, ms: the model's hidden thinking. */
+  readonly aiThinkMs?: number;
   /** Every part of a draft the model writes ends with ` @<conversationRef>`: a test can tell whose chat a text was written for. */
   readonly aiNameFan?: boolean;
   /**

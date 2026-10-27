@@ -1265,6 +1265,7 @@ export class FakeHub {
           }
         : { head: newest === undefined ? null : { messageRef: newest.messageRef, at: newest.at, isFromFan: newest.isFromFan }, total: served.window.length, state: archive.states },
       chunkDelayMs: s.config.aiChunkDelayMs,
+      thinkMs: s.config.aiThinkMs,
       window,
       nameFan: s.config.aiNameFan,
       texts: s.config.aiTexts,

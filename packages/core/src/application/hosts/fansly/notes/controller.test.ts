@@ -193,6 +193,36 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(w.notes.panel().form?.parts.flatMap((part) => (part.kind === 'field' && part.fresh === true ? [part.label] : []))).toEqual(['Работа', 'Хобби', 'Возраст', 'Питомцы']);
   });
 
+  it('[FS-NOTE-6] while the answer streams: how much of the chat the model reads, the fields answered so far, what is new in them standing in their rows not yet to take', async () => {
+    const w = await opened();
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    const progress = () => w.notes.panel().form?.fill?.progress;
+    expect(progress()).toMatchObject({ stage: 'gather', read: null, checked: 0 });
+    w.notes.fillUpdate({ opId: 'op1', seq: 1, append: '', phase: { name: 'awaiting-first-chunk', since: 1 }, served: 860 });
+    expect(progress()).toMatchObject({ stage: 'read', read: 860 });
+    // A line half written is not read yet: «Рабо» is no field.
+    w.notes.fillUpdate({ opId: 'op1', seq: 2, append: 'Имя: =\nЛокация: Рига, Латвия (10.2026)\n> «I moved to Latvia»\nРабо', phase: { name: 'streaming', since: 2 } });
+    expect(progress()).toMatchObject({ stage: 'check', read: 860, checked: 2, total: 11, found: 1, current: 'Работа' });
+    const parts = (): readonly unknown[] => (w.notes.panel().form?.parts ?? []).map((part) => (part.kind === 'field' ? [part.label, part.suggestion?.state ?? null, part.seen === true, part.current === true] : part.text));
+    expect(parts().slice(0, 2)).toEqual([
+      ['Имя', null, true, false],
+      ['Локация', 'arriving', false, false],
+    ]);
+    // An arriving suggestion is not taken yet.
+    w.notes.dispatch({ type: 'suggestion-accept', index: 0 });
+    await w.settle();
+    expect(w.port.edit).not.toHaveBeenCalled();
+    // The end: the same suggestions, now to take.
+    w.notes.fillDone(w.answer('op1', { Имя: '', Локация: 'Рига, Латвия (10.2026)', Работа: 'врач' }));
+    expect(w.notes.panel().form?.fill).toMatchObject({ status: 'review', progress: null, pending: 2 });
+    expect(parts().slice(0, 3)).toEqual([
+      ['Имя', null, false, false],
+      ['Локация', 'pending', false, false],
+      ['Работа', 'pending', false, false],
+    ]);
+  });
+
   it('[FX-016] a ✓ never writes over a field typed since the Goose read it: the row asks «Заменить?», the rest goes into Fansly’s newer version', async () => {
     const w = await opened();
     w.notes.dispatch({ type: 'fill' });

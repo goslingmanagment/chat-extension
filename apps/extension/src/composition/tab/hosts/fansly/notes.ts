@@ -12,7 +12,8 @@
 //   the open chat through the shared admission (`fansly.ops.start`, a click's token): the group as the conversation,
 //   the fan apart, the questionnaire's labels only; the background's driver sets the depth (HF-6). Each press is a
 //   fresh read of the chat (`force`); its end comes as `fansly.ops.done`, or with the read right after the admission;
-//   its stage on the way — the background's `op.update` of it — is the panel's stage line.
+//   its stage on the way — the background's `op.update` of it — is the panel's stage line, and (2026-10-27) its
+//   streaming answer and the messages the hub served make its progress: the fields answered, what is new in them.
 // - The page's switch is read from the hub's context, and its last answer holds while the context is read again or the
 //   background is out of reach (2026-10-22): the button, ⌘⇧K and an open panel stay — the old extension needed only
 //   the chat and the session. A context that says no (no sign-in, no binding, the switch off) takes them away.
@@ -261,7 +262,7 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       const view = (payload as { readonly view?: SiteOpView } | null)?.view;
       if (view !== undefined) controller.fillDone(view);
     }),
-    rpc.onEvent('op.update', (update) => controller.fillPhase(update.opId, update.phase)),
+    rpc.onEvent('op.update', (update) => controller.fillUpdate(update)),
     env.keys.handle('notes', () => {
       env.journal?.action('notes', 'notes.toggle', { input: 'key' });
       controller.toggle();

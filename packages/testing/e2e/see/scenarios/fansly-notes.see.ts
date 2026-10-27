@@ -1,5 +1,6 @@
 // Fansly «Заметки» on one screen (2026-10-26): the questionnaire as a table, a field edited in place and written with
-// Enter, «+ Метка», «✨ Дополнить из чата» (2026-10-27, «Подсказки прямо в строках»: its stage line, the Goose's
+// Enter, «+ Метка», «✨ Дополнить из чата» (2026-10-27, «Подсказки прямо в строках»: its progress (the chat read, then
+// the questionnaire checked field by field), the Goose's
 // suggestions in their rows, the fan's words on hover, one ✓ and its «Отменить», a suggestion put aside, «Принять
 // все», the ✦ of what was written), a quick note, a note longer than the panel holds, and a note's edit after someone
 // else changed it (Fansly's version shown under the draft, then «Сохранить» writes over it, audit №13). Each picture is
@@ -110,11 +111,14 @@ scenario(
     await panel(s, 'row-hover');
 
     // «✨ Дополнить из чата»: the stage line, then the Goose's suggestions in their rows.
-    await s.hub.command({ op: 'config', patch: { aiChunkDelayMs: 120 } });
+    // The model «thinks» before its answer (on prod it is most of the wait), then the fields come one by one.
+    await s.hub.command({ op: 'config', patch: { aiChunkDelayMs: 120, aiThinkMs: 6000 } });
     await s.press(/Дополнить из чата/, 'panel');
-    await s.see('panel', /Читаю переписку|Заполняю анкету/);
-    await s.wait(600);
-    await panel(s, 'fill-running');
+    await s.see('panel', /Читаю переписку: \d/);
+    await s.wait(700);
+    await panel(s, 'fill-reading');
+    await s.see('panel', /нашёл 2/, 30_000);
+    await panel(s, 'fill-checking');
     await s.see('panel', /Гусь предлагает/, 60_000);
     await s.wait(500);
     await panel(s, 'fill-found');

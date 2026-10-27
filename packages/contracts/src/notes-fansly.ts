@@ -75,9 +75,9 @@ export interface NotesSuggestionVM {
   readonly value: string;
   /** The fan's words behind it: on hover, never saved. */
   readonly quotes: readonly string[];
-  /** `saving` — its write is in flight; `conflict` — the field changed since the Goose read it (`now`): «Заменить» or
-   * «Оставить». */
-  readonly state: 'pending' | 'saving' | 'conflict';
+  /** `arriving` — the Goose is still writing its answer: shown, not yet taken or put aside; `saving` — its write is in
+   * flight; `conflict` — the field changed since the Goose read it (`now`): «Заменить» or «Оставить». */
+  readonly state: 'arriving' | 'pending' | 'saving' | 'conflict';
   readonly now: string | null;
 }
 
@@ -95,6 +95,9 @@ export type NotesFormPartVM =
       readonly suggestion?: NotesSuggestionVM;
       /** Nothing written in this field yet: the row exists for its suggestion. */
       readonly ghost?: boolean;
+      /** While the Goose answers: it is on this field now (`current`), or answered it with nothing new (`seen`). */
+      readonly current?: boolean;
+      readonly seen?: boolean;
     }
   | { readonly kind: 'text'; readonly text: string };
 
@@ -111,6 +114,23 @@ export interface NotesFieldVM {
 }
 
 /**
+ * A running fill as the chatter follows it (2026-10-27, the owner: «прогресс какой-то», «1 этап улучшить тоже»):
+ * `gather` — the hub collects the chat; `read` — the model reads it (`read` messages, from the hub's `context_v1`);
+ * `check` — its answer comes field by field: `checked` of `total` answered, `found` with something new, `current` the
+ * field it is on.
+ */
+export interface NotesFillProgressVM {
+  readonly stage: 'gather' | 'read' | 'check';
+  readonly read: number | null;
+  /** How long a fill of a chat this long usually takes, in seconds (prod, 2026-10-27); null — not known yet. */
+  readonly eta: number | null;
+  readonly checked: number;
+  readonly total: number;
+  readonly found: number;
+  readonly current: string | null;
+}
+
+/**
  * «✨ Заполнить из чата» / «✨ Дополнить из чата» of the questionnaire (FS-NOTE-6): `running` — the hub reads the chat
  * («Остановить» drops it); `review` — its suggestions stand in the rows (`NotesFormPartVM.suggestion`), each written
  * only by ✓; `done` — none waits any more (what was written, what was put aside); `empty` — nothing new in the chat;
@@ -122,6 +142,8 @@ export interface NotesFillVM {
   readonly reason: 'editing' | 'writing' | null;
   /** A running fill's stage and its m:ss timer, the kit's StageLine. */
   readonly phase: PhaseVM | null;
+  /** A running fill: where it is (its suggestions arrive in the rows as `arriving`). */
+  readonly progress: NotesFillProgressVM | null;
   readonly error: CgAnyErrorWire | null;
   /** The suggestions waiting, written by ✓, put aside by ×. */
   readonly pending: number;
@@ -331,6 +353,17 @@ export interface NotesCopy {
   readonly fillEditing: string;
   readonly fillWriting: string;
   readonly fillStop: string;
+  /** A running fill's line: the hub collects the chat; the model reads `{n}` `{messages}`; it checks the questionnaire
+   * (`{label}`, `{k}` of `{n}`, found `{f}`). `messages` — the plural forms of «сообщение» (one, few, many). */
+  readonly stageGather: string;
+  readonly stageRead: string;
+  readonly stageReadPlain: string;
+  readonly stageCheck: string;
+  readonly stageOf: string;
+  readonly stageFound: string;
+  /** `{s}` — the usual seconds for a chat this long. */
+  readonly stageEta: string;
+  readonly messages: readonly [string, string, string];
   /** The bar over the rows: `{n}` suggestions wait, `{w}` written. */
   readonly suggestBar: string;
   readonly suggestWritten: string;

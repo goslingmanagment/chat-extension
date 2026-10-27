@@ -915,6 +915,8 @@ export const TAB_EVENTS = {
       state: OpStateSchema,
       phase: PhaseSchema,
       firstChunkAt: z.optional(EpochMsSchema),
+      /** 2026-10-27: the messages the hub served to the model, once its `context_v1` came (before the first chunk). */
+      served: z.optional(CountSchema),
     }),
     to: ANY,
   },
