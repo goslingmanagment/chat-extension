@@ -75,7 +75,7 @@ import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pag
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
 import { boardOpenRefusal, issueCause, type BoardSwitch, type ChatNavigator } from '../boards/navigate';
-import { noteBatchOp, type BatchOutcome, type OutreachCardRow } from '../boards/batch';
+import { noteBatchOp, type BatchOutcome, type BatchSendState, type OutreachCardRow } from '../boards/batch';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
@@ -318,6 +318,10 @@ export interface PreviewController extends SurfaceController<'preview'> {
    * the card's own send, and why the last click on it was refused; null — no part of a «Новые» result waits.
    */
   batchSend(handle: TargetHandle): NewcomerRowSendVM | null;
+  /** «Отправить всем» of a hub's «Новые» (the owner, 2026-10-27): how the fan's greeting stands for the run. */
+  batchSendState(handle: TargetHandle): BatchSendState;
+  /** «Отправить всем»: the row's own «Отправить» of the greeting's next part, as its click sends it. */
+  batchSendNow(handle: TargetHandle): Promise<ActionReceipt>;
   /**
    * «Рассылка» on a site whose cards send (X8): on — the versions of its fans go by their cards' own send, and each fan's
    * card takes the outreach's media unless the person picked the fan's own. True — the cards send here and the site has a
@@ -2048,6 +2052,41 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return send.s === 'unavailable' && send.reason.key === 'send.reason.pace' ? { ...base, paused: true } : base;
   }
 
+  /**
+   * «Отправить всем» of «Новые»: the greeting's next part would go now by its row's click; it waits (the pause, the
+   * hub's minute, an earlier part on its way); every part went or is on its way; or it cannot go by a plain click (a
+   * warning, a refusal, an unknown outcome — never passed or sent again by the run).
+   */
+  function batchSendState(handle: TargetHandle): BatchSendState {
+    if (deps.previewSend === false) return 'no';
+    const track = tracks.get(currentOp.get(handle) ?? '');
+    if (track === undefined || track.source !== 'newcomers' || track.hidden || track.mirror.done?.state !== 'done') return 'no';
+    const parts = partsOfResult(track.mirror.done.result, 0) ?? [];
+    let going = false;
+    for (let index = 0; index < parts.length; index += 1) {
+      const rows = rowsOf(track, 0, index);
+      const send = rows.send;
+      if (send === undefined) return 'no';
+      if (send.s === 'sent') continue;
+      if (send.s === 'queued' || send.s === 'sending' || send.s === 'accepted') {
+        going = true;
+        continue;
+      }
+      if (going) return 'wait';
+      if (send.s === 'available') return rows.order === null ? 'now' : 'wait';
+      if (send.s === 'unavailable' && (send.reason.key === 'send.reason.pace' || send.code === 'CG-HUB-RATE-LIMIT' || send.code === 'CG-SEND-BUSY')) return 'wait';
+      return 'no';
+    }
+    return 'done';
+  }
+
+  function batchSendNow(handle: TargetHandle): Promise<ActionReceipt> {
+    const type = 'SendNewcomerGreeting';
+    const next = rowPart(handle);
+    if (next === null) return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
+    return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index);
+  }
+
   /** A row of a batch follows its fan's result only when what it shows changes — never on every streamed word. */
   function batchChanged(handle: TargetHandle): void {
     const last = batched.get(handle);
@@ -2953,6 +2992,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     },
     batchLive,
     batchSend,
+    batchSendState,
+    batchSendNow,
     setOutreach(on) {
       if (deps.sender === null) return false;
       if (on !== outreachOn) {

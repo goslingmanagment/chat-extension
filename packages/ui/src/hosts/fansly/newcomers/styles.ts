@@ -8,4 +8,5 @@ export const FANSLY_NEWCOMERS_CSS = `
 .cg-fnw__stopped { flex: none; padding: 6px 16px 8px 22px; border-bottom: 1px solid var(--cg-rule); }
 .cg-fnw__failed { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 18px 22px; max-width: 72ch; }
 .cg-fnw__hint2 { margin: 0; font-size: var(--cg-text-sm2); line-height: 18px; color: var(--cg-ink-muted); }
+.cg-fnw__looking { display: inline-flex; align-items: center; gap: 8px; }
 `;

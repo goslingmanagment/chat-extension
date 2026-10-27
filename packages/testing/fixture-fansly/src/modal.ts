@@ -186,7 +186,7 @@ export class UploadModal {
   /** `processFiles`: each file becomes an entry of the modal after a short processing (audio skips the image work). */
   processFiles(files: readonly File[]): void {
     for (const file of files) {
-      const entry = { name: file.name, type: file.type, size: file.size };
+      const entry = { name: file.name, type: file.type, size: file.size, url: URL.createObjectURL(file) };
       this.template.processing += 1;
       setTimeout(
         () => {

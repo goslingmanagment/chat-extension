@@ -225,12 +225,12 @@ class FakeFollowers implements FanslyFollowersPort {
         const query = payload['query'] as FanslyTabRequestPayload<'fansly.followers.read'>['query'];
         if (query === undefined) return { pass: record.view, rows: record.rows.slice(offset, offset + limit), total: record.rows.length, seq: record.seq };
         const searched = record.rows.filter((row) => matchesPassSearch(passRowOf(row), query.search));
-        const inTab = searched.filter((row) => inPassTab(checkOf(row), query.tab));
+        const inTab = searched.filter((row) => inPassTab(checkOf(row), query.tab, row.checkedAt));
         const visible = inTab.filter((row) => passesCheckFilter(checkOf(row), query.filter));
         return {
           pass: record.view, rows: visible.slice(offset, offset + limit), total: visible.length, seq: record.seq,
           counts: {
-            tabs: { todo: searched.filter((row) => inPassTab(checkOf(row), 'todo')).length, all: searched.length },
+            tabs: { todo: searched.filter((row) => inPassTab(checkOf(row), 'todo', row.checkedAt)).length, all: searched.length },
             filters: Object.fromEntries(NEWCOMER_CHECK_FILTERS.map((id) => [id, inTab.filter((row) => passesCheckFilter(checkOf(row), id)).length])),
           },
         };

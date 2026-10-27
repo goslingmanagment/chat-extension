@@ -186,6 +186,12 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       return fanRef !== null && hiBlock(statusOf(fanRef)) === null;
     },
     live: (handle) => batchPort?.batchLive(handle) ?? null,
+    // «Отправить всем» (the owner, 2026-10-27): each ready greeting by its row's own send, never faster than the hub's minute.
+    sender: {
+      state: (handle) => (own(handle) === null ? 'no' : (batchPort?.batchSendState?.(handle) ?? 'no')),
+      send: (handle) => batchPort?.batchSendNow?.(handle) ?? Promise.resolve(refused('SendNewcomerGreeting', localError('CG-CONTEXT-CHANGED', i18n))),
+      perMinute: () => context.current().bootstrap?.limits.previewSendPerMinute ?? 30,
+    },
     changed: () => {
       if (!disposed) cell.invalidate();
     },

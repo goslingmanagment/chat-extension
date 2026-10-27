@@ -109,7 +109,11 @@ const ROW_PARTS: RowParts = {
 
 // ── the toolbar and the lines under it ──
 
-/** «Проверено 12 из 40», the phase of the fast part, the queue (NF-008); a spinner while the pass reads. */
+/**
+ * The list being read, then «Проверяем переписки: осталось N» for the whole check (2026-10-27: the owner could not tell
+ * what «Загружаем фоловеров…» and «Загружаем профили…» were loading over a list already on screen), «Проверено 12 из 40»
+ * once it ends (NF-008); a spinner while the pass reads.
+ */
 function PassStage({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | null {
   const i18n = useI18n();
   const remaining = pass.total === null || pass.checked === null ? 0 : Math.max(0, pass.total - pass.checked);
@@ -123,9 +127,9 @@ function PassStage({ pass }: { readonly pass: NewcomersPassVM }): JSX.Element | 
     case 'scanning':
       busy = true;
       text =
-        pass.phase === 'welcome' || pass.phase === 'followers' || pass.phase === 'profiles'
-          ? fanslyText(i18n, `fansly.newcomers.stage.${pass.phase}`)
-          : fanslyText(i18n, 'fansly.newcomers.stage.checked', { done: pass.checked ?? 0, total: pass.total ?? 0 });
+        pass.phase === 'welcome' || pass.phase === 'followers' || (pass.total ?? 0) === 0
+          ? fanslyText(i18n, 'fansly.newcomers.stage.followers')
+          : fanslyText(i18n, 'fansly.newcomers.stage.queue', { n: remaining });
       break;
     case 'queue':
       busy = true;
@@ -257,13 +261,28 @@ function Failed({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   );
 }
 
-/** What the list says when it has no row to show: an empty period, a filter or a search with no match, an empty queue. */
+/** The check still runs: «К обработке» fills as it finds whom to write to (2026-10-27). */
+const checkRuns = (vm: NewcomersVM): boolean => vm.pass?.stage === 'connecting' || vm.pass?.stage === 'scanning' || vm.pass?.stage === 'queue' || vm.pass?.stage === 'cooldown';
+
+/**
+ * What the list says when it has no row to show: an empty period, a filter or a search with no match, «К обработке»
+ * while the check still looks and when it stood before everyone was checked, an empty queue.
+ */
 function Empty({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   const i18n = useI18n();
   const filterOn = (vm.pass?.filters.find((filter) => filter.pressed)?.id ?? 'any') !== 'any';
   if ((vm.pass?.total ?? 0) === 0) return <>{fanslyText(i18n, 'fansly.newcomers.empty.window', { window: periodText(i18n, vm.windowHours) })}</>;
   if (vm.query.trim() !== '') return <>{fanslyText(i18n, 'fansly.newcomers.empty.search')}</>;
   if (filterOn || vm.tab !== 'todo') return <>{fanslyText(i18n, 'fansly.newcomers.empty.filter')}</>;
+  if (checkRuns(vm)) {
+    return (
+      <span class="cg-fnw__looking" role="status">
+        <Spinner />
+        {fanslyText(i18n, 'fansly.newcomers.empty.checking')}
+      </span>
+    );
+  }
+  if ((vm.pass?.run?.remaining ?? 0) > 0) return <>{fanslyText(i18n, 'fansly.newcomers.empty.unchecked')}</>;
   return <>{fanslyText(i18n, 'fansly.newcomers.empty.todo')}</>;
 }
 
@@ -615,7 +634,10 @@ function PassCard({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
   const i18n = useI18n();
   const card = vm.pass?.card ?? null;
   const label = fanslyText(i18n, 'fansly.newcomers.cardLabel');
-  if (card === null) return <NoCard label={label} loading={vm.view.s === 'loading' ? <Spinner label={i18n.t('common.loading')} /> : null} text={fanslyText(i18n, 'fansly.newcomers.empty.card')} />;
+  if (card === null) {
+    const waiting = vm.view.s === 'loading' || (vm.rows.length === 0 && checkRuns(vm));
+    return <NoCard label={label} loading={waiting ? <Spinner label={i18n.t('common.loading')} /> : null} text={fanslyText(i18n, 'fansly.newcomers.empty.card')} />;
+  }
   const greeting = card.greeting ?? null;
   const meta = [
     card.username === null ? null : `@${card.username}`,

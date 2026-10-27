@@ -14,6 +14,7 @@ export * from './newcomers';
 export type * from './claim-body';
 export * from './usage';
 export * from './attribution';
+export * from './note-attribution';
 export * from './conversation';
 export * from './fan-card';
 export * from './queue';

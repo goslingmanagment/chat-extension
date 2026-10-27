@@ -104,6 +104,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1",
     "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1",
     "send-attribution-v1",
+    // Who wrote each Fansly note: the extension reports its confirmed note writes.
+    "note-attribution-v1",
     // chat-extension X54: the AI feature stream takes `livePpvContext`.
     "live-ppv-v1",
     "live-text-review-coach-v1",
@@ -1611,6 +1613,70 @@ export const clientSendAttributionsResponseSchema = z.object({
     })),
     serverNow: isoTimestamp,
 });
+// ── who wrote each Fansly note (note-attribution-v1) ────────────────────────
+//
+// Fansly notes live on Fansly; the hub reads them in its sync
+// (page_fan_external_notes, by Fansly's note id) but never knew who wrote one.
+// The chat extension writes notes through the page's own session; once Fansly
+// confirmed a write, it reports one fact: this note of this fan, created,
+// edited or deleted, from which control of the panel, and for a questionnaire
+// write the labels of the fields it changed. The writer is the user of the
+// token that reports, never a field of the body. No title or text of a note
+// travels.
+/** The clients that write notes and report them; open on the wire, a platform admits its own. */
+export const CLIENT_NOTE_ATTRIBUTION_SOURCES = ["fansly-extension"];
+/** What was written: a regular note (Fansly contentType 12000, the questionnaire included) or the fan's custom name (12002). */
+export const CLIENT_NOTE_ATTRIBUTION_NOTE_KINDS = ["note", "custom_name"];
+export const CLIENT_NOTE_ATTRIBUTION_ACTIONS = ["created", "edited", "deleted"];
+/**
+ * Which control of the extension's notes panel made the write: `quick` — the
+ * quick-note box; `editor` — the text editor; `field` — one questionnaire field;
+ * `fill` — the Goose's suggestions the chatter accepted; `undo` — taking back the
+ * last accepted suggestion; `list` — a delete from the list; `name` — the custom
+ * name field. A value the hub does not know is stored as null.
+ */
+export const CLIENT_NOTE_ATTRIBUTION_ORIGINS = ["quick", "editor", "field", "fill", "undo", "list", "name"];
+/** What the hub did with one fact; every one is final (the same words as send attribution). */
+export const CLIENT_NOTE_ATTRIBUTION_OUTCOMES = ["recorded", "duplicate", "conflict", "out_of_range"];
+export const CLIENT_NOTE_ATTRIBUTION_MAX_FACTS = 50;
+export const CLIENT_NOTE_ATTRIBUTION_MAX_AHEAD_MS = 5 * 60_000;
+export const CLIENT_NOTE_ATTRIBUTION_MAX_AGE_DAYS = 30;
+/** Questionnaire field labels one fact names, and the length of one. */
+export const CLIENT_NOTE_ATTRIBUTION_MAX_FIELDS = 20;
+export const CLIENT_NOTE_ATTRIBUTION_FIELD_MAX_CHARS = 100;
+export const clientNoteAttributionFactSchema = z.object({
+    /** The client's own id of this write (8-4-4-4-12 hex): a repeat of a lost answer names it again. */
+    eventId: z.string().regex(CLIENT_REQUEST_ID_PATTERN),
+    /** The fan whose note it is (Fansly: the fan's account id). */
+    fanRef: clientFanRefSchema,
+    /** The platform's id of the note (Fansly's note id, as the hub's sync stores it). */
+    noteRef: clientNumericIdSchema,
+    /** Known values: CLIENT_NOTE_ATTRIBUTION_NOTE_KINDS; another is 400. */
+    noteKind: clientOpenToken,
+    /** Known values: CLIENT_NOTE_ATTRIBUTION_ACTIONS; another is 400. */
+    action: clientOpenToken,
+    /** Open token; known values: CLIENT_NOTE_ATTRIBUTION_ORIGINS. */
+    origin: clientOpenToken.optional(),
+    /** A questionnaire write: the labels of the fields it changed (never their values). */
+    fields: z.array(z.string().min(1).max(CLIENT_NOTE_ATTRIBUTION_FIELD_MAX_CHARS)).min(1).max(CLIENT_NOTE_ATTRIBUTION_MAX_FIELDS).optional(),
+    /** When Fansly confirmed the write, by the client's clock. */
+    observedAt: z.string().regex(CLIENT_SEND_ATTRIBUTION_TIMESTAMP_PATTERN),
+}).strict();
+export const clientNoteAttributionsBodySchema = z.object({
+    /** Open token; known values: CLIENT_NOTE_ATTRIBUTION_SOURCES. */
+    source: clientOpenToken,
+    facts: z.array(clientNoteAttributionFactSchema).min(1).max(CLIENT_NOTE_ATTRIBUTION_MAX_FACTS),
+}).strict();
+export const clientNoteAttributionsResponseSchema = z.object({
+    pageLabel: z.string(),
+    /** One per fact, in the order of the body. */
+    results: z.array(z.object({
+        eventId: z.string(),
+        /** Open token; known values: CLIENT_NOTE_ATTRIBUTION_OUTCOMES. */
+        outcome: clientOpenToken,
+    })),
+    serverNow: isoTimestamp,
+});
 // ── Chat Memory: activity and the shift (clientActivity, teamShifts) ─────────
 //
 // While a tab of a granted page is open, the extension's background beats once
@@ -2873,6 +2939,35 @@ export const clientRouteSchemas = {
         body: clientSendAttributionsBodySchema,
         response: {
             200: clientSendAttributionsResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+            409: errorResponseSchema,
+        },
+    },
+    clientNoteAttributions: {
+        auth: { kind: "apiKey", scope: "page" },
+        tags: ["client"],
+        summary: "Report who wrote Fansly notes: the caller created, edited or deleted these notes of the page's fans",
+        description: "Database-only: no platform request, no queued work. The chat extension wrote a Fansly note "
+            + "through the page's own session and Fansly confirmed it: one fact per write, at most 50 a report, all of "
+            + "the page in the path. The writer is the user of the token, never a field of the body; no title or text "
+            + "of a note travels or is stored, only the note's id, its kind (`note`, `custom_name`), the action "
+            + "(`created`, `edited`, `deleted`; another kind or action is 400), the panel control that made it "
+            + "(`origin`, an unknown one stored as null) and, for a questionnaire write, the labels of the fields it "
+            + "changed. Each fact is journaled in the capture journal before it is recorded. `source` must be one the "
+            + "page's platform admits (Fansly: `fansly-extension`), else 409 `client_feature_disabled` with the reason "
+            + "`platform_unsupported`. One row per `eventId` of a page, the first report wins: `recorded`, `duplicate` "
+            + "(the same person already reported this event for the same note and action), `conflict` (the event id "
+            + "was reported with another person, note or action; nothing changes) or `out_of_range` (`observedAt` more "
+            + "than 5 minutes ahead of the hub's clock or more than 30 days old; nothing is stored). Every answer is "
+            + "final. It needs only the page grant. A page that is not an active page granted to the caller is 409 "
+            + "`client_feature_disabled` with the reason `not_granted`.",
+        params: clientPageParamsSchema,
+        body: clientNoteAttributionsBodySchema,
+        response: {
+            200: clientNoteAttributionsResponseSchema,
             400: errorResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,

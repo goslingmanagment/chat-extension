@@ -105,6 +105,8 @@ export interface DraftMedium {
   readonly duration?: number;
   readonly isFree: boolean;
   readonly playableContentUrl?: string;
+  /** The picture its tile shows (the proxy's thumbnail; a photo the person uploaded — its blob). */
+  readonly imageUrl?: string;
   readonly uploadDescriptor?: { readonly processId: string; readonly host: string; readonly name: string; readonly extra: unknown };
 }
 

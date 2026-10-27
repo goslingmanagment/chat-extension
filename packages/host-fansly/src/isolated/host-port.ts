@@ -58,10 +58,11 @@ import type { FanslyChatWire, FanslyContractWire, FanslyHealth, FanslyState, Fro
 import type { CgCode } from '@cg/contracts/errors';
 import type { FanslyHeaderSlot, FanslyPagePort } from '@cg/contracts/fansly';
 import type { FanslyContractReport, FanslyHostPort } from '@cg/contracts/fansly-host';
-import type { AttachIntent, AttachReceipt, ChatWindow, ComposerState, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, LiveImage, LiveImageRef, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
+import type { AttachIntent, AttachReceipt, ChatWindow, ComposerState, DraftMedia, HostContractReport, HostEvent, HostFan, HostSnapshot, InsertIntent, InsertReceipt, InsertWire, LiveImage, LiveImageRef, NavigateOptions, NavigationIntent, NavigationReceipt, RouteState, SentDraft, Unsubscribe } from '@cg/contracts/host';
 import type { ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
 import { digest } from '@cg/host-kit/common/digest';
-import { photosAsLiveImages } from '@cg/host-kit/isolated/photos';
+import { composerMedia, photosAsLiveImages, shownImageAsJpeg } from '@cg/host-kit/isolated/photos';
+import { readComposerMedia } from './draft-media';
 import { sameReport } from '@cg/host-kit/isolated/report';
 
 import { DOM_ANCHORS_NOT_YET, FANSLY_SELECTORS, judgeAnchors, type AnchorStats, type AnchorWatcher, type DomAnchorStates } from './anchors';
@@ -899,6 +900,22 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       if (disposed || refs.length === 0) return [];
       const { win } = options;
       return photosAsLiveImages(win.document, refs, wait.waitMs, (callback, ms) => win.setTimeout(callback, ms), fanslyCdnFetch(win)).catch(() => []);
+    },
+    /**
+     * The media of the message being written: the main composer's attachments of the chat the identity names, their
+     * pictures drawn from the images the composer shows (no request). Fansly keeps the price out of the composer: absent.
+     */
+    async readDraftMedia(expected: HostIdentity, wait: { readonly waitMs: number }): Promise<DraftMedia | null> {
+      if (fieldFor(expected, 'readDraftMedia') instanceof BridgeCallError) return null;
+      const box = anchors.current().conversation?.attachments ?? null;
+      if (box === null) return null;
+      const { win } = options;
+      const timer = (callback: () => void, ms: number) => win.setTimeout(callback, ms);
+      return composerMedia(
+        new Date().toISOString(),
+        undefined,
+        readComposerMedia(box, (image) => shownImageAsJpeg(win.document, image, wait.waitMs, timer)),
+      ).catch(() => null);
     },
     chatWindow(chat: ChatRef): ChatWindow | null {
       return chatWire !== null && sameChat(chat, routeState.chat) ? chatWindowOf(chat, chatWire) : null;

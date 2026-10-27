@@ -8,7 +8,7 @@ import * as z from 'zod/mini';
 import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, freshTextSurface, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from './hi-start-proof';
-import { LiveImagesSchema, LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveImage, type LiveTextTail } from './host';
+import { DraftMediaSchema, LiveImagesSchema, LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveImage, type LiveTextTail } from './host';
 import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
 import {
@@ -189,6 +189,12 @@ function textSurfaceFits(op: { readonly feature: FeatureId; readonly surface: Su
 /** The starts that carry the fan's newest photos as images (`StartOp.liveImages`): Reply, Fix and Coach, where they answer the fan. */
 export const LIVE_IMAGE_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['reply', 'fix', 'coach']);
 
+/**
+ * The starts that carry the media attached to the message being written (`StartOp.draftMedia`): the ones that write that
+ * message — Reply, Fix, Hi and Ping in the dock, Coach on its panel —, in the open chat whose composer holds it.
+ */
+export const DRAFT_MEDIA_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['reply', 'fix', 'hi', 'ping', 'coach']);
+
 /** A start proves its freshness one way: a proof is the target's, never beside ChatSpace's tail or X8's checkpoint. */
 function proofFits(op: {
   readonly feature: FeatureId;
@@ -299,6 +305,8 @@ export const StartOpSchema = z
     livePpv: z.optional(LivePpvStateSchema),
     /** The fan's newest photos as images (hub `liveImages`, `live-images-v1`): Reply, Fix and Coach, where fresh text may go. */
     liveImages: z.optional(LiveImagesSchema),
+    /** The media attached to the message being written (hub `draftMedia`, `draft-media-v1`): the open chat's composer. */
+    draftMedia: z.optional(DraftMediaSchema),
     /**
      * Previews: the freshness checkpoint of the Generate click (X8), kept with
      * the opId. Optional so that a preview still generates when MAIN cannot
@@ -347,6 +355,9 @@ export const StartOpSchema = z
     }),
     z.refine((op) => op.liveImages === undefined || (LIVE_IMAGE_FEATURES.has(op.feature) && textSurfaceFits(op)), {
       message: 'photos only on Reply, Fix and Coach where fresh text may go',
+    }),
+    z.refine((op) => op.draftMedia === undefined || (DRAFT_MEDIA_FEATURES.has(op.feature) && textSurfaceFits(op)), {
+      message: 'draft media only on the starts that write the message, in the open chat',
     }),
     z.refine((op) => op.coach === undefined || op.feature === 'coach', { message: 'coach fields only for coach' }),
     z.refine((op) => op.recap === undefined || (op.feature !== 'recap' && op.feature !== 'recap-short'), { message: 'a Recap build reads no Recap switch' }),

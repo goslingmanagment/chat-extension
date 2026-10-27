@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "229354e6efc2d01e8ba61b82acccc4807137e81b88ac06bef290558965d1ad77",
-    "sourceCommit": "eb9354b81fc833b63717ae2454d855ed7bfdf680",
-    "note": "Vendored on 2026-10-27 from hub feat/coach-depth-v1 eb9354b8 with scripts/vendor-sdk.mjs: `coach-depth-v1` (Coach reads past 1500 up to `limits.deepMax`, its answer may end with a ```more note, and the feed's first page dates `depthMarks` as `depth`); also carries hub main's routes since c32fae68. Re-vendor with the same script from the deployed commit and update this pin together."
+    "contractHash": "baf15e7f1f1c249b9d8c5b56e05569b2d9a6f7656a977f13788e73557faf2862",
+    "sourceCommit": "5877968eeb5de1e89d6dd1b4dd104fa7e030270c",
+    "note": "Vendored on 2026-10-27 from hub main 5877968e (#890) with scripts/vendor-sdk.mjs: the AI stream takes `draftMedia` (the media attached to the message being written, its pictures as JPEG) under `draft-media-v1`; also carries #889's publications contract (not used by this client). Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",

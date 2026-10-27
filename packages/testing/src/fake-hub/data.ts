@@ -35,6 +35,8 @@ import {
   type RecapStatus,
   type SendAttributionsRequest,
   type SendAttributionsResult,
+  type NoteAttributionsRequest,
+  type NoteAttributionsResult,
   type ActivityBeatRequest,
   type ActivityBeatResult,
   type InConversationResult,
@@ -289,6 +291,8 @@ export class DataModel {
   private readonly ingested = new Map<string, IngestBatch['events'][number]>();
   /** 1.21.0 (X48): who sent each message, by `page|message`; the first report wins (hub client_send_attributions). */
   private readonly attributions = new Map<string, FakeSendAttribution>();
+  /** Who wrote each Fansly note, by `page|event`; the first report wins (hub client_note_attributions). */
+  private readonly noteWrites = new Map<string, FakeNoteAttribution>();
   /** Chat Memory week 1: every beat, in order (tests read them; ids and idle only). */
   private readonly beats: FakeActivityBeat[] = [];
   /** Chat Memory week 2: the fans' cards a scenario set (`fanCard`), by `page|fan`. */
@@ -1137,6 +1141,32 @@ export class DataModel {
     return [...this.attributions.values()];
   }
 
+  /**
+   * As the hub's `clientNoteAttributions`: Fansly pages only, the person is the token's, one row per event of a page —
+   * the first report wins, a repeat of the same person, note and action is `duplicate`, anything else `conflict` — and
+   * a time more than 5 minutes ahead or 30 days back is `out_of_range`, stored nowhere.
+   */
+  noteAttributions(page: FakePage, userId: number, request: NoteAttributionsRequest, now: number): Read<NoteAttributionsResult> {
+    if (page.platform !== 'fansly' || request.source !== 'fansly-extension') return no('client_feature_disabled', 'platform_unsupported');
+    const results = request.facts.map((fact) => {
+      const at = Date.parse(fact.observedAt);
+      if (at > now + 5 * 60_000 || at < now - 30 * DAY_MS) return { eventId: fact.eventId, outcome: 'out_of_range' };
+      const key = `${page.pageLabel}|${fact.eventId.toLowerCase()}`;
+      const known = this.noteWrites.get(key);
+      if (known === undefined) {
+        this.noteWrites.set(key, { pageLabel: page.pageLabel, userId, source: request.source, ...fact });
+        return { eventId: fact.eventId, outcome: 'recorded' };
+      }
+      const same = known.userId === userId && known.fanRef === fact.fanRef && known.noteRef === fact.noteRef && known.noteKind === fact.noteKind && known.action === fact.action;
+      return { eventId: fact.eventId, outcome: same ? 'duplicate' : 'conflict' };
+    });
+    return ok({ pageLabel: page.pageLabel, results, serverNow: iso(now) });
+  }
+
+  noteAttributionRows(): readonly FakeNoteAttribution[] {
+    return [...this.noteWrites.values()];
+  }
+
   /** Chat Memory week 1, as the hub's `clientActivity`: each named page granted to the caller is recorded, others skipped. */
   activity(userId: number, request: ActivityBeatRequest, granted: (pageLabel: string) => boolean, now: number): Read<ActivityBeatResult> {
     const pages = request.pages.filter((page) => granted(page.pageLabel));
@@ -1448,6 +1478,21 @@ export interface FakeTalking {
   readonly userId: number;
   readonly name: string;
   readonly at: number;
+}
+
+/** One recorded write of a Fansly note: ids, the person, the action, where in the panel, labels; never a text. */
+export interface FakeNoteAttribution {
+  readonly pageLabel: string;
+  readonly userId: number;
+  readonly source: string;
+  readonly eventId: string;
+  readonly fanRef: string;
+  readonly noteRef: string;
+  readonly noteKind: string;
+  readonly action: string;
+  readonly origin?: string | undefined;
+  readonly fields?: readonly string[] | undefined;
+  readonly observedAt: string;
 }
 
 /** One recorded send (X48): ids, the person, a time, two marks and how the text was written; never a text. */

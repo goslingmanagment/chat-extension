@@ -115,6 +115,19 @@ export function liveImagesRefusal(feature: string, body: StreamRuleBody): string
   return null;
 }
 
+// ── The media attached to the message being written (hub context/draft-media.ts `assertDraftMediaRequestShape`) ──
+
+/** The hub's `AI_DRAFT_MEDIA_FEATURES`. */
+const DRAFT_MEDIA_FEATURES: readonly string[] = ['fast-reply', 'improve-draft', 'hi-greeting', 'ping', 'coach-chat', 'voice-script'];
+
+/** Why the hub refuses `draftMedia` before any context loads (400, reason `live_text_not_allowed`). Null — taken. */
+export function draftMediaRefusal(feature: string, body: StreamRuleBody): string | null {
+  if (body.draftMedia === undefined) return null;
+  if (!DRAFT_MEDIA_FEATURES.includes(feature)) return `${feature} does not accept draftMedia`;
+  if (body.clientContext !== undefined) return 'draftMedia cannot be combined with clientContext';
+  return null;
+}
+
 // ── Hi by the start proof (hub context/hi-start-proof.ts, HF-5, bd3eec065) ──
 // Since 2026-10-21 Hi has no message limit: the hub refuses no Hi for its count or for a start nobody proved
 // (`gate_hi_greeting_limit` is gone); only the shape of the lane's fields is still checked.

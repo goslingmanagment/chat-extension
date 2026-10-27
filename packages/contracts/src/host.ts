@@ -33,7 +33,7 @@ import {
   type HostKind,
   type Platform,
 } from './ids';
-import { BRIDGE_LIMITS, LIVE_IMAGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
+import { BRIDGE_LIMITS, DRAFT_MEDIA_LIMITS, LIVE_IMAGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -590,6 +590,43 @@ export const LiveImagesSchema = z.array(LiveImageSchema).check(
   z.refine((images) => new Set(images.map((image) => image.mediaId)).size === images.length, { message: 'live image ids repeat' }),
 );
 
+/** The kinds of a medium attached to the message being written, as the hub names them (`AI_DRAFT_MEDIA_TYPES`). */
+export const DRAFT_MEDIA_TYPES = ['photo', 'video', 'gif', 'audio'] as const;
+export type DraftMediaType = (typeof DRAFT_MEDIA_TYPES)[number];
+
+/**
+ * The media attached to the message being written in the open chat, as the composer shows it (`HostPort.readDraftMedia`,
+ * `StartOp.draftMedia`, hub `draftMedia`): each medium's kind, a video's or an audio's length, whether it is a free preview
+ * inside a paid message, and for at most `DRAFT_MEDIA_LIMITS.imagesMax` of them the picture the composer shows (a photo,
+ * a video's cover) as JPEG. `priceUsd`: the price the person set — null, none; absent, the page does not show it (Fansly
+ * keeps it out of its composer).
+ */
+export const DraftMediaSchema = z.strictObject({
+  capturedAt: IsoTimestampSchema,
+  priceUsd: z.optional(z.nullable(z.number().check(z.gte(0), z.lte(DRAFT_MEDIA_LIMITS.priceMaxUsd)))),
+  items: z
+    .array(
+      z.strictObject({
+        type: z.enum(DRAFT_MEDIA_TYPES),
+        durationSec: z.optional(z.int().check(z.gte(0), z.lte(DRAFT_MEDIA_LIMITS.durationMaxSec))),
+        free: z.optional(z.boolean()),
+        image: z.optional(
+          z.strictObject({
+            mediaType: z.literal('image/jpeg'),
+            data: z.string().check(z.minLength(4), z.maxLength(LIVE_IMAGE_LIMITS.dataMaxChars), z.regex(/^[A-Za-z0-9+/]+={0,2}$/)),
+          }),
+        ),
+      }),
+    )
+    .check(
+      z.minLength(1),
+      z.maxLength(DRAFT_MEDIA_LIMITS.itemsMax),
+      z.refine((items) => items.filter((item) => item.image !== undefined).length <= DRAFT_MEDIA_LIMITS.imagesMax, { message: 'too many draft media pictures' }),
+    ),
+});
+export type DraftMedia = z.infer<typeof DraftMediaSchema>;
+export type DraftMediaItem = DraftMedia['items'][number];
+
 /** 1.22.0 (X54): one page of the open chat's messages, newest first, as the API pages them. */
 export const OpenChatPageSchema = z.strictObject({
   capturedAt: IsoTimestampSchema,
@@ -1012,6 +1049,13 @@ export interface HostPort {
    * asked; never rejects. Absent on a host that cannot.
    */
   loadImages?(refs: readonly LiveImageRef[], options: { readonly waitMs: number }): Promise<readonly LiveImage[]>;
+  /**
+   * The media attached to the message being written in the open chat the identity names, with the composer's own
+   * pictures of the first `DRAFT_MEDIA_LIMITS.imagesMax` drawn as JPEG within `waitMs` (a picture late or unreadable is
+   * left out, its medium stays). null — nothing attached, another chat, or the composer cannot be read. Requests nothing
+   * of the site's API; never rejects. Absent on a host that cannot.
+   */
+  readDraftMedia?(identity: HostIdentity, options: { readonly waitMs: number }): Promise<DraftMedia | null>;
   /** Prechecks of the open chat. */
   chatWindow(chat: ChatRef, max: number): ChatWindow | null;
   /** Decoration only, when already in memory. */

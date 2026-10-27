@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
-import { COOLING_LOOK_MS, KNOWN_FLUSH_MS, NEWCOMERS_KNOWN_PREFIX, READY_FRESH_MS, RECHECK_DELAY_MS, WATCH_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
+import { COOLING_LOOK_MS, KNOWN_FLUSH_MS, NEWCOMERS_KNOWN_PREFIX, READY_FRESH_MS, RECHECK_DELAY_MS, SESSION_LOOK_MS, WATCH_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
 const C = '700000000000000017';
@@ -924,5 +924,46 @@ describe('[host:fansly] «Новые» as the old extension did it (audit 2026-1
     t.world.setCooling(Date.now() + minutes(1));
     expect(Object.fromEntries(await t.service.remind(C, fans.slice(0, 1)))).toEqual({ [welcomed]: null });
     expect(t.world.calls.length).toBe(calls);
+  });
+});
+
+describe('[host:fansly] «Новые» loading (2026-10-27: «открывает дохуя типов, цифры потом уменьшаются»)', () => {
+  it('[2026-10-27] a window that opens with the page waits for the creator’s session instead of stopping the pass with CG-FAN-SESSION', async () => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(5));
+    t.world.failures.set('message.automated', new ApiError('session', 'CG-FAN-SESSION'));
+    const passId = await t.scan();
+    await vi.advanceTimersByTimeAsync(SESSION_LOOK_MS * 3);
+    expect(t.routes().every((route) => route === 'message.automated')).toBe(true);
+    // The page asked Fansly something: the session is there, the pass goes on by itself.
+    t.world.failures.delete('message.automated');
+    await vi.advanceTimersByTimeAsync(SESSION_LOOK_MS + 1);
+    await t.settle();
+    expect(await t.row(passId, fan)).toMatchObject({ status: 'ready' });
+  });
+
+  it('[2026-10-27] the check goes newest first whether or not the inbox named the chat; a chat the inbox shows ending with the creator’s message is «Уже писали» without a request; «К обработке» counts only fans checked', async () => {
+    const t = setup();
+    const newest = t.world.follow(1, T0 - minutes(2));
+    const greeted = t.world.follow(2, T0 - minutes(3));
+    const greetedChat = t.world.chat(greeted, [{ from: 'model', content: 'hey, personal' }]);
+    const older = t.world.follow(3, T0 - minutes(4));
+    t.world.chat(older, [{ from: 'fan', content: 'hi' }]);
+    const release = t.world.hold('message.history');
+    const passId = await t.scan();
+    await t.until(() => t.routes().includes('message.history'));
+    // Nobody has a verdict that needs the person yet: «К обработке» holds nobody, «Все» holds all three.
+    const reading = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'any' } });
+    expect([reading.counts?.tabs.todo, reading.counts?.tabs.all]).toEqual([0, 3]);
+    expect(await t.row(passId, greeted)).toMatchObject({ status: 'greeted' });
+    release();
+    await t.settle();
+    // The newest fan, who has no chat, before the older one the inbox named; the greeted one asked nothing.
+    expect(t.creates()).toEqual([newest]);
+    const order = t.world.calls.filter((call) => call.route === 'group.create' || call.route === 'message.history').map((call) => call.route);
+    expect(order[0]).toBe('group.create');
+    expect(t.world.calls.some((call) => call.query?.['groupId'] === greetedChat.id || call.path?.['group'] === greetedChat.id)).toBe(false);
+    const done = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'any' } });
+    expect(done.rows.map((row) => row.fanRef)).toEqual([newest, older]);
   });
 });

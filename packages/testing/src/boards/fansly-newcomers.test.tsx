@@ -115,6 +115,6 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     ]);
     // The next draft is the next unsent one, round the list.
     const rows = vmOf('13o').rows;
-    expect([nextDraft(rows, handle(2)), nextDraft(rows, handle(8)), nextDraft(rows, handle(3))]).toEqual([handle(8), handle(1), handle(8)]);
+    expect([nextDraft(rows, handle(2)), nextDraft(rows, handle(8)), nextDraft(rows, handle(5))]).toEqual([handle(8), handle(1), handle(8)]);
   });
 });

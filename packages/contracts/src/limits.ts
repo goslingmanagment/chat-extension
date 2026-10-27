@@ -274,6 +274,16 @@ export const LIVE_IMAGE_LIMITS = {
 } as const;
 
 /**
+ * The media attached to the message being written that a Reply, Fix, Hi, Ping or Coach start carries (`StartOp.draftMedia`,
+ * hub `draftMedia`, `draft-media-v1`): every medium of the composer, at most `itemsMax` (the hub's
+ * `AI_DRAFT_MEDIA_ITEMS_MAX`, a message's own cap), and the pictures of the first `imagesMax` that show one (the hub's
+ * `AI_DRAFT_MEDIA_IMAGES_MAX`) — drawn as JPEG with the live photos' bounds (`LIVE_IMAGE_LIMITS`). `waitMs` — how long the
+ * click waits for the pictures beside its other reads; `priceMaxUsd` — the hub's `AI_DRAFT_MEDIA_PRICE_MAX_USD`;
+ * `durationMaxSec` — a medium's length the hub takes.
+ */
+export const DRAFT_MEDIA_LIMITS = { itemsMax: 40, imagesMax: 4, waitMs: 1500, priceMaxUsd: 10_000, durationMaxSec: 86_400 } as const;
+
+/**
  * 1.15.0 (R20): hub limits of the window coverage check (HF-8в `AI_COVERAGE_CHECK_WINDOW_MAX` / `_DELETED_MAX`):
  * the ids of the check window and the ids of its messages the tab saw deleted, each list at most this many.
  */

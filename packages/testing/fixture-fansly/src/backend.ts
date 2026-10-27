@@ -34,6 +34,8 @@ export interface UploadFile {
   readonly name: string;
   readonly type: string;
   readonly size: number;
+  /** The page's blob of the file, for the composer's tile of it (as Fansly shows the medium it made). */
+  readonly url?: string;
 }
 
 /** A history page: the latest 25, or the 25 before a message id (oldest first). */

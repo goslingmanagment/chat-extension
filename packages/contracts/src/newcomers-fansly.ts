@@ -83,6 +83,8 @@ export const FANSLY_NEWCOMERS_TEXT_KEYS = [
   'fansly.newcomers.empty.filter',
   'fansly.newcomers.empty.search',
   'fansly.newcomers.empty.todo',
+  'fansly.newcomers.empty.checking',
+  'fansly.newcomers.empty.unchecked',
   'fansly.newcomers.empty.card',
   'fansly.newcomers.hint',
   'fansly.newcomers.footer',

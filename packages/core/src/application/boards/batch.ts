@@ -2,7 +2,8 @@
 // «Сгенерировать для N», and a queue that starts at most BATCH_LIMITS.parallel of them at a time. Each list says
 // how one fan's generation starts and ends (`start`): the Spenders board and «Новые» of a hub list through the
 // preview's own Generate, a «Новые» list a background pass checks through its card's greeting. The batch only
-// generates: each result waits on its fan's card, and only the person's click there sends it (X8).
+// generates: each result waits on its fan's card, and only the person's click there sends it (X8) — or, on «Новые»,
+// the person's one click «Отправить всем» (the owner, 2026-10-27; see `sendAll`).
 //
 // The one click is the person's consent for the whole batch: the tab's gate gives it up to `grantTokens` generate
 // tokens for `grantTtlMs` (composition/tab/action-gate.ts). A start that finds no token (the grant ran out, the
@@ -10,7 +11,7 @@
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type MediaFanState } from '@cg/contracts/media';
-import { BATCH_LIMITS, type ActionReceipt, type BatchRowState, type BatchRowVM, type BatchVM, type MediaPickerVM, type Msg, type NewcomerRowSendVM, type OutreachMediaVM, type PreviewSendView, type UiAction, type UiActionType } from '@cg/contracts/vm';
+import { BATCH_LIMITS, type ActionReceipt, type BatchRowState, type BatchRowVM, type BatchSendRunVM, type BatchVM, type MediaPickerVM, type Msg, type NewcomerRowSendVM, type OutreachMediaVM, type PreviewSendView, type UiAction, type UiActionType } from '@cg/contracts/vm';
 
 import { type BoardsClock } from './ports';
 import { done } from './surface';
@@ -45,6 +46,33 @@ export function noteBatchOp(ops: Set<string>, opId: string): void {
   }
 }
 
+/**
+ * How a fan's ready greeting stands for «Отправить всем»: its row's «Отправить» would go now; it will after a wait (the
+ * pause after a send, an earlier part still on its way); it went (or its last part is on its way); it cannot go by
+ * the row's click (a warning, a refusal, an unknown outcome — the row says why).
+ */
+export type BatchSendState = 'now' | 'wait' | 'done' | 'no';
+
+/** What «Отправить всем» asks of its list. */
+export interface BatchSender {
+  state(handle: string): BatchSendState;
+  /** The row's own «Отправить», exactly as its click sends it. */
+  send(handle: string): Promise<ActionReceipt>;
+  /** The hub's limit of sends a minute: the run never goes faster. */
+  perMinute(): number;
+}
+
+/** A fan whose row waits (a part on its way, the pause) longer than this is left to its row. */
+export const BATCH_SEND_WAIT_MS = 90_000;
+/** How often a waiting row is looked at again. */
+const BATCH_SEND_POLL_MS = 500;
+/** Parts of one greeting the run sends at most. */
+const BATCH_SEND_PARTS = 6;
+/** A refusal «busy» (nothing went: the pause, another click on the fan) is tried again this many times. */
+const BATCH_SEND_BUSY_TRIES = 3;
+/** The hub counts a minute; a little room over it. */
+const MINUTE_MS = 61_000;
+
 export interface BatchDeps {
   readonly clock: BoardsClock;
   /** Starts the fan's generation; resolves when it ended (or did not start). */
@@ -58,6 +86,8 @@ export interface BatchDeps {
    * seconds, so a click left waiting its turn would end with nothing written.
    */
   readonly parallel?: number;
+  /** «Отправить всем» (the owner, 2026-10-27); absent — the list has none. */
+  readonly sender?: BatchSender;
   changed(): void;
 }
 
@@ -77,6 +107,14 @@ export interface Batch {
   clear(): boolean;
   /** These fans forget the batch — their tick, their result as the batch heard it (one generating goes on). */
   drop(handles: readonly string[]): boolean;
+  /**
+   * «Отправить всем»: the ready greetings go one by one, BATCH_LIMITS.sendGapMs apart and never faster than the hub's
+   * minute, each by its row's own send. A refusal or an unknown outcome is never sent again: the fan stays for the
+   * person. False — nothing to send, or a run is going.
+   */
+  sendAll(): boolean;
+  /** «Остановить» of «Отправить всем»: a send already asked for goes on; nothing more starts. */
+  stopSend(): boolean;
   row(handle: string): BatchRowVM;
   vm(reason: Msg | null): BatchVM;
   /** Someone is ticked, waiting, generating or has a result in the batch. */
@@ -94,6 +132,18 @@ interface Item {
   code: string | null;
 }
 
+/**
+ * The run of «Отправить всем» as it goes. What went is read from the rows themselves, not from the run: a send ChatSpace
+ * took into its queue may still be refused there, and its row says so.
+ */
+interface SendRun {
+  running: boolean;
+  readonly handles: readonly string[];
+  /** The fans the run has been through: asked to send (`asked`), or left to their rows (`failed`). */
+  readonly outcome: Map<string, 'asked' | 'failed'>;
+  held: boolean;
+}
+
 const IDLE: BatchRowVM = { pickable: true, picked: false, state: null, text: null, failure: null };
 
 export function createBatch(deps: BatchDeps): Batch {
@@ -103,6 +153,12 @@ export function createBatch(deps: BatchDeps): Batch {
   let generation = 0;
   let retry: number | null = null;
   let disposed = false;
+
+  /** «Отправить всем»: the run on screen, and the times of its sends within the last minute. */
+  let run: SendRun | null = null;
+  const sentAt: number[] = [];
+  let nextAt = 0;
+  let wake: { readonly timer: number; readonly resolve: () => void } | null = null;
 
   const generating = (): number => [...items.values()].filter((item) => item.state === 'generating').length;
   const holding = (): number => [...items.values()].filter((item) => item.state === 'queued' || item.state === 'generating').length;
@@ -166,6 +222,119 @@ export function createBatch(deps: BatchDeps): Batch {
     return { pickable, picked, state, text: live?.text ?? item.text, failure: item.code === null ? null : { code: item.code, title: titleOf(item.code) } };
   }
 
+  // ── «Отправить всем» ──
+
+  function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = clock.setTimer(Math.max(1, ms), () => {
+        wake = null;
+        resolve();
+      });
+      wake = { timer, resolve };
+    });
+  }
+
+  function endSend(): boolean {
+    if (run === null || !run.running) return false;
+    run.running = false;
+    run.held = false;
+    if (wake !== null) {
+      clock.clearTimer(wake.timer);
+      const { resolve } = wake;
+      wake = null;
+      resolve();
+    }
+    return true;
+  }
+
+  /** The run as its rows stand now: gone out, or left to the row (refused by the run, or after it by the site). */
+  function runView(sender: BatchSender, mine: SendRun): BatchSendRunVM {
+    let sent = 0;
+    let failed = 0;
+    for (const handle of mine.handles) {
+      const outcome = mine.outcome.get(handle);
+      if (outcome === undefined) continue;
+      if (row(handle).state === 'sent') sent += 1;
+      else if (outcome === 'failed' || sender.state(handle) === 'no') failed += 1;
+    }
+    return { running: mine.running, total: mine.handles.length, done: mine.outcome.size, sent, failed, held: mine.held };
+  }
+
+  /** The ready greetings a click would send, in the batch's order. */
+  function sendable(): string[] {
+    const sender = deps.sender;
+    if (sender === undefined) return [];
+    return [...items.keys()].filter((handle) => {
+      if (row(handle).state !== 'ready') return false;
+      const state = sender.state(handle);
+      return state === 'now' || state === 'wait';
+    });
+  }
+
+  /** One fan of the run: its parts as its row sends them. */
+  async function sendOne(sender: BatchSender, mine: SendRun, handle: string): Promise<'sent' | 'failed' | 'stopped'> {
+    let parts = 0;
+    let busy = 0;
+    let waited = 0;
+    for (;;) {
+      if (!mine.running || disposed) return 'stopped';
+      const state = sender.state(handle);
+      if (state === 'done') return 'sent';
+      if (state === 'no') return 'failed';
+      const now = clock.now();
+      if (state === 'wait' || now < nextAt) {
+        if (waited >= BATCH_SEND_WAIT_MS) return 'failed';
+        const step = state === 'wait' ? BATCH_SEND_POLL_MS : nextAt - now;
+        await sleep(step);
+        waited += step;
+        continue;
+      }
+      while (sentAt.length > 0 && (sentAt[0] ?? 0) <= now - MINUTE_MS) sentAt.shift();
+      if (sentAt.length >= Math.max(1, sender.perMinute())) {
+        // The hub's minute is full: the next goes when its first send of the minute leaves it.
+        mine.held = true;
+        deps.changed();
+        await sleep((sentAt[0] ?? now) + MINUTE_MS - now);
+        mine.held = false;
+        deps.changed();
+        continue;
+      }
+      if (parts >= BATCH_SEND_PARTS) return 'failed';
+      parts += 1;
+      sentAt.push(now);
+      nextAt = now + BATCH_LIMITS.sendGapMs;
+      const receipt = await sender.send(handle).catch((): null => null);
+      if (receipt === null) return 'failed';
+      if (!receipt.ok) {
+        // No token is left of the click (its grant is spent or too old): the run is over, the rest wait for a click.
+        if (receipt.code === 'CG-UI-FAILED') {
+          endSend();
+          return 'failed';
+        }
+        // Nothing went (the pause, another click on the same fan): the same part, after a wait.
+        if (receipt.code === 'CG-SEND-BUSY' && busy < BATCH_SEND_BUSY_TRIES) {
+          busy += 1;
+          parts -= 1;
+          continue;
+        }
+        return 'failed';
+      }
+      waited = 0;
+    }
+  }
+
+  async function runSend(sender: BatchSender, mine: SendRun, handles: readonly string[]): Promise<void> {
+    for (const handle of handles) {
+      if (!mine.running || disposed) break;
+      const outcome = await sendOne(sender, mine, handle);
+      if (outcome !== 'stopped') mine.outcome.set(handle, outcome === 'sent' ? 'asked' : 'failed');
+      if (!disposed) deps.changed();
+    }
+    mine.running = false;
+    mine.held = false;
+    if (!disposed) deps.changed();
+  }
+
   return {
     pick(handles, picked) {
       let moved = false;
@@ -213,7 +382,25 @@ export function createBatch(deps: BatchDeps): Batch {
       if (moved) deps.changed();
       return moved;
     },
+    sendAll() {
+      const sender = deps.sender;
+      if (sender === undefined || run?.running === true) return false;
+      const handles = sendable();
+      if (handles.length === 0) return false;
+      const mine: SendRun = { running: true, handles, outcome: new Map(), held: false };
+      run = mine;
+      deps.changed();
+      void runSend(sender, mine, handles);
+      return true;
+    },
+    stopSend() {
+      const stopped = endSend();
+      if (stopped) deps.changed();
+      return stopped;
+    },
     clear() {
+      endSend();
+      run = null;
       const had = picks.size > 0 || items.size > 0;
       picks.clear();
       dropRetry();
@@ -246,6 +433,7 @@ export function createBatch(deps: BatchDeps): Batch {
         sent: count('sent'),
         failed: count('failed'),
         reason,
+        ...(deps.sender === undefined ? {} : { send: { ready: run?.running === true ? 0 : sendable().length, perMinute: deps.sender.perMinute(), run: run === null ? null : runView(deps.sender, run) } }),
       };
     },
     active: () => picks.size > 0 || items.size > 0,
@@ -253,6 +441,8 @@ export function createBatch(deps: BatchDeps): Batch {
     reset() {
       generation += 1;
       dropRetry();
+      endSend();
+      run = null;
       const had = picks.size > 0 || items.size > 0;
       picks.clear();
       items.clear();
@@ -262,6 +452,7 @@ export function createBatch(deps: BatchDeps): Batch {
       disposed = true;
       generation += 1;
       dropRetry();
+      endSend();
       picks.clear();
       items.clear();
     },
@@ -301,6 +492,10 @@ export interface BatchPreviewPort {
   batchLive(handle: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** X59 on a hub's «Новые»: the row's own «Отправить» of the fan's greeting; null — no part waits (absent — none here). */
   batchSend?(handle: string): NewcomerRowSendVM | null;
+  /** «Отправить всем» of a hub's «Новые»: how the fan's greeting stands for the run (absent — no such send here). */
+  batchSendState?(handle: string): BatchSendState;
+  /** «Отправить всем»: the row's own «Отправить», as its click sends it. */
+  batchSendNow?(handle: string): Promise<ActionReceipt>;
   /** «Рассылка» exists (its window open or folded): the cards of its fans take its media; false — no card send here. */
   setOutreach?(on: boolean): boolean;
   /** The outreach's media as picked; null — none (text only). */
@@ -322,10 +517,10 @@ export interface BatchPreviewPort {
   onBatch(listener: () => void): () => void;
 }
 
-export type BatchAction = Extract<UiAction, { type: 'SetBatchPick' | 'GenerateBatch' | 'StopBatch' | 'ClearBatch' }>;
+export type BatchAction = Extract<UiAction, { type: 'SetBatchPick' | 'GenerateBatch' | 'StopBatch' | 'ClearBatch' | 'SendBatch' | 'StopBatchSend' }>;
 
 export const isBatchAction = (action: UiAction): action is BatchAction =>
-  action.type === 'SetBatchPick' || action.type === 'GenerateBatch' || action.type === 'StopBatch' || action.type === 'ClearBatch';
+  action.type === 'SetBatchPick' || action.type === 'GenerateBatch' || action.type === 'StopBatch' || action.type === 'ClearBatch' || action.type === 'SendBatch' || action.type === 'StopBatchSend';
 
 /** One action of a list's batch; `own` — the handle is a fan of this list. */
 export function batchDispatch(batch: Batch, action: BatchAction, own: (handle: string) => boolean): ActionReceipt {
@@ -338,5 +533,9 @@ export function batchDispatch(batch: Batch, action: BatchAction, own: (handle: s
       return done(action.type, batch.stop() ? 'done' : 'noop');
     case 'ClearBatch':
       return done(action.type, batch.clear() ? 'done' : 'noop');
+    case 'SendBatch':
+      return done(action.type, batch.sendAll() ? 'started' : 'noop');
+    case 'StopBatchSend':
+      return done(action.type, batch.stopSend() ? 'done' : 'noop');
   }
 }

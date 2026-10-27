@@ -45,6 +45,7 @@ import {
   type StatsQuery,
 } from './spenders';
 import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
+import { type NoteAttributionsRequest, type NoteAttributionsResult } from './note-attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
 import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
 import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineQuery } from './online';
@@ -183,6 +184,12 @@ export interface HubFacade {
    * repeated by the facade: the caller's journal owns what is owed.
    */
   sendAttributions(request: SendAttributionsRequest): Promise<SendAttributionsResult>;
+  /**
+   * Who wrote these Fansly notes of the page — the person signed in. Refused locally without `note-attribution-v1`
+   * (CG-HUB-CAPABILITY) and for a page the bootstrap does not grant; no owner switch. Never repeated by the facade: the
+   * caller's journal owns what is owed.
+   */
+  noteAttributions(request: NoteAttributionsRequest): Promise<NoteAttributionsResult>;
   /**
    * Chat Memory week 1: the beat of the person signed in. Refused here without `chatter-activity-v1`; no page grant is
    * checked (the hub skips a page that is not theirs). Never repeated: a lost beat is just lost.

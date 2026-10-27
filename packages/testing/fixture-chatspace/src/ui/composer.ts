@@ -184,7 +184,11 @@ const OfComposer = defineComponent({
     const medias = (): readonly DraftMedium[] => model.value.media?.medias ?? [];
     /** The draft's media from now on; a medium that leaves it lets its file go. */
     const setMedias = (next: readonly DraftMedium[]): void => {
-      for (const medium of medias()) if (!next.includes(medium) && medium.playableContentUrl?.startsWith('blob:') === true) URL.revokeObjectURL(medium.playableContentUrl);
+      for (const medium of medias()) {
+        if (next.includes(medium)) continue;
+        if (medium.playableContentUrl?.startsWith('blob:') === true) URL.revokeObjectURL(medium.playableContentUrl);
+        if (medium.imageUrl?.startsWith('blob:') === true) URL.revokeObjectURL(medium.imageUrl);
+      }
       model.value = { ...model.value, media: next.length > 0 ? { medias: next, price: null, lockedText: false } : null };
     };
 
@@ -208,6 +212,8 @@ const OfComposer = defineComponent({
         ...(duration > 0 ? { duration } : {}),
         isFree: true,
         ...(item.type === 'audio' || item.type === 'video' ? { playableContentUrl: URL.createObjectURL(item.file) } : {}),
+        // ChatSpace's tile of a photo shows the photo itself.
+        ...(item.type === 'image' ? { imageUrl: URL.createObjectURL(item.file) } : {}),
         uploadDescriptor: { processId, host: 'stand', name: item.name, extra: { duration } },
       };
       // One step, as ChatSpace's: the medium joins the draft and its tile takes the upload's place.
@@ -427,6 +433,7 @@ const OfComposer = defineComponent({
       ]);
     const mediaTile = (medium: DraftMedium): VNode =>
       h('div', { key: medium.id, class: 'composer-media-tile', 'data-stand-media': medium.type }, [
+        medium.imageUrl !== undefined ? h('img', { class: 'composer-media-tile__image', src: medium.imageUrl, alt: '' }) : null,
         h('span', { class: 'composer-media-tile__kind' }, medium.type),
         h('button', { type: 'button', class: 'composer-tile-remove', 'aria-label': 'Remove media', title: 'Remove media', onClick: () => removeMedium(medium.id) }, '✕'),
       ]);

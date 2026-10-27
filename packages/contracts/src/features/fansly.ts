@@ -86,6 +86,8 @@ const FEATURES = {
   notes: { kind: 'panel', hotkey: 'notes', base: { flags: ['notes'], hostCapabilities: ['headerSlot'] }, actions: {}, surfaces: ['header-slot', 'notes'], source: 'host-pass' },
   // «✨ Заполнить из чата»: the hub's `fan-notes-fill`, in the notes panel.
   'notes-fill': { kind: 'ai', base: { flags: ['notesFill'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['notes'], source: 'hub' },
+  // Who wrote each note: every write of «Заметки» Fansly confirmed, told to the hub (`note-attribution-v1`). No owner switch.
+  'note-attribution': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-v1'] }, actions: {}, surfaces: [], source: 'page' },
   registration: { kind: 'panel', base: { flags: ['registration'], hostCapabilities: ['headerSlot'] }, actions: {}, surfaces: ['header-slot'], source: 'page' },
   vault: { kind: 'panel', base: { flags: ['vault'], hostCapabilities: ['vault'] }, actions: {}, surfaces: ['vault'], source: 'host-pass' },
   // «Fansly через вкладку»: a setting of the person, no switch of the owner.

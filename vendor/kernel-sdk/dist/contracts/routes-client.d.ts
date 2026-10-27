@@ -89,7 +89,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -1447,6 +1447,63 @@ export declare const clientSendAttributionsResponseSchema: z.ZodObject<{
     pageLabel: z.ZodString;
     results: z.ZodArray<z.ZodObject<{
         platformMessageId: z.ZodString;
+        outcome: z.ZodString;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+/** The clients that write notes and report them; open on the wire, a platform admits its own. */
+export declare const CLIENT_NOTE_ATTRIBUTION_SOURCES: readonly ["fansly-extension"];
+/** What was written: a regular note (Fansly contentType 12000, the questionnaire included) or the fan's custom name (12002). */
+export declare const CLIENT_NOTE_ATTRIBUTION_NOTE_KINDS: readonly ["note", "custom_name"];
+export declare const CLIENT_NOTE_ATTRIBUTION_ACTIONS: readonly ["created", "edited", "deleted"];
+/**
+ * Which control of the extension's notes panel made the write: `quick` — the
+ * quick-note box; `editor` — the text editor; `field` — one questionnaire field;
+ * `fill` — the Goose's suggestions the chatter accepted; `undo` — taking back the
+ * last accepted suggestion; `list` — a delete from the list; `name` — the custom
+ * name field. A value the hub does not know is stored as null.
+ */
+export declare const CLIENT_NOTE_ATTRIBUTION_ORIGINS: readonly ["quick", "editor", "field", "fill", "undo", "list", "name"];
+/** What the hub did with one fact; every one is final (the same words as send attribution). */
+export declare const CLIENT_NOTE_ATTRIBUTION_OUTCOMES: readonly ["recorded", "duplicate", "conflict", "out_of_range"];
+export declare const CLIENT_NOTE_ATTRIBUTION_MAX_FACTS = 50;
+export declare const CLIENT_NOTE_ATTRIBUTION_MAX_AHEAD_MS: number;
+export declare const CLIENT_NOTE_ATTRIBUTION_MAX_AGE_DAYS = 30;
+/** Questionnaire field labels one fact names, and the length of one. */
+export declare const CLIENT_NOTE_ATTRIBUTION_MAX_FIELDS = 20;
+export declare const CLIENT_NOTE_ATTRIBUTION_FIELD_MAX_CHARS = 100;
+export type ClientNoteAttributionSource = (typeof CLIENT_NOTE_ATTRIBUTION_SOURCES)[number];
+export type ClientNoteAttributionNoteKind = (typeof CLIENT_NOTE_ATTRIBUTION_NOTE_KINDS)[number];
+export type ClientNoteAttributionAction = (typeof CLIENT_NOTE_ATTRIBUTION_ACTIONS)[number];
+export type ClientNoteAttributionOrigin = (typeof CLIENT_NOTE_ATTRIBUTION_ORIGINS)[number];
+export type ClientNoteAttributionOutcome = (typeof CLIENT_NOTE_ATTRIBUTION_OUTCOMES)[number];
+export declare const clientNoteAttributionFactSchema: z.ZodObject<{
+    eventId: z.ZodString;
+    fanRef: z.ZodString;
+    noteRef: z.ZodString;
+    noteKind: z.ZodString;
+    action: z.ZodString;
+    origin: z.ZodOptional<z.ZodString>;
+    fields: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    observedAt: z.ZodString;
+}, z.core.$strict>;
+export declare const clientNoteAttributionsBodySchema: z.ZodObject<{
+    source: z.ZodString;
+    facts: z.ZodArray<z.ZodObject<{
+        eventId: z.ZodString;
+        fanRef: z.ZodString;
+        noteRef: z.ZodString;
+        noteKind: z.ZodString;
+        action: z.ZodString;
+        origin: z.ZodOptional<z.ZodString>;
+        fields: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        observedAt: z.ZodString;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
+export declare const clientNoteAttributionsResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    results: z.ZodArray<z.ZodObject<{
+        eventId: z.ZodString;
         outcome: z.ZodString;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
@@ -3681,6 +3738,76 @@ export declare const clientRouteSchemas: {
                 pageLabel: z.ZodString;
                 results: z.ZodArray<z.ZodObject<{
                     platformMessageId: z.ZodString;
+                    outcome: z.ZodString;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientNoteAttributions: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Report who wrote Fansly notes: the caller created, edited or deleted these notes of the page's fans";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            source: z.ZodString;
+            facts: z.ZodArray<z.ZodObject<{
+                eventId: z.ZodString;
+                fanRef: z.ZodString;
+                noteRef: z.ZodString;
+                noteKind: z.ZodString;
+                action: z.ZodString;
+                origin: z.ZodOptional<z.ZodString>;
+                fields: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                observedAt: z.ZodString;
+            }, z.core.$strict>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                results: z.ZodArray<z.ZodObject<{
+                    eventId: z.ZodString;
                     outcome: z.ZodString;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
@@ -6522,6 +6649,8 @@ export type ClientSendCustodyListItem = z.infer<typeof clientSendCustodyListItem
 export type ClientSendCustodyListResponse = z.infer<typeof clientSendCustodyListResponseSchema>;
 export type ClientSendAttributionFact = z.infer<typeof clientSendAttributionFactSchema>;
 export type ClientSendAttributionsBody = z.infer<typeof clientSendAttributionsBodySchema>;
+export type ClientNoteAttributionFact = z.infer<typeof clientNoteAttributionFactSchema>;
+export type ClientNoteAttributionsBody = z.infer<typeof clientNoteAttributionsBodySchema>;
 export type ClientActivityBody = z.infer<typeof clientActivityBodySchema>;
 export type ClientActivityResponse = z.infer<typeof clientActivityResponseSchema>;
 export type TeamShiftsQuery = z.infer<typeof teamShiftsQuerySchema>;
@@ -6573,6 +6702,7 @@ export type ClientFanFactQuote = z.infer<typeof clientFanFactQuoteSchema>;
 export type ClientFanFactChangeBody = z.infer<typeof clientFanFactChangeBodySchema>;
 export type ClientFanFactChangeResponse = z.infer<typeof clientFanFactChangeResponseSchema>;
 export type ClientSendAttributionsResponse = z.infer<typeof clientSendAttributionsResponseSchema>;
+export type ClientNoteAttributionsResponse = z.infer<typeof clientNoteAttributionsResponseSchema>;
 export type ClientAudienceNewQuery = z.infer<typeof clientAudienceNewQuerySchema>;
 export type ClientClaimSummary = z.infer<typeof clientClaimSummarySchema>;
 export type ClientAudienceNewItem = z.infer<typeof clientAudienceNewItemSchema>;

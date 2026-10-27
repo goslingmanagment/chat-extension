@@ -85,6 +85,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   SetBatchPick: { type: 'SetBatchPick', list: 'spenders', targetHandles: ['spenders:f1', 'spenders:f2'], picked: true },
   GenerateBatch: { type: 'GenerateBatch', list: 'newcomers' },
   StopBatch: { type: 'StopBatch', list: 'spenders' },
+  SendBatch: { type: 'SendBatch', list: 'newcomers' },
+  StopBatchSend: { type: 'StopBatchSend', list: 'newcomers' },
   ClearBatch: { type: 'ClearBatch', list: 'newcomers' },
   SetOutreach: { type: 'SetOutreach', open: true, text: 'new video is up', tier: { id: 'shelf-600', on: true }, condition: { id: 'spent', on: true, amount: '1,000' }, post: { contentType: 2, contentId: '700000000000000011', picked: true } },
   SendOutreach: { type: 'SendOutreach', targetHandle: 'outreach:42:700000000000000002' },

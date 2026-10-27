@@ -167,6 +167,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    */
   'live-images-v1',
   /**
+   * The AI stream takes `draftMedia`, the media the person attached to the message being written in the open chat
+   * (its pictures as JPEG); listed while the owner's `aiDraftMediaEnabled` is on. A hub without it refuses the field
+   * (400), so a start reads the composer's media only for a hub that lists it.
+   */
+  'draft-media-v1',
+  /**
    * 1.48.0: the AI stream takes `recap: 'off'` — the generation reads neither the fan's dossier nor Coach's Recaps, and
    * its meta frame says none went in. A hub without it refuses the field (400), so «с Recap» shows only for a hub that
    * lists it.
@@ -207,6 +213,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'hi-fan-account-v1',
   /** «Онлайн»: the page's fans seen online with why to write now (`clientOnline`), Fansly presence reports, the window's rows. */
   'online-v1',
+  /**
+   * Who wrote each Fansly note (`clientNoteAttributions`): every write of our notes panel Fansly confirmed — ids, the
+   * action, where in the panel, the questionnaire labels; never a text. A hub without it is never told.
+   */
+  'note-attribution-v1',
   /**
    * 2026-10-27: Coach reads as deep as the chatter chose (up to `limits.deepMax`, not the ordinary 1500), its answer may
    * end with a ```more note that older messages would change its advice, and a feed's first page dates the depths it

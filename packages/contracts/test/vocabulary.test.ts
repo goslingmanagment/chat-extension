@@ -104,7 +104,8 @@ describe('«Отправить» row (previewSendStateOf)', () => {
   const ok: C.PreviewSendPreflight = { ok: true };
   const attempt = (state: C.SendAttemptState, code?: C.CgCode): C.SendAttemptView => ({ attemptId: '00000000-0000-4000-8000-000000000005', state, ...(code ? { code } : {}) });
 
-  it('has no send-all, auto-send or hotkey-send action', () => {
+  // «Отправить всем» of «Новые» (`SendBatch`) is the owner's one exception (2026-10-27): still a click, never a timer or a key.
+  it('has no auto-send or hotkey-send action', () => {
     for (const type of C.UI_ACTION_TYPES) expect(type).not.toMatch(/SendAll|AutoSend|SendNext/);
   });
 

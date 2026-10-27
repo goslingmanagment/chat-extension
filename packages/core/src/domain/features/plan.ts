@@ -14,11 +14,11 @@
 
 import { type CgCode } from '@cg/contracts/errors';
 import { freshTextSurface, type FeatureId, type Surface, type Tone } from '@cg/contracts/features';
-import { type LiveTextTail } from '@cg/contracts/host';
+import { type DraftMedia, type LiveTextTail } from '@cg/contracts/host';
 import { LIVE_TEXT_HUB_NEEDS, hasCapability, type Bootstrap } from '@cg/contracts/hub';
 import { type DraftSnapshot, type HumanCause, type Target } from '@cg/contracts/ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, LIVE_TEXT_LIMITS } from '@cg/contracts/limits';
-import { StartOpSchema, type AiStartFields, type CoachTurn, type StartOp } from '@cg/contracts/ops';
+import { DRAFT_MEDIA_FEATURES, StartOpSchema, type AiStartFields, type CoachTurn, type StartOp } from '@cg/contracts/ops';
 import { type FreshnessCheckpoint } from '@cg/contracts/send';
 import { type SettingsV1 } from '@cg/contracts/settings';
 import { type SettingsExt } from '@cg/contracts/settings-ext';
@@ -124,6 +124,8 @@ export interface StartPlanInput {
   readonly autoRecap?: 'short' | 'full' | undefined;
   /** «с Recap» unticked in the chat, to a hub that can leave the Recap out (`StartOp.recap`); a Recap build ignores it. */
   readonly recapOff?: boolean | undefined;
+  /** The media attached to the message being written, as the open chat's composer showed it at the click (`StartOp.draftMedia`). */
+  readonly draftMedia?: DraftMedia | null | undefined;
 }
 
 export type StartPlan = { readonly ok: true; readonly start: StartOp } | { readonly ok: false; readonly code: CgCode };
@@ -175,6 +177,7 @@ export function planStart(input: StartPlanInput): StartPlan {
   if (input.regenerateOf !== undefined) start.regenerateOf = input.regenerateOf;
   if (input.force === true || input.regenerateOf !== undefined) start.force = true;
   if (input.recapOff === true && feature !== 'recap' && feature !== 'recap-short') start.recap = 'off';
+  if (input.draftMedia !== null && input.draftMedia !== undefined && DRAFT_MEDIA_FEATURES.has(feature) && freshTextSurface(feature) === surface) start.draftMedia = input.draftMedia;
 
   const parsed = StartOpSchema.safeParse(start);
   return parsed.success ? { ok: true, start: parsed.data } : refuse('CG-UI-FAILED');
