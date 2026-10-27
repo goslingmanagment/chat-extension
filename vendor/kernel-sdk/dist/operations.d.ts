@@ -455,6 +455,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/coverage";
     };
+    readonly agentCrossSpenders: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/pages/:pageLabel/cross-spenders";
+    };
     readonly agentDatasetQuery: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/datasets/:dataset/query";

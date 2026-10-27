@@ -8,3 +8,4 @@ export * from "./ofapi-extended-commands";
 export * from "./ofapi-read-catalog";
 export * from "./ofapi-export-profiles";
 export * from "./publications";
+export * from "./money";

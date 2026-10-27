@@ -17,6 +17,7 @@ export * from "./agent-read-registry";
 export * from "./agent-read-capabilities";
 export * from "./agent-read-datasets";
 export { isOutputExhausted } from "../shared/index";
+export { millsFromDollars } from "../shared/index";
 export * from "./ofapi-vendor-usage";
 export * from "./routes-ofapi-vendor";
 export * from "./routes-ofapi-collection";
