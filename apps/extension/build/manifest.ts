@@ -11,6 +11,7 @@ import type { UserManifest } from 'wxt';
 
 import {
   CUSTOM_HUB_OPTIONAL_PERMISSION,
+  FBUDDY_HOST_PERMISSION,
   HOSTS,
   HUB_HOST_PERMISSION,
   TEST_HUB_MATCHES,
@@ -48,13 +49,14 @@ export type BuildFlavor = 'release' | 'test';
 const unique = (items: readonly string[]): string[] => [...new Set(items)];
 
 /**
- * Granted at install: every site that is not optional, then the hub; a test build adds the fake hub and the stands of
- * those sites. An optional site's stand is optional in a test build too (optionalHostPermissions).
+ * Granted at install: every site that is not optional, then the hub and FBuddy's API («Онлайн»'s gems); a test build
+ * adds the fake hub and the stands of those sites. An optional site's stand is optional in a test build too
+ * (optionalHostPermissions).
  */
 export function hostPermissions(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
   const required = hosts.filter((host) => !host.permissions.optional);
   const test = flavor === 'test' ? unique([...TEST_HUB_MATCHES, ...required.flatMap((host) => host.test.pageMatches)]) : [];
-  return [...required.flatMap((host) => host.permissions.origins), HUB_HOST_PERMISSION, ...test];
+  return [...required.flatMap((host) => host.permissions.origins), HUB_HOST_PERMISSION, FBUDDY_HOST_PERMISSION, ...test];
 }
 
 /** The stands a test build asks for on request: the optional sites' own, optional as their pages are (R20 P6a). */

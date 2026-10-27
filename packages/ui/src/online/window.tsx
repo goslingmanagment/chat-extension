@@ -124,8 +124,9 @@ function Elsewhere({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null 
 
 /** The foot: what the pass did, and the keys. */
 /**
- * Fansly: why FBuddy's gems are not there, once — not allowed (a click leads to the settings, where the person allows
- * FBuddy's address), or this browser is not signed in to FBuddy. A FBuddy that did not answer says nothing.
+ * Fansly: why FBuddy's gems are not there, once — FBuddy's address not granted to this install (an update does not
+ * grant it; a click leads to the settings, where the person allows it), or this browser is not signed in to FBuddy. A
+ * FBuddy that did not answer says nothing.
  */
 function FbuddyLine({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null {
   const i18n = useI18n();

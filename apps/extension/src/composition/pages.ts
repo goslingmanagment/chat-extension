@@ -243,14 +243,9 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   const access = createSiteAccessControl(OPTIONAL_HOST, rpc, sitePermissions);
   // The page's port carries Fansly's types as any other (its validator checks them by Fansly's registry).
   const fanslyRequest = ((type: string, payload: unknown) => rpc.request(type as never, payload as never)) as unknown as FanslyPagesDeps['request'];
-  // «Алмазики FBuddy» (2026-10-28): FBuddy's address, an optional permission the person allows on Fansly's card.
+  // «Алмазики FBuddy» (2026-10-28): FBuddy's address, granted at install; an older install allows it on Fansly's card.
   const fbuddyAccess = createPermissionBundle({ origins: [FBUDDY_MATCH] }, api);
-  const fbuddy = {
-    has: fbuddyAccess.has,
-    request: fbuddyAccess.request,
-    remove: () => api.permissions.remove({ origins: [FBUDDY_MATCH] }).then((removed) => removed === true, () => false),
-    onChange: (listener: () => void) => fbuddyAccess.onChange(() => listener()),
-  };
+  const fbuddy = { has: fbuddyAccess.has, request: fbuddyAccess.request, onChange: (listener: () => void) => fbuddyAccess.onChange(() => listener()) };
   const fansly = page === 'options' ? createFanslyPages({ access, request: fanslyRequest, preview: (tone, volume) => rpc.request('sound.preview', { tone, volume }), fbuddy }) : null;
 
   const pagesClient = createPagesClient(env, fansly === null ? ports : { ...ports, siteAccounts: [fansly.accounts] });

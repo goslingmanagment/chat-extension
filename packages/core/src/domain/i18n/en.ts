@@ -1096,7 +1096,7 @@ export const EN: I18nCatalog<'en'> = {
   'online.badge.tier.gold': 'FBuddy: Gold, $1000 to $3000 across all creators',
   'online.badge.tier.platinum': 'FBuddy: Platinum, $3000 and more across all creators',
   'online.badge.recent': 'Fansly: blue card, spent recently',
-  'online.fbuddy.off': 'FBuddy gems are hidden',
+  'online.fbuddy.off': 'FBuddy gems need a permission',
   'online.fbuddy.enable': 'Turn on',
   'online.fbuddy.signedOut': 'FBuddy gems: sign in to FBuddy in this Firefox',
   'online.pane.pick': 'Pick a fan on the left: their chat and the Reply, Hi, Ping buttons show here.',

@@ -1,8 +1,10 @@
 // FBuddy's spending tiers for «Онлайн» (contracts fan-badges.ts; 2026-10-28, the owner: «какой у них алмазик»): one
 // `GET <FBuddy>/api/v1/fan-spend/batch?fanIds=…&tierVersion=2` with `X-Fansly-Account-Id: <creator>`, made the way
-// FBuddy's own extension makes it — from the background, in this browser's own FBuddy sign-in (its cookie) —, and only
-// once the person allowed FBuddy's address (Fansly's card in the settings). Nothing but the creator's and the fans'
-// ids goes to FBuddy; nothing is written there. A tier is kept ten minutes per creator and fan (FBuddy's own cache
+// FBuddy's own extension makes it — from the background, in this browser's own FBuddy sign-in (its cookie). On by
+// default (the owner, 2026-10-28): FBuddy's address is granted at install. An older install the update did not grant
+// it to asks FBuddy all the same — Firefox sends a `SameSite=None` sign-in without it, a `Lax` one only with it —, and
+// «not signed in» there says the address is what may be missing (`off`). Nothing but the creator's and the fans' ids
+// goes to FBuddy; nothing is written there. A tier is kept ten minutes per creator and fan (FBuddy's own cache
 // time); a fan read within them is answered from it. Not signed in to FBuddy, or FBuddy not answering, is said once
 // and asked again only with the next read after a minute. A test build reads the stand's copy (its origin from the e2e's
 // key), never FBuddy itself.
@@ -39,7 +41,7 @@ export interface FbuddyTiers {
 }
 
 export interface FbuddyDeps {
-  /** The person allowed FBuddy's address (an optional permission). */
+  /** FBuddy's address is granted (at install, or allowed by the person since). */
   granted(): Promise<boolean>;
   /** FBuddy's base; null — none (a test build without its stand). */
   base(): Promise<string | null>;
@@ -77,7 +79,7 @@ export function createFbuddyTiers(deps: FbuddyDeps): FbuddyTiers {
       deps.warn('fbuddy not reached', {});
       return 'failed';
     }
-    if (response.status === 401) return 'signed-out';
+    if (response.status === 401) return (await deps.granted().catch(() => false)) ? 'signed-out' : 'off';
     if (!response.ok) {
       deps.warn('fbuddy refused', { status: response.status });
       return 'failed';
@@ -94,7 +96,6 @@ export function createFbuddyTiers(deps: FbuddyDeps): FbuddyTiers {
 
   return {
     async read(creator, fanRefs) {
-      if (!(await deps.granted())) return { state: 'off', tiers: new Map() };
       prune();
       const asked = [...new Set(fanRefs)];
       const missing = asked.filter((fan) => !kept.has(key(creator, fan)));

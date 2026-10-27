@@ -1134,7 +1134,7 @@ export const RU: I18nCatalog<'ru'> = {
   'online.badge.tier.gold': 'FBuddy: Gold, от $1000 до $3000 у всех моделей',
   'online.badge.tier.platinum': 'FBuddy: Platinum, от $3000 у всех моделей',
   'online.badge.recent': 'Fansly: голубая карта, недавно тратил',
-  'online.fbuddy.off': 'Алмазики FBuddy не видны',
+  'online.fbuddy.off': 'Алмазикам FBuddy нужно разрешение',
   'online.fbuddy.enable': 'Включить',
   'online.fbuddy.signedOut': 'Алмазики FBuddy: войди в FBuddy в этом Firefox',
   'online.pane.pick': 'Выберите фана слева: справа будет его переписка и кнопки Reply, Hi, Ping.',

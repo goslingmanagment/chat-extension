@@ -202,12 +202,14 @@ export function FanslyCard({ control, settings }: { readonly control: FanslyPage
             <span class={view.fbuddy ? 'pg-value' : 'pg-muted'} data-pg-fbuddy={view.fbuddy ? 'on' : 'off'}>
               {text(i18n, view.fbuddy ? 'fansly.pages.fbuddyOn' : 'fansly.pages.fbuddyOff')}
             </span>
-            <Button
-              variant={view.fbuddy ? 'quiet' : 'line'}
-              label={text(i18n, view.fbuddy ? 'fansly.pages.fbuddyDisable' : 'fansly.pages.fbuddyEnable')}
-              // The browser's prompt runs inside this very click: nothing is awaited before `allowFbuddy`.
-              onClick={() => void (view.fbuddy === true ? control.forgetFbuddy() : control.allowFbuddy())}
-            />
+            {view.fbuddy ? null : (
+              <Button
+                variant="line"
+                label={text(i18n, 'fansly.pages.fbuddyEnable')}
+                // The browser's prompt runs inside this very click: nothing is awaited before `allowFbuddy`.
+                onClick={() => void control.allowFbuddy()}
+              />
+            )}
           </span>
         </Opt>
       ) : null}

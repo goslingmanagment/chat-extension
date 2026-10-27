@@ -3,7 +3,8 @@
 // - the blue card — Fansly's own «Recent Spender» mark: the fan's account `userFlags` bit 2 (never on a creator's
 //   account, `flags` bit 2), read from Fansly by the background (`GET /account?ids=`, FS-NET-1 `online`);
 // - the gem — FBuddy's spending tier: the fan's spend summed over every creator who shares it with FBuddy, read from
-//   FBuddy's own API in the chatter's own FBuddy sign-in, once the person allowed its address (`FBUDDY_MATCH`).
+//   FBuddy's own API in the chatter's own FBuddy sign-in. On by default (the owner): its address is granted at install;
+//   an older install the update did not grant it to still asks FBuddy, and allows it on Fansly's settings card.
 
 import * as z from 'zod/mini';
 
@@ -13,14 +14,15 @@ export type FbuddyTier = (typeof FBUDDY_TIERS)[number];
 export const FbuddyTierSchema = z.enum(FBUDDY_TIERS);
 
 /**
- * Whether FBuddy's tiers could be read: `on` — read (a fan without a tier has none there); `off` — the person has not
- * allowed FBuddy's address; `signed-out` — this browser is not signed in to FBuddy; `failed` — FBuddy did not answer.
+ * Whether FBuddy's tiers could be read: `on` — read (a fan without a tier has none there); `off` — FBuddy said «not
+ * signed in» and FBuddy's address is not allowed (Firefox sends FBuddy's sign-in only with it); `signed-out` — FBuddy
+ * said «not signed in» with the address allowed: this browser is not signed in to FBuddy; `failed` — no answer.
  */
 export const FBUDDY_STATES = ['on', 'off', 'signed-out', 'failed'] as const;
 export type FbuddyState = (typeof FBUDDY_STATES)[number];
 export const FbuddyStateSchema = z.enum(FBUDDY_STATES);
 
-/** FBuddy's API: the address the person allows (an optional host permission) and the base its tiers are read from. */
+/** FBuddy's API: its address (a host permission granted at install) and the base its tiers are read from. */
 export const FBUDDY_ORIGIN = 'https://apiv2.fbuddy.net';
 export const FBUDDY_MATCH = `${FBUDDY_ORIGIN}/*`;
 

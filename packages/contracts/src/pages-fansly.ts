@@ -34,7 +34,7 @@ export interface FanslyPagesView {
   readonly save: FanslySaveState;
   /** The sessions and the tabs as «Аккаунты» last read them (ST-067, ST-077); null — not read. */
   readonly accounts: FanslyAccountsView | null;
-  /** «Алмазики FBuddy» (2026-10-28): the person allowed FBuddy's address; null — not known yet. */
+  /** «Алмазики FBuddy» (2026-10-28): FBuddy's address is granted (at install, or allowed since); null — not known yet. */
   readonly fbuddy: boolean | null;
 }
 
@@ -77,10 +77,11 @@ export interface FanslyPagesControl {
   retry(): Promise<boolean>;
   /** «Проверить» a tone at the volume of the settings; the code when it did not play. */
   preview(tone: ToneId, volume: number): Promise<CgErrorWire | null>;
-  /** «Разрешить FBuddy»: the browser's prompt inside this click — call it from the click handler, nothing awaited before. */
+  /**
+   * «Разрешить FBuddy» where the update did not grant FBuddy's address: the browser's prompt inside this click — call it
+   * from the click handler, nothing awaited before.
+   */
   allowFbuddy(): Promise<void>;
-  /** «Выключить» the gems: FBuddy's address given back. */
-  forgetFbuddy(): Promise<void>;
 }
 
 /** Fansly's texts on the extension pages (its text pack, core domain/hosts/fansly/i18n/pages.ts). */
@@ -127,6 +128,5 @@ export const FANSLY_PAGE_TEXT_KEYS = [
   'fansly.pages.fbuddyOn',
   'fansly.pages.fbuddyOff',
   'fansly.pages.fbuddyEnable',
-  'fansly.pages.fbuddyDisable',
 ] as const;
 export type FanslyPageTextKey = (typeof FANSLY_PAGE_TEXT_KEYS)[number];

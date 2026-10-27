@@ -36,13 +36,12 @@ export interface FanslyPagesDeps {
   /** `sound.preview` of the shared protocol: a tone at a volume. */
   preview(tone: ToneId, volume: number): Promise<PageAnswer<{ readonly played: boolean; readonly code?: CgCode | undefined }>>;
   /**
-   * FBuddy's address (2026-10-28, «Онлайн»'s gems), an optional permission: `request` calls the browser synchronously,
-   * inside the click. Absent — the page offers no gems.
+   * FBuddy's address (2026-10-28, «Онлайн»'s gems), granted at install; an older install allows it here: `request` calls
+   * the browser synchronously, inside the click. Absent — the page says nothing of the gems.
    */
   readonly fbuddy?: {
     has(): Promise<boolean>;
     request(): Promise<boolean>;
-    remove(): Promise<boolean>;
     onChange(listener: () => void): () => void;
   };
 }
@@ -200,10 +199,6 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
     async allowFbuddy() {
       const granted = deps.fbuddy?.request() ?? Promise.resolve(false);
       await granted.catch(() => false);
-      await readFbuddy();
-    },
-    async forgetFbuddy() {
-      await deps.fbuddy?.remove().catch(() => false);
       await readFbuddy();
     },
   };
