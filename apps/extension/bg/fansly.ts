@@ -85,6 +85,7 @@
 // the way the site's other roots cut it (apps/extension/src/composition/
 // features/fansly.ts): the common part and Fansly's own file, never
 // ChatSpace's.
+import { FBUDDY_ORIGIN } from '@cg/contracts/fan-badges';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { FanslyGreetingClaimOpSchema } from '@cg/contracts/send-fansly';
 import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
@@ -111,9 +112,10 @@ import { createFanslyApi, createFanslyClient, traceFanslyTransport, FanslyApiErr
 import { copiedBundles, createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer, SiteTabRegistration } from '../src/composition/background/host-module';
-import { fanslyStandClient, standFanslyClient, startFanslyApiProbe } from './fansly/api-probe';
+import { fanslyStandClient, standFanslyClient, standFbuddyBase, startFanslyApiProbe } from './fansly/api-probe';
 import { createFanMarksReader } from './fansly/fan-marks';
 import { createNotesService } from './fansly/notes';
+import { createFbuddyTiers, releaseFbuddy } from './fansly/fbuddy';
 import { createOnlineSeen } from './fansly/online';
 import { createOutreachService } from './fansly/outreach';
 import { readOpenChatPpv } from './fansly/ppv';
@@ -131,7 +133,7 @@ const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? o
  * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
  * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself with `CG-SITE-OFF`.
  */
-const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.copied', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState', 'fansly.online.seen', 'fansly.marks.read']);
+const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.copied', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState', 'fansly.online.seen', 'fansly.online.badges', 'fansly.marks.read']);
 
 /** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
 async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, type: string, payload: unknown): Promise<HostAnswer> {
@@ -259,7 +261,16 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const clientNow = async () => (__CG_TEST_HOSTS__ ? (session === undefined || api === null ? null : await standFanslyClient(kit, session, api)) : (api?.client ?? null));
   const notes = createNotesService(kit, clientNow);
   const outreach = createOutreachService(kit, clientNow);
-  const online = createOnlineSeen(kit, FANSLY_SLICE, clientNow);
+  // «Онлайн»'s gems: FBuddy's tiers in this browser's FBuddy sign-in, once the person allowed its address (a test build
+  // reads the stand's copy).
+  const fbuddy = createFbuddyTiers({
+    granted: () => kit.hostGranted?.(FBUDDY_ORIGIN) ?? Promise.resolve(false),
+    base: __CG_TEST_HOSTS__ ? () => standFbuddyBase(kit) : releaseFbuddy.base,
+    now: () => kit.clock.now(),
+    fetch: releaseFbuddy.fetch,
+    warn: (msg, fields) => kit.log.service({ level: 'warn', scope: 'fansly.fbuddy', msg, fields }),
+  });
+  const online = createOnlineSeen(kit, FANSLY_SLICE, clientNow, fbuddy);
   const marks = createFanMarksReader(kit, FANSLY_SLICE);
   // An album's upload is held by the tab session that wrote its row last, while that session is registered (one tab at a time).
   const vault = createVaultCheckpoints({ local: kit.storage.local, now: () => kit.clock.now(), log: kit.log.service, alive: (session) => kit.router.tabs().includes(session), active });
@@ -332,6 +343,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return ok(await readPreviewState(kit, await clientNow(), payload as FanslyTabRequestPayload<'fansly.preview.readState'>, sender));
       case 'fansly.online.seen':
         return ok(await online.seen(payload as FanslyTabRequestPayload<'fansly.online.seen'>, sender));
+      case 'fansly.online.badges':
+        return ok(await online.badges(payload as FanslyTabRequestPayload<'fansly.online.badges'>, sender));
       case 'fansly.marks.read':
         return ok(await marks.read(payload as FanslyTabRequestPayload<'fansly.marks.read'>, sender));
       case 'fansly.registration.read':

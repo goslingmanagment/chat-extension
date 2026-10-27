@@ -912,6 +912,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     siteTabs: siteTabsOf(host),
     // R20 P14c: switched off or its rights taken back, the module's tabs finish what they started and begin nothing (FS-PERM-5).
     siteActive: () => siteActive(host),
+    // 2026-10-28: an optional address the person allowed (FBuddy's, for «Онлайн»'s gems).
+    hostGranted: (origin) => hostPermissions.has(origin),
     // 1.21.0 (X48): who sent a message the site's module proved — a preview's send the person clicked.
     // Chat Memory week 1: Fansly's sends of a person's click too («Новые», «Рассылка»), with their chat and button.
     attributions: {

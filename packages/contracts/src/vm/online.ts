@@ -14,6 +14,7 @@
 // Who is online and why is the hub's (`clientOnline`): OnlyFansAPI's presence on OnlyFans, the creator's followers
 // list read from the tab on Fansly. The card is the fan's preview (`preview` from `online`).
 
+import { type FanBadges, type FbuddyState } from '../fan-badges';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type TargetHandle } from './selectors';
 import { type DataStamp, type VmView } from './view';
@@ -127,6 +128,8 @@ export interface OnlineRowVM {
   readonly arrived: boolean;
   readonly replied: OnlineRepliedVM | null;
   readonly code: string | null;
+  /** Fansly: the fan's blue card and FBuddy's gem (contracts fan-badges.ts); absent or null — none known. */
+  readonly badges?: FanBadges | null;
 }
 
 /** The chosen fan: why now, their conversation (the preview's feed), the text that would go and its «Отправить →». */
@@ -185,6 +188,8 @@ export interface OnlineCardVM {
   readonly noChat: boolean;
   /** «Дальше: Daniel →» after a send: the next fan to write to; null — none left. */
   readonly next: { readonly handle: TargetHandle; readonly name: string } | null;
+  /** Fansly: the fan's blue card and FBuddy's gem; absent or null — none known. */
+  readonly badges?: FanBadges | null;
 }
 
 export interface OnlineGroupVM {
@@ -237,4 +242,9 @@ export interface OnlineWindowVM {
   };
   readonly card: OnlineCardVM | null;
   readonly end: OnlineEndVM | null;
+  /**
+   * Fansly: whether FBuddy's gems could be read — the foot says how to get them where they could not (`off`: allow
+   * FBuddy in the settings, `signed-out`: sign in to FBuddy in this browser); absent or null — not a question here.
+   */
+  readonly fbuddy?: FbuddyState | null;
 }

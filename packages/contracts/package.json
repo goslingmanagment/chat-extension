@@ -8,6 +8,7 @@
     "./registration-fansly": "./src/registration-fansly.ts",
     "./fan-marks-fansly": "./src/fan-marks-fansly.ts",
     "./notes-fansly": "./src/notes-fansly.ts",
+    "./fan-badges": "./src/fan-badges.ts",
     ".": "./src/index.ts",
     "./primitives": "./src/primitives.ts",
     "./features": "./src/features.ts",

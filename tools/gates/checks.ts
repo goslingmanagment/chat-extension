@@ -488,6 +488,11 @@ export const FETCH_EXCEPTIONS: ReadonlyArray<{ readonly path: string; readonly c
     why: 'the hub layer\'s fetch: the composition root hands the global to packages/hub (`BackgroundDeps.fetch`), which makes every hub request',
   },
   { path: 'apps/extension/src/composition/egress-probe.ts', count: 1, why: 'test builds only: the e2e\'s proof that the egress sink sees background requests (dropped from release, `release-bundle`)' },
+  {
+    path: 'apps/extension/bg/fansly/fbuddy.ts',
+    count: 1,
+    why: '«Онлайн»\'s gems (2026-10-28): FBuddy\'s tiers, read in the chatter\'s own FBuddy sign-in once the person allowed its address — not Fansly, not the hub',
+  },
 ];
 
 const GLOBAL_OBJECTS = new Set(['globalThis', 'window', 'self']);

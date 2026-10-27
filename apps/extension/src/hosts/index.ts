@@ -44,6 +44,13 @@ export function lazySitesOf(test: boolean, hosts: readonly HostDescriptor[] = HO
 /** The hub (D-13). */
 export const HUB_HOST_PERMISSION = 'https://gosling-agency.ru/*';
 
+/**
+ * FBuddy's API (2026-10-28, «Онлайн»'s gems; contracts fan-badges.ts `FBUDDY_MATCH`), granted at install so the gems are
+ * on by default (the owner: «надо чтобы работало по дефолту вкл»). An update does not grant it to an older install
+ * (docs/project-unite/spike.md P3b-1): Fansly's settings card asks for it there.
+ */
+export const FBUDDY_HOST_PERMISSION = 'https://apiv2.fbuddy.net/*';
+
 /** A non-default hub address is requested on a user gesture when saved (§3). */
 export const CUSTOM_HUB_OPTIONAL_PERMISSION = 'https://*/*';
 

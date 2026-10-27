@@ -83,6 +83,14 @@ export interface FakeNote {
   updatedAt: number | null;
 }
 
+/** The stand's fans with Fansly's blue card «Recent Spender»: two in three, by the id (as the live test model's online fans). */
+export const standRecentSpender = (id: string): boolean => BigInt(id) % 3n !== 0n;
+
+/** FBuddy's tier of a stand fan (the stand's copy of FBuddy's batch, `/fbuddy/…`): every tier and none, by the id. */
+export function standFbuddyTier(id: string): 'basic' | 'bronze' | 'silver' | 'gold' | 'platinum' | null {
+  return (['gold', 'silver', null, 'platinum', 'bronze', 'basic', 'silver'] as const)[Number(BigInt(id) % 7n)] ?? null;
+}
+
 export interface FakeAccount {
   readonly id: string;
   username: string;
@@ -644,6 +652,7 @@ export class FanslyWorld {
       location: '',
       profileAccessFlags: 0,
       profileFlags: 0,
+      userFlags: account.id !== this.creatorId && standRecentSpender(account.id) ? 2 : 0,
       followsYou: account.followsCreator,
       following: false,
       avatar: account.id === this.creatorId ? null : this.wireAvatar(account),

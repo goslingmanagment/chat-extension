@@ -35,6 +35,15 @@ export interface FanslyPagesDeps {
   request<T extends FanslyPageRequestType>(type: T, payload: FanslyTabRequestPayload<T>): Promise<PageAnswer<FanslyTabResponsePayload<T>>>;
   /** `sound.preview` of the shared protocol: a tone at a volume. */
   preview(tone: ToneId, volume: number): Promise<PageAnswer<{ readonly played: boolean; readonly code?: CgCode | undefined }>>;
+  /**
+   * FBuddy's address (2026-10-28, «Онлайн»'s gems), granted at install; an older install allows it here: `request` calls
+   * the browser synchronously, inside the click. Absent — the page says nothing of the gems.
+   */
+  readonly fbuddy?: {
+    has(): Promise<boolean>;
+    request(): Promise<boolean>;
+    onChange(listener: () => void): () => void;
+  };
 }
 
 export interface FanslyPages {
@@ -70,9 +79,11 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
   /** The patch of the write that failed, for «Повторить». */
   let failed: SettingsExtPatch | null = null;
   let writes: Promise<unknown> = Promise.resolve();
+  /** FBuddy's address allowed; null — not known yet (or the page offers no gems). */
+  let fbuddy: boolean | null = null;
   const listeners = new Set<() => void>();
 
-  const view = (): FanslyPagesView => ({ access: deps.access.value, on: fanslyOn(deps.access.value), settings, settingsError, save, accounts });
+  const view = (): FanslyPagesView => ({ access: deps.access.value, on: fanslyOn(deps.access.value), settings, settingsError, save, accounts, fbuddy });
   let value = view();
   const notify = (): void => {
     value = view();
@@ -91,6 +102,13 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
     forgetIfOff();
     notify();
   });
+  /** FBuddy's address as the browser says it now (allowed here, or taken back in about:addons). */
+  const readFbuddy = async (): Promise<void> => {
+    if (deps.fbuddy === undefined) return;
+    fbuddy = await deps.fbuddy.has().catch(() => false);
+    notify();
+  };
+  deps.fbuddy?.onChange(() => void readFbuddy());
 
   /** A newer revision only: an answer that comes late never takes back a later one. */
   const adopt = (next: SettingsExtState): void => {
@@ -152,6 +170,7 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
       };
     },
     async refresh() {
+      void readFbuddy();
       await deps.access.refresh();
       if (fanslyOn(deps.access.value)) await readSettings();
       else {
@@ -175,6 +194,12 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
       const answer = await deps.preview(tone, volume).catch(unreachable<{ readonly played: boolean; readonly code?: CgCode }>);
       if (!answer.ok) return answer.error;
       return answer.payload.played ? null : { code: answer.payload.code ?? 'CG-AUDIO-BLOCKED' };
+    },
+    // The browser's prompt is asked synchronously, first thing in the click.
+    async allowFbuddy() {
+      const granted = deps.fbuddy?.request() ?? Promise.resolve(false);
+      await granted.catch(() => false);
+      await readFbuddy();
     },
   };
 

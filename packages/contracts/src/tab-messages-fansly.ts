@@ -38,6 +38,7 @@ import * as z from 'zod/mini';
 import { SoundBatchSchema } from './sound';
 
 import { CgAnyErrorWireSchema } from './errors-fansly';
+import { FanBadgesSchema, FbuddyStateSchema } from './fan-badges';
 import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
@@ -117,6 +118,8 @@ export const FANSLY_TAB_LIMITS = {
   fanMarkListsMax: 50,
   fanMarkPostsMax: 5,
   fanMarkPostMaxChars: 600,
+  /** «Онлайн»: the fans whose badges one call asks for (the window's list, the most relevant first). */
+  onlineBadgesMax: 100,
 } as const;
 
 /**
@@ -669,6 +672,20 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.marks.read': {
     req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, username: z.optional(z.string().check(z.minLength(1), z.maxLength(64))) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), marks: FanslyFanMarksSchema }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
+   * «Онлайн» on Fansly: the badges FBuddy shows beside a fan's name (contracts fan-badges.ts) — Fansly's blue card
+   * «Recent Spender» from one `GET /account?ids=` (FS-NET-1 `online`, nothing while the creator cools down) and FBuddy's
+   * tier from FBuddy's API in this browser's FBuddy sign-in, once the person allowed its address (`fbuddy` says how
+   * that went). Each source is asked at most once in ten minutes per fan; a fan read within them is answered from it.
+   */
+  'fansly.online.badges': {
+    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRefs: z.array(NativeIdSchema).check(z.minLength(1), z.maxLength(FANSLY_TAB_LIMITS.onlineBadgesMax)) }),
+    res: z.discriminatedUnion('ok', [
+      z.strictObject({ ok: z.literal(true), fans: z.array(FanBadgesSchema).check(z.maxLength(FANSLY_TAB_LIMITS.onlineBadgesMax)), fbuddy: FbuddyStateSchema }),
+      Failure,
+    ]),
     from: TAB, hosts: FANSLY,
   },
   /**

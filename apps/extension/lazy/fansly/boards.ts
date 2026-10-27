@@ -26,6 +26,8 @@ const OUTREACH_TIMEOUT_MS = 45_000;
 const COPIED_TIMEOUT_MS = 35_000;
 /** Above the background's own wait for Fansly's followers read and the hub's answer. */
 const ONLINE_SEEN_TIMEOUT_MS = 30_000;
+/** Above the background's own waits for Fansly's accounts and FBuddy's tiers (8 s), read side by side. */
+const ONLINE_BADGES_TIMEOUT_MS = 35_000;
 /** The inbox search for a fan's chat, as Spenders' own. */
 const RESOLVE_TIMEOUT_MS = 17_000;
 
@@ -88,6 +90,11 @@ export function createOnlineController(deps: OnlineControllerDeps & { readonly h
   return createOnline({ ...deps, own: {
     async seen(pageId, account) {
       await fanslyRequest(deps.rpc, 'fansly.online.seen', { pageId, hostAccountId: account }, ONLINE_SEEN_TIMEOUT_MS);
+    },
+    async badges(pageId, account, fanRefs) {
+      const answer = await fanslyRequest(deps.rpc, 'fansly.online.badges', { pageId, hostAccountId: account, fanRefs: [...fanRefs] }, ONLINE_BADGES_TIMEOUT_MS);
+      if (!answer.ok || !answer.payload.ok) return null;
+      return { fans: new Map(answer.payload.fans.map(({ fanRef, ...badges }) => [fanRef, badges])), fbuddy: answer.payload.fbuddy };
     },
     async group(account, fan, active) {
       const cached = await host.groupForFan(account, fan.fanRef);

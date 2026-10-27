@@ -196,6 +196,23 @@ export function FanslyCard({ control, settings }: { readonly control: FanslyPage
         </Opt>
       ) : null}
       {settings && view.on && view.settings === null && view.settingsError !== null ? <ReadFailed error={view.settingsError} control={control} /> : null}
+      {settings && view.on && view.fbuddy !== null ? (
+        <Opt label={text(i18n, 'fansly.pages.fbuddy')} hint={text(i18n, 'fansly.pages.fbuddyHint')} anchor="fansly-fbuddy">
+          <span class="pg-line">
+            <span class={view.fbuddy ? 'pg-value' : 'pg-muted'} data-pg-fbuddy={view.fbuddy ? 'on' : 'off'}>
+              {text(i18n, view.fbuddy ? 'fansly.pages.fbuddyOn' : 'fansly.pages.fbuddyOff')}
+            </span>
+            {view.fbuddy ? null : (
+              <Button
+                variant="line"
+                label={text(i18n, 'fansly.pages.fbuddyEnable')}
+                // The browser's prompt runs inside this very click: nothing is awaited before `allowFbuddy`.
+                onClick={() => void control.allowFbuddy()}
+              />
+            )}
+          </span>
+        </Opt>
+      ) : null}
     </Card>
   );
 }

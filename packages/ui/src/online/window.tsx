@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 
 import { type OnlineGroupId, type OnlineRowVM, type OnlineWindowVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, SearchBox, ViewState, isComposing, useDispatch, useI18n, useMinuteClock, useView } from '../kit';
+import { Button, Icon, SearchBox, ViewState, isComposing, useDispatch, useI18n, useMinuteClock, useView } from '../kit';
 import { NewcomersFrame } from '../newcomers/frame';
 import { ChoiceMenu, isPlainKey, isTextEntry } from '../spenders/window';
 import { OnlineCard } from './card';
@@ -123,6 +123,24 @@ function Elsewhere({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null 
 }
 
 /** The foot: what the pass did, and the keys. */
+/**
+ * Fansly: why FBuddy's gems are not there, once — FBuddy's address not granted to this install (an update does not
+ * grant it; a click leads to the settings, where the person allows it), or this browser is not signed in to FBuddy. A
+ * FBuddy that did not answer says nothing.
+ */
+function FbuddyLine({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  if (vm.fbuddy !== 'off' && vm.fbuddy !== 'signed-out') return null;
+  return (
+    <div class="cg-nw__bline ol-fbuddy" data-cg-online-fbuddy={vm.fbuddy}>
+      <Icon name="gem" size={12} />
+      <span>{i18n.t(vm.fbuddy === 'off' ? 'online.fbuddy.off' : 'online.fbuddy.signedOut')}</span>
+      {vm.fbuddy === 'off' ? <Button variant="plain" size="sm" label={i18n.t('online.fbuddy.enable')} onClick={() => void dispatch({ type: 'OpenSettings', route: { section: 'accounts' } })} /> : null}
+    </div>
+  );
+}
+
 function Foot({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element {
   const i18n = useI18n();
   return (
@@ -140,6 +158,7 @@ function Foot({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element {
           ) : null}
         </span>
       </div>
+      <FbuddyLine vm={vm} />
       <div class="cg-nw__bline is-hint">{i18n.t('online.foot.keys')}</div>
     </div>
   );

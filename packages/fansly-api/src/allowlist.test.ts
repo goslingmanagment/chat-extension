@@ -59,15 +59,16 @@ describe('FS-NET-1', () => {
       ppv: { 'message.history': 'check×1', 'media.orderhistory': 'check×1' },
       preview: { 'group.detail': 'check×1' },
       outreach: { 'message.send': 'dispatch×1', 'media.bundles': 'check×1' },
-      online: { 'followers.new': 'check×1' },
+      online: { 'followers.new': 'check×1', 'account.byIds': 'check×1' },
     });
     // A write is never asked twice.
     for (const purpose of FANSLY_PURPOSES) for (const [route, admission] of Object.entries(FS_NET_1[purpose])) if (FANSLY_ROUTES[route as keyof typeof FANSLY_ROUTES].write) expect(admission.attempts).toBe(1);
   });
 
-  it('[FS-NET-1] «Онлайн»: `followersnew` alone, as a read that never waits — no FIFO behind a click or a pass, no cooldown sat out, one attempt', () => {
+  it('[FS-NET-1] «Онлайн»: `followersnew` and the fans\' accounts alone, as reads that never wait — no FIFO behind a click or a pass, no cooldown sat out, one attempt', () => {
     expect(admit('online', 'followers.new')).toEqual({ mode: 'check', attempts: 1 });
-    for (const route of FANSLY_ROUTE_NAMES.filter((name) => name !== 'followers.new')) expect(admit('online', route), route).toBeNull();
+    expect(admit('online', 'account.byIds')).toEqual({ mode: 'check', attempts: 1 });
+    for (const route of FANSLY_ROUTE_NAMES.filter((name) => name !== 'followers.new' && name !== 'account.byIds')) expect(admit('online', route), route).toBeNull();
     // The pass's own read of the same route keeps its queue and its retries: the purpose decides, not the route.
     expect(admit('newcomers', 'followers.new')).toEqual({ mode: 'queue', attempts: 4 });
     expect(addressOf(FANSLY_API_BASE, 'followers.new', { path: { account: '700000000000000017' }, query: { before: '0', after: '0', limit: '100', offset: '0', search: '', lastSeenAfter: '1790000000000' } })).toBe(
