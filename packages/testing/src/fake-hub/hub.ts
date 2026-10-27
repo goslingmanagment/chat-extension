@@ -46,6 +46,7 @@ import {
   type HubStreamRequest,
   type IngestBatch,
   type SendAttributionsRequest,
+  type NoteAttributionsRequest,
   type ActivityBeatRequest,
   type FanCard,
   type FanCustomChangeRequest,
@@ -82,7 +83,7 @@ import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagV
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
 import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
-import { CursorSigner, DataModel, type FakeActivityBeat, type FakeSendAttribution, type Read, type Refusal } from './data';
+import { CursorSigner, DataModel, type FakeActivityBeat, type FakeNoteAttribution, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
 import { type OnlineSeed } from './online';
 import { AI_CAPABILITIES_HEADER, facadeRequestOf, hubSchemaRefusal, matchRoute, validateRequest, type HubRouteTableLike } from './routing';
@@ -561,6 +562,11 @@ export class FakeHub {
   /** 1.21.0 (X48): the sends recorded with their person (tests assert who sent what; no texts by contract). */
   sendAttributions(): readonly FakeSendAttribution[] {
     return this.state.data.sendAttributionRows();
+  }
+
+  /** Who wrote each Fansly note, as recorded with their person (ids, actions, labels; no texts by contract). */
+  noteAttributions(): readonly FakeNoteAttribution[] {
+    return this.state.data.noteAttributionRows();
   }
 
   /** Chat Memory week 1: the beats, in order. */
@@ -1147,6 +1153,8 @@ export class FakeHub {
         return read(s.data.aiUsage(need(page), request as AiUsageQuery, need(principal).user.userId, now, s.config.quotaRequestsToday));
       case 'clientSendAttributions':
         return read(s.data.sendAttributions(need(page), need(principal).user.userId, request as SendAttributionsRequest, now));
+      case 'clientNoteAttributions':
+        return read(s.data.noteAttributions(need(page), need(principal).user.userId, request as NoteAttributionsRequest, now));
       case 'clientActivity': {
         const who = need(principal).user.userId;
         return read(s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now));

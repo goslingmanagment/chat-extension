@@ -69,6 +69,8 @@ import {
   type RecapStatusQuery,
   type SendAttributionsRequest,
   type SendAttributionsResult,
+  type NoteAttributionsRequest,
+  type NoteAttributionsResult,
   ActivityBeatRequestSchema,
   type ActivityBeatRequest,
   type ActivityBeatResult,
@@ -899,6 +901,15 @@ export class ChatExtensionHub implements HubFacade {
    */
   async sendAttributions(request: SendAttributionsRequest): Promise<SendAttributionsResult> {
     return (await this.client('clientSendAttributions', request, request.pageLabel)) as SendAttributionsResult;
+  }
+
+  /**
+   * Who wrote these Fansly notes of the page — the person signed in. No owner switch; refused here without
+   * `note-attribution-v1` and for a page this bootstrap does not grant. Never repeated: the background's journal owns
+   * what is owed.
+   */
+  async noteAttributions(request: NoteAttributionsRequest): Promise<NoteAttributionsResult> {
+    return (await this.client('clientNoteAttributions', request, request.pageLabel)) as NoteAttributionsResult;
   }
 
   /**

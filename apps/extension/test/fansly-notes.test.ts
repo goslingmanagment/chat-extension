@@ -12,6 +12,7 @@ const account = { id: FAN, notes: [{ id: '801', contentType: 12000, contentId: F
 
 function world() {
   let enabled = true;
+  const written = vi.fn<BackgroundKit['noteAttributions']['written']>();
   const kit = {
     hub: {
       session: () => ({ hubOrigin: 'test', userId: 1 }),
@@ -20,6 +21,7 @@ function world() {
     },
     router: { tabs: () => ['tab', 'tab2'] },
     clock: { now: () => Date.UTC(2026, 9, 16) },
+    noteAttributions: { written },
   } as unknown as BackgroundKit;
   const answers: unknown[] = [];
   const start = vi.fn(() => Promise.resolve({ response: answers.shift(), status: 200 }));
@@ -27,7 +29,7 @@ function world() {
   const prepare = vi.fn((_call: unknown) => Promise.resolve({ start, cancel }));
   const client = { prepare } as unknown as FanslyClient;
   const notes = createNotesService(kit, () => Promise.resolve(client));
-  return { notes, prepare, start, cancel, answers, disable: () => { enabled = false; } };
+  return { notes, prepare, start, cancel, answers, written, disable: () => { enabled = false; } };
 }
 
 describe('[host:fansly] «Заметки» in the background (R20 P11b)', () => {
@@ -73,6 +75,65 @@ describe('[host:fansly] «Заметки» in the background (R20 P11b)', () => 
     expect(await w.notes.edit({ ...target, noteId: '801', title: 'T', text: 'a [FBUDDY_SYNC] b' }, sender)).toMatchObject({ ok: false });
     expect(await w.notes.create({ ...target, title: 'FBuddy Notes', text: '' }, sender)).toMatchObject({ ok: false });
     expect(w.prepare).not.toHaveBeenCalled();
+  });
+});
+
+describe('[host:fansly] who wrote each note: every write Fansly confirmed, told once to the hub’s record', () => {
+  const told = (w: ReturnType<typeof world>) => w.written.mock.calls.map(([fact]) => fact);
+
+  it('a create with its new note, an edit, a delete — with where in the panel and the labels; nothing for a write that did not happen or may not have', async () => {
+    const w = world();
+    w.answers.push({ id: '901', contentType: 12000, contentId: FAN, title: 'T', note: 'x' });
+    await w.notes.create({ ...target, title: 'T', text: 'x', origin: 'quick' }, sender);
+    // A create Fansly answered without the note: its fate is unknown, nothing is told.
+    w.answers.push({});
+    expect(await w.notes.create({ ...target, title: 'T', text: 'x', origin: 'quick' }, sender)).toEqual({ ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } });
+    expect(told(w)).toEqual([{ pageId: 7, fanRef: FAN, noteRef: '901', noteKind: 'note', action: 'created', origin: 'quick', fields: undefined }]);
+    const held = [{ id: FAN, notes: [{ id: '801', contentType: 12000, contentId: FAN, title: 'Анкета', note: 'Имя: Алекс' }] }];
+    // The note holds the text already (a lost answer of the same edit): nothing is written, nothing told.
+    w.answers.push(held);
+    expect(await w.notes.edit({ ...target, noteId: '801', title: 'Анкета', text: 'Имя: Алекс', current: { title: 'Анкета', text: 'Имя: Алекс' }, origin: 'field', fields: ['Имя'] }, sender)).toMatchObject({ ok: true });
+    // An edit whose answer was lost: maybe written, nothing told.
+    w.answers.push(held);
+    w.start.mockImplementationOnce(() => Promise.resolve({ response: w.answers.shift(), status: 200 })).mockRejectedValueOnce(new FanslyApiError('timeout', { sent: true }));
+    expect(await w.notes.edit({ ...target, noteId: '801', title: 'Анкета', text: 'Имя: Саша', current: { title: 'Анкета', text: 'Имя: Алекс' }, origin: 'field', fields: ['Имя'] }, sender)).toEqual({ ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } });
+    expect(told(w)).toHaveLength(1);
+    w.answers.push(held, {});
+    expect(await w.notes.edit({ ...target, noteId: '801', title: 'Анкета', text: 'Имя: Саша', current: { title: 'Анкета', text: 'Имя: Алекс' }, origin: 'fill', fields: ['Имя', 'Работа'] }, sender)).toMatchObject({ ok: true });
+    w.answers.push({});
+    expect(await w.notes.remove({ ...target, noteId: '801', title: 'Анкета', text: 'Имя: Саша', origin: 'list' }, sender)).toEqual({ ok: true });
+    expect(told(w).slice(1)).toEqual([
+      { pageId: 7, fanRef: FAN, noteRef: '801', noteKind: 'note', action: 'edited', origin: 'fill', fields: ['Имя', 'Работа'] },
+      { pageId: 7, fanRef: FAN, noteRef: '801', noteKind: 'note', action: 'deleted', origin: 'list', fields: undefined },
+    ]);
+    // A port that throws never fails the write.
+    w.written.mockImplementationOnce(() => {
+      throw new Error('gone');
+    });
+    w.answers.push({});
+    expect(await w.notes.remove({ ...target, noteId: '801', title: 'Анкета', text: 'Имя: Саша' }, sender)).toEqual({ ok: true });
+  });
+
+  it('the name: set where there was none, changed, cleared — each told with the name’s own note; one Fansly holds already is no write', async () => {
+    const w = world();
+    const none = [{ id: FAN, notes: [] }];
+    const named = (name: string) => [{ id: FAN, notes: [{ id: '802', contentType: 12002, contentId: FAN, title: 'Custom Username', note: name }] }];
+    w.answers.push(none, { id: '802', contentType: 12002, contentId: FAN, title: 'Custom Username', note: 'Алекс' });
+    expect(await w.notes.name({ ...target, name: 'Алекс', current: null }, sender)).toEqual({ ok: true, customName: { noteId: '802', name: 'Алекс' } });
+    w.answers.push(named('Алекс'));
+    expect(await w.notes.name({ ...target, name: 'Алекс', current: null }, sender)).toEqual({ ok: true, customName: { noteId: '802', name: 'Алекс' } });
+    w.answers.push(named('Алекс'), {});
+    expect(await w.notes.name({ ...target, name: 'Саша', current: { noteId: '802', name: 'Алекс' } }, sender)).toMatchObject({ ok: true });
+    w.answers.push(named('Саша'), {});
+    expect(await w.notes.name({ ...target, name: '', current: { noteId: '802', name: 'Саша' } }, sender)).toEqual({ ok: true, customName: null });
+    // Nothing to clear: no write.
+    w.answers.push(none);
+    expect(await w.notes.name({ ...target, name: '', current: null }, sender)).toEqual({ ok: true, customName: null });
+    expect(told(w)).toEqual([
+      { pageId: 7, fanRef: FAN, noteRef: '802', noteKind: 'custom_name', action: 'created', origin: 'name', fields: undefined },
+      { pageId: 7, fanRef: FAN, noteRef: '802', noteKind: 'custom_name', action: 'edited', origin: 'name', fields: undefined },
+      { pageId: 7, fanRef: FAN, noteRef: '802', noteKind: 'custom_name', action: 'deleted', origin: 'name', fields: undefined },
+    ]);
   });
 });
 

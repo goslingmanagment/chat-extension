@@ -34,6 +34,7 @@
 //   the hub's request body: nothing is logged.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
+import { NOTE_ATTRIBUTION_LIMITS, type NoteAttributionOrigin } from '@cg/contracts/hub';
 import type { NotesAction, NotesClient, NotesDateVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesSuggestionVM, NotesFormVM, NotesItemVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
 import type { Phase, SiteOpView } from '@cg/contracts/ops';
 import type { PhaseVM } from '@cg/contracts/vm';
@@ -143,15 +144,30 @@ export interface NotesWho {
   readonly fanId: string;
 }
 
+/**
+ * Where in the panel a write came from and the questionnaire labels it changed (never their values): the hub's record of
+ * who wrote the note. Never a reason to refuse the write.
+ */
+export interface NoteWriteHow {
+  readonly origin: NoteAttributionOrigin;
+  readonly fields?: readonly string[];
+}
+
+/** A write's origin with its labels as the hub takes them: each cut to its limit, the same one once, at most so many. */
+export function noteWriteHow(origin: NoteAttributionOrigin, labels: readonly string[] = []): NoteWriteHow {
+  const fields = [...new Set(labels.map((label) => label.trim().slice(0, NOTE_ATTRIBUTION_LIMITS.fieldLabelMaxChars).trim()).filter((label) => label !== ''))].slice(0, NOTE_ATTRIBUTION_LIMITS.maxFields);
+  return fields.length > 0 ? { origin, fields } : { origin };
+}
+
 export interface NotesPort {
   /** The tab's account and login: another one drops everything read and typed under the previous. */
   session(): string | null;
   target(): NotesTarget | null;
   read(target: NotesTarget, force: boolean): Promise<{ readonly ok: true; readonly fanRef: string; readonly notes: readonly FanslyNote[]; readonly customName: CustomName | null } | Failure>;
-  create(who: NotesWho, title: string, text: string): Promise<{ readonly ok: true; readonly note: FanslyNote } | Failure>;
+  create(who: NotesWho, title: string, text: string, how?: NoteWriteHow): Promise<{ readonly ok: true; readonly note: FanslyNote } | Failure>;
   /** A `changed` refusal carries `latest`, the version Fansly holds now (audit №13). */
-  edit(who: NotesWho, noteId: string, title: string, text: string, current: Pick<FanslyNote, 'title' | 'text'>): Promise<{ readonly ok: true; readonly note: FanslyNote } | (Failure & { readonly latest?: FanslyNote | undefined })>;
-  remove(who: NotesWho, note: FanslyNote): Promise<{ readonly ok: true } | Failure>;
+  edit(who: NotesWho, noteId: string, title: string, text: string, current: Pick<FanslyNote, 'title' | 'text'>, how?: NoteWriteHow): Promise<{ readonly ok: true; readonly note: FanslyNote } | (Failure & { readonly latest?: FanslyNote | undefined })>;
+  remove(who: NotesWho, note: FanslyNote, how?: NoteWriteHow): Promise<{ readonly ok: true } | Failure>;
   /** A `changed` refusal carries `latest`, the name Fansly holds now (null — none). */
   name(who: NotesWho, name: string, current: CustomName | null): Promise<{ readonly ok: true; readonly customName: CustomName | null } | (Failure & { readonly latest?: CustomName | null | undefined })>;
   /** The page's «Дополнить из чата» is on (the manifest's `notes-fill`: the page's `notesFill`). */
@@ -834,7 +850,7 @@ export function createNotesController(port: NotesPort): NotesController {
     draft.problem = null;
     emit();
     const under = epoch;
-    const answer = await (draft.noteId === null ? port.create(to, title, text) : port.edit(to, draft.noteId, title, text, draft.current)).catch(toFailure);
+    const answer = await (draft.noteId === null ? port.create(to, title, text, noteWriteHow('editor')) : port.edit(to, draft.noteId, title, text, draft.current, noteWriteHow('editor'))).catch(toFailure);
     if (disposed || under !== epoch || drafts.get(data.fanRef) !== draft) return;
     draft.saving = false;
     if (answer.ok) {
@@ -864,8 +880,8 @@ export function createNotesController(port: NotesPort): NotesController {
    * «Анкета». `onto` — the note as read. On a `changed` refusal the list takes Fansly's version, and the caller's next
    * press writes into it.
    */
-  async function writeForm(data: Data, to: NotesWho, onto: FanslyNote | null, text: string): Promise<{ readonly ok: true } | { readonly ok: false; readonly problem: NotesProblem; readonly blocked: boolean }> {
-    const answer = await (onto === null ? port.create(to, NOTE_TEMPLATE_TITLE, text) : port.edit(to, onto.noteId, onto.title, text, { title: onto.title, text: onto.text })).catch(toFailure);
+  async function writeForm(data: Data, to: NotesWho, onto: FanslyNote | null, text: string, how: NoteWriteHow): Promise<{ readonly ok: true } | { readonly ok: false; readonly problem: NotesProblem; readonly blocked: boolean }> {
+    const answer = await (onto === null ? port.create(to, NOTE_TEMPLATE_TITLE, text, how) : port.edit(to, onto.noteId, onto.title, text, { title: onto.title, text: onto.text }, how)).catch(toFailure);
     if (answer.ok) {
       saved(data.fanRef, answer.note);
       return { ok: true };
@@ -935,7 +951,7 @@ export function createNotesController(port: NotesPort): NotesController {
     edit.problem = null;
     emit();
     const under = epoch;
-    const answer = await writeForm(data, to, note, text);
+    const answer = await writeForm(data, to, note, text, noteWriteHow('field', [edit.label]));
     if (disposed || under !== epoch || fields.get(fanId) !== edit) return;
     edit.saving = false;
     if (answer.ok) fields.delete(fanId);
@@ -965,7 +981,7 @@ export function createNotesController(port: NotesPort): NotesController {
     quick.problem = null;
     emit();
     const under = epoch;
-    const answer = await port.create(to, title, text).catch(toFailure);
+    const answer = await port.create(to, title, text, noteWriteHow('quick')).catch(toFailure);
     if (disposed || under !== epoch || quicks.get(fanId) !== quick) return;
     quick.saving = false;
     if (answer.ok) {
@@ -991,7 +1007,7 @@ export function createNotesController(port: NotesPort): NotesController {
     deleteError = null;
     emit();
     const under = epoch;
-    const answer = await port.remove(to, note).catch(toFailure);
+    const answer = await port.remove(to, note, noteWriteHow('list')).catch(toFailure);
     if (disposed || under !== epoch) return;
     deleting = null;
     if (answer.ok) {
@@ -1204,7 +1220,7 @@ export function createNotesController(port: NotesPort): NotesController {
     fill.problem = null;
     emit();
     const under = epoch;
-    const answer = await writeForm(data, to, note, applied.text);
+    const answer = await writeForm(data, to, note, applied.text, noteWriteHow('fill', going.map((index) => fill.findings[index]?.label ?? '')));
     if (disposed || under !== epoch || fills.get(fanId) !== fill) return;
     fill.writing = false;
     if (answer.ok) {
@@ -1271,7 +1287,8 @@ export function createNotesController(port: NotesPort): NotesController {
     undo.undoing = true;
     emit();
     const under = epoch;
-    const answer = undo.before === null ? await port.remove(to, note).catch(toFailure) : await writeForm(data, to, note, undo.before);
+    const undoHow = noteWriteHow('undo', undo.labels);
+    const answer = undo.before === null ? await port.remove(to, note, undoHow).catch(toFailure) : await writeForm(data, to, note, undo.before, undoHow);
     if (disposed || under !== epoch || fills.get(fanId) !== fill) return;
     undo.undoing = false;
     fill.undo = null;

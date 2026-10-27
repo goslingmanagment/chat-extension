@@ -89,6 +89,8 @@ import {
   NativeSendRegistrar,
   OpScheduler,
   SendAttributionReporter,
+  NoteAttributionReporter,
+  noteWriteOrigin,
   ActivityBeat,
   beatTabsOf,
   type BeatTab,
@@ -145,7 +147,7 @@ import {
 
 import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS, type PerHost, type RuntimeHostKind } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
-import { ComposedWithMemory, attributionTarget } from './background/attribution';
+import { ComposedWithMemory, attributionTarget, noteAttributionTarget } from './background/attribution';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { type BackgroundKit, type HostRequestType, type KitSender, type SiteTabsPort, type VerifiedTabMessage } from './background/host-module';
@@ -697,6 +699,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     store: throwingStoreOf(local),
     log: coreLog,
   });
+  // Who wrote each Fansly note: every write of «Заметки» Fansly confirmed goes to the hub under the person signed in,
+  // owed and journaled the same way (ids, an action, questionnaire labels; never a text).
+  const noteAttributions = new NoteAttributionReporter({
+    clock: CLOCK,
+    hub: { noteAttributions: (request) => hub().noteAttributions(request) },
+    owner: () => ownerOf(hubInstance?.session() ?? null),
+    store: throwingStoreOf(local),
+    log: coreLog,
+  });
   /** The page a host account of this browser is bound to now; null — it cannot be told. */
   const boundPageOf = (host: HostKind, hostAccountId: string): number | null => {
     const seen = presence.seenAccounts().find((entry) => entry.account.host === host && entry.account.hostAccountId === hostAccountId);
@@ -862,7 +873,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
 
   // ── the sites' background modules (docs/project-unite/architecture.md §3.3) ──
   // The ports of the core a site's chunk is started with: one owner of each thing stays here.
-  const kit: Omit<BackgroundKit, 'telemetry' | 'attributions'> = {
+  const kit: Omit<BackgroundKit, 'telemetry' | 'attributions' | 'noteAttributions'> = {
     settingsExt: extSettings,
     sound: { batch: async (tabSessionId, batch) => {
       await tabAccounts.known(tabSessionId);
@@ -906,6 +917,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     attributions: {
       sent: ({ pageId, hostAccountId, platformMessageId, ...rest }) =>
         void attribute(host, pageId ?? (hostAccountId === undefined ? null : boundPageOf(host, hostAccountId)), { platformMessageId, observedAt: new Date(CLOCK.now()).toISOString(), ...rest }),
+    },
+    // Who wrote a note: a write of «Заметки» Fansly confirmed; the tab's origin and labels only as the hub takes them.
+    noteAttributions: {
+      written: ({ pageId, origin, fields, ...fact }) => {
+        const target = noteAttributionTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
+        const outcome = target.ok
+          ? noteAttributions.report({ pageLabel: target.pageLabel, source: target.source, eventId: IDS.uuid(), observedAt: new Date(CLOCK.now()).toISOString(), ...fact, ...noteWriteOrigin(origin, fields) })
+          : null;
+        if (outcome !== 'queued') logger.info('bg.note-attribution', 'note write not attributed', { fields: { reason: target.ok ? outcome : target.reason } });
+      },
     },
   });
   /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */
@@ -1280,6 +1301,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       // The hub answered: what it was not told while it was silent (or before this person signed in again) goes now.
       nativeSends.resume();
       attributions.resume();
+      noteAttributions.resume();
       sound.sync();
     });
     instance.onCatalogChange(() => {
@@ -1833,6 +1855,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     { name: 'hosts', run: () => hostModules.resume(workPending) },
     { name: 'native-sends', run: () => nativeSends.restore() },
     { name: 'send-attributions', run: () => attributions.restore() },
+    { name: 'note-attributions', run: () => noteAttributions.restore() },
     { name: 'presence', run: () => presence.start() },
     { name: 'sound', run: () => Promise.all([sound.start(), greetings.restore()]) },
     { name: 'consent', run: () => consent.start() },

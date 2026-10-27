@@ -27,7 +27,7 @@ import type { PassJournal } from '@cg/core/services/logs';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { CgCode, CgErrorWire } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
-import type { Bootstrap, HubFacade, HubRouteKey, ResolveHubError, SendAttributionComposedWith } from '@cg/contracts/hub';
+import type { Bootstrap, HubFacade, HubRouteKey, NoteAttributionAction, NoteAttributionKind, ResolveHubError, SendAttributionComposedWith } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { ChatKey } from '@cg/contracts/ids';
 import type { StartOutcome, SiteOperations } from '@cg/core/services';
@@ -198,6 +198,23 @@ export interface AttributionPort {
   }): void;
 }
 
+/** Who wrote a Fansly note: a write of «Заметки» Fansly confirmed, for the hub's record (background/attribution.ts). */
+export interface NoteAttributionPort {
+  /**
+   * `pageId` — the hub page the tab's request named (admitted already); `noteRef` — Fansly's note id (the name's own note
+   * for `custom_name`). `origin`, `fields` — as the tab said them: the background keeps only what the hub takes.
+   */
+  written(fact: {
+    readonly pageId: number;
+    readonly fanRef: string;
+    readonly noteRef: string;
+    readonly noteKind: NoteAttributionKind;
+    readonly action: NoteAttributionAction;
+    readonly origin?: unknown;
+    readonly fields?: unknown;
+  }): void;
+}
+
 /**
  * Who sent a request of a site's own registry: a tab of the site, the relay frame of a tab session, or (R20 P14b1) one
  * of our pages, which the core routes to the site while it is on (platform `SiteSenderContext`).
@@ -300,6 +317,7 @@ export interface BackgroundKit {
   readonly install: InstallPort;
   readonly nativeSends: NativeSendPort;
   readonly attributions: AttributionPort;
+  readonly noteAttributions: NoteAttributionPort;
 }
 
 /** What the core tells a running module. */

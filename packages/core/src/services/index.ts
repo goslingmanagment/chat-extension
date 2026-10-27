@@ -120,7 +120,9 @@ export * from './scheduler';
 export * from './profile-saver';
 export * from './send-driver';
 export * from './native-send';
+export * from './owed-report';
 export * from './send-attribution';
+export * from './note-attribution';
 
 export { createSettingsExtOwner, type SettingsExtOwner } from './settings-owner';
 
