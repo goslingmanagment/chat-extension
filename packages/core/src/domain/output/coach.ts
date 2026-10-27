@@ -8,7 +8,7 @@
 // grammar — stays in the prose with its fence markers neutralised, so it
 // can neither re-parse as a draft nor render as a code fence. Advice with
 // the pinned labels «СИТУАЦИЯ / ЧТО УПУЩЕНО / СЛЕДУЮЩИЙ ХОД / РИСК» also
-// comes as blocks. An answer with neither prose nor a draft is not saved.
+// comes as blocks. An answer with neither prose, a draft nor a ```more note is not saved.
 // 2026-10-27 (`coach-depth-v1`): a ```more block — Coach's note that older
 // messages would change its advice — is lifted out first and kept apart: it
 // is never prose, never a draft, never replayed.
@@ -174,7 +174,8 @@ export function parseCoachAnswer(raw: string): CoachAnswer | null {
     else if (body.trim().length > 0) leftovers.push(body.trim());
   }
   const prose = neutraliseFences([proseText, ...leftovers].filter((piece) => piece.length > 0).join('\n\n'));
-  if (prose.length === 0 && drafts.length === 0) return null;
+  // An answer that is only Coach's ```more note is kept: its card is the answer («мне нужно дочитать»).
+  if (prose.length === 0 && drafts.length === 0 && note === null) return null;
   const labelled = splitLabelledSections(prose, COACH_SECTION_LABELS);
   const seen = new Set<CoachBlockKind>();
   const blocks =
