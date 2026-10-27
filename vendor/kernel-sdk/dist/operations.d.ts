@@ -723,6 +723,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/links";
     };
+    readonly clientFanMarks: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/marks";
+    };
     readonly clientFanProfileFromGeneration: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/profile/from-generation";
