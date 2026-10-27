@@ -108,6 +108,8 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
           limit: request.limit,
           ...(request.cursor === null ? {} : { cursor: request.cursor }),
           ...(request.summaryWindow === undefined ? {} : { summaryWindow: request.summaryWindow }),
+          // 2026-10-27: Coach's depths for the first page to date, as the hub takes them.
+          ...(request.depthMarks === undefined ? {} : { depthMarks: request.depthMarks.join(',') }),
           ...conversationOf(request.fanRef, request.conversationRef),
         }),
       ),

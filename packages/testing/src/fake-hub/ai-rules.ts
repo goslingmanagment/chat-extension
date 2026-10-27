@@ -206,7 +206,8 @@ export function transcriptWindow(request: HubStreamRequest, ownerDepth: number):
   const deep = ['fan-summary', 'chat-review', 'fan-notes-fill'].includes(feature);
   const fallback = short ? 300 : deep ? 1500 : feature === 'improve-draft' ? 25 : 100;
   const requested = short ? Math.min(300, body.messageCount ?? fallback) : body.messageCount ?? fallback;
-  const mayReadDeep = capabilities.includes('context-v1') && ((feature === 'fan-summary' && !short) || feature === 'fan-notes-fill');
+  // 2026-10-27 (hub `coach-depth-v1`): Coach reads the owner's depth too, from a caller that says it.
+  const mayReadDeep = capabilities.includes('context-v1') && ((feature === 'fan-summary' && !short) || feature === 'fan-notes-fill' || (feature === 'coach-chat' && capabilities.includes('coach-depth-v1')));
   const cap = mayReadDeep ? (feature === 'fan-notes-fill' ? Math.max(3000, ownerDepth) : ownerDepth) : 1500;
   return { requested, limit: Math.min(requested, cap) };
 }

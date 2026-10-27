@@ -36,7 +36,7 @@ const ACTIONS: Readonly<Record<string, string>> = {
   ReplaceMyDraft: '«Заменить мой черновик»', RestoreMyDraft: '«Вернуть мой текст»', AnswerConfirm: 'ответ на вопрос о черновике', OpenAndInsertPart: '«Открыть и вставить»',
   SendPart: '«Отправить»', EditPart: 'правка части', SendDraft: '«Отправить» своего текста', OpenChatToVerify: '«Открыть чат для проверки»', Copy: '«Копировать»',
   OpenPreview: 'превью фана', RefreshArchive: '«Обновить» архив', LoadOlder: 'более ранние сообщения', SetPreviewDraft: 'черновик превью',
-  ShowRecap: 'показ Recap', RefreshRecap: '«Обновить» Recap', NewCoachDialog: '«Новый диалог» Coach', ShowAnalysis: 'показ анализа',
+  ShowRecap: 'показ Recap', RefreshRecap: '«Обновить» Recap', NewCoachDialog: '«Новый диалог» Coach', SetCoachDepth: '«Сколько читает» Coach', ShowAnalysis: 'показ анализа',
   SetSpendersPeriod: 'период Spenders', SetSpendersFilter: 'фильтр Spenders', SetSpendersSort: 'сортировка Spenders', ResetFilters: '«Сбросить фильтры»',
   Search: 'поиск', SetNewcomersTab: 'вкладка «Новых»', SetNewcomersFilter: 'фильтр «Новых»', SetNewcomersCheckFilter: 'фильтр проверки «Новых»',
   SetNewcomersPassRunning: 'пауза/продолжение проверки', CheckNewcomerNext: '«Проверить следующим»', ExcludeNewcomer: 'исключение из очереди',

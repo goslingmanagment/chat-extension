@@ -133,6 +133,8 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // 2026-10-26: the fan's names and «about» for Hi on Fansly, to a hub that takes them; else they stay home.
   const fanAccount = hiByProof && start.fanAccount !== undefined && hasCapability(ctx.bootstrap.capabilities, 'hi-fan-account-v1') ? start.fanAccount : undefined;
   if (fanAccount !== undefined) capabilities.push('hi-fan-account-v1');
+  // 2026-10-27: a Coach question reads as deep as the chatter chose and may get a ```more note — to a hub that serves it.
+  if (start.feature === 'coach' && contextV1 && hasCapability(ctx.bootstrap.capabilities, 'coach-depth-v1')) capabilities.push('coach-depth-v1');
 
   const window = Math.max(Math.min(start.window, Math.max(AI_REQUEST_LIMITS.messageCountMin, ctx.bootstrap.limits.deepMax)), proof?.window.length ?? 0);
   const body: { -readonly [K in keyof AiFeatureStreamBody]: AiFeatureStreamBody[K] } = {

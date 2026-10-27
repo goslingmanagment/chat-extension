@@ -1127,7 +1127,7 @@ export class FakeHub {
       case 'clientConversationFeed': {
         const conversation = conversationOf(need(page), request as FeedQuery, s.data);
         if (typeof conversation !== 'string') return conversation;
-        return read(s.data.feed(need(page), request as FeedQuery, now, need(principal).user.userId, conversation));
+        return read(s.data.feed(need(page), request as FeedQuery, now, need(principal).user.userId, conversation, { served: s.config.capabilities.includes('coach-depth-v1'), knob: s.config.coachDepth }));
       }
       case 'clientSpenderStats':
         return read(s.data.stats(need(page), request as StatsQuery, now));
@@ -1259,8 +1259,16 @@ export class FakeHub {
     // R20 HF-8в: answered only to a request that advertised `coverage-check-v1` (it rides in the context frame).
     const coverageCheck =
       body.coverageCheck !== undefined && request.capabilities.includes('coverage-check-v1') ? resolveCoverageCheck({ check: body.coverageCheck, window: served.window, stores: served.stores }) : undefined;
+    // 2026-10-27: the `coachDepth` knob's long conversation serves Coach's window, and an answer that read fewer than
+    // `moreBelow` of it ends with Coach's ```more note — to a caller that says `coach-depth-v1`, as the hub's prompt asks.
+    const knob = feature === 'coach-chat' ? s.config.coachDepth : null;
+    const deepCoach = knob !== null && request.capabilities.includes('coach-depth-v1');
+    const coachServed = knob === null ? null : Math.min(window.limit, knob.stored);
+    const more = deepCoach && coachServed !== null && coachServed < knob.moreBelow && coachServed < knob.stored ? knob.note : undefined;
+    const deepText = deepCoach && more === undefined ? knob.deepText : undefined;
     const steps = modelStream(request, {
       ...this.attachedRecaps(page, request, definitionId),
+      ...(more === undefined ? {} : { more }),
       requestId: crypto.randomUUID(),
       personaDefinitionId: definitionId,
       remainingRequestsToday: remaining,
@@ -1269,15 +1277,15 @@ export class FakeHub {
       archive: chatIsFan(page)
         ? {
             head: archive.head === null ? null : { messageRef: archive.head.messageId, at: archive.head.at, isFromFan: archive.head.sender === 'fan' },
-            total: archive.total,
+            total: knob === null ? archive.total : knob.stored,
             state: archive.states,
           }
-        : { head: newest === undefined ? null : { messageRef: newest.messageRef, at: newest.at, isFromFan: newest.isFromFan }, total: served.window.length, state: archive.states },
+        : { head: newest === undefined ? null : { messageRef: newest.messageRef, at: newest.at, isFromFan: newest.isFromFan }, total: knob === null ? served.window.length : knob.stored, state: archive.states },
       chunkDelayMs: s.config.aiChunkDelayMs,
       thinkMs: s.config.aiThinkMs,
       window,
       nameFan: s.config.aiNameFan,
-      texts: s.config.aiTexts,
+      texts: deepText === undefined ? s.config.aiTexts : { ...s.config.aiTexts, 'coach-chat': deepText },
       ...(pair === undefined ? {} : { pair }),
       ...(coverageCheck === undefined ? {} : { coverageCheck }),
     });

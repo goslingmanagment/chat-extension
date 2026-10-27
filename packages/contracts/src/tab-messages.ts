@@ -580,6 +580,8 @@ export const TAB_REQUESTS = {
       limit: z.int().check(z.gte(1), z.lte(FEED_LIMITS.maxLimit)),
       /** The Ping chip's window (settings `generation.windows.ping`); the hub's default 100 when absent. */
       summaryWindow: z.optional(z.int().check(z.gte(FEED_LIMITS.summaryWindowMin), z.lte(FEED_LIMITS.summaryWindowMax))),
+      /** 2026-10-27: Coach's depths for the first page to date (`FeedPage.depth`); only to a hub with `coach-depth-v1`. */
+      depthMarks: z.optional(z.array(z.int().check(z.gte(1), z.lte(FEED_LIMITS.depthMarkMax))).check(z.minLength(1), z.maxLength(FEED_LIMITS.depthMarksMax))),
     }),
     res: FeedPageSchema,
     from: TAB,

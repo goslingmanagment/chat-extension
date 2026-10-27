@@ -180,6 +180,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'aiTexts',
   'voiceLaneOff',
   'voiceDay',
+  'coachDepth',
 ]);
 
 const VOICE_DAY_FIELDS: Readonly<Record<string, FieldCheck>> = {
@@ -216,6 +217,12 @@ export function checkCommand(value: unknown): FakeHubCommand {
     if (limits !== undefined && (!isObject(limits) || ((limits as Record<string, unknown>)['deepMax'] !== undefined && !oneOf(1500, 3000, 5000)((limits as Record<string, unknown>)['deepMax'])))) throw new Error('fake hub control: limits.deepMax must be 1500, 3000 or 5000');
     const texts = patch['aiTexts'];
     if (texts !== undefined && !(isObject(texts) && Object.values(texts as object).every(isString))) throw new Error('fake hub control: config.patch.aiTexts is not a map of feature → text');
+    const depth = patch['coachDepth'];
+    const whole = (value: unknown): boolean => isNumber(value) && Number.isInteger(value) && (value as number) >= 1;
+    const knob = depth as Record<string, unknown> | null | undefined;
+    if (knob !== undefined && knob !== null && !(isObject(knob) && whole(knob['stored']) && whole(knob['oldestDays']) && whole(knob['moreBelow']) && isString(knob['note']) && (knob['deepText'] === undefined || isString(knob['deepText'])))) {
+      throw new Error('fake hub control: config.patch.coachDepth takes stored, oldestDays, moreBelow (whole, ≥ 1), note and deepText, or null');
+    }
     const day = patch['voiceDay'];
     if (day !== undefined && !isVoiceDay(day)) throw new Error('fake hub control: config.patch.voiceDay takes pageChars, globalChars, scriptMaxChars (whole, ≥ 1) and spentToday (page → whole chars ≥ 0)');
   }

@@ -51,6 +51,8 @@ export interface CoachExchange {
   readonly completedAt: number;
   /** The Recaps the hub put into this answer (`OpView.recapsUsed`): when each was made, null — none; absent — not said; `off` — «Учитывать Recap» unticked. */
   readonly recapsUsed?: { readonly full: string | null; readonly short: string | null; readonly off?: true | undefined };
+  /** 2026-10-27: how many of the chat's latest messages the question asked for; absent — a dialog older than that. */
+  readonly window?: number;
 }
 
 /**
@@ -90,6 +92,8 @@ export interface CoachFailedTurn {
   readonly error: CgErrorWire | null;
   /** 1.51.0: the turn was a Review: its «Повторить» runs a Review again. */
   readonly review: boolean;
+  /** 2026-10-27: the depth the question asked for: «Повторить» asks at it again; absent — the chat's. */
+  readonly window?: number;
 }
 
 export type CoachFeedItem = CoachExchange | CoachReviewTurn | CoachFailedTurn;
@@ -107,6 +111,8 @@ export interface CoachPendingTurn {
   readonly opId: string | null;
   /** The feed as it was before this turn began: a start that was refused puts it back (AI-099). */
   readonly feedBefore: readonly CoachFeedItem[];
+  /** 2026-10-27: how many of the chat's latest messages the question asks for; absent — a Review. */
+  readonly window?: number;
 }
 
 export interface CoachSession {
@@ -225,6 +231,7 @@ export class CoachSessions {
       attachedDraft: pending.attachedDraft,
       askedAt: pending.askedAt,
       completedAt: done.completedAt,
+      ...(pending.window === undefined ? {} : { window: pending.window }),
     };
     const next: CoachSession = { ...session, pending: null, feed: [...session.feed, exchange] };
     this.replace(next);
@@ -270,6 +277,7 @@ export class CoachSessions {
       outcome: end.outcome,
       error: end.error,
       review: pending.step === 'review',
+      ...(pending.window === undefined ? {} : { window: pending.window }),
     };
     const next: CoachSession = { ...session, pending: null, feed: [...session.feed, failed] };
     this.replace(next);

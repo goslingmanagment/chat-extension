@@ -478,6 +478,11 @@ export const CoachAnswerSchema = z.strictObject({
       }),
     )
     .check(z.maxLength(COACH_LIMITS.draftsMax)),
+  /**
+   * 2026-10-27 (`coach-depth-v1`): Coach's own note that messages older than it read would change its advice — the
+   * ```more block at the end of its answer, lifted out of the prose. Absent — it did not ask.
+   */
+  more: z.optional(boundedText(COACH_LIMITS.moreMaxChars)),
 });
 export type CoachAnswer = z.infer<typeof CoachAnswerSchema>;
 

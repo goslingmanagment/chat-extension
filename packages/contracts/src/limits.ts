@@ -190,6 +190,11 @@ export const COACH_LIMITS = {
   historyMaxTurns: 20,
   draftMaxChars: 1500,
   draftsMax: 2,
+  /**
+   * 2026-10-27 (`coach-depth-v1`): Coach's own note that older messages would change its advice (a ```more block at
+   * the end of its answer), as the window shows it over its two choices. A longer note is cut, never dropped.
+   */
+  moreMaxChars: 600,
 } as const;
 
 /**

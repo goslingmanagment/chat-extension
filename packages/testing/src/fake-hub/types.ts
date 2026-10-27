@@ -105,6 +105,23 @@ export interface FakeHubConfigPatch {
    * its limit, `5_000` over it.
    */
   readonly voiceDay?: { readonly pageChars?: number; readonly globalChars?: number; readonly scriptMaxChars?: number; readonly spentToday?: Readonly<Record<string, number>> };
+  /**
+   * 2026-10-27 (`coach-depth-v1`): a long conversation for Coach's depth, on every chat — the archive the feed's first
+   * page dates (`stored` messages, the oldest `oldestDays` ago, older ones sparser) and Coach's window is served from;
+   * and Coach's own ```more note (`note`) at the end of an answer that read fewer than `moreBelow` of them. null — the
+   * stand's own archive, and no note.
+   */
+  readonly coachDepth?: CoachDepthKnob | null;
+}
+
+/** The `coachDepth` knob of the fake hub. */
+export interface CoachDepthKnob {
+  readonly stored: number;
+  readonly oldestDays: number;
+  readonly moreBelow: number;
+  readonly note: string;
+  /** Coach's answer once it read `moreBelow` or more (it saw what it asked for); absent — the usual `coach-chat` text. */
+  readonly deepText?: string;
 }
 
 /**

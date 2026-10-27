@@ -30,17 +30,33 @@
 // `Regenerate` of a Review («Ещё раз» of its turn) rates anew as the next turn.
 // `NewCoachDialog` (the UI confirms first), `RefreshArchive` («Обновить
 // переписку»: the archive head is read again and the lag behind the chat is
-// shown).
+// shown), `SetCoachDepth` (how many of the chat's latest messages the next
+// question reads).
+//
+// Depth (2026-10-27, the owner: «по дефолту надо хотя бы поставить 300»,
+// «оптимально догрузите ещё 300, в идеале все за 3000»): a question reads the
+// chat's latest N messages — this tab's choice for the chat, else the
+// settings' number (300) — up to the hub's deep window where it serves
+// `coach-depth-v1` (1500 elsewhere). While the window is shown, the feed's
+// first page says what the archive holds and how far back each depth reaches.
+// An answer whose ```more note says older messages would change it offers two
+// depths under it; either asks the same question again as the next turn, and
+// that depth stays the chat's.
 
 import { type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
+import { hasCapability } from '@cg/contracts/hub';
 import { RECAP_OFF_CAPABILITY, chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { COVERAGE_LEVELS, type COACH_BLOCK_KINDS, type CoverageLevel, type ReviewDoc } from '@cg/contracts/ops';
 import { type SettingsExt } from '@cg/contracts/settings-ext';
 import {
   type ActionButtonVM,
   type ActionReceipt,
+  type CoachDepthOptionVM,
+  type CoachDepthVM,
   type CoachHintGroupVM,
+  type CoachMoreOptionVM,
+  type CoachMoreVM,
   type CoachRecapVM,
   type CoachReviewVM,
   type CoachTurnVM,
@@ -50,6 +66,7 @@ import {
   type ReviewSectionVM,
   type UiAction,
   type UiActionOf,
+  type Msg,
   type UserOptions,
   type VmView,
 } from '@cg/contracts/vm';
@@ -58,7 +75,16 @@ import {
   CoachSessions,
   autoRecapAhead,
   autoRecapFor,
+  clampDepth,
   clampHistoryLimit,
+  coachDepthCap,
+  coachWindowOf,
+  depthMarksFor,
+  depthOptions,
+  depthReach,
+  depthSpan,
+  moreDepths,
+  readsAll,
   exchangesOf,
   historyFor,
   outsideMemory,
@@ -70,10 +96,11 @@ import {
   type CoachReviewTurn,
   type CoachSession,
   type CoachSessionKey,
+  type DepthFacts,
 } from '../../domain/coach';
 import { featureGate, windowFor } from '../../domain/features';
 import { flagRefusal, flagStateOf, flagUsable, isTerminalOpState } from '../../domain/ops';
-import { COACH_SECTION_LABELS, coachAnswerText, reviewHistoryText, reviewRawText, reviewTags, splitLabelledSections, streamPreview } from '../../domain/output';
+import { COACH_SECTION_LABELS, coachAnswerText, liftCoachMore, reviewHistoryText, reviewRawText, reviewTags, splitLabelledSections, streamPreview } from '../../domain/output';
 import { analysisMark, type ArchivePoint } from '../../domain/recap';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord, type OpStoreEvent } from '../ai/op-store';
@@ -109,6 +136,19 @@ const COACH_BUILT_SLACK = 50;
 const DEEP_WINDOW_REREAD_MS = 60_000;
 /** Chats whose archive point («Переписка на 09:20») is remembered; the one refreshed longest ago goes first. */
 export const COACH_ARCHIVES_MAX = 32;
+/** How often the shown window reads again what a chat's archive holds (its depth, `coach-depth-v1`). */
+const DEPTH_REREAD_MS = 60_000;
+
+/** A bounded map: the key set last goes last; past `max` entries the oldest goes. */
+function keep<K, V>(map: Map<K, V>, key: K, value: V, max = COACH_ARCHIVES_MAX): void {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > max) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
+}
 /** AI-094: follow-ups under the latest answer; «Разбор ситуации» first, as the old window had it on every turn. */
 const FOLLOW_UP_CHIPS: readonly { readonly key: I18nKey; readonly preset: 'situation' | null }[] = [
   { key: 'coach.chip.situation', preset: 'situation' },
@@ -193,6 +233,134 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     for (const id of [...pages.keys()]) if (!kept.has(id)) pages.delete(id);
   }
 
+  // ── how much of the chat a question reads (2026-10-27) ───────────────────
+
+  /** This tab's depth per chat: the window's menu, or the depth a «Coach хочет дочитать» choice asked at. */
+  const chosenDepth = new Map<ChatKey, number>();
+  interface DepthRead {
+    readonly state: 'loading' | 'ready' | 'error';
+    readonly at: number;
+    readonly facts: DepthFacts | null;
+  }
+  /** What each chat's archive holds, as the feed's first page dated it. */
+  const depthReads = new Map<ChatKey, DepthRead>();
+
+  /** The hub reads Coach past its ordinary 1500 and dates depths (`coach-depth-v1`, beside the context frame). */
+  const deepCoach = (ready: ReadyTarget): boolean => hasCapability(ready.bootstrap.capabilities, 'coach-depth-v1') && hasCapability(ready.bootstrap.capabilities, 'context-v1');
+  const depthCapOf = (ready: ReadyTarget): number => coachDepthCap(ready.bootstrap.limits.deepMax, deepCoach(ready));
+  /** The depth the next question of the chat reads: its own, else the settings' number; held to what a question may read. */
+  const depthOf = (ready: ReadyTarget, key: ChatKey): number => clampDepth(chosenDepth.get(key) ?? coachWindowOf(ready.settings), depthCapOf(ready));
+  const factsOf = (key: ChatKey): DepthFacts | null => {
+    const facts = depthReads.get(key)?.facts ?? null;
+    // An empty archive dates nothing: the depths say no span, the whole archive no count.
+    return facts !== null && facts.stored > 0 ? facts : null;
+  };
+
+  /**
+   * What the chat's archive holds: the feed's first page (the hub's database only, so nothing is marked read), at most
+   * once a minute per chat while the window is shown, from a hub that dates depths and serves the page's feed.
+   */
+  function ensureDepth(ready: ReadyTarget, key: ChatKey): void {
+    if (!deepCoach(ready) || !flagStateOf(ready.bootstrap, ready.page.pageId, 'preview').usable) return;
+    const known = depthReads.get(key);
+    const now = clock.now();
+    if (known !== undefined && (known.state === 'loading' || now - known.at < DEPTH_REREAD_MS)) return;
+    keep(depthReads, key, { state: 'loading', at: now, facts: known?.facts ?? null });
+    const cap = depthCapOf(ready);
+    const marks = depthMarksFor([coachWindowOf(ready.settings), chosenDepth.get(key) ?? 0, cap], cap);
+    const { fanRef, conversationRef } = ready.target;
+    void rpc
+      .request('feed.read', { pageId: ready.page.pageId, fanRef, cursor: null, limit: 1, depthMarks: marks, ...(conversationRef === fanRef ? {} : { conversationRef }) })
+      .then((answer) => {
+        const depth = answer.ok ? (answer.payload.depth ?? null) : null;
+        const facts: DepthFacts | null =
+          depth === null ? (known?.facts ?? null) : { stored: depth.storedCount, oldestAt: depth.oldestAt, complete: depth.historyComplete, marks: new Map(depth.marks.map((mark) => [mark.count, mark.at])) };
+        keep(depthReads, key, { state: answer.ok ? 'ready' : 'error', at: clock.now(), facts });
+        ws.bump();
+      });
+  }
+
+  /** «2431, с 14 мар» / «до 3000» / «до 3000 из 4100»: what reading the whole archive means here. */
+  function wholeDetail(window: number, cap: number, facts: DepthFacts | null): Msg {
+    if (facts === null) return msg('coach.more.upTo', { n: window });
+    if (facts.stored > cap) return msg('coach.depth.allCapped', { n: cap, stored: facts.stored });
+    return facts.oldestAt === null ? msg('coach.depth.messages', { n: facts.stored }) : msg('coach.depth.allDetail', { n: facts.stored, date: { time: facts.oldestAt, style: 'date' } });
+  }
+
+  /** The chip by «Спросить» and its menu: the depth the next question reads, and the others with how far back each reaches. */
+  function depthVm(ready: ReadyTarget, chat: { readonly key: ChatKey; readonly handle: string }, off: ReasonVM | null): CoachDepthVM {
+    const cap = depthCapOf(ready);
+    const facts = factsOf(chat.key);
+    const usual = clampDepth(coachWindowOf(ready.settings), cap);
+    const value = depthOf(ready, chat.key);
+    const all = readsAll(value, cap, facts);
+    const now = clock.now();
+    const options = depthOptions({ value, usual, cap, facts }).map(
+      (option): CoachDepthOptionVM => ({
+        window: option.window,
+        all: option.all,
+        label: option.all ? msg('coach.depth.all') : msg('coach.depth.messages', { n: option.window }),
+        detail: option.all ? wholeDetail(option.window, cap, facts) : depthSpan(depthReach(option.window, false, facts), now, 'menu'),
+        note: option.all ? msg('coach.depth.note.slower') : option.window === usual ? msg('coach.depth.note.usual') : option.window < usual ? msg('coach.depth.note.faster') : null,
+        checked: option.all ? all : !all && option.window === value,
+        action: { type: 'SetCoachDepth', targetHandle: chat.handle, window: option.window },
+      }),
+    );
+    return {
+      value,
+      label: all ? msg('coach.depth.all') : msg('coach.depth.messages', { n: value }),
+      detail: all ? (facts === null ? null : msg('coach.depth.count', { n: Math.min(facts.stored, cap) })) : depthSpan(depthReach(value, false, facts), now, 'chip'),
+      short: all ? msg('coach.depth.allShort') : msg('coach.depth.count', { n: value }),
+      options,
+      footer: facts === null ? msg('coach.depth.footer') : msg('coach.depth.footerStored', { n: facts.stored }),
+      enabled: off === null,
+      reason: off,
+    };
+  }
+
+  /** What an answer read: what the hub served (its context frame), else what the question asked for. */
+  function readOf(exchange: CoachExchange, record: OpRecord | null): { readonly read: number; readonly short: boolean } | null {
+    const served = record?.view.servedContext?.window;
+    if (served !== undefined) return { read: served.served, short: served.served < served.requested };
+    return exchange.window === undefined ? null : { read: exchange.window, short: false };
+  }
+
+  /**
+   * «Coach хочет дочитать» under the latest answer whose ```more note asked for more: the optimal and the ideal depth,
+   * each asking the same question again — or, with nothing older to read, a line that says so.
+   */
+  function moreVm(exchange: CoachExchange, read: { readonly read: number; readonly short: boolean }, ready: ReadyTarget, chat: { readonly key: ChatKey; readonly handle: string }, askReason: ReasonVM | null): CoachMoreVM | null {
+    const note = exchange.answer.more;
+    if (note === undefined) return null;
+    const cap = depthCapOf(ready);
+    const facts = factsOf(chat.key);
+    // Asked for more than there was: what it was served is all the archive holds.
+    const stored = facts?.stored ?? (read.short ? read.read : null);
+    // Served less than it asked for while the archive holds more: the hub's prompt budget cut the transcript (hub #893), and
+    // a deeper question would be cut the same way. The card says how much Coach reads at most instead of offering more.
+    const budgetCut = read.short && facts !== null && read.read < facts.stored;
+    const plan = budgetCut ? { optimal: null, ideal: null, exhausted: false, capped: true } : moreDepths({ read: read.read, stored, cap });
+    const now = clock.now();
+    const options: CoachMoreOptionVM[] = [];
+    const option = (kind: 'optimal' | 'ideal', window: number, label: Msg, detail: Msg | null, span: Msg | null): CoachMoreOptionVM => ({
+      kind,
+      window,
+      label,
+      detail,
+      span,
+      action: retryAction(chat.handle, exchange, window),
+      enabled: askReason === null,
+      reason: askReason,
+      hotkey: null,
+    });
+    if (plan.optimal !== null) options.push(option('optimal', plan.optimal, msg('coach.more.optimal', { n: plan.optimal - read.read }), msg('coach.more.upTo', { n: plan.optimal }), depthSpan(depthReach(plan.optimal, false, facts), now, 'chip')));
+    if (plan.ideal !== null) {
+      const capped = stored !== null && stored > cap;
+      options.push(option('ideal', plan.ideal, capped ? msg('coach.more.idealUpTo', { n: plan.ideal }) : msg('coach.more.ideal'), capped ? msg('coach.more.ofStored', { n: stored }) : wholeDetail(plan.ideal, cap, facts), null));
+    }
+    return { note, read: read.read, options, exhausted: plan.exhausted, capped: plan.capped ? (budgetCut ? read.read : cap) : null, stored };
+  }
+
   // The answers of the dialogs are kept as long as their sessions are.
   const offKeep = ws.ops.keep((opId) => sessions.all().some((session) => session.pending?.opId === opId || session.feed.some((item) => item.opId === opId)));
 
@@ -251,8 +419,9 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       sessions.complete(session.sessionId, turnId, {
         opId: view.opId,
         generationRef: view.generationRef ?? null,
-        // The raw finished answer is what history replays; a text too long for the view is rebuilt from its parts.
-        answerRaw: view.text ?? coachAnswerText(answer),
+        // The raw finished answer is what history replays; a text too long for the view is rebuilt from its parts. Its
+        // ```more note is the window's, never replayed.
+        answerRaw: view.text === undefined ? coachAnswerText(answer) : liftCoachMore(view.text).rest,
         answer,
         completedAt: view.endedAt ?? clock.now(),
         ...(view.recapsUsed === undefined ? {} : { recapsUsed: view.recapsUsed }),
@@ -289,6 +458,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const ids = new Set(wiped.map((session) => session.sessionId));
     sessions.reset((session) => ids.has(session.sessionId));
     archives.clear();
+    depthReads.clear();
+    chosenDepth.clear();
     ws.bump();
   });
   // The owner edited the persona (its key stays): the dialogs go on under its new definition.
@@ -323,6 +494,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     if (session.pending !== null) return refused(ws, action.type, { code: 'CG-OP-COACH-BUSY' });
 
     const turnId = ids.uuid();
+    // How much of the chat it reads: the click's own depth (a «Coach хочет дочитать» choice), which then stays the
+    // chat's, else the chat's own, else the settings' number.
+    const window = clampDepth(action.options.window ?? depthOf(ready, chat.key), depthCapOf(ready));
+    if (action.options.window !== undefined) keep(chosenDepth, chat.key, window);
     // The turn exists from the click on: the question is in the feed while its start is on the way.
     const begun = sessions.begin(session.sessionId, {
       turnId,
@@ -332,6 +507,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       attachedDraft: action.options.attachMyDraft === true,
       askedAt: now,
       step: 'coach',
+      window,
     });
     if (!begun.ok) return refused(ws, action.type, { code: 'CG-OP-COACH-BUSY' });
     ws.bump();
@@ -359,7 +535,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
     // One start for the whole turn: the question, the history, the draft read now (AI-091) — and, when a recap
     // is due, the recap step in front of it. The background admits both under this click's one token.
-    const options: UserOptions = { ...(question.length > 0 ? { question } : {}), ...(preset === null ? {} : { preset }), ...(action.options.attachMyDraft === true ? { attachMyDraft: true } : {}) };
+    const options: UserOptions = { ...(question.length > 0 ? { question } : {}), ...(preset === null ? {} : { preset }), ...(action.options.attachMyDraft === true ? { attachMyDraft: true } : {}), window };
     const limit = clampHistoryLimit(ready.settings.generation.coach.historyLimit);
     const result = await ws.startFeature({ feature: 'coach', surface: 'coach', options, cause, coachHistory: historyFor(session, limit), ...(recap === null ? {} : { autoRecap: recap }) });
     // A question that did not start is said, never dropped in silence: the panel keeps the question (AI-099) and
@@ -497,10 +673,13 @@ export function createCoachController(ws: AiWorkspace): CoachController {
 
   // ── the view ─────────────────────────────────────────────────────────────
 
-  /** The same question again — with the person's draft read anew when the turn was asked with it, as the old «Повторить». */
-  function retryAction(handle: string, turn: Pick<CoachFailedTurn, 'question' | 'preset' | 'attachedDraft'>): UiAction {
+  /**
+   * The same question again — with the person's draft read anew when the turn was asked with it, as the old «Повторить»
+   * — at the chat's depth, or at `window`: a «Coach хочет дочитать» choice, which then stays the chat's.
+   */
+  function retryAction(handle: string, turn: Pick<CoachFailedTurn, 'question' | 'preset' | 'attachedDraft'>, window?: number): UiAction {
     const asked = turn.preset === null ? { question: turn.question } : { preset: turn.preset };
-    return { type: 'Generate', targetHandle: handle, feature: 'coach', options: { ...asked, ...(turn.attachedDraft ? { attachMyDraft: true } : {}) } };
+    return { type: 'Generate', targetHandle: handle, feature: 'coach', options: { ...asked, ...(turn.attachedDraft ? { attachMyDraft: true } : {}), ...(window === undefined ? {} : { window }) } };
   }
 
   /** 1.51.0: a Review of the open chat, as the «Review» chip asks it. */
@@ -529,15 +708,24 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     return state.join('|');
   }
 
-  function exchangeVm(exchange: CoachExchange, outside: ReadonlySet<string>, situation: Situation, handle: string | null, askReason: ReasonVM | null): CoachTurnVM {
+  function exchangeVm(exchange: CoachExchange, outside: ReadonlySet<string>, situation: Situation, handle: string | null, askReason: ReasonVM | null, latest: boolean): CoachTurnVM {
     const record = ws.ops.get(exchange.opId);
     // The site's verdict over the answer (R20 P8c): its «Ещё раз» asks the same question again, when a question may be asked.
     const mark = analysisMark(record === null ? null : ws.ports.policy.verdict(record.view, record.memo.fingerprint));
     const again = mark === null || handle === null ? null : button('common.again', retryAction(handle, exchange), { enabled: askReason === null, reason: askReason });
-    const state = [exchangeState(exchange, outside.has(exchange.turnId), record, situation), mark?.reason ?? '', again === null ? '' : `${handle ?? ''}:${askReason?.id ?? ''}`].join('|');
+    // 2026-10-27: what the answer read, and — under the latest one whose note asked for more — the depths to ask again at.
+    const { chat, ready } = situation;
+    const read = readOf(exchange, record);
+    const facts = chat === null ? null : factsOf(chat.key);
+    // The archive's own count decides «вся переписка» where it is known; without it, an answer served less than it asked for read all there was.
+    const depth = read === null ? null : { read: read.read, all: facts === null ? read.short : read.read >= facts.stored };
+    const asking = latest && read !== null && ready !== null && chat !== null && handle !== null;
+    const depthState = [read?.read ?? '', read?.short ?? '', facts === null || chat === null ? '' : `${facts.stored}@${depthReads.get(chat.key)?.at ?? ''}`, asking ? `${depthCapOf(ready)}:${askReason?.id ?? ''}` : ''].join(':');
+    const state = [exchangeState(exchange, outside.has(exchange.turnId), record, situation), mark?.reason ?? '', again === null ? '' : `${handle ?? ''}:${askReason?.id ?? ''}`, depthState].join('|');
     const known = built.get(exchange.turnId);
     if (known !== undefined && known.state === state) return known.vm;
-    const vm = { ...buildExchange(exchange, outside, record), stale: mark, again };
+    const more = asking ? moreVm(exchange, read, ready, { key: chat.key, handle }, askReason) : null;
+    const vm = { ...buildExchange(exchange, outside, record), stale: mark, again, depth, more };
     built.set(exchange.turnId, { state, vm });
     return vm;
   }
@@ -674,7 +862,10 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     // (авто) · обновляется…»); its text is not the Coach's answer. A Review (1.51.0) is its own one step.
     const answering = view !== null && (view.feature === 'coach' || view.feature === 'review');
     const preview = answering && view.text !== undefined ? streamPreview(view.feature, view.text) : '';
-    const phase = view === null ? null : phaseVm(view, now);
+    const staged = view === null ? null : phaseVm(view, now);
+    // 2026-10-27: a question's context stage says how much of the chat it reads («Читаю 600 сообщений»).
+    const reading = turn.window === undefined || turn.step !== 'coach' ? null : msg('coach.stage.reading', { n: turn.window });
+    const phase = staged === null || reading === null ? staged : { ...staged, stages: staged.stages.map((stage) => (stage.id === 'context' ? { ...stage, label: reading } : stage)) };
     return {
       ...(turn.step === 'review' ? { feature: 'review' as const } : {}),
       id: turn.turnId,
@@ -685,7 +876,7 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       // The start is still on its way to the background (nothing is admitted yet): the first stage, nothing to cancel.
       phase:
         phase === null
-          ? { startedAt: turn.askedAt, stages: [{ id: 'context', label: msg('result.stage.context'), state: 'current' }], retryAt: null, cancel: null }
+          ? { startedAt: turn.askedAt, stages: [{ id: 'context', label: reading ?? msg('result.stage.context'), state: 'current' }], retryAt: null, cancel: null }
           : answering
             ? phase
             : { ...phase, stages: [{ id: 'context', label: msg(view?.feature === 'recap-short' ? 'coach.recapStep.short' : 'coach.recapStep.full'), state: 'current' }] },
@@ -725,6 +916,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     // Coach's questions are off while its Review is on: the window is there for the «Review» chip alone.
     const reviewOnly = !usable && reviewAdmitted !== null && reviewAdmitted.usable;
     const pending = session?.pending ?? null;
+    // What the chat's archive holds, read again at most once a minute while the window is shown.
+    if (ready !== null && chat !== null && usable && ws.ports.overlays?.isOpen?.('coach') === true) ensureDepth(ready, chat.key);
     const { asOf, point } = chat === null ? { asOf: null, point: null } : archivePoint(session, chat.key);
     const lag = chat === null ? null : ws.archiveLag(point, chat.key);
 
@@ -767,9 +960,11 @@ export function createCoachController(ws: AiWorkspace): CoachController {
     const outside = session === null ? new Set<string>() : outsideMemory(session, historyLimit);
     const feed = session?.feed ?? [];
     const handle = chat?.handle ?? null;
-    const turns: CoachTurnVM[] = feed.map((item) =>
+    // «Coach хочет дочитать» stands under the latest answer only: nothing after it, nothing on its way.
+    const lastIndex = pending === null ? feed.length - 1 : -1;
+    const turns: CoachTurnVM[] = feed.map((item, index) =>
       item.kind === 'exchange'
-        ? exchangeVm(item, outside, situation, handle, askReason)
+        ? exchangeVm(item, outside, situation, handle, askReason, index === lastIndex)
         : item.kind === 'review'
           ? reviewTurnVm(item, outside, handle, reviewChip)
           : failedVm(item, handle, item.review ? reviewReason === null : canAsk),
@@ -827,7 +1022,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
         ready === null
           ? null
           : { full: windowFor('recap', undefined, ready.settings, ready.bootstrap, deepWindows()), short: windowFor('recap-short', undefined, ready.settings, ready.bootstrap) },
-      window: ready === null ? null : windowFor('coach', undefined, ready.settings, ready.bootstrap),
+      // What the next question reads: the chat's depth (the line «Recap нет: Coach видит только последние N сообщений»).
+      window: ready === null || chat === null ? null : depthOf(ready, chat.key),
       recapOn,
       // Before the first question of a session only; a page without Recap builds none (AI-096), nor an unticked chat.
       autoRecapNext:
@@ -848,6 +1044,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       hints,
       review: reviewChip,
       reviewOnly,
+      // 2026-10-27: the chip by «Спросить» — where Coach's questions are on.
+      depth: ready === null || chat === null || reviewOnly ? null : depthVm(ready, chat, off ?? (usable ? null : askReason)),
     };
   }
 
@@ -871,6 +1069,8 @@ export function createCoachController(ws: AiWorkspace): CoachController {
         const ready = ws.situation().ready;
         // The header's recap: what the hub holds is read when the panel opens.
         if (ready !== null && flagUsable(ready.bootstrap, ready.page.pageId, 'recap')) ws.recaps.loadShared(ws.slotKey(ready));
+        // And what the chat's archive holds, for the depths of the chip by «Спросить».
+        if (ready !== null && flagUsable(ready.bootstrap, ready.page.pageId, 'coach')) ensureDepth(ready, chat.key);
         return Promise.resolve(done(action.type, 'opened'));
       }
       return ask(action, cause);
@@ -889,6 +1089,15 @@ export function createCoachController(ws: AiWorkspace): CoachController {
       const fresh = sessions.newDialog(keyOf(ready), clock.now());
       if (!fresh.ok) return Promise.resolve(refused(ws, action.type, { code: 'CG-OP-COACH-BUSY' }));
       rememberPage(fresh.session.sessionId, ready.page.pageId);
+      ws.bump();
+      return Promise.resolve(done(action.type));
+    },
+    // 2026-10-27: «300 сообщений ▾» — the open chat's depth from the next question on, for this tab's session.
+    SetCoachDepth(action) {
+      const { chat, ready } = ws.situation();
+      if (chat === null || chat.handle !== action.targetHandle) return Promise.resolve(refused(ws, action.type, { code: 'CG-CONTEXT-CHANGED' }));
+      if (ready === null) return Promise.resolve(refused(ws, action.type, { code: 'CG-GATE-CHAT-LOADING' }));
+      keep(chosenDepth, chat.key, clampDepth(action.window, depthCapOf(ready)));
       ws.bump();
       return Promise.resolve(done(action.type));
     },

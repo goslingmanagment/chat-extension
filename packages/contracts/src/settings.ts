@@ -44,6 +44,8 @@ export const UI_TEXT_SIZES = ['normal', 'large'] as const;
 export const UI_DEFAULTS_REVISION = 3;
 export type UiTextSize = (typeof UI_TEXT_SIZES)[number];
 export const COACH_AUTO_RECAP = ['off', 'short', 'full'] as const;
+/** 2026-10-27: Coach reads the chat's latest 300 messages unless the person chose otherwise (100 before, the quick window). */
+export const COACH_WINDOW_DEFAULT = 300;
 export type CoachAutoRecap = (typeof COACH_AUTO_RECAP)[number];
 
 /** Inclusive ranges of the numeric settings (ST-090…ST-096, ST-130). */
@@ -57,6 +59,11 @@ export const SETTINGS_RANGES = {
   /** Review, full Recap (ST-093): v1 stays ≤ 3000; a larger wish lives in settings.ext, admission in `limits.deepMax`. */
   windowDeep: { min: 100, max: 3000 },
   coachHistoryLimit: { min: 1, max: 20 },
+  /**
+   * 2026-10-27: how many of the chat's latest messages Coach reads (`generation.coach.window`), 300 when absent. Its own
+   * since then: Reply keeps the quick window. Above the hub's `limits.deepMax` the start is held to it.
+   */
+  coachWindow: { min: 50, max: 3000 },
   volume: { min: 5, max: 100, step: 5 },
   accountLabelMaxChars: 60,
   mutedAccountsMax: 500,
@@ -153,6 +160,11 @@ export const SettingsV1Schema = z.strictObject({
     coach: z.strictObject({
       historyLimit: intIn(SETTINGS_RANGES.coachHistoryLimit),
       autoRecap: z.enum(COACH_AUTO_RECAP),
+      /**
+       * 2026-10-27: how many of the chat's latest messages Coach reads. Optional: a store written before reads as
+       * `COACH_WINDOW_DEFAULT`, with nothing to repair; an older build drops it and reads the quick window, as it did.
+       */
+      window: z.optional(intIn(SETTINGS_RANGES.coachWindow)),
     }),
   }),
   sound: z.strictObject({
@@ -217,7 +229,7 @@ export const DEFAULT_SETTINGS: SettingsV1 = {
     rememberTone: true,
     recap: true,
     windows: { quick: 100, ping: 100, improve: 25, deep: 3000 },
-    coach: { historyLimit: 10, autoRecap: 'off' },
+    coach: { historyLimit: 10, autoRecap: 'off', window: COACH_WINDOW_DEFAULT },
   },
   sound: {
     messages: { on: true, tone: 'blip' },

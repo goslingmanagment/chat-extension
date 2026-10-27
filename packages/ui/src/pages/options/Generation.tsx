@@ -1,6 +1,6 @@
 // «Генерация» (architecture.md §9.4, §9.9; ST-090…ST-097): how many messages
 // each group of features reads (Б5), Split by default, «Учитывать Recap» per
-// feature (1.52.0), Coach's memory and
+// feature (1.52.0), Coach's depth (2026-10-27), memory and
 // its Recap, and debug mode. The deep window never exceeds what the hub
 // takes: a larger one is cut when it is saved and the page says so. The
 // field always shows the number that is stored: one stored above the hub's
@@ -9,7 +9,7 @@
 import { type JSX } from 'preact';
 
 import { RECAP_READERS } from '@cg/contracts/features';
-import { COACH_AUTO_RECAP, SETTINGS_RANGES, type CoachAutoRecap } from '@cg/contracts/settings';
+import { COACH_AUTO_RECAP, COACH_WINDOW_DEFAULT, SETTINGS_RANGES, type CoachAutoRecap } from '@cg/contracts/settings';
 import { type GenerationBodyVM, type PreferenceKey, type UiAction } from '@cg/contracts/vm';
 
 import { Checkbox, Segmented, useI18n } from '../../kit';
@@ -96,6 +96,18 @@ export function GenerationSection({ body, readOnly }: { readonly body: Generatio
       aside={
         <>
           <Card title={i18n.t('dock.action.coach')}>
+            {/* 2026-10-27: how many of the chat's latest messages Coach reads (its own since then, 300); the window changes it for one chat. */}
+            <Opt label={i18n.t('settings.generation.coachWindow')} hint={i18n.t('settings.generation.coachWindowHint')}>
+              <Stepper
+                label={i18n.t('settings.generation.coachWindow')}
+                value={body.coach.window ?? COACH_WINDOW_DEFAULT}
+                min={SETTINGS_RANGES.coachWindow.min}
+                max={Math.min(SETTINGS_RANGES.coachWindow.max, Math.max(SETTINGS_RANGES.coachWindow.min, body.windows.deepMax ?? SETTINGS_RANGES.coachWindow.max))}
+                step={50}
+                reason={locked}
+                onChange={(value) => save({ type: 'SetPreference', key: 'generation.coach.window', value })}
+              />
+            </Opt>
             <Opt label={i18n.t('settings.generation.coachHistory')} hint={i18n.t('settings.generation.coachHistoryHint')}>
               <Stepper
                 label={i18n.t('settings.generation.coachHistory')}

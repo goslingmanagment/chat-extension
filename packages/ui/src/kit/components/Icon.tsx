@@ -61,6 +61,13 @@ const PATHS = {
       <path d="M8 10.8l2.7-3.4M4.4 12.6h7.2" />
     </>
   ),
+  /** 2026-10-27: how far back Coach reads — a bracket that reaches up the chat's lines. */
+  depth: (
+    <>
+      <path d="M3 3.5v9M3 3.5h1.6M3 12.5h1.6" />
+      <path d="M6.5 5h6.5M6.5 8h4.5M6.5 11h6" />
+    </>
+  ),
   /** Recap — the fan's dossier: a card with a face and lines. */
   dossier: (
     <>
