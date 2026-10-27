@@ -38,7 +38,7 @@ export function startFanslyRegistration(env: SiteAppEnv<FanslyPort>): () => void
   const sync = (): void => {
     if (env.life.aborted) return;
     if (allowed() && slot === null) {
-      slot = host.header.mount(10);
+      slot = host.header.mount(20); // after «Заметки» (10)
       mount = mountKitSurface('header-slot' as MountSurfaceKind, slot.root, env.deps, registrationSurface(client, REGISTRATION_TEXTS, REGISTRATION_I18N), { report: env.report });
     } else if (!allowed() && slot !== null) {
       mount?.unmount(); mount = null; slot.remove(); slot = null;

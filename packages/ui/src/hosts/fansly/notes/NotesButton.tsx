@@ -1,4 +1,4 @@
-// «Заметки» in Fansly's own chat header (R20 P11b, FS-NOTE-1, FX-004): after «Регистрация», in that row's size and
+// «Заметки» in Fansly's own chat header (R20 P11b, FS-NOTE-1, FX-004): before «Регистрация», in that row's size and
 // colour; the open chat's number of notes once they are read. A click — or ⌘⇧K — opens and closes the panel.
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';

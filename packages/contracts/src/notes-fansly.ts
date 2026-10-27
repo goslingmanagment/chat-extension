@@ -1,5 +1,5 @@
 // «Заметки» of a Fansly tab (FS-NOTE-*): the model, the actions and the client of its two surfaces, the button in the
-// header slot after «Регистрация» and the panel in our layer 900. Types only: the controller is core
+// header slot before «Регистрация» and the panel in our layer 900. Types only: the controller is core
 // application/hosts/fansly/notes, the requests are `fansly.notes.*` (tab-messages-fansly.ts). A note's text lives here
 // only between the panel and the background, never in a log or the hub (FS-NOTE-5).
 //

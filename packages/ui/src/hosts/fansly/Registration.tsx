@@ -2,7 +2,7 @@
 // and colour (12 px, Fansly's `--dark-blue-1` — our muted ink on its profile), so the row keeps its 14 px height; only
 // the hover and the focus ring are ours. One click reveals the date; the shown date is text, not a dead button.
 // The kit's root is an inline-size container (kit/base.ts), which would leave the slot 0 px wide with the date spilling
-// past it: here it is no container, so the slot is as wide as its words and the next slot («Заметки») stands after them.
+// past it: here it is no container, so the slot is as wide as its words and «Заметки» before it never lies over it.
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { I18nKey } from '@cg/contracts/errors';
