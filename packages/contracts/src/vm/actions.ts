@@ -386,6 +386,14 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   /** 1.32.0: «Очистить» — the rows forget the batch; the results stay on the fans' cards. */
   act('ClearBatch', { list: z.enum(BATCH_LISTS) }),
   /**
+   * «Отправить всем» of «Новые» (the owner, 2026-10-27): every ready greeting of the batch goes by this one click, one
+   * after another with a second between them (and no faster than the hub's minute limit), each as its row's own
+   * «Отправить» would send it. Nothing indeterminate is sent again; «Остановить» (`StopBatchSend`) ends it.
+   */
+  act('SendBatch', { list: z.enum(['newcomers']) }),
+  /** «Остановить» of «Отправить всем»: what has not gone stays on its row for its own «Отправить». */
+  act('StopBatchSend', { list: z.enum(['newcomers']) }),
+  /**
    * 1.63.0, the window of «Рассылка» (vm/outreach): one move of the person, nothing sent — `open` from Spenders (its ticked
    * fans or its tier become the audience) or ⌘K; `minimized` — the window folds into the chip in the page's corner and
    * back; the common text; a tier or a condition of «Кому» (`amount` — «Потратил больше» in dollars as typed); a fan

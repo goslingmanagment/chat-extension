@@ -47,6 +47,12 @@
 // BATCH_LIMITS.grantTtlMs, kept apart from the grants of single actions (which are asked first), and replaced by
 // the next batch click. It can never insert, send or navigate.
 //
+// One click sends many, by the owner's word (2026-10-27): «Отправить всем» of «Новые» (`SendBatch`). The click is a
+// trusted click through one of our overlays, checked as a send's click when it is made; its SEND BATCH grant then gives
+// up to BATCH_LIMITS.sendTokens send tokens for BATCH_LIMITS.sendTtlMs, to the run's sends one by one. It does not ask
+// that the window stay on screen: the person may fold the browser and the run goes on (the owner's ask). The next
+// «Отправить всем» replaces it; «Остановить» ends the run, and the tokens left are never asked for.
+//
 // One click writes later, by design: Fix (decision X68, the owner: «как в старом» — the old Fansly extension's Fix
 // put its result into the field by itself). The person's Fix click or key, in the dock or the composer, opens with
 // its `generate` grant a DEFERRED insert grant: one `insert` token, for the dock, claimable only by a request that
@@ -296,6 +302,8 @@ interface BatchGrant {
 
 /** The action whose one click is a batch of generations. */
 export const BATCH_ACTION: UiAction['type'] = 'GenerateBatch';
+/** The action whose one click is a run of sends («Отправить всем»). */
+export const BATCH_SEND_ACTION: UiAction['type'] = 'SendBatch';
 
 export function createGestureGate(win: Window, env: GateEnv, now: () => number = () => Date.now()): GestureGate {
   let current: Event | null = null;
@@ -304,6 +312,8 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
   const given = new WeakMap<Event, Set<ActionKind>>();
   let grants: Grant[] = [];
   let batch: BatchGrant | null = null;
+  /** «Отправить всем»: the send tokens of its click (see the head of this file). */
+  let sendBatch: BatchGrant | null = null;
   /** X68: the deferred insert of the last Fix click (see the head of this file). */
   let deferred: { readonly gesture: Gesture; readonly at: number } | null = null;
   /** The toast's Hi of the last such click and the kinds it has left (see the head of this file). */
@@ -337,6 +347,17 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         const gesture = inFlight();
         if (typeof gesture === 'string') return gesture;
         batch = { gesture, left: BATCH_LIMITS.grantTokens, at: now() };
+        return null;
+      }
+      // «Остановить» of «Отправить всем»: the tokens left of its click are never asked for.
+      if (action === 'StopBatchSend') sendBatch = null;
+      if (action === BATCH_SEND_ACTION) {
+        const gesture = inFlight();
+        if (typeof gesture === 'string') return gesture;
+        // A send's click, as a row's «Отправить» is: a click through the overlay it was made in, on screen now.
+        const refused = kindRefusal(gesture, 'send', 'newcomers', env);
+        if (refused !== null) return refused;
+        sendBatch = { gesture, left: BATCH_LIMITS.sendTokens, at: now() };
         return null;
       }
       const kinds = GRANTED_KINDS[action];
@@ -401,6 +422,15 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
         batch.left -= 1;
         return null;
       }
+      // «Отправить всем»'s next send: counted; the window may be folded meanwhile (its click was checked when made).
+      if (kind === 'send' && surface !== 'dock' && sendBatch !== null) {
+        if (now() - sendBatch.at > BATCH_LIMITS.sendTtlMs || sendBatch.left <= 0) {
+          sendBatch = null;
+          return 'expired';
+        }
+        sendBatch.left -= 1;
+        return null;
+      }
       return refusal;
     },
     note,
@@ -433,6 +463,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       resumed = null;
       grants = [];
       batch = null;
+      sendBatch = null;
       deferred = null;
       greet = null;
     },

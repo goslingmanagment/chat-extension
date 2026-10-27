@@ -1,8 +1,9 @@
 // 1.32.0: a batch of generations over the rows of a list — Spenders or «Новые» (decision of the owner, 2026-10-17).
 // The person ticks fans in the list, one click «Сгенерировать для N» starts a generation for each — at most
 // `parallel` at a time, the rest wait their turn — and every row says how its own went, with the text that came out.
-// Nothing is sent by the batch: each result is on its fan's card, sent there by the person's own click, part by part,
-// as always (X8: never «send all», no hotkey, never the next part by itself).
+// Each result is on its fan's card, sent there by the person's own click, part by part (X8: no hotkey, never the next
+// part by itself). One exception, the owner's (2026-10-27): «Отправить всем» of «Новые» sends the batch's ready
+// greetings by one click, one at a time with a second between them (`BatchSendVM`).
 //
 // What a fan gets: «Новые» — Hi; Spenders — Reply to a fan who wrote last, Ping to one who did not.
 
@@ -24,6 +25,14 @@ export const BATCH_LIMITS = {
    */
   grantTokens: 120,
   grantTtlMs: 15 * 60_000,
+  /** «Отправить всем»: the second between two sends of the run (the owner, 2026-10-27). */
+  sendGapMs: 1_000,
+  /**
+   * The one click of «Отправить всем» may ask this many send tokens (a greeting of several parts asks one per part) and
+   * for this long: 60 greetings under the hub's 30 a minute take a few minutes.
+   */
+  sendTokens: 180,
+  sendTtlMs: 20 * 60_000,
 } as const;
 
 /** How a fan of the batch stands: waiting its turn, generating, its result is ready, its result went out, or why not. */
@@ -57,4 +66,31 @@ export interface BatchVM {
   readonly failed: number;
   /** Why «Сгенерировать» is off while fans are ticked; null — it is on. */
   readonly reason: Msg | null;
+  /** «Отправить всем» (the owner, 2026-10-27); absent — the list has none. */
+  readonly send?: BatchSendVM;
+}
+
+/** «Отправить всем» of a batch: what one click would send, and how its run goes. */
+export interface BatchSendVM {
+  /** Ready greetings the click would send (their rows' «Отправить» could go now or after the pause). */
+  readonly ready: number;
+  /** The hub's limit of sends a minute the run keeps to. */
+  readonly perMinute: number;
+  /** The last run; null — none since the batch began. */
+  readonly run: BatchSendRunVM | null;
+}
+
+export interface BatchSendRunVM {
+  /** Still sending; false — done or stopped. */
+  readonly running: boolean;
+  /** Greetings the click took. */
+  readonly total: number;
+  /** The run has been through this many of them. */
+  readonly done: number;
+  /** Gone out, as their rows say. */
+  readonly sent: number;
+  /** Did not go (the row says why) or went with an unknown outcome: never sent again by the run. */
+  readonly failed: number;
+  /** Waiting for the hub's limit of sends a minute: the next goes when the minute frees. */
+  readonly held: boolean;
 }

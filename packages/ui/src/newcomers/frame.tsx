@@ -381,8 +381,9 @@ export interface BatchWords {
 
 /**
  * The batch at the foot of the list: what is ticked and «Сгенерировать N»; while it runs, how far it got and
- * «Остановить»; once drafts are ready, how many and «Очистить», and how to go on with them (X59: one click per fan,
- * never all at once).
+ * «Остановить»; once drafts are ready, how many and «Очистить», how to go on with them (one click per fan in its row),
+ * and «Отправить всем» (the owner, 2026-10-27): the ready greetings go one by one, a second apart, with how far the
+ * run got and its own «Остановить».
  */
 export function BatchFoot({ batch, words }: { readonly batch: BatchVM | undefined; readonly words: BatchWords }): JSX.Element | null {
   const i18n = useI18n();
@@ -427,7 +428,52 @@ export function BatchFoot({ batch, words }: { readonly batch: BatchVM | undefine
           <Button label={i18n.t('batch.clear')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'ClearBatch', list: 'newcomers' })} />
         </div>
       ) : null}
-      {!generating && batch.ready > 0 ? <div class="cg-nw__bline is-hint">{words.review}</div> : null}
+      {generating ? null : <SendAllLine batch={batch} />}
+      {!generating && batch.ready > 0 && batch.send?.run?.running !== true ? <div class="cg-nw__bline is-hint">{words.review}</div> : null}
+    </div>
+  );
+}
+
+/** «Отправить всем» and its run: how far, «Остановить»; after it, what went and what did not (the rows say why). */
+function SendAllLine({ batch }: { readonly batch: BatchVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const send = batch.send;
+  if (send === undefined) return null;
+  const run = send.run;
+  if (run?.running === true) {
+    return (
+      <div class="cg-nw__bline" data-cg-send="running">
+        <span class="cg-nw__bst" role="status">
+          <Spinner />
+          {run.held ? i18n.t('batch.sendingHeld', { n: send.perMinute }) : i18n.t('batch.sending', { done: run.done, total: run.total })}
+        </span>
+        <span class="cg-nw__grow" />
+        <Button label={i18n.t('batch.sendStop')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'StopBatchSend', list: 'newcomers' })} />
+      </div>
+    );
+  }
+  const summary =
+    run === null
+      ? null
+      : [i18n.t('batch.sendDone', { sent: run.sent, total: run.total }), run.failed === 0 ? null : i18n.t('batch.sendFailed', { n: run.failed })].filter((part) => part !== null).join(' · ');
+  if (send.ready === 0 && summary === null) return null;
+  return (
+    <div class="cg-nw__bline" data-cg-send={run === null ? 'ready' : 'done'}>
+      <span class="cg-nw__bst" role="status">
+        {summary}
+      </span>
+      <span class="cg-nw__grow" />
+      {send.ready === 0 ? null : (
+        <Button
+          label={i18n.t('batch.sendAll', { n: send.ready })}
+          variant="send"
+          size="sm"
+          class="cg-nw__sendall"
+          tooltip={i18n.t('batch.sendAllTooltip')}
+          onClick={() => void dispatch({ type: 'SendBatch', list: 'newcomers' })}
+        />
+      )}
     </div>
   );
 }
