@@ -36,6 +36,8 @@ export const LOCAL_KEYS = {
   sendFuse: 'send.fuse',
   /** 1.21.0 (decision X48): who-sent facts the hub has not answered yet — ids, a time and two marks; no text. */
   sendAttributions: 'send.attribution',
+  /** Who wrote each Fansly note: facts the hub has not answered yet — ids, an action, questionnaire labels; no text. */
+  noteAttributions: 'note.attribution',
 } as const;
 
 /** One stored result (an OpView: up to 64k characters of stream plus the parsed result). */
@@ -66,6 +68,8 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [LOCAL_KEYS.sendFuse]: 4 * KiB,
   /** No text: at most 1000 facts of about 250 bytes. */
   [LOCAL_KEYS.sendAttributions]: 512 * KiB,
+  /** No text: at most 1000 facts of about 300 bytes; a fill names a few questionnaire labels. */
+  [LOCAL_KEYS.noteAttributions]: 1 * MiB,
   [SESSION_KEYS.resultsIndex]: 1 * MiB,
   [SESSION_KEYS.settingsRevision]: 64,
   [SESSION_KEYS.settingsExtRevision]: 64,

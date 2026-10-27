@@ -26,7 +26,7 @@ import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext, failureClass, type PageContextState } from '@cg/core/application/boards';
 import { notesActionFacts, notesAvailability } from '@cg/core/application/hosts/fansly/journal';
-import { createNotesController, type NotesPort } from '@cg/core/application/hosts/fansly/notes';
+import { createNotesController, type NoteWriteHow, type NotesPort } from '@cg/core/application/hosts/fansly/notes';
 import { withFanslyOpText } from '@cg/core/application/hosts/fansly/ai';
 import { admittedOn, freshTextAdmitted } from '@cg/core/domain/features';
 import { NOTES_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
@@ -85,6 +85,8 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     return id === undefined ? null : { pageId: id, hostAccountId: accountId, fanRef: fanId };
   };
 
+  /** Where in the panel a write came from, as the request carries it. */
+  const origin = (how: NoteWriteHow | undefined) => (how === undefined ? {} : { origin: how.origin, ...(how.fields === undefined ? {} : { fields: [...how.fields] }) });
   const port: NotesPort = {
     session() {
       const id = host.identity();
@@ -107,17 +109,18 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       if (id === undefined) return refused;
       return (await ask('fansly.notes.read', { pageId: id, hostAccountId: t.accountId, fanRef: t.fanId, groupId: t.groupId, ...(force ? { force: true } : {}) })) as Awaited<ReturnType<NotesPort['read']>>;
     },
-    async create(who, title, text) {
+    // `how`: for the hub's record of who wrote the note (the background checks it).
+    async create(who, title, text, how) {
       const to = target(who.accountId, who.fanId);
-      return to === null ? refused : ((await ask('fansly.notes.create', { ...to, title, text })) as Awaited<ReturnType<NotesPort['create']>>);
+      return to === null ? refused : ((await ask('fansly.notes.create', { ...to, title, text, ...origin(how) })) as Awaited<ReturnType<NotesPort['create']>>);
     },
-    async edit(who, noteId, title, text, current) {
+    async edit(who, noteId, title, text, current, how) {
       const to = target(who.accountId, who.fanId);
-      return to === null ? refused : ((await ask('fansly.notes.edit', { ...to, noteId, title, text, current })) as Awaited<ReturnType<NotesPort['edit']>>);
+      return to === null ? refused : ((await ask('fansly.notes.edit', { ...to, noteId, title, text, current, ...origin(how) })) as Awaited<ReturnType<NotesPort['edit']>>);
     },
-    async remove(who, note) {
+    async remove(who, note, how) {
       const to = target(who.accountId, who.fanId);
-      return to === null ? refused : ((await ask('fansly.notes.delete', { ...to, noteId: note.noteId, title: note.title, text: note.text })) as Awaited<ReturnType<NotesPort['remove']>>);
+      return to === null ? refused : ((await ask('fansly.notes.delete', { ...to, noteId: note.noteId, title: note.title, text: note.text, ...origin(how) })) as Awaited<ReturnType<NotesPort['remove']>>);
     },
     async name(who, name, current) {
       const to = target(who.accountId, who.fanId);

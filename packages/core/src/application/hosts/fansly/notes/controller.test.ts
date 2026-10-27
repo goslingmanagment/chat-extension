@@ -92,13 +92,13 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     w.notes.dispatch({ type: 'field-save' });
     w.notes.dispatch({ type: 'field-save' });
     await w.settle();
-    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач; в клинике\nХобби: бег\nпо утрам', { title: 'Анкета', text: FORM });
+    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач; в клинике\nХобби: бег\nпо утрам', { title: 'Анкета', text: FORM }, expect.objectContaining({ origin: 'field' }));
     expect(w.notes.panel().form?.field).toBeNull();
     w.notes.dispatch({ type: 'field-open', label: 'Возраст' });
     w.notes.dispatch({ type: 'field-input', value: '34' });
     w.notes.dispatch({ type: 'field-save' });
     await w.settle();
-    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач; в клинике\nХобби: бег\nпо утрам\nВозраст: 34', expect.anything());
+    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач; в клинике\nХобби: бег\nпо утрам\nВозраст: 34', expect.anything(), expect.objectContaining({ origin: 'field' }));
   });
 
   it('[FS-NOTE-4] a fan without a questionnaire gets «Анкета» with the template’s fields by the first field written', async () => {
@@ -111,7 +111,7 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     w.notes.dispatch({ type: 'field-input', value: 'Маркус' });
     w.notes.dispatch({ type: 'field-save' });
     await w.settle();
-    expect(w.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '92' }, NOTE_TEMPLATE_TITLE, NOTE_TEMPLATE_TEXT.replace('Имя: ', 'Имя: Маркус'));
+    expect(w.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '92' }, NOTE_TEMPLATE_TITLE, NOTE_TEMPLATE_TEXT.replace('Имя: ', 'Имя: Маркус'), expect.objectContaining({ origin: 'field' }));
   });
 
   it('[FS-NOTE-4] a quick note is one line and Enter, written once; a note is edited as text; a delete asks first; FBuddy’s note is never touched', async () => {
@@ -120,7 +120,7 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     w.notes.dispatch({ type: 'quick-save' });
     w.notes.dispatch({ type: 'quick-save' });
     await w.settle();
-    expect(w.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '', 'обещал фото');
+    expect(w.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '', 'обещал фото', expect.objectContaining({ origin: 'quick' }));
     expect(w.notes.panel().quick.text).toBe('');
     expect(w.notes.panel().items.map((item) => item.noteId)).toEqual(['9', '2', '3']);
     w.notes.dispatch({ type: 'edit', noteId: '2' });
@@ -133,7 +133,7 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     w.notes.dispatch({ type: 'input', title: ' Важно ', text: 'новая  ' });
     w.notes.dispatch({ type: 'save' });
     await w.settle();
-    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '3', 'Важно', 'новая', { title: '', text: 'старая заметка' });
+    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '91' }, '3', 'Важно', 'новая', { title: '', text: 'старая заметка' }, expect.objectContaining({ origin: 'editor' }));
     w.notes.dispatch({ type: 'ask-delete', noteId: '9' });
     expect(w.notes.panel().confirmDelete).toBe('9');
     expect(w.port.remove).not.toHaveBeenCalled();
@@ -175,20 +175,20 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     w.notes.dispatch({ type: 'suggestion-accept', index: 0 });
     await w.settle();
     const after = 'Имя: Алекс\nЛокация: Рига, Латвия (10.2026)\nРабота: \nХобби: бег\nпо утрам';
-    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith(expect.anything(), '1', 'Анкета', after, { title: 'Анкета', text: FORM });
+    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith(expect.anything(), '1', 'Анкета', after, { title: 'Анкета', text: FORM }, expect.objectContaining({ origin: 'fill' }));
     expect(w.notes.panel().form?.fill).toMatchObject({ status: 'review', pending: 4, written: 1, undo: { labels: ['Локация'] } });
     expect(w.notes.panel().form?.parts[1]).toMatchObject({ label: 'Локация', fresh: true });
 
     // «Отменить»: the questionnaire as it was, the suggestion waiting again.
     w.notes.dispatch({ type: 'suggestion-undo' });
     await w.settle();
-    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', FORM, { title: 'Анкета', text: after });
+    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', FORM, { title: 'Анкета', text: after }, expect.objectContaining({ origin: 'undo' }));
     expect(w.notes.panel().form?.fill).toMatchObject({ pending: 5, written: 0, undo: null });
 
     w.notes.dispatch({ type: 'suggestion-dismiss', index: 0 });
     w.notes.dispatch({ type: 'suggestions-accept-all' });
     await w.settle();
-    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач\nХобби: бег; плавание\nпо утрам\nВозраст: 34\nПитомцы: кот', { title: 'Анкета', text: FORM });
+    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига\nРабота: врач\nХобби: бег; плавание\nпо утрам\nВозраст: 34\nПитомцы: кот', { title: 'Анкета', text: FORM }, expect.objectContaining({ origin: 'fill' }));
     expect(w.notes.panel().form?.fill).toMatchObject({ status: 'done', pending: 0, written: 4, dismissed: 1 });
     expect(w.notes.panel().form?.parts.flatMap((part) => (part.kind === 'field' && part.fresh === true ? [part.label] : []))).toEqual(['Работа', 'Хобби', 'Возраст', 'Питомцы']);
   });
@@ -233,13 +233,13 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     w.port.edit.mockResolvedValueOnce({ ok: false, error: { code: 'CG-NOTE-WRITE', detail: 'changed' }, latest } as never);
     w.notes.dispatch({ type: 'suggestions-accept-all' });
     await w.settle();
-    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига, Латвия\nРабота: юрист\nХобби: бег\nпо утрам', { title: 'Анкета', text: latest.text });
+    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига, Латвия\nРабота: юрист\nХобби: бег\nпо утрам', { title: 'Анкета', text: latest.text }, expect.objectContaining({ origin: 'fill' }));
     const work = w.notes.panel().form?.parts.find((part) => part.kind === 'field' && part.label === 'Работа');
     expect(work).toMatchObject({ facts: [{ text: 'юрист' }], suggestion: { state: 'conflict', now: 'юрист', value: 'врач' } });
     // The chatter's own call: «Заменить» writes it over.
     w.notes.dispatch({ type: 'suggestion-replace', index: 0 });
     await w.settle();
-    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига, Латвия\nРабота: врач\nХобби: бег\nпо утрам', expect.anything());
+    expect(w.port.edit).toHaveBeenLastCalledWith(expect.anything(), '1', 'Анкета', 'Имя: Алекс\nЛокация: Рига, Латвия\nРабота: врач\nХобби: бег\nпо утрам', expect.anything(), expect.objectContaining({ origin: 'fill' }));
     expect(w.notes.panel().form?.fill).toMatchObject({ status: 'done', written: 2 });
   });
 

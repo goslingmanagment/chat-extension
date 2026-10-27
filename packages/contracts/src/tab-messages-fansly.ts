@@ -282,6 +282,16 @@ export const FanslyCustomNameSchema = z.strictObject({ noteId: NativeIdSchema, n
  */
 const NoteTarget = { pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema };
 
+/**
+ * Where in the panel a write came from and the questionnaire labels it changed, for the hub's record of who wrote the
+ * note (`clientNoteAttributions`; contracts hub NOTE_ATTRIBUTION_ORIGINS, NOTE_ATTRIBUTION_LIMITS). Loose on purpose:
+ * the background keeps only what the hub takes and drops the rest — never the write.
+ */
+const NoteWriteOrigin = {
+  origin: z.optional(z.string().check(z.maxLength(64))),
+  fields: z.optional(z.array(z.string().check(z.maxLength(1000))).check(z.maxLength(200))),
+};
+
 // ── fansly.vault.* — upload checkpoints (FS-VLT-1) ─────────────────────────
 
 /**
@@ -657,7 +667,7 @@ export const FANSLY_TAB_REQUESTS = {
   },
   /** «Создать» — one attempt, never repeated before a fresh read (FS-NOTE-4). */
   'fansly.notes.create': {
-    req: z.strictObject({ ...NoteTarget, title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars), text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars) }),
+    req: z.strictObject({ ...NoteTarget, title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars), text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars), ...NoteWriteOrigin }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), note: FanslyNoteSchema }), Failure]),
     from: TAB,
     hosts: FANSLY,
@@ -670,6 +680,7 @@ export const FANSLY_TAB_REQUESTS = {
       text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars),
       /** The version the editor opened on. Older callers parse, but cannot overwrite without a version. */
       current: z.optional(z.strictObject({ title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars), text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars) })),
+      ...NoteWriteOrigin,
     }),
     /**
      * 2026-10-21 (audit №13): a refusal because the note changed since the editor opened (`CG-NOTE-WRITE` `changed`)
@@ -686,6 +697,7 @@ export const FANSLY_TAB_REQUESTS = {
       noteId: NativeIdSchema,
       title: displayText(FANSLY_TAB_LIMITS.noteTitleMaxChars),
       text: displayText(FANSLY_TAB_LIMITS.noteTextMaxChars),
+      ...NoteWriteOrigin,
     }),
     res: z.discriminatedUnion('ok', [Done, Failure]),
     from: TAB,

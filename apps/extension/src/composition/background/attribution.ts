@@ -16,7 +16,7 @@
 // `op.reportSent` of the same message (ComposedWithMemory).
 
 import type { FeatureSlice } from '@cg/contracts/features/types';
-import { HOST_SEND_ATTRIBUTION_SOURCE } from '@cg/contracts/hosts';
+import { HOST_NOTE_ATTRIBUTION_SOURCE, HOST_SEND_ATTRIBUTION_SOURCE } from '@cg/contracts/hosts';
 import type { Bootstrap, SendAttributionComposedWith } from '@cg/contracts/hub';
 import type { HostKind } from '@cg/contracts/ids';
 import { admission, onPage } from '@cg/core/domain/features';
@@ -34,6 +34,21 @@ export function attributionTarget(host: HostKind, pageId: number | null, bootstr
   const page = pageId === null ? undefined : bootstrap.pages.find((candidate) => candidate.pageId === pageId);
   if (page === undefined) return { ok: false, reason: 'unbound' };
   if (admission(features(host), 'send-attribution', null, onPage(bootstrap, page)).state !== 'on') return { ok: false, reason: 'not_admitted' };
+  return { ok: true, pageLabel: page.pageLabel, source };
+}
+
+/**
+ * Who wrote a note (hub `clientNoteAttributions`): the page and client a confirmed write of «Заметки» is recorded for —
+ * somebody is signed in, the site reports notes (HOST_NOTE_ATTRIBUTION_SOURCE), the page is this bootstrap's and admits
+ * the site's feature `note-attribution` (the hub serves `note-attribution-v1`).
+ */
+export function noteAttributionTarget(host: HostKind, pageId: number, bootstrap: Bootstrap | null, features: (host: HostKind) => FeatureSlice | null): AttributionTarget {
+  if (bootstrap === null) return { ok: false, reason: 'signed_out' };
+  const source = HOST_NOTE_ATTRIBUTION_SOURCE[host];
+  if (source === null) return { ok: false, reason: 'site' };
+  const page = bootstrap.pages.find((candidate) => candidate.pageId === pageId);
+  if (page === undefined) return { ok: false, reason: 'unbound' };
+  if (admission(features(host), 'note-attribution', null, onPage(bootstrap, page)).state !== 'on') return { ok: false, reason: 'not_admitted' };
   return { ok: true, pageLabel: page.pageLabel, source };
 }
 

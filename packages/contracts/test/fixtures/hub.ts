@@ -14,6 +14,7 @@ const fixture = (name: string, schema: z.ZodMiniType, valid: readonly unknown[],
 
 const PAGE = 'model-one';
 /** 1.21.0 (X48): one send as the hub takes it. */
+const noteHubFact = { eventId: '0b9f5f7e-3c1a-4f7e-9d2b-6a1c2e3f4a5b', fanRef: '74001001', noteRef: '901', noteKind: 'note', action: 'created', observedAt: '2026-10-27T12:00:00.000Z' };
 const attributionHubFact = { platformMessageId: '7001000001', fanRef: '74001001', observedAt: '2026-10-17T12:00:00.000Z', priced: false, withMedia: false };
 /** A persona definition id: opaque, 16–100 characters. */
 export const PDEF = 'pdef_0123456789abcdef';
@@ -951,4 +952,24 @@ export const HUB_SCHEMA_FIXTURES = [
     { pageLabel: PAGE, results: [{ platformMessageId: '7001000001', outcome: 'recorded' }], serverNow: '2026-10-17T12:00:01.000Z' },
     { pageLabel: PAGE, results: [{ platformMessageId: '7001000001', outcome: 'superseded', by: 3 }], serverNow: '2026-10-17T12:00:01.000Z', later: true },
   ], [{ pageLabel: PAGE, results: [{ outcome: 'recorded' }], serverNow: '2026-10-17T12:00:01.000Z' }]),
+  // Who wrote each Fansly note: ids, an action, where in the panel, questionnaire labels — no text, no title, no person.
+  fixture('NoteAttributionHubFact', C.NoteAttributionHubFactSchema, [noteHubFact, { ...noteHubFact, noteKind: 'custom_name', action: 'deleted', origin: 'name' }, { ...noteHubFact, action: 'edited', origin: 'fill', fields: ['Имя', 'Работа'] }], [
+    { ...noteHubFact, text: 'Имя: Алекс' },
+    { ...noteHubFact, title: 'Анкета' },
+    { ...noteHubFact, eventId: 'event-1' },
+    { ...noteHubFact, action: 'renamed' },
+    { ...noteHubFact, origin: 'menu' },
+    { ...noteHubFact, fields: [] },
+    { ...noteHubFact, fields: ['я'.repeat(101)] },
+    { ...noteHubFact, fields: Array.from({ length: 21 }, (_, i) => `П${i}`) },
+  ]),
+  fixture('NoteAttributionsRequest', C.NoteAttributionsRequestSchema, [{ pageLabel: PAGE, source: 'fansly-extension', facts: [noteHubFact] }], [
+    { pageLabel: PAGE, source: 'chatspace-extension', facts: [noteHubFact] },
+    { pageLabel: PAGE, source: 'fansly-extension', facts: [] },
+    { pageLabel: PAGE, source: 'fansly-extension', facts: Array.from({ length: 51 }, () => noteHubFact) },
+  ]),
+  fixture('NoteAttributionsResult', C.NoteAttributionsResultSchema, [
+    { pageLabel: PAGE, results: [{ eventId: noteHubFact.eventId, outcome: 'recorded' }], serverNow: '2026-10-27T12:00:01.000Z' },
+    { pageLabel: PAGE, results: [{ eventId: noteHubFact.eventId, outcome: 'superseded' }], serverNow: '2026-10-27T12:00:01.000Z', later: true },
+  ], [{ pageLabel: PAGE, results: [{ outcome: 'recorded' }], serverNow: '2026-10-27T12:00:01.000Z' }]),
 ];

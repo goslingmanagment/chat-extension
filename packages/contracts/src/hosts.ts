@@ -21,6 +21,12 @@ export const HOST_PLATFORM = { chatspace: 'onlyfans', 'fansly-web': 'fansly' } a
  */
 export const HOST_SEND_ATTRIBUTION_SOURCE = { chatspace: 'chatspace-extension', 'fansly-web': 'fansly-extension' } as const satisfies Readonly<Record<HostKind, string | null>>;
 
+/**
+ * How a host names itself in the hub's record of who wrote each note (`clientNoteAttributions` `source`). null — the
+ * host has no notes of ours to report.
+ */
+export const HOST_NOTE_ATTRIBUTION_SOURCE = { chatspace: null, 'fansly-web': 'fansly-extension' } as const satisfies Readonly<Record<HostKind, string | null>>;
+
 /** Chat Memory week 2: how a person names a platform — «тот же ник на OnlyFans» of «Память». */
 export const PLATFORM_TITLES: Readonly<Record<string, string>> = { onlyfans: 'OnlyFans', fansly: 'Fansly' };
 
