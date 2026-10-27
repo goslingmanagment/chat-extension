@@ -37,8 +37,8 @@ export const FEATURES_COMMON = {
    * fan. Its chip stands first in the bar's right block, with the count of fans worth a message now.
    */
   online: { kind: 'board', chip: { group: 'windows', priority: 5, icon: 'online' } },
-  spenders: { kind: 'board', chip: { group: 'windows', priority: 10, icon: 'bill' }, hotkey: 'spenders' },
-  newcomers: { kind: 'board', chip: { group: 'windows', priority: 20, icon: 'userPlus' } },
+  spenders: { kind: 'board', chip: { group: 'windows', priority: 10, icon: 'coin' }, hotkey: 'spenders' },
+  newcomers: { kind: 'board', chip: { group: 'windows', priority: 20, icon: 'userNew' } },
   'fan-panel': { kind: 'panel' },
   /** The palette ⌘K (a row of the reference outside the scheme). 2026-10-26: on both sites; each says where its chats come from. */
   palette: { kind: 'panel' },

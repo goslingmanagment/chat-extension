@@ -18,7 +18,7 @@
 //   (the window check, the fan's known ids, the deletions, a draft's texts),
 //   its window cut by the effective messageCount of that start; a start of
 //   the deep window asks the background for the person's depth (R20 P8c).
-// - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`; the floating launcher's clicks (X46) — Spenders
+// - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`; the floating launcher's clicks (X46) — «Онлайн», Spenders
 //   and «Новые» from every page, as the popup opens them.
 
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
