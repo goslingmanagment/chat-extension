@@ -129,6 +129,16 @@ const PATHS = {
   pencil: <path d="M10.6 2.9l2.5 2.5-7.3 7.3-3.1.6.6-3.1zM9.2 4.3l2.5 2.5" />,
   /** «Дальше: …» (1.63.0): an arrow to the right. */
   arrowRight: <path d="M3 8h9.6M8.9 4.3L12.6 8l-3.7 3.7" />,
+  /** «Где показывать» of «Заметки» (2026-10-26): three dots, a menu of the panel's places. */
+  more: (
+    <>
+      <circle cx="3.6" cy="8" r=".55" />
+      <circle cx="8" cy="8" r=".55" />
+      <circle cx="12.4" cy="8" r=".55" />
+    </>
+  ),
+  /** «Удалить» of a note (2026-10-26): a bin. */
+  trash: <path d="M2.8 4.4h10.4M6.2 4.4V3.2c0-.4.3-.7.7-.7h2.2c.4 0 .7.3.7.7v1.2M4.3 4.4l.6 8.1c.1.6.5 1 1.1 1h4c.6 0 1-.4 1.1-1l.6-8.1M6.8 7v4M9.2 7v4" />,
   /** «Скачать лог» (2026-10-21): an arrow down into a tray. */
   download: (
     <>
