@@ -1,21 +1,23 @@
-// The floating launcher of a Fansly page, drawn (decision X46; ui-design §3.13; SP-001, NF-001): two raised pill
-// chips in the bottom left corner — «Spenders» and «Новые» — where the old Fansly extension had «$» and «Новые»
-// (`fansly-chat` src/content/bootstrap.css: left 18 px, bottom 18 px, every page). One chunk of Fansly's own lazy
-// build (lazy/fansly/launcher.ts), loaded once the tab is admitted (starter.ts); plain DOM in a closed root: the
-// application — Preact, the kit, the texts — is loaded by the first click, never for the buttons.
+// The floating launcher of a Fansly page, drawn (decision X46; ui-design §3.13; SP-001, NF-001): one raised card in
+// the bottom left corner with three rows, top to bottom as the dock's chips stand — «Онлайн», «Spenders», «Новые»
+// (2026-10-27: a column, «Онлайн» added). The old Fansly extension had «$» and «Новые» there (`fansly-chat`
+// src/content/bootstrap.css: left 18 px, bottom 18 px, every page). One chunk of Fansly's own lazy build
+// (lazy/fansly/launcher.ts), loaded once the tab is admitted (starter.ts); plain DOM in a closed root: the application
+// — Preact, the kit, the texts — is loaded by the first click, never for the buttons.
 //
-// - The dock's chips without the kit's code (ui-design §3.11 «Вход», the vault's entry): the kit's own tokens
-//   (`--cg-raised` card, a hairline of `--cg-rule-2`, `--cg-shadow`, the glyph in terracotta, the label in ink; hover
-//   and the wait — terracotta's chip), whose sheet the chunk hands in (`tokens`, lazy/fansly/launcher.ts), so the
-//   buttons are the chips by the composer in colour and face (2026-10-20: no palette of their own). The scheme is the
-//   one «Тема» gives our surfaces, once the application hands it (`FanslyLauncher.follow`); until then the light
-//   paper, the default.
+// - The kit's tokens without the kit's code (ui-design §3.11 «Вход», the vault's entry): a `--cg-raised` card with a
+//   hairline of `--cg-rule-2` and `--cg-shadow`, the glyphs in terracotta, the labels in ink; a row's hover and its
+//   wait are terracotta's chip. The chunk hands the token sheet in (`tokens`, lazy/fansly/launcher.ts), so the card
+//   wears the colours of our surfaces (2026-10-20: no palette of its own). The scheme is the one «Тема» gives our
+//   surfaces, once the application hands it (`FanslyLauncher.follow`); until then the light paper, the default.
 // - Where: fixed, 16 px from the bottom left corner, on our layer under Fansly's modals (mount.ts `LAUNCHER_Z`): a
 //   modal of Fansly's covers it, as it covers Fansly's own page. FBuddy's toasts stand bottom right, our toasts top
-//   right, the vault's entry bottom right: the corner is nobody's.
-// - The glyphs are the dock's own chips' (`bill`, `userPlus`, ui kit Icon.tsx); the key in the tooltip is the
-//   scheme's panel level (⌘⇧M / Ctrl+Alt+M, the vendored key scheme; «Новые» ⌘⇧U / Ctrl+Alt+U, its row outside the
-//   scheme on the same modifiers, decision X55; a test of the stand holds them to the tab's catalog).
+//   right, the vault's entry bottom right: the corner is nobody's. «Рассылка» folded stands above the card
+//   (ui outreach.css.ts `.is-launcher`).
+// - The glyphs are the dock's chips' own (`online`, `coin`, `userNew`, ui kit Icon.tsx), except the dot of «Онлайн»:
+//   the kit's green here, where the label stands next to it. The key in the tooltip is the scheme's panel level
+//   (⌘⇧M / Ctrl+Alt+M, the vendored key scheme; «Новые» ⌘⇧U / Ctrl+Alt+U, its row outside the scheme on the same
+//   modifiers, decision X55); «Онлайн» has no key of its own (⌘K finds it).
 
 import type { ClosedHost } from '@cg/host-kit/isolated/hosts';
 
@@ -23,6 +25,7 @@ import type { FanslyLauncher, LauncherTarget } from './launcher';
 
 /** The launcher's words: Russian, as the old extension's (the application's language setting is not read this early). */
 export const LAUNCHER_TEXT: Readonly<Record<LauncherTarget, { readonly label: string; readonly title: string; readonly aria: string }>> = {
+  online: { label: 'Онлайн', title: 'Фаны онлайн', aria: 'Открыть «Онлайн»' },
   spenders: { label: 'Spenders', title: 'Spenders', aria: 'Открыть Spenders' },
   newcomers: { label: 'Новые', title: 'Новые фоловеры', aria: 'Открыть «Новые»' },
 };
@@ -33,30 +36,47 @@ export const spendersKeyLabel = (platform: string): string => (isMac(platform) ?
 /** ⌘⇧U on a Mac, Ctrl+Alt+U elsewhere: «Новые», a row outside the scheme on its panel modifiers (decision X55). */
 export const newcomersKeyLabel = (platform: string): string => (isMac(platform) ? '⌘⇧U' : 'Ctrl+Alt+U');
 
-/** The dock chips' glyphs on the 16 px grid: [element, attributes] per stroke. */
+/** The rows top to bottom: the dock's order of its board chips (contracts features/common.ts). */
+export const LAUNCHER_ORDER: readonly LauncherTarget[] = ['online', 'spenders', 'newcomers'];
+
+/** The key in a row's tooltip; null — the row has none. */
+const keyLabel = (target: LauncherTarget, platform: string): string | null =>
+  target === 'spenders' ? spendersKeyLabel(platform) : target === 'newcomers' ? newcomersKeyLabel(platform) : null;
+
+/** The dock chips' glyphs on the 16 px grid (ui kit Icon.tsx): [element, attributes] per stroke; `fill` a solid mark, `dot` the green one. */
 const GLYPHS: Readonly<Record<LauncherTarget, readonly (readonly [string, Readonly<Record<string, string>>])[]>> = {
+  online: [
+    ['circle', { cx: '6.4', cy: '5.6', r: '2.7' }],
+    ['path', { d: 'M1.8 13.8c.5-2.6 2.3-4.1 4.6-4.1s4.1 1.5 4.6 4.1' }],
+    ['circle', { class: 'dot', cx: '12.6', cy: '4.3', r: '2.2' }],
+  ],
   spenders: [
-    ['rect', { x: '1.8', y: '4.2', width: '12.4', height: '7.6', rx: '1.4' }],
-    ['circle', { cx: '8', cy: '8', r: '1.7' }],
-    ['path', { d: 'M4.3 6.5v.01M11.7 9.5v.01' }],
+    ['circle', { cx: '8', cy: '8', r: '6.2' }],
+    ['path', { d: 'M9.9 6.1c-.3-.6-1-1-1.9-1-1 0-1.8.5-1.8 1.3 0 1.8 3.8 1 3.8 3.1 0 .8-.8 1.4-2 1.4-.9 0-1.7-.4-2-1.1M8 4v1.1M8 10.9V12' }],
   ],
   newcomers: [
-    ['circle', { cx: '6.4', cy: '5.6', r: '2.6' }],
-    ['path', { d: 'M2 13.2c.5-2.4 2.2-3.8 4.4-3.8s3.9 1.4 4.4 3.8M12.6 4.8v4.4M10.4 7h4.4' }],
+    ['circle', { cx: '6.4', cy: '5.6', r: '2.7' }],
+    ['path', { d: 'M1.8 13.8c.5-2.6 2.3-4.1 4.6-4.1s4.1 1.5 4.6 4.1' }],
+    ['path', { class: 'fill', d: 'M12.6 1.4l.78 2.02 2.02.78-2.02.78-.78 2.02-.78-2.02-2.02-.78 2.02-.78z' }],
   ],
 };
 
 export const LAUNCHER_CSS = `
-:host { all: initial; display: flex; gap: 8px; font-family: var(--cg-font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-button {
-  all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 13px 0 10px;
-  border-radius: var(--cg-r-pill); background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-rule-2), var(--cg-shadow);
-  color: var(--cg-ink); font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer;
-  transition: background-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
+:host { all: initial; display: block; font-family: var(--cg-font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.card {
+  display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: 14px;
+  background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-rule-2), var(--cg-shadow);
 }
-button:hover, button[aria-busy="true"] { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line), var(--cg-shadow); color: var(--cg-clay-ink); }
-button:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 2px; }
+button {
+  all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px 0 10px; border-radius: 10px;
+  color: var(--cg-ink); font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+button:hover, button[aria-busy="true"] { background: var(--cg-clay-bg); color: var(--cg-clay-ink); }
+button:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: -2px; }
 svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--cg-clay); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+svg .fill { fill: var(--cg-clay); stroke: none; }
+svg .dot { fill: var(--cg-money); stroke: none; }
 button[aria-busy="true"] svg { animation: l-wait 900ms ease-in-out infinite alternate; }
 @keyframes l-wait { to { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } button[aria-busy="true"] svg { animation: none; } }
@@ -89,7 +109,7 @@ export interface LauncherViewEnv {
   readonly platform: string;
 }
 
-/** Draws the two buttons into the host's root; the answer takes them out (the host stays the mounts'). */
+/** Draws the card with its rows into the host's root; the answer takes it out (the host stays the mounts'). */
 export function drawFanslyLauncher(env: LauncherViewEnv): () => void {
   const { host, launcher } = env;
   const doc = host.host.ownerDocument;
@@ -98,13 +118,16 @@ export function drawFanslyLauncher(env: LauncherViewEnv): () => void {
   const scheme = (): void => host.host.setAttribute('data-scheme', launcher.scheme() ?? 'light');
   scheme();
   const offTheme = launcher.onScheme(scheme);
-  const buttons = (['spenders', 'newcomers'] as const).map((target) => {
+  const card = doc.createElement('div');
+  card.className = 'card';
+  const buttons = LAUNCHER_ORDER.map((target) => {
     const text = LAUNCHER_TEXT[target];
     const button = doc.createElement('button');
     button.type = 'button';
     button.setAttribute('data-launcher', target);
     button.setAttribute('aria-label', text.aria);
-    button.title = `${text.title} · ${(target === 'spenders' ? spendersKeyLabel : newcomersKeyLabel)(env.platform)}`;
+    const key = keyLabel(target, env.platform);
+    button.title = key === null ? text.title : `${text.title} · ${key}`;
     const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 16 16');
     svg.setAttribute('aria-hidden', 'true');
@@ -117,7 +140,8 @@ export function drawFanslyLauncher(env: LauncherViewEnv): () => void {
     button.addEventListener('click', () => launcher.ask(target));
     return button;
   });
-  root.append(...buttons);
+  card.append(...buttons);
+  root.append(card);
   /**
    * The kept click shows on its button until the application takes it — at most BUSY_MS: an application that did not
    * load says nothing here, and the next click asks for it again.
@@ -141,6 +165,6 @@ export function drawFanslyLauncher(env: LauncherViewEnv): () => void {
     clearTimeout(timer);
     offTheme();
     offPending();
-    for (const button of buttons) button.remove();
+    card.remove();
   };
 }

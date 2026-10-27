@@ -1,5 +1,5 @@
 // The floating launcher of a Fansly page, its early half (decision X46; ui-design §3.13; SP-001, NF-001): what the
-// person asked of it — Spenders or «Новые» — between the click and the application that opens the window. The old
+// person asked of it — «Онлайн», Spenders or «Новые» — between the click and the application that opens the window. The old
 // Fansly extension had «$» and «Новые» in the bottom left corner of every fansly.com page (`fansly-chat`
 // src/content/spenders/board-launcher.ts, bootstrap.ts): one click, while outside a chat the new one had only the
 // popup — two. The buttons themselves are a chunk of Fansly's own lazy build (launcher-view.ts), drawn once the tab is
@@ -14,8 +14,8 @@
 
 import type { ColorScheme, ValueSignal } from '@cg/contracts/vm';
 
-/** What the launcher opens: the shared surfaces of the boards. */
-export type LauncherTarget = 'spenders' | 'newcomers';
+/** What the launcher opens: the shared surfaces of the boards, top to bottom as the dock's chips stand. */
+export type LauncherTarget = 'online' | 'spenders' | 'newcomers';
 
 export interface FanslyLauncher {
   /** The person clicked one of the launcher's buttons. */

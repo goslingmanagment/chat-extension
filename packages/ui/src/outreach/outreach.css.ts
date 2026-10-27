@@ -281,7 +281,7 @@ export const OUTREACH_CHIP_CSS = `
   pointer-events: auto; box-sizing: border-box; color: var(--cg-ink);
 }
 .cg-ow-chip.is-rail { left: 76px; }
-.cg-ow-chip.is-launcher { left: 16px; bottom: 60px; }
+.cg-ow-chip.is-launcher { left: 16px; bottom: 136px; }
 .cg-ow-chip:hover { box-shadow: inset 0 0 0 1px var(--cg-clay-line), var(--cg-shadow-float); }
 .cg-ow-chip:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 2px; }
 .cg-ow-chip__icon { flex: none; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; background: var(--cg-clay-bg); color: var(--cg-clay-ink); }

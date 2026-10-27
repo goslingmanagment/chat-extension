@@ -83,12 +83,11 @@ const PATHS = {
       <path d="M6.4 13.8h3.2" />
     </>
   ),
-  /** Spenders: a banknote. */
-  bill: (
+  /** Spenders (2026-10-27): a coin with the dollar, the old Fansly extension's «$». */
+  coin: (
     <>
-      <rect x="1.8" y="4.2" width="12.4" height="7.6" rx="1.4" />
-      <circle cx="8" cy="8" r="1.7" />
-      <path d="M4.3 6.5v.01M11.7 9.5v.01" />
+      <circle cx="8" cy="8" r="6.2" />
+      <path d="M9.9 6.1c-.3-.6-1-1-1.9-1-1 0-1.8.5-1.8 1.3 0 1.8 3.8 1 3.8 3.1 0 .8-.8 1.4-2 1.4-.9 0-1.7-.4-2-1.1M8 4v1.1M8 10.9V12" />
     </>
   ),
   /** Media of the vault (X53): a picture in a frame. */
@@ -101,19 +100,20 @@ const PATHS = {
   ),
   /** A video's mark on a thumbnail. */
   play: <path d="M5.8 4.4v7.2L11.6 8z" />,
-  /** «Новые»: a fan with a plus. */
-  userPlus: (
+  /** «Новые» (2026-10-27): a fan with the spark of the new. */
+  userNew: (
     <>
-      <circle cx="6.4" cy="5.6" r="2.6" />
-      <path d="M2 13.2c.5-2.4 2.2-3.8 4.4-3.8s3.9 1.4 4.4 3.8M12.6 4.8v4.4M10.4 7h4.4" />
+      <circle cx="6.4" cy="5.6" r="2.7" />
+      <path d="M1.8 13.8c.5-2.6 2.3-4.1 4.6-4.1s4.1 1.5 4.6 4.1" />
+      <path d="M12.6 1.4l.78 2.02 2.02.78-2.02.78-.78 2.02-.78-2.02-2.02-.78 2.02-.78z" fill="currentColor" stroke="none" />
     </>
   ),
-  /** «Онлайн» (1.65.0): a fan with the green dot of presence. */
+  /** «Онлайн» (1.65.0; 2026-10-27 the fan of «Новые»): a fan with the dot of presence. */
   online: (
     <>
-      <circle cx="6.4" cy="5.6" r="2.6" />
-      <path d="M2 13.2c.5-2.4 2.2-3.8 4.4-3.8s3.9 1.4 4.4 3.8" />
-      <circle cx="12.4" cy="5.8" r="1.7" fill="currentColor" stroke="none" />
+      <circle cx="6.4" cy="5.6" r="2.7" />
+      <path d="M1.8 13.8c.5-2.6 2.3-4.1 4.6-4.1s4.1 1.5 4.6 4.1" />
+      <circle cx="12.6" cy="4.3" r="2.2" fill="currentColor" stroke="none" />
     </>
   ),
   /** Voice (1.47.0): a microphone on its stand. */
