@@ -64,6 +64,10 @@ ${/* The row's heights are frame.tsx ROW_HEIGHTS: 52 px of text (18 + 16 + 2 + 1
 .cg-nw__custom { font-weight: 400; color: var(--cg-ink-muted); }
 .cg-nw__tag { margin-left: 6px; font-size: var(--cg-text-sm); font-weight: 400; color: var(--cg-ink-2); }
 .cg-nw__meta { font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+${/* «в разговоре: …» rides the meta line: a line of its own would outgrow the row's fixed height and spill into the next. */ ''}
+.cg-nw__mline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cg-nw__mline > .cg-nw__meta { flex: 0 0 auto; max-width: 100%; }
+.cg-nw__mline > .cg-talk { flex: 0 1 auto; min-width: 0; }
 .cg-nw__st { display: flex; align-items: center; gap: 5px; min-width: 0; margin-top: 2px; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-nw__st > .cg-dot, .cg-nw__st > .cg-spin, .cg-nw__st > .cg-ico { flex: none; }
 .cg-nw__st.is-act { color: var(--cg-clay-ink); font-weight: 500; }
