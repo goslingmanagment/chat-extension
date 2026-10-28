@@ -15,12 +15,13 @@ import type { HostKind } from '@cg/contracts';
 
 import { FANSLY_MATCHES, FANSLY_QUIET_DOMAINS } from './fansly.ts';
 import { CHATSPACE_MATCHES, CHATSPACE_QUIET_DOMAINS } from './chatspace.ts';
+import { TELEGRAM_MATCHES, TELEGRAM_QUIET_DOMAINS } from './telegram.ts';
 
 export { CHATSPACE_MATCHES };
 
 /**
  * true — `url` points at a host platform in quiet mode (X3): one of its quiet domains or any subdomain, whatever the
- * scheme, port or path. ChatSpace is the one quiet host (Fansly talks to its site's API, X4); a test of the table
+ * scheme, port or path. ChatSpace and Telegram are quiet (Fansly talks to its site's API, X4); a test of the table
  * holds this to every row with quiet domains.
  */
 export function isQuietHost(url: string): boolean {
@@ -30,7 +31,7 @@ export function isQuietHost(url: string): boolean {
   } catch {
     return false;
   }
-  return CHATSPACE_QUIET_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+  return [...CHATSPACE_QUIET_DOMAINS, ...TELEGRAM_QUIET_DOMAINS].some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
 
 /**
@@ -38,7 +39,7 @@ export function isQuietHost(url: string): boolean {
  * under `__CG_TEST_HOSTS__`, so a release bundle never carries them; the release manifest test and tools/gates fail
  * if any of these leak into one. (Literal arrays each: a spread at the top level would stay in a bundle.)
  */
-export const LOOPBACK_MATCHES: readonly string[] = ['http://127.0.0.1/*', 'http://localhost/*'];
+export const LOOPBACK_MATCHES: readonly string[] = ['http://127.0.0.1/*', 'http://localhost/*', 'http://telegram.localhost/*'];
 
 /**
  * One loopback NAME per stand (docs/project-unite/architecture.md §13): the background refuses a tab that two sites
@@ -46,8 +47,11 @@ export const LOOPBACK_MATCHES: readonly string[] = ['http://127.0.0.1/*', 'http:
  */
 export const CHATSPACE_STAND_MATCHES: readonly string[] = ['http://127.0.0.1/*'];
 
-/** …and the Fansly stand is `localhost` (packages/testing/src/stand-server.ts `FANSLY_STAND_HOSTNAME`). */
+/** …and the Fansly stand is `localhost` (packages/testing/src/stand-server.ts `FANSLY_STAND_HOSTNAME`)… */
 export const FANSLY_STAND_MATCHES: readonly string[] = ['http://localhost/*'];
+
+/** …and the Telegram stand is `telegram.localhost` (Firefox takes `*.localhost` for loopback; `127.0.0.2` does not bind on macOS). */
+export const TELEGRAM_STAND_MATCHES: readonly string[] = ['http://telegram.localhost/*'];
 
 /** A site's row: its addresses. Its kind and platform are the contracts' (`HostKind`, `Platform`). */
 export interface RuntimeHostRow {
@@ -61,6 +65,7 @@ export interface RuntimeHostRow {
 export const RUNTIME_HOSTS = {
   chatspace: { matches: CHATSPACE_MATCHES, quietDomains: CHATSPACE_QUIET_DOMAINS },
   'fansly-web': { matches: FANSLY_MATCHES, quietDomains: FANSLY_QUIET_DOMAINS },
+  'telegram-web': { matches: TELEGRAM_MATCHES, quietDomains: TELEGRAM_QUIET_DOMAINS },
 } as const satisfies { readonly [K in HostKind]?: RuntimeHostRow };
 
 export type RuntimeHostKind = keyof typeof RUNTIME_HOSTS;

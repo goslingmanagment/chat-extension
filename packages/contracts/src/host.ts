@@ -19,7 +19,7 @@ import type { PageDiagnostics } from './diagnostics';
 
 import * as z from 'zod/mini';
 
-import { CgCodeSchema } from './errors';
+import { CgCodeSchema, type CgCode } from './errors';
 import { type OpFeature } from './features';
 import { HOST_PLATFORM } from './hosts';
 import {
@@ -153,7 +153,7 @@ export const ChatSpaceContractReportSchema = /* @__PURE__ */ z.strictObject({
 export type ChatSpaceContractReport = z.infer<typeof ChatSpaceContractReportSchema>;
 
 /** The sites whose report is not ChatSpace's shape: their anchors and own capabilities are in a block of their own. */
-export const SITE_REPORT_HOSTS = ['fansly-web'] as const satisfies readonly Exclude<HostKind, 'chatspace'>[];
+export const SITE_REPORT_HOSTS = ['fansly-web', 'telegram-web'] as const satisfies readonly Exclude<HostKind, 'chatspace'>[];
 
 /** A name of a site's own anchor or capability (its contract module lists them, R20 §7.12): a short machine token. */
 const SiteContractNameSchema = /* @__PURE__ */ z.string().check(z.regex(/^[A-Za-z][A-Za-z0-9]{0,63}$/));
@@ -1099,7 +1099,19 @@ export type HostEvent =
    * this document; the tab tells the background, which keeps the fuse for the browser.
    */
   | { readonly type: 'sendFuse'; readonly fuse: SendFuseFact }
-  | { readonly type: 'reloadNeeded' };
+  | { readonly type: 'reloadNeeded' }
+  /** The page's own state the dock warns about changed (`HostPort.notice`): the views read it again. */
+  | { readonly type: 'notice' };
+
+/**
+ * What the page itself shows around the open chat that the dock says over its bar (Telegram spec §4.3, §4.4): a warning
+ * the person can pass, never a block. `copyOnly` — the field cannot take our text now (another window of the site holds
+ * the message being written): parts are copied instead of inserted.
+ */
+export interface HostNotice {
+  readonly code: CgCode;
+  readonly copyOnly: boolean;
+}
 
 /** §5.2. Lives in the isolated world; MAIN is reached only through the bridge. */
 /** Options of HostPort.navigate (contracts carry no DOM types: the part of AbortSignal it uses). */
@@ -1180,6 +1192,11 @@ export interface HostPort {
    * of the site's API; never rejects. Absent on a host that cannot.
    */
   readDraftMedia?(identity: HostIdentity, options: { readonly waitMs: number }): Promise<DraftMedia | null>;
+  /**
+   * The page's own warning about the open chat (`HostNotice`), read with every view of it; null — none. Absent on a
+   * host whose page has nothing to say.
+   */
+  notice?(chat: ChatRef): HostNotice | null;
   /** Prechecks of the open chat. */
   chatWindow(chat: ChatRef, max: number): ChatWindow | null;
   /** Decoration only, when already in memory. */
@@ -1240,5 +1257,10 @@ export interface HostPort {
    * `FanslyHostPort` (`@cg/contracts/fansly-host`), and shared code never reads it. Absent on every other host.
    */
   readonly fansly?: unknown;
+  /**
+   * What only Telegram Web A has (`TelegramPagePort`, `@cg/contracts/telegram-host`: the open chat read as a
+   * transcript). Typed by Telegram's own port; shared code never reads it. Absent on every other host.
+   */
+  readonly telegram?: unknown;
   dispose(): void;
 }

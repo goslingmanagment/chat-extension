@@ -288,6 +288,19 @@ export interface FakeOnlinePresenceReport {
   readonly at: number;
 }
 
+/**
+ * What one request of the client-context lane (Telegram) gave the model: the chat the tab read, as sent. The stand's
+ * chats are synthetic; `pnpm see` writes these to `client-context.json` (the journal keeps only their lengths).
+ */
+export interface FakeClientContextRecord {
+  readonly feature: string;
+  readonly pageLabel: string;
+  readonly fanRef: string | null;
+  readonly conversationRef: string;
+  readonly at: string;
+  readonly clientContext: unknown;
+}
+
 export interface FakeHubStatus {
   readonly origin: string;
   readonly clock: { readonly now: number; readonly manual: boolean };
@@ -312,6 +325,8 @@ export interface FakeHubStatus {
   readonly voiceNotes: readonly VoiceNoteSnapshot[];
   /** «Онлайн»: what the chatters did in the window and the Fansly tabs' presence reports, in order (ids and times). */
   readonly online: { readonly attempts: readonly FakeOnlineAttempt[]; readonly presence: readonly FakeOnlinePresenceReport[] };
+  /** Telegram: the chats the AI requests carried (`clientContext`), in order. */
+  readonly clientContexts: readonly FakeClientContextRecord[];
 }
 
 // ── Journal ────────────────────────────────────────────────────────────────

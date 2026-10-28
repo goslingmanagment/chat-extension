@@ -40,6 +40,8 @@ module.exports = {
   FANSLY_OWNED: ownedBy('fansly'),
   /** ChatSpace's own files. */
   CHATSPACE_OWNED: ownedBy('chatspace'),
+  /** Telegram's own files (docs/specs/2026-10-27-telegram-site.md §6.9). */
+  TELEGRAM_OWNED: ownedBy('telegram'),
   /**
    * What no bundle is built from: the documents, the release site, the tests and their package, the tools, the CI and
    * the configs of the linters and the test runner. A change of these alone cannot move a byte of the extension.

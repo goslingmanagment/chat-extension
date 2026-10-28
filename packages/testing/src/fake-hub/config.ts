@@ -18,6 +18,14 @@
 // takes no `"*"` row: it is switched on by its own row alone. The client does
 // not carry that table (R20 F4: it reads the page's feature, and only its own
 // transport needs on top — `CLIENT_FLAG_REQUIREMENTS`).
+//
+// Telegram (docs/specs/2026-10-27-telegram-site.md §5, hub #909 at 52e09102): a
+// page of Lora's Telegram account, `lora-tg`, bound by the account's user id. It
+// has `insertion`, and `drafts` and `coach` behind `telegram-ai-v1`, and nothing
+// else (`TELEGRAM_FEATURE_NEEDS`); it reads its own row alone, like a Fansly page;
+// its bootstrap entry names the persona it is meant for. No chatter is granted it
+// by default, so every bootstrap of the other worlds stays as it was:
+// `telegramWorld()` is the owner's change that switches it on for a run.
 
 import { CHAT_IS_FAN, CLIENT_FEATURE_FLAG_NAMES, CLIENT_HUB_CAPABILITY_NAMES, type Bootstrap, type BootstrapLimits, type ClientFeatureFlag, type FeatureAvailability, type HubPageRef } from '@cg/contracts';
 
@@ -31,31 +39,74 @@ import {
   STAR_ROW_PLATFORMS,
   WORLD,
   hubFeatureNeedsOn,
+  type HubFeatureNeeds,
 } from '../scenarios/hub';
 import { iso } from './clock';
-import { type BootstrapPresetName, type CoachDepthKnob, type FakeHubConfigPatch } from './types';
+import { type BootstrapPresetName, type CoachDepthKnob, type FakeHubCommand, type FakeHubConfigPatch } from './types';
 import { DEFAULT_VOICE_DAY, type VoiceDay } from './voice';
 
 /** The preset of a fake hub nobody configured: the pilot as the owner runs it (a row per page, an empty `*`). */
 export const DEFAULT_PRESET: BootstrapPresetName = 'pilot-pages';
 
+/** The platforms of the fake hub's pages. */
+export type FakePlatform = 'onlyfans' | 'fansly' | 'telegram';
+
 export interface FakePage {
   readonly pageId: number;
   readonly pageLabel: string;
   readonly title: string;
-  readonly platform: 'onlyfans' | 'fansly';
+  readonly platform: FakePlatform;
   readonly platformAccountId: string | null;
   readonly bindingRevision: number;
   readonly modelSlug: string;
   readonly modelName: string;
+  /** The persona the page is meant to be worked with (bootstrap `defaultPersonaKey`, Telegram spec §5.5); absent — none. */
+  readonly defaultPersonaKey?: string;
 }
 
-/** The synthetic pages (scenarios/hub/world.ts): two OF pilot pages and one Fansly page. */
+/** The Telegram persona of Lora (Telegram spec §7): the page `lora-tg` names it as its default. */
+export const TELEGRAM_PERSONA = { key: 'lora-telegram', displayName: 'Лора · Telegram', definitionId: 'pdef_loratelegram00001' } as const;
+
+/**
+ * The page of Lora's Telegram account (Telegram spec §5.5): its account id is the Telegram user id the stand's slot 1
+ * holds (packages/testing/fixture-telegram/src/protocol.ts `TELEGRAM_STAND_IDS.account`).
+ */
+export const TELEGRAM_PAGE: FakePage = {
+  pageId: 14,
+  pageLabel: 'lora-tg',
+  title: 'Лора · Telegram',
+  platform: 'telegram',
+  platformAccountId: '7700100200',
+  bindingRevision: 1,
+  modelSlug: 'lora',
+  modelName: 'Lora',
+  defaultPersonaKey: TELEGRAM_PERSONA.key,
+};
+
+/** The synthetic pages (scenarios/hub/world.ts): two OF pilot pages, one Fansly page — and the Telegram page nobody is granted by default. */
 export const FAKE_PAGES: readonly FakePage[] = [
   { ...WORLD.pages.one, platform: 'onlyfans', ...MODELS.one },
   { ...WORLD.pages.vip, platform: 'onlyfans', ...MODELS.one },
   { ...WORLD.pages.fansly, platform: 'fansly', ...MODELS.two },
+  TELEGRAM_PAGE,
 ];
+
+/**
+ * Telegram's column of the hub's `CLIENT_FEATURE_REQUIREMENTS` (hub #909 client-features.ts): insertion needs
+ * nothing, Reply and Fix (`drafts`) and Coach the Telegram lane of the AI route; every other flag does not exist there
+ * (`platform_unsupported`).
+ */
+const TELEGRAM_FEATURE_NEEDS: Readonly<Record<string, HubFeatureNeeds>> = {
+  insertion: { capabilities: [] },
+  drafts: { capabilities: ['telegram-ai-v1'] },
+  coach: { capabilities: ['telegram-ai-v1'] },
+};
+
+/** What a flag needs on a platform (the hub's table, Telegram's column included); undefined where it does not exist. */
+export function featureNeedsOn(flag: string, platform: string): HubFeatureNeeds | undefined {
+  if (platform === 'telegram') return Object.hasOwn(TELEGRAM_FEATURE_NEEDS, flag) ? TELEGRAM_FEATURE_NEEDS[flag] : undefined;
+  return hubFeatureNeedsOn(flag, platform);
+}
 
 export const pageRefOf = (page: FakePage): HubPageRef => ({ id: page.pageId, label: page.pageLabel, platform: page.platform, modelSlug: page.modelSlug, modelName: page.modelName });
 
@@ -178,6 +229,30 @@ export function fanslyPageFlags(flags: Readonly<Partial<Record<ClientFeatureFlag
   return { pageFlags: { [WORLD.pages.fansly.pageLabel]: flags } };
 }
 
+/** Every switch the Telegram page has: Telegram's column of the hub's table. */
+export const TELEGRAM_PAGE_FLAGS: readonly ClientFeatureFlag[] = CLIENT_FEATURE_FLAG_NAMES.filter((flag) => featureNeedsOn(flag, 'telegram') !== undefined);
+
+/**
+ * An owner change of the Telegram page's own row (`chatExtensionFeatures["lora-tg"]`): as on Fansly, the only way to
+ * switch it on (the `"*"` row never reaches it). Without `flags`, every switch the page has (drafts, coach, insertion), on.
+ */
+export function telegramPageFlags(flags: Readonly<Partial<Record<ClientFeatureFlag, boolean>>> = Object.fromEntries(TELEGRAM_PAGE_FLAGS.map((flag) => [flag, true]))): Pick<FakeHubConfigPatch, 'pageFlags'> {
+  return { pageFlags: { [TELEGRAM_PAGE.pageLabel]: flags } };
+}
+
+/**
+ * The owner's changes that put Lora's Telegram into a run (Telegram spec §9.1), as commands of the control API: the
+ * page's own row switched on, the Telegram persona in the catalog, and the page granted to the chatter beside every
+ * other page (`grantPages` replaces a chatter's list).
+ */
+export function telegramWorld(username: string = WORLD.user.username): readonly FakeHubCommand[] {
+  return [
+    { op: 'config', patch: telegramPageFlags() },
+    { op: 'persona', key: TELEGRAM_PERSONA.key, displayName: TELEGRAM_PERSONA.displayName, definitionId: TELEGRAM_PERSONA.definitionId },
+    { op: 'grantPages', username, pages: FAKE_PAGES.map((page) => page.pageLabel) },
+  ];
+}
+
 /** Applies an owner change; any change of what bootstrap shows bumps configRevision. */
 export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): FakeHubConfig {
   const next: FakeHubConfig = {
@@ -243,7 +318,7 @@ function bindable(config: FakeHubConfig, page: FakePage): boolean {
  */
 export function featureVerdict(config: FakeHubConfig, page: FakePage, flag: string): FeatureAvailability {
   if (!config.master) return { available: false, reason: 'disabled' };
-  const needs = hubFeatureNeedsOn(flag, page.platform);
+  const needs = featureNeedsOn(flag, page.platform);
   if (needs === undefined) return { available: false, reason: 'platform_unsupported' };
   if (!flagOn(config, page, flag)) return { available: false, reason: 'flag_off' };
   if (!bindable(config, page)) return { available: false, reason: 'binding_missing' };
@@ -258,7 +333,7 @@ export function featureVerdict(config: FakeHubConfig, page: FakePage, flag: stri
  */
 export function pageFeature(config: FakeHubConfig, page: FakePage, flag: string): FeatureAvailability {
   const verdict = featureVerdict(config, page, flag);
-  const lane = hubFeatureNeedsOn(flag, page.platform)?.lane;
+  const lane = featureNeedsOn(flag, page.platform)?.lane;
   return verdict.available && lane === 'voice-notes' && config.voiceLaneOff.includes(page.pageLabel) ? { available: false, reason: 'lane_off' } : verdict;
 }
 
@@ -292,6 +367,7 @@ export function bootstrapOf(config: FakeHubConfig, pages: readonly FakePage[], i
       platformAccountId: page.platformAccountId,
       bindingRevision: page.bindingRevision,
       features: Object.fromEntries(flagNames.map((flag) => [flag, pageFeature(config, page, flag)])),
+      ...(page.defaultPersonaKey === undefined ? {} : { defaultPersonaKey: page.defaultPersonaKey }),
     })),
     // The caller's pages only, and only a binding from a host of the page's platform (hub `hostBindingFitsPlatform`).
     bindingsByHost: Object.fromEntries(

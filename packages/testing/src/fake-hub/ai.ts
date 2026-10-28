@@ -68,6 +68,8 @@ export interface ModelStreamFacts {
   readonly attachedRecaps?: Extract<HubFrame, { type: 'meta' }>['attachedRecaps'];
   /** 2026-10-27 (`coach-depth-v1`): Coach's ```more note, at the end of its answer; absent — none. */
   readonly more?: string;
+  /** false: no `context_v1` frame even to a caller that says `context-v1` — the client-context lane's (hub: no kernel transcript there). */
+  readonly contextFrame?: false;
 }
 
 const TEXTS: Readonly<Record<string, { readonly single: string; readonly split: string }>> = {
@@ -201,7 +203,7 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
       }),
     );
   }
-  if (capabilities.includes('context-v1')) {
+  if (capabilities.includes('context-v1') && facts.contextFrame !== false) {
     const live = body.liveTextContext;
     const requested = facts.window?.requested ?? body.messageCount ?? 100;
     const liveStatus = live === undefined ? 'not_sent' : facts.freshTextFlag ? 'served' : 'disabled';

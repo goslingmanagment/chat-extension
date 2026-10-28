@@ -11,7 +11,7 @@
 // (host-kit, host-chatspace, host-fansly), fansly-api, the relay frame and the
 // sites' background chunks each have their allowed graph written here.
 
-const { FANSLY_OWNED } = require('./tools/gates/site-paths.cjs');
+const { FANSLY_OWNED, TELEGRAM_OWNED } = require('./tools/gates/site-paths.cjs');
 
 /** A path inside a workspace package / app / vendored package. */
 const pkg = (name) => `^packages/${name}/`;
@@ -67,6 +67,7 @@ const SITE_ONLY_BACKGROUND = [
   '^apps/extension/bg/',
   '^packages/core/src/services/(custody|send-coordinator|send-journal|send-fuse|greeting-leases)\\.ts$',
   FANSLY_OWNED,
+  TELEGRAM_OWNED,
 ];
 /**
  * Every other bundle root: the content scripts, the WS tap, Fansly's scripts the
@@ -74,7 +75,7 @@ const SITE_ONLY_BACKGROUND = [
  * Everything under entrypoints/ counts, so a new entry point is covered before
  * anyone remembers to list it.
  */
-const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/', '^apps/extension/lazy/fansly/', '^apps/extension/lazy/chatspace/', '^apps/extension/bg/'], pathNot: BACKGROUND_ENTRY };
+const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/', '^apps/extension/lazy/fansly/', '^apps/extension/lazy/chatspace/', '^apps/extension/lazy/telegram/', '^apps/extension/bg/'], pathNot: BACKGROUND_ENTRY };
 
 /** `from` may depend only on paths matching `allowed` (plus itself). */
 function only(name, from, allowed, comment) {
@@ -188,6 +189,12 @@ module.exports = {
       '`host-fansly/isolated`: host-kit, contracts, core/domain/text and Fansly\'s own text pack (its phrases for the profile, R20 F9b) only — no token, no network, no MAIN code (docs/project-unite/architecture.md §7).',
     ),
     only(
+      'host-telegram-isolated',
+      pkg('host-telegram/src/isolated'),
+      [HOST_KIT_ISOLATED, pkg('contracts'), ZOD],
+      '`host-telegram/isolated`: host-kit, contracts and zod only — no token, no network, no other site (docs/specs/2026-10-27-telegram-site.md §4).',
+    ),
+    only(
       'fansly-api-graph',
       pkg('fansly-api'),
       [pkg('contracts'), pkg('core/src/domain'), ZOD],
@@ -286,6 +293,21 @@ module.exports = {
       severity: 'error',
       from: { pathNot: [FANSLY_OWNED, HOST_REGISTRY_INDEX, PAGES_ROOT, ...TEST_CODE] },
       to: { path: FANSLY_OWNED },
+    },
+    {
+      name: 'telegram-code-only-from-telegram',
+      comment:
+        'Telegram\'s own code — every file named by Telegram (tools/gates/site-paths.cjs): its page package, its hosts/telegram folders, its entry point, lazy entries and background chunk, its contract modules and its slice of the feature manifest — is imported only by Telegram\'s own code, by the host registry\'s index and by the extension pages\' composition root (docs/specs/2026-10-27-telegram-site.md §6.9).',
+      severity: 'error',
+      from: { pathNot: [TELEGRAM_OWNED, HOST_REGISTRY_INDEX, PAGES_ROOT, ...TEST_CODE] },
+      to: { path: TELEGRAM_OWNED },
+    },
+    {
+      name: 'chatspace-graph-without-telegram',
+      comment: 'Nothing a ChatSpace bundle is built from reaches a file of Telegram\'s, however indirectly: a change of Telegram\'s files alone moves no byte of ChatSpace.',
+      severity: 'error',
+      from: { path: CHATSPACE_BUNDLE_ROOTS },
+      to: { path: TELEGRAM_OWNED, reachable: true },
     },
     {
       name: 'chatspace-graph-without-fansly',

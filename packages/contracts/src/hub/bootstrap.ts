@@ -45,6 +45,12 @@ export const BootstrapPageSchema = z.object({
   bindingRevision: CountSchema,
   /** Per-flag availability for this page. */
   features: z.record(OpenTokenSchema, FeatureAvailabilitySchema),
+  /**
+   * The persona the page is meant to be worked with (an `ai_personas` key; Telegram spec §5.5): assigned to a page the
+   * person has not assigned one to, with a warning when someone picks another. Absent — none is meant (every page of
+   * a hub before it).
+   */
+  defaultPersonaKey: z.optional(boundedText(200)),
 });
 export type BootstrapPage = z.infer<typeof BootstrapPageSchema>;
 

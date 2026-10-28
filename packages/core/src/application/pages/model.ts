@@ -29,6 +29,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { errorView } from '../../domain/errors';
+import { defaultPersonaOf } from '../../domain/personas';
 import { type Translator } from '../../domain/i18n';
 import { type OptionsLocation, type PageEnv, type SiteAccountsFacts } from './ports';
 import { type SaveStatus } from './settings-writer';
@@ -288,7 +289,11 @@ export interface PagePersona {
 /** The persona the person chose for a hub page, read against the catalog (ST-073, ST-074). */
 export function personaOfPage(model: PagesModel, pageId: number): PagePersona {
   const chosen = model.effective?.personas.byPageId[String(pageId)];
-  if (chosen === undefined) return { s: 'none', key: null, label: null, item: null };
+  if (chosen === undefined) {
+    // Telegram spec §5.5: a page the person assigned nothing to works with the persona the hub means it for.
+    const meant = defaultPersonaOf(pageById(model, pageId), valueOf(model.catalog)?.personas ?? []);
+    return meant === null ? { s: 'none', key: null, label: null, item: null } : { s: 'set', key: meant.key, label: meant.displayName, item: meant };
+  }
   const item = valueOf(model.catalog)?.personas.find((persona) => persona.key === chosen.key) ?? null;
   // Without the catalog the choice is neither confirmed nor refuted: shown by its key, not called missing.
   if (item === null) return answered(model.catalog) ? { s: 'missing', key: chosen.key, label: null, item: null } : { s: 'set', key: chosen.key, label: chosen.key, item: null };

@@ -37,7 +37,7 @@ export interface FanslyFixture {
 }
 
 const ext = (enabled: boolean): SettingsExtState => ({
-  ext: { v: SETTINGS_EXT_VERSION, hosts: { 'fansly-web': { enabled, viaTab: false, notesView: 'drawer', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: null } },
+  ext: { v: SETTINGS_EXT_VERSION, hosts: { 'fansly-web': { enabled, viaTab: false, notesView: 'drawer', sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
   revision: 1,
   readOnly: false,
 });
@@ -138,11 +138,11 @@ export class FanslyPagesBackground {
     if (payload.enabled === true) {
       const fresh = !(access.enabled && access.granted) && access.granted;
       next = { ...next, enabled: true, registered: access.granted, waitingReload: fresh ? this.fixture.openTabs : access.waitingReload };
-      this.fixture.ext = { ...this.fixture.ext, ext: { ...this.fixture.ext.ext, hosts: { 'fansly-web': { ...this.fixture.ext.ext.hosts['fansly-web'], enabled: true } } } };
+      this.fixture.ext = { ...this.fixture.ext, ext: { ...this.fixture.ext.ext, hosts: { ...this.fixture.ext.ext.hosts, 'fansly-web': { ...this.fixture.ext.ext.hosts['fansly-web'], enabled: true } } } };
     }
     if (payload.enabled === false) {
       next = { ...next, enabled: false, registered: false, waitingReload: 0 };
-      this.fixture.ext = { ...this.fixture.ext, ext: { ...this.fixture.ext.ext, hosts: { 'fansly-web': { ...this.fixture.ext.ext.hosts['fansly-web'], enabled: false } } } };
+      this.fixture.ext = { ...this.fixture.ext, ext: { ...this.fixture.ext.ext, hosts: { ...this.fixture.ext.ext.hosts, 'fansly-web': { ...this.fixture.ext.ext.hosts['fansly-web'], enabled: false } } } };
     }
     this.fixture.access = next;
     if (payload.reload === true) {

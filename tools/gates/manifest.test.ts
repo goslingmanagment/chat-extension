@@ -8,6 +8,7 @@ import { HOSTS } from '../../apps/extension/src/hosts/index.ts';
 import { FEATURE_IDS } from '../../packages/contracts/src/features.ts';
 import { CHATSPACE_FEATURES } from '../../packages/contracts/src/features/chatspace.ts';
 import { FANSLY_FEATURES, FANSLY_SURFACES_AHEAD } from '../../packages/contracts/src/features/fansly.ts';
+import { TELEGRAM_FEATURES } from '../../packages/contracts/src/features/telegram.ts';
 import { HOST_KINDS, type HostKind } from '../../packages/contracts/src/hosts.ts';
 import { CLIENT_FEATURE_FLAG_NAMES } from '../../packages/contracts/src/hub/wire.ts';
 import { FANSLY_OP_DRIVERS, FANSLY_OPS } from '../../packages/contracts/src/ops-fansly.ts';
@@ -103,6 +104,7 @@ describe('this repo: the manifest is complete', () => {
   const SLICES: { readonly [K in HostKind]: Readonly<Record<string, ManifestEntry>> } = {
     chatspace: CHATSPACE_FEATURES,
     'fansly-web': FANSLY_FEATURES,
+    'telegram-web': TELEGRAM_FEATURES,
   };
   const sites: SiteManifest[] = HOST_KINDS.map((kind) => {
     const registered = HOSTS.find((host) => host.kind === kind);
@@ -125,6 +127,7 @@ describe('this repo: the manifest is complete', () => {
     expect(sites.map((site) => [site.site, site.lazyEntries === null ? null : site.lazyEntries.length > 0])).toEqual([
       ['chatspace', true],
       ['fansly-web', true],
+      ['telegram-web', true],
     ]);
     for (const chunk of APPLICATION_CHUNKS) expect(sites[0]?.lazyEntries, chunk).toContain(chunk);
     // A site's own application chunk is its build's alone (R20 P8b1: Fansly's AI policy): on another site's build it is

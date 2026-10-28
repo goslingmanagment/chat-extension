@@ -144,6 +144,7 @@ export function resolveBusinessTimeZone(platform) {
     switch (platform) {
         case "fansly":
         case "onlyfans":
+        case "telegram":
             return UTC_TIME_ZONE;
     }
 }

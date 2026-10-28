@@ -21,7 +21,7 @@ const sharedFailure = { ok: false, error: { code: 'CG-NETWORK' } } as const;
 const unknownFailure = { ok: false, error: { code: 'CG-FAN-01' } } as const;
 /** `settings.ext` as the settings page reads it (R20 P14b1). */
 const extState = {
-  ext: { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'drawer', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: null } },
+  ext: { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'drawer', sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
   revision: 2,
   readOnly: false,
 } as const;
@@ -487,8 +487,8 @@ export const FANSLY_TAB_EVENT_FIXTURES: { readonly [T in FanslyTabEventType]: Ve
 export const SETTINGS_EXT_FIXTURES = {
   view: {
     valid: [
-      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', sound: { messagesTone: 'chime', subscribersTone: 'double' } } }, windows: { deep: 4000 } },
-      { v: 1, hosts: { 'fansly-web': { enabled: false, viaTab: true, notesView: 'drawer', sound: { messagesTone: 'blip', subscribersTone: 'arpeggio' } } }, windows: { deep: null } },
+      { v: 1, hosts: { 'fansly-web': { enabled: true, viaTab: false, notesView: 'docked', sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: 4000 } },
+      { v: 1, hosts: { 'fansly-web': { enabled: false, viaTab: true, notesView: 'drawer', sound: { messagesTone: 'blip', subscribersTone: 'arpeggio' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
     ],
     // A depth v1 holds (≤ 3000), one above the wire's 5000, a view of another version, an unknown notes view.
     invalid: [

@@ -37,6 +37,7 @@ export declare const opsLivePageSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     engine: z.ZodBoolean;
     pausedAll: z.ZodBoolean;
@@ -129,6 +130,7 @@ export declare const opsLiveResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         engine: z.ZodBoolean;
         pausedAll: z.ZodBoolean;
@@ -230,6 +232,7 @@ export declare const opsLiveRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     engine: z.ZodBoolean;
                     pausedAll: z.ZodBoolean;

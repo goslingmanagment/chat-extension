@@ -77,19 +77,20 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * Known names: documentation and the client's narrowing. On the wire they are open strings.
  *
  * Where each flag exists is the hub's (chat-extension R20 HF-2): a page of a
- * platform without the flag reads `platform_unsupported`. `drafts`, `voice`,
- * `notesFill`, `notes`, `vault` and `registration` exist on Fansly only: the
- * narrow token's Reply, Fix, Hi and Ping, its voice script (`voice` also opens
- * the voice-note routes, `voice-notes-v1`) and its notes fill on a Fansly page
- * (R20 HF-12, HF-4б), and the extension's own notes, vault and «Регистрация».
- * On OnlyFans those generations need no flag of their own. `previewSend`,
+ * platform without the flag reads `platform_unsupported`. `drafts`, `vault`
+ * and `registration` exist on Fansly only: the narrow token's Reply, Fix, Hi
+ * and Ping on a Fansly page (R20 HF-12), and the extension's own vault and
+ * «Регистрация». On OnlyFans those generations need no flag of their own.
+ * `voice` (the voice script and the voice-note routes, `voice-notes-v1`,
+ * HF-4б), `notes` and `notesFill` (the fan's notes and their fill; on
+ * OnlyFans since 2026-10-28) exist on both. `previewSend`,
  * `previewSendMarkAiGenerated`, `navigation`, `wsTap` and `stats` exist on
  * OnlyFans only; every other flag on both. A Fansly page is switched on by its
  * own row of the owner's switches alone, never by the `"*"` row, so the
  * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "telegram-ai-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -105,7 +106,7 @@ export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-
  */
 export declare const CLIENT_FEATURE_UNAVAILABLE_REASONS: readonly ["disabled", "flag_off", "platform_unsupported", "binding_missing", "hub_not_ready", "not_granted", "client_outdated", "lane_off"];
 /** The platforms and roles this hub knows today (`pages[].platform`, `identity.role`). */
-export declare const CLIENT_KNOWN_PLATFORMS: readonly ["fansly", "onlyfans"];
+export declare const CLIENT_KNOWN_PLATFORMS: readonly ["fansly", "onlyfans", "telegram"];
 export declare const CLIENT_KNOWN_ROLES: readonly ["owner", "team_lead", "chatter"];
 /**
  * How much of one conversation's history the hub can vouch for: the `coverage`
@@ -141,6 +142,7 @@ export declare const clientBootstrapPageSchema: z.ZodObject<{
         available: z.ZodBoolean;
         reason: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>>;
+    defaultPersonaKey: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export declare const clientBootstrapLimitsSchema: z.ZodObject<{
     freshTextMaxItems: z.ZodNumber;
@@ -184,6 +186,7 @@ export declare const clientBootstrapResponseSchema: z.ZodObject<{
             available: z.ZodBoolean;
             reason: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>>;
+        defaultPersonaKey: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>>;
     bindingsByHost: z.ZodRecord<z.ZodString, z.ZodNumber>;
     flags: z.ZodRecord<z.ZodString, z.ZodBoolean>;
@@ -2858,6 +2861,7 @@ export declare const clientRouteSchemas: {
                         available: z.ZodBoolean;
                         reason: z.ZodOptional<z.ZodString>;
                     }, z.core.$strip>>;
+                    defaultPersonaKey: z.ZodOptional<z.ZodString>;
                 }, z.core.$strip>>;
                 bindingsByHost: z.ZodRecord<z.ZodString, z.ZodNumber>;
                 flags: z.ZodRecord<z.ZodString, z.ZodBoolean>;

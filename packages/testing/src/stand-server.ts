@@ -22,6 +22,12 @@
 //   or a default set with POST /__stand/neighbor (the control header), puts
 //   the neighbour's boot script first in the page's `<head>`; its one script
 //   is served at /neighbor/neighbor.js.
+// - the Telegram stand (docs/specs/2026-10-27-telegram-site.md §6.10): the
+//   Telegram Web A-like page (packages/testing/fixture-telegram, built into
+//   .cache/fixture-telegram) at `/a/` of a loopback name of its own,
+//   `http://telegram.localhost:<port>` (Firefox takes every `*.localhost` for
+//   loopback); a request under any other name is refused (421). It talks to
+//   nobody: its world is in the page.
 // A journal labels every call by who made it (protocol.ts CallOrigin); the
 // Fansly stand's page origin keeps its own, and the fake Fansly its own.
 
@@ -53,7 +59,7 @@ import { handleApi, sendJson, type ApiContext } from './stand/api';
 import { handleControl, type EgressLog } from './stand/control';
 import { ServerJournal } from './stand/journal';
 import { LOOPBACK_NAME, closeServers, listen, listenLocalhost } from './stand/listen';
-import { FANSLY_FIXTURE_BUILD_DIR, FANSLY_NEIGHBOR_BUILD_DIR, FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR } from './stand/paths';
+import { FANSLY_FIXTURE_BUILD_DIR, FANSLY_NEIGHBOR_BUILD_DIR, FIXTURE_BUILD_DIR, GALLERIES, SPIKE_STAND_DIR, TELEGRAM_FIXTURE_BUILD_DIR } from './stand/paths';
 import { SENTRY_ENVELOPE_PATH, SentryInbox } from './stand/sentry-inbox';
 import { SocketHub } from './stand/socket-hub';
 import { StandState } from './stand/state';
@@ -79,6 +85,19 @@ export interface StandServerOptions {
   readonly fanslyApiPort?: number;
   readonly fanslySocketPort?: number;
   readonly fanslyProxyPort?: number;
+  /** Telegram stand port; 0 = pick a free port. */
+  readonly telegramPort?: number;
+  /** Built Telegram stand; defaults to .cache/fixture-telegram. */
+  readonly telegramDir?: string;
+}
+
+/** The Telegram stand: Web A's page under its own loopback name (`http://telegram.localhost:<port>/a/`). */
+export interface TelegramStandServer {
+  /** `http://telegram.localhost:<port>`. */
+  readonly origin: string;
+  readonly port: number;
+  /** Every call to the Telegram stand, labelled like the ChatSpace stand's (assets, foreign). */
+  readonly journal: ServerJournal;
 }
 
 /** The Fansly stand: its page, under its own loopback name, and the fake Fansly the page asks. */
@@ -114,6 +133,8 @@ export interface StandServer {
   readonly sentry: SentryInbox;
   /** The Fansly stand (R20 P6a). */
   readonly fansly: FanslyStandServer;
+  /** The Telegram stand (Telegram spec §6.10). */
+  readonly telegram: TelegramStandServer;
   close(): Promise<void>;
 }
 
@@ -125,6 +146,19 @@ export const FANSLY_STAND_HOSTNAME = LOOPBACK_NAME;
 
 /** The Fansly stand's journal for the test process (GET with the control header, `?since=`). */
 export const FANSLY_STAND_JOURNAL_PATH = '/__stand/journal';
+
+/**
+ * The Telegram stand's loopback name (Telegram spec §6.10): the test build's Telegram permission
+ * (`TELEGRAM_STAND_MATCHES`, `http://telegram.localhost/*`) names it, neither ChatSpace's (`127.0.0.1`) nor Fansly's
+ * (`localhost`) does. Firefox resolves every `*.localhost` to loopback without asking a resolver.
+ */
+export const TELEGRAM_STAND_HOSTNAME = 'telegram.localhost';
+
+/** Where Web A lives on its origin: the page is `/a/` and the chat its hash (fixture-telegram/src/protocol.ts). */
+const TELEGRAM_PAGE_PATH = '/a/';
+
+/** The Telegram stand's journal for the test process (GET with the control header, `?since=`). */
+export const TELEGRAM_STAND_JOURNAL_PATH = '/__stand/journal';
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -434,14 +468,61 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     fanslyJournal.record({ kind: 'http', origin: classified.origin, method, path: `${path}${url.search}`, status });
   };
 
+  const telegramDir = options.telegramDir ?? TELEGRAM_FIXTURE_BUILD_DIR;
+  const telegramJournal = new ServerJournal();
+  let telegramHost = '';
+  const handleTelegram = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const url = new URL(request.url ?? '/', `http://${TELEGRAM_STAND_HOSTNAME}`);
+    const path = url.pathname;
+    const method = request.method ?? 'GET';
+    const classified = classify(request, response, nativeIds);
+    let status: number;
+    const relative = normalize(path).replace(/^([/\\])+/, '');
+    if (headerText(request.headers.host) !== telegramHost) {
+      // One stand address, one site: the Telegram stand answers under its own name only.
+      response.writeHead(421, { 'content-type': 'text/plain; charset=utf-8' }).end(`The Telegram stand answers at http://${telegramHost} only.`);
+      status = 421;
+    } else if (path === TELEGRAM_STAND_JOURNAL_PATH && classified.origin === 'control') {
+      // The test process reads the journal; reading it is not journaled.
+      sendJson(response, 200, telegramJournal.read(Number(url.searchParams.get('since') ?? 0)));
+      return;
+    } else if (relative.startsWith('..')) {
+      response.writeHead(400).end();
+      status = 400;
+    } else if (method !== 'GET' && method !== 'HEAD') {
+      response.writeHead(405).end();
+      status = 405;
+    } else if (path === '/favicon.ico') {
+      response.writeHead(204).end();
+      status = 204;
+    } else if (path === '/' || path === '/a') {
+      // web.telegram.org/ and /a both lead to the app at /a/, the address's query and hash kept by the browser.
+      response.writeHead(302, { location: `${TELEGRAM_PAGE_PATH}${url.search}` }).end();
+      status = 302;
+    } else if (path.startsWith(`${TELEGRAM_PAGE_PATH}assets/`)) {
+      status = await serveFile(response, join(telegramDir, relative.slice(TELEGRAM_PAGE_PATH.length - 1)), null);
+    } else if (path === TELEGRAM_PAGE_PATH || path === `${TELEGRAM_PAGE_PATH}index.html`) {
+      if (existsSync(join(telegramDir, 'index.html'))) status = await serveFile(response, join(telegramDir, 'index.html'), null, inWorld);
+      else {
+        response.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' }).end('The Telegram stand is not built: run `pnpm --filter @cg/testing build:stand`.');
+        status = 503;
+      }
+    } else {
+      response.writeHead(404).end();
+      status = 404;
+    }
+    telegramJournal.record({ kind: 'http', origin: classified.origin, method, path: `${path}${url.search}`, status });
+  };
+
   const onError = (response: ServerResponse) => (error: unknown) => {
     if (!response.headersSent) sendJson(response, 500, { error: String(error) });
   };
   const pageServer: Server = createServer((request, response) => void handlePage(request, response).catch(onError(response)));
   const apiServer: Server = createServer((request, response) => void handleApiOrigin(request, response).catch(onError(response)));
   const fanslyServers: Server[] = [0, 1].map(() => createServer((request, response) => void handleFansly(request, response).catch(onError(response))));
-  for (const server of [pageServer, apiServer, ...fanslyServers]) server.keepAliveTimeout = KEEP_ALIVE_MS;
-  for (const server of fanslyServers) server.on('upgrade', (_request, socket) => socket.destroy());
+  const telegramServers: Server[] = [0, 1].map(() => createServer((request, response) => void handleTelegram(request, response).catch(onError(response))));
+  for (const server of [pageServer, apiServer, ...fanslyServers, ...telegramServers]) server.keepAliveTimeout = KEEP_ALIVE_MS;
+  for (const server of [...fanslyServers, ...telegramServers]) server.on('upgrade', (_request, socket) => socket.destroy());
   pageServer.on('upgrade', (_request, socket) => socket.destroy());
   apiServer.on('upgrade', (request, socket, head) => {
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
@@ -456,6 +537,10 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
   apiOrigin = `http://127.0.0.1:${apiPort}`;
   fanslyHost = `${FANSLY_STAND_HOSTNAME}:${fanslyPort}`;
   const fanslyOrigin = `http://${fanslyHost}`;
+  // The name resolves to loopback in the browser; the servers listen where `localhost` does (127.0.0.1 and ::1).
+  const telegramPort = await listenLocalhost(telegramServers[0] as Server, telegramServers[1] as Server, options.telegramPort ?? 0);
+  telegramHost = `${TELEGRAM_STAND_HOSTNAME}:${telegramPort}`;
+  const telegramOrigin = `http://${telegramHost}`;
   const fakeFansly = await startFakeFansly({
     pageOrigin: fanslyOrigin,
     apiPort: options.fanslyApiPort ?? 0,
@@ -475,11 +560,12 @@ export async function startStandServer(options: StandServerOptions = {}): Promis
     hub,
     sentry,
     fansly: { origin: fanslyOrigin, port: fanslyPort, journal: fanslyJournal, fake: fakeFansly, neighbor },
+    telegram: { origin: telegramOrigin, port: telegramPort, journal: telegramJournal },
     close: async () => {
       for (const response of context.hanging) response.destroy();
       await hub.close();
       await fakeFansly.close();
-      await closeServers([pageServer, apiServer, ...fanslyServers]);
+      await closeServers([pageServer, apiServer, ...fanslyServers, ...telegramServers]);
     },
   };
 }

@@ -229,6 +229,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * and the posts of FANSLY BLOCKLIST about the fan's username. A hub without it is never asked, and no mark shows.
    */
   'fan-marks-v1',
+  /**
+   * Telegram as the third site (docs/specs/2026-10-27-telegram-site.md §5.7): pages of platform `telegram`, whose Reply,
+   * Fix and Coach take the open chat in `clientContext` and the fan in `fanRef`. The extension offers Telegram only
+   * against a hub that lists it.
+   */
+  'telegram-ai-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
@@ -280,7 +286,7 @@ export function narrowToken<const T extends string>(known: readonly T[], token: 
 // ── Host account → page binding keys (bootstrap `bindingsByHost`) ──────────
 
 /** Namespace of each host's accounts in `bindingsByHost` keys; `fansly` is confirmed by R20. */
-export const HOST_BINDING_NAMESPACES = { chatspace: 'onlymonster', 'fansly-web': 'fansly' } as const satisfies Record<HostKind, string>;
+export const HOST_BINDING_NAMESPACES = { chatspace: 'onlymonster', 'fansly-web': 'fansly', 'telegram-web': 'telegram' } as const satisfies Record<HostKind, string>;
 
 /** `onlymonster:<accountId>` — the owner's explicit binding key for a host account (§8.3, critic item 3). */
 export function hostBindingKey(host: HostKind, hostAccountId: NativeId): string {

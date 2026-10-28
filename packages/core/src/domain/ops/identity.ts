@@ -71,6 +71,11 @@ export interface RequestIdentity {
   readonly parametersDigest?: string;
   /** 1.48.0: «с Recap» unticked (`StartOp.recap`) — another request than the same one with the Recap. Absent — ticked, the key as before. */
   readonly recapOff?: true;
+  /**
+   * Telegram spec §6.2: the fingerprint of the chat the start carries itself (`StartOp.clientContext`) — a changed
+   * window is a new request, never the cached answer. Absent without one, so the other sites' keys are as before.
+   */
+  readonly clientContextDigest?: string;
 }
 
 export interface IdentityInputs {
@@ -123,6 +128,7 @@ export function requestIdentityOf({ session, start, persona, archiveHead }: Iden
     checkpoint: start.checkpoint === undefined ? null : checkpointIdentity(start.checkpoint),
     ...(start.proof === undefined ? {} : { proofDigest: proofDigestOf(start.proof) }),
     ...(start.recap === undefined ? {} : { recapOff: true }),
+    ...(start.clientContext === undefined ? {} : { clientContextDigest: stableDigest(start.clientContext) }),
   };
 }
 

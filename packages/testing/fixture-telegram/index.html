@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- Telegram Web A-like stand (docs/specs/2026-10-27-telegram-site.md §6.10): our own code, CSS and synthetic data,
+     built from the global class names, ids and mechanics of telegram-tt 6002824b (src/main.ts lists them). No
+     Telegram code, nothing loaded from the network. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Telegram Web</title>
+    <link rel="icon" href="data:," />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="portals"></div>
+  </body>
+</html>

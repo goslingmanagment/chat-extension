@@ -47,7 +47,15 @@ export interface ResultContentProps {
  * none of its own); the window check's (R20 P8b2, spec §3.5) — `ResultMarkKey`, in the catalog of the site whose verdict
  * gives them.
  */
-const MARK_WORDS = { 'fan-wrote': '', 'archive-moved': '', unverified: '.unverified', 'window-miss': '.windowMiss', 'deleted-served': '.deletedServed' } as const satisfies Record<StaleReason, string>;
+const MARK_WORDS = {
+  'fan-wrote': '',
+  'archive-moved': '',
+  unverified: '.unverified',
+  'window-miss': '.windowMiss',
+  'deleted-served': '.deletedServed',
+  'history-partial': '.historyPartial',
+  'details-changed': '.detailsChanged',
+} as const satisfies Record<StaleReason, string>;
 
 /**
  * The mark above the parts (ui-design §4.7): the answer may not know what the chat holds now; inserting stays allowed.

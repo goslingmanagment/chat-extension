@@ -382,6 +382,7 @@ export declare const publicationSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     kind: z.ZodEnum<{
         story: "story";
@@ -550,6 +551,7 @@ export declare const publicationDetailSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     kind: z.ZodEnum<{
         story: "story";
@@ -764,6 +766,7 @@ export declare const publicationListResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         kind: z.ZodEnum<{
             story: "story";
@@ -910,6 +913,7 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
             platform: z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>;
             kind: z.ZodEnum<{
                 story: "story";
@@ -1052,6 +1056,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         kind: z.ZodEnum<{
             story: "story";
@@ -1180,6 +1185,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         kind: z.ZodEnum<{
             story: "story";
@@ -1308,6 +1314,7 @@ export declare const publicationSettingsSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     enabled: z.ZodBoolean;
     autostopReason: z.ZodNullable<z.ZodString>;
@@ -1325,6 +1332,7 @@ export declare const publicationSettingsListResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         enabled: z.ZodBoolean;
         autostopReason: z.ZodNullable<z.ZodString>;
@@ -1363,6 +1371,7 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         kind: z.ZodEnum<{
             story: "story";
@@ -1505,6 +1514,7 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
             platform: z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>;
             kind: z.ZodEnum<{
                 story: "story";
@@ -1763,6 +1773,7 @@ export declare const agentPublicationMediaResponseSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     publishAt: z.ZodString;
     repostThresholdDays: z.ZodNumber;

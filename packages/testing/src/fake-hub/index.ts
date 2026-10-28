@@ -22,12 +22,30 @@ export {
   pageFeature,
   pilotPageFlags,
   presetConfig,
+  TELEGRAM_PAGE,
+  TELEGRAM_PAGE_FLAGS,
+  TELEGRAM_PERSONA,
+  featureNeedsOn,
+  telegramPageFlags,
+  telegramWorld,
   type FakeHubConfig,
   type FakePage,
+  type FakePlatform,
 } from './config';
 export { FAKE_USERS, SIGN_IN_FAILURES_PER_MINUTE, type FakeUser } from './auth';
 export { DEFAULT_CATALOG, generationText } from './ai';
-export { classifyPair, resolveCoverageCheck, streamBodyRefusal, type BodySchemaLike, type CoverageCheckAnswer, type PairState, type StreamBodyRefusal } from './ai-rules';
+export {
+  aiFeatureRunsOnPlatform,
+  classifyPair,
+  clientContextBesideRefusal,
+  resolveCoverageCheck,
+  streamBodyRefusal,
+  telegramShapeRefusal,
+  type BodySchemaLike,
+  type CoverageCheckAnswer,
+  type PairState,
+  type StreamBodyRefusal,
+} from './ai-rules';
 export { sseFrameText, SSE_HEARTBEAT } from './sse';
 export { hubCall, readSse, type FetchLike, type HubCallOptions, type SseRead } from './kit';
 export { FakeHubClock, iso } from './clock';

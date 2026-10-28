@@ -17,6 +17,10 @@ export const FANSLY_FIXTURE_SOURCE_DIR = fileURLToPath(new URL('../../fixture-fa
 export const FANSLY_FIXTURE_BUILD_DIR = `${REPO_ROOT}.cache/fixture-fansly/`;
 /** The FBuddy-like neighbour's one script (R20 P6d, `build:stand` too), served at /neighbor/neighbor.js of the Fansly stand. */
 export const FANSLY_NEIGHBOR_BUILD_DIR = `${REPO_ROOT}.cache/fansly-neighbor/`;
+/** Sources of the Telegram Web A-like stand page (docs/specs/2026-10-27-telegram-site.md §6.10). */
+export const TELEGRAM_FIXTURE_SOURCE_DIR = fileURLToPath(new URL('../../fixture-telegram/', import.meta.url));
+/** Built Telegram stand (`build:stand` too), served at `/a/` of its own loopback name, `telegram.localhost`. */
+export const TELEGRAM_FIXTURE_BUILD_DIR = `${REPO_ROOT}.cache/fixture-telegram/`;
 /** Sources of the ui/kit gallery page (R13). */
 export const KIT_GALLERY_SOURCE_DIR = fileURLToPath(new URL('../kit/gallery/', import.meta.url));
 /** Built gallery (`pnpm --filter @cg/testing build:gallery`), served at /kit-gallery/. */

@@ -30,10 +30,14 @@
 //
 // The media attached to the message being written goes as `draftMedia` (Reply, Fix, Hi, Ping, Coach in the open chat)
 // to a hub that lists `draft-media-v1`: a hub without it refuses the field.
+//
+// The open chat itself goes as `clientContext` where the hub keeps no archive of the platform (`CLIENT_CONTEXT_PLATFORMS`,
+// Telegram spec §6.2): the transcript the site's policy read at the start, never beside the page text, the PPV state,
+// the photos, the draft media or the window check (StartOp holds that already).
 
 import { type FeatureId } from '@cg/contracts/features';
 import { type LiveTextTail } from '@cg/contracts/host';
-import { DRAFT_MEDIA_CAPABILITY, HI_BY_START_PROOF, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, OUTREACH_FIX_CAPABILITY, RECAP_OFF_CAPABILITY } from '@cg/contracts/ids';
+import { CLIENT_CONTEXT_PLATFORMS, DRAFT_MEDIA_CAPABILITY, HI_BY_START_PROOF, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, OUTREACH_FIX_CAPABILITY, RECAP_OFF_CAPABILITY } from '@cg/contracts/ids';
 import {
   HUB_FEATURE_MAP,
   HubStreamRequestSchema,
@@ -179,11 +183,13 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   const tail = start.fresh ?? (proof !== undefined && proof.tail !== undefined && proof.tail.length > 0 ? { capturedAt: proof.takenAt, messages: proof.tail } : undefined);
   const liveNeed = LIVE_TEXT_HUB_NEEDS[start.feature];
   if (tail !== undefined && ctx.freshText && (liveNeed === undefined || hasCapability(ctx.bootstrap.capabilities, liveNeed))) body.liveTextContext = liveTextOf(tail);
-  if (start.livePpv !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, LIVE_PPV_CAPABILITY[body.platform])) body.livePpvContext = start.livePpv;
+  const ppvCapability = LIVE_PPV_CAPABILITY[body.platform];
+  if (start.livePpv !== undefined && ctx.freshText && ppvCapability !== null && hasCapability(ctx.bootstrap.capabilities, ppvCapability)) body.livePpvContext = start.livePpv;
   if (start.liveImages !== undefined && ctx.freshText && hasCapability(ctx.bootstrap.capabilities, LIVE_IMAGES_CAPABILITY)) body.liveImages = [...start.liveImages];
   // The composer's media is the person's own, not page text: it goes to a hub that lists `draft-media-v1`, whatever freshText says.
   if (start.draftMedia !== undefined && hasCapability(ctx.bootstrap.capabilities, DRAFT_MEDIA_CAPABILITY)) body.draftMedia = start.draftMedia;
   if (start.recap === 'off' && hasCapability(ctx.bootstrap.capabilities, RECAP_OFF_CAPABILITY)) body.recap = 'off';
+  if (start.clientContext !== undefined && CLIENT_CONTEXT_PLATFORMS[body.platform]) body.clientContext = { ...start.clientContext };
 
   const request: HubStreamRequest = { feature: spec.hub, body, capabilities };
   const parsed = HubStreamRequestSchema.safeParse(request);

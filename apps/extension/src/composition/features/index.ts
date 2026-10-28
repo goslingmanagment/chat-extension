@@ -18,7 +18,7 @@ import type { HostKind } from '@cg/contracts/hosts';
 import type { PerHost } from '../../hosts/runtime';
 import { CHATSPACE_FEATURE_SLICE } from './chatspace';
 
-export const HOST_FEATURES = { chatspace: CHATSPACE_FEATURE_SLICE, 'fansly-web': null } as const satisfies PerHost<FeatureSlice | null>;
+export const HOST_FEATURES = { chatspace: CHATSPACE_FEATURE_SLICE, 'fansly-web': null, 'telegram-web': null } as const satisfies PerHost<FeatureSlice | null>;
 
 /**
  * A site's slice: the core's own, else the one its running background module brought (`fromModule`); null — neither

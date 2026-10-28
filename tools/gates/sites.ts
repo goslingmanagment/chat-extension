@@ -43,11 +43,12 @@ const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/
 const sitePaths = createRequire(import.meta.url)('./site-paths.cjs') as {
   readonly FANSLY_OWNED: string;
   readonly CHATSPACE_OWNED: string;
+  readonly TELEGRAM_OWNED: string;
   readonly NEUTRAL: readonly string[];
 };
 
 /** A site's own paths, by its kind: a new host kind does not typecheck until it has its row. */
-const OWNED_PATHS = { chatspace: sitePaths.CHATSPACE_OWNED, 'fansly-web': sitePaths.FANSLY_OWNED } as const satisfies Record<HostKind, string>;
+const OWNED_PATHS = { chatspace: sitePaths.CHATSPACE_OWNED, 'fansly-web': sitePaths.FANSLY_OWNED, 'telegram-web': sitePaths.TELEGRAM_OWNED } as const satisfies Record<HostKind, string>;
 
 export interface Site {
   readonly kind: HostKind;
@@ -275,7 +276,7 @@ export interface BuiltFile {
  * the background core: everything a tab of the site and its background load.
  */
 export function isSiteArtifact(host: HostDescriptor, path: string): boolean {
-  const scripts = [host.scripts.main, host.scripts.isolated, ...(host.scripts.notice === undefined ? [] : [host.scripts.notice]), ...(host.scripts.extra ?? [])];
+  const scripts = [...(host.scripts.main === undefined ? [] : [host.scripts.main]), host.scripts.isolated, ...(host.scripts.notice === undefined ? [] : [host.scripts.notice]), ...(host.scripts.extra ?? [])];
   return path === BACKGROUND_CORE_FILE || path === host.background?.file || path.startsWith(`${host.lazy.root}/`) || scripts.some((script) => script.file === path);
 }
 

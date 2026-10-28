@@ -35,6 +35,8 @@ export const TAB_FED_FRESH_MS = 45_000;
 export const SITE_TONES = {
   chatspace: null,
   'fansly-web': { message: DEFAULT_FANSLY_SETTINGS.sound.messagesTone, subscriber: DEFAULT_FANSLY_SETTINGS.sound.subscribersTone },
+  // Telegram rings nothing of ours (no sound in its slice): the settings' own pair, should it ever.
+  'telegram-web': null,
 } as const satisfies { readonly [K in HostKind]: SoundTones | null };
 
 /** The site's tones by the platform it serves: a sound knows its platform (a page's batch has no tab of a site). */

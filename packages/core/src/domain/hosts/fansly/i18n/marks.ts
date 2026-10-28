@@ -9,7 +9,7 @@
 import type { Locale } from '@cg/contracts/i18n/keys';
 import type { ResultMarkKey } from '@cg/contracts/vm';
 
-export const FANSLY_MARK_TEXTS: { readonly [L in Locale]: Readonly<Record<ResultMarkKey, string>> } = {
+export const FANSLY_MARK_TEXTS: { readonly [L in Locale]: Readonly<Partial<Record<ResultMarkKey, string>>> } = {
   ru: {
     'result.stale.unverified.title': 'Свежесть не проверена:',
     'result.stale.unverified.body': 'неизвестно, учёл ли ответ последние сообщения чата.',

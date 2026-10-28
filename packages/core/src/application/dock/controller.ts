@@ -168,6 +168,9 @@ export function createDockController(ws: AiWorkspace): DockController {
     if (state === 'canceled') return;
     const show = (): void => ws.setSheet(chatKeyOf(record.view.target.chat), { kind: 'draft', opId });
     if (state !== 'done') return show();
+    // A mark the person must see before the field changes (Telegram spec §4.4: the draft's payment details are not in
+    // the answer character for character): the result is shown with «Заменить мой черновик», never written by itself.
+    if (ws.ports.policy.verdict(record.view, record.memo.fingerprint)?.reason === 'details-changed') return show();
     const outcome = await ws.inserts.applyFix(opId, cause);
     if (outcome.kind !== 'applied') show();
   }
@@ -236,6 +239,12 @@ export function createDockController(ws: AiWorkspace): DockController {
   }
 
   /** The one status line of a page nothing of ours runs on: the master switch in its own words, an outdated build as its error reads. */
+  /** The page's own warning, a state (the ring) with its title and body; null — none. */
+  function hostNoticeOf(situation: Situation): NonNullable<DockVM['notice']> | null {
+    const notice = situation.hostNotice ?? null;
+    return notice === null ? null : { ...errorVm({ code: notice.code }, ws.ports.i18n), tone: 'state' };
+  }
+
   function noticeOf(pageOff: NonNullable<Situation['pageOff']>): NonNullable<DockVM['notice']> {
     const view = errorVm(pageOff.error, ws.ports.i18n);
     return pageOff.why === 'disabled' ? { ...view, title: ws.ports.i18n.t('dock.status.pageOff'), body: '', tone: 'state' } : { ...view, tone: 'state' };
@@ -367,12 +376,14 @@ export function createDockController(ws: AiWorkspace): DockController {
     return {
       view: viewOf(ws, situation),
       // A conversation the page never named past the grace shows the strip, all off, and why (audit 2026-10-20 №15).
-      visible: chat !== null || situation.unidentified === true,
+      // A site that shows nothing on an unbound account (Telegram spec §2) hides the dock until the page is known.
+      visible: (chat !== null || situation.unidentified === true) && (ws.ports.dockOnlyWhenBound !== true || situation.bound === true),
       mode,
       status: situation.status,
       statusError: situation.statusError === null ? null : errorVm(situation.statusError, ws.ports.i18n),
       // The owner switched ChatGoose off, or this build is too old for the hub: one line, in place of an error card after a click.
-      notice: situation.pageOff === null || chat === null ? null : noticeOf(situation.pageOff),
+      // Else the page's own warning about the open chat (Telegram spec §4.3, §4.4), a line the person passes.
+      notice: chat === null ? null : situation.pageOff !== null ? noticeOf(situation.pageOff) : hostNoticeOf(situation),
       targetHandle: handle,
       persona: situation.persona?.status === 'ok' && situation.persona.label !== null && situation.pageName !== null ? { label: situation.persona.label, pageName: situation.pageName } : null,
       personaChoices: personaChoicesOf(situation),
@@ -382,7 +393,8 @@ export function createDockController(ws: AiWorkspace): DockController {
       quota: quota !== null && low ? { remaining, low: remaining !== 0, resetsAt: quota.resetsAt } : null,
       options: {
         tone: chat === null ? null : ws.tone(chat.key),
-        tones: TONES,
+        // The site's tones (Telegram: no selling tone), else every one.
+        tones: ws.ports.tones ?? TONES,
         // The tab's own Split until its own click or a reload; a new tab starts from «Split по умолчанию» (2026-10-22).
         split: ws.split(),
         locked: generating,

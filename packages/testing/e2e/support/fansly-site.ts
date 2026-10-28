@@ -5,15 +5,12 @@
 // (R20 P6a). Its two scripts are registered as the background will register
 // them after «Включить Fansly» (P9a): one call, MAIN first, at
 // document_start, top frame only. The test grants only the optional bundle;
-// the production background owns registration, persistence and ordering.
+// the production background owns registration, persistence and ordering
+// (the grant itself is support/site-grant.ts, one helper for every optional site).
 
-import { browser } from '@wdio/globals';
+import { OPTIONAL_STAND_SITES, switchSiteOnForTheStand } from './site-grant';
 
-import { testBuildPage } from './fake-hub';
-import { grantOptional } from './permissions';
-
-/** The Fansly stand's match pattern (apps/extension/src/hosts/runtime/index.ts FANSLY_STAND_MATCHES): a pattern has no port. */
-export const FANSLY_STAND_PATTERN = 'http://localhost/*';
+export { FANSLY_STAND_PATTERN, registeredScripts } from './site-grant';
 
 /** Fansly's scripts as the registry declares them (apps/extension/src/hosts/fansly.ts), in the order they register: MAIN first. */
 export const FANSLY_SCRIPTS = [
@@ -21,21 +18,7 @@ export const FANSLY_SCRIPTS = [
   { id: 'fansly', js: ['fansly.js'], world: 'ISOLATED' },
 ] as const;
 
-interface ScriptingApi {
-  getRegisteredContentScripts(): Promise<Array<{ id: string; matches?: string[]; world?: string; runAt?: string; js?: string[] }>>;
-}
-
-/** The content scripts registered now, from the extension page the browser is on. */
-export async function registeredScripts(): Promise<Array<{ id: string; matches: string[]; world: string | null; runAt: string | null; js: string[] }>> {
-  return browser.execute(async () => {
-    const api = (globalThis as unknown as { browser: { scripting: ScriptingApi } }).browser;
-    return (await api.scripting.getRegisteredContentScripts()).map((script) => ({ id: script.id, matches: [...(script.matches ?? [])], world: script.world ?? null, runAt: script.runAt ?? null, js: [...(script.js ?? [])] }));
-  });
-}
-
 /** The person switched Fansly on, as far as the stand goes: its origins and webRequest granted, its scripts registered. */
 export async function switchFanslyOnForTheStand(): Promise<void> {
-  await grantOptional({ origins: [FANSLY_STAND_PATTERN], permissions: ['webRequest'] });
-  await browser.url(testBuildPage());
-  await browser.waitUntil(async () => (await registeredScripts()).some((script) => script.id === 'fansly'), { timeout: 15_000, timeoutMsg: 'background registers Fansly after the grant' });
+  await switchSiteOnForTheStand(OPTIONAL_STAND_SITES.fansly);
 }

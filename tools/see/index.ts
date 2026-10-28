@@ -3,9 +3,9 @@
 // extension's reports in .cache/see/<time>-<scenario>/ with an index.html contact sheet.
 //
 //   pnpm see                         the scenarios
-//   pnpm see <scenario|file> [--site fansly] [--showcase] [--dpr <n>] [--gif] [--no-build]
+//   pnpm see <scenario|file> [--site fansly|telegram] [--showcase] [--dpr <n>] [--gif] [--no-build]
 //   pnpm see --new <name>            a scenario of one's own (packages/testing/e2e/see/scratch, not committed)
-//   pnpm see:session [chatspace|fansly]   a shift held open; pnpm see:do drives it
+//   pnpm see:session [chatspace|fansly|telegram]   a shift held open; pnpm see:do drives it
 //   … --live [--chat <group>]       Fansly for real: the test model on fansly.com, its writes to Fansly journaled (e2e/see/live.ts)
 //   pnpm see:session --bare          the same site alone, no extension: a browser to study Fansly in (net.json, s.net)
 //   pnpm see:do '<js>' | --file f.js | --shot <name> | --stop
@@ -84,14 +84,23 @@ const extensionVersion = (): string => (JSON.parse(readFileSync(join(REPO_ROOT, 
 const TEST_BUILD: Build = {
   name: 'test build',
   outputs: () => [join(REPO_ROOT, 'apps/extension/.output', artifactNames(extensionVersion(), 'test').xpi)],
-  inputs: ['apps/extension', 'packages/contracts', 'packages/core', 'packages/platform', 'packages/hub', 'packages/host-kit', 'packages/host-chatspace', 'packages/host-fansly', 'packages/fansly-api', 'packages/ui', 'vendor', 'pnpm-lock.yaml'],
+  inputs: ['apps/extension', 'packages/contracts', 'packages/core', 'packages/platform', 'packages/hub', 'packages/host-kit', 'packages/host-chatspace', 'packages/host-fansly', 'packages/host-telegram', 'packages/fansly-api', 'packages/ui', 'vendor', 'pnpm-lock.yaml'],
   command: ['pnpm', 'build:test'],
 };
 
 const STAND_BUILD: Build = {
   name: 'stand',
-  outputs: () => ['.cache/fixture-chatspace/index.html', '.cache/fixture-fansly/index.html', '.cache/fansly-neighbor/neighbor.js'].map((path) => join(REPO_ROOT, path)),
-  inputs: ['packages/testing/fixture-chatspace', 'packages/testing/fixture-fansly', 'packages/testing/src/fake-fansly/neighbor', 'packages/testing/fixture-chatspace.vite.config.ts', 'packages/testing/fixture-fansly.vite.config.ts', 'packages/testing/fansly-neighbor.vite.config.ts'],
+  outputs: () => ['.cache/fixture-chatspace/index.html', '.cache/fixture-fansly/index.html', '.cache/fansly-neighbor/neighbor.js', '.cache/fixture-telegram/index.html'].map((path) => join(REPO_ROOT, path)),
+  inputs: [
+    'packages/testing/fixture-chatspace',
+    'packages/testing/fixture-fansly',
+    'packages/testing/fixture-telegram',
+    'packages/testing/src/fake-fansly/neighbor',
+    'packages/testing/fixture-chatspace.vite.config.ts',
+    'packages/testing/fixture-fansly.vite.config.ts',
+    'packages/testing/fansly-neighbor.vite.config.ts',
+    'packages/testing/fixture-telegram.vite.config.ts',
+  ],
   command: ['pnpm', '--filter', '@cg/testing', 'build:stand'],
 };
 
@@ -163,7 +172,7 @@ function describeScenario(file: string): string {
 }
 
 function listScenarios(): void {
-  console.log('pnpm see <scenario> [--site fansly | --live [--chat <group>]] [--showcase] [--dpr <n>] [--gif] [--no-build]   (tools/see/README.md)\n');
+  console.log('pnpm see <scenario> [--site fansly|telegram | --live [--chat <group>]] [--showcase] [--dpr <n>] [--gif] [--no-build]   (tools/see/README.md)\n');
   for (const [title, dir] of [
     ['scenarios', SCENARIOS],
     ['scratch (yours, not committed)', SCRATCH],
@@ -174,7 +183,7 @@ function listScenarios(): void {
     for (const file of files) console.log(`  ${scenarioName(file).padEnd(14)} ${describeScenario(join(dir, file))}`);
     console.log('');
   }
-  console.log('also: pnpm see --new <name> · pnpm see:session [chatspace|fansly] · pnpm see:do \'<js>\' · pnpm see:gallery');
+  console.log('also: pnpm see --new <name> · pnpm see:session [chatspace|fansly|telegram] · pnpm see:do \'<js>\' · pnpm see:gallery');
 }
 
 function resolveScenario(arg: string): string {
@@ -384,7 +393,7 @@ function parse(args: readonly string[]): Flags {
     else positional.push(arg);
   }
   const site = values.get('--site') ?? null;
-  if (site !== null && site !== 'chatspace' && site !== 'fansly') fail(`see: --site ${site}: chatspace or fansly`);
+  if (site !== null && site !== 'chatspace' && site !== 'fansly' && site !== 'telegram') fail(`see: --site ${site}: chatspace, fansly or telegram`);
   return { positional, site, gif: switches.has('--gif'), noBuild: switches.has('--no-build'), values, switches };
 }
 
@@ -437,7 +446,7 @@ function readSession(): SessionInfo | null {
 async function session(flags: Flags): Promise<void> {
   const live = liveEnv(flags);
   const site = flags.positional[0] ?? flags.site ?? (live !== null ? 'fansly' : 'chatspace');
-  if (site !== 'chatspace' && site !== 'fansly') fail(`see: pnpm see:session [chatspace|fansly], not «${site}»`);
+  if (site !== 'chatspace' && site !== 'fansly' && site !== 'telegram') fail(`see: pnpm see:session [chatspace|fansly|telegram], not «${site}»`);
   if (live !== null && site !== 'fansly') fail('see: --live is Fansly\'s only');
   const running = readSession();
   if (running !== null) fail(`see: a session (${running.site}) already runs on http://127.0.0.1:${running.port}/live — pnpm see:do --stop`);
@@ -477,7 +486,7 @@ async function call(path: string, init: RequestInit = {}): Promise<Response> {
       return await fetch(`http://127.0.0.1:${port}${path}`, init);
     } catch (error) {
       // A session still starting: wait for it. No session at all: say so.
-      if (readSession() === null) fail(`see: no session on port ${port} — start one: pnpm see:session [chatspace|fansly]`);
+      if (readSession() === null) fail(`see: no session on port ${port} — start one: pnpm see:session [chatspace|fansly|telegram]`);
       if (Date.now() > until) fail(`see: the session on port ${port} does not answer: ${String(error)}`);
       await new Promise((done) => setTimeout(done, 500));
     }

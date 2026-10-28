@@ -18,6 +18,10 @@ export interface SiteAccessProps {
 const SiteAccessContext = createContext<SiteAccessProps | null>(null);
 export const SiteAccessProvider = SiteAccessContext.Provider;
 
+/** The other optional sites' switches (Telegram spec §6.3): each its own control and title, said in the same foot. */
+const MoreSitesContext = createContext<readonly SiteAccessProps[]>([]);
+export const MoreSitesProvider = MoreSitesContext.Provider;
+
 /** The optional site's control and its live state; null — this page has none. */
 export function useSiteAccess(): { readonly props: SiteAccessProps; readonly view: SiteAccessView } | null {
   const props = useContext(SiteAccessContext);
@@ -74,5 +78,20 @@ export function SiteSwitchError(): JSX.Element | null {
         <Button busy={view.busy} label={i18n.t('common.retry')} onClick={() => void props.control.refresh()} />
       </ErrorCard>
     </div>
+  );
+}
+
+/** The other optional sites' quiet words in the foot, each under its own control; a site not offered shows nothing. */
+export function MoreSiteSwitches(): JSX.Element | null {
+  const sites = useContext(MoreSitesContext);
+  if (sites.length === 0) return null;
+  return (
+    <>
+      {sites.map((site) => (
+        <SiteAccessProvider key={site.title} value={site}>
+          <SiteSwitch />
+        </SiteAccessProvider>
+      ))}
+    </>
   );
 }

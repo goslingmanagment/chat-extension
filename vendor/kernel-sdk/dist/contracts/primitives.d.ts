@@ -37,6 +37,7 @@ export declare const businessDate: z.ZodString;
 export declare const platformEnum: z.ZodEnum<{
     fansly: "fansly";
     onlyfans: "onlyfans";
+    telegram: "telegram";
 }>;
 export declare const transactionTypeEnum: z.ZodEnum<{
     subscription: "subscription";
@@ -89,6 +90,7 @@ export declare const fanLookupParamsSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     platformUserId: z.ZodString;
 }, z.core.$strip>;

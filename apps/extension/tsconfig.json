@@ -8,7 +8,7 @@
     "outDir": ".tsbuild/web",
     "tsBuildInfoFile": ".tsbuild/web.tsbuildinfo"
   },
-  "include": ["src", "lazy/entries", "lazy/fansly", "lazy/chatspace", "bg"],
+  "include": ["src", "lazy/entries", "lazy/fansly", "lazy/chatspace", "lazy/telegram", "bg"],
   "exclude": ["bg/vite.config.ts"],
   "references": [
     { "path": "../../packages/contracts" },
@@ -18,6 +18,7 @@
     { "path": "../../packages/host-kit" },
     { "path": "../../packages/host-chatspace" },
     { "path": "../../packages/host-fansly" },
+    { "path": "../../packages/host-telegram" },
     { "path": "../../packages/fansly-api" },
     { "path": "../../packages/ui" }
   ]

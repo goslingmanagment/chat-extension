@@ -30,6 +30,7 @@
     "./preview/media": "./src/spenders/preview/media-panel.tsx",
     "./pages": "./src/pages/index.ts",
     "./hosts/fansly": "./src/hosts/fansly/index.ts",
+    "./hosts/telegram": "./src/hosts/telegram/index.ts",
     "./hosts/fansly/vault": "./src/hosts/fansly/vault/index.tsx",
     "./hosts/fansly/newcomers": "./src/hosts/fansly/newcomers/index.tsx",
     "./notes": "./src/notes/index.tsx",

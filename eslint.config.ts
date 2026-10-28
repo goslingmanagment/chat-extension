@@ -21,7 +21,7 @@ const CG = {
    * The packages of the page — the shared mechanics (host-kit) and each site's adapter — and Fansly's API package:
    * only the app wires them, a shared package never imports one (docs/project-unite/architecture.md §1.8).
    */
-  host: ['@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/host-kit', '@cg/host-kit/*', '@cg/host-fansly', '@cg/host-fansly/*', '@cg/fansly-api', '@cg/fansly-api/*'],
+  host: ['@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/host-kit', '@cg/host-kit/*', '@cg/host-fansly', '@cg/host-fansly/*', '@cg/host-telegram', '@cg/host-telegram/*', '@cg/fansly-api', '@cg/fansly-api/*'],
   ui: ['@cg/ui', '@cg/ui/*'],
   testing: '@cg/testing',
   extension: '@cg/extension',
@@ -103,7 +103,7 @@ const mainWorldRules = (allowed: string, message: string): Linter.RulesRecord =>
 /** What an isolated adapter of the page never imports (§4): the browser, the hub, the UI, the MAIN code next to it. */
 const ISOLATED_BANNED = flat(CG.platform, CG.hub, CG.ui, CG.testing, CG.extension, BROWSER_API, PREACT, SDK, NODE, '../main', '../main/*');
 /** Every site's own packages: the shared mechanics of the page know no site (docs/project-unite/architecture.md §1.1). */
-const SITE_PACKAGES = ['@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/host-fansly', '@cg/host-fansly/*', '@cg/fansly-api', '@cg/fansly-api/*'];
+const SITE_PACKAGES = ['@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/host-fansly', '@cg/host-fansly/*', '@cg/host-telegram', '@cg/host-telegram/*', '@cg/fansly-api', '@cg/fansly-api/*'];
 
 /** The background is the only place that may use the hub facade and the SDK (§4, D-13). */
 const BACKGROUND_FILES = ['apps/extension/src/entrypoints/background.ts', 'apps/extension/src/composition/background.ts'];
@@ -369,6 +369,25 @@ export default defineConfig(
     },
   },
   {
+    // Telegram's isolated adapter (docs/specs/2026-10-27-telegram-site.md §4): as Fansly's — no network, no page storage
+    // (the entry point hands in the one session entry it reads), no other site.
+    files: ['packages/host-telegram/src/isolated/**/*.ts'],
+    rules: {
+      ...restrict(
+        {
+          regex: '^@cg/core(/|$)',
+          message: '`host-telegram/isolated` imports nothing of core (docs/specs/2026-10-27-telegram-site.md §4).',
+        },
+        {
+          group: flat(ISOLATED_BANNED, '@cg/host-chatspace', '@cg/host-chatspace/*', '@cg/host-fansly', '@cg/host-fansly/*', '@cg/fansly-api', '@cg/fansly-api/*'),
+          message: '`host-telegram/isolated` imports only @cg/host-kit and @cg/contracts; no token, no network, no other site (docs/specs/2026-10-27-telegram-site.md §4).',
+        },
+      ),
+      'no-restricted-globals': ['error', ...hostBannedGlobals()],
+      'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties()],
+    },
+  },
+  {
     files: [FANSLY_CDN_FILE],
     rules: {
       'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['fetch'])],
@@ -412,7 +431,7 @@ export default defineConfig(
   },
   {
     // Content-script and page composition roots, entry points, lazy chunks.
-    files: ['apps/extension/src/**/*.ts', 'apps/extension/lazy/entries/**/*.ts', 'apps/extension/lazy/fansly/**/*.ts', 'apps/extension/lazy/chatspace/**/*.ts'],
+    files: ['apps/extension/src/**/*.ts', 'apps/extension/lazy/entries/**/*.ts', 'apps/extension/lazy/fansly/**/*.ts', 'apps/extension/lazy/chatspace/**/*.ts', 'apps/extension/lazy/telegram/**/*.ts'],
     ignores: BACKGROUND_FILES,
     rules: restrict(APP_RESTRICTION, HUB_BACKGROUND_ONLY, BACKGROUND_ROOT_IMPORT),
   },

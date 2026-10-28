@@ -11,6 +11,7 @@
     { "path": "packages/host-kit" },
     { "path": "packages/host-chatspace" },
     { "path": "packages/host-fansly" },
+    { "path": "packages/host-telegram" },
     { "path": "packages/fansly-api" },
     { "path": "packages/ui" },
     { "path": "packages/testing" },

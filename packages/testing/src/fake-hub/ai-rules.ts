@@ -30,12 +30,23 @@
 // HF-5 (Hi's start proof) follows below (P6c2). P6c4 adds voice identity, notes fill
 // isolation and the transcript reader's depth (HF-4а/б, HF-6), from bd3eec065;
 // the voice script on OnlyFans pages too is hub #757 (10fe275d6).
+//
+// Telegram (hub #909, 52e09102; docs/specs/2026-10-27-telegram-site.md §5.6): a
+// Telegram page runs Reply, Fix and Coach only (`ai-platform-features.ts`, 409
+// `client_feature_disabled` / `platform_unsupported` before anything else), each
+// with the open chat in `clientContext` and the fan in `fanRef`, without media
+// notes, draft media, a mass message or the selling tone
+// (`assertTelegramRequestShape`, 400). And on any page the hub takes none of the
+// open chat's live fields beside `clientContext` (live-text.ts, live-ppv.ts,
+// live-images.ts off Fansly, draft-media.ts: 400 `live_text_not_allowed`); a
+// window check there it ignores (no context frame on that lane), which the fake
+// refuses outright so a client that sends one is caught.
 
 import { type AiFeatureStreamBody, type HubStreamRequest } from '@cg/contracts';
 
 export interface StreamBodyRefusal {
-  /** The hub's error code: a gate (`gate_draft_required`) or the plain `bad_request`. */
-  readonly error: 'gate_draft_required' | 'bad_request';
+  /** The hub's error code: a gate (`gate_draft_required`), the plain `bad_request`, or a feature the page's platform does not run. */
+  readonly error: 'gate_draft_required' | 'bad_request' | 'client_feature_disabled';
   /** The hub's own message, word for word. */
   readonly message: string;
   readonly reason?: string;
@@ -49,6 +60,12 @@ const blank = (value: string | null | undefined): boolean => value === undefined
 type StreamRuleBody = Partial<AiFeatureStreamBody> & { readonly clientContext?: unknown; readonly noteValues?: readonly string[] | undefined };
 
 export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabilities: readonly string[] = []): StreamBodyRefusal | null {
+  // The hub's first checks: the platform's own features, then Telegram's request shape (hub #909).
+  if (body.platform !== undefined && !aiFeatureRunsOnPlatform(feature, body.platform)) return { error: 'client_feature_disabled', message: `Chat-extension feature "${feature}" is unavailable (platform_unsupported)`, reason: 'platform_unsupported' };
+  if (body.platform === 'telegram') {
+    const telegram = telegramShapeRefusal(feature, body);
+    if (telegram !== null) return telegram;
+  }
   if (REQUIRES_DRAFT.includes(feature) && blank(body.draftText)) return { error: 'gate_draft_required', message: `${feature} requires draftText` };
   // «Рассылка» (`outreach-fix-v1`): Fix alone rewrites a mass message (hub assertDraftPurposeRequestShape).
   if (body.draftPurpose !== undefined && feature !== 'improve-draft') return { error: 'bad_request', message: `${feature} does not accept draftPurpose` };
@@ -78,7 +95,51 @@ export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabil
     return { error: 'bad_request', message: 'fanRef is required on fansly for coach-chat and short fan-summary' };
   }
   if (body.platform === 'fansly' && blank(body.fanRef) && feature === 'fan-notes-fill') return { error: 'bad_request', message: 'fanRef is required on fansly for fan-notes-fill' };
-  return hiStartProofShapeRefusal(feature, body, capabilities) ?? hiFanAccountRefusal(feature, body, capabilities);
+  return clientContextBesideRefusal(feature, body) ?? hiStartProofShapeRefusal(feature, body, capabilities) ?? hiFanAccountRefusal(feature, body, capabilities);
+}
+
+// ── Telegram (hub #909: ai-platform-features.ts, features/index.ts `assertTelegramRequestShape`) ──
+
+/** The AI features a platform's pages run, where the platform limits them; a platform without an entry runs every one. */
+const AI_PLATFORM_FEATURES: Readonly<Record<string, readonly string[]>> = { telegram: ['fast-reply', 'improve-draft', 'coach-chat'] };
+
+/** `aiFeatureRunsOnPlatform`: whether pages of this platform run this AI feature. */
+export function aiFeatureRunsOnPlatform(feature: string, platform: string): boolean {
+  return Object.hasOwn(AI_PLATFORM_FEATURES, platform) ? (AI_PLATFORM_FEATURES[platform]?.includes(feature) ?? false) : true;
+}
+
+type TelegramRuleBody = StreamRuleBody & { readonly clientContext?: { readonly media?: unknown } | undefined };
+
+/**
+ * `assertTelegramRequestShape`, in the hub's order and with its messages: the chat and the fan named
+ * (`telegram_context_required`), no media notes, no draft media, no mass message, no selling tone (`telegram_not_allowed`).
+ */
+export function telegramShapeRefusal(feature: string, body: TelegramRuleBody): StreamBodyRefusal | null {
+  const bad = (message: string, reason: string): StreamBodyRefusal => ({ error: 'bad_request', message, reason });
+  if (body.clientContext === undefined) return bad(`${feature} on a telegram page requires clientContext`, 'telegram_context_required');
+  if (blank(body.fanRef)) return bad(`${feature} on a telegram page requires fanRef`, 'telegram_context_required');
+  if (body.clientContext.media !== undefined) return bad('clientContext.media is not accepted on a telegram page', 'telegram_not_allowed');
+  if (body.draftMedia !== undefined) return bad('draftMedia is not accepted on a telegram page', 'telegram_not_allowed');
+  if (body.draftPurpose === 'outreach') return bad('draftPurpose "outreach" is not accepted on a telegram page', 'telegram_not_allowed');
+  if (body.replyTone === 'upsell') return bad('the upsell tone is not accepted on a telegram page', 'telegram_not_allowed');
+  return null;
+}
+
+/**
+ * The open chat's live fields beside `clientContext` (the hub's live-text.ts, live-ppv.ts, live-images.ts — taken
+ * beside it on a Fansly page alone, the released Fansly extension's lane —, draft-media.ts): 400
+ * `live_text_not_allowed`. A window check beside it the hub ignores (its lane has no context frame); the fake refuses
+ * it, so a client that sends one fails here and not silently.
+ */
+export function clientContextBesideRefusal(feature: string, body: StreamRuleBody & { readonly coverageCheck?: unknown }): StreamBodyRefusal | null {
+  if (body.clientContext === undefined) return null;
+  const bad = (field: string): StreamBodyRefusal => ({ error: 'bad_request', message: `${field} cannot be combined with clientContext`, reason: 'live_text_not_allowed' });
+  if (body.liveTextContext !== undefined) return bad('liveTextContext');
+  if (body.livePpvContext !== undefined) return bad('livePpvContext');
+  if (body.liveImages !== undefined && body.platform !== 'fansly') return bad('liveImages');
+  if (body.draftMedia !== undefined) return bad('draftMedia');
+  if (body.coverageCheck !== undefined) return { error: 'bad_request', message: `${feature}: coverageCheck beside clientContext is never answered (the fake hub refuses it)` };
+  return null;
 }
 
 // ── The open chat's PPV state (hub context/live-ppv.ts `assertLivePpvRequestShape`) ──

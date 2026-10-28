@@ -53,7 +53,7 @@ interface BundleMarks {
  * where the page can read it: no report attribute, no login, no page label.
  */
 export function tabProbeFor(win: Window): TabProbe | null {
-  return /^(?:127\.0\.0\.1|localhost)$/.test(win.location.hostname) ? createTabProbe(win) : null;
+  return /^(?:127\.0\.0\.1|localhost|telegram\.localhost)$/.test(win.location.hostname) ? createTabProbe(win) : null;
 }
 
 export function createTabProbe(win: Window): TabProbe {

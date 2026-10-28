@@ -13,22 +13,23 @@
 
 import { CHATSPACE } from './chatspace.ts';
 import { FANSLY } from './fansly.ts';
-import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, LOOPBACK_MATCHES } from './runtime/index.ts';
+import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, LOOPBACK_MATCHES, TELEGRAM_STAND_MATCHES } from './runtime/index.ts';
+import { TELEGRAM } from './telegram.ts';
 import type { HostDescriptor, LazySite, ScriptSpec } from './types.ts';
 
 export type * from './types.ts';
-export { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, LOOPBACK_MATCHES };
+export { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, LOOPBACK_MATCHES, TELEGRAM_STAND_MATCHES };
 
-export const HOSTS: readonly HostDescriptor[] = [CHATSPACE, FANSLY];
+export const HOSTS: readonly HostDescriptor[] = [CHATSPACE, FANSLY, TELEGRAM];
 
 /** The registry entry of a host kind; undefined — the extension does not run there. */
 export function hostOf(kind: string, hosts: readonly HostDescriptor[] = HOSTS): HostDescriptor | undefined {
   return hosts.find((host) => host.kind === kind);
 }
 
-/** Every script of a site: the MAIN one, the isolated one, then the notice and the others. */
+/** Every script of a site: the MAIN one (when it has one), the isolated one, then the notice and the others. */
 export function scriptsOf(host: HostDescriptor): ScriptSpec[] {
-  return [host.scripts.main, host.scripts.isolated, ...(host.scripts.notice === undefined ? [] : [host.scripts.notice]), ...(host.scripts.extra ?? [])];
+  return [...(host.scripts.main === undefined ? [] : [host.scripts.main]), host.scripts.isolated, ...(host.scripts.notice === undefined ? [] : [host.scripts.notice]), ...(host.scripts.extra ?? [])];
 }
 
 /** Where a site's scripts run: its pages, and in a test build its loopback stand too. */

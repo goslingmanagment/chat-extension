@@ -13,8 +13,9 @@
 // which is separately HMAC-signed by the runtime.
 // Shared by the server (modules/events) and the SDK helper so both ends agree
 // byte-for-byte; clients never construct or inspect it.
+import { platforms } from "../shared/index";
 function isDomainEventCursorPlatform(value) {
-    return value === "onlyfans" || value === "fansly";
+    return platforms.includes(value);
 }
 // Isomorphic base64url (no Buffer): this file ships to the browser through
 // the SDK (dashboard) as well as to node (server + desktop). btoa/atob are

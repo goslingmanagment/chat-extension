@@ -73,10 +73,15 @@ export const DEFAULT_FANSLY_SETTINGS: FanslySettings = {
   sound: { messagesTone: 'chime', subscribersTone: 'double' },
 };
 
+/** Telegram Web A (`hosts['telegram-web']`, Telegram spec §6.3): «Включить Telegram», the person's own switch. */
+export const TelegramSettingsSchema = z.strictObject({ enabled: z.boolean() });
+export type TelegramSettings = z.infer<typeof TelegramSettingsSchema>;
+export const DEFAULT_TELEGRAM_SETTINGS: TelegramSettings = { enabled: false };
+
 /** The key as a build of this version reads it: every field, defaults filling the rest. */
 export const SettingsExtSchema = z.strictObject({
   v: z.literal(SETTINGS_EXT_VERSION),
-  hosts: z.strictObject({ 'fansly-web': FanslySettingsSchema }),
+  hosts: z.strictObject({ 'fansly-web': FanslySettingsSchema, 'telegram-web': TelegramSettingsSchema }),
   /** null — no wish above 3000: the depth is v1's. */
   windows: z.strictObject({ deep: z.nullable(intIn(SETTINGS_EXT_RANGES.windowDeep)) }),
 });
@@ -84,7 +89,7 @@ export type SettingsExt = z.infer<typeof SettingsExtSchema>;
 
 export const DEFAULT_SETTINGS_EXT: SettingsExt = {
   v: SETTINGS_EXT_VERSION,
-  hosts: { 'fansly-web': DEFAULT_FANSLY_SETTINGS },
+  hosts: { 'fansly-web': DEFAULT_FANSLY_SETTINGS, 'telegram-web': DEFAULT_TELEGRAM_SETTINGS },
   windows: { deep: null },
 };
 
@@ -100,6 +105,7 @@ export const SettingsExtPatchSchema = z.strictObject({
           sound: z.optional(z.partial(FanslySettingsSchema.shape.sound)),
         }),
       ),
+      'telegram-web': z.optional(z.strictObject({ enabled: z.optional(z.boolean()) })),
     }),
   ),
   windows: z.optional(z.strictObject({ deep: z.optional(z.nullable(intIn(SETTINGS_EXT_RANGES.windowDeep))) })),

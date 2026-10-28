@@ -81,12 +81,13 @@ const positive = z.number().int().positive();
  * Known names: documentation and the client's narrowing. On the wire they are open strings.
  *
  * Where each flag exists is the hub's (chat-extension R20 HF-2): a page of a
- * platform without the flag reads `platform_unsupported`. `drafts`, `voice`,
- * `notesFill`, `notes`, `vault` and `registration` exist on Fansly only: the
- * narrow token's Reply, Fix, Hi and Ping, its voice script (`voice` also opens
- * the voice-note routes, `voice-notes-v1`) and its notes fill on a Fansly page
- * (R20 HF-12, HF-4б), and the extension's own notes, vault and «Регистрация».
- * On OnlyFans those generations need no flag of their own. `previewSend`,
+ * platform without the flag reads `platform_unsupported`. `drafts`, `vault`
+ * and `registration` exist on Fansly only: the narrow token's Reply, Fix, Hi
+ * and Ping on a Fansly page (R20 HF-12), and the extension's own vault and
+ * «Регистрация». On OnlyFans those generations need no flag of their own.
+ * `voice` (the voice script and the voice-note routes, `voice-notes-v1`,
+ * HF-4б), `notes` and `notesFill` (the fan's notes and their fill; on
+ * OnlyFans since 2026-10-28) exist on both. `previewSend`,
  * `previewSendMarkAiGenerated`, `navigation`, `wsTap` and `stats` exist on
  * OnlyFans only; every other flag on both. A Fansly page is switched on by its
  * own row of the owner's switches alone, never by the `"*"` row, so the
@@ -144,6 +145,9 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     "coach-depth-v1",
     // Fan marks: «бомж» lists of the agency's Fansly pages and FANSLY BLOCKLIST posts about the fan.
     "fan-marks-v1",
+    // Telegram as the extension's third site: pages of platform `telegram`, whose
+    // Reply, Fix and Coach take the open chat in `clientContext`.
+    "telegram-ai-v1",
 ];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
@@ -202,6 +206,10 @@ export const clientBootstrapPageSchema = z.object({
     bindingRevision: count,
     /** Flag name → availability on this page. */
     features: z.record(clientOpenToken, clientFeatureAvailabilitySchema),
+    /** The persona the page is meant to be worked with (an `ai_personas` key):
+     *  the extension assigns it to a page the person has not assigned one to,
+     *  and warns when someone picks another. Absent: none is meant. */
+    defaultPersonaKey: z.string().min(1).max(200).optional(),
 });
 export const clientBootstrapLimitsSchema = z.object({
     freshTextMaxItems: count,

@@ -256,6 +256,8 @@ export interface PersonasBodyVM {
     readonly page?: PageTagVM;
     readonly persona: string | null;
     readonly replacementNeeded: boolean;
+    /** The persona the hub says the page is meant for (`defaultPersonaKey`), when another is chosen; absent — none or the same. */
+    readonly intended?: string;
     readonly choices: readonly { readonly key: string; readonly label: string; readonly choose: UiAction }[];
   }[];
   readonly syncedAt: IsoTimestamp | null;

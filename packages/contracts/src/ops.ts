@@ -9,8 +9,8 @@ import { CgErrorWireSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema, ToneSchema, freshTextSurface, isFreshTextFeature, type FeatureId, type SiteOpId, type Surface, type Tone } from './features';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from './hi-start-proof';
 import { DraftMediaSchema, LiveImagesSchema, LiveTextMessageSchema, LiveTextTailSchema, OPEN_CHAT_PRICE_MAX, type ChatWindow, type HostPort, type LiveImage, type LiveTextTail } from './host';
-import { ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
-import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
+import { CLIENT_CONTEXT_PLATFORMS, ChatRefSchema, HumanCauseSchema, TargetSchema, type HostIdentity, type HumanCause, type Target } from './ids';
+import { AI_REQUEST_LIMITS, CLIENT_CONTEXT_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, OP_LIMITS, SEND_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -195,6 +195,40 @@ export const LIVE_IMAGE_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['
  */
 export const DRAFT_MEDIA_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['reply', 'fix', 'hi', 'ping', 'coach']);
 
+/**
+ * Telegram spec §4.3, §6.2: the open chat as the tab read it from the page, on a platform the hub keeps no archive of
+ * (`CLIENT_CONTEXT_PLATFORMS`): the transcript, its message count, the fan's name as the page shows it, and `window`
+ * only while the newest messages were rendered. The hub's `clientContext`, a strict subset of it. The texts live in
+ * memory only, for the request.
+ */
+export const ClientContextSchema = z.strictObject({
+  transcript: boundedText(CLIENT_CONTEXT_LIMITS.transcriptMaxChars),
+  messageCount: z.int().check(z.gte(0), z.lte(CLIENT_CONTEXT_LIMITS.messageCountMax)),
+  fanDisplayName: displayText(CLIENT_CONTEXT_LIMITS.fanNameMaxChars),
+  transcriptCoverage: z.optional(z.literal('window')),
+});
+export type ClientContext = z.infer<typeof ClientContextSchema>;
+
+/** The starts that carry the open chat as `clientContext`: the ones the hub runs on such a platform (Reply, Fix, Coach). */
+export const CLIENT_CONTEXT_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['reply', 'fix', 'coach']);
+
+/** A start that carries the open chat itself carries nothing of the other sites' context, and only on its platform. */
+function clientContextFits(op: {
+  readonly feature: FeatureId;
+  readonly target: { readonly binding: { readonly platform: keyof typeof CLIENT_CONTEXT_PLATFORMS } };
+  readonly clientContext?: unknown;
+  readonly fresh?: unknown;
+  readonly livePpv?: unknown;
+  readonly liveImages?: unknown;
+  readonly draftMedia?: unknown;
+  readonly proof?: unknown;
+  readonly checkpoint?: unknown;
+}): boolean {
+  if (op.clientContext === undefined) return true;
+  if (!CLIENT_CONTEXT_PLATFORMS[op.target.binding.platform] || !CLIENT_CONTEXT_FEATURES.has(op.feature)) return false;
+  return [op.fresh, op.livePpv, op.liveImages, op.draftMedia, op.proof, op.checkpoint].every((field) => field === undefined);
+}
+
 /** A start proves its freshness one way: a proof is the target's, never beside ChatSpace's tail or X8's checkpoint. */
 function proofFits(op: {
   readonly feature: FeatureId;
@@ -318,6 +352,8 @@ export const StartOpSchema = z
      * a draft function's page text inside it. Never beside `fresh` or `checkpoint`; a pass's proof only in «Новые».
      */
     proof: z.optional(CoverageProofSchema),
+    /** Telegram spec §6.2: the open chat the tab read from the page, on a platform the hub keeps no archive of. */
+    clientContext: z.optional(ClientContextSchema),
     /** 1.15.0 (R20 HF-5): Hi on the second host, independent of the freshness proof; no proof is not a zero count. */
     startProof: z.optional(StartProofV1Schema),
     personalMessageCount: z.optional(CountSchema),
@@ -373,6 +409,7 @@ export const StartOpSchema = z
     }),
     // The words are short on purpose: every schema of this module weighs on the tab's request registry (its probe).
     z.refine(proofFits, { message: 'the proof does not fit the start' }),
+    z.refine(clientContextFits, { message: 'the chat context does not fit the start' }),
     z.refine((op) => !hasHiStartFields(op) || (op.feature === 'hi' && (op.target.binding.platform === 'fansly' || (op.target.binding.platform === 'onlyfans' && hasOnlyPersonalCount(op)))), {
       message: 'Hi fields only on Fansly Hi; OnlyFans Hi only its personal count',
     }),
@@ -622,9 +659,12 @@ export function coverageCheckVerdict(
  * `unverified` — its freshness is not verified (no context frame, no proof, an unknown observation, a truncated
  * snapshot, an unchecked id); `window-miss` — the answer may not have counted the latest messages (a miss of the
  * window, or a draft's page text the hub did not serve); `deleted-served` — the context held a message the tab saw
- * deleted. Any of them holds a preview's send (CG-SEND-STALE); the dock still inserts.
+ * deleted. Any of them holds a preview's send (CG-SEND-STALE); the dock still inserts. Telegram spec §4.3, §4.4 (a
+ * site's verdict on a context the tab read itself): `history-partial` — the newest messages were not rendered when the
+ * chat was read; `details-changed` — the draft's payment details (a wallet, a card, a link, an amount) are not in the
+ * result character for character. Warnings the person passes: the dock still inserts.
  */
-export const STALE_REASONS = ['fan-wrote', 'archive-moved', 'unverified', 'window-miss', 'deleted-served'] as const;
+export const STALE_REASONS = ['fan-wrote', 'archive-moved', 'unverified', 'window-miss', 'deleted-served', 'history-partial', 'details-changed'] as const;
 export type StaleReason = (typeof STALE_REASONS)[number];
 
 /** A greeting draft keeps its generation's own verdict across windows, tabs and background restarts. */
@@ -792,6 +832,8 @@ export interface AiStartFields {
   readonly liveImages?: readonly LiveImage[];
   /** The proof of freshness the site made of its snapshot (`CoverageProof`, its texts inside): Fansly's (P8b1). */
   readonly proof?: CoverageProof;
+  /** The open chat itself, where the hub keeps no archive of the platform (Telegram spec §6.2): Telegram's. */
+  readonly clientContext?: ClientContext;
   /** Hi's start evidence and avatar (1.15.0, P4b4); the shared plan carries them to StartOp unchanged. */
   readonly startProof?: StartOp['startProof'];
   readonly personalMessageCount?: StartOp['personalMessageCount'];

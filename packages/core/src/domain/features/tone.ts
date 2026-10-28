@@ -24,11 +24,14 @@ export const TONE_LABEL_KEYS: Readonly<Record<Tone, UiTextKey>> = {
   spicy: 'dock.tone.spicy',
 };
 
-/** AI-008: the hotkey walks no tone → Casual → Flirt → Sell → Spice → no tone and starts nothing. */
-export function nextTone(current: Tone | null): Tone | null {
-  if (current === null) return TONE_ORDER[0] ?? null;
-  const index = TONE_ORDER.indexOf(current);
-  return index < 0 || index === TONE_ORDER.length - 1 ? null : (TONE_ORDER[index + 1] ?? null);
+/**
+ * AI-008: the hotkey walks no tone → Casual → Flirt → Sell → Spice → no tone and starts nothing — over the site's own
+ * tones when it has fewer (Telegram spec §6.6).
+ */
+export function nextTone(current: Tone | null, order: readonly Tone[] = TONE_ORDER): Tone | null {
+  if (current === null) return order[0] ?? null;
+  const index = order.indexOf(current);
+  return index < 0 || index === order.length - 1 ? null : (order[index + 1] ?? null);
 }
 
 /** AI-006: picking the tone that is already chosen takes it off. */

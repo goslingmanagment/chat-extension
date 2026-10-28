@@ -1,7 +1,9 @@
+import { type Platform } from "../shared/index";
 export type DomainEventWatermarks = ReadonlyMap<number, number>;
 export type DomainEventCursorScope = "granted";
-/** H3: the platform a cursor's account set is narrowed to (v5/v6 only). */
-export type DomainEventCursorPlatform = "onlyfans" | "fansly";
+/** H3: the platform a cursor's account set is narrowed to (v5/v6 only): any
+ *  platform the stream's `platform=` filter takes. */
+export type DomainEventCursorPlatform = Platform;
 export interface DomainEventCursorRecovery {
     kind: "snapshot";
     /** Highest non-dry-run erasure_log id observed when the cursor was minted. */
