@@ -9,12 +9,13 @@
 // happened — a double click never makes two sends. Enter on the card's own row (X55) asks the card here: «Сгенерировать»
 // while the field is empty and it can run, the field otherwise.
 
+import { type FanBadges } from '@cg/contracts/fan-badges';
 import { createContext, type ComponentChildren, type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { type ActionReceipt, type UiAction } from '@cg/contracts/vm';
 
-import { Button, TextField, focusQuietly, useDispatch, useHints, useTooltip } from '../kit';
+import { Button, FanBadge, focusQuietly, TextField, useDispatch, useHints, useTooltip } from '../kit';
 import { useOwnEchoes } from '../spenders/ownEchoes';
 import { NewcomerAvatar } from './frame';
 
@@ -44,6 +45,8 @@ export interface NewcomerCardProps {
   readonly name: string;
   /** The creator's own name for the fan, beside the name. */
   readonly custom?: string | null;
+  /** Fansly: the fan's blue card and FBuddy's gem, beside the name. */
+  readonly badges?: FanBadges | null;
   /** The fan's picture as the site gives it; none — the initial. */
   readonly avatarUrl?: string | null;
   readonly meta: ComponentChildren;
@@ -61,7 +64,7 @@ export interface NewcomerCardProps {
   readonly children: ComponentChildren;
 }
 
-export function NewcomerCard({ handle, label, name, custom = null, avatarUrl = null, meta, metaTitle, open, notes, verdict, greeting, onKeyDown, children }: NewcomerCardProps): JSX.Element {
+export function NewcomerCard({ handle, label, name, custom = null, badges = null, avatarUrl = null, meta, metaTitle, open, notes, verdict, greeting, onKeyDown, children }: NewcomerCardProps): JSX.Element {
   const hold = useContext(CardHoldContext);
   const keys = useRef<CardKeys>({ handle, enter: null });
   keys.current.handle = handle;
@@ -80,6 +83,7 @@ export function NewcomerCard({ handle, label, name, custom = null, avatarUrl = n
         <div class="cg-nc__who">
           <h3 class="cg-nc__name">
             {name}
+            <FanBadge badges={badges} inline />
             {custom === null ? null : <span class="cg-nw__custom"> ({custom})</span>}
           </h3>
           <div class="cg-nc__meta cg-num" {...(metaTitle === undefined ? {} : { title: metaTitle })}>

@@ -13,7 +13,7 @@ import { useRef } from 'preact/hooks';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type I18n, type OnlineCardVM, type OnlineChoice, type PartVM, type PreviewVM } from '@cg/contracts/vm';
 
-import { Button, Dot, GooseMark, Icon, Spinner, StripButton, TextField, useDispatch, useHints, useI18n, useTooltip } from '../kit';
+import { Button, Dot, FanBadge, GooseMark, Icon, Spinner, StripButton, TextField, useDispatch, useHints, useI18n, useTooltip } from '../kit';
 import { Feed } from '../spenders/preview/Feed';
 import { priceText } from '../spenders/preview/MediaPicker';
 import { SEGMENT_LETTERS, ToneCapsule, reasonText, stripKeys } from '../spenders/preview/MiniStrip';
@@ -21,7 +21,6 @@ import { useOwnEchoes } from '../spenders/ownEchoes';
 import { offersOpenInsert, openAndInsert } from '../spenders/preview/SendRow';
 import { blockedReason } from '../outreach/rows';
 import { OnlineAvatar } from './rows';
-import { FanBadge } from './badges';
 import { actWord, asideText, firstName, seenLong, timeLeft } from './words';
 
 /** The text as the card's preview holds it: what «Открыть и вставить» puts into the fan's chat. */
@@ -46,7 +45,7 @@ function Head({ card, preview }: { readonly card: OnlineCardVM; readonly preview
     <header class="cg-nc__head">
       <OnlineAvatar name={card.name} presence={card.presence} size="card" />
       <div class="cg-nc__who">
-        <div class="ol-name is-card">
+        <div class="cg-fbname is-card">
           <h3 class="cg-nc__name">{card.name}</h3>
           <FanBadge badges={card.badges} />
         </div>

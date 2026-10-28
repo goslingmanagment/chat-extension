@@ -13,7 +13,7 @@ import { type JSX } from 'preact';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import { type PreviewVM, type TargetHandle } from '@cg/contracts/vm';
 
-import { ActionButton, Button, Icon, Money, StripButton, ViewState, useDispatch, useI18n, useMinuteClock, useTooltip, useView, type StyleSource } from '../../kit';
+import { ActionButton, Button, FanBadge, Icon, Money, StripButton, useDispatch, useI18n, useMinuteClock, useTooltip, useView, ViewState, type StyleSource } from '../../kit';
 import { MediaPicker } from './MediaPicker';
 import { MiniStrip, generateAction, reasonText } from './MiniStrip';
 import { SeenMark } from './Feed';
@@ -63,6 +63,7 @@ function PanelHeader({ vm }: { readonly vm: PreviewVM }): JSX.Element {
           <>
             <h3 class="cg-pv__name">
               {header.name}
+              <FanBadge badges={header.badges} inline />
               {header.username === null ? null : <span>@{header.username}</span>}
             </h3>
             <UnreadMark unread={vm.unread} />

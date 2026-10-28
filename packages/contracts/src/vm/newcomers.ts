@@ -4,6 +4,7 @@
 // part whose outcome is unknown says so and holds nothing (2026-10-20 audit,
 // row 2): the person looks at the chat and may send again by their own click.
 
+import { type FanBadges } from '../fan-badges';
 import { type CgErrorView } from '../errors';
 import { type StaleReason } from '../ops';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
@@ -56,6 +57,8 @@ export const CLAIM_STATES = ['none', 'mine', 'other', 'expired', 'held-uncertain
 
 export interface NewcomerRowVM {
   readonly handle: TargetHandle;
+  /** Fansly: the fan's blue card and FBuddy's gem (contracts fan-badges.ts); absent — none known. */
+  readonly badges?: FanBadges;
   /** Chat Memory week 1: where the row's «в разговоре» mark is, when `handle` cannot say (a pass's row: its page's fan). */
   readonly talking?: TargetHandle;
   readonly name: string;

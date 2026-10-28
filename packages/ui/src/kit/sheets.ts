@@ -11,6 +11,7 @@ import { BUTTON_CSS } from './components/Button';
 import { CHOICE_CSS } from './components/choice.css';
 import { DIALOG_CSS } from './components/dialog.css';
 import { ERROR_CSS } from './components/ErrorCard';
+import { FAN_BADGE_CSS } from './components/FanBadge';
 import { FIELD_CSS } from './components/field.css';
 import { ICON_CSS } from './components/Icon';
 import { INDICATORS_CSS } from './components/Indicators';
@@ -38,6 +39,7 @@ export const COMPONENTS_SOURCE: StyleSource = {
     ICON_CSS,
     INDICATORS_CSS,
     TALKING_CSS,
+    FAN_BADGE_CSS,
     VALUES_CSS,
     BUTTON_CSS,
     TOOLTIP_CSS,

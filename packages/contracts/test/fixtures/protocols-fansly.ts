@@ -162,7 +162,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [{ ok: true, last: { messageId: F.group, direction: 'model', sentAt: null, read: 'yes', readAt: null } }, { ok: true }, unknownFailure],
     },
   },
-  'fansly.online.badges': {
+  'fansly.fans.badges': {
     req: {
       valid: [{ pageId: 12, hostAccountId: F.creator, fanRefs: [F.fan] }],
       invalid: [{ pageId: 12, hostAccountId: F.creator, fanRefs: [] }, { pageId: 12, hostAccountId: F.creator, fanRefs: ['x'] }, { pageId: 12, hostAccountId: F.creator }],
