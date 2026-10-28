@@ -94,8 +94,8 @@ describe('§12 п. 4 on the wired extension — a whole shift, and the network�
     const mark = await hub().mark();
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
-    await pressOurs('dock', '.cg-dock button', /^Собрать коротко/);
-    // X55 (2026-10-22: the short one too): the Recap opens in its window; one Esc closes the window and the sheet.
+    // The Recap opens in its window (X55; 2026-10-28: at once, on the choice of the two); one Esc closes it.
+    await pressOurs('modal', '.cg-xdlg button', /^Собрать коротко/);
     await waitOursText('modal', 'Synthetic short recap.', 'the short Recap in its window', { timeout: 20_000, selector: '.cg-xdlg' });
     await browser.keys('Escape');
     await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');

@@ -288,7 +288,10 @@ export const UI_TEXT_KEYS = [
   'coach.recap.menu.full', 'coach.recap.menu.short', 'coach.recap.menu.fullTime', 'coach.recap.menu.shortTime', 'coach.recap.menu.have',
   'coach.recap.menu.missing', 'coach.recap.menu.depth',
   'coach.turn.recap', 'coach.turn.recapBoth', 'coach.turn.recapShort', 'coach.turn.noRecap', 'result.meta.recap',
-  'recap.usedBy.full', 'recap.usedBy.short', 'recap.usedBy.one', 'recap.usedBy.some', 'recap.picker.explain', 'coach.newDialog.confirm', 'coach.newDialog.keep',
+  'recap.usedBy.full', 'recap.usedBy.short', 'recap.usedBy.one', 'recap.usedBy.some', 'recap.picker.explain',
+  // 2026-10-28: the Recap window as a dossier (a contents rail, the document, the build's ribbon) and its folded «Шпаргалка».
+  'recap.win.sections', 'recap.win.ghost', 'recap.win.arriving', 'recap.win.keysSections', 'recap.win.keysClose', 'recap.win.freshNote', 'recap.win.freshEta', 'recap.win.end', 'recap.win.top', 'recap.win.foldTooltip', 'recap.win.emptyTitle', 'recap.win.emptyLead', 'recap.win.emptyFullTitle', 'recap.win.emptyFullLead', 'recap.win.emptyShortTitle', 'recap.win.emptyShortLead', 'recap.win.reads', 'recap.win.takes', 'recap.win.usedByMany', 'recap.win.usedByOne', 'recap.win.readsFull', 'recap.win.readsShort', 'recap.win.takesFull', 'recap.win.takesShort', 'recap.win.usedFull', 'recap.win.usedShort', 'recap.win.building', 'recap.win.buildingShort', 'recap.win.rebuilding', 'recap.win.rebuildingShort', 'recap.win.buildingNote', 'recap.win.keptNote', 'recap.win.of', 'recap.win.writing', 'recap.win.ready', 'recap.win.refreshed', 'recap.win.readyNote', 'recap.win.canceled', 'recap.win.canceledKept', 'recap.win.canceledNone', 'recap.win.stage', 'recap.win.spend', 'recap.crib.title', 'recap.crib.from', 'recap.crib.next', 'recap.crib.keep', 'recap.crib.avoid', 'recap.crib.open', 'recap.crib.openTooltip', 'recap.crib.hide',
+  'coach.newDialog.confirm', 'coach.newDialog.keep',
   // The old card's line under a Coach draft in Cyrillic for a fan who does not write Cyrillic: neither Insert nor Copy.
   'coach.draftLanguage',
   // 1.51.0: Review is a turn of Coach — its chip and hint by the ready questions, the window of a page whose Coach is off.
@@ -485,6 +488,7 @@ export const UI_PLURAL_KEYS = [
   'dock.quota.lowTooltip',
   'result.meta.parts', 'result.meta.variants', 'result.meta.partsEach', 'result.announce.ready', 'result.announce.retryIn',
   'recap.archiveLag', 'recap.newAfter', 'recap.coverage.whole',
+  'recap.win.sectionsCount',
   'spenders.footer', 'spenders.footerNoTotal',
   // 2026-10-22: the Spenders header's count of a list the hub has more fans for than it holds («1000 из 1240 фанов»).
   'spenders.headOf',

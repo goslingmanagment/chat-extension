@@ -127,6 +127,8 @@ export interface Situation {
   readonly window: ChatWindow | null;
   /** The fan's display name as ChatSpace holds it; decoration only. */
   readonly fanName: string | null;
+  /** The fan's username when the display name is another word («Tony/Texas/37» and «user5688…»); decoration only. */
+  readonly fanHandle?: string | null;
   readonly quota: AiQuotaSnapshot | null;
   readonly persona: PersonaState | null;
   readonly pageName: string | null;
@@ -566,9 +568,10 @@ export class AiWorkspace {
     const window = host.chatWindow(chat.chat, 200);
     const fan = host.fan(chat.chat);
     const fanName = fan?.displayName ?? fan?.username ?? null;
+    const fanHandle = fan?.username !== undefined && fan.username !== null && fan.username !== '' && fan.username !== fanName ? fan.username : null;
     const target: Target = { binding: binding.value, chat: chat.chat, fanRef: chat.chat.platformFanId, conversationRef: chat.conversationRef };
     const ready: ReadyTarget = { target, page, bootstrap: bootstrap.value, settings: settings.settings, persona: { ...persona, key: persona.key, definitionId: persona.definitionId } };
-    const known = { ...named, window, fanName, quota, ready };
+    const known = { ...named, window, fanName, fanHandle, quota, ready };
 
     if (window === null || window.state === 'loading') return { ...known, ready: null, status: 'loading-chat', statusError: null, off: 'chat-loading' };
 

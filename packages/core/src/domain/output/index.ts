@@ -11,5 +11,6 @@ export * from './drafts';
 export * from './markers';
 export * from './parse';
 export * from './recap';
+export * from './recap-doc';
 export * from './review';
 export * from './sections';

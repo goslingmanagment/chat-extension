@@ -221,7 +221,9 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
     steps.push(frame(facts.pair === undefined ? context : ({ ...context, pair: facts.pair } as ContextFrame)));
   }
   if (debug) steps.push(frame({ type: 'reasoning_delta', text: 'synthetic reasoning' }));
-  const written = outreachVersion(facts.texts, request) ?? facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
+  // A short Recap may have a text of its own (`fan-summary:short`); else the feature's.
+  const own = feature === 'fan-summary' && request.body.summaryMode === 'short' ? facts.texts?.['fan-summary:short'] : undefined;
+  const written = outreachVersion(facts.texts, request) ?? own ?? facts.texts?.[feature] ?? generationText(request, facts.splitAllFlag);
   const named = facts.nameFan === true ? namedForFan(written, request) : written;
   const text = facts.more === undefined ? named : `${named}\n\n\`\`\`more\n${facts.more}\n\`\`\``;
   chunks(text).forEach((piece, at) => steps.push(frame({ type: 'content_delta', text: piece }, facts.chunkDelayMs + (at === 0 ? (facts.thinkMs ?? 0) : 0))));

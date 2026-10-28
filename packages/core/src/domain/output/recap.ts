@@ -52,6 +52,14 @@ export function recapHeadingOf(line: string): string | null {
  * becomes a block without a heading (shown without a heading line).
  */
 export function recapBlocks(markdown: string): RecapBlock[] | null {
+  const { blocks, headings } = cutByHeadings(markdown);
+  if (headings < 2) return null;
+  const out = blocks.filter((block) => block.markdown.length > 0);
+  return out.length < 2 || out.length > BLOCKS_MAX ? null : out;
+}
+
+/** The text cut at every heading line, empty blocks kept (a heading just written has no text yet). */
+function cutByHeadings(markdown: string): { readonly blocks: RecapBlock[]; readonly headings: number } {
   const blocks: { heading: string; lines: string[] }[] = [];
   let headings = 0;
   for (const line of markdown.split('\n')) {
@@ -64,11 +72,18 @@ export function recapBlocks(markdown: string): RecapBlock[] | null {
     if (blocks.length === 0) blocks.push({ heading: '', lines: [] });
     blocks[blocks.length - 1]?.lines.push(line);
   }
-  if (headings < 2) return null;
-  const out = blocks
-    .map((block) => ({ heading: block.heading, markdown: block.lines.join('\n').trim() }))
-    .filter((block) => block.markdown.length > 0);
-  return out.length < 2 || out.length > BLOCKS_MAX ? null : out;
+  return { blocks: blocks.map((block) => ({ heading: block.heading, markdown: block.lines.join('\n').trim() })), headings };
+}
+
+/**
+ * A Recap being written, cut so far: the headed blocks it finished (every block but the last) and the heading it
+ * writes under now. Null before the first heading.
+ */
+export function recapWritten(text: string): { readonly done: RecapBlock[]; readonly writing: string } | null {
+  const { blocks, headings } = cutByHeadings(text);
+  const last = blocks[blocks.length - 1];
+  if (headings === 0 || last === undefined) return null;
+  return { done: blocks.slice(0, -1).filter((block) => block.markdown.length > 0 && block.heading !== ''), writing: last.heading };
 }
 
 /** 1.20.0 (decision X47): the sections the hub's fan-summary prompt asks for, as the reader's language names them. */
@@ -121,6 +136,15 @@ const SECTION_OF: Readonly<Record<string, keyof typeof RECAP_SECTION_KEYS>> = {
   'СТРАТЕГИЯ': 'strategy',
 };
 
+/** The section of the hub's fan profile a heading names («1. DOSSIER», «Досье», «ДОСЬЕ:»); null — another heading. */
+export function recapSectionOf(heading: string): keyof typeof RECAP_SECTION_KEYS | null {
+  const bare = heading
+    .replace(/^\d{1,2}[.)][ \t]+/, '')
+    .replace(/:$/, '')
+    .trim();
+  return SECTION_OF[bare.toUpperCase().replace(/\s+/g, ' ')] ?? null;
+}
+
 /**
  * A block's heading as the reader sees it (1.20.0, decision X47): a section of the hub's fan profile in the reader's
  * language («1. DOSSIER» → «Досье»); any other heading in capitals in sentence case («KEY QUOTES» → «Key quotes»);
@@ -128,8 +152,8 @@ const SECTION_OF: Readonly<Record<string, keyof typeof RECAP_SECTION_KEYS>> = {
  */
 export function recapHeadingText(heading: string, text: (key: UiTextKey) => string): string {
   const bare = heading.replace(/^\d{1,2}[.)][ \t]+/, '').trim();
-  const section = SECTION_OF[bare.toUpperCase().replace(/\s+/g, ' ')];
-  if (section !== undefined) return text(RECAP_SECTION_KEYS[section]);
+  const section = recapSectionOf(heading);
+  if (section !== null) return text(RECAP_SECTION_KEYS[section]);
   if (!isUpperCase(bare)) return bare;
   const lower = bare.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);

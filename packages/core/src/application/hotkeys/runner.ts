@@ -239,8 +239,15 @@ export function createHotkeyRunner(deps: HotkeyRunnerDeps): HotkeyRunner {
     const found = dockAction('recap');
     if (found === null) return;
     if (found.dock.analysis === 'recap') {
-      // The sheet is open: the key is its «↻ Обновить» (ui-design §4.11).
-      const length: RecapLength = client.getSnapshot({ of: 'recap.view' }).length;
+      const shown = client.getSnapshot({ of: 'recap.view' });
+      // Folded into its «Шпаргалка» over the bar (2026-10-28): the key opens the window again. A build is paid: it starts
+      // only from the open window, whose «Обновить» shows the key.
+      if (!shown.expanded) {
+        send({ type: 'ShowAnalysis', view: 'recap', mode: 'expanded' });
+        return;
+      }
+      // The window is open: the key is its «↻ Обновить» (ui-design §4.11).
+      const length: RecapLength = shown.length;
       send({ type: 'RefreshRecap', length });
       return;
     }

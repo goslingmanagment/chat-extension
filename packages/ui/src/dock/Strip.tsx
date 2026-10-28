@@ -43,6 +43,7 @@ import {
   hotkeyText,
   menuTriggerKeys,
   rovingIndex,
+  useAnchor,
   useDispatch,
   useGeometry,
   useHints,
@@ -137,6 +138,13 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
     .concat('more', ...windows.map((chip) => chip.id));
 
   const buttons = (): HTMLElement[] => [...(bar.current?.querySelectorAll<HTMLElement>('.cg-act') ?? [])];
+  // The Recap window grows out of its chip (or «Ещё», when a narrow composer folded the chip into it) and folds into
+  // the bar (2026-10-28).
+  useAnchor('recap', () => {
+    const chip = buttons()[STOPS.indexOf('recap')];
+    return chip !== undefined && visible(chip) ? chip : moreRef.current;
+  });
+  useAnchor('dock-bar', () => bar.current);
   const stopOf = (target: EventTarget | null): StopId | null => {
     const button = target instanceof HTMLElement ? target.closest<HTMLElement>('.cg-act') : null;
     return button === null ? null : (STOPS[buttons().indexOf(button)] ?? null);

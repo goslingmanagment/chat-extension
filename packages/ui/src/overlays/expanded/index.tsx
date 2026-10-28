@@ -1,16 +1,17 @@
 // @cg/ui/overlays/result-expanded — «Развернуть ↗» (ui-design §10, UI-014,
 // UI-015, UI-017): the result of the open chat in a window like the
 // cheatsheet (min(720px, 100vw − 32px), layer 950) without the sheet's
-// height limit — a Recap, or a draft result with its parts and, in debug
-// mode, the debug footer. A Recap closes with one Esc, a press on the scrim
-// or × «Скрыть», window and sheet at once (the old Fansly extension's
-// overlay); «Свернуть» returns it to the dock sheet, which keeps showing it.
-// A draft result folds back into its sheet. The window holds focus and gives
-// it back. Nothing is shown unless a view model says `expanded`. Review has
-// no window since 1.51.0: it is a turn of Coach's dialog. A lazy overlay.
+// height limit — a draft result with its parts and, in debug mode, the debug
+// footer; it folds back into its sheet. A Recap opens here by default since
+// 2026-10-28, in a window of its own size (the owner's «Досье во весь экран»,
+// up to 1180 × 1140): it closes with one Esc, a press on the scrim or ×
+// «Скрыть», and «Свернуть» folds it into the cheat sheet over the bar; the
+// window plays its own way out first. The window holds focus and gives it
+// back. Nothing is shown unless a view model says `expanded`. Review has no
+// window since 1.51.0: it is a turn of Coach's dialog. A lazy overlay.
 
 import { type JSX } from 'preact';
-import { useLayoutEffect } from 'preact/hooks';
+import { useLayoutEffect, useMemo } from 'preact/hooks';
 
 import { type MountDeps } from '@cg/contracts/vm';
 
@@ -20,6 +21,8 @@ import {
   Dialog,
   OverlayLayer,
   Spinner,
+  WindowExitContext,
+  activeIn,
   focusQuietly,
   mountKitSurface,
   useDispatch,
@@ -30,6 +33,7 @@ import {
   type KitMountOptions,
   type StyleSource,
   type SurfaceDefinition,
+  type WindowExitSlot,
 } from '../../kit';
 import { Head } from '../../dock/Head';
 import { DEFAULT_PARTS } from '../../dock/lazy';
@@ -65,13 +69,15 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
   const result = dock.result !== null && dock.result.expanded && dock.result.state !== 'canceled' ? dock.result : null;
   const which = recap.expanded ? 'recap' : null;
   const open = which !== null || result !== null;
+  // The Recap window plays its way out (it folds into the bar or shrinks into its button) before it goes.
+  const exit = useMemo<WindowExitSlot>(() => ({ current: null }), []);
   // A Recap that finished in the window took its «Отменить» with it (X55: it opens here): the focus fell to the page's
   // body — it goes to «Свернуть», so the keys stay the window's. Focus anywhere else is left alone.
   useLayoutEffect(() => {
     if (!open || root.activeElement !== null) return;
     const page = root.ownerDocument;
     if (page === null || (page.activeElement !== null && page.activeElement !== page.body)) return;
-    focusQuietly(root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse'));
+    focusQuietly(root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse') ?? root.querySelector<HTMLElement>('.cg-xdlg .cg-rx-scroll'));
   });
   if (!open) return null;
 
@@ -80,7 +86,8 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
   };
   // Esc and the scrim: a Recap goes away whole, as its × «Скрыть»; a draft result folds into its sheet.
   const close = (): void => {
-    if (which !== null) void dispatch({ type: 'ShowAnalysis', view: which, mode: 'hidden' });
+    if (which !== null && exit.current !== null) exit.current('hidden');
+    else if (which !== null) void dispatch({ type: 'ShowAnalysis', view: which, mode: 'hidden' });
     else collapse();
   };
   const title = i18n.t(which !== null ? featureKey(which) : result !== null ? featureKey(result.feature) : 'result.label');
@@ -90,16 +97,24 @@ export function ExpandedView({ parts }: ExpandedViewProps): JSX.Element | null {
         open
         label={`${i18n.t('result.label')}: ${title}`}
         size="wide"
-        class="cg-xdlg"
+        class={which === null ? 'cg-xdlg' : 'cg-xdlg cg-rx-dlg'}
+        {...(which === null ? {} : { scrimClass: 'cg-rx-scrim' })}
         onClose={close}
-        // Focus opens on «Свернуть», not on the first icon of the head (whose tooltip would pop up by itself) nor on a
-        // running Recap's «Отменить» (a stray Enter must not cancel a paid run); without one — the window itself.
-        initialFocus={() => root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse') ?? root.querySelector<HTMLElement>('.cg-xdlg')}
+        // A result's focus opens on «Свернуть», not on the first icon of the head (whose tooltip would pop up by itself)
+        // nor on a running Recap's «Отменить» (a stray Enter must not cancel a paid run); without one — the window itself.
+        // The Recap window's opens where the window put it (the choice of the two takes it), else on its document.
+        initialFocus={() => {
+          const at = activeIn(root);
+          if (which !== null && at !== null && at.closest('.cg-rx') !== null) return at;
+          return root.querySelector<HTMLElement>('.cg-xdlg .cg-collapse') ?? root.querySelector<HTMLElement>('.cg-xdlg .cg-rx-scroll') ?? root.querySelector<HTMLElement>('.cg-xdlg');
+        }}
       >
         {/* A part that fails here (a chunk that did not load) shows its card inside the window, which stays and collapses as before. */}
         <Boundary surface={null}>
           {which !== null ? (
-            <Analysis loader={all.analysis} which={which} debugPart={all.debug} />
+            <WindowExitContext.Provider value={exit}>
+              <Analysis loader={all.analysis} which={which} debugPart={all.debug} />
+            </WindowExitContext.Provider>
           ) : result === null ? null : (
             <ResultContent
               result={result}
@@ -132,6 +147,13 @@ ${overlayRootCss('result-expanded', 'window')}
 .cg-xdlg { container: cg / inline-size; }
 .cg-xdlg .cg-head { min-height: 44px; padding-right: 8px; }
 .cg-collapse .cg-ico { display: none; }
+${/* The Recap window (2026-10-28): up to 1180 × 1140, centred; once Recap's chunk is in, its own paper draws it. */ ''}
+.cg-dialog.cg-dialog--wide.cg-rx-dlg {
+  top: max(24px, calc((100vh - 1140px) / 2)); width: min(1180px, calc(100vw - 48px)); height: min(1140px, calc(100vh - 48px)); max-height: none;
+  border-radius: 16px; animation: none;
+}
+.cg-dialog.cg-rx-dlg:has(> .cg-rx) { background: none; border-color: transparent; box-shadow: none; overflow: visible; }
+.cg-scrim.cg-rx-scrim { background-color: var(--cg-scrim); background-image: linear-gradient(var(--cg-scrim), var(--cg-scrim)); }
 `;
 export const EXPANDED_STYLE: StyleSource = { id: 'cg-result-expanded', css: EXPANDED_CSS };
 

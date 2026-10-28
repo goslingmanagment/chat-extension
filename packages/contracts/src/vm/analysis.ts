@@ -26,6 +26,87 @@ export type HubSaveVM =
   | { readonly s: 'saved'; readonly at: IsoTimestamp | null }
   | { readonly s: 'failed'; readonly error: CgErrorView; readonly retry: UiAction };
 
+/**
+ * The sections of the hub's fan profile (the full Recap: «Досье» … «Стратегия»; the short one: «Кто» … «Следующий ход»),
+ * in the order the hub writes them.
+ */
+export const RECAP_FULL_SECTIONS = ['dossier', 'portrait', 'stage', 'communication', 'money', 'openLoops', 'strategy'] as const;
+export const RECAP_SHORT_SECTIONS = ['who', 'spend', 'triggers', 'boundaries', 'threads', 'nextMove'] as const;
+export type RecapSectionKey = (typeof RECAP_FULL_SECTIONS)[number] | (typeof RECAP_SHORT_SECTIONS)[number];
+
+/** A line of a Recap: «Имя: Тони…» is the label «Имя» and the text «Тони…»; the note is the label's bracket («(сам рассказал)»). */
+export interface RecapLineVM {
+  readonly label: string | null;
+  readonly note: string | null;
+  /** Inline Markdown as the model wrote it: bold, the fan's words in quotes, sums. */
+  readonly text: string;
+  /** A pull quote: the fan's words alone on their line, the quotes taken off. */
+  readonly quoted?: true;
+}
+
+/** What a labelled part tells the chatter to do («Рекомендуемый подход», «Следующий ход») or to avoid («Чего избегать»). */
+export type RecapTone = 'act' | 'avoid' | null;
+
+/**
+ * A scale of the hub's prompt the text names a step of: the stage of the relationship (new … churning) or the
+ * spender's class (browser … big spender). `lean` — further steps the same sentence names («warming up, ближе к loyal»).
+ */
+export interface RecapScaleVM {
+  readonly kind: 'stage' | 'spend';
+  readonly steps: readonly string[];
+  readonly at: number;
+  readonly lean: readonly number[];
+}
+
+export type RecapPartVM =
+  | {
+      readonly kind: 'text';
+      readonly label: string | null;
+      readonly note: string | null;
+      readonly tone: RecapTone;
+      readonly text: string;
+      /** A sum the paragraph is about, set large («81,97 $», «за почти 5 месяцев»); null — none. */
+      readonly figure: { readonly sum: string; readonly period: string | null } | null;
+      readonly scale: RecapScaleVM | null;
+    }
+  | {
+      readonly kind: 'list';
+      readonly label: string | null;
+      readonly note: string | null;
+      readonly tone: RecapTone;
+      /** `timeline` — most lines start with a date; `quotes` — the fan's words, one per line. */
+      readonly look: 'plain' | 'timeline' | 'quotes';
+      readonly items: readonly RecapLineVM[];
+    };
+
+export interface RecapSectionVM {
+  /** null — a heading the hub's format does not name, or the text before the first heading. */
+  readonly key: RecapSectionKey | null;
+  /** The reader's name: «Досье», «Деньги», a heading as written; '' — the text before the first heading. */
+  readonly name: string;
+  readonly parts: readonly RecapPartVM[];
+}
+
+/** A Recap cut into sections of labelled parts, for the window's document. */
+export interface RecapDocVM {
+  readonly sections: readonly RecapSectionVM[];
+  /** Most sections are «Подпись: текст»: the labels get a column of their own. */
+  readonly labelled: boolean;
+}
+
+/** «Шпаргалка», the folded window over the bar: what to do next, what not to forget, what not to do. */
+export interface RecapCribVM {
+  readonly next: readonly string[];
+  readonly keep: readonly string[];
+  readonly avoid: readonly string[];
+}
+
+/** A Recap being written: the sections it finished, and the one it writes now. */
+export interface RecapWrittenVM {
+  readonly done: readonly RecapSectionVM[];
+  readonly writing: { readonly key: RecapSectionKey | null; readonly name: string } | null;
+}
+
 /** A shared Recap of the page, fan and persona (H-13); local slots are copies with its id and revision. */
 export interface RecapSlotVM {
   readonly length: RecapLength;
@@ -70,6 +151,8 @@ export interface RecapViewVM {
   readonly lengths: { readonly short: boolean; readonly full: boolean };
   /** «для Hubert». */
   readonly targetName: string | null;
+  /** The fan's username under the name in the window, when it is not the name itself; absent or null — none. */
+  readonly targetHandle?: string | null;
   readonly opId: Uuid | null;
   readonly state: OpState | null;
   readonly phase: PhaseVM | null;
@@ -78,6 +161,17 @@ export interface RecapViewVM {
   readonly markdown: string | null;
   /** The Recap split by headings («Кто он», «Траты», «Триггеры»… of the short one, «Досье»… of the full one); null — one text. */
   readonly blocks: readonly { readonly heading: string; readonly markdown: string }[] | null;
+  /** 2026-10-28: the shown Recap as the window's document; absent or null — no sections, the Markdown as one text. */
+  readonly doc?: RecapDocVM | null;
+  /** The folded window's «Шпаргалка»; absent or null — the text has nothing for it. */
+  readonly crib?: RecapCribVM | null;
+  /**
+   * A build of this length runs over a Recap saved before it: that one stays readable under the build's ribbon until the
+   * new one replaces it. Absent or null — none (the first Recap of this length, or nothing runs).
+   */
+  readonly kept?: { readonly markdown: string; readonly doc: RecapDocVM | null; readonly generatedAt: IsoTimestamp } | null;
+  /** A build that runs: the sections written so far; absent or null — nothing runs, or no heading came yet. */
+  readonly written?: RecapWrittenVM | null;
   readonly generatedAt: IsoTimestamp | null;
   readonly saved: HubSaveVM;
   /**
