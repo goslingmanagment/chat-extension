@@ -171,7 +171,8 @@ ${/* Side by side the variants read as one row of cards: each column's last card
   .cg-hi .cg-vhead { padding: 0 11px; }
   .cg-hi .cg-part { grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: 1fr; padding: 8px 10px 8px 0; }
   .cg-hi .cg-part.is-solo { grid-template-columns: 10px minmax(0, 1fr); }
-  .cg-hi .cg-part__t { font-size: var(--cg-text-lg); line-height: 20px; }
+  .cg-hi .cg-part__t, .cg-hi .cg-part__n { line-height: 20px; }
+  .cg-hi .cg-part__t { font-size: var(--cg-text-lg); }
   .cg-hi .cg-part__a { grid-column: 2; flex-wrap: wrap; row-gap: 4px; margin: 8px 0 0; }
   .cg-hi .cg-part__copy { order: 1; margin-left: auto; }
   .cg-hi .cg-part.is-done .cg-part__a, .cg-hi .cg-part.is-done.is-kept .cg-part__a { margin: 8px 0 0; }
