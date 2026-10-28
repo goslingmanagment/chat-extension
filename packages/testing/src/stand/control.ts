@@ -230,6 +230,23 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ items: notes.map((note) => rawNote(accountId, fanId, state.dataset.userId, note)) });
     return;
   }
+  // 2026-10-28: one note changed in place (`{accountId, fanId, id, note}`), as a colleague's edit in ChatSpace's own tab
+  // leaves it: the same id, a new text; the socket hears nothing of it.
+  if (path === '/__stand/notes/edit' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const note = asString(body['note']);
+    const id = typeof body['id'] === 'number' ? body['id'] : Number(asString(body['id']));
+    const kept = accountId === null || fanId === null || state.chat(accountId, fanId) === undefined ? undefined : state.notesOf(accountId, fanId).find((item) => item.id === id);
+    if (accountId === null || fanId === null || kept === undefined || note === null || note.trim() === '') {
+      ok({ error: 'unknown note or no text' }, 404);
+      return;
+    }
+    kept.note = note;
+    kept.updatedAt = new Date().toISOString();
+    ok({ item: rawNote(accountId, fanId, state.dataset.userId, kept) });
+    return;
+  }
   if (path === '/__stand/ws/frame' && method === 'POST') {
     const frame = asRecord(body['frame']);
     ok({ delivered: hub.broadcast(frame, asString(body['accountId'])) });

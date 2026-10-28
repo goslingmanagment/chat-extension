@@ -164,6 +164,7 @@ import { pickCommandTab } from './background/tab-command';
 import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
 import { createBackgroundNotes } from './background/notes';
+import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
@@ -486,7 +487,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (voiceView !== null) return voiceView;
     const target = TargetSchema.safeParse((value as { target?: unknown } | null)?.target);
     if (!target.success || !(await moduleUnderSameSignIn(target.data.binding.host))) return null;
-    return hostModules.running(target.data.binding.host)?.operations?.readView(value) ?? null;
+    // 2026-10-28: the notes fill of a site with no driver of its own (ChatSpace) is the core's, as the voice script is.
+    return hostModules.running(target.data.binding.host)?.operations?.readView(value) ?? readNotesFillOpView(value);
   } });
   const presence = createPresence({ local, log: serviceLog });
   const consentPort = createConsent(api);

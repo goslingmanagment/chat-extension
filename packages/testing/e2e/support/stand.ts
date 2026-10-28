@@ -202,6 +202,10 @@ export const standServer = {
   setNotes: async (accountId: string, fanId: string, items: ReadonlyArray<{ readonly title?: string | null; readonly note: string; readonly color?: string | null }>): Promise<void> => {
     await control('/__stand/notes', { body: { accountId, fanId, items } });
   },
+  /** One note changed in place, its id kept (a colleague's edit in ChatSpace's own tab); the socket hears nothing of it. */
+  editNote: async (accountId: string, fanId: string, id: number, note: string): Promise<void> => {
+    await control('/__stand/notes/edit', { body: { accountId, fanId, id, note } });
+  },
   /** Who of the account's fans the presence endpoint (`fans-online`) answers as online; a page sees it at its poll's next look. */
   presence: async (accountId: string, online: readonly string[]): Promise<void> => {
     await control('/__stand/presence', { body: { accountId, online } });

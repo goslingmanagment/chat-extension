@@ -34,6 +34,10 @@ export const NOTES_BUTTON_CSS = `
 .cg-nb__button:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 1px; }
 .cg-nb svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .cg-nb__count { min-width: 14px; height: 14px; padding: 0 4px; box-sizing: border-box; border-radius: var(--cg-r-pill); background: var(--cg-chip); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-2); font-size: 10px; line-height: 14px; text-align: center; font-variant-numeric: tabular-nums; }
+.cg-nb.is-pill { font-size: 13px; line-height: 16px; }
+.cg-nb.is-pill .cg-nb__button { height: 28px; padding: 0 10px; gap: 6px; box-sizing: border-box; border-radius: var(--cg-r-pill); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-2); }
+.cg-nb.is-pill .cg-nb__button:hover, .cg-nb.is-pill .cg-nb__button[aria-pressed='true'] { color: var(--cg-accent); box-shadow: inset 0 0 0 1px currentColor; }
+.cg-nb.is-pill svg { width: 14px; height: 14px; }
 `;
 
 const p = '.cg-notes';

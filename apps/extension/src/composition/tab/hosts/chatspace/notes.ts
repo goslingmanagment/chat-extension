@@ -210,7 +210,7 @@ export function startChatSpaceNotes(env: SiteAppEnv<ChatSpaceHostPort>): () => v
     const on = allowed() && host.header.available();
     if (on && slot === null) {
       slot = host.header.mount(NOTES_ORDER);
-      button = mountKitSurface('header-slot' as MountSurfaceKind, slot.root, env.deps, notesButtonSurface(client, CHATSPACE_NOTES_TEXTS), { report: env.report });
+      button = mountKitSurface('header-slot' as MountSurfaceKind, slot.root, env.deps, notesButtonSurface(client, CHATSPACE_NOTES_TEXTS, 'pill'), { report: env.report });
     } else if (!on && slot !== null) {
       button?.unmount();
       button = null;

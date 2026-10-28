@@ -40,8 +40,8 @@ export interface NotesViewport {
 }
 
 const GAP_PX = 12;
-/** Fansly's width of the panel over the chat. */
-const OVER_WIDTH_PX = 360;
+/** The panel over the chat: wider than Fansly's (360), ChatSpace's chat column is wide and the rows read better. */
+const OVER_WIDTH_PX = 420;
 /** Below this the panel over the chat would be a sliver above our dock: it then stops above the composer instead. */
 const OVER_MIN_HEIGHT_PX = 240;
 /** The header's height when only the composer was found: ChatSpace's header bar (`h-16`) and its border. */

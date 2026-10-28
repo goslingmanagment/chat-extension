@@ -1,5 +1,6 @@
-// «Заметки» in Fansly's own chat header (R20 P11b, FS-NOTE-1, FX-004): before «Регистрация», in that row's size and
-// colour; the open chat's number of notes once they are read. A click — or ⌘⇧K — opens and closes the panel.
+// «Заметки» in the site's own chat header (R20 P11b, FS-NOTE-1, FX-004): on Fansly before «Регистрация», in that row's
+// size and colour (`row`); on ChatSpace a pill among its header's own buttons, before its search (`pill`, 2026-10-28).
+// The open chat's number of notes once they are read. A click — or ⌘⇧K — opens and closes the panel.
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
@@ -9,6 +10,9 @@ import { hotkeyText, useI18n, useKit } from '../kit';
 
 /** Both catalogs: the tab's language picks one at each render. */
 export type NotesTexts = Readonly<Record<'ru' | 'en', NotesCopy>>;
+
+/** How the button stands in the site's header: Fansly's text row after a divider, or ChatSpace's pill. */
+export type NotesButtonLook = 'row' | 'pill';
 
 function NoteIcon(): JSX.Element {
   return (
@@ -28,7 +32,7 @@ export function useNotesTick(client: NotesClient): void {
   }, [client]);
 }
 
-export function NotesButton({ client, texts }: { readonly client: NotesClient; readonly texts: NotesTexts }): JSX.Element | null {
+export function NotesButton({ client, texts, look = 'row' }: { readonly client: NotesClient; readonly texts: NotesTexts; readonly look?: NotesButtonLook }): JSX.Element | null {
   useNotesTick(client);
   const { deps } = useKit();
   const copy = texts[useI18n().language];
@@ -36,10 +40,12 @@ export function NotesButton({ client, texts }: { readonly client: NotesClient; r
   if (!view.shown) return null;
   const key = hotkeyText(deps.catalog.entry('notes').hotkey);
   return (
-    <span class="cg-nb" data-notes-count={view.count ?? ''} data-notes-open={view.open ? 'true' : 'false'}>
-      <span aria-hidden="true" class="cg-nb__divider">
-        |
-      </span>
+    <span class={look === 'pill' ? 'cg-nb is-pill' : 'cg-nb'} data-notes-count={view.count ?? ''} data-notes-open={view.open ? 'true' : 'false'}>
+      {look === 'pill' ? null : (
+        <span aria-hidden="true" class="cg-nb__divider">
+          |
+        </span>
+      )}
       <button
         type="button"
         class="cg-nb__button"

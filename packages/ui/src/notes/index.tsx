@@ -5,17 +5,17 @@
 import type { NotesClient } from '@cg/contracts/notes';
 
 import { type SurfaceDefinition } from '../kit';
-import { NotesButton, type NotesTexts } from './NotesButton';
+import { NotesButton, type NotesButtonLook, type NotesTexts } from './NotesButton';
 import { NotesPanel } from './NotesPanel';
 import { NOTES_BUTTON_CSS, NOTES_CSS } from './styles';
 
-export { NotesButton, type NotesTexts } from './NotesButton';
+export { NotesButton, type NotesButtonLook, type NotesTexts } from './NotesButton';
 export { NotesPanel } from './NotesPanel';
 export { NOTES_SURFACE } from './styles';
 
 /** The header slot's surface: `mountKitSurface('header-slot', slot.root, deps, notesButtonSurface(…))`. */
-export function notesButtonSurface(client: NotesClient, texts: NotesTexts): SurfaceDefinition {
-  return { view: () => <NotesButton client={client} texts={texts} />, styles: [{ id: 'cg-fansly-notes-button', css: NOTES_BUTTON_CSS }] };
+export function notesButtonSurface(client: NotesClient, texts: NotesTexts, look: NotesButtonLook = 'row'): SurfaceDefinition {
+  return { view: () => <NotesButton client={client} texts={texts} look={look} />, styles: [{ id: 'cg-fansly-notes-button', css: NOTES_BUTTON_CSS }] };
 }
 
 /** The panel's surface, in the panel layer: `mountKitSurface(NOTES_SURFACE, root, deps, notesPanelSurface(…))`. */
