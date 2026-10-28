@@ -11,8 +11,11 @@ import type { PageDiagnostics } from './diagnostics';
 // message — every fan message is read already, so nothing new is marked
 // read). The port never has, and never will have, fetchHistory() of any chat,
 // markRead(), setStore(), a general send() or an arbitrary execute(). Writes:
-// guarded insert, navigation on a human action, and the X8 preview send
-// (PreviewSendPort), which may take vault media along (X53).
+// guarded insert, navigation on a human action, the X8 preview send
+// (PreviewSendPort), which may take vault media along (X53), and since
+// 2026-10-28 (the owner's exception to «toward OnlyMonster reads only»)
+// OnlyMonster's own notes of the open chat's fan (`fanNotes`): create, edit,
+// delete, each on a person's click, never retried when its outcome is unknown.
 
 import * as z from 'zod/mini';
 
@@ -33,7 +36,7 @@ import {
   type HostKind,
   type Platform,
 } from './ids';
-import { BRIDGE_LIMITS, DRAFT_MEDIA_LIMITS, LIVE_IMAGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
+import { BRIDGE_LIMITS, DRAFT_MEDIA_LIMITS, FAN_NOTES_LIMITS, LIVE_IMAGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -77,6 +80,12 @@ export const HOST_CAPABILITIES = [
    * voice note's MP3. ChatSpace: a drop on the composer, its own upload; Fansly: its file input and upload modal.
    */
   'fileAttach',
+  /**
+   * 2026-10-28: a slot of ours in the open chat's header, among the site's own header buttons (ChatSpace: its
+   * conversation header's actions row, «Заметки» before its search button). Off by design on Fansly, whose header slot
+   * is its own capability (`headerSlot`).
+   */
+  'chatHeader',
 ] as const;
 export const HostCapabilitySchema = z.enum(HOST_CAPABILITIES);
 export type HostCapability = z.infer<typeof HostCapabilitySchema>;
@@ -700,6 +709,121 @@ export type ChatReadAnswer = z.infer<typeof ChatReadAnswerSchema>;
 /** What HostPort.chatReadState resolves with; it never rejects. `unavailable` — no bridge, or no answer from MAIN. */
 export type ChatReadRead = { readonly ok: true; readonly last: ChatReadState | null; readonly raced?: true } | { readonly ok: false; readonly reason: (typeof OPEN_CHAT_FAILURES)[number] | 'unavailable' };
 
+// ── OnlyMonster's fan notes (2026-10-28) ─────────────────────────────────────
+
+/**
+ * 2026-10-28 (the owner's exception to «toward OnlyMonster reads only», X54): OnlyMonster's own notes of a fan — the
+ * records ChatSpace's side panel shows under «Заметки» → «Фан» (`GET`/`POST api/v0/accounts/{acc}/fans/{fan}/notes`,
+ * `PUT`/`DELETE …/notes/{id}`). MAIN reads and writes them with the page's own session, only for the fan of the chat on
+ * the route; a write only on a person's click (create, edit, delete), never retried when its outcome is unknown.
+ *
+ * A note's id as the API gives it: digits, or a token that stays one segment of the request's path.
+ */
+export const OM_NOTE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+export const OmNoteIdSchema = z.string().check(z.regex(OM_NOTE_ID_PATTERN));
+
+/**
+ * A note's colour as the API keeps it: null (ChatSpace's «default»), else a value of ChatSpace's palette — a hex colour
+ * (OM_NOTE_COLORS). Another hex or a plain name is carried as is, so an edit writes the note's own colour back.
+ */
+export const OM_NOTE_COLOR_PATTERN = /^(?:#[0-9A-Fa-f]{3,8}|[A-Za-z]{1,20})$/;
+export const OmNoteColorSchema = z.nullable(z.string().check(z.regex(OM_NOTE_COLOR_PATTERN)));
+
+/** ChatSpace's palette of note colours (0.233.0): the value the API keeps (compared lower-cased) → the name ChatSpace shows. */
+export const OM_NOTE_COLORS = { '#480a09': 'red', '#332700': 'yellow', '#001f4b': 'blue', '#122314': 'green' } as const;
+
+/**
+ * One note as MAIN read it. `text` — the raw note: HTML of ChatSpace's editor when it starts with `<p` or `<ul`
+ * (ChatSpace's own test), else plain text, lines by `\n` (core `omNoteText` turns either into lines). `title` — '' when
+ * the note has none. `updatedBy` — the OnlyMonster user who changed it last. `cut` — the title or the text was longer
+ * than FAN_NOTES_LIMITS lets over the bridge: its beginning only, never to be written back.
+ */
+export const OmFanNoteSchema = z.strictObject({
+  noteId: OmNoteIdSchema,
+  title: displayText(FAN_NOTES_LIMITS.titleMax),
+  text: displayText(FAN_NOTES_LIMITS.textMax),
+  color: OmNoteColorSchema,
+  createdAt: z.nullable(IsoTimestampSchema),
+  updatedAt: z.nullable(IsoTimestampSchema),
+  updatedBy: z.nullable(OmNoteIdSchema),
+  cut: z.boolean(),
+});
+export type OmFanNote = z.infer<typeof OmFanNoteSchema>;
+
+/**
+ * What a create or an edit writes; an edit replaces the whole note (title, text, colour). `title` '' — none (left out
+ * of the request, as ChatSpace does); `text` — the raw note (core `omNoteWrite`), never blank: a note with nothing left
+ * is deleted instead; `color` — an edit keeps the note's own.
+ */
+export const OmFanNoteInputSchema = z.strictObject({
+  title: displayText(FAN_NOTES_LIMITS.titleMax),
+  text: z.string().check(
+    z.minLength(1),
+    z.maxLength(FAN_NOTES_LIMITS.textMax),
+    z.refine((text) => text.trim() !== '', { message: 'a blank note' }),
+  ),
+  color: OmNoteColorSchema,
+});
+export type OmFanNoteInput = z.infer<typeof OmFanNoteInputSchema>;
+
+/**
+ * Why MAIN read or wrote no note. OPEN_CHAT_FAILURES, each a «not done»: `endpoint`, `session` and `timeout` (the
+ * session token came too late) before any request, `http` — the API refused; a read's `network` or `invalid`. And a
+ * write's `unknown`: its request went out and no answer came (the network failed, or the deadline passed after it was
+ * sent) — it may have landed: read again, never write it again.
+ */
+export const FAN_NOTES_FAILURES = [...OPEN_CHAT_FAILURES, 'unknown'] as const;
+const FanNotesFailedSchema = z.strictObject({ ok: z.literal(false), failure: z.enum(FAN_NOTES_FAILURES), status: z.nullable(z.int().check(z.gte(100), z.lte(599))) });
+
+/**
+ * MAIN's answer to `fanNotes`: the fan's notes in the API's order. `complete` false — some were left out (unreadable,
+ * past FAN_NOTES_LIMITS.listMax, or past one frame): a note not among them may still be there.
+ */
+export const FanNotesAnswerSchema = z.union([
+  z.strictObject({ ok: z.literal(true), notes: z.array(OmFanNoteSchema).check(z.maxLength(FAN_NOTES_LIMITS.listMax)), complete: z.boolean() }),
+  FanNotesFailedSchema,
+]);
+export type FanNotesAnswer = z.infer<typeof FanNotesAnswerSchema>;
+
+/** MAIN's answer to `createFanNote` and `updateFanNote`: the note as the API answered it; null — the answer named none (read again). */
+export const FanNoteWriteAnswerSchema = z.union([z.strictObject({ ok: z.literal(true), note: z.nullable(OmFanNoteSchema) }), FanNotesFailedSchema]);
+export type FanNoteWriteAnswer = z.infer<typeof FanNoteWriteAnswerSchema>;
+
+/** MAIN's answer to `deleteFanNote`. */
+export const FanNoteRemoveAnswerSchema = z.union([z.strictObject({ ok: z.literal(true) }), FanNotesFailedSchema]);
+export type FanNoteRemoveAnswer = z.infer<typeof FanNoteRemoveAnswerSchema>;
+
+/**
+ * Why HostPort.fanNotes read or wrote nothing: MAIN's FAN_NOTES_FAILURES, and the port's own — `not-open`: not the
+ * chat on the route (nothing was asked); `unavailable`: no bridge, or MAIN refused before doing anything — and on a
+ * read, no answer; `input`: the input breaks FAN_NOTES_LIMITS or a pattern (nothing was asked). A write whose answer
+ * was lost on the way is `unknown`.
+ */
+export type FanNotesFailure = (typeof FAN_NOTES_FAILURES)[number] | 'not-open' | 'unavailable' | 'input';
+export interface FanNotesFailed {
+  readonly ok: false;
+  readonly failure: FanNotesFailure;
+  /** The HTTP status of an `http` failure; else null. */
+  readonly status: number | null;
+}
+export type FanNotesRead = { readonly ok: true; readonly notes: readonly OmFanNote[]; readonly complete: boolean } | FanNotesFailed;
+export type FanNoteWrite = { readonly ok: true; readonly note: OmFanNote | null } | FanNotesFailed;
+export type FanNoteRemoval = { readonly ok: true } | FanNotesFailed;
+
+/**
+ * 2026-10-28: OnlyMonster's notes of the open chat's fan (HostPort.fanNotes). Every call names the chat; another chat
+ * than the route's is `not-open`, and nothing is asked. None rejects. A write goes once: an `unknown` outcome is read
+ * again (`list`), never written again. `onChanged` — OnlyMonster's socket said a fan's notes changed (with the tap
+ * script only); absent — no such word.
+ */
+export interface FanNotesPort {
+  list(chat: ChatRef): Promise<FanNotesRead>;
+  create(chat: ChatRef, input: OmFanNoteInput): Promise<FanNoteWrite>;
+  update(chat: ChatRef, noteId: string, input: OmFanNoteInput): Promise<FanNoteWrite>;
+  remove(chat: ChatRef, noteId: string): Promise<FanNoteRemoval>;
+  onChanged?(listener: (chat: ChatRef) => void): Unsubscribe;
+}
+
 /**
  * 1.15.0 (R20 §7.7): what the fan's own lines among the texts a host holds say about the fan's script — the language
  * gate's word (AI-087): Cyrillic in any of them — `cyrillic`; fan lines without — `other`; none — `unknown`.
@@ -1100,6 +1224,11 @@ export interface HostPort {
    * (Fansly). Reads only: the folders, a folder's media, what a fan got of them, their release-form tags — never a chat.
    */
   readonly media?: MediaPort;
+  /**
+   * 2026-10-28: OnlyMonster's own notes of the open chat's fan, read and written through the host's own API (the
+   * owner's exception to X54); absent — a host without them (Fansly keeps its notes through the background).
+   */
+  readonly fanNotes?: FanNotesPort;
   /**
    * 1.15.0 (R20 §7.7): the generation snapshot (FS-TAIL-6), only on a host whose tab observes its chats itself
    * (Fansly); absent on ChatSpace, whose fresh text is `readVisibleTail` and whose freshness is `checkpoint`.

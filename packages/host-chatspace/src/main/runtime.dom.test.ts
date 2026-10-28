@@ -3,7 +3,7 @@
 // flushed by the test, events are recorded. Answers are checked with the
 // contracts' own schemas (what the isolated side will check).
 
-import { InsertReceiptSchema, NavigationReceiptSchema, OpenChatAnswerSchema } from '@cg/contracts/host';
+import { FanNotesAnswerSchema, FanNoteWriteAnswerSchema, InsertReceiptSchema, NavigationReceiptSchema, OpenChatAnswerSchema } from '@cg/contracts/host';
 import { AttachAnswerSchema, DraftWireSchema } from '@cg/contracts/bridge-messages';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -650,6 +650,90 @@ describe('MAIN runtime — our read of the open chat from the API (X54)', () => 
     const fresh = await start();
     expect(OpenChatAnswerSchema.parse(await fresh.call('openChatMessages', { acc: ACC, fan: FAN, limit: 10 }))).toEqual({ ok: false, failure: 'endpoint', status: null });
     expect(fetches).toEqual([]);
+  });
+});
+
+// 2026-10-28, the owner's exception to «toward OnlyMonster reads only»: the open fan's notes, and nothing else.
+describe('MAIN runtime — OnlyMonster’s notes of the open chat’s fan', () => {
+  const API = 'https://api.example.test/api/v0/';
+  const NOTES = `${API}accounts/${ACC}/fans/${FAN}/notes`;
+  const note = { title: 'Анкета', text: 'Имя: Анна\nЛокация: Берлин', color: null };
+  let fetches: Array<{ url: string; method: string; auth: string | null; body: unknown }>;
+  let reply: () => Promise<Response>;
+
+  beforeEach(async () => {
+    fetches = [];
+    reply = () => Promise.resolve(new Response(JSON.stringify({ items: [] })));
+    Object.defineProperty(window, 'Clerk', { configurable: true, value: { session: { getToken: () => Promise.resolve('jwt-1') } } });
+    vi.spyOn(window.performance, 'getEntriesByType').mockImplementation(() => [{ name: `${API}accounts?limit=10` }] as unknown as PerformanceEntryList);
+    vi.spyOn(window, 'fetch').mockImplementation((input, init) => {
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : null;
+      fetches.push({ url: String(input), method: init?.method ?? 'GET', auth: new Headers(init?.headers).get('authorization'), body });
+      return reply();
+    });
+    await start();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window, 'Clerk');
+  });
+
+  it('only the fan of the chat on the route: another chat, or none open, is refused before any request', async () => {
+    const h = harness as Harness;
+    const asks = [
+      ['fanNotes', {}],
+      ['createFanNote', { note }],
+      ['updateFanNote', { noteId: '8801', note }],
+      ['deleteFanNote', { noteId: '8801' }],
+    ] as const;
+    for (const [t, rest] of asks) expect(await h.call(t, { acc: ACC, fan: OTHER, ...rest }), t).toBe('identity-mismatch');
+    h.page.go(ACC, undefined, 'accounts-overview');
+    for (const [t, rest] of asks) expect(await h.call(t, { acc: ACC, fan: FAN, ...rest }), t).toBe('identity-mismatch');
+    expect(fetches).toEqual([]);
+    expect(h.runtime.handle('createFanNote', { acc: ACC, fan: FAN, note: { ...note, text: ' ' } })).toBe('bad-request');
+    expect(h.runtime.handle('deleteFanNote', { acc: ACC, fan: FAN, noteId: '../chats' })).toBe('bad-request');
+  });
+
+  it('the person leaves the chat while the token is fetched: the write is not sent', async () => {
+    const h = harness as Harness;
+    let release: (value: unknown) => void = () => undefined;
+    Object.defineProperty(window, 'Clerk', { configurable: true, value: { session: { getToken: () => new Promise((resolve) => (release = resolve)) } } });
+    const asked = h.call('deleteFanNote', { acc: ACC, fan: FAN, noteId: '8801' });
+    await Promise.resolve();
+    h.page.go(ACC, OTHER);
+    release('jwt-late');
+    expect(await asked).toBe('identity-mismatch');
+    expect(fetches).toEqual([]);
+  });
+
+  it('as ChatSpace’s own editor writes: POST a new one, PUT the whole note, DELETE; no title when there is none', async () => {
+    const h = harness as Harness;
+    reply = () => Promise.resolve(new Response(JSON.stringify({ id: 8801, title: 'Анкета', note: note.text, color: null, updated_at: '2026-10-28T10:00:00Z' })));
+    expect(FanNoteWriteAnswerSchema.parse(await h.call('createFanNote', { acc: ACC, fan: FAN, note }))).toMatchObject({ ok: true, note: { noteId: '8801', title: 'Анкета' } });
+    reply = () => Promise.resolve(new Response(''));
+    expect(await h.call('updateFanNote', { acc: ACC, fan: FAN, noteId: '8801', note: { title: '', text: '<p>Имя: Анна</p>', color: '#480a09' } })).toEqual({ ok: true, note: null });
+    reply = () => Promise.resolve(new Response(null, { status: 204 }));
+    expect(await h.call('deleteFanNote', { acc: ACC, fan: FAN, noteId: '8801' })).toEqual({ ok: true });
+    reply = () => Promise.resolve(new Response(JSON.stringify({ items: [{ id: 8802, title: null, note: 'Фетиши: ноги', color: null }] })));
+    expect(FanNotesAnswerSchema.parse(await h.call('fanNotes', { acc: ACC, fan: FAN }))).toMatchObject({ ok: true, complete: true, notes: [{ noteId: '8802', title: '' }] });
+    expect(fetches).toEqual([
+      { url: NOTES, method: 'POST', auth: 'Bearer jwt-1', body: { title: 'Анкета', note: note.text, color: null } },
+      { url: `${NOTES}/8801`, method: 'PUT', auth: 'Bearer jwt-1', body: { note: '<p>Имя: Анна</p>', color: '#480a09' } },
+      { url: `${NOTES}/8801`, method: 'DELETE', auth: 'Bearer jwt-1', body: null },
+      { url: NOTES, method: 'GET', auth: 'Bearer jwt-1', body: null },
+    ]);
+  });
+
+  it('a write that went out without an answer is unknown, never «not done»; one the API refused is its status', async () => {
+    const h = harness as Harness;
+    reply = () => Promise.reject(new TypeError('NetworkError when attempting to fetch resource.'));
+    expect(await h.call('createFanNote', { acc: ACC, fan: FAN, note })).toEqual({ ok: false, failure: 'unknown', status: null });
+    expect(await h.call('deleteFanNote', { acc: ACC, fan: FAN, noteId: '8801' })).toEqual({ ok: false, failure: 'unknown', status: null });
+    // A read that fails is only a read that failed.
+    expect(await h.call('fanNotes', { acc: ACC, fan: FAN })).toEqual({ ok: false, failure: 'network', status: null });
+    reply = () => Promise.resolve(new Response(JSON.stringify({ message: 'nope' }), { status: 403 }));
+    expect(await h.call('updateFanNote', { acc: ACC, fan: FAN, noteId: '8801', note })).toEqual({ ok: false, failure: 'http', status: 403 });
+    expect(fetches).toHaveLength(4);
   });
 });
 

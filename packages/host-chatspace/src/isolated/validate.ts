@@ -9,7 +9,7 @@
 
 import { BridgeEventEnvelopeSchema, BridgeResponseSchema, checkBridgeFrame, type BridgeError, type BridgeRejectReason, type FromMainType, type ToMainType } from '@cg/contracts/bridge';
 import { AttachWireSchema, FROM_MAIN, TO_MAIN, type FromMainPayload, type ToMainData } from '@cg/contracts/bridge-messages';
-import { InsertIntentSchema, NavigationIntentSchema } from '@cg/contracts/host';
+import { InsertIntentSchema, NavigationIntentSchema, OmFanNoteInputSchema, OmNoteIdSchema } from '@cg/contracts/host';
 import { HumanCauseSchema } from '@cg/contracts/ids';
 import { DispatchTicketSchema, PreviewSendRequestSchema } from '@cg/contracts/send';
 
@@ -57,6 +57,9 @@ export const isInsertIntent = (value: unknown): boolean => InsertIntentSchema.sa
 export const isNavigationIntent = (value: unknown): boolean => NavigationIntentSchema.safeParse(value).success;
 export const isPreviewSendRequest = (value: unknown): boolean => PreviewSendRequestSchema.safeParse(value).success;
 export const isDispatchTicket = (value: unknown): boolean => DispatchTicketSchema.safeParse(value).success;
+/** 2026-10-28: a note of the open chat's fan to write (OmFanNoteInputSchema: the title, the raw text, the colour) and a note's id. */
+export const isFanNoteInput = (value: unknown): boolean => OmFanNoteInputSchema.safeParse(value).success;
+export const isFanNoteId = (value: unknown): boolean => OmNoteIdSchema.safeParse(value).success;
 /** 1.47.0: an AttachIntent — what MAIN gets of it (AttachWireSchema: the name the page reads, the MP3 within the cap) and the person's cause. */
 export const isAttachIntent = (value: unknown): boolean => {
   if (typeof value !== 'object' || value === null) return false;

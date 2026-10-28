@@ -411,3 +411,43 @@ describe('a file of ours into the composer (1.47.0)', () => {
     expect(lost.bridge.calls.filter((call) => call.t === 'attachFile')).toHaveLength(1);
   });
 });
+
+// 2026-10-28: OnlyMonster's notes of the open chat's fan through the port: nothing asked for another chat or a note
+// outside the contract; a write MAIN may have run is `unknown`, sent once.
+describe('the open fan’s OnlyMonster notes', () => {
+  const note = { title: 'Анкета', text: 'Имя: Анна', color: null };
+
+  it('only the chat on the route; MAIN’s answer as it came', async () => {
+    const { host, bridge } = await port({ fanNotes: () => ({ ok: true, notes: [], complete: true }), deleteFanNote: () => ({ ok: false, failure: 'http', status: 404 }) });
+    expect(await host.fanNotes.list(chat(OTHER))).toEqual({ ok: false, failure: 'not-open', status: null });
+    expect(await host.fanNotes.create(chat(OTHER), note)).toEqual({ ok: false, failure: 'not-open', status: null });
+    expect(await host.fanNotes.list(chat())).toEqual({ ok: true, notes: [], complete: true });
+    expect(await host.fanNotes.remove(chat(), '8801')).toEqual({ ok: false, failure: 'http', status: 404 });
+    expect(bridge.calls.filter((call) => call.t !== 'snapshot' && call.t !== 'listAccounts' && call.t !== 'chatWindow' && call.t !== 'fan' && call.t !== 'listChats').map((call) => [call.t, call.payload])).toEqual([
+      ['fanNotes', { acc: ACC, fan: FAN }],
+      ['deleteFanNote', { acc: ACC, fan: FAN, noteId: '8801' }],
+    ]);
+  });
+
+  it('a note outside the contract asks nothing; a write MAIN may have run is unknown, sent once; a refusal before it ran is not', async () => {
+    const lost = await port({ createFanNote: () => Promise.reject(new BridgeCallError('timeout', 'createFanNote')), updateFanNote: () => Promise.reject(new BridgeCallError('identity-mismatch', 'updateFanNote')) });
+    expect(await lost.host.fanNotes.create(chat(), { ...note, text: ' \n' })).toEqual({ ok: false, failure: 'input', status: null });
+    expect(await lost.host.fanNotes.update(chat(), '../8801', note)).toEqual({ ok: false, failure: 'input', status: null });
+    expect(await lost.host.fanNotes.create(chat(), { ...note, color: 'red; x' })).toEqual({ ok: false, failure: 'input', status: null });
+    expect(lost.bridge.calls.some((call) => call.t === 'createFanNote' || call.t === 'updateFanNote')).toBe(false);
+    expect(await lost.host.fanNotes.create(chat(), note)).toEqual({ ok: false, failure: 'unknown', status: null });
+    expect(lost.bridge.calls.filter((call) => call.t === 'createFanNote')).toHaveLength(1);
+    expect(lost.diagnostics.some((diagnostic) => diagnostic.event === 'fan-note-lost')).toBe(true);
+    expect(await lost.host.fanNotes.update(chat(), '8801', note)).toEqual({ ok: false, failure: 'not-open', status: null });
+  });
+
+  it('the socket’s word that a fan’s notes changed reaches who listens', async () => {
+    const { host, bridge } = await port();
+    const heard: unknown[] = [];
+    const off = host.fanNotes.onChanged?.((changed) => heard.push(changed));
+    bridge.emit({ t: 'fanNotesChanged', payload: { acc: ACC, fan: OTHER } });
+    off?.();
+    bridge.emit({ t: 'fanNotesChanged', payload: { acc: ACC, fan: FAN } });
+    expect(heard).toEqual([chat(OTHER)]);
+  });
+});

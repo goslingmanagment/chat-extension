@@ -2,9 +2,10 @@
 // read only when the live chat list says our message is the last and nothing is unread, and a fan message that came
 // between the two reads is told (`raced`), never passed off as a mark. #293 read a field the list never carries.
 
+import { FanNotesAnswerSchema, FanNoteWriteAnswerSchema } from '@cg/contracts/host';
 import { describe, expect, it } from 'vitest';
 
-import { listedOf, readStateOf } from './om-api';
+import { fanNote, fanNotesOf, listedOf, readStateOf, writtenNote } from './om-api';
 
 const FAN = '518588958';
 const CREATOR = '514788334';
@@ -73,5 +74,84 @@ describe('chatReadState: what the history says', () => {
   it('our message gone (deleted): no mark', () => {
     expect(readStateOf({ items: [historyMessage('19', true, false)] }, ours)).toEqual({ ok: true, last: null });
     expect(readStateOf({ list: [] }, ours)).toMatchObject({ ok: false, failure: 'invalid' });
+  });
+});
+
+// 2026-10-28: OnlyMonster's notes of the open fan as MAIN hands them on — every id checked, every string within the
+// bridge's bounds, an unreadable note left out and said so, a long one cut and said so (never written back).
+describe('fan notes: what MAIN makes of the API’s answers', () => {
+  const rawNote = (over: Record<string, unknown> = {}) => ({
+    id: 8801,
+    organisation_id: 12,
+    fan_id: 518588958,
+    account_id: 36408,
+    updated_by_user_id: 5501,
+    title: 'Характеристика',
+    note: 'Любит долгие разговоры\nПишет по вечерам',
+    color: null,
+    pinned: false,
+    created_at: '2026-08-28T10:00:00+00:00',
+    updated_at: '2026-09-11T12:30:00.000000Z',
+    ...over,
+  });
+
+  it('a note as the team writes it: plain text, no colour; numbers become ids, times ISO', () => {
+    expect(fanNote(rawNote())).toEqual({
+      noteId: '8801',
+      title: 'Характеристика',
+      text: 'Любит долгие разговоры\nПишет по вечерам',
+      color: null,
+      createdAt: '2026-08-28T10:00:00.000Z',
+      updatedAt: '2026-09-11T12:30:00.000Z',
+      updatedBy: '5501',
+      cut: false,
+    });
+    // As ChatSpace reads them: no title is ''; a colour of its palette is kept as the API keeps it.
+    expect(fanNote(rawNote({ id: '0d6c2b1e-3f4a-4b5c-8d9e-0f1a2b3c4d5e', title: null, color: '#480A09', updated_by_user_id: 'user_2abc', created_at: 'later' }))).toMatchObject({
+      noteId: '0d6c2b1e-3f4a-4b5c-8d9e-0f1a2b3c4d5e',
+      title: '',
+      color: '#480A09',
+      updatedBy: 'user_2abc',
+      createdAt: null,
+    });
+  });
+
+  it('unreadable: no id or one that leaves its path segment, a body or a title that is no text, a colour that is no colour', () => {
+    for (const over of [{ id: null }, { id: '../8801' }, { id: 0 }, { id: 2 ** 60 }, { note: null }, { note: ['x'] }, { title: 7 }, { color: 'red; background: url(x)' }, { color: 3 }]) {
+      expect(fanNote(rawNote(over)), JSON.stringify(over)).toBeNull();
+    }
+    expect(fanNote(rawNote({ updated_by_user_id: 'who?' }))).toMatchObject({ updatedBy: null });
+  });
+
+  it('a note longer than the bridge carries comes cut, never half a character, and says so', () => {
+    const text = `${'я'.repeat(19_999)}😀tail`;
+    const note = fanNote(rawNote({ note: text, title: 't'.repeat(250) })) as Record<string, unknown>;
+    expect(note['cut']).toBe(true);
+    expect(note['text']).toBe('я'.repeat(19_999));
+    expect((note['title'] as string).length).toBe(200);
+  });
+
+  it('the list: in the API’s order; one left out makes it incomplete; no list at all is invalid', () => {
+    const whole = fanNotesOf({ items: [rawNote(), rawNote({ id: 8802, title: 'Фетиши' })] });
+    expect(FanNotesAnswerSchema.parse(whole)).toMatchObject({ ok: true, complete: true, notes: [{ noteId: '8801' }, { noteId: '8802' }] });
+    expect(fanNotesOf({ items: [rawNote({ id: null }), rawNote()] })).toMatchObject({ ok: true, complete: false, notes: [{ noteId: '8801' }] });
+    expect(fanNotesOf({ items: [] })).toEqual({ ok: true, notes: [], complete: true });
+    expect(fanNotesOf({ notes: [] })).toEqual({ ok: false, failure: 'invalid', status: null });
+    // Past a frame's budget or the count: the rest is left out, and the answer says it is not all.
+    const big = fanNotesOf({ items: Array.from({ length: 20 }, (_, index) => rawNote({ id: 9000 + index, note: 'ж'.repeat(19_000) })) });
+    expect(FanNotesAnswerSchema.parse(big)).toMatchObject({ ok: true, complete: false });
+    expect((big['notes'] as unknown[]).length).toBeLessThan(20);
+    const many = fanNotesOf({ items: Array.from({ length: 120 }, (_, index) => rawNote({ id: 9000 + index, note: 'x' })) });
+    expect((many['notes'] as unknown[]).length).toBe(100);
+    expect(many['complete']).toBe(false);
+  });
+
+  it('a write the API took: the note it names, wrapped or not; none — null, read again', () => {
+    expect(FanNoteWriteAnswerSchema.parse(writtenNote(rawNote()))).toMatchObject({ ok: true, note: { noteId: '8801' } });
+    expect(writtenNote({ data: rawNote({ id: 8803 }) })).toMatchObject({ ok: true, note: { noteId: '8803' } });
+    expect(writtenNote({ item: rawNote({ id: 8804 }) })).toMatchObject({ ok: true, note: { noteId: '8804' } });
+    expect(writtenNote({})).toEqual({ ok: true, note: null });
+    expect(writtenNote(null)).toEqual({ ok: true, note: null });
+    expect(writtenNote({ success: true })).toEqual({ ok: true, note: null });
   });
 });

@@ -315,6 +315,8 @@ const ConversationHeader = defineComponent({
     const cache = useQueryCache();
     const chats = useChatsStore();
     const fan = computed(() => cache.getQueryData<FansMap>(keys.fansMap(props.accountId))?.[props.chatId] ?? null);
+    /** ChatSpace wraps each header button in its tooltip's `div` (0.233.0 `OmTooltip`). */
+    const tip = (button: VNode): VNode => h('div', { class: 'conversation-header__tip' }, [button]);
     return (): VNode => {
       const online = chats.isFanOnline(props.chatId, fan.value?.lastSeen ?? null);
       const typing = chats.isFanTyping(props.accountId, props.chatId);
@@ -322,8 +324,14 @@ const ConversationHeader = defineComponent({
       return h('header', { class: 'conversation-header', 'data-stand-conversation-header': '' }, [
         h('span', { class: ['avatar', online ? 'avatar--online' : ''] }, initial(name)),
         h('div', { class: 'conversation-header__text' }, [h('strong', name), h('span', { class: 'conversation-header__status' }, typing ? 'typing…' : online ? 'online' : 'offline')]),
-        h('button', { type: 'button', class: 'chip', 'data-testid': 'conversation-header-pinned-messages-button', onClick: () => props.onOpenPinned() }, 'Pinned'),
-        fan.value !== null ? h('button', { type: 'button', class: 'chip', 'data-stand-block-button': '', onClick: () => void setBlocked(cache, props.accountId, props.chatId, !fan.value?.isBlocked).catch(() => undefined) }, fan.value.isBlocked ? 'Unblock' : 'Block') : null,
+        // ChatSpace's actions row (0.233.0 `ConversationHeader`): its buttons by the test ids the page gives them; the
+        // extension's header slots stand before the search button.
+        h('div', { class: 'conversation-header__actions' }, [
+          tip(h('button', { type: 'button', class: 'chip', 'data-testid': 'conversation-header-pinned-messages-button', onClick: () => props.onOpenPinned() }, 'Pinned')),
+          tip(h('button', { type: 'button', class: 'chip', 'data-testid': 'conversation-header-search-button', 'aria-label': 'Search messages' }, 'Search')),
+          tip(h('button', { type: 'button', class: 'chip', 'aria-label': 'Refresh conversation' }, '↻')),
+          fan.value !== null ? tip(h('button', { type: 'button', class: 'chip', 'data-stand-block-button': '', onClick: () => void setBlocked(cache, props.accountId, props.chatId, !fan.value?.isBlocked).catch(() => undefined) }, fan.value.isBlocked ? 'Unblock' : 'Block')) : null,
+        ]),
       ]);
     };
   },

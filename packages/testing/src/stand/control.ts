@@ -11,6 +11,7 @@ import type { EgressPage } from './egress-sink';
 import type { SentryInbox } from './sentry-inbox';
 import type { ApiContext } from './api';
 import { readJson, sendJson } from './api';
+import { noteFields, rawNote } from './notes';
 import { newMessageFrame } from './wire';
 
 export interface EgressLog {
@@ -91,6 +92,17 @@ export async function handleControl(context: ControlContext, request: IncomingMe
   if (path === '/__stand/egress' && method === 'GET') {
     const page: EgressPage = context.egress?.read(Number(url.searchParams.get('since') ?? 0)) ?? { attempts: [], next: 0, dropped: 0 };
     ok(page);
+    return;
+  }
+  // 2026-10-28: a fan's OnlyMonster notes as the API keeps them (`?accountId=&fanId=`).
+  if (path === '/__stand/notes' && method === 'GET') {
+    const accountId = asString(url.searchParams.get('accountId'));
+    const fanId = asString(url.searchParams.get('fanId'));
+    if (accountId === null || fanId === null || state.chat(accountId, fanId) === undefined) {
+      ok({ error: 'unknown chat' }, 404);
+      return;
+    }
+    ok({ items: state.notesOf(accountId, fanId).map((note) => rawNote(accountId, fanId, state.dataset.userId, note)) });
     return;
   }
 
@@ -201,6 +213,21 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     }
     message.isOpened = true;
     ok({ id: message.id });
+    return;
+  }
+  // 2026-10-28: a fan's OnlyMonster notes from now on (`{accountId, fanId, items: [{title?, note, color?}]}`), new ids, as
+  // a colleague's edits in ChatSpace would leave them; the socket hears nothing of it.
+  if (path === '/__stand/notes' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const items = Array.isArray(body['items']) ? body['items'].map(noteFields) : null;
+    if (accountId === null || fanId === null || state.chat(accountId, fanId) === undefined || items === null || items.includes(null)) {
+      ok({ error: 'unknown chat or a note without its text' }, 404);
+      return;
+    }
+    state.notesOf(accountId, fanId).length = 0;
+    const notes = items.map((fields) => state.addNote(accountId, fanId, fields as NonNullable<typeof fields>));
+    ok({ items: notes.map((note) => rawNote(accountId, fanId, state.dataset.userId, note)) });
     return;
   }
   if (path === '/__stand/ws/frame' && method === 'POST') {

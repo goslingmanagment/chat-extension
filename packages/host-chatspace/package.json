@@ -9,6 +9,7 @@
     "./isolated": "./src/isolated/index.ts",
     "./isolated/validation": "./src/isolated/validate.ts",
     "./isolated/profile": "./src/isolated/profile.ts",
+    "./isolated/notes-place": "./src/isolated/notes-place.ts",
     "./host-contract": "./src/isolated/host-contract.ts"
   },
   "dependencies": {

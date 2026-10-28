@@ -15,6 +15,18 @@
 //   release forms — MAIN asks ChatSpace's API for the account the page has
 //   loaded; no chat's history. Nothing is cached here: the picker keeps what
 //   it read.
+// - OnlyMonster's own notes of the open chat's fan (`fanNotes`, 2026-10-28,
+//   the owner's exception to «toward OnlyMonster reads only»): read, created,
+//   edited, deleted through MAIN, only for the chat on the route — any other
+//   is `not-open` here, and MAIN checks its route again. A write goes once,
+//   from a person's click in our UI: one that may have run is `unknown`
+//   (BRIDGE_WRITE_FAILURES) and is never sent again; the caller reads the
+//   notes. Nothing is cached here. The socket's word that a fan's notes changed
+//   (`fanNotesChanged`, with the tap script) goes to `fanNotes.onChanged`.
+// - `header` (2026-10-28): slots of ours in the conversation header's actions
+//   row (header-slot.ts), looked for when the route, the composer's presence,
+//   the contract or the dock's place changes; the row's state is the
+//   `chatHeader` capability.
 //
 // - State comes from MAIN's snapshot and events (route, composer, accounts,
 //   chat cache, contract), checked by the bridge client; the synchronous
@@ -54,12 +66,45 @@
 //   ever sent or repeated because of it.
 
 import type { ChatKey, ChatRef, DraftSnapshot, HostAccount, HostIdentity } from '@cg/contracts/ids';
-import type { AttachIntent, AttachReceipt, AttachRefusal, ChatReadRead, ChatSpaceContractReport, ChatWindow, ComposerState, DraftMedia, HostContractReport, HostEvent, HostFan, HostPort, HostSnapshot, HostTheme, InsertIntent, InsertReceipt, LiveImage, LiveImageRef, LiveTextTail, MountPoints, NavigateOptions, NavigationIntent, NavigationItem, NavigationReceipt, OpenChatPage, OpenChatRead, OpenChatReadOptions, RouteState, Unsubscribe } from '@cg/contracts/host';
+import type {
+  AttachIntent,
+  AttachReceipt,
+  AttachRefusal,
+  ChatReadRead,
+  ChatSpaceContractReport,
+  ChatWindow,
+  ComposerState,
+  DraftMedia,
+  FanNotesFailed,
+  FanNotesPort,
+  HostContractReport,
+  HostEvent,
+  HostFan,
+  HostPort,
+  HostSnapshot,
+  HostTheme,
+  InsertIntent,
+  InsertReceipt,
+  LiveImage,
+  LiveImageRef,
+  LiveTextTail,
+  MountPoints,
+  NavigateOptions,
+  NavigationIntent,
+  NavigationItem,
+  NavigationReceipt,
+  OmFanNoteInput,
+  OpenChatPage,
+  OpenChatRead,
+  OpenChatReadOptions,
+  RouteState,
+  Unsubscribe,
+} from '@cg/contracts/host';
 import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
 import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
-import { ATTACH_LIMITS, BRIDGE_LIMITS, CHAT_READ_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
+import { ATTACH_LIMITS, BRIDGE_LIMITS, CHAT_READ_LIMITS, FAN_NOTES_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 import type { MediaFanState, MediaFoldersPage, MediaItemsPage, MediaRead, MediaRequest } from '@cg/contracts/media';
 import type { MediaTags } from '@cg/contracts/send-media';
 
@@ -68,6 +113,7 @@ import { buildContractReport, type ContractWireInput } from './contract';
 import { composerMedia, photoAsJpeg, photosAsLiveImages } from '@cg/host-kit/isolated/photos';
 import { sameReport } from '@cg/host-kit/isolated/report';
 import { readDraftMediaView, readStoredDraft, readStoredMedia, storedDraftAgrees, type DraftStorage, type StoredMedia } from './draft-store';
+import { createHeaderSlots, type HeaderSlots } from './header-slot';
 import { ADAPTER_VERSION } from './host-contract';
 import type { MountManager } from './mount';
 import { loadedScriptUrls, matchReceiptProfile, receiptModules, type ReceiptMatch } from './receipt-profile';
@@ -149,7 +195,17 @@ export interface ChatSpaceHostPort extends HostPort {
   probe(): ChatSpaceContractReport;
   /** 1.47.0: ChatSpace's port always has it; whether the page takes a file now, `fileAttach` says. */
   attachFile(intent: AttachIntent): Promise<AttachReceipt>;
+  /** 2026-10-28: OnlyMonster's notes of the open chat's fan; ChatSpace's port always has them. */
+  readonly fanNotes: FanNotesPort;
+  /**
+   * 2026-10-28: slots of ours in the conversation header's actions row, right before ChatSpace's search button
+   * (header-slot.ts): whether the row is there, its changes, and a closed root at an order of ours.
+   */
+  readonly header: ChatSpaceHeader;
 }
+
+/** The conversation header's slots as the port lends them (Fansly's header slots' API). */
+export type ChatSpaceHeader = Pick<HeaderSlots, 'available' | 'onChange' | 'mount'>;
 
 const keyOf = (chat: ChatRef): ChatKey => `${chat.host}:${chat.hostAccountId}:${chat.platformFanId}`;
 /** The reads of page memory the port keeps a cache of (the bridge's own request names). */
@@ -225,6 +281,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
    * logged when it at least doubled the last, so a page that forges the event adds at most a few records per site.
    */
   const faults = new Map<string, number>();
+  /** 2026-10-28: slots of ours in the conversation header (header-slot.ts); their row's state is the `chatHeader` capability. */
+  const header = createHeaderSlots(options.win.document, mounts.registry);
   let report: ChatSpaceContractReport = compute();
   const windows = new Map<ChatKey, ChatWindow | null>();
   const fans = new Map<ChatKey, HostFan | null>();
@@ -253,6 +311,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
 
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
+  /** 2026-10-28: who hears that a fan's OnlyMonster notes changed (`fanNotes.onChanged`). */
+  const noteListeners = new Set<(chat: ChatRef) => void>();
   const emit = (event: HostEvent): void => {
     for (const listener of [...eventListeners]) listener(event);
   };
@@ -262,6 +322,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       wire,
       dom: { composerFrame: mounts.frameAnchor(), draftKey, theme: theme.anchor() },
       accountBound: Boolean(route.account?.platformAccountId),
+      chatHeader: header.state(),
       adapterVersion,
       checkedAt: clock(),
       live: { tap, previewSend: live?.previewSend === true, receipt: receiptProfile !== null, receiptMatch: receiptProfile },
@@ -434,9 +495,19 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     if (moved) emit({ type: 'route', route });
     if (moved) refreshReceipt();
     if (moved) staleOpen();
+    if (moved) syncHeader();
     recompute();
     refreshOpenChat();
   };
+
+  /**
+   * Looks for the conversation header's row (header-slot.ts) — on a route change, the open chat's composer coming or
+   * going, a contract change, the dock moving; never per keystroke. With the open chat's composer reported, the
+   * conversation is on the page: a row not found then is `missing`.
+   */
+  function syncHeader(): void {
+    if (!disposed) header.sync(route.name === 'chat' && composer !== null);
+  }
 
   /**
    * The open chat's composer from MAIN's last report and the route — whichever of the two came last. MAIN's route and
@@ -449,9 +520,11 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   const syncComposer = (): void => {
     const next = reported && sameChat(reported.chat, route.chat) ? reported : null;
     if (next === composer) return;
+    const came = (next === null) !== (composer === null);
     composer = next;
     mounts.update(next);
     emit({ type: 'composer', composer: next });
+    if (came) syncHeader();
   };
 
   const setComposer = (next: ComposerState | null): void => {
@@ -497,9 +570,23 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         wire = event.payload;
         const before = report;
         refreshReceipt();
+        // The role's permissions may have come with it: a header button of ChatSpace's shows only with its permission.
+        syncHeader();
         recompute();
         // An anchor came (its data landed after the route settled): what it feeds is read now, not at the next change.
         if (report !== before) refreshOpenChat();
+        return;
+      }
+      // 2026-10-28: OnlyMonster's socket said a fan's notes changed (the tap script's word): whoever shows them reads again.
+      case 'fanNotesChanged': {
+        const chat: ChatRef = { host: 'chatspace', hostAccountId: event.payload.acc, platformFanId: event.payload.fan };
+        for (const listener of [...noteListeners]) {
+          try {
+            listener(chat);
+          } catch {
+            // A listener's failure is its own; the next one still hears it.
+          }
+        }
         return;
       }
       // Facts of the tap and the receipt observer: never coalesced, never with a message's text.
@@ -542,7 +629,12 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
 
   const unsubscribeBridge = bridge?.onEvent(onBridgeEvent) ?? (() => undefined);
   const unsubscribeTheme = theme.onChange(() => recompute());
-  const unsubscribeMounts = mounts.onChange(() => recompute());
+  const unsubscribeMounts = mounts.onChange(() => {
+    // The dock moved: the conversation it stands in was rendered, header and all.
+    syncHeader();
+    recompute();
+  });
+  const unsubscribeHeader = header.onChange(() => recompute());
   /**
    * ChatSpace rendered the open chat's composer again from new nodes and MAIN did not hear of it (it reads composers on
    * store events): it still names the old composer, whose nodes are gone, and a «Вставить» made with that identity would
@@ -737,6 +829,65 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     );
   };
 
+  // ── OnlyMonster's notes of the open chat's fan (2026-10-28) ──
+
+  const notesFailed = (failure: FanNotesFailed['failure']): FanNotesFailed => ({ ok: false, failure, status: null });
+  /** Another chat than the route's, or no MAIN: nothing is asked. */
+  const notesRefusal = (chat: ChatRef): FanNotesFailed | null => (!sameChat(chat, route.chat) ? notesFailed('not-open') : !bridge || disposed ? notesFailed('unavailable') : null);
+  /**
+   * A notes request that got no answer. Refused by MAIN before anything ran — not done (`not-open` for another chat on
+   * the route by then). Else a write may have run: `unknown` (BRIDGE_WRITE_FAILURES), never sent again; a read is
+   * `unavailable`.
+   */
+  const notesLost = (error: unknown, write: boolean): FanNotesFailed => {
+    if (error instanceof BridgeCallError && error.executed === 'no') return notesFailed(error.failure === 'identity-mismatch' || error.failure === 'stale-document' ? 'not-open' : 'unavailable');
+    if (!write) return notesFailed('unavailable');
+    diag({ event: 'fan-note-lost', detail: { failure: error instanceof BridgeCallError ? error.failure : 'error' } });
+    return WRITE_FAILURES.createFanNote;
+  };
+  /** What a write may not carry: a note or an id outside the contract (FAN_NOTES_LIMITS, the patterns) — nothing is asked. */
+  const notesInput = async (input: OmFanNoteInput | null, noteId: string | null): Promise<FanNotesFailed | null> => {
+    try {
+      const check = await validation();
+      return (input === null || check.isFanNoteInput(input)) && (noteId === null || check.isFanNoteId(noteId)) ? null : notesFailed('input');
+    } catch {
+      return notesFailed('unavailable');
+    }
+  };
+  /** Only the three keys of a note cross to MAIN (it refuses any other). */
+  const noteWire = (input: OmFanNoteInput): OmFanNoteInput => ({ title: input.title, text: input.text, color: input.color });
+
+  const fanNotes: FanNotesPort = {
+    async list(chat) {
+      const refused = notesRefusal(chat);
+      if (refused || !bridge) return refused ?? notesFailed('unavailable');
+      return bridge.request('fanNotes', { acc: chat.hostAccountId, fan: chat.platformFanId }, FAN_NOTES_LIMITS.bridgeMs).catch((error: unknown) => notesLost(error, false));
+    },
+    async create(chat, input) {
+      const refused = notesRefusal(chat) ?? (await notesInput(input, null));
+      if (refused || !bridge) return refused ?? notesFailed('unavailable');
+      return bridge.request('createFanNote', { acc: chat.hostAccountId, fan: chat.platformFanId, note: noteWire(input) }, FAN_NOTES_LIMITS.bridgeMs).catch((error: unknown) => notesLost(error, true));
+    },
+    async update(chat, noteId, input) {
+      const refused = notesRefusal(chat) ?? (await notesInput(input, noteId));
+      if (refused || !bridge) return refused ?? notesFailed('unavailable');
+      return bridge
+        .request('updateFanNote', { acc: chat.hostAccountId, fan: chat.platformFanId, noteId, note: noteWire(input) }, FAN_NOTES_LIMITS.bridgeMs)
+        .catch((error: unknown) => notesLost(error, true));
+    },
+    async remove(chat, noteId) {
+      const refused = notesRefusal(chat) ?? (await notesInput(null, noteId));
+      if (refused || !bridge) return refused ?? notesFailed('unavailable');
+      return bridge.request('deleteFanNote', { acc: chat.hostAccountId, fan: chat.platformFanId, noteId }, FAN_NOTES_LIMITS.bridgeMs).catch((error: unknown) => notesLost(error, true));
+    },
+    onChanged(listener): Unsubscribe {
+      noteListeners.add(listener);
+      return () => {
+        noteListeners.delete(listener);
+      };
+    },
+  };
+
   const port: ChatSpaceHostPort = {
     kind: 'chatspace',
     platform: 'onlyfans',
@@ -880,6 +1031,9 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         (): ChatReadRead => ({ ok: false, reason: 'unavailable' }),
       );
     },
+
+    fanNotes,
+    header: { available: header.available, onChange: header.onChange, mount: header.mount },
 
     media: {
       folders: (hostAccountId, offset) => mediaRead<MediaFoldersPage>({ of: 'folders', acc: hostAccountId, offset }, (value) => 'items' in value),
@@ -1068,9 +1222,12 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       unsubscribeTheme();
       unsubscribeMounts();
       unsubscribeRenewed();
+      unsubscribeHeader();
       eventListeners.clear();
       contractListeners.clear();
       sendListeners.clear();
+      noteListeners.clear();
+      header.dispose();
       mounts.dispose();
       theme.dispose();
     },

@@ -54,7 +54,9 @@ export const STAND_SENTRY_PREFIX = '/sentry/';
  * - `ours` — the extension's own read of the open chat (decision X54,
  *   `openChatMessages`): a GET of a chat's messages on the API origin with the
  *   page's bearer and without the native header, and its CORS preflight. Tests
- *   check that it reads only the chat the person opened;
+ *   check that it reads only the chat the person opened. So are (2026-10-28)
+ *   its reads and writes of a fan's OnlyMonster notes (`…/fans/{fan}/notes`,
+ *   GET/POST/PUT/DELETE), only ever for the open chat's fan;
  * - `foreign` — anything else on either origin, whatever the path: a fetch or
  *   XHR without the native header (also of the page's own index or bundles), a
  *   replayed native request, a socket that never authenticated — the extension

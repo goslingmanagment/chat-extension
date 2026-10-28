@@ -47,6 +47,15 @@ export const STORE_ACCOUNTS = 'accounts';
 export const WS_PATH = '/api/chat-space/ws';
 export const WS_NEW_MESSAGE = 'account_new_message';
 export const WS_AUTHENTICATED = 'authenticated';
+/**
+ * 2026-10-28: the frame of OnlyMonster's socket that says a fan's data changed, `{event, type, id, account}` — of type
+ * `user-notes` for the fan's notes; `id` is the fan, `account.account_id` the OnlyMonster account (ChatSpace's own
+ * listener, 0.233.0).
+ */
+export const WS_DATA_UPDATED = 'account_data_updated';
+export const WS_USER_NOTES = 'user-notes';
+/** The event that tells the isolated side a fan's notes changed (contracts FROM_MAIN.fanNotesChanged). */
+export const EVT_FAN_NOTES = 'fanNotesChanged';
 /** The path of ChatSpace's own API under its origin; our one read of it (X54) takes the origin from the page's requests. */
 export const API_PATH = '/api/v0/';
 /** The request that names that origin: the page's own read of its accounts, the first it makes (X54). */
@@ -112,6 +121,12 @@ export const MEDIA_TYPES = ['photo', 'video', 'gif', 'audio'] as const;
 export const ATTACH_MAX_BYTES = 2 * 1024 * 1024;
 export const ATTACH_WATCH_MS = 60_000;
 export const ATTACH_WATCH_MAX_MS = 180_000;
+/** contracts FAN_NOTES_LIMITS, OM_NOTE_ID_PATTERN, OM_NOTE_COLOR_PATTERN (2026-10-28): OnlyMonster's notes of the open fan. */
+export const FAN_NOTE_TITLE_MAX = 200;
+export const FAN_NOTE_TEXT_MAX = 20_000;
+export const FAN_NOTES_MAX = 100;
+export const FAN_NOTE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+export const FAN_NOTE_COLOR = /^(?:#[0-9A-Fa-f]{3,8}|[A-Za-z]{1,20})$/;
 
 /** CG codes MAIN answers with (contracts CG_CODES). */
 export const CG_CHAT_CHANGED = 'CG-INSERT-CHAT-CHANGED';

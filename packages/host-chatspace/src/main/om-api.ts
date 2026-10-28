@@ -1,22 +1,50 @@
-// Our own read of the open chat from OnlyMonster's API (decision X54; contracts
-// TO_MAIN.openChatMessages): the one request MAIN makes, made the way
-// ChatSpace makes its own — the page's `fetch`, its Clerk session token as the
-// bearer, the API address the page itself requests. The address comes from the
-// page's own requests (its resource timing): ChatSpace's API lives on another
-// host than the page, and MAIN names no origin. The runtime refuses any chat
-// but the one on the route before this file runs: loading a chat's history
-// marks it read on OnlyFans (facts.md). Whether a fan read our newest message
-// (`chatReadState`) is the one exception, for any chat: OnlyFans says it only
-// in a history, so the chat list is asked first, and the history's newest
-// message is read only when the list says it is ours and nothing in the chat
-// is unread — then every fan message is read already and the read marks
-// nothing new. Nothing is written, retried or kept; the isolated side checks
-// the answer with its schema.
+// Our own requests to OnlyMonster's API, made the way ChatSpace makes its
+// own — the page's `fetch`, its Clerk session token as the bearer, the API
+// address the page itself requests. The address comes from the page's own
+// requests (its resource timing): ChatSpace's API lives on another host than
+// the page, and MAIN names no origin.
+// - Reads (decision X54; contracts TO_MAIN.openChatMessages): the open chat's
+//   messages. The runtime refuses any chat but the one on the route before
+//   this file runs: loading a chat's history marks it read on OnlyFans
+//   (facts.md). Whether a fan read our newest message (`chatReadState`) is the
+//   one exception, for any chat: OnlyFans says it only in a history, so the
+//   chat list is asked first, and the history's newest message is read only
+//   when the list says it is ours and nothing in the chat is unread — then
+//   every fan message is read already and the read marks nothing new. The
+//   media picker's vault reads (X53, media.ts) read no chat. The notes of the
+//   open chat's fan (`fanNotes`) are read for the chat on the route only.
+// - Writes: OnlyMonster's notes of the open chat's fan, and nothing else — the
+//   owner's exception to «toward OnlyMonster reads only» (2026-10-28): create,
+//   edit, delete, each from a person's click on the isolated side, for the fan
+//   of the chat on the route (the runtime refuses any other, and the route is
+//   asked again right before the request). Each goes once: the boot answers a
+//   repeated request id with the first answer (WRITE_REQUESTS), and a request
+//   that went out with no answer is `unknown` — never sent again.
+// Nothing is retried or kept; the isolated side checks every answer with its
+// schema.
 
 import { count, idOf, isPlain, type Plain } from '@cg/host-kit/main/check';
 import { ERR_IDENTITY } from '@cg/host-kit/main/protocol';
 import { iso, plain, utf8Bytes } from './page';
-import { API_ACCOUNTS_PATH, API_PATH, CHAT_READ_HISTORY_LIMIT, CHAT_READ_SEARCH_LIMIT, FRAME_DATA_BUDGET, LIVE_IMAGE_PER_MESSAGE, LIVE_IMAGE_URL_MAX, LIVE_IMAGE_WINDOW, OPEN_CHAT_PRICE_MAX, OPEN_CHAT_REQUEST_MS, PHOTO_URL } from './protocol';
+import {
+  API_ACCOUNTS_PATH,
+  API_PATH,
+  CHAT_READ_HISTORY_LIMIT,
+  CHAT_READ_SEARCH_LIMIT,
+  FAN_NOTE_COLOR,
+  FAN_NOTE_ID,
+  FAN_NOTE_TEXT_MAX,
+  FAN_NOTE_TITLE_MAX,
+  FAN_NOTES_MAX,
+  FRAME_DATA_BUDGET,
+  LIVE_IMAGE_PER_MESSAGE,
+  LIVE_IMAGE_URL_MAX,
+  LIVE_IMAGE_WINDOW,
+  OPEN_CHAT_PRICE_MAX,
+  OPEN_CHAT_REQUEST_MS,
+  PHOTO_URL,
+} from './protocol';
+import { type FanNoteInput } from './requests';
 
 type PageWindow = Window & { readonly Clerk?: { readonly session?: { readonly getToken?: () => unknown } | null } };
 
@@ -167,6 +195,87 @@ export const readStateOf = (body: unknown, listed: Plain): Plain => {
   return { ok: true, last: fanNewer ?? model };
 };
 
+/** At most `max` UTF-16 units of `text`, never half of a surrogate pair at the end. */
+const clip = (text: string, max: number): string => {
+  if (text.length <= max) return text;
+  const last = text.charCodeAt(max - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+};
+
+/** A note's id or its author's: a positive safe integer's digits, or a token that stays one segment of a path; null — neither. */
+const tokenOf = (value: unknown): string | null => {
+  const token = Number.isSafeInteger(value) && (value as number) > 0 ? String(value) : value;
+  return typeof token === 'string' && FAN_NOTE_ID.test(token) ? token : null;
+};
+
+/**
+ * One note as the API gives it (`{id, title, note, color, created_at, updated_at, updated_by_user_id, …}`) as contracts
+ * OmFanNote; null — unreadable: no id, a title or a body that is no text, a colour of another form. A title (`null` —
+ * none, as ChatSpace reads it) or a body longer than the bridge carries comes cut, and says so (`cut`): it is shown,
+ * never written back.
+ */
+export const fanNote = (raw: unknown): Plain | null => {
+  if (!isPlain(raw)) return null;
+  const noteId = tokenOf(raw['id']);
+  const title = raw['title'] ?? '';
+  const text = raw['note'];
+  const color = raw['color'] ?? null;
+  if (noteId === null || typeof title !== 'string' || typeof text !== 'string') return null;
+  if (color !== null && (typeof color !== 'string' || !FAN_NOTE_COLOR.test(color))) return null;
+  return {
+    noteId,
+    title: clip(title, FAN_NOTE_TITLE_MAX),
+    text: clip(text, FAN_NOTE_TEXT_MAX),
+    color,
+    createdAt: iso(raw['created_at']),
+    updatedAt: iso(raw['updated_at']),
+    updatedBy: tokenOf(raw['updated_by_user_id']),
+    cut: title.length > FAN_NOTE_TITLE_MAX || text.length > FAN_NOTE_TEXT_MAX,
+  };
+};
+
+/**
+ * A fan's notes as the API answers them (`{items: [note]}`) as contracts FanNotesAnswer: in the API's order, at most
+ * FAN_NOTES_MAX within one frame's byte budget. `complete` false — a note was left out (unreadable, or past either
+ * bound): a note the answer does not name may still be there.
+ */
+export const fanNotesOf = (body: unknown): Plain => {
+  const items = isPlain(body) ? body['items'] : null;
+  if (!Array.isArray(items)) return fail('invalid');
+  const notes: Plain[] = [];
+  let bytes = 0;
+  let complete = true;
+  for (const raw of items) {
+    const note = fanNote(raw);
+    if (note === null) {
+      complete = false;
+      continue;
+    }
+    bytes += utf8Bytes(JSON.stringify(note));
+    if (notes.length >= FAN_NOTES_MAX || bytes > FRAME_DATA_BUDGET) {
+      complete = false;
+      break;
+    }
+    notes.push(note);
+  }
+  return { ok: true, notes, complete };
+};
+
+/**
+ * The answer of a write the API took (2xx) as contracts FanNoteWriteAnswer: the note it names — the body itself, or
+ * under `item`, `data` or `note` —, or none (`note: null`): the write landed, and the caller reads the notes again.
+ */
+export const writtenNote = (body: unknown): Plain => {
+  for (const candidate of isPlain(body) ? [body, body['item'], body['data'], body['note']] : []) {
+    const note = fanNote(candidate);
+    if (note !== null) return { ok: true, note };
+  }
+  return { ok: true, note: null };
+};
+
+/** A note as ChatSpace's own editor sends it (`{title?, note, color}`): no title when it has none. */
+const noteBody = (note: FanNoteInput): Plain => ({ ...(note.title === '' ? {} : { title: note.title }), note: note.text, color: note.color });
+
 type Timer = (callback: () => void, ms: number) => unknown;
 /** A refusal shaped as contracts OpenChatAnswer's failure: `{ok: false, failure, status}`. */
 type Failed = Plain & { readonly ok: false };
@@ -194,12 +303,15 @@ export function createOmApi(win: Window, setTimer: Timer) {
    * A request to ChatSpace's API at `path` (under `…/api/v0/`) with the page's own session, as the page makes it: a GET,
    * or with `init` the method and the JSON body the page itself sends there. Resolves with the parsed JSON body or a
    * refusal, never rejects. Every request of ours goes through here; the caller chooses which path may be asked, when,
-   * and whether it may be anything but a read (X54: reads only, unless a decision says otherwise). `still` is asked once
-   * more right before the request, after the token's wait: false — `identity-mismatch`, and nothing is requested.
+   * and whether it may be anything but a read (X54: reads only — but for the open fan's notes, the owner's exception of
+   * 2026-10-28). `still` is asked once more right before the request, after the token's wait: false —
+   * `identity-mismatch`, and nothing is requested. A `write` that went out and got no answer is `unknown` (it may have
+   * landed), never `timeout` or `network`; one the API took (2xx) answers whatever its body, an empty one (a DELETE's
+   * 204) as `{}` and an unreadable one as `null`.
    */
   const omRequest = async (
     path: string,
-    init?: { readonly method: 'GET' | 'POST'; readonly json?: unknown },
+    init?: { readonly method: 'GET' | 'POST' | 'PUT' | 'DELETE'; readonly json?: unknown; readonly write?: true },
     still?: () => boolean,
   ): Promise<{ readonly ok: true; readonly body: unknown } | Failed | typeof ERR_IDENTITY> => {
     const root = apiBase();
@@ -221,15 +333,26 @@ export function createOmApi(win: Window, setTimer: Timer) {
     if (abort.signal.aborted) return fail('timeout');
     if (typeof token !== 'string' || token === '') return fail('session');
     if (still !== undefined && !still()) return ERR_IDENTITY;
+    const write = init?.write === true;
+    let response: Response;
     try {
-      const response = await win.fetch(root + path, {
+      response = await win.fetch(root + path, {
         method: init?.method ?? 'GET',
         headers: init?.json === undefined ? { authorization: `Bearer ${token}` } : { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
         ...(init?.json === undefined ? {} : { body: JSON.stringify(init.json) }),
         signal: abort.signal,
       });
-      return response.ok ? { ok: true, body: await response.json() } : fail('http', response.status);
+    } catch {
+      // The request went out, or may have: a write may have landed.
+      return fail(write ? 'unknown' : abort.signal.aborted ? 'timeout' : 'network');
+    }
+    if (!response.ok) return fail('http', response.status);
+    try {
+      const text = await response.text();
+      return { ok: true, body: write && text.trim() === '' ? {} : JSON.parse(text) };
     } catch (error) {
+      // The API took the write: it landed whatever its body says, and the caller reads the notes again.
+      if (write) return { ok: true, body: null };
       return fail(abort.signal.aborted ? 'timeout' : error instanceof SyntaxError ? 'invalid' : 'network');
     }
   };
@@ -284,6 +407,29 @@ export function createOmApi(win: Window, setTimer: Timer) {
           cursor: (items.at(-1)?.['platformMessageId'] as string | undefined) ?? null,
         },
       };
+    },
+    /**
+     * OnlyMonster's notes of the open chat's fan (2026-10-28), as ChatSpace's own tab reads them. `open` — the chat is
+     * still the one on the route; asked again right before the request.
+     */
+    async fanNotes(acc: string, fan: string, open: () => boolean): Promise<Plain | typeof ERR_IDENTITY> {
+      const read = await omRequest(`accounts/${acc}/fans/${fan}/notes`, undefined, open);
+      return typeof read === 'string' || !read.ok ? read : fanNotesOf(read.body);
+    },
+    /** A new note of the open chat's fan: one request, on a person's click (the isolated side's), never repeated. */
+    async createFanNote(acc: string, fan: string, note: FanNoteInput, open: () => boolean): Promise<Plain | typeof ERR_IDENTITY> {
+      const sent = await omRequest(`accounts/${acc}/fans/${fan}/notes`, { method: 'POST', json: noteBody(note), write: true }, open);
+      return typeof sent === 'string' || !sent.ok ? sent : writtenNote(sent.body);
+    },
+    /** The whole note in place of note `noteId` of the open chat's fan (its title, text and colour), as ChatSpace's editor saves one. */
+    async updateFanNote(acc: string, fan: string, noteId: string, note: FanNoteInput, open: () => boolean): Promise<Plain | typeof ERR_IDENTITY> {
+      const sent = await omRequest(`accounts/${acc}/fans/${fan}/notes/${noteId}`, { method: 'PUT', json: noteBody(note), write: true }, open);
+      return typeof sent === 'string' || !sent.ok ? sent : writtenNote(sent.body);
+    },
+    /** Note `noteId` of the open chat's fan deleted; OnlyMonster keeps no copy of it. */
+    async deleteFanNote(acc: string, fan: string, noteId: string, open: () => boolean): Promise<Plain | typeof ERR_IDENTITY> {
+      const sent = await omRequest(`accounts/${acc}/fans/${fan}/notes/${noteId}`, { method: 'DELETE', write: true }, open);
+      return typeof sent === 'string' || !sent.ok ? sent : { ok: true };
     },
   };
 }
