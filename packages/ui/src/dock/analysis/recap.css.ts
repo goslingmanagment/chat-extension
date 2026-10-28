@@ -108,7 +108,8 @@ ${/* The card that asks for attention: the chat went on after the Recap. */ ''}
 .cg-rx-fact > span { text-wrap: balance; }
 .cg-rx-facts > .cg-fact { display: flex; gap: 9px; }
 .cg-rx-facts > .cg-fact__btn { justify-self: start; }
-.cg-rx-facts .cg-rx-link { justify-self: start; height: 26px; margin: 2px 0 0 -6px; padding: 0 8px; color: var(--cg-clay-ink); font-size: 12.5px; font-weight: 600; }
+${/* «Обновить» under the facts: its icon in their icons' column, its word in their words' (15 px + 9 px). */ ''}
+.cg-rx-facts .cg-rx-link { justify-self: start; gap: 10px; height: 26px; margin: 2px 0 0 -8px; padding: 0 8px; color: var(--cg-clay-ink); font-size: 12.5px; font-weight: 600; }
 .cg-rx-facts .cg-rx-link:hover { background: var(--cg-clay-bg); color: var(--cg-clay-ink); }
 .cg-rx-facts .cg-rx-link kbd { display: none; }
 .cg-rx-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; padding: 12px 2px 0; border-top: 1px solid var(--cg-rule-2); font-size: 11.5px; line-height: 18px; color: var(--cg-ink-muted); }
