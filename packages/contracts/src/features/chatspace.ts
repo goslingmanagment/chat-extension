@@ -14,6 +14,8 @@
 
 import { CLIENT_FLAG_REQUIREMENTS } from '../hub/routes';
 import type { ClientFeatureFlag } from '../hub/wire';
+import type { HostCapability } from '../host';
+import type { MountSurfaceKind } from '../vm/selectors';
 import type { SiteFeatures } from './common';
 import type { Requirement } from './types';
 
@@ -21,11 +23,16 @@ import type { Requirement } from './types';
 export const CHATSPACE_FEATURE_FLAGS = [
   'insertion', 'freshText', 'newcomers', 'spenders', 'stats', 'preview', 'previewSend',
   'previewSendMarkAiGenerated', 'fanPanel', 'navigation', 'wsTap', 'sound', 'coach',
-  'recap', 'review', 'splitAll', 'voice',
+  'recap', 'review', 'splitAll', 'voice', 'notes', 'notesFill',
 ] as const satisfies readonly ClientFeatureFlag[];
 export type ChatSpaceFeatureFlag = (typeof CHATSPACE_FEATURE_FLAGS)[number];
 
 type Req = Requirement<ChatSpaceFeatureFlag>;
+
+/** 2026-10-28: the surfaces of «Заметки», as Fansly names them (features/fansly.ts `FANSLY_SURFACES_AHEAD`): our slot in
+ * the chat's header and the panel. */
+export const CHATSPACE_SURFACES_AHEAD = ['header-slot', 'notes'] as const;
+export type ChatSpaceSurface = MountSurfaceKind | (typeof CHATSPACE_SURFACES_AHEAD)[number];
 
 const NOTHING: Req = { flags: [], hostCapabilities: [] };
 /** Putting a result into ChatSpace's composer: the owner's `insertion` and the bridge that writes there. */
@@ -81,8 +88,14 @@ const FEATURES = {
     switches: ['wsTap', 'previewSendMarkAiGenerated'],
   },
   navigation: { kind: 'host-action', base: { flags: ['navigation'], hostCapabilities: ['navigate'] }, actions: {}, surfaces: ['quick-jump'], source: 'page' },
+  // 2026-10-28 (the owner, asked by a chatter): «Заметки» as on Fansly, kept in OnlyMonster's own fan notes — the very
+  // notes ChatSpace's side panel shows. The page's `notes`; the button in the chat's header (ChatSpace's own row); ⌘⇧K.
+  // A note is written only by the chatter's click, for the fan of the chat open on the route (host-chatspace om-api.ts).
+  notes: { kind: 'panel', hotkey: 'notes', base: { flags: ['notes'], hostCapabilities: [] }, actions: {}, surfaces: ['header-slot', 'notes'], source: 'host-pass' },
+  // «✨ Заполнить из чата»: the hub's `fan-notes-fill` (the shared driver, services/notes), in the notes panel.
+  'notes-fill': { kind: 'ai', base: { flags: ['notesFill'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['notes'], source: 'hub' },
 } as const;
 
-export const CHATSPACE_FEATURES: SiteFeatures<typeof FEATURES, ChatSpaceFeatureFlag> = FEATURES;
+export const CHATSPACE_FEATURES: SiteFeatures<typeof FEATURES, ChatSpaceFeatureFlag, HostCapability, ChatSpaceSurface> = FEATURES;
 
 export type ChatSpaceFeatureKey = keyof typeof CHATSPACE_FEATURES;
