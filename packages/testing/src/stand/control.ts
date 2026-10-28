@@ -230,19 +230,21 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ items: notes.map((note) => rawNote(accountId, fanId, state.dataset.userId, note)) });
     return;
   }
-  // 2026-10-28: one note changed in place (`{accountId, fanId, id, note}`), as a colleague's edit in ChatSpace's own tab
-  // leaves it: the same id, a new text; the socket hears nothing of it.
+  // 2026-10-28: one note changed in place (`{accountId, fanId, id, note?, color?}`), as a colleague's edit in ChatSpace's
+  // own tab leaves it: the same id, a new text or colour; the socket hears nothing of it.
   if (path === '/__stand/notes/edit' && method === 'POST') {
     const accountId = asString(body['accountId']);
     const fanId = asString(body['fanId']);
-    const note = asString(body['note']);
+    const note = body['note'] === undefined ? undefined : asString(body['note']);
+    const color = body['color'] === undefined ? undefined : body['color'] === null ? null : asString(body['color']);
     const id = typeof body['id'] === 'number' ? body['id'] : Number(asString(body['id']));
     const kept = accountId === null || fanId === null || state.chat(accountId, fanId) === undefined ? undefined : state.notesOf(accountId, fanId).find((item) => item.id === id);
-    if (accountId === null || fanId === null || kept === undefined || note === null || note.trim() === '') {
+    if (accountId === null || fanId === null || kept === undefined || note === null || (note !== undefined && note.trim() === '')) {
       ok({ error: 'unknown note or no text' }, 404);
       return;
     }
-    kept.note = note;
+    if (note !== undefined) kept.note = note;
+    if (color !== undefined) kept.color = color;
     kept.updatedAt = new Date().toISOString();
     ok({ item: rawNote(accountId, fanId, state.dataset.userId, kept) });
     return;

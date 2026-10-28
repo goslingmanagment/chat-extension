@@ -102,7 +102,7 @@ scenario(
     await s.keys(s.MOD, s.Key.ArrowDown);
     await s.keys(s.Key.Shift, s.Key.Enter);
     await s.keys('Не любит голосовые');
-    await s.stand.editNote(ACC, FAN, Number(character['id']), `${String(character['note'])}\nДень рождения 12 мая`);
+    await s.stand.editNote(ACC, FAN, Number(character['id']), { note: `${String(character['note'])}\nДень рождения 12 мая` });
     await s.press(/^Сохранить/, 'panel', '[data-notes-save]');
     await s.see('panel', /Сейчас в Монстре/);
     await s.wait(300);
@@ -120,13 +120,9 @@ scenario(
           pageFlags: { [PAGE]: { notes: true, notesFill: true } },
         },
       });
-      // «Важная информация» red in Monster, as a chatter may mark it.
-      const notes = await stand.notes(ACC, FAN);
-      await stand.setNotes(
-        ACC,
-        FAN,
-        notes.map((note) => ({ title: (note['title'] as string | null) ?? null, note: String(note['note']), color: note['title'] === 'Важная информация' ? '#480a09' : ((note['color'] as string | null) ?? null) })),
-      );
+      // «Важная информация» red in Monster, as a chatter may mark it; the notes keep their ids and dates.
+      const important = (await stand.notes(ACC, FAN)).find((note) => note['title'] === 'Важная информация');
+      if (important !== undefined) await stand.editNote(ACC, FAN, Number(important['id']), { color: '#480a09' });
     },
   },
 );
