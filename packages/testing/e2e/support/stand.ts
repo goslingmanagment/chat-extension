@@ -195,6 +195,17 @@ export const standServer = {
   failReleaseForms: async (fail: boolean): Promise<void> => {
     await control('/__stand/state', { body: { failReleaseForms: fail } });
   },
+  /** 2026-10-28: a fan's OnlyMonster notes as the API keeps them (`{id, title, note, color, …}`, oldest first). */
+  notes: async (accountId: string, fanId: string): Promise<Array<Record<string, unknown>>> =>
+    ((await control(`/__stand/notes?accountId=${accountId}&fanId=${fanId}`)) as { items: Array<Record<string, unknown>> }).items,
+  /** A fan's OnlyMonster notes from now on, new ids (a colleague's edits in ChatSpace); the socket hears nothing of it. */
+  setNotes: async (accountId: string, fanId: string, items: ReadonlyArray<{ readonly title?: string | null; readonly note: string; readonly color?: string | null }>): Promise<void> => {
+    await control('/__stand/notes', { body: { accountId, fanId, items } });
+  },
+  /** One note changed in place, its id and dates kept (a colleague's edit in ChatSpace's own tab): a new text or colour; the socket hears nothing of it. */
+  editNote: async (accountId: string, fanId: string, id: number, change: { readonly note?: string; readonly color?: string | null }): Promise<void> => {
+    await control('/__stand/notes/edit', { body: { accountId, fanId, id, ...change } });
+  },
   /** Who of the account's fans the presence endpoint (`fans-online`) answers as online; a page sees it at its poll's next look. */
   presence: async (accountId: string, online: readonly string[]): Promise<void> => {
     await control('/__stand/presence', { body: { accountId, online } });

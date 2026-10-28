@@ -12,6 +12,7 @@
 
 import { type LiveHost, type LivePort, type Tap } from './live';
 import { ERR_DISABLED } from '@cg/host-kit/main/protocol';
+import { EVT_FAN_NOTES } from './protocol';
 import { createReceipts } from './receipt';
 import { type SendRequest } from './requests';
 import { createSendPort } from './send-port';
@@ -33,6 +34,8 @@ export function createLivePort(win: Window & typeof globalThis, tap: Tap, host: 
     changed: host.changed,
     members: host.members,
     fault: host.fault,
+    // A fan's OnlyMonster notes changed: never coalesced, so another fan's word cannot hide the open fan's.
+    notes: (acc, fan) => host.post(EVT_FAN_NOTES, { acc, fan }),
   });
 
   return {

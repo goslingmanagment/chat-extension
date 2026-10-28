@@ -9,9 +9,11 @@
 //   or reconnect, never change a frame or stop its propagation; our failures
 //   stay inside.
 // - A cheap substring filter comes before JSON.parse: frames that name
-//   `account_new_message` and the `authenticated` frame are parsed, any other
-//   frame only says which account it is for. Counters of fan messages per
-//   (account, fan), without duplicates by id, are updated before anything is
+//   `account_new_message`, the `authenticated` frame and (2026-10-28) the
+//   `account_data_updated` frame of type `user-notes` — the notes of a fan
+//   changed, said on to the isolated side for an account of this port — are
+//   parsed, any other frame only says which account it is for. Counters of
+//   fan messages per (account, fan), without duplicates by id, are updated before anything is
 //   forwarded; the text of a fan's message never leaves this file. An
 //   outgoing message is forwarded as it comes (a redelivery is not told
 //   apart), its text only to the receipt observer, for the X8 fuse's
@@ -50,7 +52,7 @@ import { createLivePort } from './live-port';
 import { type Checkpoint, type LiveHost, type Tap, type TapSink, type WsTapHandle } from './live';
 import { iso } from './page';
 import { WS_TAP_KEY } from '@cg/host-kit/main/protocol';
-import { CG_SEND_FRESHNESS, CG_SEND_STALE, KNOWN_FAN_MESSAGES, WS_AUTHENTICATED, WS_NEW_MESSAGE, WS_PATH } from './protocol';
+import { CG_SEND_FRESHNESS, CG_SEND_STALE, KNOWN_FAN_MESSAGES, WS_AUTHENTICATED, WS_DATA_UPDATED, WS_NEW_MESSAGE, WS_PATH, WS_USER_NOTES } from './protocol';
 
 export { type WsTapHandle } from './live';
 
@@ -211,6 +213,17 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       return undefined;
     }
   };
+  /**
+   * `account_data_updated` of type `user-notes` (`{event, type, id, account}`): the notes of fan `id` changed. Said on
+   * for an account of this port only (ChatSpace subscribes other platforms on the same socket); a frame that does not
+   * name both the account and the fan says nothing.
+   */
+  const notes = (frame: unknown): void => {
+    if (!isPlain(frame) || frame['event'] !== WS_DATA_UPDATED || frame['type'] !== WS_USER_NOTES) return;
+    const acc = idOf(isPlain(frame['account']) ? frame['account']['account_id'] : null);
+    const fan = idOf(frame['id']);
+    if (acc && fan && !(observable && !account(acc).subscribed)) sink?.notes?.(acc, fan);
+  };
   const read = (data: unknown): void => {
     if (typeof data !== 'string') return;
     if (data.includes(WS_NEW_MESSAGE)) {
@@ -225,6 +238,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     } else {
       const acc = ACCOUNT_OF.exec(data)?.[1];
       if (acc) touch(acc);
+      if (data.includes(WS_USER_NOTES) && data.includes(WS_DATA_UPDATED)) notes(parse(data));
     }
   };
   // Both listen on one socket at a time: `adopt` takes them off the previous one. A failure of ours stays in them: the frame is the page's.

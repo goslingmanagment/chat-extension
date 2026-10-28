@@ -166,6 +166,8 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'fan-notes-fill', body: { ...notesFillBody, noteValues: ['Анна', '', 'медсестра; ночные смены', 'я'.repeat(2000)] }, capabilities: ['context-v1'] },
     // 1.47.0: the voice script of an OnlyFans page — the chat is the fan.
     { feature: 'voice-script', body: { ...voiceScriptBody, platform: 'onlyfans', conversationRef: FANSLY_IDS.fan }, capabilities: [] },
+    // 2026-10-28: the notes fill of an OnlyFans page (ChatSpace's «Заметки») — the chat is the fan.
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, platform: 'onlyfans', conversationRef: FANSLY_IDS.fan }, capabilities: ['context-v1'] },
   ],
   invalid: [
     // The fan is always named; on OnlyFans it is the chat itself.
@@ -173,7 +175,8 @@ export const FANSLY_OP_REQUEST_FIXTURES: Verdicts = {
     { feature: 'voice-script', body: { ...voiceScriptBody, fanRef: undefined }, capabilities: [] },
     { feature: 'voice-script', body: { ...voiceScriptBody, fanRef: null }, capabilities: [] },
     { feature: 'fan-notes-fill', body: { ...notesFillBody, fanRef: undefined }, capabilities: [] },
-    { feature: 'fan-notes-fill', body: { ...notesFillBody, platform: 'onlyfans', conversationRef: FANSLY_IDS.fan }, capabilities: [] },
+    // 2026-10-28: on OnlyFans the fill's chat is its fan; another chat than the fan is no OnlyFans chat.
+    { feature: 'fan-notes-fill', body: { ...notesFillBody, platform: 'onlyfans', conversationRef: '700000000000000999' }, capabilities: [] },
     // The script needs its draft (`gate_draft_required`); the fill needs its labels (`fan-notes-fill requires noteFields`).
     { feature: 'voice-script', body: { ...voiceScriptBody, draftText: undefined }, capabilities: [] },
     { feature: 'voice-script', body: { ...voiceScriptBody, draftText: '   ' }, capabilities: [] },

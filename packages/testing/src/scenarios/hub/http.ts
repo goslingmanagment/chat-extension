@@ -123,8 +123,9 @@ export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readon
   previewSend: { onlyfans: { capabilities: ['preview-send-custody-v1', 'manual-greeting-v1'] } },
   drafts: { fansly: NOTHING },
   voice: { onlyfans: { capabilities: ['voice-notes-v1'], lane: 'voice-notes' }, fansly: { capabilities: ['voice-notes-v1'], lane: 'voice-notes' } },
-  notesFill: { fansly: NOTHING },
-  notes: { fansly: NOTHING },
+  // On OnlyFans too since hub#906 (2026-10-28): the notes kept in OnlyMonster's fan notes, and their fill.
+  notesFill: { onlyfans: NOTHING, fansly: NOTHING },
+  notes: { onlyfans: NOTHING, fansly: NOTHING },
   vault: { fansly: NOTHING },
   registration: { fansly: NOTHING },
 };

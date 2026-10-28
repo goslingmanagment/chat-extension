@@ -24,6 +24,9 @@
 // before the page's first chat composer) is no break of the contract, but X8
 // stays off until it comes (CG-SEND-HOST, the anchor as the reason). A real
 // break of another send anchor is named first: opening a chat would not lift it.
+// `chatHeader` (2026-10-28): our slot in the conversation header's actions row
+// (header-slot.ts) — degraded only when a chat's conversation is shown and the
+// row is not found; unjudged (no chat open) counts as fine, like the frame.
 
 import type { AnchorId, CapabilityState, ChatSpaceContractReport, HostCapability } from '@cg/contracts/host';
 
@@ -47,6 +50,11 @@ export interface ContractInput {
   readonly dom: { readonly composerFrame: AnchorState; readonly draftKey: AnchorState; readonly theme: AnchorState };
   /** The route's account has its platformAccountId (the only key that binds a hub page). */
   readonly accountBound: boolean;
+  /**
+   * The conversation header's actions row (header-slot.ts): `ok` — found; `missing` — the open chat's conversation is
+   * shown and the row is not; `unknown` or absent — not judged (no chat open, or its conversation not shown yet).
+   */
+  readonly chatHeader?: 'ok' | 'missing' | 'unknown';
   readonly adapterVersion: string;
   readonly checkedAt: number;
   /** The live side; absent — no tap script, flags not known, no profile. */
@@ -158,6 +166,8 @@ export function buildContractReport(input: ContractInput): ChatSpaceContractRepo
     // MAIN finds the open chat's composer, drops on its frame root and reads the role's upload right; the draft key is
     // read before (an audio, a GIF, 40 media) and after it. Without the key only MAIN's view of the frame tells.
     fileAttach: composer(anchors.composerFrame !== 'ok' ? off('composerFrame') : anchors.userPermissions !== 'ok' ? off('userPermissions') : anchors.draftKey === 'ok' ? on : degraded('draftKey')),
+    // 2026-10-28: «Заметки» in the conversation header; without the row the panel still opens by its key.
+    chatHeader: route.state !== 'on' ? route : input.chatHeader === 'missing' ? degraded('chatHeader') : on,
   };
   const match = live.receipt ? live.receiptMatch : null;
   return {

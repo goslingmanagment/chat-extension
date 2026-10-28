@@ -94,8 +94,8 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
       expect(entry.retry === 'after-deadline', entry.code).toBe(entry.recovery === 'wait-until');
       if (entry.retry === 'never') expect(['retry', 'new-generation'], entry.code).not.toContain(entry.recovery);
     }
-    // An unknown write is read again, never written again (FS-NOTE-4, FS-VLT-1).
-    expect(F.cgFanslyEntry('CG-NOTE-UNCERTAIN').retry).toBe('safe-read');
+    // An unknown write is read again, never written again (FS-NOTE-4, FS-VLT-1); the notes' codes are shared since 2026-10-28.
+    expect(C.CG_REGISTRY['CG-NOTE-UNCERTAIN'].retry).toBe('safe-read');
     expect(F.cgFanslyEntry('CG-VAULT-UNCERTAIN').recovery).toBe('none');
   });
 
@@ -142,10 +142,24 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
 });
 
 describe('MAIN ↔ isolated bridge (§5.3)', () => {
-  it('only insert, navigation, the preview send and the drop of our file on the composer are writes (D-07)', () => {
-    expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].write)).toEqual(['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile']);
-    expect([...C.BRIDGE_WRITE_REQUESTS]).toEqual(['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile']);
+  it('only insert, navigation, the preview send, the drop of our file on the composer and the open fan’s OnlyMonster notes are writes (D-07)', () => {
+    const writes = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile', 'createFanNote', 'updateFanNote', 'deleteFanNote'];
+    expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].write)).toEqual(writes);
+    expect([...C.BRIDGE_WRITE_REQUESTS]).toEqual(writes);
     expect(C.TO_MAIN_TYPES.filter((t) => C.TO_MAIN[t].timeout === 'navInsert')).toEqual(['navigate']);
+  });
+
+  it('2026-10-28: the open fan’s OnlyMonster notes cross the bridge as the fixtures say; a lost write is unknown, never «not done»', () => {
+    for (const t of ['fanNotes', 'createFanNote', 'updateFanNote', 'deleteFanNote'] as const) {
+      const { payload, data } = FX.BRIDGE_REQUEST_FIXTURES[t];
+      for (const value of payload.valid) expect(C.TO_MAIN[t].payload.safeParse(value).success, `${t} payload ${JSON.stringify(value)}`).toBe(true);
+      for (const value of payload.invalid) expect(C.TO_MAIN[t].payload.safeParse(value).success, `${t} payload ${JSON.stringify(value)}`).toBe(false);
+      for (const value of data.valid) expect(C.TO_MAIN[t].data.safeParse(value).success, `${t} data ${JSON.stringify(value)}`).toBe(true);
+      for (const value of data.invalid) expect(C.TO_MAIN[t].data.safeParse(value).success, `${t} data ${JSON.stringify(value)}`).toBe(false);
+    }
+    for (const value of FX.BRIDGE_EVENT_FIXTURES.fanNotesChanged.valid) expect(C.FROM_MAIN.fanNotesChanged.safeParse(value).success).toBe(true);
+    for (const value of FX.BRIDGE_EVENT_FIXTURES.fanNotesChanged.invalid) expect(C.FROM_MAIN.fanNotesChanged.safeParse(value).success).toBe(false);
+    for (const t of ['createFanNote', 'updateFanNote', 'deleteFanNote'] as const) expect(C.TO_MAIN[t].data.safeParse(C.BRIDGE_WRITE_FAILURES[t]).success, t).toBe(true);
   });
 
   it('MAIN events carry no message text (§5.3)', () => {

@@ -1,8 +1,8 @@
 // The CG codes of fansly.com (1.15.0; R20 docs/project-unite/architecture.md
 // §1.6, §12; docs/architecture.md Appendix A «Коды Fansly»): session, API and
-// relay (`CG-FAN-*`), «Заметки» (`CG-NOTE-*`), vault (`CG-VAULT-*`) and
-// Fansly's «Новые» (`CG-FNEW-*`). Voice notes (`CG-VOICE-*`) are on both sites
-// since 1.47.0: the shared registry's.
+// relay (`CG-FAN-*`), vault (`CG-VAULT-*`) and Fansly's «Новые» (`CG-FNEW-*`).
+// Voice notes (`CG-VOICE-*`) are on both sites since 1.47.0, «Заметки»
+// (`CG-NOTE-*`) since 2026-10-28: the shared registry's.
 //
 // A registry of the site's own, beside the shared one (errors.ts,
 // errors/registry.ts), with the same rules: `CG-<AREA>-<NAME>`, readable
@@ -40,10 +40,6 @@ export const CG_FANSLY_CODES = [
   'CG-FAN-TAB',
   'CG-FAN-GROUP',
   'CG-FAN-NETWORK',
-  'CG-NOTE-READ',
-  'CG-NOTE-WRITE',
-  'CG-NOTE-UNCERTAIN',
-  'CG-NOTE-TOO-LONG',
   'CG-VAULT-NO-ALBUM',
   'CG-VAULT-UPLOAD',
   'CG-VAULT-UNCERTAIN',
@@ -83,7 +79,7 @@ export const CgAnyErrorWireSchema = z.extend(CgErrorWireSchema, { code: CgAnyCod
 export type CgAnyErrorWire = z.infer<typeof CgAnyErrorWireSchema>;
 
 /** Diagnostics grouping of the Fansly codes (the shared `CgKind`s are the shared registry's). */
-export const CG_FANSLY_KINDS = ['fansly', 'note', 'vault', 'newcomers'] as const;
+export const CG_FANSLY_KINDS = ['fansly', 'vault', 'newcomers'] as const;
 export type CgFanslyKind = (typeof CG_FANSLY_KINDS)[number];
 
 /** One entry of the Fansly registry: the fields of a shared entry (errors.ts `CgEntry`), its texts pinned to its code. */
@@ -122,11 +118,6 @@ const SPECS = {
   // 2026-10-21 (audit №9; the old extension's CG-NET-01): our direct request got no answer — where Fansly opens only
   // through a VPN or proxy, «Fansly через вкладку» (Аккаунты → Fansly) is the way.
   'CG-FAN-NETWORK': { kind: 'fansly', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count', settings: 'accounts' },
-  // ── «Заметки» ──
-  'CG-NOTE-READ': { kind: 'note', severity: 'warn', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
-  'CG-NOTE-WRITE': { kind: 'note', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
-  'CG-NOTE-UNCERTAIN': { kind: 'note', severity: 'warn', recovery: 'retry', retry: 'safe-read', telemetry: 'count+sample' },
-  'CG-NOTE-TOO-LONG': { kind: 'note', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count' },
   // ── vault ──
   'CG-VAULT-NO-ALBUM': { kind: 'vault', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-VAULT-UPLOAD': { kind: 'vault', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count' },

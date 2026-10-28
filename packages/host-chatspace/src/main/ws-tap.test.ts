@@ -27,6 +27,8 @@ interface Harness {
   readonly coverage: Array<[string, string, string]>;
   /** Failures the tap's guard handed to the bridge, by site. */
   readonly faults: string[];
+  /** 2026-10-28: the fans whose OnlyMonster notes the socket said changed. */
+  readonly notes: Array<[string, string]>;
   subscribed: Set<string> | null;
   changes: number;
   /** A new ChatSpace socket (a reconnect creates a new one). */
@@ -46,6 +48,7 @@ function start(): Harness {
     facts: [],
     coverage: [],
     faults: [],
+    notes: [],
     subscribed: new Set([ACC]),
     changes: 0,
     connect: (url = URL_OK) => new win.WebSocket(url) as unknown as FakeSocket,
@@ -65,6 +68,7 @@ function start(): Harness {
     },
     members: () => h.subscribed,
     fault: (site) => h.faults.push(site),
+    notes: (acc, fan) => h.notes.push([acc, fan]),
   });
   return h;
 }
@@ -289,5 +293,22 @@ describe('[X8-04] freshness: «the fan wrote something new» (§6.7.5)', () => {
     expect(h.tap.fresh(later)).toBeNull();
     expect(h.tap.fresh({ ...later, fanSequence: later.fanSequence - 1 })).toBe('CG-SEND-STALE');
     expect(h.tap.fresh({ ...later, lastFanMessageId: '4999', knownFanMessageIds: ['4999'] })).toBe('CG-SEND-STALE');
+  });
+});
+
+describe('2026-10-28: a fan’s OnlyMonster notes changed', () => {
+  const notesFrame = (acc: unknown, fan: unknown, type = 'user-notes') => ({ event: 'account_data_updated', type, id: fan, account: { account_id: acc, platform: 'onlyfans' } });
+
+  it('said on for a fan of an account of this port, as ChatSpace’s socket names them; nothing else, no message counted', () => {
+    const h = begin();
+    const socket = h.armed();
+    socket.receive(notesFrame(Number(ACC), Number(FAN)));
+    socket.receive(notesFrame(ACC, FAN, 'fan-info'));
+    // Another platform's account on the same socket, a frame without its fan: not ours to tell.
+    socket.receive(notesFrame(OTHER_ACC, FAN));
+    socket.receive(notesFrame(ACC, undefined));
+    expect(h.notes).toEqual([[ACC, FAN]]);
+    expect(h.facts).toEqual([]);
+    expect(h.checkpoint().fanSequence).toBe(0);
   });
 });

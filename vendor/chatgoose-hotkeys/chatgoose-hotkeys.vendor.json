@@ -1,7 +1,7 @@
 {
   "schemeVersion": 2,
-  "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
-  "sourceCommit": "0a96105d691f74473b372249fa29d998590702b5",
+  "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",
+  "sourceCommit": "48b2cc69035502e273a1e812932fe49a898b4022",
   "source": "core scripts/vendor-hotkeys.mjs",
   "files": {
     "dist/engine.d.ts": "a6add9c124bafb6112b34d3c5174c0391979b3896f196f767e11a58ca9fb05b4",
@@ -11,6 +11,6 @@
     "dist/labels.d.ts": "8741d46aa7811fc38fdc002a0a006d368d3ac5d480355d43bccfd3c71b7a304a",
     "dist/labels.js": "bba146dbff3238e46b8ec89965ddb1a49610ff1740c19cd1bed2d86b4c421e24",
     "dist/scheme.d.ts": "040c14f211dc343e18a6c9a8c3d107227c053caaecd1d6e762c98096164d3699",
-    "dist/scheme.js": "5fe0871f1a5a35c720636df268285832b07e7d17ed54fd114aa86e1fd68c2536"
+    "dist/scheme.js": "2191b8d5d94cd59e1f9300e3817fff343ed2fc813c0f17a5498bc66c8df825c7"
   }
 }

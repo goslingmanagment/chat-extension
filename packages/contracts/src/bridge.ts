@@ -178,27 +178,33 @@ export const TO_MAIN_TYPES = [
   'media',
   'chatReadState',
   'attachFile',
+  'fanNotes',
+  'createFanNote',
+  'updateFanNote',
+  'deleteFanNote',
 ] as const;
 export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 
 /**
- * The only writes (D-07): guarded insert, navigation, the X8 queue call and
- * (1.47.0) the drop of a file of ours on the composer. MAIN deduplicates them
- * by request id: a repeated id returns the first result and does not execute
- * again.
+ * The only writes (D-07): guarded insert, navigation, the X8 queue call,
+ * (1.47.0) the drop of a file of ours on the composer, and (2026-10-28, the
+ * owner's exception to X54) OnlyMonster's notes of the open chat's fan:
+ * create, edit, delete. MAIN deduplicates them by request id: a repeated id
+ * returns the first result and does not execute again.
  */
-export const BRIDGE_WRITE_REQUESTS = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile'] as const satisfies readonly ToMainType[];
+export const BRIDGE_WRITE_REQUESTS = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile', 'createFanNote', 'updateFanNote', 'deleteFanNote'] as const satisfies readonly ToMainType[];
 
 /** Events MAIN → isolated (§5.3 `FromMain`), never with message text. */
-export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault'] as const;
+export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged'] as const;
 export type FromMainType = (typeof FROM_MAIN_TYPES)[number];
 
 /**
  * Freshness and receipt events are never dropped or coalesced; their counters are updated before any thinning. Nor is
  * a fault report (one per site and doubling, decision X22): coalesced, a site's report would hide another's. Nor the
- * X8 fuse (1.11.0, decision X25): one lost would leave the preview send on.
+ * X8 fuse (1.11.0, decision X25): one lost would leave the preview send on. Nor (2026-10-28) the word that a fan's
+ * notes changed: coalesced, another fan's would hide the open fan's.
  */
-export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault'] as const satisfies readonly FromMainType[];
+export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged'] as const satisfies readonly FromMainType[];
 
 // ── Probe ──────────────────────────────────────────────────────────────────
 
@@ -240,14 +246,21 @@ export const BRIDGE_ERRORS_BEFORE_EXECUTION = [
  * BRIDGE_ERRORS_BEFORE_EXECUTION is a plain «not done»: `rejected` insert,
  * `held` send (no queue call), `failed` navigation CG-NAV-FAILED, `refused`
  * attach. An attach that may have run is `unknown`: the composer is the
- * person's to check.
+ * person's to check. So is a write of a fan's note (2026-10-28): the fan's
+ * notes are read again, the note is never written again.
  */
 export const BRIDGE_WRITE_FAILURES = {
   insertGuarded: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' },
   navigate: { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } },
   previewSendCommit: { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' },
   attachFile: { state: 'unknown' },
-} as const satisfies Record<(typeof BRIDGE_WRITE_REQUESTS)[number], { readonly state: string; readonly code?: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } }>;
+  createFanNote: { ok: false, failure: 'unknown', status: null },
+  updateFanNote: { ok: false, failure: 'unknown', status: null },
+  deleteFanNote: { ok: false, failure: 'unknown', status: null },
+} as const satisfies Record<
+  (typeof BRIDGE_WRITE_REQUESTS)[number],
+  { readonly state: string; readonly code?: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } } | { readonly ok: false; readonly failure: 'unknown'; readonly status: null }
+>;
 
 export const BridgeRequestIdSchema = z.int().check(z.gte(1));
 const ToMainTypeSchema = z.enum(TO_MAIN_TYPES);

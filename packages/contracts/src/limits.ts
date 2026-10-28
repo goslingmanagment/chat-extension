@@ -246,6 +246,17 @@ export const OPEN_CHAT_LIMITS = { pageMax: 100, requestMs: 10 * SECOND, bridgeMs
 export const CHAT_READ_LIMITS = { usernameMax: 100, bridgeMs: 22 * SECOND, freshMs: 30 * SECOND, settleMs: 600, pollMs: 30 * SECOND, pollForMs: 10 * MINUTE } as const;
 
 /**
+ * 2026-10-28 (the owner's exception to X54): OnlyMonster's own notes of the open chat's fan, read and written by MAIN
+ * (`fanNotes`, `createFanNote`, `updateFanNote`, `deleteFanNote`; HostPort.fanNotes). `titleMax` — a note's title:
+ * ChatSpace shows it as one cut line, so 200 characters hold any title a person gives there. `textMax` — a note's
+ * body as the API keeps it (HTML or plain text): the bridge's longest string (BRIDGE_LIMITS.maxStringLength); the team's
+ * notes run to a few hundred characters, and a longer one comes cut (`OmFanNote.cut`), never to be written back.
+ * `listMax` — notes of one fan in an answer: the team keeps about five per fan, and ChatSpace's own tab lists them all
+ * without pages. `bridgeMs` — the isolated side's deadline: MAIN's request (OPEN_CHAT_LIMITS.requestMs) and the frame.
+ */
+export const FAN_NOTES_LIMITS = { titleMax: 200, textMax: 20_000, listMax: 100, bridgeMs: 12 * SECOND } as const;
+
+/**
  * 1.27.0 (X54): the PPV state of the open chat a draft start carries (`StartOp.livePpv`, hub `livePpvContext`).
  * `readMessages` — how many of the chat's newest messages the start reads from the host's API for it; `waitMs` — how
  * long the Generate click waits for that read beside the tail before it starts without it (the read goes on and fills

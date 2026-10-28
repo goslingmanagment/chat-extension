@@ -11,6 +11,7 @@ import type { EgressPage } from './egress-sink';
 import type { SentryInbox } from './sentry-inbox';
 import type { ApiContext } from './api';
 import { readJson, sendJson } from './api';
+import { noteFields, rawNote } from './notes';
 import { newMessageFrame } from './wire';
 
 export interface EgressLog {
@@ -91,6 +92,17 @@ export async function handleControl(context: ControlContext, request: IncomingMe
   if (path === '/__stand/egress' && method === 'GET') {
     const page: EgressPage = context.egress?.read(Number(url.searchParams.get('since') ?? 0)) ?? { attempts: [], next: 0, dropped: 0 };
     ok(page);
+    return;
+  }
+  // 2026-10-28: a fan's OnlyMonster notes as the API keeps them (`?accountId=&fanId=`).
+  if (path === '/__stand/notes' && method === 'GET') {
+    const accountId = asString(url.searchParams.get('accountId'));
+    const fanId = asString(url.searchParams.get('fanId'));
+    if (accountId === null || fanId === null || state.chat(accountId, fanId) === undefined) {
+      ok({ error: 'unknown chat' }, 404);
+      return;
+    }
+    ok({ items: state.notesOf(accountId, fanId).map((note) => rawNote(accountId, fanId, state.dataset.userId, note)) });
     return;
   }
 
@@ -201,6 +213,40 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     }
     message.isOpened = true;
     ok({ id: message.id });
+    return;
+  }
+  // 2026-10-28: a fan's OnlyMonster notes from now on (`{accountId, fanId, items: [{title?, note, color?}]}`), new ids, as
+  // a colleague's edits in ChatSpace would leave them; the socket hears nothing of it.
+  if (path === '/__stand/notes' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const items = Array.isArray(body['items']) ? body['items'].map(noteFields) : null;
+    if (accountId === null || fanId === null || state.chat(accountId, fanId) === undefined || items === null || items.includes(null)) {
+      ok({ error: 'unknown chat or a note without its text' }, 404);
+      return;
+    }
+    state.notesOf(accountId, fanId).length = 0;
+    const notes = items.map((fields) => state.addNote(accountId, fanId, fields as NonNullable<typeof fields>));
+    ok({ items: notes.map((note) => rawNote(accountId, fanId, state.dataset.userId, note)) });
+    return;
+  }
+  // 2026-10-28: one note changed in place (`{accountId, fanId, id, note?, color?}`), as a colleague's edit in ChatSpace's
+  // own tab leaves it: the same id, a new text or colour; the socket hears nothing of it.
+  if (path === '/__stand/notes/edit' && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const fanId = asString(body['fanId']);
+    const note = body['note'] === undefined ? undefined : asString(body['note']);
+    const color = body['color'] === undefined ? undefined : body['color'] === null ? null : asString(body['color']);
+    const id = typeof body['id'] === 'number' ? body['id'] : Number(asString(body['id']));
+    const kept = accountId === null || fanId === null || state.chat(accountId, fanId) === undefined ? undefined : state.notesOf(accountId, fanId).find((item) => item.id === id);
+    if (accountId === null || fanId === null || kept === undefined || note === null || (note !== undefined && note.trim() === '')) {
+      ok({ error: 'unknown note or no text' }, 404);
+      return;
+    }
+    if (note !== undefined) kept.note = note;
+    if (color !== undefined) kept.color = color;
+    kept.updatedAt = new Date().toISOString();
+    ok({ item: rawNote(accountId, fanId, state.dataset.userId, kept) });
     return;
   }
   if (path === '/__stand/ws/frame' && method === 'POST') {

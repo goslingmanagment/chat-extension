@@ -7,6 +7,10 @@ import { type Checkpoint } from './live';
 import {
   ATTACH_MAX_BYTES,
   CHAT_READ_USERNAME_MAX,
+  FAN_NOTE_COLOR,
+  FAN_NOTE_ID,
+  FAN_NOTE_TEXT_MAX,
+  FAN_NOTE_TITLE_MAX,
   KNOWN_FAN_MESSAGES,
   MAX_PARTS,
   MAX_SNAPSHOT,
@@ -199,6 +203,20 @@ const isAttach = shape({
   }),
 });
 
+/** A note of the open chat's fan as MAIN writes it (contracts OmFanNoteInputSchema): title '' — none; text never blank. */
+export interface FanNoteInput {
+  readonly title: string;
+  readonly text: string;
+  readonly color: string | null;
+}
+
+const isNoteId = (value: unknown): boolean => typeof value === 'string' && FAN_NOTE_ID.test(value);
+const isNote = shape({
+  title: (value) => typeof value === 'string' && value.length <= FAN_NOTE_TITLE_MAX,
+  text: (value) => typeof value === 'string' && value.length <= FAN_NOTE_TEXT_MAX && value.trim() !== '',
+  color: orNull((value) => typeof value === 'string' && FAN_NOTE_COLOR.test(value)),
+});
+
 const accFan = { acc: isId, fan: isId };
 const max = int(1, MAX_SNAPSHOT);
 const empty = shape({});
@@ -241,4 +259,9 @@ export const PAYLOAD: Record<string, Check> = {
     shape({ of: is('tags'), acc: isId, ids: (ids) => isIds(ids) && (ids as unknown[]).length > 0 && (ids as unknown[]).every(isMediaId) })(value),
   // 1.47.0: a file of ours dropped on the open chat's composer (attach.ts).
   attachFile: isAttach,
+  // 2026-10-28: OnlyMonster's notes of the open chat's fan (om-api.ts): the read, and the three writes.
+  fanNotes: shape(accFan),
+  createFanNote: shape({ ...accFan, note: isNote }),
+  updateFanNote: shape({ ...accFan, noteId: isNoteId, note: isNote }),
+  deleteFanNote: shape({ ...accFan, noteId: isNoteId }),
 };

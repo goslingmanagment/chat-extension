@@ -1,5 +1,5 @@
 // Fansly's contract report (docs/project-unite/architecture.md §7.7, §7.12;
-// FS-CTR-1, FS-CTR-2): the report of the site's own shape — the seventeen
+// FS-CTR-1, FS-CTR-2): the report of the site's own shape — the eighteen
 // shared capabilities and the block `extensions['fansly-web']` with every
 // anchor and every capability of Fansly's own. Pure: the port recomputes it
 // when an input changes (the bridge, MAIN's network anchors, the creator, the
@@ -105,6 +105,8 @@ export function buildFanslyReport(input: FanslyContractInput): FanslyContractRep
     receipt: off('site'),
     // 1.47.0: the voice note's MP3 through the field's own input and Fansly's upload modal (§7.10, P12c).
     fileAttach: main ?? field ?? (gone(dom.fileInput) ? broken('fileInput') : gone(dom.attachments) ? broken('attachments') : observed),
+    // The shared header slot is ChatSpace's (2026-10-28): Fansly's header has its own, `headerSlot` below.
+    chatHeader: off('site'),
   };
   const own: Record<FanslyCapability, CapabilityState> = {
     freshness: observed,

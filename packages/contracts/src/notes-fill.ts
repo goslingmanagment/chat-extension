@@ -1,12 +1,17 @@
-// «Заполнить из чата» of the fan's notes (FS-NOTE-6): what its answer is, on any site. Since 2026-10-28 the notes are on
-// ChatSpace too (kept in OnlyMonster's own fan notes), so the fill's result and its limits are shared; Fansly's own
-// operation data stay in `ops-fansly.ts`.
+// «Заполнить из чата» of the fan's notes (FS-NOTE-6), on any site: its start, its answer, its limits and its driver's
+// data, as the shared scheduler runs it (one operation per chat, three per tab, its timeouts, cancel and kept result).
+// Since 2026-10-28 the notes are on ChatSpace too (kept in OnlyMonster's own fan notes): ChatSpace's tab asks
+// `notes.fill.*`, the background adds this operation to a site that has no driver of its own. Fansly keeps its own
+// operation (`ops-fansly.ts`, `fansly.ops.*`), built from these schemas.
 
 import * as z from 'zod/mini';
 
-import { NoteFieldLabelSchema } from './hub/ai';
-import { NOTE_FILL_LIMITS } from './limits';
-import { displayText } from './primitives';
+import { LiveTextTailSchema } from './host';
+import { NoteFieldLabelSchema, NoteFieldsSchema, NoteValuesSchema } from './hub/ai';
+import { HumanCauseSchema, TargetSchema } from './ids';
+import { AI_REQUEST_LIMITS, NOTE_FILL_LIMITS, OP_TIMEOUTS, type OpTimeouts } from './limits';
+import { OpViewSchema } from './ops';
+import { UuidSchema, displayText } from './primitives';
 
 export const NOTES_FILL_OP_LIMITS = {
   /** HF-6: «Заполнить из чата» reads the whole chat, never fewer than this many messages, as the Fansly extension did; above it — the hub's `limits.deepMax` (R20 P11c). */
@@ -49,3 +54,46 @@ export const NoteFieldsResultSchema = z
   .check(
     z.refine((result) => (result.proposed ?? []).every((field) => !result.fields.some((asked) => asked.label.toLowerCase() === field.label.toLowerCase())), { message: 'a proposed field repeats an asked label' }),
   );
+
+// ── the operation ───────────────────────────────────────────────────────────
+
+/** What drives `notes-fill` in the scheduler: the hub feature it streams, the manifest entry that admits it (the page's
+ * `notesFill`), the kind of its result, its timeouts (it reads the whole chat: as long as a full Recap). */
+export const NOTES_FILL_OP_DRIVER = {
+  hub: 'fan-notes-fill',
+  feature: 'notes-fill',
+  result: 'note-fields',
+  timeouts: OP_TIMEOUTS.recap,
+} as const satisfies { readonly hub: string; readonly feature: string; readonly result: string; readonly timeouts: OpTimeouts };
+
+/**
+ * «Дополнить из чата» of any site's chat: the questionnaire's labels and, 1.28.0 (X43, the owner's ruling of
+ * 2026-10-17), their values, index-aligned — the hub body's `noteValues`, never anything else of the note (FS-NOTE-5,
+ * FX-024). Without `values` the request carries one empty value per label. The target's refinements hold the ids (on
+ * OnlyFans the chat is the fan, on Fansly the group named apart from the fan).
+ */
+export const NotesFillStartSchema = z
+  .strictObject({
+    feature: z.literal('notes-fill'),
+    target: TargetSchema,
+    cause: HumanCauseSchema,
+    /** The body's `messageCount`, within its bounds: the deep window (the driver raises it to the fill's floor). */
+    window: z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax)),
+    fresh: z.optional(LiveTextTailSchema),
+    regenerateOf: z.optional(UuidSchema),
+    force: z.optional(z.boolean()),
+    fields: NoteFieldsSchema,
+    values: z.optional(NoteValuesSchema),
+  })
+  .check(z.refine((start) => start.values === undefined || start.values.length === start.fields.length, { message: 'values: one per field' }));
+export type NotesFillStartWire = z.infer<typeof NotesFillStartSchema>;
+
+/** The fill's kept view, as the scheduler keeps it for any site. */
+export const NotesFillOpViewSchema = z
+  .strictObject({
+    ...OpViewSchema.shape,
+    feature: z.literal('notes-fill'),
+    result: z.optional(NoteFieldsResultSchema),
+  })
+  .check(z.refine((view) => view.state !== 'done' || (view.result !== undefined && view.generationRef !== undefined), { message: 'done needs a result and its source' }));
+export type NotesFillOpView = z.infer<typeof NotesFillOpViewSchema>;

@@ -412,7 +412,7 @@ export default defineConfig(
   },
   {
     // Content-script and page composition roots, entry points, lazy chunks.
-    files: ['apps/extension/src/**/*.ts', 'apps/extension/lazy/entries/**/*.ts', 'apps/extension/lazy/fansly/**/*.ts'],
+    files: ['apps/extension/src/**/*.ts', 'apps/extension/lazy/entries/**/*.ts', 'apps/extension/lazy/fansly/**/*.ts', 'apps/extension/lazy/chatspace/**/*.ts'],
     ignores: BACKGROUND_FILES,
     rules: restrict(APP_RESTRICTION, HUB_BACKGROUND_ONLY, BACKGROUND_ROOT_IMPORT),
   },

@@ -42,6 +42,8 @@ export const LAZY_ENTRIES = {
   // The preview send's own chunk (feature `preview-send`): the media panel of a preview (X53), with its first «Медиа»
   // click; the three previews share it.
   'preview-send': 'entries/preview-send.ts',
+  // 2026-10-28: «Заметки» (OnlyMonster's fan notes), with the first open chat; Fansly's build has its own `notes`.
+  notes: 'chatspace/notes.ts',
 } as const;
 
 /**

@@ -62,7 +62,8 @@ import { DEFAULT_SETTINGS } from '../../src/index';
 const attributionFact = { chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false };
 import { HUB_SAMPLES as H } from './hub';
 import { VOICE_ALLOWANCE_FIXTURES, VOICE_SCRIPT_START_FIXTURES, fanslyVoiceSession, voiceAudio, voiceScriptStart, voiceSession } from './voice';
-import { cause } from './samples';
+import { cause, target as ofTarget } from './samples';
+import { noteFieldsResult } from './ops-fansly';
 
 export interface Verdicts {
   readonly valid: readonly unknown[];
@@ -128,6 +129,10 @@ const CUSTOM = { id: 3, pageLabel: 'model-two-fansly', granted: true, descriptio
 
 /** Chat Memory week 2: a fan's card as the hub answers it. */
 const MEMORY_CARD = { pageLabel: 'model-two-fansly', fanRef: '920000000000000003', known: true, accounts: [{ platform: 'fansly', fanRef: '920000000000000003', username: 'kai_38', displayName: 'Kai', gone: false, linkedBy: null }], pages: [{ pageLabel: 'model-two-fansly', platform: 'fansly', modelName: 'Model Two', fanRef: '920000000000000003', granted: true, alias: '💵Rowan/Norway/52', subscribed: true, subscribedSince: '2026-09-01T10:00:00.000Z', subscriptionEndsAt: null, spentMills: 120000, last30Mills: { tip: 20000 }, lastPurchaseAt: '2026-10-20T10:00:00.000Z' }], suggestions: [], facts: [{ id: 7, kind: 'about', text: 'Lives in Toronto, works nights', pageLabel: 'model-two-fansly', granted: true, conversationRef: '810000000000000001', messageRef: '930000000000000001', messageAt: '2026-10-20T10:00:00.000Z', source: 'ai', author: null, createdAt: '2026-10-20T10:20:00.000Z' }], serverNow: '2026-10-24T10:00:00.000Z' };
+
+/** 2026-10-28: «Заполнить из чата» of an OnlyFans chat (ChatSpace): the chat is the fan. */
+const notesFillStart = { feature: 'notes-fill', target: ofTarget, cause, window: 3000, fields: ['Имя', 'Локация'] } as const;
+const notesFillView = { ...opView, feature: 'notes-fill', result: noteFieldsResult, generationRef: uuid(0x560), toneUsed: null } as const;
 
 export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixtures } = {
   'tab.register': {
@@ -512,6 +517,18 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ sessionId: uuid(0x700) }], invalid: [{}] },
     res: { valid: [{ discarded: true }, { discarded: false }], invalid: [{}] },
   },
+  // 2026-10-28: «Заметки» of ChatSpace (OnlyMonster's fan notes) — the view and the fill of the open chat.
+  'notes.view': { req: empty, res: { valid: [{ view: 'docked' }, { view: 'drawer' }, { view: 'center' }], invalid: [{ view: 'left' }, {}] } },
+  'notes.setView': { req: { valid: [{ view: 'center' }], invalid: [{ view: 'left' }, {}] }, res: { valid: [{ view: 'center' }], invalid: [{}] } },
+  'notes.fill.start': {
+    req: {
+      valid: [notesFillStart, { ...notesFillStart, values: ['Анна', ''] }, { ...notesFillStart, force: true }],
+      invalid: [{ ...notesFillStart, fields: [] }, { ...notesFillStart, values: ['Анна'] }, { ...notesFillStart, feature: 'voice-script' }, { ...notesFillStart, window: 5001 }],
+    },
+    res: { valid: [{ ok: true, opId: uuid(0x560) }], invalid: [{ ok: true }] },
+  },
+  'notes.fill.read': { req: { valid: [{ opId: uuid(0x560) }], invalid: [{ opId: 'x' }] }, res: { valid: [{ view: notesFillView }, { view: null }], invalid: [{ view: {} }, { view: { ...notesFillView, result: undefined } }] } },
+  'notes.fill.cancel': { req: { valid: [{ opId: uuid(0x560) }], invalid: [{}] }, res: { valid: [{ state: 'canceled' }, { state: null }], invalid: [{ state: 'queued' }] } },
   'site.access': {
     req: { valid: [{ host: 'fansly-web' }, { host: 'fansly-web', enabled: true }, { host: 'fansly-web', reload: true }], invalid: [{ host: 'other' }, { host: 'fansly-web', enabled: 'yes' }] },
     res: { valid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 2 }, { host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 1, reloaded: 1 }], invalid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: -1 }, { host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 0, reloaded: -1 }] },
@@ -711,6 +728,8 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
     valid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming', phase: { name: 'streaming', since: T0 }, firstChunkAt: T0 + 900 }],
     invalid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming' }],
   },
+  'notes.viewChanged': { valid: [{ view: 'drawer' }], invalid: [{ view: 'left' }, {}] },
+  'notes.fill.done': { valid: [{ view: notesFillView }, { view: { ...notesFillView, state: 'failed', result: undefined, generationRef: undefined, error: { code: 'CG-OUTPUT-UNUSABLE' } } }], invalid: [{ view: { ...notesFillView, feature: 'reply' } }] },
   'voice.changed': {
     valid: [{ chat, conversationRef: IDS.fan, session: voiceSession }, { chat, conversationRef: IDS.fan, session: null }],
     invalid: [{ chat, session: voiceSession }, { chat, conversationRef: IDS.fan, session: { ...voiceSession, sessionId: 'x' } }],
@@ -790,6 +809,18 @@ const openChatPage = {
 } as const;
 const draftWire = { composerInstanceId: 'composer1', revision: 4, plainText: 'my draft', provenance: 'human-or-unknown', digest: DIGEST } as const;
 const attachWire = { intentId: uuid(11), expected: hostIdentity, file: { name: `${uuid(12)}.mp3`, type: 'audio/mpeg', bytes: new ArrayBuffer(16) } } as const;
+/** 2026-10-28: an OnlyMonster note of the open fan, as MAIN reads it (plain text, as the team writes them). */
+const omNote = {
+  noteId: '8801',
+  title: 'Характеристика',
+  text: 'Любит долгие разговоры\nПишет по вечерам',
+  color: null,
+  createdAt: ISO,
+  updatedAt: ISO,
+  updatedBy: '5501',
+  cut: false,
+} as const;
+const omNoteInput = { title: 'Анкета', text: 'Имя: Анна\nЛокация: Берлин', color: null } as const;
 
 export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeRequestFixtures } = {
   probe: { payload: empty, data: { valid: [probe], invalid: [{ ...probe, v: 2 }] } },
@@ -961,6 +992,56 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
       invalid: [{ state: 'not-attached', reason: 'dismissed' }, { state: 'refused', reason: 'gif' }, { state: 'attached' }, { state: 'unknown', reason: 'timeout' }],
     },
   },
+  // 2026-10-28: OnlyMonster's notes of the open chat's fan; a failed request is an answer, not an error.
+  fanNotes: {
+    payload: { valid: [accFan], invalid: [{ acc: IDS.acc }, { ...accFan, fan: '0' }, { ...accFan, noteId: '8801' }] },
+    data: {
+      valid: [
+        { ok: true, notes: [omNote, { ...omNote, noteId: '0d6c2b1e-3f4a-4b5c-8d9e-0f1a2b3c4d5e', title: '', text: '<p>Имя: <strong>Анна</strong></p>', color: '#480a09', updatedBy: null, cut: true }], complete: true },
+        { ok: true, notes: [], complete: false },
+        { ok: false, failure: 'http', status: 403 },
+        { ok: false, failure: 'session', status: null },
+      ],
+      invalid: [
+        // A note id never leaves its path segment; a colour never carries CSS of its own.
+        { ok: true, notes: [{ ...omNote, noteId: '../8801' }], complete: true },
+        { ok: true, notes: [{ ...omNote, color: 'red; background: url(x)' }], complete: true },
+        { ok: true, notes: [{ ...omNote, text: 'x'.repeat(20_001) }], complete: true },
+        { ok: true, notes: [omNote] },
+        { ok: false, failure: 'not-open', status: null },
+      ],
+    },
+  },
+  createFanNote: {
+    payload: {
+      valid: [{ ...accFan, note: omNoteInput }, { ...accFan, note: { title: '', text: '<p>Пишет по вечерам</p>', color: '#122314' } }],
+      invalid: [
+        // Never a blank note, never a title past the cap, never an id of a note to create.
+        { ...accFan, note: { ...omNoteInput, text: '  \n ' } },
+        { ...accFan, note: { ...omNoteInput, title: 'x'.repeat(201) } },
+        { ...accFan, noteId: '8801', note: omNoteInput },
+        { ...accFan, note: { ...omNoteInput, color: undefined } },
+      ],
+    },
+    data: {
+      valid: [{ ok: true, note: omNote }, { ok: true, note: null }, { ok: false, failure: 'unknown', status: null }, { ok: false, failure: 'http', status: 422 }],
+      invalid: [{ ok: true }, { ok: false, failure: 'unknown' }, { ok: true, note: { ...omNote, cut: 'no' } }],
+    },
+  },
+  updateFanNote: {
+    payload: {
+      valid: [{ ...accFan, noteId: '8801', note: omNoteInput }],
+      invalid: [{ ...accFan, note: omNoteInput }, { ...accFan, noteId: '8801/notes', note: omNoteInput }, { ...accFan, noteId: '8801', note: { ...omNoteInput, text: '' } }],
+    },
+    data: {
+      valid: [{ ok: true, note: { ...omNote, title: 'Анкета' } }, { ok: true, note: null }, { ok: false, failure: 'http', status: 404 }],
+      invalid: [{ ok: true, note: { ...omNote, noteId: '' } }, { ok: false, failure: 'lost', status: null }],
+    },
+  },
+  deleteFanNote: {
+    payload: { valid: [{ ...accFan, noteId: '8801' }], invalid: [{ ...accFan }, { ...accFan, noteId: '8801?force=1' }, { ...accFan, noteId: '8801', note: omNoteInput }] },
+    data: { valid: [{ ok: true }, { ok: false, failure: 'unknown', status: null }, { ok: false, failure: 'http', status: 404 }], invalid: [{ ok: true, note: null }, { ok: 'yes' }] },
+  },
 };
 
 export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } = {
@@ -1003,6 +1084,8 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
     // Not a machine token (it would reach the logs as is), no failure at all, an extra key.
     invalid: [{ source: 'route change', count: 1 }, { source: 'route', count: 0 }, { source: 'route', count: 2, stack: 'at x' }],
   },
+  // 2026-10-28: the fan whose OnlyMonster notes changed; never the notes themselves.
+  fanNotesChanged: { valid: [accFan], invalid: [{ acc: IDS.acc }, { ...accFan, text: 'Имя: Анна' }, { ...accFan, fan: 2002 }] },
 };
 
 /** Valid contract samples other packages can reuse. */
