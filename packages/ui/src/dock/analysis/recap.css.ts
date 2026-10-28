@@ -30,9 +30,10 @@ ${/* ── the rail ── */ ''}
 .cg-rx-handle { margin-top: 4px; font-size: 12px; line-height: 16px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .cg-rx-seg { position: relative; display: grid; grid-template-columns: 1fr 1fr; margin: 18px 0 16px; padding: 3px; border-radius: 10px; background: var(--cg-groove); }
+${/* The kit's reset gives a button the root's left alignment: the label centers itself under the thumb. */ ''}
 .cg-rx-seg__b {
   position: relative; z-index: 1; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; cursor: pointer;
-  color: var(--cg-ink-muted); font: inherit; font-size: 13px; line-height: 30px; font-weight: 600; transition: color 160ms;
+  color: var(--cg-ink-muted); font: inherit; font-size: 13px; line-height: 30px; font-weight: 600; text-align: center; transition: color 160ms;
 }
 .cg-rx-seg__b:hover { color: var(--cg-ink-2); }
 .cg-rx-seg__b[aria-checked="true"] { color: var(--cg-ink-strong); }
