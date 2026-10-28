@@ -11,6 +11,7 @@ export {
   type AcceptanceOutcome,
   type AcceptanceSnapshot,
   type GenerationLink,
+  type LinkSource,
   type PartPosition,
   type SentProof,
 } from './acceptance';

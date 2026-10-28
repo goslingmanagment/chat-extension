@@ -100,6 +100,7 @@ import {
 } from '@cg/contracts/tab-messages-fansly';
 import { createFanslyOperations } from '@cg/core/services/hosts/fansly/operations';
 import { featureSlice } from '@cg/core/domain/features';
+import { type LinkSource } from '@cg/core/domain/telemetry';
 import { createFanslyAccounts, type FanslyAccounts } from '@cg/core/services/hosts/fansly/accounts';
 import { createFanslyNewcomers, type FanslyNewcomers, type FanslyNewcomersApi } from '@cg/core/services/hosts/fansly/newcomers';
 import { createFanslyGreetReminder, type FanslyGreetReminder } from '@cg/core/services/hosts/fansly/greet-remind';
@@ -621,6 +622,12 @@ function startGreeting(kit: BackgroundKit, newcomers: FanslyNewcomers, send: Fan
     tabOn: (tab, creator) => tabOnCreator(kit, tab, creator),
     now: () => kit.clock.now(),
     log: kit.log.service,
+    // Hi's `sent` of a card, as the dock's and ChatSpace's preview's: our send by its attempt, the person's own send after
+    // «Открыть и вставить» as the composer's. Linked by the operation while it lasts, then by what the draft kept of it.
+    accepted: ({ opId, generationRef, pageLabel, platformMessageId, edited, attemptId }) => {
+      const origin: LinkSource = kit.ops.view(opId) ?? { generationRef, feature: 'hi', surface: 'newcomers', target: { binding: { pageLabel } } };
+      kit.telemetry.report('sent', origin, opId, { part: 0, variant: 0 }, attemptId === undefined ? { via: 'composer', platformMessageId, edited } : { via: 'preview', platformMessageId, attemptId, edited });
+    },
   });
 }
 

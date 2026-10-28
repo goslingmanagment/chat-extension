@@ -38,7 +38,7 @@ import type { TabPayloadCheck, TabRequestPayload, TabRequestType } from '@cg/con
 import type { ExtensionPage, TabSender } from '@cg/contracts/tab-protocol';
 import type { AcceptanceEvent } from '@cg/contracts/telemetry';
 import type { OpEnvTag, OpsEnvironment } from '@cg/core/domain/ops';
-import type { PartPosition, SentProof } from '@cg/core/domain/telemetry';
+import type { LinkSource, PartPosition, SentProof } from '@cg/core/domain/telemetry';
 import type { ActionTokens, Clock, IdSource, KeyValuePort, KeyValueStore, LogSink, NativeSendOutcome, ServiceLog, TabEventSink } from '@cg/core/services';
 
 /** Who asked: a registered tab (its session) or one of our pages. Structurally the platform RPC's sender. */
@@ -133,8 +133,8 @@ export interface LogPort {
 
 /** Telemetry of the core (consent, the queue, the health window): a module reports, the core decides what leaves. */
 export interface TelemetryPort {
-  /** One lifecycle event of an operation (`ai_acceptance`); true — queued. */
-  report(kind: AcceptanceEvent['payload']['lifecycle'], view: OpView | null, opId: string, position: PartPosition, proof?: SentProof): boolean;
+  /** One lifecycle event of an operation (`ai_acceptance`), linked by its view or what a «Новые» draft kept; true — queued. */
+  report(kind: AcceptanceEvent['payload']['lifecycle'], view: LinkSource | null, opId: string, position: PartPosition, proof?: SentProof): boolean;
   /** One more of a CG code in the `client_health` window. */
   countCode(code: CgCode): void;
 }
