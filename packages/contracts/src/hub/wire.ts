@@ -219,6 +219,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    */
   'note-attribution-v1',
   /**
+   * 2026-10-29 (hub #912): who created each of a fan's notes and who changed it last (`clientFanNoteAttributions`), and
+   * ChatSpace's OnlyMonster notes reported too (`chatspace-extension` on OnlyFans pages). A hub without it is never
+   * asked, and the questionnaire shows its date alone.
+   */
+  'note-attribution-read-v1',
+  /**
    * 2026-10-27: Coach reads as deep as the chatter chose (up to `limits.deepMax`, not the ordinary 1500), its answer may
    * end with a ```more note that older messages would change its advice, and a feed's first page dates the depths it
    * is asked (`depthMarks` → `depth`). Said in the AI request header too; a hub without it gets neither.

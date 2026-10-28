@@ -69,6 +69,8 @@ import {
   type RecapStatusQuery,
   type SendAttributionsRequest,
   type SendAttributionsResult,
+  type FanNoteAttributions,
+  type FanNoteAttributionsQuery,
   type NoteAttributionsRequest,
   type NoteAttributionsResult,
   ActivityBeatRequestSchema,
@@ -912,6 +914,10 @@ export class ChatExtensionHub implements HubFacade {
    */
   async noteAttributions(request: NoteAttributionsRequest): Promise<NoteAttributionsResult> {
     return (await this.client('clientNoteAttributions', request, request.pageLabel)) as NoteAttributionsResult;
+  }
+
+  async fanNoteAttributions(query: FanNoteAttributionsQuery): Promise<FanNoteAttributions> {
+    return (await this.client('clientFanNoteAttributions', query, query.pageLabel)) as FanNoteAttributions;
   }
 
   /**

@@ -94,6 +94,10 @@ const FEATURES = {
   notes: { kind: 'panel', hotkey: 'notes', base: { flags: ['notes'], hostCapabilities: ['chatHeader'] }, actions: {}, surfaces: ['header-slot', 'notes'], source: 'host-pass' },
   // «✨ Заполнить из чата»: the hub's `fan-notes-fill` (the shared driver, services/notes), in the notes panel.
   'notes-fill': { kind: 'ai', base: { flags: ['notesFill'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['notes'], source: 'hub' },
+  // 2026-10-29 (hub #912, `note-attribution-read-v1`): every write of «Заметки» OnlyMonster took is told to the hub, and
+  // the questionnaire says who created it and who changed it last. No owner switch.
+  'note-attribution': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-read-v1'] }, actions: {}, surfaces: [], source: 'page' },
+  'note-authors': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-read-v1'] }, actions: {}, surfaces: [], source: 'page' },
 } as const;
 
 export const CHATSPACE_FEATURES: SiteFeatures<typeof FEATURES, ChatSpaceFeatureFlag, HostCapability, ChatSpaceSurface> = FEATURES;

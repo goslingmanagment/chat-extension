@@ -56,9 +56,10 @@ export { CLIENT_AUDIENCE_NEW_COVERAGE_REASONS, CLIENT_AUDIENCE_NEW_DEFAULT_LIMIT
 // send-attribution-v1): the clients a report may name, what the hub did with
 // each fact, and the limits of a report.
 export { CLIENT_SEND_ATTRIBUTION_MAX_AGE_DAYS, CLIENT_SEND_ATTRIBUTION_MAX_AHEAD_MS, CLIENT_SEND_ATTRIBUTION_MAX_FACTS, CLIENT_SEND_ATTRIBUTION_OUTCOMES, CLIENT_SEND_ATTRIBUTION_SOURCES, } from "./contracts/index";
-// Who wrote each Fansly note (routes-client.ts, clientNoteAttributions,
-// note-attribution-v1): the vocabularies and the limits of a report.
-export { CLIENT_NOTE_ATTRIBUTION_ACTIONS, CLIENT_NOTE_ATTRIBUTION_FIELD_MAX_CHARS, CLIENT_NOTE_ATTRIBUTION_MAX_AGE_DAYS, CLIENT_NOTE_ATTRIBUTION_MAX_AHEAD_MS, CLIENT_NOTE_ATTRIBUTION_MAX_FACTS, CLIENT_NOTE_ATTRIBUTION_MAX_FIELDS, CLIENT_NOTE_ATTRIBUTION_NOTE_KINDS, CLIENT_NOTE_ATTRIBUTION_ORIGINS, CLIENT_NOTE_ATTRIBUTION_OUTCOMES, CLIENT_NOTE_ATTRIBUTION_SOURCES, } from "./contracts/index";
+// Who wrote each fan note (routes-client.ts, clientNoteAttributions,
+// note-attribution-v1): the vocabularies and the limits of a report, and
+// how many notes of a fan the read (clientFanNoteAttributions) answers.
+export { CLIENT_FAN_NOTE_ATTRIBUTIONS_MAX_NOTES, CLIENT_NOTE_ATTRIBUTION_ACTIONS, CLIENT_NOTE_ATTRIBUTION_FIELD_MAX_CHARS, CLIENT_NOTE_ATTRIBUTION_MAX_AGE_DAYS, CLIENT_NOTE_ATTRIBUTION_MAX_AHEAD_MS, CLIENT_NOTE_ATTRIBUTION_MAX_FACTS, CLIENT_NOTE_ATTRIBUTION_MAX_FIELDS, CLIENT_NOTE_ATTRIBUTION_NOTE_KINDS, CLIENT_NOTE_ATTRIBUTION_ORIGINS, CLIENT_NOTE_ATTRIBUTION_OUTCOMES, CLIENT_NOTE_ATTRIBUTION_SOURCES, } from "./contracts/index";
 // The narrow token's profiles (client-token-scopes.ts): which operations a
 // token issued with `client` reaches; the hub refuses the rest with 403.
 export { CLIENT_TOKEN_PROFILE_NAMES, CLIENT_TOKEN_PROFILES, } from "./contracts/index";

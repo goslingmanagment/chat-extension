@@ -7,6 +7,9 @@
 //   has no driver of its own, as the voice script is to every site. Fansly brings its own with its module and keeps
 //   `fansly.ops.*`; nothing here changes it.
 //
+// - 2026-10-29: who created each of the open fan's notes and who changed it last (`notes.authors`, every site's tab:
+//   the hub's record of our writes), and a write the tab made itself told to that record (`notes.written`, ChatSpace).
+//
 // A note's text never comes here: the tab writes the notes itself. Only the fill's labels and values ride in its start,
 // to the hub's request body and nowhere else (FS-NOTE-5).
 
@@ -17,6 +20,7 @@ import type { NotesFillOpView } from '@cg/contracts/notes-fill';
 import type { OpState, SiteOpView } from '@cg/contracts/ops';
 import { type SiteOperations, type StartOutcome } from '@cg/core/services';
 import { NOTES_FILL_DRIVER, readNotesFillOpView } from '@cg/core/services/notes';
+import type { NotesAuthors } from '@cg/contracts/tab-messages';
 import type { RpcResult, TabRequestHandler } from '@cg/platform';
 
 import { type KitSender } from './host-module';
@@ -36,6 +40,10 @@ export interface BackgroundNotesDeps {
   readonly view: { read(): Promise<NotesView | null>; write(view: NotesView): Promise<NotesView | null> };
   /** A fill ended: to the tab that started it (null — not known here: every tab). */
   readonly done: (view: NotesFillOpView, tabSessionId: string | null) => void;
+  /** Who created and last changed each of the fan's notes, for a page bound to the tab (`note-authors` admitted). */
+  readonly authors: (host: HostKind, pageId: number, fanRef: string, sender: KitSender) => Promise<NotesAuthors>;
+  /** A write the tab made itself, told to the hub's record; false — not owed (nobody signed in, the page does not take it). */
+  readonly written: (host: HostKind, fact: Parameters<TabRequestHandler<'notes.written'>>[0], sender: KitSender) => Promise<boolean>;
 }
 
 const refused = (code: CgCode, detail?: string): RpcResult<never> => ({ ok: false, error: { code, ...(detail === undefined ? {} : { detail }) } });
@@ -73,6 +81,8 @@ export function createBackgroundNotes(deps: BackgroundNotesDeps) {
     readonly 'notes.fill.start': TabRequestHandler<'notes.fill.start'>;
     readonly 'notes.fill.read': TabRequestHandler<'notes.fill.read'>;
     readonly 'notes.fill.cancel': TabRequestHandler<'notes.fill.cancel'>;
+    readonly 'notes.authors': TabRequestHandler<'notes.authors'>;
+    readonly 'notes.written': TabRequestHandler<'notes.written'>;
   } = {
     'notes.view': async () => {
       const view = await deps.view.read();
@@ -105,6 +115,17 @@ export function createBackgroundNotes(deps: BackgroundNotesDeps) {
       const host = tab === null ? null : deps.hostOfTab(tab);
       if (host === null || readNotesFillOpView(deps.scheduler.siteView(opId, host)) === null) return ok({ state: null });
       return ok({ state: deps.scheduler.cancel(opId) });
+    },
+    'notes.authors': async ({ pageId, fanRef }, sender) => {
+      const tab = tabOf(sender);
+      const host = tab === null ? null : deps.hostOfTab(tab);
+      if (host === null) return ok({ ok: false, code: 'CG-UI-FAILED' });
+      return ok(await deps.authors(host, pageId, fanRef, sender));
+    },
+    'notes.written': async (fact, sender) => {
+      const tab = tabOf(sender);
+      const host = tab === null ? null : deps.hostOfTab(tab);
+      return ok({ queued: host !== null && (await deps.written(host, fact, sender)) });
     },
   };
 

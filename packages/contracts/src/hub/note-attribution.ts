@@ -19,8 +19,9 @@ import { NativeIdSchema, OpenTokenSchema, UuidSchema } from '../primitives';
 import { SEND_ATTRIBUTION_TIMESTAMP_PATTERN } from './attribution';
 import { PageLabelSchema } from './wire';
 
-/** The clients a report may name (hub CLIENT_NOTE_ATTRIBUTION_SOURCES). */
-export const NOTE_ATTRIBUTION_SOURCES = ['fansly-extension'] as const;
+/** The clients a report may name (hub CLIENT_NOTE_ATTRIBUTION_SOURCES); 2026-10-29: ChatSpace's OnlyMonster notes on
+ * OnlyFans pages too (hub #912). */
+export const NOTE_ATTRIBUTION_SOURCES = ['fansly-extension', 'chatspace-extension'] as const;
 export type NoteAttributionSource = (typeof NOTE_ATTRIBUTION_SOURCES)[number];
 
 /** A regular note, or the custom name (Fansly keeps the name as a note of its own type). */
@@ -96,3 +97,27 @@ export const NoteAttributionsResultSchema = z.object({
   serverNow: z.string(),
 });
 export type NoteAttributionsResult = z.infer<typeof NoteAttributionsResultSchema>;
+
+// ── who created a fan's notes and who changed them last (hub `clientFanNoteAttributions`, `note-attribution-read-v1`,
+// 2026-10-29, the owner: «понимать кто и когда создавал анкетку») ──
+
+/** The most notes of one fan the hub answers (hub CLIENT_FAN_NOTE_ATTRIBUTIONS_MAX_NOTES). */
+export const FAN_NOTE_ATTRIBUTIONS_MAX_NOTES = 200;
+
+/** Path `pageLabel` and `fanRef`. */
+export const FanNoteAttributionsQuerySchema = z.strictObject({ pageLabel: PageLabelSchema, fanRef: NativeIdSchema });
+export type FanNoteAttributionsQuery = z.infer<typeof FanNoteAttributionsQuerySchema>;
+
+/** One person's write as the hub recorded it: the login, whether it is the caller, when the client saw it confirmed. */
+export const FanNoteAttributionWhoSchema = z.object({ userId: z.number(), name: z.string(), isMe: z.boolean(), at: z.string() });
+export type FanNoteAttributionWho = z.infer<typeof FanNoteAttributionWhoSchema>;
+
+/** Each note the hub knows a write of (a deleted one left out), the latest written first: its first `created`, its last
+ * `edited`. A note written before the hub recorded writes, or outside our panel, is absent or has `created` null. */
+export const FanNoteAttributionsSchema = z.object({
+  pageLabel: z.string(),
+  fanRef: z.string(),
+  notes: z.array(z.object({ noteRef: z.string(), noteKind: OpenTokenSchema, created: z.nullable(FanNoteAttributionWhoSchema), edited: z.nullable(FanNoteAttributionWhoSchema) })),
+  serverNow: z.string(),
+});
+export type FanNoteAttributions = z.infer<typeof FanNoteAttributionsSchema>;

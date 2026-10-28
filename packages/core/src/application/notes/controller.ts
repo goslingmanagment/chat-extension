@@ -36,11 +36,15 @@
 //   and notes into the tab (memory, never stored); in another chat of the same account «Вставить сюда» creates the
 //   notes there, oldest first, each once (one already there with the same title and text is skipped), and puts the
 //   questionnaire's facts in its rows as suggestions, each written by its ✓ like the fill's. Nothing moves by itself.
+// - 2026-10-29 (the owner: «понимать кто и когда создавал анкетку»): under «Анкета», when it was created and by whom,
+//   when it was changed last and by whom. The dates are the site's; the names are the hub's record of our writes (read
+//   with the notes, and a write of the person's own marked at once). A write outside our panel or before the record
+//   has its date alone.
 // - A note's text never leaves through here but to the background (FS-NOTE-5), and from there only a fill's values, in
 //   the hub's request body: nothing is logged.
 
 import { NOTE_ATTRIBUTION_LIMITS, type NoteAttributionOrigin } from '@cg/contracts/hub';
-import { NOTE_LIMITS, type NoteData, type NotesAction, type NotesClient, type NotesDateVM, type NotesErrorWire, type NotesFillProgressVM, type NotesFillVM, type NotesFormPartVM, type NotesSuggestionVM, type NotesFormVM, type NotesItemVM, type NotesNameStatus, type NotesPanelVM, type NotesPlace, type NotesProblem, type NotesTransferVM, type NotesTriggerVM, type NotesView } from '@cg/contracts/notes';
+import { NOTE_LIMITS, type NoteAuthorship, type NoteData, type NotesAction, type NotesClient, type NotesDateVM, type NotesErrorWire, type NotesWhenVM, type NotesFillProgressVM, type NotesFillVM, type NotesFormPartVM, type NotesSuggestionVM, type NotesFormVM, type NotesItemVM, type NotesNameStatus, type NotesPanelVM, type NotesPlace, type NotesProblem, type NotesTransferVM, type NotesTriggerVM, type NotesView } from '@cg/contracts/notes';
 import type { Phase, SiteOpView } from '@cg/contracts/ops';
 import type { PhaseVM } from '@cg/contracts/vm';
 
@@ -196,6 +200,9 @@ export interface NotesPort {
   now?(): number;
   /** Who is signed in to the hub (the login): a free note's title. null or absent — the note goes untitled. */
   author?(): string | null;
+  /** 2026-10-29: who created each of the fan's notes and who changed it last (the hub's record), by note id; null — not
+   * known now (the page does not take it, the hub is out of reach). Absent — the site has no such record. */
+  authors?(target: NotesTarget, fanId: string): Promise<ReadonlyMap<string, NoteAuthorship> | null>;
 }
 
 interface Data {
@@ -403,6 +410,8 @@ export function createNotesController(port: NotesPort): NotesController {
   /** The notes «Перенести на новый аккаунт фана» copied (one chat's at a time), and «Вставить сюда» by fan. */
   let clip: Clip | null = null;
   const moves = new Map<string, Move>();
+  /** Who created and last changed each note, by fan (the hub's record, then the person's own writes as they land). */
+  const authors = new Map<string, Map<string, NoteAuthorship>>();
   let view: NotesView = 'drawer';
   /** The person wants the panel (for «Всегда справа»: unless closed). */
   let wanted = false;
@@ -450,6 +459,7 @@ export function createNotesController(port: NotesPort): NotesController {
       nameStates.clear();
       clip = null;
       moves.clear();
+      authors.clear();
       confirm = null;
       deleting = null;
       deleteError = null;
@@ -582,6 +592,7 @@ export function createNotesController(port: NotesPort): NotesController {
             ...(review?.transfer === true ? { transfer: true as const } : {}),
           };
     return {
+      meta: note === null ? null : metaVM(fanId, note),
       noteId: note?.noteId ?? null,
       title: note?.title ?? NOTE_TEMPLATE_TITLE,
       parts: shown,
@@ -592,6 +603,50 @@ export function createNotesController(port: NotesPort): NotesController {
       fill: fillVM,
       unplaced: unplaced.get(fanId) ?? [],
     };
+  }
+
+  /**
+   * «Создана 28.10 в 15:20 · kate · изменена 16:05 · max»: the site's dates, the hub's names. A change the site dates
+   * later than the last one recorded (made outside our panel) shows with its date and no name.
+   */
+  function metaVM(fanId: string, note: NoteData): NotesFormVM['meta'] {
+    const known = authors.get(fanId)?.get(note.noteId);
+    const createdAt = note.createdAtMs ?? known?.created?.atMs ?? null;
+    const site = note.updatedAtMs ?? null;
+    // OnlyMonster dates a note's change a moment after its creation: a minute apart is the same write.
+    const changedAt = Math.max(known?.edited?.atMs ?? 0, site !== null && (createdAt === null || site - createdAt > 60_000) ? site : 0);
+    const when = (at: number, by: { readonly name: string; readonly me: boolean } | null | undefined): NotesWhenVM => ({ date: noteDateVM(at, now()), by: by?.name ?? null, me: by?.me ?? false });
+    const created = createdAt === null ? null : when(createdAt, known?.created);
+    const edited = changedAt === 0 ? null : when(changedAt, known?.edited !== null && known?.edited !== undefined && changedAt - known.edited.atMs <= 120_000 ? known.edited : null);
+    return created === null && edited === null ? null : { created, edited };
+  }
+
+  /** A write of the person's own landed: its author is known at once, before the hub's record is read again. */
+  function wrote(fanId: string, noteId: string, kind: 'created' | 'edited'): void {
+    const name = port.author?.()?.trim() ?? '';
+    if (port.authors === undefined || name === '') return;
+    const notes = authors.get(fanId) ?? new Map<string, NoteAuthorship>();
+    const was = notes.get(noteId) ?? { created: null, edited: null };
+    const me = { name, me: true, atMs: now() };
+    notes.set(noteId, kind === 'created' ? { ...was, created: was.created ?? me } : { ...was, edited: me });
+    authors.set(fanId, notes);
+  }
+
+  /** The hub's record of who wrote the fan's notes, read beside them; a failure leaves what was known. */
+  async function loadAuthors(t: NotesTarget, fanId: string): Promise<void> {
+    const under = epoch;
+    const read = await port.authors?.(t, fanId).catch(() => null);
+    if (disposed || under !== epoch || read === null || read === undefined) return;
+    const mine = authors.get(fanId);
+    const next = new Map(read);
+    // A write of the person's own the hub has not taken yet (it is reported a few seconds later) stays.
+    for (const [noteId, entry] of mine ?? []) {
+      const told = next.get(noteId);
+      if (told === undefined) next.set(noteId, entry);
+      else if (entry.edited !== null && (told.edited === null || told.edited.atMs < entry.edited.atMs - 60_000)) next.set(noteId, { ...told, edited: entry.edited });
+    }
+    authors.set(fanId, next);
+    emit();
   }
 
   function itemsVM(data: Data, form: NoteData | null): NotesItemVM[] {
@@ -715,6 +770,7 @@ export function createNotesController(port: NotesPort): NotesController {
     if (answer.ok) {
       entries.set(group, { kind: 'ready', data: { fanRef: answer.fanRef, notes: answer.notes, customName: answer.customName } });
       afterReread(answer.fanRef, answer.notes, answer.customName);
+      void loadAuthors(t, answer.fanRef);
     } else entries.set(group, { kind: 'error', error: answer.error });
     while (entries.size > KEPT_CHATS) entries.delete(entries.keys().next().value as string);
     emit();
@@ -896,6 +952,8 @@ export function createNotesController(port: NotesPort): NotesController {
   /** A note written: in place of the one read (keeping its time: Fansly answers an edit without it, decision 170), or
    * added — «now» until a reread brings Fansly's time (decision 171). */
   function saved(fanId: string, note: NoteData): void {
+    const known = dataOf(fanId)?.notes.some((entry) => entry.noteId === note.noteId) === true;
+    wrote(fanId, note.noteId, known ? 'edited' : 'created');
     patch(fanId, (d) => {
       const read = d.notes.find((entry) => entry.noteId === note.noteId);
       if (read !== undefined) return { ...d, notes: d.notes.map((entry) => (entry.noteId === note.noteId ? withTime(note, read) : entry)) };

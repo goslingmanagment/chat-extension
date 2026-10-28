@@ -46,6 +46,29 @@ export interface NoteData {
   readonly cut?: true | undefined;
   /** 2026-10-28: the site's colour of the note (OnlyMonster's); absent or null — none. Shown, never written by us. */
   readonly color?: NoteColor | null | undefined;
+  /** 2026-10-29: when the site says it was last changed (OnlyMonster's `updated_at`); absent or null — not said. */
+  readonly updatedAtMs?: number | null | undefined;
+}
+
+/** 2026-10-29: one write of a note as the hub recorded it: the login, whether it is the person's own, when. */
+export interface NoteAuthor {
+  readonly name: string;
+  readonly me: boolean;
+  readonly atMs: number;
+}
+
+/** Who created a note and who changed it last, as the hub recorded our writes; null — no such write recorded. */
+export interface NoteAuthorship {
+  readonly created: NoteAuthor | null;
+  readonly edited: NoteAuthor | null;
+}
+
+/** When the questionnaire was created or changed, and by whom: `by` null — not known (written before the hub recorded
+ * writes, or outside our panel); `me` — the person themself. */
+export interface NotesWhenVM {
+  readonly date: NotesDateVM;
+  readonly by: string | null;
+  readonly me: boolean;
 }
 
 /**
@@ -232,6 +255,9 @@ export interface NotesFormVM {
   readonly fill: NotesFillVM | null;
   /** The suggestions a ✓ could not place (30 fields and no «Другое»): named once. */
   readonly unplaced: readonly string[];
+  /** 2026-10-29 (the owner: «понимать кто и когда создавал анкетку»): who created it and when, who changed it last;
+   * null — no questionnaire yet, or nothing known of it. */
+  readonly meta: { readonly created: NotesWhenVM | null; readonly edited: NotesWhenVM | null } | null;
 }
 
 /** A note open as text: a free note, or the questionnaire («Править текстом»); `noteId` null — the note was deleted
@@ -518,6 +544,9 @@ export interface NotesCopy {
   /** «Создана» + « 16.10.2026 » + «в» + « 19:56». */
   readonly created: string;
   readonly createdAt: string;
+  /** 2026-10-29, the questionnaire's line: «Создана 28.10 в 15:20 · kate · изменена 16:05 · max»; `formYou` — the person. */
+  readonly formEdited: string;
+  readonly formYou: string;
   /** 2026-10-28: the names of the site's note colours, the dot's hint. */
   readonly colors?: Readonly<Record<NoteColor, string>>;
 

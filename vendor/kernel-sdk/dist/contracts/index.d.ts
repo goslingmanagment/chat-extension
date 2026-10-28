@@ -26,6 +26,7 @@ export * from "./routes-of-links";
 export * from "./routes-page-browser";
 export * from "./routes-ops-live";
 export * from "./routes-ai-accounts";
+export * from "./routes-ai-spend";
 export * from "./routes-ai-openers";
 export * from "./ofapi-extended-commands";
 export * from "./routes-ofapi-banned-words";

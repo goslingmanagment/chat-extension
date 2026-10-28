@@ -17,8 +17,10 @@
 
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { HOST_NOTE_ATTRIBUTION_SOURCE, HOST_SEND_ATTRIBUTION_SOURCE } from '@cg/contracts/hosts';
-import type { Bootstrap, SendAttributionComposedWith } from '@cg/contracts/hub';
+import { FAN_NOTE_ATTRIBUTIONS_MAX_NOTES, type Bootstrap, type FanNoteAttributions, type FanNoteAttributionWho, type SendAttributionComposedWith } from '@cg/contracts/hub';
 import type { HostKind } from '@cg/contracts/ids';
+import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
+import type { NotesAuthors } from '@cg/contracts/tab-messages';
 import { admission, onPage } from '@cg/core/domain/features';
 import type { Clock } from '@cg/core/services';
 
@@ -40,16 +42,36 @@ export function attributionTarget(host: HostKind, pageId: number | null, bootstr
 /**
  * Who wrote a note (hub `clientNoteAttributions`): the page and client a confirmed write of «Заметки» is recorded for —
  * somebody is signed in, the site reports notes (HOST_NOTE_ATTRIBUTION_SOURCE), the page is this bootstrap's and admits
- * the site's feature `note-attribution` (the hub serves `note-attribution-v1`).
+ * the site's feature `note-attribution` (the hub serves `note-attribution-v1`). 2026-10-29: `note-authors` — the same
+ * page read back (`clientFanNoteAttributions`).
  */
-export function noteAttributionTarget(host: HostKind, pageId: number, bootstrap: Bootstrap | null, features: (host: HostKind) => FeatureSlice | null): AttributionTarget {
+export function noteAttributionTarget(host: HostKind, pageId: number, bootstrap: Bootstrap | null, features: (host: HostKind) => FeatureSlice | null, feature: 'note-attribution' | 'note-authors' = 'note-attribution'): AttributionTarget {
   if (bootstrap === null) return { ok: false, reason: 'signed_out' };
   const source = HOST_NOTE_ATTRIBUTION_SOURCE[host];
   if (source === null) return { ok: false, reason: 'site' };
   const page = bootstrap.pages.find((candidate) => candidate.pageId === pageId);
   if (page === undefined) return { ok: false, reason: 'unbound' };
-  if (admission(features(host), 'note-attribution', null, onPage(bootstrap, page)).state !== 'on') return { ok: false, reason: 'not_admitted' };
+  if (admission(features(host), feature, null, onPage(bootstrap, page)).state !== 'on') return { ok: false, reason: 'not_admitted' };
   return { ok: true, pageLabel: page.pageLabel, source };
+}
+
+/** At most `max` UTF-16 units, never half of a pair. */
+const cut = (text: string, max: number): string => (text.length <= max ? text : text.slice(0, /[\uD800-\uDBFF]/.test(text.charAt(max - 1)) ? max - 1 : max));
+
+/**
+ * The hub's answer (`clientFanNoteAttributions`) as a tab takes it (`notes.authors`): per note, the login that created it
+ * and the one that changed it last, with when; an id or a time the tab cannot read is left out.
+ */
+export function notesAuthorsOf(answer: FanNoteAttributions): NotesAuthors {
+  const who = (entry: FanNoteAttributionWho | null) => {
+    const atMs = entry === null ? NaN : Date.parse(entry.at);
+    return entry === null || !Number.isFinite(atMs) || atMs <= 0 || entry.name.trim() === '' ? null : { name: cut(entry.name.trim(), 120), me: entry.isMe, atMs };
+  };
+  const notes = answer.notes
+    .filter((note) => NATIVE_ID_PATTERN.test(note.noteRef))
+    .slice(0, FAN_NOTE_ATTRIBUTIONS_MAX_NOTES)
+    .map((note) => ({ noteId: note.noteRef, created: who(note.created), edited: who(note.edited) }));
+  return { ok: true, notes };
 }
 
 /** How long a draft of ours waits for its button (`op.reportSent` of the same message) before it is `unknown`. */

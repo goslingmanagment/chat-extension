@@ -128,6 +128,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   spenderFans: { fans: isSpenderSeeds },
   talking: { ...PAGE_FAN, conversationRef: isNativeId, name: isString, agoMs: isNumber },
   fanCard: { ...PAGE_FAN, card: isObject },
+  noteWrite: { ...PAGE_FAN, noteRef: (value) => typeof value === 'string' && value !== '', action: (value) => value === 'created' || value === 'edited' || value === 'deleted', login: (value) => typeof value === 'string' && value !== '', at: (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)) },
   queue: { pageLabel: isString, waiting: isArray, winBack: isObject, handoff: isObject },
   online: { pageLabel: isString, items: isOnlineSeeds, templates: isOnlineTemplates },
   status: {},
@@ -156,6 +157,7 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   spenderFans: ['fans'],
   talking: ['pageLabel', 'fanRef', 'name'],
   fanCard: ['pageLabel', 'fanRef', 'card'],
+  noteWrite: ['pageLabel', 'fanRef', 'noteRef', 'action', 'login', 'at'],
   queue: ['pageLabel'],
   online: ['pageLabel'],
 };

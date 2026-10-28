@@ -33,7 +33,7 @@ import type { JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NoteColor, NotesClient, NotesCopy, NotesErrorWire, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM, NotesTransferVM, NotesView } from '@cg/contracts/notes';
+import type { NoteColor, NotesWhenVM, NotesClient, NotesCopy, NotesErrorWire, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM, NotesTransferVM, NotesView } from '@cg/contracts/notes';
 import { FANSLY_NOTES_VIEWS } from '@cg/contracts/settings-ext';
 
 import { Button, Dot, ElapsedTimer, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit, useReducedMotion } from '../kit';
@@ -704,6 +704,40 @@ function Editor({ client, copy, editor }: Props & { readonly editor: NotesEditor
   );
 }
 
+/** 2026-10-29: «Создана 28.10 в 15:20 · kate · изменена 16:05 · вы» under «Анкета»: the site's dates, the names the hub
+ * recorded; a date with no name was written outside our panel or before the record. */
+function FormMeta({ copy, meta }: { readonly copy: NotesCopy; readonly meta: NonNullable<NotesFormVM['meta']> }): JSX.Element {
+  const part = (label: string, when: NotesWhenVM): JSX.Element => {
+    const by = when.me ? copy.formYou : when.by;
+    return (
+      <span class="cg-notes__meta-p">
+        {label}{' '}
+        <time dateTime={when.date.iso} title={`${when.date.full} ${copy.createdAt} ${when.date.time}`}>
+          {when.date.year === null ? when.date.day : `${when.date.day}.${when.date.year}`} {copy.createdAt} {when.date.time}
+        </time>
+        {by === null ? null : (
+          <>
+            {' · '}
+            <b>{by}</b>
+          </>
+        )}
+      </span>
+    );
+  };
+  const edited = copy.formEdited.charAt(0).toLocaleUpperCase() + copy.formEdited.slice(1);
+  return (
+    <p class="cg-notes__meta" data-notes-meta="">
+      {meta.created === null ? null : part(copy.created, meta.created)}
+      {meta.edited === null ? null : (
+        <>
+          {meta.created === null ? null : ' · '}
+          {part(meta.created === null ? edited : copy.formEdited, meta.edited)}
+        </>
+      )}
+    </p>
+  );
+}
+
 /** «Анкета»: the table, a field open in place, «+ Метка»; the fill, its draft in the same table. A fan without one: the
  * card that fills it from the chat. */
 function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPanelVM; readonly form: NotesFormVM }): JSX.Element {
@@ -746,6 +780,7 @@ function FormSection({ client, copy, vm, form }: Props & { readonly vm: NotesPan
           <Button variant="line" size="sm" label={copy.fill} tooltip={copy.fillHint} class="cg-notes__ai" {...(reason === null ? {} : { reason })} onClick={() => client.dispatch({ type: 'fill' })} />
         )}
       </div>
+      {form.meta === null ? null : <FormMeta copy={copy} meta={form.meta} />}
       {asText && vm.editor !== null ? (
         <Editor client={client} copy={copy} editor={vm.editor} />
       ) : (

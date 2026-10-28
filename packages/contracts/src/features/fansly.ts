@@ -88,6 +88,8 @@ const FEATURES = {
   'notes-fill': { kind: 'ai', base: { flags: ['notesFill'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['notes'], source: 'hub' },
   // Who wrote each note: every write of «Заметки» Fansly confirmed, told to the hub (`note-attribution-v1`). No owner switch.
   'note-attribution': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-v1'] }, actions: {}, surfaces: [], source: 'page' },
+  // 2026-10-29: who created the questionnaire and who changed it last, read back from that record (`note-attribution-read-v1`).
+  'note-authors': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-read-v1'] }, actions: {}, surfaces: [], source: 'page' },
   registration: { kind: 'panel', base: { flags: ['registration'], hostCapabilities: ['headerSlot'] }, actions: {}, surfaces: ['header-slot'], source: 'page' },
   // The fan's warning marks after «Регистрация»: the agency's «💩 Бомж» lists and FANSLY BLOCKLIST's posts (`clientFanMarks`,
   // `fan-marks-v1`). No owner switch: a hub that does not serve them shows nothing. Warnings only, never a block.

@@ -33,6 +33,16 @@ export declare function millsFromCents(value: number | bigint): Mills;
 export declare function millsToWholeCents(value: MillsLike): number;
 /** Dollars → micro-USD (AI plane). Rounded to the nearest integer micro-USD. */
 export declare function microUsdFromDollars(value: number): MicroUsd;
+/**
+ * Cents as Anthropic's cost report writes them (decimal strings,
+ * `"123.78912"` is $1.2378912) → micro-USD (1 cent = 10 000 micro-USD). The
+ * amounts are added exactly and the total is rounded ONCE, half away from
+ * zero, so a day of many fractional lines carries no per-line rounding.
+ */
+export declare function microUsdFromCents(amounts: readonly string[]): MicroUsd;
+/** The exact sum of decimal cent strings, as a decimal string (several cost
+ * lines that land on one stored line). */
+export declare function sumCentsDecimals(amounts: readonly string[]): string;
 /** An integer micro-USD value as stored (int column, number in JS). */
 export declare function microUsdFromDbInt(value: number): MicroUsd;
 /** Mills → micro-USD. Exact (×1000). */

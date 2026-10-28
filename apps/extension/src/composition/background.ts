@@ -147,10 +147,10 @@ import {
 
 import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS, type PerHost, type RuntimeHostKind } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
-import { ComposedWithMemory, attributionTarget, noteAttributionTarget } from './background/attribution';
+import { ComposedWithMemory, attributionTarget, noteAttributionTarget, notesAuthorsOf } from './background/attribution';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
-import { type BackgroundKit, type HostRequestType, type KitSender, type SiteTabsPort, type VerifiedTabMessage } from './background/host-module';
+import { type BackgroundKit, type HostRequestType, type KitSender, type NoteAttributionPort, type SiteTabsPort, type VerifiedTabMessage } from './background/host-module';
 import { createHostModules, type HostModuleSpec } from './background/host-modules';
 import { LIFECYCLE_EVENT_WAIT_MS, STARTS_KEY, earlierStartsOf, startReasonOf } from './background/lifecycle';
 import { createBackgroundLogging } from './background/logging';
@@ -652,6 +652,23 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       },
     },
     done: (view, tabSessionId) => void rpc.emit('notes.fill.done', { view }, tabSessionId === null ? undefined : { tabSessionId }),
+    // 2026-10-29: who created the questionnaire and who changed it last, read back from the hub's record of our writes.
+    authors: async (host, pageId, fanRef, sender) => {
+      const page = await pageOf(pageId, sender);
+      if (!page.ok) return { ok: false, code: page.code };
+      const target = noteAttributionTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf, 'note-authors');
+      if (!target.ok) return { ok: false, code: target.reason };
+      try {
+        return notesAuthorsOf(await hub().fanNoteAttributions({ pageLabel: target.pageLabel, fanRef }));
+      } catch {
+        return { ok: false, code: 'CG-HUB-UNAVAILABLE' };
+      }
+    },
+    // ChatSpace's tab writes OnlyMonster's notes itself: each write it saw land is told to the same record as Fansly's.
+    written: async (host, { pageId, ...fact }, sender) => {
+      const page = await pageOf(pageId, sender);
+      return page.ok && noteWritten(host, { pageId, noteKind: 'note', ...fact }) === 'queued';
+    },
   });
   /** The notes' view as last told, so a change of another setting tells nothing. */
   let notesView: string | null = null;
@@ -748,6 +765,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     store: throwingStoreOf(local),
     log: coreLog,
   });
+  /** A write of «Заметки» the site confirmed, owed to the hub's record under the person signed in; the origin and labels
+   * only as the hub takes them. The outcome, or null — the page does not take it. */
+  const noteWritten = (host: HostKind, { pageId, origin, fields, ...fact }: Parameters<NoteAttributionPort['written']>[0]): string | null => {
+    const target = noteAttributionTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
+    const outcome = target.ok
+      ? noteAttributions.report({ pageLabel: target.pageLabel, source: target.source, eventId: IDS.uuid(), observedAt: new Date(CLOCK.now()).toISOString(), ...fact, ...noteWriteOrigin(origin, fields) })
+      : null;
+    if (outcome !== 'queued') logger.info('bg.note-attribution', 'note write not attributed', { fields: { reason: target.ok ? outcome : target.reason } });
+    return outcome;
+  };
   /** The page a host account of this browser is bound to now; null — it cannot be told. */
   const boundPageOf = (host: HostKind, hostAccountId: string): number | null => {
     const seen = presence.seenAccounts().find((entry) => entry.account.host === host && entry.account.hostAccountId === hostAccountId);
@@ -962,15 +989,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         void attribute(host, pageId ?? (hostAccountId === undefined ? null : boundPageOf(host, hostAccountId)), { platformMessageId, observedAt: new Date(CLOCK.now()).toISOString(), ...rest }),
     },
     // Who wrote a note: a write of «Заметки» Fansly confirmed; the tab's origin and labels only as the hub takes them.
-    noteAttributions: {
-      written: ({ pageId, origin, fields, ...fact }) => {
-        const target = noteAttributionTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
-        const outcome = target.ok
-          ? noteAttributions.report({ pageLabel: target.pageLabel, source: target.source, eventId: IDS.uuid(), observedAt: new Date(CLOCK.now()).toISOString(), ...fact, ...noteWriteOrigin(origin, fields) })
-          : null;
-        if (outcome !== 'queued') logger.info('bg.note-attribution', 'note write not attributed', { fields: { reason: target.ok ? outcome : target.reason } });
-      },
-    },
+    noteAttributions: { written: (fact) => void noteWritten(host, fact) },
   });
   /** The site's tabs as the core knows them: open by its granted addresses (Fansly's), registered with their reported accounts. */
   function siteTabsOf(host: HostKind): SiteTabsPort {
@@ -1646,6 +1665,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('notes.fill.start', notes.handlers['notes.fill.start']);
   rpc.handle('notes.fill.read', notes.handlers['notes.fill.read']);
   rpc.handle('notes.fill.cancel', notes.handlers['notes.fill.cancel']);
+  rpc.handle('notes.authors', notes.handlers['notes.authors']);
+  rpc.handle('notes.written', notes.handlers['notes.written']);
   rpc.handle('voice.read', voice.handlers['voice.read']);
   rpc.handle('voice.allowance', voice.handlers['voice.allowance']);
   rpc.handle('voice.script', voice.handlers['voice.script']);
