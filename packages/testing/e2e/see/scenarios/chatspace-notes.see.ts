@@ -1,12 +1,16 @@
 // «Заметки» on ChatSpace (2026-10-28): the same panel as Fansly's, over OnlyMonster's own fan notes. The fan of the
 // stand's first chat has what the team keeps in Monster: an older questionnaire of «Поле: значение» lines (the table)
-// and its section notes («Важная информация» in red, «Характеристика», «Фетиши») in the list, «общие с Монстром».
-// «Заметки 4» in the chat header before ChatSpace's search; the panel over the chat's right edge; «✨ Дополнить из
-// чата» with the Goose's suggestions in the rows, one ✓, «Принять все»; a quick note signed with the login. On the
-// stand alone: a note a colleague changed in Monster while it was open here.
+// and its section notes («Важная информация» in red, «Характеристика», «Фетиши») in the list. ChatSpace's own column
+// right of the chat (its side panel and rail) is open, as on the live site: «Заметки 4» in the chat header before
+// ChatSpace's search opens the panel in that column, the conversation stays whole (as on Fansly, the owner: «как на
+// фансли»); «✨ Дополнить из чата» with the Goose's suggestions in the rows, one ✓, «Принять все»; a quick note
+// signed with the login. On the stand alone: a note a colleague changed in Monster while it was open here, and the
+// panel over the chat's right edge when ChatSpace's column is closed.
 
 import { STAND_IDS } from '../../../src/stand/dataset';
 import { PAGE } from '../../../src/scenarios/hub';
+import { SHOWCASE } from '../../../src/showcase';
+import { callStand } from '../../support/stand';
 import { SEE_AI_TEXTS, around, scenario, type See } from '../kit';
 
 const ACC = STAND_IDS.accounts.a;
@@ -43,6 +47,8 @@ scenario(
   'chatspace-notes',
   async (s) => {
     await s.ready();
+    // ChatSpace's own column right of the chat, open as it is on the live site by default.
+    await callStand('setSidePanel', 'open');
     // The button in ChatSpace's own chat header, before its search (our slot is a host of its own in the header row).
     const slot = s.browser.$('[data-host="header-slot"]');
     await slot.waitForExist({ timeout: 20_000 });
@@ -55,7 +61,7 @@ scenario(
     await button.click();
     await s.see('panel', /Анкета/);
     await s.wait(500);
-    await s.shot('panel-over-chat');
+    await s.shot('panel-in-column');
     await panel(s, 'read');
 
     // «✨ Дополнить из чата»: the stage line, then the Goose's suggestions in their rows.
@@ -107,6 +113,12 @@ scenario(
     await s.see('panel', /Сейчас в Монстре/);
     await s.wait(300);
     await panel(s, 'changed-elsewhere');
+    if (SHOWCASE) return;
+
+    // ChatSpace's column closed (its rail stays): the panel moves over the chat's right edge, above our dock.
+    await callStand('setSidePanel', 'closed');
+    await s.wait(600);
+    await s.shot('panel-over-chat');
   },
   {
     sites: ['chatspace'],

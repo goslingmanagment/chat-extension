@@ -1,10 +1,11 @@
-// ChatSpace 0.195's own right side of a chat (live check 2026-10-08): next to
-// the conversation a ~320 px panel of the fan («Траты», «Предпочтения»,
-// «Списки», «Профиль», «Подписка») and, at the far right, an icon rail whose
-// buttons open and close it. Off by default — the stand then has the 0.172
-// layout, where the conversation and its composer reach the window's right
-// edge. `__stand.setSidePanel` switches it: `none` (0.172), `closed` (0.195,
-// rail only: the composer reaches the rail), `open` (0.195 as it opens).
+// ChatSpace's own right side of a chat (live check 2026-10-08, 0.195; sizes
+// and tabs of 0.233.0, 2026-10-28: `SidePanel` 364 px by default, its rail
+// `SidePanelNav` 64 px): next to the conversation a panel of the fan
+// («Траты», «Предпочтения», «Списки», «Профиль», «Подписка») and, at the far
+// right, an icon rail whose buttons open and close it. Off by default — the
+// stand then has the 0.172 layout, where the conversation and its composer
+// reach the window's right edge. `__stand.setSidePanel` switches it: `none`
+// (0.172), `closed` (rail only: the composer reaches the rail), `open`.
 
 import { defineComponent, h, reactive, type VNode } from 'vue';
 
@@ -41,7 +42,7 @@ const SECTIONS: readonly (readonly [title: string, rows: readonly (readonly [str
   ['Подписка', [['Подписан', '—'], ['Автопродление', '—']]],
 ];
 
-/** The fan's panel of ChatSpace 0.195, 320 px next to the conversation; its own content scrolls. */
+/** The fan's panel of ChatSpace, 364 px next to the conversation; its own content scrolls. */
 export const ChatDetailsPanel = defineComponent({
   name: 'ChatDetailsPanel',
   setup: () => (): VNode =>
@@ -63,7 +64,6 @@ export const SidePanelRail = defineComponent({
   setup: () => (): VNode =>
     h('nav', { class: 'chat-side-rail', 'data-stand-side-rail': '', 'aria-label': 'Side panel' }, [
       h('button', { type: 'button', class: ['chat-side-rail__item', sidePanel.state === 'open' ? 'chat-side-rail__item--on' : ''], 'data-stand-side-toggle': '', onClick: () => setSidePanel(sidePanel.state === 'open' ? 'closed' : 'open') }, 'Инсайты'),
-      h('button', { type: 'button', class: 'chat-side-rail__item' }, 'Продажи'),
-      h('button', { type: 'button', class: 'chat-side-rail__item' }, 'Заметки'),
+      ...['Продажи', 'Шаблоны', 'Заметки', 'Сводка', 'AI'].map((label) => h('button', { key: label, type: 'button', class: 'chat-side-rail__item' }, label)),
     ]),
 });

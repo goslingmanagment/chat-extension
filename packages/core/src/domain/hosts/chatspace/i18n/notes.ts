@@ -140,7 +140,6 @@ const RU: NotesCopy = {
   foreignHint: 'Только чтение: ChatGoose её не правит и не удаляет',
   created: 'Создана',
   createdAt: 'в',
-  shared: { label: 'общие с Монстром', hint: 'Это заметки самого Монстра: те же, что во вкладке «Заметки» справа в ChatSpace. Что вы запишете здесь, увидит вся команда там.' },
   colors: { red: 'Красная в Монстре', yellow: 'Жёлтая в Монстре', blue: 'Синяя в Монстре', green: 'Зелёная в Монстре' },
 };
 
@@ -280,7 +279,6 @@ const EN: NotesCopy = {
   foreignHint: 'Read only: ChatGoose never edits or deletes it',
   created: 'Created',
   createdAt: 'at',
-  shared: { label: 'shared with OnlyMonster', hint: 'These are OnlyMonster’s own notes: the same as in the «Notes» tab on the right in ChatSpace. What you write here, the whole team sees there.' },
   colors: { red: 'Red in OnlyMonster', yellow: 'Yellow in OnlyMonster', blue: 'Blue in OnlyMonster', green: 'Green in OnlyMonster' },
 };
 

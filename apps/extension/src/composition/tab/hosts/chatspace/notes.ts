@@ -9,9 +9,11 @@
 //   ChatSpace's side panel shows, read when the panel opens and by «Обновить», written only by the chatter's click and
 //   only for the fan of the chat on the route; one write at a time, a reread before an edit, a colleague's change never
 //   overwritten. The quick note is signed with the chatter's hub login as its title, as on Fansly.
-// - ChatSpace has no free column right of the chat (its own side panel stands there): the panel stands over the chat's
-//   right edge, under the header and above the composer and our dock (host-chatspace notes-place.ts); «Всегда справа»
-//   opens by the button there.
+// - Right of the chat ChatSpace keeps its own column (its side panel and the rail that opens it): the panel stands over
+//   it edge to edge, as on Fansly it stands in the free column right of the chat, and the conversation stays whole.
+//   Without that column it stands over the chat's right edge, under the header and above the composer and our dock,
+//   and «Всегда справа» opens by the button there (host-chatspace notes-place.ts). A change of the chat's width (the
+//   side panel opened or closed) moves an open panel.
 // - «✨ Заполнить из чата»: where the page's `notesFill` is on, the shared operation `notes-fill` of the open chat
 //   (`notes.fill.start`, a click's token; the background adds the operation, background/notes.ts): the chat is the fan,
 //   the questionnaire's labels and values ride in the hub's request body only. Its stage comes as `op.update`, its end as
@@ -227,11 +229,12 @@ export function startChatSpaceNotes(env: SiteAppEnv<ChatSpaceHostPort>): () => v
   };
   const onResize = (): void => controller.layout();
   // Esc with the focus on the page itself puts the panel away; a key in our UI goes to its own element (the early
-  // dispatcher). A field of ChatSpace's keeps its Esc unless the panel is the centred window.
+  // dispatcher). A field of ChatSpace's keeps its Esc unless the panel is the centred window, and «Всегда справа» in
+  // ChatSpace's own column is not put away by a key, as on Fansly.
   const onKey = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || !event.isTrusted) return;
     const vm = controller.panel();
-    if (!vm.shown) return;
+    if (!vm.shown || (vm.view === 'docked' && !vm.narrow)) return;
     const active = win.document.activeElement as HTMLElement | null;
     const field = active !== null && (active.isContentEditable || ['input', 'textarea', 'select'].includes(active.localName));
     if (field && vm.view !== 'center') return;
@@ -270,6 +273,7 @@ export function startChatSpaceNotes(env: SiteAppEnv<ChatSpaceHostPort>): () => v
       env.journal?.action('notes', 'notes.toggle', { input: 'key' });
       controller.toggle();
     }),
+    measure.onChange(onResize),
     () => win.removeEventListener('resize', onResize),
     () => win.document.removeEventListener('keydown', onKey),
   ];

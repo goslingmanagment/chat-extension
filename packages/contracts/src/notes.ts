@@ -67,6 +67,8 @@ export interface NotesPlace {
   readonly bottom: number;
   readonly left: number;
   readonly width: number;
+  /** Over a column of the site's own, edge to edge (ChatSpace's side panel): no corners or gap of its own. */
+  readonly flush?: boolean;
 }
 
 /** The name for oneself (12002): `saving` — a write in flight; `unconfirmed` — it may have landed (read again). */
@@ -474,8 +476,6 @@ export interface NotesCopy {
   /** «Создана» + « 16.10.2026 » + «в» + « 19:56». */
   readonly created: string;
   readonly createdAt: string;
-  /** 2026-10-28, a site whose own window shows the same notes (ChatSpace): said beside the notes' title, with its hint. */
-  readonly shared?: { readonly label: string; readonly hint: string };
   /** 2026-10-28: the names of the site's note colours, the dot's hint. */
   readonly colors?: Readonly<Record<NoteColor, string>>;
 }

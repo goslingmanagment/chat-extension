@@ -35,7 +35,7 @@ export const NOTES_BUTTON_CSS = `
 .cg-nb svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .cg-nb__count { min-width: 14px; height: 14px; padding: 0 4px; box-sizing: border-box; border-radius: var(--cg-r-pill); background: var(--cg-chip); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-2); font-size: 10px; line-height: 14px; text-align: center; font-variant-numeric: tabular-nums; }
 .cg-nb.is-pill { font-size: 13px; line-height: 16px; }
-.cg-nb.is-pill .cg-nb__button { height: 28px; padding: 0 10px; gap: 6px; box-sizing: border-box; border-radius: var(--cg-r-pill); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-2); }
+.cg-nb.is-pill .cg-nb__button { height: 28px; padding: 0 10px; gap: 6px; box-sizing: border-box; border-radius: var(--cg-r-pill); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-strong); }
 .cg-nb.is-pill .cg-nb__button:hover, .cg-nb.is-pill .cg-nb__button[aria-pressed='true'] { color: var(--cg-accent); box-shadow: inset 0 0 0 1px currentColor; }
 .cg-nb.is-pill svg { width: 14px; height: 14px; }
 `;
@@ -52,6 +52,10 @@ ${p} {
 }
 .cg-root ${p}:focus-visible { outline: none; }
 ${p}.is-center { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(540px, calc(100vw - 32px)); max-height: min(780px, calc(100vh - 64px)); }
+/* Over a column of the site's own, edge to edge (ChatSpace's side panel): the page's column, not a card over it; its
+   right corners follow the frame ChatSpace rounds its workspace with. */
+${p}.is-flush { border-radius: 0 7px 7px 0; box-shadow: inset 1px 0 0 var(--cg-rule-2), -6px 0 16px -10px rgb(0 0 0 / 0.35); }
+${p}.is-flush ${p}__body { border-radius: 0 0 7px 0; }
 ${p}__spacer { flex: 1; }
 
 ${p}__head { padding: 10px 8px 9px 16px; border-bottom: 1px solid var(--cg-rule); }
@@ -81,7 +85,6 @@ ${p}__sec + ${p}__sec { margin-top: 12px; border-top: 1px solid var(--cg-rule); 
 ${p}__sec-head { display: flex; align-items: center; gap: 6px; min-height: 24px; margin-bottom: 6px; }
 ${p}__sec-t { margin: 0; color: var(--cg-ink-strong); font-size: var(--cg-text-md); font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
 ${p}__count { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); font-variant-numeric: tabular-nums; }
-${p}__shared { margin-left: auto; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; cursor: help; }
 ${p}__ai.cg-btn { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-weight: 600; }
 ${p}__ai.cg-btn:hover { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-ink); color: var(--cg-clay-ink); }
 ${p}__ai.cg-btn--sm { height: 24px; padding: 0 9px; }
@@ -105,9 +108,9 @@ ${p}__label { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); line-hei
 ${p}__value { display: grid; gap: 2px; min-width: 0; }
 ${p}__fact { position: relative; display: flex; align-items: baseline; gap: 10px; color: var(--cg-ink); font-size: var(--cg-text-base); line-height: 19px; }
 ${p}__value[data-many] ${p}__fact::before { content: ''; position: absolute; left: -8px; top: 8px; width: 3px; height: 3px; border-radius: 50%; background: var(--cg-ink-faint); }
-${p}__fact-t { flex: 1; min-width: 0; overflow-wrap: break-word; hyphens: auto; }
+${p}__fact-t { flex: 1; min-width: 0; overflow-wrap: break-word; }
 ${p}__fact-date { flex: none; color: var(--cg-ink-faint); font-family: var(--cg-mono); font-size: var(--cg-text-2xs); font-variant-numeric: tabular-nums; }
-${p}__fresh { margin-left: 4px; color: var(--cg-clay-ink); font-size: 10px; vertical-align: 1px; }
+${p}__fresh { position: absolute; margin-left: 4px; color: var(--cg-clay-ink); font-size: 10px; vertical-align: 1px; }
 ${p}__frow.is-fresh ${p}__label { color: var(--cg-ink-2); }
 ${p}__free { padding: 3px 8px; color: var(--cg-ink-2); font-size: var(--cg-text-sm); line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
@@ -207,7 +210,7 @@ ${p}__landed { position: absolute; right: 8px; top: 5px; color: var(--cg-good-in
 ${p}__pill { display: inline-flex; align-items: baseline; gap: 2px; max-width: 100%; margin: 1px 0; padding: 0 2px 0 7px; border: 1px dashed var(--cg-clay-line); border-radius: 7px; background: var(--cg-draft); vertical-align: baseline; animation: cg-notes-pill-in 420ms var(--cg-ease) backwards; animation-delay: calc(var(--cg-i, 0) * 60ms); transition: border-color 200ms var(--cg-ease), background-color 200ms var(--cg-ease), padding 260ms var(--cg-ease); }
 ${p}__pill.is-inline { margin-left: 1px; padding-left: 3px; }
 ${p}__pill:hover, ${p}__pill:focus-within { border-style: solid; border-color: var(--cg-clay); background: var(--cg-draft-hover); }
-${p}__pill-t { all: unset; cursor: pointer; font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: 20px; color: var(--cg-ink-strong); overflow-wrap: break-word; hyphens: auto; }
+${p}__pill-t { all: unset; cursor: pointer; font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: 20px; color: var(--cg-ink-strong); overflow-wrap: break-word; }
 ${p}__pill-t:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 2px; border-radius: 3px; }
 ${p}__pill-plus { margin-right: 3px; color: var(--cg-clay-ink); font-family: var(--cg-font); font-weight: 600; }
 ${p}__pill-ok, ${p}__pill-no { all: unset; flex: none; align-self: center; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; cursor: pointer; }
@@ -281,16 +284,23 @@ ${p}__latest-h { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); font-
 ${p}__confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; padding: 8px 10px; border-radius: var(--cg-r-md); background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule); color: var(--cg-ink-strong); font-size: var(--cg-text-sm); }
 ${p}__confirm-t { flex: 1 1 100%; }
 
+/* The side panel (Fansly's 360 to 380 px, ChatSpace's column 428 px): the values take the row's width. The pen stands
+   over the row's right edge instead of a column of its own, and a suggestion leaves its month to the fact it makes. */
 @container (max-width: 440px) {
   ${p}__sec { --cg-notes-label: 110px; }
+  ${p}__frow { grid-template-columns: var(--cg-notes-label) minmax(0, 1fr); padding-right: 22px; }
+  ${p}__frow.is-suggested { padding-right: 8px; }
+  ${p}__frow > span:empty { display: none; }
+  ${p}__row-pen { position: absolute; right: 6px; top: 5px; padding-top: 3px; }
   ${p}__frow, ${p}__fedit { column-gap: 10px; }
   ${p}__fact { gap: 6px; }
+  ${p}__fact.is-sug ${p}__fact-date, ${p}__fact.has-pill ${p}__fact-date { display: none; }
 }
 @container (max-width: 300px) {
-  ${p}__frow { grid-template-columns: minmax(0, 1fr) 14px; row-gap: 1px; }
+  ${p}__frow { grid-template-columns: minmax(0, 1fr); row-gap: 1px; }
   ${p}__frow > ${p}__label { grid-column: 1 / -1; }
   ${p}__fedit { grid-template-columns: minmax(0, 1fr); row-gap: 4px; }
   ${p}__fedit > ${p}__label { padding-top: 0; }
 }
-${p}__note-foot { margin: 0; padding: 0 16px 10px; color: var(--cg-ink-faint); font-size: var(--cg-text-xs); line-height: 15px; }
+${p}__note-foot { margin: 0; padding: 8px 16px 10px; border-top: 1px solid var(--cg-rule); color: var(--cg-ink-faint); font-size: var(--cg-text-xs); line-height: 15px; }
 `;

@@ -422,7 +422,7 @@ function SuggestedRow({ client, copy, part, sug }: Props & { readonly part: Fiel
       <span class="cg-notes__value" {...(lines > 1 ? { 'data-many': '' } : {})}>
         {part.facts.map((fact, at) =>
           at === base ? (
-            <span key={at} class="cg-notes__fact">
+            <span key={at} class="cg-notes__fact has-pill">
               <span class="cg-notes__fact-t">
                 {fact.text}
                 <Pill client={client} copy={copy} sug={sug} words={sug.text} inline />
@@ -903,11 +903,6 @@ function NotesSection({ client, copy, vm }: Props & { readonly vm: NotesPanelVM 
       <div class="cg-notes__sec-head">
         <h3 class="cg-notes__sec-t">{copy.notes}</h3>
         {vm.items.length === 0 ? null : <span class="cg-notes__count">{vm.items.length}</span>}
-        {copy.shared === undefined ? null : (
-          <span class="cg-notes__shared" title={copy.shared.hint} data-notes-shared="">
-            {copy.shared.label}
-          </span>
-        )}
       </div>
       <QuickBox client={client} copy={copy} quick={vm.quick} />
       {loose === null ? null : <Editor client={client} copy={copy} editor={loose} />}
@@ -973,7 +968,7 @@ export function NotesPanel({ client, texts }: { readonly client: NotesClient; re
   const panel = (
     <section
       ref={card}
-      class={`cg-notes${center ? ' is-center' : ''}`}
+      class={`cg-notes${center ? ' is-center' : ''}${place?.flush === true ? ' is-flush' : ''}`}
       role={center ? 'dialog' : 'complementary'}
       aria-label={copy.title}
       // The words break by syllables, not mid-letter, in the narrow side panel.
