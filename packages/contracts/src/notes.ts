@@ -127,6 +127,8 @@ export interface NotesSuggestionVM {
    * flight; `conflict` — the field changed since the Goose read it (`now`): «Заменить» or «Оставить». */
   readonly state: 'arriving' | 'pending' | 'saving' | 'conflict';
   readonly now: string | null;
+  /** 2026-10-29: it came from the fan's old account («Вставить сюда»), not from the chat: no fan's words behind it. */
+  readonly transfer?: true;
 }
 
 /** The questionnaire's parts in note order: a field with something written in it, or a line of no field. A field with
@@ -210,6 +212,8 @@ export interface NotesFillVM {
   readonly undo: { readonly labels: readonly string[]; readonly undoing: boolean } | null;
   /** «Отменить» could not: the questionnaire changed since the ✓ (it would wipe that). */
   readonly undoFailed: boolean;
+  /** 2026-10-29: the suggestions came from the fan's old account («Вставить сюда»), not from the chat. */
+  readonly transfer?: true;
 }
 
 /** The fan's questionnaire: one note of 2–30 `Label: value` lines (one per fan), or none yet. */
@@ -266,6 +270,34 @@ export interface NotesQuickVM {
   readonly problem: NotesProblem | null;
 }
 
+/**
+ * 2026-10-29 (the owner: «старые заметки… надо бы импортировать»): a site keeps a fan's notes per account, so a fan who
+ * writes from a new account comes with none. In the old account's chat «Перенести на новый аккаунт фана» copies its
+ * questionnaire and notes into the tab (memory only); in another chat of the same model's account they wait for
+ * «Вставить сюда». That click creates the notes there, each once (one with the same title and text is already there:
+ * skipped), oldest first; the questionnaire's facts stand in its rows as suggestions, each written by its ✓, as the
+ * fill's. `copied` — this chat's notes are the ones copied; `offer` — another account's wait here; `moving` — being
+ * written; `moved` — written (`suggested` of the questionnaire wait in the rows).
+ */
+export interface NotesTransferVM {
+  readonly status: 'copied' | 'offer' | 'moving' | 'moved';
+  /** The account they came from. */
+  readonly from: { readonly name: string | null; readonly handle: string | null } | null;
+  /** They carry a questionnaire, and how many other notes. */
+  readonly form: boolean;
+  readonly notes: number;
+  /** Notes written so far, and those that were here already. */
+  readonly written: number;
+  readonly skipped: number;
+  /** The questionnaire's facts put in its rows. */
+  readonly suggested: number;
+  /** Why «Вставить сюда» cannot start now: a field or a note open, a write in flight, the Goose's suggestions. */
+  readonly reason: 'editing' | 'writing' | 'fill' | null;
+  /** A create failed and may have landed: «Вставить сюда» waits for «Обновить» (`blocked`). */
+  readonly problem: NotesProblem | null;
+  readonly blocked: boolean;
+}
+
 export interface NotesPanelVM {
   readonly shown: boolean;
   readonly view: NotesView;
@@ -292,6 +324,10 @@ export interface NotesPanelVM {
   readonly deleteError: NotesErrorWire | null;
   /** A write of this fan is in flight: «Обновить» waits for it. */
   readonly writing: boolean;
+  /** 2026-10-29: the notes of the fan's old account, copied or offered here; null — none. */
+  readonly transfer: NotesTransferVM | null;
+  /** This fan has a questionnaire or notes «Перенести на новый аккаунт фана» can copy. */
+  readonly copyable: boolean;
 }
 
 export interface NotesTriggerVM {
@@ -339,7 +375,12 @@ export type NotesAction =
   | { readonly type: 'keep' }
   | { readonly type: 'name-input'; readonly value: string }
   | { readonly type: 'name-commit' }
-  | { readonly type: 'name-revert' };
+  | { readonly type: 'name-revert' }
+  /** 2026-10-29: «Перенести на новый аккаунт фана» (this chat's notes copied into the tab), «Вставить сюда» (written
+   * here), «Не переносить» / ×. */
+  | { readonly type: 'transfer-copy' }
+  | { readonly type: 'transfer-paste' }
+  | { readonly type: 'transfer-drop' };
 
 export interface NotesClient {
   panel(): NotesPanelVM;
@@ -479,4 +520,30 @@ export interface NotesCopy {
   readonly createdAt: string;
   /** 2026-10-28: the names of the site's note colours, the dot's hint. */
   readonly colors?: Readonly<Record<NoteColor, string>>;
+
+  /** 2026-10-29: the notes of the fan's old account moved onto the new one. `{what}` — transferWhat's words. */
+  readonly transferCopy: string;
+  readonly transferCopyHint: string;
+  readonly transferCopied: string;
+  /** `{from}` — the old account's name and @handle. */
+  readonly transferOffer: string;
+  /** «анкета и 5 заметок»: `{form}` — transferForm or nothing, `{notes}` — the count in transferNotes' forms. */
+  readonly transferForm: string;
+  readonly transferNotes: readonly [string, string, string];
+  readonly transferAnd: string;
+  readonly transferPaste: string;
+  readonly transferPasteHint: string;
+  readonly transferDrop: string;
+  readonly transferReason: Readonly<Record<'editing' | 'writing' | 'fill', string>>;
+  /** `{k}` of `{n}`. */
+  readonly transferMoving: string;
+  /** `{n}` written; `{s}` were here already; the questionnaire's facts wait in the rows. */
+  readonly transferMoved: string;
+  readonly transferSkipped: string;
+  readonly transferFormWaits: string;
+  readonly transferNothing: string;
+  readonly transferProblem: string;
+  /** The bar over the rows and a pill's hover. */
+  readonly transferBar: string;
+  readonly transferQuote: string;
 }

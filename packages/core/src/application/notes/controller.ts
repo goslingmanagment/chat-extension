@@ -31,18 +31,23 @@
 //   may have landed); a text over the limits is refused, never cut. What is typed is kept per fan: another chat in the
 //   middle of an edit loses nothing.
 // - FBuddy's «FBuddy Notes» (`foreign`) and a note longer than the panel holds (`cut`) are shown, never written.
+// - 2026-10-29 (the owner: «старые заметки… надо бы импортировать»): a fan who writes from a new account comes with no
+//   notes, a site keeps them per account. «Перенести на новый аккаунт фана» in the old chat copies its questionnaire
+//   and notes into the tab (memory, never stored); in another chat of the same account «Вставить сюда» creates the
+//   notes there, oldest first, each once (one already there with the same title and text is skipped), and puts the
+//   questionnaire's facts in its rows as suggestions, each written by its ✓ like the fill's. Nothing moves by itself.
 // - A note's text never leaves through here but to the background (FS-NOTE-5), and from there only a fill's values, in
 //   the hub's request body: nothing is logged.
 
 import { NOTE_ATTRIBUTION_LIMITS, type NoteAttributionOrigin } from '@cg/contracts/hub';
-import { NOTE_LIMITS, type NoteData, type NotesAction, type NotesClient, type NotesDateVM, type NotesErrorWire, type NotesFillProgressVM, type NotesFillVM, type NotesFormPartVM, type NotesSuggestionVM, type NotesFormVM, type NotesItemVM, type NotesNameStatus, type NotesPanelVM, type NotesPlace, type NotesProblem, type NotesTriggerVM, type NotesView } from '@cg/contracts/notes';
+import { NOTE_LIMITS, type NoteData, type NotesAction, type NotesClient, type NotesDateVM, type NotesErrorWire, type NotesFillProgressVM, type NotesFillVM, type NotesFormPartVM, type NotesSuggestionVM, type NotesFormVM, type NotesItemVM, type NotesNameStatus, type NotesPanelVM, type NotesPlace, type NotesProblem, type NotesTransferVM, type NotesTriggerVM, type NotesView } from '@cg/contracts/notes';
 import type { Phase, SiteOpView } from '@cg/contracts/ops';
 import type { PhaseVM } from '@cg/contracts/vm';
 
 import { noteFillSeen, parseNoteFillAnswer } from '../../domain/notes/fill-answer';
-import { applyNoteFindings, noteFillRequest, noteFindings, noteSuggestion, type NoteFinding } from './fill';
+import { applyNoteFindings, noteFillRequest, noteFindings, noteSuggestion, transferFindings, type NoteFinding } from './fill';
 import { NOTE_FIELDS_MAX, noteFieldValue, noteLabelKey, parseNoteForm, splitFactDate, splitNoteFacts, writeNoteField, type NoteFormPart } from './form';
-import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
+import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE, noteTransferMark } from './template';
 
 /**
  * How long a fill usually takes by the messages the hub served (prod, 2026-10-27, 73 fills of Opus 5.5 at high effort
@@ -111,7 +116,7 @@ export function fillPhaseVM(startedAt: number, phase: Phase | null): PhaseVM {
 
 /** A suggestion as its row shows it: what kind, the pill's words, what goes, the fan's words; `arriving` — the answer
  * is still streaming. */
-function suggestionVM(finding: NoteFinding, index: number, mark: Mark | 'arriving'): NotesSuggestionVM {
+function suggestionVM(finding: NoteFinding, index: number, mark: Mark | 'arriving', transfer = false): NotesSuggestionVM {
   const shape = noteSuggestion(finding);
   return {
     index,
@@ -126,6 +131,7 @@ function suggestionVM(finding: NoteFinding, index: number, mark: Mark | 'arrivin
     quotes: finding.quotes,
     state: mark === 'arriving' ? 'arriving' : mark.state === 'conflict' ? 'conflict' : mark.state === 'saving' ? 'saving' : 'pending',
     now: mark !== 'arriving' && mark.state === 'conflict' ? mark.now : null,
+    ...(transfer ? { transfer: true as const } : {}),
   };
 }
 
@@ -279,6 +285,8 @@ interface Running {
 /** The Goose's suggestions in the rows, each written by its ✓. */
 interface Review {
   readonly status: 'review';
+  /** 2026-10-29: the facts of the fan's old account's questionnaire («Вставить сюда»), not the Goose's. */
+  readonly transfer?: true;
   readonly findings: readonly NoteFinding[];
   readonly marks: Mark[];
   readonly created: boolean;
@@ -306,6 +314,36 @@ interface NameState {
 }
 
 const NO_QUICK: Quick = { text: '', saving: false, blocked: false, problem: null };
+
+type Who = { readonly name: string | null; readonly handle: string | null } | null;
+
+/** «Перенести на новый аккаунт фана»: one chat's notes, copied in this tab for another chat of the same account. */
+interface Clip {
+  readonly accountId: string;
+  readonly fanId: string;
+  readonly from: Who;
+  /** The questionnaire's text; null — none (or one too long to move). */
+  readonly form: string | null;
+  /** The other notes, oldest first: FBuddy's and the cut ones stay where they are. */
+  readonly notes: readonly { readonly title: string; readonly text: string }[];
+}
+
+/** «Вставить сюда» in a chat: its notes written so far, and how it ended. */
+interface Move {
+  status: 'moving' | 'moved';
+  readonly from: Who;
+  readonly form: boolean;
+  readonly total: number;
+  written: number;
+  readonly skipped: number;
+  /** The questionnaire's facts it put in the rows. */
+  readonly found: number;
+  problem: NotesProblem | null;
+  blocked: boolean;
+}
+
+/** Two notes are the same note when their title and text are, trimmed. */
+const sameNoteKey = (note: { readonly title: string; readonly text: string }): string => `${note.title.trim()}\n${note.text.trim()}`;
 
 const toFailure = (error: unknown): Failure => ({ ok: false, error: { code: 'CG-FAN-REQUEST', ...(error instanceof Error ? { detail: error.name } : {}) } });
 
@@ -362,6 +400,9 @@ export function createNotesController(port: NotesPort): NotesController {
   const unplaced = new Map<string, readonly string[]>();
   const nameDrafts = new Map<string, { value: string; readonly current: CustomName | null }>();
   const nameStates = new Map<string, NameState>();
+  /** The notes «Перенести на новый аккаунт фана» copied (one chat's at a time), and «Вставить сюда» by fan. */
+  let clip: Clip | null = null;
+  const moves = new Map<string, Move>();
   let view: NotesView = 'drawer';
   /** The person wants the panel (for «Всегда справа»: unless closed). */
   let wanted = false;
@@ -407,6 +448,8 @@ export function createNotesController(port: NotesPort): NotesController {
       unplaced.clear();
       nameDrafts.clear();
       nameStates.clear();
+      clip = null;
+      moves.clear();
       confirm = null;
       deleting = null;
       deleteError = null;
@@ -426,7 +469,8 @@ export function createNotesController(port: NotesPort): NotesController {
       quicks.get(fanId)?.saving === true ||
       (fill?.status === 'review' && (fill.writing || fill.undo?.undoing === true)) ||
       deleting?.fanId === fanId ||
-      nameStates.get(fanId)?.status === 'saving'
+      nameStates.get(fanId)?.status === 'saving' ||
+      moves.get(fanId)?.status === 'moving'
     );
   };
   /** Something typed or found for this fan is not written yet: a moment without the chat never hides the panel. */
@@ -482,7 +526,7 @@ export function createNotesController(port: NotesPort): NotesController {
     const suggested = new Map<string, { readonly label: string; readonly vm: NotesSuggestionVM }>();
     review?.findings.forEach((finding, index) => {
       const mark = review.marks[index];
-      if (mark !== undefined && isOpen(mark)) suggested.set(noteLabelKey(finding.label), { label: finding.label, vm: suggestionVM(finding, index, mark) });
+      if (mark !== undefined && isOpen(mark)) suggested.set(noteLabelKey(finding.label), { label: finding.label, vm: suggestionVM(finding, index, mark, review.transfer === true) });
     });
     running?.live.forEach((finding, index) => suggested.set(noteLabelKey(finding.label), { label: finding.label, vm: suggestionVM(finding, index, 'arriving') }));
     const suggestedKeys = new Set(suggested.keys());
@@ -528,13 +572,14 @@ export function createNotesController(port: NotesPort): NotesController {
             pending: count('pending') + count('conflict'),
             written: count('written'),
             dismissed: count('dismissed'),
-            unfound: review === null ? [] : blank.filter((label) => !review.findings.some((finding) => noteLabelKey(finding.label) === noteLabelKey(label))),
+            unfound: review === null || review.transfer === true ? [] : blank.filter((label) => !review.findings.some((finding) => noteLabelKey(finding.label) === noteLabelKey(label))),
             created: review?.created ?? false,
             saving: review?.writing ?? false,
             blocked: review?.blocked ?? false,
             problem: review?.problem ?? null,
             undo: review?.undo === null || review?.undo === undefined ? null : { labels: review.undo.labels, undoing: review.undo.undoing },
             undoFailed: review?.undoFailed ?? false,
+            ...(review?.transfer === true ? { transfer: true as const } : {}),
           };
     return {
       noteId: note?.noteId ?? null,
@@ -567,6 +612,47 @@ export function createNotesController(port: NotesPort): NotesController {
       }));
   }
 
+  /** Why «Вставить сюда» cannot start now: something of this fan open or in flight, or the Goose's suggestions wait. */
+  function transferReason(fanId: string, form: NoteData | null): NotesTransferVM['reason'] {
+    const fill = fills.get(fanId);
+    if (fill?.status === 'running' || waits(fill)) return 'fill';
+    return fillReason(fanId, form) ?? (drafts.has(fanId) ? 'editing' : null);
+  }
+
+  /** What this chat shows of a copy: its own notes copied, another chat's offered, or «Вставить сюда» under way or done. */
+  function transferVM(fanId: string, accountId: string | null, form: NoteData | null): NotesTransferVM | null {
+    const move = moves.get(fanId);
+    const base = { written: 0, skipped: 0, suggested: 0, reason: null, problem: null, blocked: false } as const;
+    if (clip !== null && clip.fanId === fanId && clip.accountId === accountId) return { ...base, status: 'copied', from: clip.from, form: clip.form !== null, notes: clip.notes.length };
+    if (move?.status === 'moving' || (move !== undefined && (clip === null || clip.accountId !== accountId))) {
+      // The questionnaire's facts still waiting in the rows: none once each was written or put aside.
+      const fill = fills.get(fanId);
+      const suggested = fill?.status === 'review' && fill.transfer === true ? fill.marks.filter(isOpen).length : 0;
+      // Only its questionnaire moved, and every fact of it was written or put aside: the fill's own line says the rest.
+      if (move.status === 'moved' && move.problem === null && move.written === 0 && move.found > 0 && suggested === 0) return null;
+      return { status: move.status, from: move.from, form: move.form, notes: move.total, written: move.written, skipped: move.skipped, suggested, reason: null, problem: move.problem, blocked: move.blocked };
+    }
+    if (clip === null || clip.accountId !== accountId) return null;
+    return { ...base, status: 'offer', from: clip.from, form: clip.form !== null, notes: clip.notes.length, reason: transferReason(fanId, form), problem: move?.problem ?? null, blocked: move?.blocked ?? false };
+  }
+
+  /** What «Перенести на новый аккаунт фана» would copy of this fan: the questionnaire and the notes ours may write. */
+  function copyOf(data: Data): { readonly form: string | null; readonly notes: readonly NoteData[] } {
+    const form = formNote(data);
+    const at = (note: NoteData): number => note.createdAtMs ?? -1;
+    const notes = data.notes
+      .filter((note) => note !== form && !note.foreign && note.cut !== true && (note.title.trim() !== '' || note.text.trim() !== ''))
+      .map((note, index) => ({ note, index }))
+      .sort((a, b) => at(a.note) - at(b.note) || a.index - b.index)
+      .map(({ note }) => note);
+    return { form: form === null || form.cut === true ? null : form.text, notes };
+  }
+
+  const hasCopy = (data: Data): boolean => {
+    const copy = copyOf(data);
+    return copy.form !== null || copy.notes.length > 0;
+  };
+
   function build(): void {
     const t = port.target();
     const shown = visible();
@@ -598,6 +684,8 @@ export function createNotesController(port: NotesPort): NotesController {
       deleting: deleting !== null && deleting.fanId === fanId ? deleting.noteId : null,
       deleteError: deleteError !== null && deleteError.fanId === fanId ? deleteError.error : null,
       writing: fanId !== null && writing(fanId),
+      transfer: fanId === null ? null : transferVM(fanId, t?.accountId ?? null, form),
+      copyable: data !== null && (clip === null || clip.fanId !== data.fanRef) && hasCopy(data),
     };
     triggerVM = { shown: t !== null, count: data === null ? null : data.notes.length, open: shown };
     shape = JSON.stringify([shown, panelVM.place, narrow, triggerVM.shown]);
@@ -669,6 +757,12 @@ export function createNotesController(port: NotesPort): NotesController {
     if (fill?.status === 'review' && !fill.writing) {
       fill.blocked = false;
       if (fill.problem?.kind === 'failed' || fill.problem?.kind === 'changed' || fill.problem?.kind === 'deleted') fill.problem = null;
+    }
+    const move = moves.get(fanId);
+    if (move !== undefined && move.status === 'moved' && move.blocked) {
+      // Read again: «Вставить сюда» may go once more, and skips what landed.
+      move.blocked = false;
+      move.problem = null;
     }
     if (nameStates.get(fanId)?.status === 'unconfirmed') nameStates.delete(fanId);
     const typed = nameDrafts.get(fanId);
@@ -753,6 +847,7 @@ export function createNotesController(port: NotesPort): NotesController {
   function forget(): void {
     fresh.clear();
     unplaced.clear();
+    for (const [fanId, move] of moves) if (move.status === 'moved' && move.problem === null) moves.delete(fanId);
     for (const [fanId, fill] of fills) {
       if (fill.status !== 'review') continue;
       if (fill.undo !== null && !fill.undo.undoing) {
@@ -1221,7 +1316,7 @@ export function createNotesController(port: NotesPort): NotesController {
     fill.problem = null;
     emit();
     const under = epoch;
-    const answer = await writeForm(data, to, note, applied.text, noteWriteHow('fill', going.map((index) => fill.findings[index]?.label ?? '')));
+    const answer = await writeForm(data, to, note, applied.text, noteWriteHow(fill.transfer === true ? 'transfer' : 'fill', going.map((index) => fill.findings[index]?.label ?? '')));
     if (disposed || under !== epoch || fills.get(fanId) !== fill) return;
     fill.writing = false;
     if (answer.ok) {
@@ -1300,6 +1395,77 @@ export function createNotesController(port: NotesPort): NotesController {
       fresh.set(fanId, new Set([...(fresh.get(fanId) ?? [])].filter((key) => !back.has(key))));
     } else fill.undoFailed = true;
     settle(fanId, fill);
+  }
+
+  /** «Перенести на новый аккаунт фана»: this chat's questionnaire and notes, kept in the tab for another chat. */
+  function copyNotes(): void {
+    const data = current();
+    const t = port.target();
+    if (data === null || t === null || t.fanId !== data.fanRef) return;
+    const copy = copyOf(data);
+    if (copy.form === null && copy.notes.length === 0) return;
+    clip = { accountId: t.accountId, fanId: data.fanRef, from: t.fan, form: copy.form, notes: copy.notes.map((note) => ({ title: note.title, text: note.text })) };
+    moves.delete(data.fanRef);
+    emit();
+  }
+
+  /**
+   * «Вставить сюда»: the copied questionnaire's facts in this one's rows (each written by its ✓), and the copied notes
+   * created here one by one, oldest first, skipping one already here. A create that failed may have landed: the rest
+   * wait, and «Вставить сюда» waits for «Обновить» (a second press then skips what landed).
+   */
+  async function pasteNotes(): Promise<void> {
+    const data = current();
+    const to = data === null ? null : who(data);
+    const from = clip;
+    if (data === null || to === null || from === null || from.fanId === data.fanRef || from.accountId !== to.accountId) return;
+    const fanId = data.fanRef;
+    const form = formNote(data);
+    const was = moves.get(fanId);
+    if (was?.status === 'moving' || was?.blocked === true || transferReason(fanId, form) !== null) return;
+    const handle = from.from?.handle ?? null;
+    const name = handle === null ? (from.from?.name ?? null) : `@${handle}`;
+    const mark = name === null ? null : noteTransferMark(name);
+    const findings = from.form === null || form?.cut === true ? [] : transferFindings(form?.text ?? NOTE_TEMPLATE_TEXT, from.form, mark);
+    if (findings.length > 0) {
+      const before = fills.get(fanId);
+      if (before?.status === 'review' && before.undo !== null) port.clearTimer(before.undo.timer);
+      fills.set(fanId, { status: 'review', transfer: true, findings, marks: findings.map(() => ({ state: 'pending' })), created: form === null, queue: [], force: new Map(), writing: false, blocked: false, problem: null, undo: null, undoFailed: false });
+      fresh.delete(fanId);
+      unplaced.delete(fanId);
+    }
+    const here = new Set(data.notes.map(sameNoteKey));
+    const going = from.notes.filter((note) => !here.has(sameNoteKey(note)));
+    const move: Move = { status: 'moving', from: from.from, form: from.form !== null, total: going.length, written: 0, skipped: from.notes.length - going.length, found: findings.length, problem: null, blocked: false };
+    moves.set(fanId, move);
+    confirm = null;
+    emit();
+    const under = epoch;
+    for (const note of going) {
+      const answer = await port.create(to, note.title, note.text, noteWriteHow('transfer')).catch(toFailure);
+      if (disposed || under !== epoch || moves.get(fanId) !== move) return;
+      if (!answer.ok) {
+        move.problem = { kind: 'failed', error: answer.error, created: true };
+        move.blocked = true;
+        break;
+      }
+      saved(fanId, answer.note);
+      move.written += 1;
+      emit();
+    }
+    move.status = 'moved';
+    // Moved: the copy is done with. A failure keeps it for the next «Вставить сюда».
+    if (move.problem === null && clip === from) clip = null;
+    emit();
+  }
+
+  /** The done line's × puts it away; «Отменить» of a copy and «Не переносить» drop the copy (and a failed move here). */
+  function dropTransfer(fanId: string | null): void {
+    const move = fanId === null ? undefined : moves.get(fanId);
+    if (fanId === null || move?.status === 'moving') return;
+    if (transferVM(fanId, port.target()?.accountId ?? null, null)?.status !== 'moved') clip = null;
+    moves.delete(fanId);
+    emit();
   }
 
   function dispatch(action: NotesAction): void {
@@ -1445,6 +1611,13 @@ export function createNotesController(port: NotesPort): NotesController {
         nameDrafts.delete(data.fanRef);
         nameStates.delete(data.fanRef);
         return emit();
+      case 'transfer-copy':
+        return copyNotes();
+      case 'transfer-paste':
+        void pasteNotes();
+        return;
+      case 'transfer-drop':
+        return dropTransfer(fanId);
     }
   }
 
@@ -1486,6 +1659,8 @@ export function createNotesController(port: NotesPort): NotesController {
       fields.clear();
       quicks.clear();
       fills.clear();
+      moves.clear();
+      clip = null;
     },
   };
 }

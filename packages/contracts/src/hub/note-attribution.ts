@@ -34,9 +34,10 @@ export type NoteAttributionAction = (typeof NOTE_ATTRIBUTION_ACTIONS)[number];
  * Where in the panel the write came from: `quick` — the quick-note box; `editor` — the text editor's save (a new
  * draft, an edit, «Править текстом» of the questionnaire); `field` — a questionnaire field's Enter; `fill` — a Goose
  * suggestion taken (✓, «Заменить», «Принять все»); `undo` — the fill's «Отменить»; `list` — a delete from the list;
- * `name` — the custom-name field.
+ * `name` — the custom-name field; `transfer` (2026-10-29) — the notes of the fan's old account moved here: «Вставить
+ * сюда» and the ✓ of its questionnaire's facts (a hub that does not know it yet stores null).
  */
-export const NOTE_ATTRIBUTION_ORIGINS = ['quick', 'editor', 'field', 'fill', 'undo', 'list', 'name'] as const;
+export const NOTE_ATTRIBUTION_ORIGINS = ['quick', 'editor', 'field', 'fill', 'undo', 'list', 'name', 'transfer'] as const;
 export type NoteAttributionOrigin = (typeof NOTE_ATTRIBUTION_ORIGINS)[number];
 
 /**
