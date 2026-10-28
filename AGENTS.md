@@ -75,7 +75,9 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
   retried by itself (a lost answer stays `uncertain` until «Проверить» re-sends the same id). «Прикрепить» only puts the MP3
   into the field (ChatSpace: one drop on the composer frame from MAIN; Fansly: its file input and its own upload window).
   On the stand the fake hub renders; on the live site — only the owner's test chat.
-  Toward OnlyMonster — reads only (the page's own session, `host-chatspace/src/main/om-api.ts`), no writes of our own.
+  Toward OnlyMonster — reads only (the page's own session, `host-chatspace/src/main/om-api.ts`), no writes of our own,
+  but one (the owner, 2026-10-28): «Заметки» create, edit and delete OnlyMonster's fan notes, only on the chatter's click
+  and only for the fan of the chat open on the route; never by themselves, never retried when the outcome is unknown.
 - **Another chat's history — only for the read mark** (`chatReadState`): a fan's preview reads it only after a live
   chat-list search says our message is the chat's last with nothing unread, so nothing new is marked read. A fan
   message that lands between the two reads gets marked read: it is shown to the chatter, never hidden. No other

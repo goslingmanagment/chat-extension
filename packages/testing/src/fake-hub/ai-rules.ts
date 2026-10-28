@@ -220,7 +220,7 @@ export interface BodySchemaLike {
 // ── the narrow token's AI switch (hub client-ai-switch.ts) ─────────────────
 
 /** The AI features behind a flag of their own on every platform. */
-const AI_FEATURE_FLAGS: Readonly<Record<string, string>> = { 'coach-chat': 'coach', 'fan-summary': 'recap', 'chat-review': 'review' };
+const AI_FEATURE_FLAGS: Readonly<Record<string, string>> = { 'coach-chat': 'coach', 'fan-summary': 'recap', 'chat-review': 'review', 'fan-notes-fill': 'notesFill' };
 /** The AI features behind a flag of their own only where that flag exists (Fansly, R20 HF-12); elsewhere the master switch and the version. */
 const AI_PLATFORM_FEATURE_FLAGS: Readonly<Record<string, string>> = {
   'fast-reply': 'drafts',
@@ -228,7 +228,6 @@ const AI_PLATFORM_FEATURE_FLAGS: Readonly<Record<string, string>> = {
   'hi-greeting': 'drafts',
   ping: 'drafts',
   'voice-script': 'voice',
-  'fan-notes-fill': 'notesFill',
 };
 /** The narrow token's AI features with no flag of their own, by the platforms the extension has them on (Help: OnlyFans only, R20 HF-2). */
 const AI_UNFLAGGED_FEATURE_PLATFORMS: Readonly<Record<string, readonly string[]>> = { 'help-me': ['onlyfans'] };
