@@ -374,7 +374,7 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         const batch = payload as FanslyTabRequestPayload<'fansly.sound.batch'>;
         // Our own messages of the batch may be the echoes of greeting receipts (§8.6).
         greetings?.echo(batch.events.flatMap((event) => (event.kind === 'message' ? [event] : [])));
-        // 2026-10-25: a follow starts the greeting reminder's ten minutes; a fan's message ends them.
+        // 2026-10-25: a follow starts the greeting reminder's minutes (3, 10 and 15 since 2026-10-29); a fan's message ends them.
         reminder?.heard(batch);
         await kit.sound?.batch(tab, batch);
         return ok({ recorded: kit.sound !== undefined });

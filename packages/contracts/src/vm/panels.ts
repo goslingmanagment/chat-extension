@@ -380,6 +380,8 @@ export interface ToastVM {
     readonly since: string | null;
     /** 1.62.0: the fan's model, when the toast stands in a tab of another model: «Ждёт приветствия · {модель}». */
     readonly page?: string | null;
+    /** 1.67.0: the last of the fan's three reminders (fifteen minutes on) — the card is red. */
+    readonly urgent?: boolean;
   };
 }
 
