@@ -58,6 +58,7 @@ ${/* A medium as a picture: its thumbnail, or its kind in words on the photo's o
 }
 .cg-ow__len .cg-ico { width: 10px; height: 10px; fill: #fff; stroke: none; }
 .cg-ow__thumb.is-md .cg-ow__len { left: 3px; bottom: 3px; height: 15px; padding: 0 3px; line-height: 15px; }
+.cg-ow__thumb.is-md .cg-ow__len .cg-ico { display: none; }
 .cg-ow__lock {
   position: absolute; right: 4px; top: 4px; z-index: 1; display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 5px; border-radius: 9px;
   background: rgb(0 0 0 / .6); color: #fff; font-size: var(--cg-text-2xs); font-weight: 600;
@@ -132,7 +133,7 @@ ${/* The offer on the right: the common text and the media every fan gets. */ ''
 .cg-ow .cg-ow__text.cg-field { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: var(--cg-r-lg); font-size: var(--cg-text-lg); line-height: 21px; color: var(--cg-ink-strong); }
 .cg-ow__hint { font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-ink-muted); }
 .cg-ow__bad { font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-danger); }
-.cg-ow__tiles { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+.cg-ow__tiles { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; }
 .cg-ow__tile { display: flex; flex-direction: column; gap: 6px; }
 .cg-ow__tcap { max-width: 120px; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-2); }
 .cg-ow__tcap b { display: block; font-weight: 500; color: var(--cg-ink-strong); }

@@ -35,7 +35,7 @@
 //           status spinner in its place
 //   ≤ 420   no head meta; Insert under the text
 //   < 360   «Ещё раз» is ↻; the buttons of a Recap head take a second
-//           line; «Ещё» is ⋯
+//           line; «Ещё» is ⋯ and holds Voice too,
 //           and the chips closer still (a 320 px column, §6.5)
 //
 // No goose in the bar (decision X31): its cell is the room that keeps every
@@ -171,7 +171,8 @@ ${/* Side by side the variants read as one row of cards: each column's last card
   .cg-hi .cg-vhead { padding: 0 11px; }
   .cg-hi .cg-part { grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: 1fr; padding: 8px 10px 8px 0; }
   .cg-hi .cg-part.is-solo { grid-template-columns: 10px minmax(0, 1fr); }
-  .cg-hi .cg-part__t { font-size: var(--cg-text-lg); line-height: 20px; }
+  .cg-hi .cg-part__t, .cg-hi .cg-part__n { line-height: 20px; }
+  .cg-hi .cg-part__t { font-size: var(--cg-text-lg); }
   .cg-hi .cg-part__a { grid-column: 2; flex-wrap: wrap; row-gap: 4px; margin: 8px 0 0; }
   .cg-hi .cg-part__copy { order: 1; margin-left: auto; }
   .cg-hi .cg-part.is-done .cg-part__a, .cg-hi .cg-part.is-done.is-kept .cg-part__a { margin: 8px 0 0; }
@@ -302,6 +303,8 @@ ${STALE_ROW_NARROW_CSS}
   .cg-tones__seam { margin: 0 2px; }
   .cg-more .cg-act__t { ${VISUALLY_HIDDEN} }
   .cg-more::before { content: "⋯"; }
+  ${/* Voice's 🎙 goes into «Ещё» too: with it the row ran «⋯» 10 px out of a 320 px dock. */ ''}
+  .cg-strip .cg-slot--voice { display: none; }
   ${/* Recap: a segment and up to four buttons. They do not fit one line here, and nothing may run out of the dock. */ ''}
   .cg-head--tools { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 3px; }
   .cg-head--tools > .cg-head__sp { display: none; }

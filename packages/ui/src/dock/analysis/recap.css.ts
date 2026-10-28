@@ -30,9 +30,10 @@ ${/* ── the rail ── */ ''}
 .cg-rx-handle { margin-top: 4px; font-size: 12px; line-height: 16px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .cg-rx-seg { position: relative; display: grid; grid-template-columns: 1fr 1fr; margin: 18px 0 16px; padding: 3px; border-radius: 10px; background: var(--cg-groove); }
+${/* The kit's reset gives a button the root's left alignment: the label centers itself under the thumb. */ ''}
 .cg-rx-seg__b {
   position: relative; z-index: 1; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; cursor: pointer;
-  color: var(--cg-ink-muted); font: inherit; font-size: 13px; line-height: 30px; font-weight: 600; transition: color 160ms;
+  color: var(--cg-ink-muted); font: inherit; font-size: 13px; line-height: 30px; font-weight: 600; text-align: center; transition: color 160ms;
 }
 .cg-rx-seg__b:hover { color: var(--cg-ink-2); }
 .cg-rx-seg__b[aria-checked="true"] { color: var(--cg-ink-strong); }
@@ -107,7 +108,8 @@ ${/* The card that asks for attention: the chat went on after the Recap. */ ''}
 .cg-rx-fact > span { text-wrap: balance; }
 .cg-rx-facts > .cg-fact { display: flex; gap: 9px; }
 .cg-rx-facts > .cg-fact__btn { justify-self: start; }
-.cg-rx-facts .cg-rx-link { justify-self: start; height: 26px; margin: 2px 0 0 -6px; padding: 0 8px; color: var(--cg-clay-ink); font-size: 12.5px; font-weight: 600; }
+${/* «Обновить» under the facts: its icon in their icons' column, its word in their words' (15 px + 9 px). */ ''}
+.cg-rx-facts .cg-rx-link { justify-self: start; gap: 10px; height: 26px; margin: 2px 0 0 -8px; padding: 0 8px; color: var(--cg-clay-ink); font-size: 12.5px; font-weight: 600; }
 .cg-rx-facts .cg-rx-link:hover { background: var(--cg-clay-bg); color: var(--cg-clay-ink); }
 .cg-rx-facts .cg-rx-link kbd { display: none; }
 .cg-rx-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; padding: 12px 2px 0; border-top: 1px solid var(--cg-rule-2); font-size: 11.5px; line-height: 18px; color: var(--cg-ink-muted); }
@@ -284,7 +286,7 @@ ${/* ── buttons of our own voice ── */ ''}
 ${/* ── no Recap of this length yet: the choice ── */ ''}
 .cg-rx-empty { max-width: 860px; margin: auto 0; padding: 24px 44px 96px 64px; }
 .cg-rx-empty__h { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; color: var(--cg-ink-strong); }
-.cg-rx-empty__lead { max-width: 560px; margin: 10px 0 28px; font-family: var(--cg-serif); font-size: 17px; line-height: 1.55; color: var(--cg-ink-2); }
+.cg-rx-empty__lead { max-width: 560px; margin: 10px 0 28px; font-family: var(--cg-serif); font-size: 17px; line-height: 1.55; color: var(--cg-ink-2); text-wrap: balance; }
 .cg-rx-empty__note { display: flex; align-items: center; gap: 8px; margin: -12px 0 18px; font-size: 13px; color: var(--cg-ink-2); }
 .cg-rx-empty__explain { max-width: 640px; margin: 20px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--cg-ink-muted); }
 .cg-rx-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 760px; border-radius: 16px; outline: none; }

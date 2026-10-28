@@ -112,7 +112,7 @@ function Elsewhere({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null 
   const dispatch = useDispatch();
   const rest = vm.elsewhere;
   if (rest === null) return null;
-  const parts = [rest.done > 0 ? i18n.t('online.elsewhere.done', { n: rest.done }) : null, rest.other > 0 ? i18n.t('online.elsewhere.other', { n: rest.other }) : null].filter((part): part is string => part !== null);
+  const parts = [rest.done > 0 ? i18n.plural('online.elsewhere.done', rest.done) : null, rest.other > 0 ? i18n.t('online.elsewhere.other', { n: rest.other }) : null].filter((part): part is string => part !== null);
   return (
     <div class="ol-empty">
       <button type="button" class="cg-ow__link" onClick={() => void dispatch({ type: 'SetOnline', tab: 'all' })}>

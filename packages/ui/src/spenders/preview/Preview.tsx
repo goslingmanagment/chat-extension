@@ -376,7 +376,7 @@ export const PREVIEW_BASE_CSS = `
 .cg-pv__draftBox { position: relative; min-width: 0; }
 .cg-pv__draft.has-send { display: flex; align-items: flex-end; gap: 8px; }
 .cg-pv__draft.has-send > .cg-pv__draftBox { flex: 1 1 auto; }
-.cg-pv__draftSend { flex: none; }
+.cg-pv__draftSend { flex: none; margin-bottom: 5px; }
 .cg-pv__idle { padding: 10px 12px 12px calc(var(--cg-gutter) - 1px); border-top: 1px solid var(--cg-rule); color: var(--cg-ink-muted); }
 .cg-pv__state { flex: 1; min-height: 0; overflow-y: auto; }
 .cg-pv .cg-card { border-top: 1px solid var(--cg-rule); }

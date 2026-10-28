@@ -25,6 +25,9 @@ ${/* A site's inherited styles stop at our host. The face is the family's on eve
   -webkit-text-size-adjust: 100%; overflow-wrap: break-word;
 }
 .cg-root--page { font-family: var(--cg-font-page); background: var(--cg-surface); }
+${/* In a site's own row of text (Fansly's chat header): as tall as our row and centred in the site's row as the site's
+   own items are, never set on the baseline of the root's taller line (that put our words 1–2 px below the site's). */ ''}
+.cg-root[data-cg-surface='header-slot'] { display: flex; align-items: center; }
 .cg-root *, .cg-root *::before, .cg-root *::after { box-sizing: border-box; }
 .cg-root :where(p, h1, h2, h3, h4, h5, h6, ul, ol, figure, blockquote, pre) { margin: 0; }
 .cg-root :where(button) {

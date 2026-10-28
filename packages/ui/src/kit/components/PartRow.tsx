@@ -248,7 +248,8 @@ export const PART_CSS = `
 .cg-part__card, .cg-part__extra { cursor: auto; }
 .cg-part.is-click:hover, .cg-part:focus-within, .cg-part.is-confirm { background: var(--cg-draft-hover); border-color: var(--cg-clay-ink); }
 .cg-part:focus-visible { border-radius: 9px; }
-.cg-part__n { text-align: center; font-family: var(--cg-mono); font-size: var(--cg-text-xs); line-height: 21px; font-weight: 600; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
+${/* The number's line is the AI text's own: at «Крупнее» (24 px lines) a 21 px one held it 3 px above the text's baseline. */ ''}
+.cg-part__n { text-align: center; font-family: var(--cg-mono); font-size: var(--cg-text-xs); line-height: var(--cg-leading-ai); font-weight: 600; color: var(--cg-ink-muted); font-variant-numeric: tabular-nums; }
 .cg-part.is-next .cg-part__n { color: var(--cg-clay-ink); }
 .cg-part__t { font-family: var(--cg-serif); font-size: var(--cg-text-ai); line-height: var(--cg-leading-ai); color: var(--cg-ink); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
 .cg-part__a { display: flex; align-items: center; gap: 4px; margin: -3px 0 -3px 10px; }

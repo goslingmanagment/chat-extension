@@ -251,7 +251,7 @@ const CAPSULE_CSS = `.cg-tones { display: inline-flex; align-items: center; flex
 .cg-tones .cg-opt { height: 22px; border-radius: var(--cg-r-pill); background: none; box-shadow: none; }
 .cg-tones .cg-tone { width: 26px; padding: 0; font-size: 14px; line-height: 1; filter: grayscale(0.35); opacity: 0.8; }
 .cg-tone .cg-act__t { ${VISUALLY_HIDDEN} }
-.cg-tones .cg-tone:hover { filter: none; opacity: 1; }
+.cg-tones .cg-tone:hover, .cg-tones .cg-tone:focus-visible { filter: none; opacity: 1; }
 .cg-tones .cg-tone[aria-pressed="true"] { background: var(--cg-raised); box-shadow: inset 0 0 0 1px var(--cg-clay-line), 0 1px 2px rgb(0 0 0 / 0.12); filter: none; opacity: 1; }
 .cg-tones .cg-tone[aria-disabled="true"] { filter: grayscale(1); opacity: 0.3; }
 .cg-tones .cg-tone[aria-disabled="true"][aria-pressed="true"] { filter: none; opacity: 0.85; }

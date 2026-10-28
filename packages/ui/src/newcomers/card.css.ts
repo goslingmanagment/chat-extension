@@ -1,7 +1,7 @@
 // The look of the «Новые» card on every site (X59, X60; ui-design §3.12): the old Fansly extension's card in the
 // family's tokens — the profile, the way into the chat at the top right, the site's notes, the conversation in the
 // preview's own bubbles (the feed every site's previews wear), the verdict, the draft in the serif of AI text, «AI»,
-// and «Отправить →». Blue only on what reaches a fan.
+// and «Отправить →». Blue only on what reaches a fan. «Медиа» beside «Отправить →» takes the button's height.
 // Every size is a token, so «Крупнее» scales the window.
 // A note here is a JS comment: a CSS one would ship in the window's chunk, prose for nobody.
 
@@ -61,6 +61,7 @@ a.cg-nc__open:focus-visible { outline: 2px solid var(--cg-focus); outline-offset
 }
 .cg-nc__gbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .cg-nc__gbar .cg-pvb__slot { display: inline-flex; flex: none; }
+.cg-nc__gbar .cg-pvm__toggle { height: 26px; }
 .cg-nc__gnote { font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-ink-muted); }
 .cg-nc__gnote.is-strong { color: var(--cg-ink-strong); font-weight: 500; }
 .cg-nc__greet .cg-stale { margin: 0; }

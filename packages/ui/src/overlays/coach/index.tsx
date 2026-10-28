@@ -353,7 +353,7 @@ function RecapLine({ vm }: { readonly vm: CoachVM }): JSX.Element {
       )}
       <details>
         <summary>
-          <span>· {said}</span>
+          <span>{said}</span>
           {vm.autoRecapNext === null ? null : <span class="cg-co__recap-ahead">{i18n.t('coach.recap.aheadRefresh')}</span>}
           <Icon name="chevronDown" size={14} class="cg-co__recap-chev" />
         </summary>
@@ -953,6 +953,8 @@ ${/* ── topbar: the Recap Coach stands on at the left with its one button; t
 .cg-co__recap details { min-width: 0; }
 .cg-co__recap summary { display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; font-weight: 500; color: var(--cg-ink-2); white-space: nowrap; }
 .cg-co__recap summary::-webkit-details-marker { display: none; }
+${/* «· 3 д назад»: the dot parts it from the tick and stays out of the dotted line under the age. */ ''}
+.cg-co__recap summary::before { content: "·"; }
 .cg-co__recap summary > span:first-of-type { text-decoration: underline dotted; text-decoration-color: var(--cg-ink-faint); text-underline-offset: 3px; }
 .cg-co__recap .cg-co__recap-chev { color: var(--cg-ink-2); transition: rotate 120ms var(--cg-ease); }
 .cg-co__recap details[open] .cg-co__recap-chev { rotate: 180deg; }
@@ -1026,14 +1028,16 @@ ${/* ── the empty dialog: in the middle of the feed, the ready questions und
 .cg-co__groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; margin-top: 6px; }
 .cg-co__group { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; }
 .cg-co__hint { height: auto; min-height: 28px; padding-top: 5px; padding-bottom: 5px; justify-content: flex-start; text-align: left; white-space: normal; }
-.cg-co__hint .cg-btn__t { white-space: normal; font-weight: 400; }
+${/* A question that wraps splits into even lines, never one word left alone on the second. */ ''}
+.cg-co__hint .cg-btn__t { white-space: normal; font-weight: 400; text-wrap: balance; }
 
 ${/* ── the composer, pinned under the feed: the field, then «Приложить мой ответ» at the left and the buttons at the right ── */ ''}
 .cg-co__ask { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--cg-rule); }
 .cg-co__acts { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.cg-co__attach { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-left: -7px; }
+${/* The tick (26 px) on the middle line of the 32 px buttons at the right; its line under it starts where its label does (7 + 12 + 5 px). */ ''}
+.cg-co__attach { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 3px 0 0 -7px; }
 .cg-co__attach .cg-check { font-size: var(--cg-text-sm); font-weight: 400; }
-.cg-co__help { padding-left: 29px; font-size: var(--cg-text-xs); line-height: 15px; color: var(--cg-ink-muted); }
+.cg-co__help { padding-left: 24px; font-size: var(--cg-text-xs); line-height: 15px; color: var(--cg-ink-muted); text-wrap: balance; }
 .cg-co__help::first-letter { text-transform: uppercase; }
 .cg-co__send { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: none; }
 .cg-co__keys { margin-right: 4px; font-size: var(--cg-text-xs); color: var(--cg-ink-muted); white-space: nowrap; }
@@ -1050,6 +1054,8 @@ ${/* ── how much of the chat a question reads (2026-10-27): the chip by «С
 .cg-co__depth-detail { font-weight: 400; color: var(--cg-ink-muted); white-space: nowrap; }
 .cg-co__depth.is-open, .cg-co__depth.is-open:hover { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); }
 .cg-co__depth.is-open .cg-btn__t, .cg-co__depth.is-open .cg-ico, .cg-co__depth.is-open .cg-co__depth-detail { color: var(--cg-clay-ink); }
+${/* The menus of the depth and of «Собрать Recap ▾»: a line of an item that wraps keeps no word alone on its second line. */ ''}
+.cg-coach .cg-menu__d, .cg-coach .cg-menu__foot { text-wrap: balance; }
 
 ${/* ── «Coach хочет дочитать»: a terracotta card under the answer — it rises in, a ring goes out once, the lens reaches up ── */ ''}
 .cg-co__more {

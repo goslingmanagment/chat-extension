@@ -1120,7 +1120,7 @@ export const RU: I18nCatalog<'ru'> = {
   'online.card.byArchiveAt': 'текст по архиву на {time}',
   'online.card.staleTail': 'текст может уже не подходить, «Ещё раз» напишет новый',
   'online.elsewhere.lead': 'Ещё онлайн: {parts}. Они во вкладке «Все онлайн»',
-  'online.elsewhere.done': '{n} разобраны',
+  'online.elsewhere.done': { one: '{n} разобран', few: '{n} разобраны', many: '{n} разобраны', other: '{n} разобраны' },
   'online.elsewhere.other': '{n} без повода или «не предлагаем»',
   'online.empty.onlyfans': 'Хаб пока не видел онлайн ни одного фана этой страницы. О фанах OnlyFans он узнаёт от OnlyFansAPI, новые появятся сами.',
   'online.empty.fansly': 'Хаб пока не видел онлайн ни одного фана этой страницы. Fansly проверяем раз в минуту, пока открыта вкладка; новые появятся сами.',

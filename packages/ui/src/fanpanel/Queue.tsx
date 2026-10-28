@@ -195,7 +195,7 @@ export const QUEUE_CSS = `
 .cg-q__open:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 2px; }
 .cg-q__open:disabled { cursor: default; }
 .cg-q__name { font-weight: 600; color: var(--cg-ink-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cg-q__user { font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cg-q__user { flex: 1 1 0; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .cg-q__money { margin-left: auto; font-weight: 500; color: var(--cg-ink); white-space: nowrap; }
 .cg-q__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-q__talk { font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
@@ -204,5 +204,7 @@ export const QUEUE_CSS = `
 .cg-q__picked { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--cg-ink); }
 .cg-q__promise { padding: 6px 0; }
 .cg-q__promise + .cg-q__promise { border-top: 1px dashed var(--cg-rule); }
+.cg-q__promise .cg-q__meta { column-gap: 14px; }
+.cg-q__promise .cg-q__meta > .cg-btn { margin-left: -6px; }
 .cg-q__text { font-size: var(--cg-text-md); line-height: 20px; color: var(--cg-ink); overflow-wrap: anywhere; }
 `;

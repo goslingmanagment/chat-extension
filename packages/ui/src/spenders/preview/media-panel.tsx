@@ -343,7 +343,7 @@ const MEDIA_PANEL_CSS = `
   background: var(--cg-rule); box-shadow: inset 0 0 0 1px var(--cg-rule);
 }
 .cg-pvm__img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.cg-pvm__blank { display: flex; align-items: center; justify-content: center; height: 100%; font-size: var(--cg-text-2xs); color: var(--cg-ink-muted); }
+.cg-pvm__blank { display: flex; align-items: center; justify-content: center; height: 100%; padding: 0 4px; text-align: center; font-size: var(--cg-text-2xs); color: var(--cg-ink-muted); }
 .cg-pvm__cell.is-picked .cg-pvm__pick { box-shadow: 0 0 0 2px var(--cg-ink-strong); }
 .cg-pvm__cell.is-preview .cg-pvm__pick { box-shadow: 0 0 0 2px var(--cg-clay-ink); }
 /* The ring a click would draw: the ink's behind the price, the clay's for a free preview. */

@@ -91,6 +91,12 @@ export function visibleRange(offsets: Float64Array, scrollTop: number, viewport:
   return [start, end];
 }
 
+/** The scroller's own vertical padding (a list that keeps air above its first row and under its last), in px. */
+function paddingOf(node: HTMLElement): { readonly top: number; readonly bottom: number } {
+  const style = node.ownerDocument.defaultView?.getComputedStyle(node);
+  return { top: Number.parseFloat(style?.paddingTop ?? '') || 0, bottom: Number.parseFloat(style?.paddingBottom ?? '') || 0 };
+}
+
 export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   const scroller = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -139,8 +145,10 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   const scrollToIndex = (index: number, align: 'nearest' | 'start' | 'center' = 'nearest'): void => {
     const node = scroller.current;
     if (node === null || index < 0 || index >= count) return;
-    const top = (offsets[index] ?? 0) + headerHeight;
-    const bottom = (offsets[index + 1] ?? top) + headerHeight;
+    // The rows start under the scroller's own top padding; the first row brings it into view, the last the bottom one.
+    const pad = paddingOf(node);
+    const top = (offsets[index] ?? 0) + headerHeight + (index === 0 ? 0 : pad.top);
+    const bottom = (offsets[index + 1] ?? 0) + headerHeight + pad.top + (index === count - 1 ? pad.bottom : 0);
     const height = node.clientHeight > 0 ? node.clientHeight : viewport;
     // The row comes to rest under the header and under what sticks over it, never behind them.
     const over = headerHeight + stickyOver(index);
@@ -159,8 +167,9 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     const node = scroller.current;
     if (node === null || index < 0 || index >= count) return false;
     const height = node.clientHeight > 0 ? node.clientHeight : viewport;
-    const top = (offsets[index] ?? 0) + headerHeight;
-    const bottom = (offsets[index + 1] ?? 0) + headerHeight;
+    const pad = paddingOf(node).top;
+    const top = (offsets[index] ?? 0) + headerHeight + pad;
+    const bottom = (offsets[index + 1] ?? 0) + headerHeight + pad;
     return top - headerHeight - stickyOver(index) >= node.scrollTop && bottom <= node.scrollTop + height;
   };
 

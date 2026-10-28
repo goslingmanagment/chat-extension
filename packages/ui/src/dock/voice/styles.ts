@@ -97,6 +97,8 @@ ${/* ── the question, the handover, the footer ── */ ''}
 .cg-voice__confirm-a { display: inline-flex; gap: 4px; margin-left: auto; }
 .cg-voice__foot { display: grid; gap: 6px; padding: 7px 8px 8px 12px; border-top: 1px solid var(--cg-rule); }
 .cg-voice__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+${/* «Новый войс» leads the row as a quiet word: its label starts on the studio's text column, not a padding further in. */ ''}
+.cg-voice__acts > .cg-voice__restart:first-child { margin-left: -8px; }
 ${/* The buttons keep together at the row's end; a row too short for them takes them below, still at the end. */ ''}
 .cg-voice__btns { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 6px; margin-left: auto; min-width: 0; }
 .cg-voice__go:not([aria-disabled="true"]) { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-weight: 600; }

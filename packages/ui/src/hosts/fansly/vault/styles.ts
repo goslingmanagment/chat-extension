@@ -96,6 +96,6 @@ ${card} {
 .cg-vault__start:not([aria-disabled="true"]) { background: var(--cg-clay); box-shadow: inset 0 0 0 1px var(--cg-clay); color: #fff; }
 .cg-vault__start:not([aria-disabled="true"]):hover { background: color-mix(in srgb, var(--cg-clay) 86%, #000); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cg-clay) 86%, #000); color: #fff; }
 .cg-vault__spacer { flex: 1; }
-.cg-vault__foot-note { margin: 0; padding: 0 16px 10px; color: var(--cg-ink-faint); font-size: var(--cg-text-xs); line-height: 15px; }
+.cg-vault__foot-note { margin: 0; padding: 0 16px 10px; color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 15px; }
 @media (prefers-reduced-motion: reduce) { .cg-vault__entry, .cg-vault__bar { transition: none; } }
 `;
