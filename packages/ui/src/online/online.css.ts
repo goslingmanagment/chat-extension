@@ -88,7 +88,8 @@ ${MINI_STRIP_CSS}
 .ol-compose__box { position: relative; flex: 1 1 auto; min-width: 0; }
 .ol-compose__box .cg-field--area { min-height: 36px; padding-right: 60px; }
 .ol-compose__fix { position: absolute; right: 4px; bottom: 4px; display: inline-flex; }
-.ol-compose__send { flex: none; }
+${/* At the field's foot, centred on its one line (36 px around a 26 px button); a longer text keeps it at the foot. */ ''}
+.ol-compose__send { flex: none; margin-bottom: 5px; }
 .ol .ol-compose__row { min-height: 38px; }
 .ol .ol-compose__row > .cg-pvb { flex: none; padding: 0; margin-left: -7px; }
 

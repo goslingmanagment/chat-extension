@@ -178,6 +178,8 @@ export function PanelPreview({ fallback }: { readonly fallback: PreviewFallback 
 }
 
 // The feed and the work zone keep a readable measure in a wide panel: their padding grows past 920–960 px.
+// The composer's field keeps its placeholder on one line (its words, ~26em, and Fix inside; with «Отправить» beside
+// it, that button too): a row too narrow for the field and the strip puts the strip under it.
 export const PANEL_CSS = `
 .cg-pv.is-panel { height: 100%; overflow-y: auto; scrollbar-width: thin; overscroll-behavior: contain; }
 .cg-pv.is-panel .cg-pv__head { align-items: center; min-height: 46px; padding: 6px 8px 6px 20px; gap: 4px; }
@@ -192,7 +194,8 @@ export const PANEL_CSS = `
 .cg-pv.is-panel .cg-pv__work > * { margin-inline: max(0px, calc(50% - 480px)); }
 .cg-pv__arch.is-quiet { justify-content: center; gap: 4px; min-height: 26px; padding: 4px 12px 0; border-bottom: 0; }
 .cg-pv__compose { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px 10px 20px; min-width: 0; }
-.cg-pv__compose > .cg-pv__draft { flex: 1 1 320px; margin: 0; min-width: 0; position: relative; }
+.cg-pv__compose > .cg-pv__draft { flex: 1 1 calc(26em + 64px); margin: 0; min-width: 0; position: relative; }
+.cg-pv__compose > .cg-pv__draft.has-send { flex-basis: calc(31.5em + 92px); }
 .cg-pv__compose > .cg-pvb { flex: none; padding: 0; }
 .cg-pv__draft.has-fix .cg-field--area { padding-right: 64px; }
 .cg-pv__fix { position: absolute; right: 4px; bottom: 4px; display: inline-flex; }

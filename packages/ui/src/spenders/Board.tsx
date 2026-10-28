@@ -774,12 +774,12 @@ export function focusIsIdle(root: ShadowRoot | Document, box: HTMLElement | null
 }
 
 // The look (1.44.0, the owner's «Таблица»): one grid for the header and every row — the check box, «Фан» (the name
-// in strong ink, the @handle muted after it, cut first), the message, «Ждёт ответа» (terracotta: the board's only
-// colour), «Мы писали» (plain; the units in a column of their own), [«Тир»], «Потратил» (strong, semibold), the
-// period (muted), the action. Rows of 40 px on a hairline; hover — the sunk fill; the picked row — a 2 px bar at its
-// left edge and a neutral ring, running on into the preview unfolded under it (X66). The period's column gives way
-// first (a narrow list, or the statistics column open beside it), then the fan's column narrows; «Ждёт ответа» and
-// «Мы писали» never hide.
+// in strong ink, a fan's badge centred on its line, the @handle muted after it, cut first), the message, «Ждёт
+// ответа» (terracotta: the board's only colour), «Мы писали» (plain; the units in a column of their own), [«Тир»],
+// «Потратил» (strong, semibold), the period (muted), the action. Rows of 40 px on a hairline; hover — the sunk fill;
+// the picked row — a 2 px bar at its left edge and a neutral ring, running on into the preview unfolded under it
+// (X66). The period's column gives way first (a narrow list, or the statistics column open beside it), then the
+// fan's column narrows; «Ждёт ответа» and «Мы писали» never hide.
 export const BOARD_CSS = `
 .cg-bd { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .cg-bd__list { flex: 1; min-height: 0; min-width: 0; container: cg-board / inline-size; }
@@ -834,6 +834,7 @@ export const BOARD_CSS = `
 .cg-bd__who { display: flex; align-items: baseline; gap: 8px; }
 .cg-bd__name { flex: 0 0 auto; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--cg-ink-strong); font-weight: 500; }
 .cg-bd__handle { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); }
+.cg-bd__who > .cg-fbadge { align-self: center; }
 .cg-bd__last { font-size: var(--cg-text-sm2); color: var(--cg-ink); }
 .cg-bd__last.is-ours { color: var(--cg-ink-muted); }
 .cg-bd__last.is-none { color: var(--cg-bd-ghost); }

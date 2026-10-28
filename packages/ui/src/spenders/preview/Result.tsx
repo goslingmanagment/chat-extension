@@ -273,6 +273,7 @@ export function PreviewResult({ result, stoppedNote }: PreviewResultProps): JSX.
   );
 }
 
+// A part's number stands on the baseline of its text's first line, whatever the text size.
 export const RESULT_CSS = `
 .cg-pvr { border-top: 1px solid var(--cg-rule); }
 .cg-pvr__head {
@@ -298,7 +299,7 @@ export const RESULT_CSS = `
 .cg-pvr__vhead { display: flex; align-items: center; height: 22px; padding: 0 4px; font-size: var(--cg-text-sm); font-weight: 600; color: var(--cg-ink-2); }
 .cg-pvr__note { padding: 4px 6px; color: var(--cg-ink-2); }
 .cg-pvp {
-  display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: start; padding: 7px 8px 7px 0;
+  display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: baseline; padding: 7px 8px 7px 0;
   border: 1px dashed var(--cg-clay-line); border-radius: 9px; background: var(--cg-draft);
   transition: background-color 120ms var(--cg-ease), border-color 120ms var(--cg-ease);
 }

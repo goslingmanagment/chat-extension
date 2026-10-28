@@ -89,11 +89,21 @@ function fansText(i18n: I18n, stat: CountStat): string {
   return stat.count === null ? unknownMark(i18n) : i18n.plural('common.fans', stat.count);
 }
 
-/** «фаны заплатили $13,577 · 20% — комиссия Fansly»; null — the hub gave no gross. */
-function paidText(i18n: I18n, stats: SpendersStatsVM): string | null {
+/**
+ * «фаны заплатили $13,577 · комиссия Fansly 20%»; null — the hub gave no gross. Each half keeps its words together and
+ * the dot stays with the first: a line too long for its column breaks after the dot, never before «20%».
+ */
+function paidLine(i18n: I18n, stats: SpendersStatsVM): JSX.Element | null {
   if (stats.d30.gross === null) return null;
   const paid = i18n.t('stats.paid', { money: i18n.formatMoneyMills(stats.d30.gross, { zero: 'show' }) });
-  return stats.d30.feePct === null ? paid : `${paid} · ${i18n.t('stats.fee', { pct: stats.d30.feePct })}`;
+  if (stats.d30.feePct === null) return <>{paid}</>;
+  return (
+    <>
+      <span class="cg-st__nw">{paid}</span>
+      {'\u00a0· '}
+      <span class="cg-st__nw">{i18n.t('stats.fee', { pct: stats.d30.feePct })}</span>
+    </>
+  );
 }
 
 /** The footnote: our 30 days are not the platform's calendar month the owner compares them with. */
@@ -289,7 +299,7 @@ export function StatsColumn({ stats, onShow, collapseRef = null }: StatsProps & 
   const i18n = useI18n();
   const dispatch = useDispatch();
   const period = i18n.plural('common.days', stats.windowDays);
-  const paid = paidText(i18n, stats);
+  const paid = paidLine(i18n, stats);
   const bigTip = useTooltip(stampText(i18n, stats.d30.stamp));
   return (
     <aside class="cg-st" aria-label={i18n.t('stats.regionLabel')} data-cg-stats={stats.view.s} data-cg-stats-open="true">
@@ -342,7 +352,7 @@ export function StatsColumn({ stats, onShow, collapseRef = null }: StatsProps & 
   );
 }
 
-function Tile({ caption, value, sub, none = false }: { readonly caption: string; readonly value: string; readonly sub: string | null; readonly none?: boolean }): JSX.Element {
+function Tile({ caption, value, sub, none = false }: { readonly caption: string; readonly value: string; readonly sub: JSX.Element | string | null; readonly none?: boolean }): JSX.Element {
   return (
     <div class="cg-stx__cell">
       <div class="cg-st__cap">{caption}</div>
@@ -371,7 +381,7 @@ export function StatsExpanded({ stats, onShow }: StatsProps): JSX.Element {
         <>
           {stats.view.s === 'offline' ? <ViewState view={stats.view} /> : null}
           <div class="cg-stx__grid">
-            <Tile caption={i18n.t('stats.netCap', { period })} value={moneyText(i18n, stats.d30)} none={noSpend(stats.d30)} sub={paidText(i18n, stats)} />
+            <Tile caption={i18n.t('stats.netCap', { period })} value={moneyText(i18n, stats.d30)} none={noSpend(stats.d30)} sub={paidLine(i18n, stats)} />
             <Tile caption={i18n.t('stats.today')} value={moneyText(i18n, stats.today)} none={noSpend(stats.today)} sub={i18n.t('stats.tile.todaySub')} />
             <Tile
               caption={i18n.t('stats.d7')}
@@ -453,6 +463,7 @@ export const STATS_CSS = `
 /* A known zero (X55): the words in muted ink on the number's line, so the tiles keep their height. */
 .cg-st__big.is-none { font-size: var(--cg-text-xl); font-weight: 500; color: var(--cg-ink-muted); letter-spacing: 0; }
 .cg-st__sub { margin-top: 4px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
+.cg-st__nw { white-space: nowrap; }
 .cg-st__sec { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--cg-rule); }
 .cg-st__sh { display: flex; align-items: center; height: 24px; font-size: var(--cg-text-xs); font-weight: 500; color: var(--cg-ink-muted); }
 .cg-st__kv { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; font-size: var(--cg-text-sm2); color: var(--cg-ink-2); white-space: nowrap; }
