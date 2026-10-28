@@ -46,7 +46,7 @@ const RELAY_ENTRY = '^apps/extension/src/entrypoints/fansly-relay/';
  * What ChatSpace's bundles are built from: its entry points, the lazy entries of its build and its background chunk.
  * (The background core has its own rule, `background-core-graph`.)
  */
-const CHATSPACE_BUNDLE_ROOTS = ['^apps/extension/src/entrypoints/chatspace', '^apps/extension/lazy/entries/', '^apps/extension/bg/chatspace(/|\\.ts$)'];
+const CHATSPACE_BUNDLE_ROOTS = ['^apps/extension/src/entrypoints/chatspace', '^apps/extension/lazy/entries/', '^apps/extension/lazy/chatspace/', '^apps/extension/bg/chatspace(/|\\.ts$)'];
 
 /** The background entry point and its composition root: the only modules that may import `hub` (§4, D-13). */
 const BACKGROUND_ENTRY = '^apps/extension/src/entrypoints/background\\.ts$';
@@ -74,7 +74,7 @@ const SITE_ONLY_BACKGROUND = [
  * Everything under entrypoints/ counts, so a new entry point is covered before
  * anyone remembers to list it.
  */
-const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/', '^apps/extension/lazy/fansly/', '^apps/extension/bg/'], pathNot: BACKGROUND_ENTRY };
+const NON_BACKGROUND_ENTRIES = { path: ['^apps/extension/src/entrypoints/', '^apps/extension/lazy/entries/', '^apps/extension/lazy/fansly/', '^apps/extension/lazy/chatspace/', '^apps/extension/bg/'], pathNot: BACKGROUND_ENTRY };
 
 /** `from` may depend only on paths matching `allowed` (plus itself). */
 function only(name, from, allowed, comment) {
@@ -298,9 +298,9 @@ module.exports = {
     {
       name: 'chatspace-code-only-from-chatspace',
       comment:
-        'ChatSpace\'s implementation — its page package and its hosts/chatspace folders — is imported only by ChatSpace\'s own code: its entry points, its halves of the adapter and the two lazy entries that carry them; and by the extension pages\' composition root, which speaks of every site of the build (ChatSpace\'s text pack, R20 F9b), as it may import Fansly\'s. The shared tab composition works with the common HostPort and the adapter (docs/project-unite/architecture.md §1.3, §1.8).',
+        'ChatSpace\'s implementation — its page package and its hosts/chatspace folders — is imported only by ChatSpace\'s own code: its entry points, its halves of the adapter, the two lazy entries that carry them and its own lazy entries (lazy/chatspace/: «Заметки», 2026-10-28); and by the extension pages\' composition root, which speaks of every site of the build (ChatSpace\'s text pack, R20 F9b), as it may import Fansly\'s. The shared tab composition works with the common HostPort and the adapter (docs/project-unite/architecture.md §1.3, §1.8).',
       severity: 'error',
-      from: { pathNot: [...CHATSPACE_HOST_CODE, '^apps/extension/src/entrypoints/chatspace', '^apps/extension/lazy/entries/(tab-app|bridge-validation)\\.ts$', PAGES_ROOT, ...TEST_CODE] },
+      from: { pathNot: [...CHATSPACE_HOST_CODE, '^apps/extension/src/entrypoints/chatspace', '^apps/extension/lazy/entries/(tab-app|bridge-validation)\\.ts$', '^apps/extension/lazy/chatspace/', PAGES_ROOT, ...TEST_CODE] },
       to: { path: CHATSPACE_HOST_CODE },
     },
     {

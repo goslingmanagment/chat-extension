@@ -8,7 +8,7 @@
     "outDir": ".tsbuild/web",
     "tsBuildInfoFile": ".tsbuild/web.tsbuildinfo"
   },
-  "include": ["src", "lazy/entries", "lazy/fansly", "bg"],
+  "include": ["src", "lazy/entries", "lazy/fansly", "lazy/chatspace", "bg"],
   "exclude": ["bg/vite.config.ts"],
   "references": [
     { "path": "../../packages/contracts" },

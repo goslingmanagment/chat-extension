@@ -91,7 +91,7 @@ const FEATURES = {
   // 2026-10-28 (the owner, asked by a chatter): «Заметки» as on Fansly, kept in OnlyMonster's own fan notes — the very
   // notes ChatSpace's side panel shows. The page's `notes`; the button in the chat's header (ChatSpace's own row); ⌘⇧K.
   // A note is written only by the chatter's click, for the fan of the chat open on the route (host-chatspace om-api.ts).
-  notes: { kind: 'panel', hotkey: 'notes', base: { flags: ['notes'], hostCapabilities: [] }, actions: {}, surfaces: ['header-slot', 'notes'], source: 'host-pass' },
+  notes: { kind: 'panel', hotkey: 'notes', base: { flags: ['notes'], hostCapabilities: ['chatHeader'] }, actions: {}, surfaces: ['header-slot', 'notes'], source: 'host-pass' },
   // «✨ Заполнить из чата»: the hub's `fan-notes-fill` (the shared driver, services/notes), in the notes panel.
   'notes-fill': { kind: 'ai', base: { flags: ['notesFill'], hostCapabilities: [] }, actions: { generate: NOTHING }, surfaces: ['notes'], source: 'hub' },
 } as const;

@@ -23,8 +23,11 @@ import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
 
+import type { MountSurfaceKind } from '@cg/contracts/vm';
+
+import type * as NotesChunk from '../../../../../lazy/chatspace/notes';
 import { CHATSPACE_FEATURE_SLICE } from '../../../features/chatspace';
-import type { HostAppAdapter } from '../../adapter';
+import type { HostAppAdapter, SiteAppEnv } from '../../adapter';
 
 const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [], attribution: false };
 
@@ -49,6 +52,33 @@ export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | 
   };
 }
 
+/**
+ * ChatSpace's own surfaces (2026-10-28): «Заметки», whose chunk loads the first time a chat is open and is kept; it
+ * says itself where its button and panel stand. A chunk that did not load is asked again on the next chat.
+ */
+export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () => void {
+  let notes: Promise<(() => void) | null> | null = null;
+  const sync = (): void => {
+    if (env.life.aborted || notes !== null || env.host.current().route.chat === null) return;
+    notes = env.lazy<typeof NotesChunk>('notes').then(
+      (chunk) => (env.life.aborted ? null : chunk.startChatSpaceNotes(env)),
+      () => {
+        notes = null;
+        env.report({ kind: 'render', surface: 'notes' as MountSurfaceKind, code: 'CG-UI-FAILED', name: 'NotesChunk' });
+        return null;
+      },
+    );
+  };
+  const off = env.host.subscribe((event) => {
+    if (event.type === 'route') sync();
+  });
+  sync();
+  return () => {
+    off();
+    void notes?.then((stop) => stop?.());
+  };
+}
+
 export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfig> = {
   liveConfigOf,
   configure: (host, config) => host.configure(config),
@@ -61,4 +91,5 @@ export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfi
   // ChatSpace 0.195 shows its own fan panel next to the chat (spend, subscription, scores, lists, profile): ours shows
   // only what it lacks (decision X47).
   fanPanelBesideHost: true,
+  start: (env) => startChatSpaceSurfaces(env),
 };

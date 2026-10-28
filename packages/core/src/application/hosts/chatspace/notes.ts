@@ -16,42 +16,14 @@
 // - A note longer than the panel holds is shown cut and read only (`cut`): written from here, its tail would be lost.
 // - Nothing here is logged: a note's text goes from the port to the panel and back (FS-NOTE-5).
 
+import { OM_NOTE_COLORS, type FanNotesFailed, type FanNotesPort, type OmFanNote } from '@cg/contracts/host';
 import type { ChatRef } from '@cg/contracts/ids';
-import { NOTE_COLORS, NOTE_LIMITS, type NoteColor, type NoteData, type NotesErrorWire } from '@cg/contracts/notes';
-
-/** OnlyMonster's fan note as the host port answers it: `text` is the raw note (HTML or plain). */
-export interface OmNoteLike {
-  readonly noteId: string;
-  readonly title: string | null;
-  readonly text: string;
-  readonly color: string | null;
-  readonly createdAt: string | null;
-}
-
-/** What a create or an edit sends: the whole note, as OnlyMonster's own editor does. */
-export interface OmNoteInput {
-  readonly title: string | null;
-  readonly note: string;
-  readonly color: NoteColor | null;
-}
-
-/** A refusal of the host port: `failure` its word (`identity-mismatch`, `session`, `endpoint`, `http`, `timeout`…). */
-export interface OmFailed {
-  readonly ok: false;
-  readonly failure: string;
-  readonly status: number | null;
-}
-
-/** OnlyMonster's notes of the open chat's fan, as the host port reads and writes them (it never rejects). */
-export interface OmNotesHost {
-  list(chat: ChatRef): Promise<{ readonly ok: true; readonly notes: readonly OmNoteLike[] } | OmFailed>;
-  create(chat: ChatRef, input: OmNoteInput): Promise<{ readonly ok: true; readonly note: OmNoteLike | null } | OmFailed>;
-  update(chat: ChatRef, noteId: string, input: OmNoteInput): Promise<{ readonly ok: true; readonly note: OmNoteLike | null } | OmFailed>;
-  remove(chat: ChatRef, noteId: string): Promise<{ readonly ok: true } | OmFailed>;
-}
+import { FAN_NOTES_LIMITS } from '@cg/contracts/limits';
+import { NOTE_LIMITS, type NoteColor, type NoteData, type NotesErrorWire } from '@cg/contracts/notes';
 
 export interface OmNotesStoreDeps {
-  readonly host: OmNotesHost;
+  /** OnlyMonster's notes of the open chat's fan (HostPort.fanNotes). */
+  readonly host: FanNotesPort;
   /** A raw note as the panel's lines (domain/hosts/chatspace/notes-html.ts `omNoteText`). */
   readonly text: (raw: string) => string;
   /** The raw to send for the panel's text: plain stays plain, HTML keeps its untouched lines (`omNoteWrite`). */
@@ -64,36 +36,55 @@ const CHANGED: NotesErrorWire = { code: 'CG-NOTE-WRITE', detail: 'changed' };
 const LONG: NotesErrorWire = { code: 'CG-NOTE-WRITE', detail: 'long note' };
 const UNCERTAIN: NotesErrorWire = { code: 'CG-NOTE-UNCERTAIN' };
 
+const TOO_LONG: NotesErrorWire = { code: 'CG-NOTE-TOO-LONG' };
+
 const keyOf = (chat: ChatRef): string => `${chat.hostAccountId}|${chat.platformFanId}`;
-const isColor = (value: string | null): value is NoteColor => value !== null && (NOTE_COLORS as readonly string[]).includes(value);
-const detailOf = (failed: OmFailed): string => (failed.status === null ? failed.failure : `${failed.failure} ${String(failed.status)}`);
+const detailOf = (failed: FanNotesFailed): string => (failed.status === null ? failed.failure : `${failed.failure} ${String(failed.status)}`);
+/** ChatSpace's palette (hex as the API keeps it) as the panel names it; another value — no dot. */
+const colorOf = (value: string | null): NoteColor | null => (value === null ? null : ((OM_NOTE_COLORS as Readonly<Record<string, NoteColor>>)[value.toLowerCase()] ?? null));
 
 /** A read that failed: another chat on the route is the context's; the rest is a failed read, and nothing was written. */
-function readFailure(failed: OmFailed): NotesErrorWire {
-  return failed.failure === 'identity-mismatch' ? { code: 'CG-CONTEXT-CHANGED' } : { code: 'CG-NOTE-READ', detail: detailOf(failed) };
+function readFailure(failed: FanNotesFailed): NotesErrorWire {
+  return failed.failure === 'not-open' ? { code: 'CG-CONTEXT-CHANGED' } : { code: 'CG-NOTE-READ', detail: detailOf(failed) };
 }
 
 /**
- * A write that failed. Nothing was sent: the chat changed on the route, no session or no API address yet — refused.
- * OnlyMonster answered with a refusal (4xx) — refused. No answer, a server error or an answer that cannot be read —
- * its fate is unknown: it may have landed.
+ * A write that failed. Nothing was sent — the chat changed on the route, no session or API address yet, the token came
+ * too late, the input broke the bridge's limits: refused. OnlyMonster refused it (4xx): refused. The request went out
+ * and no readable answer came, or a server error: its fate is unknown, it may have landed.
  */
-export function omWriteFailure(failed: OmFailed): NotesErrorWire {
-  if (failed.failure === 'identity-mismatch') return { code: 'CG-CONTEXT-CHANGED' };
-  if (failed.failure === 'session' || failed.failure === 'endpoint') return { code: 'CG-NOTE-WRITE', detail: failed.failure };
-  if (failed.failure === 'http' && failed.status !== null && failed.status < 500) return { code: 'CG-NOTE-WRITE', detail: detailOf(failed) };
-  return UNCERTAIN;
+export function omWriteFailure(failed: FanNotesFailed): NotesErrorWire {
+  switch (failed.failure) {
+    case 'not-open':
+      return { code: 'CG-CONTEXT-CHANGED' };
+    case 'input':
+      return TOO_LONG;
+    case 'endpoint':
+    case 'session':
+    case 'timeout':
+    case 'unavailable':
+      return { code: 'CG-NOTE-WRITE', detail: failed.failure };
+    case 'http':
+      return failed.status !== null && failed.status < 500 ? { code: 'CG-NOTE-WRITE', detail: detailOf(failed) } : UNCERTAIN;
+    case 'unknown':
+    case 'network':
+    case 'invalid':
+      return UNCERTAIN;
+  }
 }
+
+/** The bridge carries a shorter note than the panel holds: a longer one is refused before anything is sent. */
+const fitsBridge = (title: string, raw: string): boolean => title.length <= FAN_NOTES_LIMITS.titleMax && raw.length <= FAN_NOTES_LIMITS.textMax;
 
 export function createOmNotesStore(deps: OmNotesStoreDeps) {
   /** The raw notes as last read or written, by chat and note: what an edit keeps (its HTML, its colour). */
-  const raws = new Map<string, Map<string, OmNoteLike>>();
+  const raws = new Map<string, Map<string, OmFanNote>>();
   /** One write at a time per fan: the reread and the write of one never interleave with another's. */
   const writes = new Map<string, Promise<unknown>>();
 
-  const remember = (chat: ChatRef, notes: readonly OmNoteLike[], replace: boolean): void => {
+  const remember = (chat: ChatRef, notes: readonly OmFanNote[], replace: boolean): void => {
     const key = keyOf(chat);
-    const kept = replace ? new Map<string, OmNoteLike>() : (raws.get(key) ?? new Map<string, OmNoteLike>());
+    const kept = replace ? new Map<string, OmFanNote>() : (raws.get(key) ?? new Map<string, OmFanNote>());
     for (const note of notes) kept.set(note.noteId, note);
     raws.delete(key);
     raws.set(key, kept);
@@ -102,10 +93,12 @@ export function createOmNotesStore(deps: OmNotesStoreDeps) {
   };
 
   /** A raw note as the panel reads it. */
-  function noteOf(raw: OmNoteLike): NoteData {
-    const title = raw.title ?? '';
+  function noteOf(raw: OmFanNote): NoteData {
+    const title = raw.title;
     const text = deps.text(raw.text);
-    const cut = title.length > NOTE_LIMITS.titleMaxChars || text.length > NOTE_LIMITS.textMaxChars;
+    // Cut by the bridge, or longer than the panel holds: shown, never written back.
+    const cut = raw.cut || title.length > NOTE_LIMITS.titleMaxChars || text.length > NOTE_LIMITS.textMaxChars;
+    const color = colorOf(raw.color);
     const at = raw.createdAt === null ? NaN : Date.parse(raw.createdAt);
     return {
       noteId: raw.noteId,
@@ -114,7 +107,7 @@ export function createOmNotesStore(deps: OmNotesStoreDeps) {
       foreign: false,
       createdAtMs: Number.isFinite(at) && at > 0 ? at : null,
       ...(cut ? { cut: true as const } : {}),
-      ...(isColor(raw.color) ? { color: raw.color } : {}),
+      ...(color === null ? {} : { color }),
     };
   }
 
@@ -132,7 +125,7 @@ export function createOmNotesStore(deps: OmNotesStoreDeps) {
   }
 
   /** The fan's notes read again before a write: a failure here is a read's, and nothing was written. */
-  async function fresh(chat: ChatRef): Promise<{ readonly ok: true; readonly notes: readonly OmNoteLike[] } | Failure> {
+  async function fresh(chat: ChatRef): Promise<{ readonly ok: true; readonly notes: readonly OmFanNote[] } | Failure> {
     const read = await deps.host.list(chat);
     if (!read.ok) return { ok: false, error: readFailure(read) };
     remember(chat, read.notes, true);
@@ -151,7 +144,9 @@ export function createOmNotesStore(deps: OmNotesStoreDeps) {
     create(chat: ChatRef, title: string, text: string): Promise<{ readonly ok: true; readonly note: NoteData } | Failure> {
       return queued(chat, async () => {
         const before = new Set(raws.get(keyOf(chat))?.keys() ?? []);
-        const answer = await deps.host.create(chat, { title: title === '' ? null : title, note: deps.write(null, text), color: null });
+        const raw = deps.write(null, text);
+        if (!fitsBridge(title, raw)) return { ok: false as const, error: TOO_LONG };
+        const answer = await deps.host.create(chat, { title, text: raw, color: null });
         if (!answer.ok) return { ok: false as const, error: omWriteFailure(answer) };
         if (answer.note !== null) {
           remember(chat, [answer.note], false);
@@ -161,7 +156,7 @@ export function createOmNotesStore(deps: OmNotesStoreDeps) {
         const read = await deps.host.list(chat);
         if (!read.ok) return { ok: false as const, error: UNCERTAIN };
         remember(chat, read.notes, true);
-        const made = read.notes.find((note) => !before.has(note.noteId) && (note.title ?? '') === title && deps.text(note.text) === text);
+        const made = read.notes.find((note) => !before.has(note.noteId) && note.title === title && deps.text(note.text) === text);
         return made === undefined ? { ok: false as const, error: UNCERTAIN } : { ok: true as const, note: noteOf(made) };
       });
     },
@@ -177,9 +172,12 @@ export function createOmNotesStore(deps: OmNotesStoreDeps) {
         if (latest.cut === true) return { ok: false as const, error: LONG };
         if (latest.title === title && latest.text === text) return { ok: true as const, note: latest };
         if (current === undefined || latest.title !== current.title || latest.text !== current.text) return { ok: false as const, error: CHANGED, latest };
-        const answer = await deps.host.update(chat, noteId, { title: title === '' ? null : title, note: deps.write(raw.text, text), color: isColor(raw.color) ? raw.color : null });
+        const next = deps.write(raw.text, text);
+        if (!fitsBridge(title, next)) return { ok: false as const, error: TOO_LONG };
+        // The whole note, as ChatSpace's own editor writes it: its own colour kept.
+        const answer = await deps.host.update(chat, noteId, { title, text: next, color: raw.color });
         if (!answer.ok) return { ok: false as const, error: omWriteFailure(answer) };
-        const written: OmNoteLike = answer.note ?? { ...raw, title: title === '' ? null : title, text: deps.write(raw.text, text) };
+        const written: OmFanNote = answer.note ?? { ...raw, title, text: next };
         remember(chat, [written], false);
         // OnlyMonster's answer may drop the creation time: the one read stays.
         const note = noteOf(written);
