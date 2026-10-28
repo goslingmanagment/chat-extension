@@ -261,7 +261,8 @@ ${p}__list { margin: 6px 0 0; padding: 0; list-style: none; }
 ${p}__item { position: relative; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; column-gap: 8px; align-items: start; padding: 8px 0; border-top: 1px solid var(--cg-rule); }
 ${p}__item:first-child { border-top: 0; }
 ${p}__item.is-editing { display: block; }
-${p}__date { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 19px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+${p}__date { display: grid; color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 19px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+${p}__date-y { color: var(--cg-ink-faint); font-size: 10px; line-height: 13px; }
 ${p}__item-b { display: grid; gap: 2px; min-width: 0; }
 ${p}__item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 ${p}__item-title { color: var(--cg-ink-strong); font-size: var(--cg-text-base); font-weight: 600; line-height: 19px; overflow-wrap: anywhere; }

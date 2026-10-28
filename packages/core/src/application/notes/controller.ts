@@ -81,12 +81,13 @@ type CustomName = { readonly noteId: string; readonly name: string };
 
 const pad2 = (value: number): string => String(value).padStart(2, '0');
 
-/** «16.10» («16.10.2025» outside the current year) and the hover's day and time, in the chatter's clock (decision 171). */
+/** «16.10» (and «2025» under it outside the current year) and the hover's day and time, in the chatter's clock
+ * (decision 171). */
 export function noteDateVM(ms: number, now: number): NotesDateVM {
   const date = new Date(ms);
   const day = `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}`;
-  const full = `${day}.${String(date.getFullYear())}`;
-  return { day: date.getFullYear() === new Date(now).getFullYear() ? day : full, full, time: `${pad2(date.getHours())}:${pad2(date.getMinutes())}`, iso: date.toISOString() };
+  const year = String(date.getFullYear());
+  return { day, year: date.getFullYear() === new Date(now).getFullYear() ? null : year, full: `${day}.${year}`, time: `${pad2(date.getHours())}:${pad2(date.getMinutes())}`, iso: date.toISOString() };
 }
 
 /**
