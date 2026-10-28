@@ -19,7 +19,7 @@
 //   paragraph separator inside a value is a space.
 
 import { NOTE_FILL_LIMITS } from '@cg/contracts/limits';
-import { FANSLY_OP_LIMITS, NoteFieldsResultSchema } from '@cg/contracts/ops-fansly';
+import { NOTES_FILL_OP_LIMITS, NoteFieldsResultSchema } from '@cg/contracts/notes-fill';
 import type { NoteFieldValue, SiteOpResult } from '@cg/contracts/ops';
 
 const FIELD_LINE = /^\s*([^:\n]+?)\s*:(.*)$/;
@@ -55,7 +55,7 @@ function quoteText(raw: string): string {
   const decoded = decodeEntities(text).replace(/\s+/g, ' ');
   const chars = Array.from(decoded);
   // The hub asks for 200 at most; a longer quote is cut, never a reason to drop the answer.
-  return chars.length <= FANSLY_OP_LIMITS.noteQuoteMaxChars ? decoded : `${chars.slice(0, FANSLY_OP_LIMITS.noteQuoteMaxChars - 1).join('')}…`;
+  return chars.length <= NOTES_FILL_OP_LIMITS.noteQuoteMaxChars ? decoded : `${chars.slice(0, NOTES_FILL_OP_LIMITS.noteQuoteMaxChars - 1).join('')}…`;
 }
 
 type Mutable = { label: string; value: string; quotes: string[] };
@@ -72,7 +72,7 @@ export function parseNoteFillAnswer(text: string, asked: readonly string[]): Ext
     const quote = QUOTE_LINE.exec(raw);
     if (quote !== null) {
       const words = quoteText(quote[1] ?? '');
-      if (anchor !== null && words !== '' && anchor.quotes.length < FANSLY_OP_LIMITS.noteQuotesMax) anchor.quotes.push(words);
+      if (anchor !== null && words !== '' && anchor.quotes.length < NOTES_FILL_OP_LIMITS.noteQuotesMax) anchor.quotes.push(words);
       continue;
     }
     anchor = null;
@@ -83,7 +83,7 @@ export function parseNoteFillAnswer(text: string, asked: readonly string[]): Ext
       const name = decodeEntities((plus[1] ?? '').trim());
       const value = fieldValue(plus[2] ?? '');
       const fresh = !wanted.has(labelKey(name)) && !proposed.some((entry) => labelKey(entry.label) === labelKey(name));
-      if (value !== '' && value !== UNCHANGED && usableLabel(name) && fresh && proposed.length < FANSLY_OP_LIMITS.noteProposedMax) {
+      if (value !== '' && value !== UNCHANGED && usableLabel(name) && fresh && proposed.length < NOTES_FILL_OP_LIMITS.noteProposedMax) {
         anchor = { label: name, value, quotes: [] };
         proposed.push(anchor);
       }

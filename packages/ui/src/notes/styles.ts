@@ -18,7 +18,7 @@
 
 import { type MountSurfaceKind } from '@cg/contracts/vm';
 
-import { overlayRootCss } from '../../../overlays/layer';
+import { overlayRootCss } from '../overlays/layer';
 
 /** A surface of Fansly's own (contracts features/fansly.ts `FANSLY_SURFACES_AHEAD`). */
 export const NOTES_SURFACE = 'notes' as MountSurfaceKind;

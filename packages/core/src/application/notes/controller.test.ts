@@ -1,15 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SiteOpView } from '@cg/contracts/ops';
-import type { FanslyNotesView } from '@cg/contracts/settings-ext';
-import type { FanslyNote } from '@cg/contracts/tab-messages-fansly';
+import type { NoteData, NotesView } from '@cg/contracts/notes';
 
 import { createNotesController, type NotesPort, type NotesTarget } from './controller';
 import { NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
 
 const A: NotesTarget = { accountId: '7', groupId: '81', fanId: '91', fan: { name: 'Alex', handle: 'alex' } };
 const B: NotesTarget = { accountId: '7', groupId: '82', fanId: '92', fan: null };
-const note = (noteId: string, title = 'T', text = 'x', foreign = false): FanslyNote => ({ noteId, title, text, foreign });
+const note = (noteId: string, title = 'T', text = 'x', foreign = false): NoteData => ({ noteId, title, text, foreign });
 const FORM = 'Имя: Алекс\nЛокация: Рига\nРабота: \nХобби: бег\nпо утрам';
 
 type FillAnswer = Awaited<ReturnType<NotesPort['fill']>>;
@@ -18,16 +17,16 @@ function world() {
   let target: NotesTarget | null = A;
   let session = '7|1';
   let opIds = 0;
-  const stored = new Map<string, FanslyNote[]>([['91', [note('1', 'Анкета', FORM), note('2', 'FBuddy Notes', 'likes cats', true), note('3', '', 'старая заметка')]], ['92', []]]);
+  const stored = new Map<string, NoteData[]>([['91', [note('1', 'Анкета', FORM), note('2', 'FBuddy Notes', 'likes cats', true), note('3', '', 'старая заметка')]], ['92', []]]);
   const port = {
     session: () => session,
     target: () => target,
     read: vi.fn((t: NotesTarget) => Promise.resolve({ ok: true as const, fanRef: t.fanId ?? '91', notes: [...(stored.get(t.fanId ?? '91') ?? [])], customName: t.fanId === '91' ? { noteId: '5', name: 'Алекс' } : null })),
     create: vi.fn((_who, title: string, text: string) => Promise.resolve({ ok: true as const, note: note('9', title, text) })),
-    edit: vi.fn((_who, noteId: string, title: string, text: string, _current: Pick<FanslyNote, 'title' | 'text'>) => Promise.resolve<Awaited<ReturnType<NotesPort['edit']>>>({ ok: true as const, note: note(noteId, title, text) })),
+    edit: vi.fn((_who, noteId: string, title: string, text: string, _current: Pick<NoteData, 'title' | 'text'>) => Promise.resolve<Awaited<ReturnType<NotesPort['edit']>>>({ ok: true as const, note: note(noteId, title, text) })),
     remove: vi.fn(() => Promise.resolve({ ok: true as const })),
     name: vi.fn((_who, name: string) => Promise.resolve({ ok: true as const, customName: name === '' ? null : { noteId: '5', name } })),
-    setView: vi.fn((_view: FanslyNotesView) => undefined),
+    setView: vi.fn((_view: NotesView) => undefined),
     fillAllowed: () => true,
     fill: vi.fn((_t: NotesTarget, _fanId: string, _fields: readonly string[], _values: readonly string[]) => Promise.resolve<FillAnswer>({ ok: true, opId: `op${String((opIds += 1))}`, view: null })),
     stopFill: vi.fn((_opId: string) => undefined),

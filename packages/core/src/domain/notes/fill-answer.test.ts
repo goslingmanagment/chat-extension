@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseNoteFillAnswer } from './notes-fill-answer';
+import { parseNoteFillAnswer } from './fill-answer';
 
 describe('[host:fansly] «✨ Дополнить из чата»: the hub’s answer (audit №13)', () => {
   const asked = ['Имя', 'Другое', 'Работа'];

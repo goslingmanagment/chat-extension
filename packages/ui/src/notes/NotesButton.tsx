@@ -3,9 +3,9 @@
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
-import type { NotesClient, NotesCopy } from '@cg/contracts/notes-fansly';
+import type { NotesClient, NotesCopy } from '@cg/contracts/notes';
 
-import { hotkeyText, useI18n, useKit } from '../../../kit';
+import { hotkeyText, useI18n, useKit } from '../kit';
 
 /** Both catalogs: the tab's language picks one at each render. */
 export type NotesTexts = Readonly<Record<'ru' | 'en', NotesCopy>>;
