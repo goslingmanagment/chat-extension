@@ -47,6 +47,14 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/ai/personas";
     };
+    readonly adminAiReconciliation: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/ai/reconciliation";
+    };
+    readonly adminAiSpend: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/ai/spend";
+    };
     readonly adminAssignPage: {
         readonly method: "POST";
         readonly path: "/api/v1/admin/users/by-id/:userId/pages";
