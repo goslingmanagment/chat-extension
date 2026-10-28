@@ -380,10 +380,13 @@ describe('Spenders on Fansly (R20 P9e)', () => {
     { fanRef: STRANGER, displayName: 'Unknown fan', conversationRef: null, lifetimeUsd: 700, windowUsd: 70 },
   ];
   /**
-   * Our calls since `mark` besides the preview's reads of a group (whether the fan read our newest message: `GET
-   * /group/<id>/`, once the preview rests on a fan whose group is known — or got known by «Открыть чат» meanwhile).
+   * Our calls since `mark` besides the passive reads: the preview's reads of a group (whether the fan read our newest
+   * message: `GET /group/<id>/`, once the preview rests on a fan whose group is known — or got known by «Открыть чат»
+   * meanwhile) and the board's read of its fans' accounts for their badges (`GET /account?ids=`, FS-NET-1 `badges`,
+   * 2026-10-28). The hub gave every fan here a name, so no other account read is ours.
    */
-  const oursBesidesReadState = async (mark: number) => (await fakeFansly().calls('ours', mark)).filter((entry) => !(entry.method === 'GET' && entry.route === 'group.detail'));
+  const oursBesidesReadState = async (mark: number) =>
+    (await fakeFansly().calls('ours', mark)).filter((entry) => !(entry.method === 'GET' && (entry.route === 'group.detail' || entry.route === 'account.byIds')));
   const show = async (name: string): Promise<void> => {
     await leaveField();
     await browser.keys([...PANEL, 'm']);
