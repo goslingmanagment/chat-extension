@@ -35,7 +35,7 @@ export const HostKindSchema = z.enum(HOST_KINDS);
  * (critic item 14): a page with an unknown platform is skipped with
  * `narrowPlatform`, it never breaks the parse of a whole bootstrap.
  */
-export const KNOWN_PLATFORMS = ['onlyfans', 'fansly'] as const;
+export const KNOWN_PLATFORMS = ['onlyfans', 'fansly', 'telegram'] as const;
 export const PlatformSchema = z.enum(KNOWN_PLATFORMS);
 export type Platform = z.infer<typeof PlatformSchema>;
 
@@ -49,7 +49,7 @@ export function narrowPlatform(token: string): Platform | null {
  * `Target` pins the OnlyFans equality. Where a chat is not its fan, the fan's id names no conversation: what is the
  * fan's (the dossier, docs/project-unite/architecture.md §11.1) is read by the fan.
  */
-export const CHAT_IS_FAN: Readonly<Record<Platform, boolean>> = { onlyfans: true, fansly: false };
+export const CHAT_IS_FAN: Readonly<Record<Platform, boolean>> = { onlyfans: true, fansly: false, telegram: true };
 
 /**
  * 1.15.0 (R20 P8c, HF-5): the platforms where a Hi carries the client's proof of the conversation's start
@@ -57,14 +57,21 @@ export const CHAT_IS_FAN: Readonly<Record<Platform, boolean>> = { onlyfans: true
  * which the hub's Fansly manifest still requires. Since 2026-10-21 Hi has no message limit: the hub refuses no Hi for
  * its count or for a start nobody proved, and the proof only rides along.
  */
-export const HI_BY_START_PROOF: Readonly<Record<Platform, boolean>> = { onlyfans: false, fansly: true };
+export const HI_BY_START_PROOF: Readonly<Record<Platform, boolean>> = { onlyfans: false, fansly: true, telegram: false };
+
+/**
+ * Telegram spec §6.2: the platforms whose AI request carries the open chat itself (`clientContext`: the transcript the
+ * tab read from the page), because the hub keeps no archive of them. Data, so shared code never names a site: Telegram
+ * alone. Never beside the page text, PPV state, photos, draft media or the window check of the other sites.
+ */
+export const CLIENT_CONTEXT_PLATFORMS: Readonly<Record<Platform, boolean>> = { onlyfans: false, fansly: false, telegram: true };
 
 /**
  * X54: the bootstrap capability under which the hub takes the open chat's PPV state (`livePpvContext`) on the
  * platform — OnlyFans' paid messages (`live-ppv-v1`), Fansly's paid attachments (`live-ppv-fansly-v1`, audit
  * 2026-10-20 №3). A start reads the state and sends it only to a hub that lists its platform's.
  */
-export const LIVE_PPV_CAPABILITY: Readonly<Record<Platform, 'live-ppv-v1' | 'live-ppv-fansly-v1'>> = { onlyfans: 'live-ppv-v1', fansly: 'live-ppv-fansly-v1' };
+export const LIVE_PPV_CAPABILITY: Readonly<Record<Platform, 'live-ppv-v1' | 'live-ppv-fansly-v1' | null>> = { onlyfans: 'live-ppv-v1', fansly: 'live-ppv-fansly-v1', telegram: null };
 
 /** The bootstrap capability under which the hub takes the fan's newest photos as images (`liveImages`). */
 export const LIVE_IMAGES_CAPABILITY = 'live-images-v1';
@@ -87,7 +94,7 @@ export const ONLINE_CAPABILITY = 'online-v1';
  * and `newcomers`. Fansly's is our own HTTP send of «Новые»: `newcomers` alone — `previewSend` is no switch of a
  * Fansly page. A platform this client does not know asks for both.
  */
-export const GREETING_DISPATCH_FLAGS: Readonly<Record<Platform, readonly ('previewSend' | 'newcomers')[]>> = { onlyfans: ['previewSend', 'newcomers'], fansly: ['newcomers'] };
+export const GREETING_DISPATCH_FLAGS: Readonly<Record<Platform, readonly ('previewSend' | 'newcomers')[]>> = { onlyfans: ['previewSend', 'newcomers'], fansly: ['newcomers'], telegram: [] };
 
 /** HOST_PLATFORM of hosts.ts, typed: every host serves a platform this client knows. */
 const PLATFORM_OF_HOST: Readonly<Record<HostKind, Platform>> = HOST_PLATFORM;

@@ -109,6 +109,12 @@ const SPECS = {
   // 2026-10-22 (the old Fansly board's «not found»): a board's fan whose chat the board did not know, and the site's
   // inbox search found none — a miss of the search, not proof that no chat exists.
   'CG-HOST-CHAT-NOT-FOUND': { kind: 'host', severity: 'info', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
+  // Telegram spec §4.3, §4.4: what the page shows around the open chat, said over the dock's bar — warnings the person
+  // passes, never a block (`HostPort.notice`): the newest messages are not rendered; a sent message is being edited in
+  // the field; the attachment window holds the message being written (its caption is another field: copy only).
+  'CG-HOST-HISTORY-PARTIAL': { kind: 'host', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
+  'CG-HOST-EDITING-SENT': { kind: 'host', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
+  'CG-HOST-ATTACHMENT-OPEN': { kind: 'host', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-RUNTIME-RELOADED': { kind: 'host', severity: 'warn', recovery: 'reload-tab', retry: 'none', telemetry: 'count' },
   'CG-INSERT-CHAT-CHANGED': { kind: 'insert', severity: 'warn', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
   'CG-INSERT-FAILED': { kind: 'insert', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count+sample' },

@@ -12,9 +12,9 @@ assert nothing, and a scenario fails only when a step cannot be done.
 | Command | What it does | Time |
 |---|---|---|
 | `pnpm see` | lists the scenarios | — |
-| `pnpm see <scenario\|file> [--site fansly \| --live [--chat <n>]] [--showcase] [--dpr <n>] [--gif] [--no-build]` | rebuilds only what is stale; runs the scenario; prints the folder, the PNG paths and `index.html` (a contact sheet). `--showcase` — the showcase world at 2× (below); `--dpr <n>` — any world at that device pixel ratio | 6–10 s; +5 s test build, +1.5 s stand when changed |
+| `pnpm see <scenario\|file> [--site fansly\|telegram \| --live [--chat <n>]] [--showcase] [--dpr <n>] [--gif] [--no-build]` | rebuilds only what is stale; runs the scenario; prints the folder, the PNG paths and `index.html` (a contact sheet). `--showcase` — the showcase world at 2× (below); `--dpr <n>` — any world at that device pixel ratio | 6–10 s; +5 s test build, +1.5 s stand when changed |
 | `pnpm see --new <name>` | a scenario of your own in `packages/testing/e2e/see/scratch/` (not committed) | — |
-| `pnpm see:session [chatspace\|fansly] [--live [--chat <n>]]` | holds a shift open; the port is the worktree's own and is printed. An agent runs it in the background. Stops after 30 min idle (`--idle <min>`) | ~5 s to ready |
+| `pnpm see:session [chatspace\|fansly\|telegram] [--live [--chat <n>]]` | holds a shift open; the port is the worktree's own and is printed. An agent runs it in the background. Stops after 30 min idle (`--idle <min>`) | ~5 s to ready |
 | `pnpm see:session --bare [--chat <n>]` | fansly.com alone, signed in as the test model, no extension: a browser to study Fansly in — click anything, read the page, every request and socket frame with its body in `s.net` (below) | ~10 s to ready |
 | `pnpm see:do '<js>'` | one step in the session: async JS with `s` (the verbs below) and `browser`; prints the result and the path of a picture taken after the step. Also: `--name x`, `--no-shot`, `--file f.js`, `-` (stdin), `--shot <name>`, `--status`, `--stop` | 0.3–1.5 s |
 | `pnpm see:gallery` | the UI galleries (kit, dock, boards, pages) on vite with hot reload, prints their URLs; Ctrl+C stops | < 1 s |
@@ -53,6 +53,11 @@ PPV state in `hub-calls.json`), `draft-media` (a photo in the composer, then Rep
 `hub-calls.json`; both sites, `--live` takes a photo and a video of the vault), `fansly-seen` (a Spenders preview: «не прочитано», then «прочитано в …»),
 `fansly-newcomers` («Новые фоловеры»: a fresh follower checked by the pass, the card, «Сгенерировать» — the same
 window and card as ChatSpace's `newcomers`). `launch` (the showcase world's pictures of 3.0's launch, below).
+On Telegram (`--site telegram`: the Web A stand, `http://telegram.localhost:<port>/a/#<peer id>`, Lora's account bound
+to the fake hub's page `lora-tg`; its page API is `s.h.callTelegram(…)`, `client-context.json` holds the chat each AI
+request carried): `telegram-reply`, `telegram-fix`, `telegram-keys`,
+`telegram-switch`, `telegram-draft-edited`, `telegram-scrolled`, `telegram-attachment`, `telegram-unbound`
+(`?account=2`), `telegram-edit-mode`.
 
 ## The showcase world (`--showcase`)
 

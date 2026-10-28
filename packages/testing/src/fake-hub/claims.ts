@@ -31,26 +31,30 @@ import {
 import { hubFeatureNeedsOn, type HubPlatform } from '../scenarios/hub';
 import { iso } from './clock';
 
-// Hub bd3eec065: services/client-claim-admission.ts (HF-3, admitted by HF-2).
+// Hub bd3eec065: services/client-claim-admission.ts (HF-3, admitted by HF-2). A Telegram page sends nothing through
+// the hub (hub #909): no admission there.
+type ClaimPlatform = HubPlatform | 'telegram';
+
 interface SendAdmission {
   readonly flags: readonly ClientFeatureFlag[];
   readonly groups: readonly ('generation' | 'manual')[];
   readonly limit: 'perMinute' | 'greetingPerMinute';
 }
-const SEND_ADMISSIONS: Record<HubPlatform, Partial<Record<'greeting' | 'preview-reply', SendAdmission>>> = {
+const SEND_ADMISSIONS: Record<ClaimPlatform, Partial<Record<'greeting' | 'preview-reply', SendAdmission>>> = {
   // The hub since the 2026-10-20 audit (row 1): the chatter's own or edited text as a manual group on OnlyFans too.
   onlyfans: {
     greeting: { flags: ['previewSend', 'newcomers'], groups: ['generation', 'manual'], limit: 'perMinute' },
     'preview-reply': { flags: ['previewSend'], groups: ['generation', 'manual'], limit: 'perMinute' },
   },
   fansly: { greeting: { flags: ['newcomers'], groups: ['generation', 'manual'], limit: 'greetingPerMinute' } },
+  telegram: {},
 };
 
-export function custodyExistsOn(platform: HubPlatform): boolean {
+export function custodyExistsOn(platform: ClaimPlatform): boolean {
   return Object.values(SEND_ADMISSIONS[platform]).some((rule) => rule.flags.every((flag) => hubFeatureNeedsOn(flag, platform) !== undefined));
 }
 
-function sendAdmission(platform: HubPlatform, body: Extract<HubClaimBody, { action: 'dispatch' | 'registerNativeSend' }>): SendAdmission | null {
+function sendAdmission(platform: ClaimPlatform, body: Extract<HubClaimBody, { action: 'dispatch' | 'registerNativeSend' }>): SendAdmission | null {
   const rule = SEND_ADMISSIONS[platform][body.purpose];
   return rule !== undefined && rule.flags.every((flag) => hubFeatureNeedsOn(flag, platform) !== undefined) && rule.groups.includes('kind' in body.group ? 'manual' : 'generation') ? rule : null;
 }
@@ -64,7 +68,7 @@ export type FlagVerdict = { readonly ok: true } | { readonly ok: false; readonly
 
 export interface ClaimContext {
   readonly master: boolean;
-  readonly platform: HubPlatform;
+  readonly platform: ClaimPlatform;
   readonly now: number;
   readonly userId: number;
   readonly leaseSec: number;

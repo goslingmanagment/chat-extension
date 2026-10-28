@@ -9,8 +9,9 @@ import * as z from 'zod/mini';
 import { TONES, type FeatureId } from '../features';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema, hasHiStartFields, hasOnlyPersonalCount, hiStartProofMatches } from '../hi-start-proof';
 import { DraftMediaSchema, LiveImagesSchema } from '../host';
+import { CLIENT_CONTEXT_PLATFORMS } from '../ids';
 import { AI_REQUEST_LIMITS, COACH_LIMITS, COVERAGE_CHECK_LIMITS, LIVE_TEXT_LIMITS, NOTE_FILL_LIMITS, SEND_LIMITS } from '../limits';
-import { CoverageDeletedIdsSchema, CoverageWindowSchema, LivePpvStateSchema, coverageIdsOnce, livePpvShapeIs } from '../ops';
+import { ClientContextSchema, CoverageDeletedIdsSchema, CoverageWindowSchema, LivePpvStateSchema, coverageIdsOnce, livePpvShapeIs } from '../ops';
 import {
   CountSchema,
   IsoTimestampSchema,
@@ -204,15 +205,17 @@ export const NoteValuesSchema = z.array(NoteValueSchema).check(z.minLength(1), z
 
 /**
  * The body this client sends (a strict subset of the hub's body: no model or
- * effort override, no `clientContext` (also on Fansly), no deprecated
- * `greetingMode`; the notes fill's `noteValues` — the questionnaire's values,
- * here and nowhere else, X43). On OnlyFans conversationRef = fanRef = the fan id.
+ * effort override, no deprecated `greetingMode`; the notes fill's
+ * `noteValues` — the questionnaire's values, here and nowhere else, X43). On
+ * OnlyFans conversationRef = fanRef = the fan id. `clientContext` only on a
+ * platform the hub keeps no archive of (`CLIENT_CONTEXT_PLATFORMS`: Telegram,
+ * spec §6.2), never on Fansly or OnlyFans.
  */
 export const AiFeatureStreamBodySchema = z.strictObject({
   /** = opId (§8.4). */
   clientRequestId: UuidSchema,
   pageLabel: PageLabelSchema,
-  platform: z.enum(['fansly', 'onlyfans']),
+  platform: z.enum(['fansly', 'onlyfans', 'telegram']),
   conversationRef: NativeIdSchema,
   fanRef: z.optional(z.nullable(NativeIdSchema)),
   personaKey: z.optional(z.nullable(PersonaKeySchema)),
@@ -284,8 +287,26 @@ export const AiFeatureStreamBodySchema = z.strictObject({
   recap: z.optional(z.literal('off')),
   /** «Рассылка» (`StartOp.draftPurpose`): Fix of a mass message for one fan — only to a hub that lists `outreach-fix-v1`. */
   draftPurpose: z.optional(z.literal('outreach')),
+  /** Telegram spec §6.2: the open chat the tab read (`StartOp.clientContext`) — only to a hub that lists `telegram-ai-v1`. */
+  clientContext: z.optional(ClientContextSchema),
 });
 export type AiFeatureStreamBody = z.infer<typeof AiFeatureStreamBodySchema>;
+
+/** The hub features a platform of `CLIENT_CONTEXT_PLATFORMS` runs (hub ai-platform-features.ts). */
+const CLIENT_CONTEXT_HUB_FEATURES: ReadonlySet<string> = new Set(['fast-reply', 'improve-draft', 'coach-chat']);
+
+/**
+ * A request on a platform the hub keeps no archive of carries the chat (`clientContext`) and the fan (`fanRef`); no
+ * other carries it. Beside it never the page text, the PPV state, photos, draft media or the window check, never the
+ * mass-message Fix or the selling tone (hub `assertTelegramRequestShape`).
+ */
+function clientContextHolds(r: { readonly feature: string; readonly body: AiFeatureStreamBody }): boolean {
+  const body = r.body;
+  if (!CLIENT_CONTEXT_PLATFORMS[body.platform]) return body.clientContext === undefined;
+  if (body.clientContext === undefined || body.fanRef === undefined || body.fanRef === null || !CLIENT_CONTEXT_HUB_FEATURES.has(r.feature)) return false;
+  if (body.draftPurpose !== undefined || body.replyTone === 'upsell') return false;
+  return [body.liveTextContext, body.livePpvContext, body.liveImages, body.coverageCheck, body.draftMedia].every((field) => field === undefined);
+}
 
 const featureOnlyFieldsHold = (r: { feature: HubAiFeature; body: Record<string, unknown> }): boolean =>
   Object.entries(HUB_FEATURE_ONLY_FIELDS).every(
@@ -322,6 +343,9 @@ export const HubStreamRequestSchema = z
     }),
     z.refine((r) => hiStartProofMatches(r.body, r.body.conversationRef), { message: 'start_proof_mismatch' }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),
+    // Telegram spec §5.6, §6.2: the hub's own rules of a Telegram page — the chat in `clientContext` and the fan in
+    // `fanRef`, Reply, Fix and Coach only, never the other sites' context beside it, no selling tone (400 otherwise).
+    z.refine(clientContextHolds, { message: 'the chat context does not fit the request' }),
     // 1.15.0 (R20 P4b3), the hub's own rules of the site operations (its handler; else 400, or 409 for our narrow
     // token on a page without the switch): the notes fill (both platforms since 2026-10-28, hub#906) and the voice
     // script (1.47.0: both platforms) always name their fan — on Fansly apart from the group, on OnlyFans the chat

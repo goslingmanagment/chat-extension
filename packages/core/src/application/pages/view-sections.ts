@@ -7,6 +7,7 @@
 import { type LocalSpendReport } from '@cg/contracts/diagnostics';
 import { isCgCode, type CgCode, type I18nKey } from '@cg/contracts/errors';
 import { HOST_KINDS, HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
+import { type BootstrapPage, type PersonaCatalogItem } from '@cg/contracts/hub';
 import { SOUND_TONE_IDS, hostAccountKeyOf } from '@cg/contracts/settings';
 import {
   JOURNAL_KINDS,
@@ -28,6 +29,7 @@ import {
 
 import { coachWindowOf } from '../../domain/coach/depth';
 import { formatMicroUsd } from '../../domain/debug';
+import { defaultPersonaOf } from '../../domain/personas';
 import { recapByDefault } from '../../domain/settings';
 import { hotkeyRows } from './hotkeys';
 import { accountKeyOf, aliasesOf, boundPageOf, boundPageTagOf, button, errorOf, knownAccounts, msg, pageTagOf, personaOfPage, platformNameOf, valueOf, type PagesModel } from './model';
@@ -138,6 +140,12 @@ export function signInVm(model: PagesModel): SignInVM {
   };
 }
 
+/** «Для этой страницы задумана персона …» (Telegram spec §5.5): the page's own persona, when another is chosen. A warning, never a block. */
+function intendedOf(page: BootstrapPage, chosen: string | null, catalog: readonly PersonaCatalogItem[]): { readonly intended?: string } {
+  const meant = defaultPersonaOf(page, catalog);
+  return meant === null || chosen === null || chosen === meant.key ? {} : { intended: meant.displayName };
+}
+
 export function personasBody(model: PagesModel): PersonasBodyVM {
   const catalog = valueOf(model.catalog)?.personas ?? [];
   const pages = valueOf(model.bootstrap)?.pages ?? [];
@@ -159,6 +167,7 @@ export function personasBody(model: PagesModel): PersonasBodyVM {
         page: pageTagOf(model, page),
         persona: persona.label,
         replacementNeeded: persona.s === 'archived' || persona.s === 'missing',
+        ...intendedOf(page, persona.key, catalog),
         choices: active.map((choice) => ({ key: choice.key, label: choice.displayName, choose: { type: 'ChoosePersona', pageHandle, personaKey: choice.key } })),
       };
     }),

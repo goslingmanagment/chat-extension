@@ -65,6 +65,7 @@ const jiti = createJiti(import.meta.url);
 const COPIES: Readonly<Record<HostKind, { readonly key: (name: string) => string | null; readonly what: string; readonly itself: boolean }>> = {
   chatspace: { key: (name) => (/^\d+\.\d+\.\d+$/.test(name) ? name : null), what: 'version folders', itself: false },
   'fansly-web': { key: (name) => /\d{4}-\d{2}-\d{2}$/.exec(name)?.[0] ?? null, what: 'folders named by the date of the copy', itself: true },
+  'telegram-web': { key: () => null, what: 'no copies (a stub)', itself: false },
 };
 
 function newestCopy(host: HostDescriptor): string {
@@ -195,7 +196,16 @@ async function checkFansly(host: HostDescriptor): Promise<void> {
 }
 
 /** Each site's check: a new site of the registry brings its own. */
-const CHECKS: Readonly<Record<HostKind, (host: HostDescriptor) => Promise<void>>> = { chatspace: checkChatSpace, 'fansly-web': checkFansly };
+/**
+ * Telegram's is a stub (docs/specs/2026-10-27-telegram-site.md §6.9): no copy of Web A's bundle is kept; its anchors
+ * are its global classes (anchors-telegram.ts), held by the live check and the tab's own contract report.
+ */
+async function checkTelegram(host: HostDescriptor): Promise<void> {
+  const anchors = await jiti.import<{ readonly TELEGRAM_ANCHORS: Readonly<Record<string, readonly string[]>> }>(new URL(`../../${host.contractCheck.module}`, import.meta.url).href);
+  console.log(`host-contract-check: ${host.kind} keeps no bundle copy; its ${Object.keys(anchors.TELEGRAM_ANCHORS).length} anchors are checked live (docs/specs/2026-10-27-telegram-site.md §10).`);
+}
+
+const CHECKS: Readonly<Record<HostKind, (host: HostDescriptor) => Promise<void>>> = { chatspace: checkChatSpace, 'fansly-web': checkFansly, 'telegram-web': checkTelegram };
 
 const host = HOSTS.find((item) => item.kind === values.host || item.platform === values.host);
 if (host === undefined) fail(`host-contract-check: --host ${values.host} is not a site of the host registry (${HOSTS.map((item) => `${item.kind} or ${item.platform}`).join('; ')}).`);

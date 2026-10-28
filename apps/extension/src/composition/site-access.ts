@@ -1,7 +1,8 @@
 // Optional-site configuration for the core's permission and observation services.
 // The core takes these inert data/functions; no site's chunk is imported here.
 import { FANSLY_API_MATCHES, FANSLY_MATCHES } from '../hosts/runtime/fansly';
-import { FANSLY_STAND_MATCHES } from '../hosts/runtime';
+import { FANSLY_STAND_MATCHES, TELEGRAM_STAND_MATCHES } from '../hosts/runtime';
+import { TELEGRAM_MATCHES } from '../hosts/runtime/telegram';
 
 export { FANSLY_RELAY_PAGE } from '../hosts/runtime/fansly';
 
@@ -38,3 +39,14 @@ export function routeFamily(value: string): string | null {
     ].find(([prefix]) => prefix !== undefined && path.startsWith(prefix))?.[1] ?? null;
   } catch { return null; }
 }
+
+/**
+ * Telegram Web A, the second optional site (docs/specs/2026-10-27-telegram-site.md §6.3): its own switch, rights and
+ * script, apart from Fansly's. None of Fansly's services is Telegram's: no relay page, no `fansly.` requests, no network
+ * session, no freshness hook, no notice script (an open tab reloads on the grant; after an update it needs a reload).
+ */
+export const TELEGRAM_HOST = 'telegram-web' as const;
+export const TELEGRAM_RELOAD_KEY = 'telegram.waitingReload';
+export const telegramMatches = (): string[] => __CG_TEST_HOSTS__ ? [...TELEGRAM_MATCHES, ...TELEGRAM_STAND_MATCHES] : [...TELEGRAM_MATCHES];
+export const telegramPermissionSet = () => ({ origins: __CG_TEST_HOSTS__ ? [...TELEGRAM_STAND_MATCHES] : [...TELEGRAM_MATCHES] });
+export const telegramScriptSet = () => [{ id: 'telegram', js: ['telegram.js'], world: 'ISOLATED' as const, matches: telegramMatches() }];

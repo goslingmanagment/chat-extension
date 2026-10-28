@@ -104,7 +104,7 @@ export function createAiSurfaces(ports: AiPorts): AiSurfaces {
       const reason = vm.options.toneReason;
       if (reason !== null) return hint(reason, msg('dock.option.toneUnavailable', { reason: i18n.text(reason.text) }));
       // AI-008: the key walks the tones and starts nothing. A walk sets the tone; it is not the menu's toggle.
-      const next = nextTone(vm.options.tone);
+      const next = nextTone(vm.options.tone, vm.options.tones);
       workspace.setTone(chat.key, next);
       return { kind: 'dispatched', action: { type: 'SetTone', targetHandle: chat.handle, tone: next }, receipt: { ok: true, type: 'SetTone', outcome: 'done' } };
     }

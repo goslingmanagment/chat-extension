@@ -21,6 +21,7 @@
 
 import { FBUDDY_MATCH } from '@cg/contracts/fan-badges';
 import { FANSLY_CONTRACT, FANSLY_STATUS_TEXTS } from '@cg/contracts/fansly-host';
+import { TELEGRAM_CONTRACT } from '@cg/contracts/telegram-host';
 import { FANSLY_TAB_TYPE_PREFIX, parseFanslyTabPayload } from '@cg/contracts/tab-messages-fansly';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { ExtensionPage } from '@cg/contracts/tab-protocol';
@@ -31,12 +32,13 @@ import { DEFAULT_SETTINGS, STORAGE_KEYS } from '@cg/contracts/settings';
 import { parseTabPayload } from '@cg/contracts/tab-messages';
 import type { I18nKey } from '@cg/contracts/errors';
 import { CHATSPACE_STATUS_TEXTS, type JournalKind, type Unmount } from '@cg/contracts/vm';
-import { createSiteAccessControl, createPagesClient, type PageEnv, type PagePorts, type PageSite, type PagesClient } from '@cg/core/application/pages';
+import { createSiteAccessControl, createPagesClient, offeredSiteAccess, type PageEnv, type PagePorts, type PageSite, type PagesClient } from '@cg/core/application/pages';
 import { createFanslyPages, type FanslyPagesDeps } from '@cg/core/application/hosts/fansly/pages';
 import { withFanslyPageTexts } from '@cg/core/domain/hosts/fansly/i18n/pages';
 import { createActionCatalog, hotkeyPlatformOf } from '@cg/core/domain/hotkeys';
 import { CHATSPACE_PHRASES } from '@cg/core/domain/hosts/chatspace/i18n';
 import { FANSLY_PHRASES } from '@cg/core/domain/hosts/fansly/i18n';
+import { TELEGRAM_PHRASES } from '@cg/core/domain/hosts/telegram/i18n';
 import { createI18n, resolveLocale, type SitePhrases } from '@cg/core/domain/i18n';
 import { createActionJournal } from '@cg/core/application/journal';
 import { createLogForwarder, createLogger } from '@cg/core/domain/logging';
@@ -58,10 +60,11 @@ import { mediaSchemeSignal, type KitFailure } from '@cg/ui/kit';
 import { fanslyOptionsSlots } from '@cg/ui/hosts/fansly/pages';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type PageDeps } from '@cg/ui/pages';
 
-import { OPTIONAL_HOST, RELOAD_KEY, permissionSet } from './site-access';
+import { OPTIONAL_HOST, RELOAD_KEY, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, permissionSet, telegramPermissionSet } from './site-access';
 import { CHATSPACE_MATCHES, type PerHost } from '../hosts/runtime';
 import { CHATSPACE_FEATURE_SLICE } from './features/chatspace';
 import { FANSLY_FEATURE_SLICE } from './features/fansly';
+import { TELEGRAM_FEATURE_SLICE } from './features/telegram';
 import { SITE_PAGES } from '../site';
 
 export type PageName = ExtensionPage;
@@ -96,6 +99,8 @@ const LOG_FORWARD_DELAY_MS = 250;
 const PAGE_SITES = {
   chatspace: { kind: 'chatspace', contract: CHATSPACE_CONTRACT, texts: CHATSPACE_STATUS_TEXTS },
   'fansly-web': { kind: 'fansly-web', contract: FANSLY_CONTRACT, texts: FANSLY_STATUS_TEXTS },
+  // Telegram's «Статус» row takes the same words as Fansly's (the site's phrases fill them).
+  'telegram-web': { kind: 'telegram-web', contract: TELEGRAM_CONTRACT, texts: FANSLY_STATUS_TEXTS },
 } as const satisfies PerHost<PageSite>;
 
 /**
@@ -103,7 +108,7 @@ const PAGE_SITES = {
  * Fansly's slice is the pages' own here — the background's core gets it from Fansly's module instead. A new row of
  * the hosts' runtime table does not typecheck until its slice is here.
  */
-const PAGE_FEATURES = { chatspace: CHATSPACE_FEATURE_SLICE, 'fansly-web': FANSLY_FEATURE_SLICE } as const satisfies PerHost<FeatureSlice>;
+const PAGE_FEATURES = { chatspace: CHATSPACE_FEATURE_SLICE, 'fansly-web': FANSLY_FEATURE_SLICE, 'telegram-web': TELEGRAM_FEATURE_SLICE } as const satisfies PerHost<FeatureSlice>;
 
 /** A site's slice; null — the extension has no such site. */
 const featuresOf = (host: HostKind): FeatureSlice | null => (PAGE_FEATURES as { readonly [K in HostKind]?: FeatureSlice })[host] ?? null;
@@ -113,7 +118,7 @@ const featuresOf = (host: HostKind): FeatureSlice | null => (PAGE_FEATURES as { 
  * pages carry every site's pack (docs/project-unite/architecture.md §3.4) — a hub page on a platform whose site this
  * build does not run on yet is still named by it. A new host kind does not typecheck until its pack is here.
  */
-const SITE_PHRASES = { chatspace: CHATSPACE_PHRASES, 'fansly-web': FANSLY_PHRASES } as const satisfies { readonly [K in HostKind]: SitePhrases };
+const SITE_PHRASES = { chatspace: CHATSPACE_PHRASES, 'fansly-web': FANSLY_PHRASES, 'telegram-web': TELEGRAM_PHRASES } as const satisfies { readonly [K in HostKind]: SitePhrases };
 
 /** The same by the platform each site serves: what a hub page's platform is called. */
 const PLATFORM_PHRASES: ReadonlyMap<string, SitePhrases> = new Map(Object.entries(SITE_PHRASES).map(([kind, phrases]) => [HOST_PLATFORM[kind as HostKind], phrases]));
@@ -248,6 +253,14 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   const fbuddy = { has: fbuddyAccess.has, request: fbuddyAccess.request, onChange: (listener: () => void) => fbuddyAccess.onChange(() => listener()) };
   const fansly = page === 'options' ? createFanslyPages({ access, request: fanslyRequest, preview: (tone, volume) => rpc.request('sound.preview', { tone, volume }), fbuddy }) : null;
 
+  // «Включить Telegram» (Telegram spec §6.3): only for a person whose bootstrap has a Telegram page, against a hub that
+  // serves Telegram (`telegram-ai-v1`); a person without one sees no change at all.
+  const telegramPermissions = createPermissionBundle(telegramPermissionSet(), api);
+  const telegramAccess = offeredSiteAccess(createSiteAccessControl(TELEGRAM_HOST, rpc, telegramPermissions), async () => {
+    const answer = await rpc.request('bootstrap.get', {});
+    return answer.ok && answer.payload.capabilities.includes('telegram-ai-v1') && answer.payload.pages.some((entry) => entry.platform === HOST_PLATFORM[TELEGRAM_HOST]);
+  });
+
   const pagesClient = createPagesClient(env, fansly === null ? ports : { ...ports, siteAccounts: [fansly.accounts] });
   // The chatter's log (2026-10-21, «Скачать лог»): every click of the page, with what it came to — never a text.
   const actions = createActionJournal(logger, { now: () => Date.now(), setTimer: (ms, fn) => win.setTimeout(fn, ms), clearTimer: (handle) => win.clearTimeout(handle as number) });
@@ -264,14 +277,14 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
 
   // ── the page itself ────────────────────────────────────────────────────────
   if (page === 'popup' || page === 'options') {
-    const read = (): Promise<void> => (fansly === null ? access.refresh() : fansly.control.refresh());
+    const read = (): Promise<void> => Promise.all([fansly === null ? access.refresh() : fansly.control.refresh(), page === 'popup' ? telegramAccess.refresh() : Promise.resolve()]).then(() => undefined);
     const refresh = (): void => { if (doc.visibilityState === 'visible') void read(); };
-    offs.push(sitePermissions.onChange(refresh), ports.window.onFocus(refresh),
-      createKeyValueStore('session', { api }).onChanged((changes) => { if (RELOAD_KEY in changes) refresh(); }),
+    offs.push(sitePermissions.onChange(refresh), telegramPermissions.onChange(refresh), ports.window.onFocus(refresh),
+      createKeyValueStore('session', { api }).onChanged((changes) => { if (RELOAD_KEY in changes || TELEGRAM_RELOAD_KEY in changes) refresh(); }),
       createKeyValueStore('local', { api }).onChanged((changes) => { if (STORAGE_KEYS.settingsExt in changes) refresh(); }));
     void read();
   }
-  const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface, ...(page === 'popup' ? { siteAccess: { control: access, title: FANSLY_PHRASES[i18n.language].site } } : {}) };
+  const shared: PageDeps = { client, i18n, catalog, clipboard: ports.clipboard, theme: client.theme, systemScheme, hints: client.hints, report: reportSurface, ...(page === 'popup' ? { siteAccess: { control: access, title: FANSLY_PHRASES[i18n.language].site }, moreSites: [{ control: telegramAccess, title: TELEGRAM_PHRASES[i18n.language].site }] } : {}) };
   let unmount: Unmount;
   if (page === 'popup') unmount = mountPopup(container, shared);
   else if (page === 'options') unmount = mountOptions(container, { ...shared, location: client.location, helpUrl: SITE_PAGES.start, ...(fansly === null ? {} : { i18n: withFanslyPageTexts(i18n), slots: fanslyOptionsSlots(fansly.control) }) });

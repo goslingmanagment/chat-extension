@@ -227,6 +227,13 @@ export const MEDIA_LIMITS = {
 export const LIVE_TEXT_LIMITS = { maxItems: 60, maxChars: 5000 } as const;
 
 /**
+ * Telegram spec §4.3, §6.2: the hub's bounds of `clientContext` (its `aiFeatureStreamBodySchema`): the transcript's
+ * characters, its message count and the fan's name. The tab renders at most ~120 messages; a transcript longer than
+ * the bound drops its oldest messages first.
+ */
+export const CLIENT_CONTEXT_LIMITS = { transcriptMaxChars: 300_000, messageCountMax: 5000, fanNameMaxChars: 200 } as const;
+
+/**
  * 1.22.0 (X54): our own read of the open chat from OnlyMonster's API (`openChatMessages`). `pageMax` — messages one
  * request asks for (ChatSpace itself asks up to 100); `requestMs` — MAIN aborts its request after this; `bridgeMs` —
  * the isolated side's deadline for the answer (the request plus the frame); `cacheMs` — how long a read of the open

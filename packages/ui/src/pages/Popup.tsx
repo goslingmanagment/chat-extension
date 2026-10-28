@@ -18,7 +18,7 @@ import { type PopupVerdictVM, type PopupVM } from '@cg/contracts/vm';
 import { Button, Dot, ErrorCard, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
 import { ChatGooseLogo, LostArt, TrioArt } from './brand/art';
 import { PageLayers, PageTag, pageTagText, useAct, usePageServices } from './shared';
-import { SiteSwitch, SiteSwitchError, useSiteAccess, waitingReloadOf } from './SiteAccess';
+import { MoreSiteSwitches, SiteSwitch, SiteSwitchError, useSiteAccess, waitingReloadOf } from './SiteAccess';
 
 /** A value that copies itself on a click (PU-007): the id is text the popup already holds. */
 function CopyValue({ text, value, tooltip }: { readonly text: string; readonly value: string; readonly tooltip: string }): JSX.Element {
@@ -329,6 +329,7 @@ function Footer({ vm }: { readonly vm: PopupVM }): JSX.Element {
         {i18n.t('popup.whatsNew')}
       </button>
       <SiteSwitch />
+      <MoreSiteSwitches />
       <Button label={vm.refreshing ? i18n.t('popup.refreshing') : i18n.text(vm.refresh.label)} variant="quiet" size="sm" icon="refresh" busy={vm.refreshing} onClick={() => void act(vm.refresh.action)} />
     </div>
   );

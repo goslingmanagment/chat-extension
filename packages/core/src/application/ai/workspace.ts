@@ -14,7 +14,7 @@
 import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { freshTextSurface, isRecapReader, type FeatureId, type RecapReader, type Surface, type Tone } from '@cg/contracts/features';
 import type { AdmissionAction } from '@cg/contracts/features/types';
-import { type ChatWindow, type HostSnapshot, type LiveTextTail, type RouteState } from '@cg/contracts/host';
+import { type ChatWindow, type HostNotice, type HostSnapshot, type LiveTextTail, type RouteState } from '@cg/contracts/host';
 import { type Bootstrap, type BootstrapPage, type ClientFeatureFlag } from '@cg/contracts/hub';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import { CHAT_IS_FAN, DRAFT_MEDIA_CAPABILITY, LIVE_IMAGES_CAPABILITY, LIVE_PPV_CAPABILITY, RECAP_OFF_CAPABILITY, chatKeyOf, narrowPlatform, type ChatKey, type ChatRef, type HostAccount, type HostIdentity, type HumanCause, type PartRef, type Target } from '@cg/contracts/ids';
@@ -122,8 +122,15 @@ export interface Situation {
   readonly pageOff: PageOff | null;
   /** Why parts can only be copied; null — they can be inserted. */
   readonly copyOnly: PartBlock | null;
+  /**
+   * The page's own warning about the open chat (`HostPort.notice`, Telegram spec §4.3, §4.4): one line over the bar of a
+   * dock that is otherwise ready, never a block. Absent or null — none.
+   */
+  readonly hostNotice?: HostNotice | null;
   /** Present when a generation can be started for the open chat. */
   readonly ready: ReadyTarget | null;
+  /** The open chat's account is bound to a page granted to the person (its page is known). Absent — not (yet). */
+  readonly bound?: true;
   readonly window: ChatWindow | null;
   /** The fan's display name as ChatSpace holds it; decoration only. */
   readonly fanName: string | null;
@@ -239,7 +246,8 @@ const failed = (code: CgCode, facts: Omit<CgErrorWire, 'code'> = {}): StartResul
 /** X54: whether the hub takes the open chat's PPV state on the page's platform (`LIVE_PPV_CAPABILITY`). */
 function livePpvServed(bootstrap: Bootstrap, pagePlatform: string): boolean {
   const platform = narrowPlatform(pagePlatform);
-  return platform !== null && bootstrap.capabilities.includes(LIVE_PPV_CAPABILITY[platform]);
+  const capability = platform === null ? null : LIVE_PPV_CAPABILITY[platform];
+  return capability !== null && bootstrap.capabilities.includes(capability);
 }
 
 export class AiWorkspace {
@@ -370,6 +378,11 @@ export class AiWorkspace {
           case 'accounts':
           case 'incoming':
           case 'coverage':
+            this.bump();
+            break;
+          // The page's own warning moved (Telegram spec §4.3, §4.4): the next look reads it afresh.
+          case 'notice':
+            this.situationCache = null;
             this.bump();
             break;
           // The fuse of decision X25 is the tab's to report (the background logs it); it turns nothing off. Who sent a
@@ -547,7 +560,7 @@ export class AiWorkspace {
     if (page === null) return off('no-binding', 'not-granted', { code: 'CG-BINDING-NOT-GRANTED' });
 
     const persona = this.env.persona(page.pageId);
-    const named = { ...base, persona, pageName: page.title, pageId: page.pageId };
+    const named = { ...base, persona, pageName: page.title, pageId: page.pageId, bound: true as const };
     // The owner's master switch is off for this page: whatever else is missing (a persona, the chat's history),
     // nothing of ours would run here — the hub refuses every AI call of this client on the page. One line says
     // so; what was generated before can still be copied.
@@ -579,6 +592,10 @@ export class AiWorkspace {
     const composer = snapshot.composer;
     const blocked = composer?.hidden === true || snapshot.mounts.dock.kind === 'copy-only-row' || fan?.isBlocked === true;
     if (blocked) return { ...known, status: 'blocked-fan', statusError: { code: 'CG-GATE-FAN-BLOCKED' }, off: null, copyOnly: { reason: 'fan-blocked', code: 'CG-GATE-FAN-BLOCKED' } };
+    // The page's own warning (Telegram spec §4.3, §4.4): the attachment window holds the message being written — parts
+    // are copied, the caption is the person's to fill; the rest are a line over the bar.
+    const hostNotice = host.notice?.(chat.chat) ?? null;
+    if (hostNotice?.copyOnly === true) return { ...known, status: 'ready', statusError: null, off: null, copyOnly: { reason: 'host-degraded', code: hostNotice.code }, hostNotice };
     const insert = snapshot.contract.capabilities.insert;
     if (insert.state !== 'on') {
       const code = insert.code ?? 'CG-HOST-CONTRACT';
@@ -592,7 +609,7 @@ export class AiWorkspace {
     // else: a generation is admitted on its own, and its parts can be copied.
     const insertion = this.admitted(snapshot, ready, 'reply', 'insert');
     const copyOnly: PartBlock | null = insertion.usable ? null : { reason: 'feature-disabled', code: flagRefusal(insertion).code, view: flagReasonVm(insertion) };
-    return { ...known, status: 'ready', statusError: null, off: null, copyOnly };
+    return { ...known, status: 'ready', statusError: null, off: null, copyOnly, hostNotice };
   }
 
   /**

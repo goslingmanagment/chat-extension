@@ -50,6 +50,12 @@ export function PersonasSection({ body, view, readOnly }: { readonly body: Perso
                           if (choice !== undefined) void act(choice.choose, { quiet: true });
                         }}
                       />
+                      {page.intended !== undefined ? (
+                        <span class="pg-line">
+                          <Dot kind="ring" />
+                          {i18n.t('settings.personas.intended', { persona: page.intended })}
+                        </span>
+                      ) : null}
                       {page.replacementNeeded ? (
                         <span class="pg-line">
                           <Dot kind="ring" />

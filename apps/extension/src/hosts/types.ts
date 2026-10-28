@@ -22,8 +22,8 @@ export interface ScriptSpec {
 }
 
 export interface HostScripts {
-  /** The MAIN-world script at document_start. */
-  readonly main: ScriptSpec;
+  /** The MAIN-world script at document_start; absent — the site runs in the isolated world only (Telegram). */
+  readonly main?: ScriptSpec;
   /** The isolated script at document_start: the early bootstrap of the tab. */
   readonly isolated: ScriptSpec;
   /** A small isolated script the background injects into tabs opened before an update or a grant. */

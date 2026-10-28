@@ -168,7 +168,7 @@ import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
-import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily } from './site-access';
+import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, telegramMatches, telegramPermissionSet, telegramScriptSet } from './site-access';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
@@ -191,12 +191,15 @@ export function wsTapSpec(): DynamicMainScriptSpec {
 export const HOST_MODULE_SPECS = {
   'fansly-web': { chunk: 'bg/fansly.js', pending: { local: [], session: [] }, passJournalDb: 'cg-fansly-newcomers' },
   chatspace: { chunk: 'bg/chatspace.js', pending: { local: [STORAGE_KEYS.sendJournal, LOCAL_KEYS.sendFuse], session: [SESSION_KEYS.greetingLeases] } },
+  // Telegram's module brings its slice only: no work of its own to resume.
+  'telegram-web': { chunk: 'bg/telegram.js', pending: { local: [], session: [] } },
 } as const satisfies PerHost<HostModuleSpec>;
 
 /** The requests each site's module answers: the core checked the sender, its session and the payload, and routes them. */
 export const HOST_REQUESTS = {
   'fansly-web': [],
   chatspace: ['send.begin', 'send.status', 'send.list', 'send.report', 'send.fuse', 'send.fuseState', 'send.fuseReset', 'newcomers.claim'],
+  'telegram-web': [],
 } as const satisfies PerHost<readonly HostRequestType[]>;
 
 /**
@@ -384,6 +387,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const hostReports = new Map<string, HostContractReport | null>();
   const pageReports = new Map<string, PageDiagnostics>();
   let accessSnapshot: SiteAccessState | undefined;
+  /** Telegram's switch as «Статус» reads it: a site switched off has no row there (nobody without it sees a change). */
+  let telegramSnapshot: SiteAccessState | undefined;
   let requestMode: 'background' | 'relay' | undefined;
   const freshness = new FreshnessDayStore(() => Date.now(), keyOf(session, 'diagnostics.freshnessDay'));
   const freshnessReady = freshness.start();
@@ -393,7 +398,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const rpc = createBackgroundRpc({
     api,
     // ChatSpace's loopback stand counts as ChatSpace in a test build only (the constant keeps it out of release).
-    tabHosts: { chatspace: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES, 'fansly-web': siteMatches() } satisfies PerHost<readonly string[]>,
+    tabHosts: { chatspace: __CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES, 'fansly-web': siteMatches(), 'telegram-web': telegramMatches() } satisfies PerHost<readonly string[]>,
     // R20 P9c: the relay frame of «Fansly через вкладку» (`cg-relay`), from the site's row of the host table.
     relayPages: { [OPTIONAL_HOST]: FANSLY_RELAY_PAGE },
     ready: barrier.ready,
@@ -418,7 +423,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       armAlarms();
       sound.sync();
       // The site's own services come up with its first tab (its requests wait for them).
-      if (info.request.host !== OPTIONAL_HOST || siteAccess.active()) void hostModules.ensure(info.request.host).then(() => sound.arbiter.rememberAccounts());
+      if (siteActive(info.request.host)) void hostModules.ensure(info.request.host).then(() => sound.arbiter.rememberAccounts());
+      if (info.request.host === TELEGRAM_HOST) void telegramAccess.registered(info.tabId).catch(accessFailed);
       if (info.request.host === OPTIONAL_HOST) {
         void siteAccess.registered(info.tabId).catch(accessFailed);
         void networkSession.register(info.tabId).catch(accessFailed);
@@ -842,6 +848,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const hostOrigins: Readonly<Record<string, readonly string[]>> = {
     'fansly-web': siteMatches().map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
     chatspace: (__CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES).map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
+    'telegram-web': telegramMatches().map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
   } satisfies PerHost<readonly string[]>;
   // 2026-10-24: a fan of «Новые» nobody greeted ten minutes after subscribing — a toast with «Hi» in the tab of their creator.
   const greetings = createGreetReminder({
@@ -1020,7 +1027,28 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     failed: accessFailed,
   });
   // Starts immediately, independent of the hub's readiness/availability.
-  const accessReady = siteAccess.start();
+  // Telegram Web A: its own switch, rights and script (site-access.ts); nothing of Fansly's services is its.
+  const telegramTabs = createScriptTabs(telegramMatches(), 'telegram.js', api);
+  const telegramAccess = createSiteAccess({
+    host: TELEGRAM_HOST, key: TELEGRAM_RELOAD_KEY, storage: session,
+    settings: {
+      async enabled() { const state = await extSettings.state(); return state.ok && state.state.ext.hosts[TELEGRAM_HOST].enabled; },
+      async setEnabled(enabled) { const result = await extSettings.patch({ hosts: { [TELEGRAM_HOST]: { enabled } } }); if (!result.ok) throw new Error(result.error.code); },
+      onChange: (listener) => extSettings.onChange(listener),
+    },
+    permissions: createPermissionBundle(telegramPermissionSet(), api),
+    syncScripts: (enabled) => syncDynamicScripts(telegramScriptSet(), enabled, api),
+    // No notice script: a tab open before the grant reloads with it (`reload`); nothing of Telegram's is observed.
+    tabs: { ...telegramTabs, notice: () => Promise.resolve() },
+    observe: { attach: () => undefined, detach: () => undefined },
+    setCaptureEnabled: () => Promise.resolve(),
+    startModule: async () => { await barrier.ready; return hostModules.ensure(TELEGRAM_HOST); },
+    turnedOff: () => rpc.dropTabs(TELEGRAM_HOST),
+    failed: accessFailed,
+  });
+  /** The optional sites' access, by their kind: a site without an entry is always on (ChatSpace). */
+  const optionalAccess = new Map<HostKind, typeof siteAccess>([[OPTIONAL_HOST, siteAccess], [TELEGRAM_HOST, telegramAccess]]);
+  const accessReady = Promise.all([siteAccess.start(), telegramAccess.start()]);
   void accessReady.catch(accessFailed);
   /** Where the storage keys of a site's unfinished work hold anything (a store that cannot be read may: the module reads it itself). */
   async function workPending(spec: HostModuleSpec): Promise<boolean> {
@@ -1032,16 +1060,18 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const hostOfTab = (tabSessionId: string): HostKind | null => rpc.tabs().find((tab) => tab.tabSessionId === tabSessionId)?.request.host ?? null;
   /** The same activity port shared starts and tokens use as the site's own module; sites without a switch stay on. */
   function siteActive(host: HostKind | null): boolean {
-    return host !== OPTIONAL_HOST || siteAccess.active();
+    const access = host === null ? undefined : optionalAccess.get(host);
+    return access === undefined || access.active();
   }
   /**
    * The same, as the site's access stands once a change of it in flight is over (a forced sync after an update reads
    * as off while it runs): what refuses a tab, a start or a token with `CG-SITE-OFF`, never a passing state.
    */
   async function siteOn(host: HostKind | null): Promise<boolean> {
-    if (host !== OPTIONAL_HOST) return true;
-    await siteAccess.state().catch(() => undefined);
-    return siteAccess.active();
+    const access = host === null ? undefined : optionalAccess.get(host);
+    if (access === undefined) return true;
+    await access.state().catch(() => undefined);
+    return access.active();
   }
   /**
    * A site's slice of the feature manifest (§1.4): the core's own (ChatSpace's), else the one the site's running module
@@ -1129,7 +1159,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
           ...(tab.request.host !== OPTIONAL_HOST ? {} : { networkSession: networkSession.diagnostics(tab.tabId) }),
         };
       }),
-      ...(accessSnapshot === undefined ? {} : { siteAccess: [accessSnapshot] }),
+      ...(accessSnapshot === undefined && telegramSnapshot === undefined ? {} : { siteAccess: [accessSnapshot, telegramSnapshot].filter((state): state is SiteAccessState => state !== undefined) }),
       ...(requestMode === undefined ? {} : { requestModes: [{ host: OPTIONAL_HOST, mode: requestMode }] }),
       freshness: freshness.snapshot(),
       settings: settingsRead() ? current : null,
@@ -1230,7 +1260,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   lifecycle.onInstalled((details) => {
     installed = details;
-    if (details.reason === 'install' || details.reason === 'update') void siteAccess.installed().catch(accessFailed);
+    if (details.reason === 'install' || details.reason === 'update') {
+      void siteAccess.installed().catch(accessFailed);
+      void telegramAccess.installed().catch(accessFailed);
+    }
     lifecycleSeen();
     // UP-008: an install or an update only logs — nothing talks to the hub until a human signs in or opens ChatSpace.
     const plan = onInstalledPlan(details.reason);
@@ -1279,7 +1312,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // unloads the page only once it is done (at most 5 s): started here and not handed over, it was cut by the unload
     // whenever the store was slower than the unload, and the record of this very suspend was lost (LG-018).
     logEvent(logger, 'backgroundSuspending', { fields: { tabs: rpc.tabs().length, ops: scheduler.activeAll().length, sends: hostModules.facts().sends?.open ?? 0, uptimeMs: Date.now() - started } });
-    return Promise.allSettled([logging.logs.flush(), ...[...passJournals.values()].map((journal) => journal.idle()), observations.then(() => networkSession.idle()), siteAccess.idle()]).then(() => undefined);
+    return Promise.allSettled([logging.logs.flush(), ...[...passJournals.values()].map((journal) => journal.idle()), observations.then(() => networkSession.idle()), siteAccess.idle(), telegramAccess.idle()]).then(() => undefined);
   });
   lifecycle.onSuspendCanceled(() => logger.info('bg.lifecycle', 'background suspend canceled'));
 
@@ -1661,17 +1694,18 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('site.access', async (request) => {
     // The build's own site has no switch; the popup's «Перезагрузить вкладку» (X61, UP-009) reloads its tabs that got
     // our scripts late — opened before this version — so the page's own run starts with ours.
-    if (request.host !== OPTIONAL_HOST && request.enabled === undefined) {
+    const access = optionalAccess.get(request.host);
+    if (access === undefined && request.enabled === undefined) {
       const stale = rpc.tabs().filter((tab) => tab.request.host === request.host && tab.request.lateInjection);
       const results = request.reload === true ? await Promise.allSettled(stale.map((tab) => api.tabs.reload(tab.tabId))) : [];
       const reloaded = results.filter((result) => result.status === 'fulfilled').length;
       if (request.reload === true) logger.info('bg.tabs', 'stale tabs reloaded', { fields: { asked: stale.length, reloaded } });
       return ok({ host: request.host, enabled: true, granted: true, registered: true, waitingReload: stale.length - reloaded, ...(request.reload === true ? { reloaded } : {}) });
     }
-    if (request.host !== OPTIONAL_HOST) return fail('CG-UNKNOWN', 'not an optional site');
+    if (access === undefined) return fail('CG-UNKNOWN', 'not an optional site');
     try {
-      if (request.enabled !== undefined) await siteAccess.setEnabled(request.enabled);
-      return ok(request.reload === true ? await siteAccess.reload() : await siteAccess.state());
+      if (request.enabled !== undefined) await access.setEnabled(request.enabled);
+      return ok(request.reload === true ? await access.reload() : await access.state());
     } catch { return fail('CG-RUNTIME-UNREACHABLE'); }
   });
   /** A patch that chooses personas is written only under the signed-in person's scope (scopePersonas), as `persona.set` is. */
@@ -1701,6 +1735,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     await refreshHealth();
     await freshnessReady;
     accessSnapshot = await siteAccess.state().catch(() => undefined);
+    telegramSnapshot = await telegramAccess.state().catch(() => undefined);
     const ext = await extSettings.state();
     requestMode = ext.ok ? (ext.state.ext.hosts[OPTIONAL_HOST].viaTab ? 'relay' : 'background') : undefined;
     // A site's module that is starting adds its records in a moment (its X8 journal, its fuse).

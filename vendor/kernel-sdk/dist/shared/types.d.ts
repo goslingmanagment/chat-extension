@@ -1,4 +1,4 @@
-export declare const platforms: readonly ["fansly", "onlyfans"];
+export declare const platforms: readonly ["fansly", "onlyfans", "telegram"];
 /**
  * The values `exportPolicy` may take on the wire (spec 11 staging).
  *

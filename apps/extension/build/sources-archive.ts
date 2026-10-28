@@ -25,6 +25,8 @@ export const STAND_SOURCE_PATHS = [
   'packages/testing/fixture-chatspace.vite.config.ts',
   'packages/testing/fixture-fansly/',
   'packages/testing/fixture-fansly.vite.config.ts',
+  'packages/testing/fixture-telegram/',
+  'packages/testing/fixture-telegram.vite.config.ts',
   'packages/testing/fansly-neighbor.vite.config.ts',
   'packages/testing/src/fixture-fansly/',
   'packages/testing/src/fake-fansly/',
@@ -47,7 +49,7 @@ export const STAND_SOURCE_PATHS = [
 export const SOURCE_DOTFILES: readonly string[] = ['.dependency-cruiser.cjs', '.npmrc', '.nvmrc'];
 
 /** The stand apps: each keeps its tsconfig.json and src/protocol.ts in the archive. */
-const FIXTURES: readonly string[] = ['packages/testing/fixture-chatspace/', 'packages/testing/fixture-fansly/'];
+const FIXTURES: readonly string[] = ['packages/testing/fixture-chatspace/', 'packages/testing/fixture-fansly/', 'packages/testing/fixture-telegram/'];
 
 /** Files inside STAND_SOURCE_PATHS that stay in the archive (see the header). */
 export const STAND_SOURCE_KEPT: readonly string[] = FIXTURES.flatMap((fixture) => [`${fixture}tsconfig.json`, `${fixture}src/protocol.ts`]);

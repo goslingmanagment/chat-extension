@@ -7,6 +7,7 @@
 // DOM, the network or storage.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
+import { type Tone } from '@cg/contracts/features';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { type HostPort } from '@cg/contracts/host';
 import { type LogRecord } from '@cg/contracts/logs';
@@ -89,6 +90,13 @@ export interface AiPorts {
   readonly catalog: ActionCatalog;
   /** The site's slice of the feature manifest (the application's half of the site's adapter): what exists here and what each thing needs. */
   readonly features: FeatureSlice;
+  /** The site's Reply tones in the menu's order (Telegram spec §6.6: no selling tone there). Absent — every tone. */
+  readonly tones?: readonly Tone[];
+  /**
+   * The dock shows only on an account bound to a page granted to the person (Telegram spec §2: on any other account —
+   * a chatter's own, a second one in the same browser — nothing of ours shows). Absent — the dock says why it is off.
+   */
+  readonly dockOnlyWhenBound?: true;
   /**
    * The site's AI policy (the application's half of the site's adapter, R20 F10): the proof a start gathers, the
    * site's pre-check, its fields of the start, the fingerprint kept with the operation and the verdict on its result.

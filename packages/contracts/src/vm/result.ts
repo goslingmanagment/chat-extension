@@ -295,7 +295,7 @@ export interface ResultDebugVM {
  * `fan-wrote` and `archive-moved` keep the shared «Фан написал новое» (`result.stale.title`, `result.stale.body`).
  * Types only.
  */
-export type ResultMarkKey = `result.stale.${'unverified' | 'windowMiss' | 'deletedServed'}.${'title' | 'body'}`;
+export type ResultMarkKey = `result.stale.${'unverified' | 'windowMiss' | 'deletedServed' | 'historyPartial'}.${'title' | 'body'}`;
 
 export interface ResultVM {
   readonly opId: Uuid;

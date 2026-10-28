@@ -1,0 +1,15 @@
+{
+  "name": "@cg/host-telegram",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./isolated": "./src/isolated/index.ts",
+    "./isolated/palette": "./src/isolated/palette.ts"
+  },
+  "dependencies": {
+    "@cg/contracts": "workspace:*",
+    "@cg/host-kit": "workspace:*"
+  }
+}

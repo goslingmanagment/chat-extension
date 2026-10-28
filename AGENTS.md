@@ -12,7 +12,7 @@ pnpm monorepo, TypeScript strict, WXT, Preact.
 - `packages/contracts` — types, zod schemas, the CG error registry, i18n keys; no logic.
 - `packages/core` — all logic, no DOM, `browser.*` or `fetch`. `packages/platform` — the only package that touches `browser.*`.
 - `packages/hub` — the hub facade over the SDK (background only). `packages/ui` — Preact surfaces, data only through `AppClient`.
-- `packages/host-kit`, `host-chatspace`, `host-fansly`, `fansly-api` — the page machinery of the sites and their adapters.
+- `packages/host-kit`, `host-chatspace`, `host-fansly`, `host-telegram`, `fansly-api` — the page machinery of the sites and their adapters.
 - `packages/testing` — the stand, the fake hub, e2e; never ships.
 - `vendor/` — `@kernel/sdk`, `@chatgoose/hotkeys`: never edit by hand, re-vendor with the hub's scripts (`scripts/vendor-*.mjs`).
 - `tools/` — gates, archive check, `dev`, the release (`release`), e2e in CI (`ci`). `site/` — the extension's site.
@@ -88,6 +88,12 @@ it again. Rollback: `pnpm release rollback --to <version> --confirm <version>`. 
   owner's «да» in the chat; the rest (chats opened, uploads, notes, a scheduled post taken off) is free. The test
   chat, `--chat $FANSLY_TEST_MODEL_CHAT` (a real fan, silent since 2024-12): sends there are allowed once and for all
   (the owner, 2026-10-24) — texts like the model's own, never a burst.
+- **Telegram Web** (`web.telegram.org/a/`, docs/specs/2026-10-27-telegram-site.md) — agents never open Lora's live
+  Telegram: opening a chat marks it read, her fans are real. Live checks only on two park accounts of the agency
+  (`alina`, `yulya`: HR accounts with real candidates): open only the chat between them, straight by its hash `#<id>`,
+  write only there; log out of Telegram Web afterwards (never «terminate all sessions»: it kills the tg CLI's
+  session); the see profile with that session stays outside the repo. No key pressed in our UI may ever reach
+  Telegram: its `document` listener sends the field on Enter (host-telegram keys.ts holds our keys on `window`).
 - **The hub's prod** (`agency-de`) — read-only. AI, keys and prompts live only in the hub.
 - **Posts to chatters** (Telegram) — automatic only as the last step of `pnpm release` from 3.0.0 (the owner's word,
   2026-10-25); any other post to the channel is the owner's call. A post that may have gone out (`UNKNOWN`) is never

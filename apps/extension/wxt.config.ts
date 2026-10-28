@@ -35,7 +35,7 @@ let lazyChunks: LazyChunkInfo[] = [];
 /** The entry points that run in the page's own world (ChatSpace: chatspace-main, the bridge; chatspace-ws, the WS tap; Fansly: fansly-main). */
 const MAIN_WORLD_ENTRY_NAMES = HOSTS.flatMap((host) => scriptsOf(host).filter((script) => script.world === 'MAIN').map((script) => script.entry));
 /** Each site's MAIN script at document_start: a TEST build's one also carries the sentry-gate e2e's positive control. */
-const BRIDGE_ENTRY_NAMES = HOSTS.map((host) => host.scripts.main.entry);
+const BRIDGE_ENTRY_NAMES = HOSTS.flatMap((host) => (host.scripts.main === undefined ? [] : [host.scripts.main.entry]));
 /** Each site's isolated early bootstrap. */
 const ISOLATED_ENTRY_NAMES = HOSTS.map((host) => host.scripts.isolated.entry);
 

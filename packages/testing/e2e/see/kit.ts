@@ -32,11 +32,18 @@ import { fakeFansly } from '../support/fansly-stand';
 import { allOurs, ours, oursExists, oursText, pressOurs, readOurs, waitOursByText, waitOursText, type Where } from '../support/ours';
 import { dockIs, startShift, type ShiftOptions } from '../support/shift';
 import { callStand, STAND_IDS, standServer, waitForChatReady } from '../support/stand';
+import { startTelegramShift } from '../support/telegram-shift';
+import { callTelegram, TELEGRAM_STAND_IDS } from '../support/telegram-stand';
 import { serveShowcaseAvatars } from './avatars';
 import { fanslyWrites, LIVE, netRecords, startLiveShift, type NetRecord } from './live';
 import { makeSite, type SiteVerbs } from './site';
 
+/** The sites of the scenarios that run on ChatSpace and Fansly (a scenario that names none runs on ChatSpace). */
 export type Site = 'chatspace' | 'fansly';
+/** Every site `--site` picks: Telegram's scenarios say `sites: ['telegram']`, and their `s.site` is typed so. */
+export type SeeSite = Site | 'telegram';
+
+const SITES: readonly SeeSite[] = ['chatspace', 'fansly', 'telegram'];
 
 const REPO_ROOT = new URL('../../../../', import.meta.url).pathname;
 /** Where this run's pictures and reports go (the CLI makes a folder per run). */
@@ -66,6 +73,19 @@ export const SEE_AI_TEXTS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The model's texts on Lora's Telegram (`--site telegram`, Telegram spec §7): Reply warm and flirty, never selling; Fix
+ * the chatter's own draft with its wallet kept character for character (`telegram-fix` changes it on purpose); Coach
+ * advising, the sale left to the chatter.
+ */
+export const TELEGRAM_AI_TEXTS: Readonly<Record<string, string>> = {
+  ...SEE_AI_TEXTS,
+  'fast-reply': 'haha someone’s impatient 😏 [NEXT] tell me what you’d like to see first… I’m curious what you’re into 🙈',
+  'improve-draft': 'ok, so how about this weekend? 😘 my wallet is TQ7xR3d9Wk2eYvN8mLp4sHc6JfB1aZuGtV, for the custom',
+  'coach-chat':
+    'He is warm and curious: answer the weekend question first and keep it light. The custom is yours to offer when he asks again; name the price only then.\n\n```draft\nthis weekend sounds perfect 😘 [NEXT] tell me what you’d like… I want to get it just right for you\n```',
+};
+
+/**
  * The same shift in the showcase world (`--showcase`, src/showcase.ts): the open chat's fan is Jamie, back from a trip,
  * and Hi introduces the page's own model — Mia Rose on OnlyFans, Sofia Lane on Fansly. Recap and Coach speak Russian,
  * as they do to the team's chatters; what goes to a fan (drafts, Hi, Reply) stays English.
@@ -84,9 +104,9 @@ export function showcaseAiTexts(site: Site): Readonly<Record<string, string>> {
   };
 }
 
-export interface SeeOptions {
+export interface SeeOptions<S extends SeeSite = Site> {
   /** The sites it runs on; the first is the default, `--site` picks another of them. */
-  readonly sites?: readonly Site[];
+  readonly sites?: readonly S[];
   /** The window of the chat tab (default 1440 × 900, the mockup's). */
   readonly viewport?: { readonly width: number; readonly height: number };
   /** Settings on top of the defaults (ChatSpace: any section; Fansly: `generation`). */
@@ -96,9 +116,11 @@ export interface SeeOptions {
   /** The fake hub's own synthetic AI texts instead of the mockup's. */
   readonly hubTexts?: true;
   /** Before the shift starts: script the fake hub or the stand (`s.hub.command(...)`, `s.stand`). */
-  readonly before?: (s: Pick<See, 'hub' | 'site' | 'stand'>) => Promise<void>;
+  readonly before?: (s: Pick<See<S>, 'hub' | 'site' | 'stand'>) => Promise<void>;
   /** Fansly: the group the shift opens first (default the stand's first chat, 90 messages). */
   readonly fanslyGroup?: string;
+  /** Telegram: the chat the tab opens (default Jamie's) and the account slot of its address (`?account=N`). */
+  readonly telegram?: { readonly chat?: string; readonly account?: number };
   /** The scenario's own time limit (default 3 minutes). */
   readonly timeout?: number;
   /**
@@ -124,8 +146,8 @@ export interface ShotOptions {
 }
 
 /** What a scenario (and a held session's `pnpm see:do`) works with. */
-export interface See {
-  readonly site: Site;
+export interface See<S extends SeeSite = Site> {
+  readonly site: S;
   readonly out: string;
   readonly browser: WebdriverIO.Browser;
   /** The fake hub's control API: `command({ op: 'config', patch: { aiTexts } })`, `journal()`, `status()`. */
@@ -156,12 +178,14 @@ export interface See {
   has(where: Where, selector: string): Promise<boolean>;
   /** Keys as a person presses them together: `s.keys(s.MOD, 'k')`; `s.keys('hello')` types. */
   keys(...keys: string[]): Promise<void>;
-  /** ChatSpace: clicks into the open chat's message field and types. */
+  /** ChatSpace, Telegram: clicks into the open chat's message field and types (Telegram: emoji by the editor's own command). */
   type(text: string): Promise<void>;
-  /** ChatSpace: the focus off the message field (on the chat's header), so our single-key hotkeys reach us. */
+  /** ChatSpace, Telegram: the focus off the message field (on the chat's header), so our single-key hotkeys reach us. */
   leaveField(): Promise<void>;
-  /** ChatSpace: opens another chat of account a (`s.ids.fans.a2`); `newTab` — in a new ChatSpace tab. */
+  /** ChatSpace: opens another chat of account a (`s.ids.fans.a2`); `newTab` — in a new ChatSpace tab. Telegram: as a click on its row (`s.tg.chats.sasha`). */
   openChat(fanId: string, newTab?: boolean): Promise<void>;
+  /** The Telegram stand's ids (its chats, its accounts); its page's own API is `s.h.callTelegram`. */
+  readonly tg: typeof TELEGRAM_STAND_IDS;
   /** The extension's own pages tab (popup, settings: `s.browser.url(s.page('popup.html'))`) / back to the chat. */
   toPages(): Promise<void>;
   toChat(): Promise<void>;
@@ -195,6 +219,8 @@ export interface See {
     readonly dockIs: typeof dockIs;
     readonly callStand: typeof callStand;
     readonly fakeFansly: typeof fakeFansly;
+    /** The Telegram stand's page API in the tab in front (`window.__tgStand`): `s.h.callTelegram('incoming', id, 'hi')`. */
+    readonly callTelegram: typeof callTelegram;
     readonly $: typeof $;
   };
 }
@@ -215,14 +241,15 @@ interface ShotNote {
 const ADDON_PAGE = 'moz-extension://';
 
 /** Which site this run is on: `--site` (CG_SEE_SITE), else the scenario's first. */
-function pickSite(options: SeeOptions): Site {
-  const sites = options.sites ?? ['chatspace'];
+function pickSite<S extends SeeSite>(options: SeeOptions<S>): SeeSite {
+  const sites: readonly SeeSite[] = options.sites ?? ['chatspace'];
   const wanted = process.env['CG_SEE_SITE'];
   if (wanted === undefined || wanted === '') return sites[0] ?? 'chatspace';
-  if (wanted !== 'chatspace' && wanted !== 'fansly') throw new Error(`CG_SEE_SITE: «${wanted}» is neither chatspace nor fansly`);
-  if (!sites.includes(wanted)) throw new Error(`this scenario runs on ${sites.join(', ')}, not on ${wanted}`);
-  if (LIVE && wanted !== 'fansly') throw new Error('--live is Fansly\'s only (the test model on fansly.com)');
-  return wanted;
+  const site = SITES.find((known) => known === wanted);
+  if (site === undefined) throw new Error(`CG_SEE_SITE: «${wanted}» is none of ${SITES.join(', ')}`);
+  if (!sites.includes(site)) throw new Error(`this scenario runs on ${sites.join(', ')}, not on ${site}`);
+  if (LIVE && site !== 'fansly') throw new Error('--live is Fansly\'s only (the test model on fansly.com)');
+  return site;
 }
 
 /** One line about the dock, for a picture's caption. */
@@ -339,13 +366,13 @@ export function recordFrames(everyMs: number, onFrame: (png: Buffer) => void): {
  * the test build's report, its diagnostics and journals, the hub's calls and the shots' notes are written to OUT.
  * A call the fake hub says the client must never make is written down (violations.txt), not failed on.
  */
-export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
+export function useSee<S extends SeeSite = Site>(options: SeeOptions<S> = {}): { readonly see: () => See<S> } {
   if (options.showcase === true && !SHOWCASE) throw new Error('this scenario is the showcase world\'s: run it with `pnpm see <name>` (it switches the world on) or add --showcase');
   const site = pickSite(options);
   const hub = fakeHubControl(fakeHubOrigin());
   const logs: ConsoleEntry[] = [];
   const notes: ShotNote[] = [];
-  let made: See | null = null;
+  let made: See<SeeSite> | null = null;
   let hubSince = 0;
   let count = 0;
   let frames: ReturnType<typeof recordFrames> | null = null;
@@ -363,19 +390,32 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
       await setFanslyNeighbor(null);
       await fakeFansly().command({ op: 'reset' });
     }
-    if (options.hubTexts !== true) await hub.command({ op: 'config', patch: { aiTexts: SHOWCASE ? showcaseAiTexts(site) : SEE_AI_TEXTS } });
-    await options.before?.({ hub, site, stand: standServer });
+    if (options.hubTexts !== true) await hub.command({ op: 'config', patch: { aiTexts: site === 'telegram' ? TELEGRAM_AI_TEXTS : SHOWCASE ? showcaseAiTexts(site) : SEE_AI_TEXTS } });
+    await options.before?.({ hub, site: site as S, stand: standServer });
     // The showcase world's fans have pictures on Fansly (avatars.ts).
     if (SHOWCASE && site === 'fansly') await serveShowcaseAvatars();
     const viewport = options.viewport ?? { width: 1440, height: 900 };
     let toChat: () => Promise<void>;
     let toPages: () => Promise<void>;
-    let rpc: See['rpc'];
+    let rpc: See<SeeSite>['rpc'];
     if (LIVE) {
       const generation = options.settings?.generation as Partial<SettingsV1['generation']> | undefined;
       const group = process.env['CG_SEE_LIVE_GROUP'];
       const shift = await startLiveShift(hub, { viewport, bare: process.env['CG_SEE_LIVE_BARE'] === '1', ...(group === undefined || group === '' ? {} : { group }), ...(generation === undefined ? {} : { generation }) });
       toChat = () => shift.toFansly();
+      toPages = () => shift.toPages();
+      rpc = (type, payload) => shift.rpc(type, payload);
+    } else if (site === 'telegram') {
+      // Telegram's shift, like Fansly's, takes the generation and ui sections only.
+      const generation = options.settings?.generation as Partial<SettingsV1['generation']> | undefined;
+      const ui = options.settings?.ui as Partial<SettingsV1['ui']> | undefined;
+      const shift = await startTelegramShift(hub, {
+        viewport,
+        ...(options.telegram?.chat === undefined ? {} : { chat: options.telegram.chat }),
+        ...(options.telegram?.account === undefined ? {} : { account: options.telegram.account }),
+        ...(generation === undefined && ui === undefined ? {} : { settings: { ...(generation === undefined ? {} : { generation }), ...(ui === undefined ? {} : { ui }) } }),
+      });
+      toChat = () => shift.toTelegram();
       toPages = () => shift.toPages();
       rpc = (type, payload) => shift.rpc(type, payload);
     } else if (site === 'fansly') {
@@ -437,6 +477,15 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
     } catch (error) {
       write('hub-calls.json', { error: String(error) });
     }
+    // Telegram: the chat each AI request carried (`clientContext`), as the fake hub got it — the stand's synthetic chat.
+    if (site === 'telegram') {
+      try {
+        const contexts = (await hub.status()).clientContexts;
+        if (contexts.length > 0) write('client-context.json', contexts);
+      } catch (error) {
+        write('client-context.json', { error: String(error) });
+      }
+    }
     try {
       const egress = (await standServer.egress(0)).attempts;
       if (egress.length > 0) write('egress.json', egress);
@@ -460,31 +509,37 @@ export function useSee(options: SeeOptions = {}): { readonly see: () => See } {
   return {
     see: () => {
       if (made === null) throw new Error('the shift did not start (see the error above)');
-      return made;
+      // The site is one of the scenario's own (pickSite refused any other).
+      return made as See<S>;
     },
   };
 }
 
 interface Parts {
-  readonly site: Site;
+  readonly site: SeeSite;
   readonly hub: FakeHubControlClient;
   readonly logs: readonly ConsoleEntry[];
   readonly toChat: () => Promise<void>;
   readonly toPages: () => Promise<void>;
-  readonly rpc: See['rpc'];
+  readonly rpc: See<SeeSite>['rpc'];
   readonly frames: ReturnType<typeof recordFrames> | null;
   readonly nextNumber: () => number;
   readonly note: (entry: ShotNote) => void;
 }
 
-function makeSee(parts: Parts): See {
+function makeSee(parts: Parts): See<SeeSite> {
   const { site } = parts;
   let lastOp: string | null = null;
   const chatSpaceOnly = (what: string): void => {
     if (site !== 'chatspace') throw new Error(`s.${what}() is ChatSpace's (this run is on ${site})`);
   };
+  const notOnFansly = (what: string): void => {
+    if (site === 'fansly') throw new Error(`s.${what}() is ChatSpace's and Telegram's (this run is on ${site})`);
+  };
+  /** Telegram: the open chat's field, the active slide's (the previous chat's stays hidden beside it). */
+  const telegramField = (): ReturnType<typeof $> => $('.messages-layout > .Transition > .Transition_slide-active #editable-message-text');
   const follow = async (): Promise<void> => parts.frames?.follow(await browser.getWindowHandle());
-  const see: See = {
+  const see: See<SeeSite> = {
     site,
     out: OUT,
     browser,
@@ -505,6 +560,12 @@ function makeSee(parts: Parts): See {
     },
     // The real site gets no report of ours (composition/tab/probe.ts): --live reads the dock as a person does.
     ready: async (timeout = 20_000) => {
+      if (!LIVE && site === 'telegram') {
+        const report = await dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the dock is ready (Reply on)', timeout);
+        // The dock stands while Web A's editor is still its stub (~400 ms): a scenario types into the editor.
+        await browser.waitUntil(async () => (await telegramField().getAttribute('contenteditable')) === 'true', { timeout, timeoutMsg: 'Telegram\'s editor did not come up' });
+        return report;
+      }
       if (!LIVE) return dockIs((d) => d.status === 'ready' && d.actions['reply'] === true, 'the dock is ready (Reply on)', timeout);
       await waitOursByText('dock', '.cg-strip button', /^Reply/, 'the dock is ready (Reply)', timeout);
       return null;
@@ -554,14 +615,28 @@ function makeSee(parts: Parts): See {
       await browser.keys(keys.length === 1 && one !== undefined && one.length > 1 && !(one in Key) ? one.split('') : keys);
     },
     async type(text) {
-      chatSpaceOnly('type');
+      notOnFansly('type');
+      if (site === 'telegram') {
+        // Web A's stub stands there ~400 ms after a chat opens: type once its editor is up.
+        await browser.waitUntil(async () => (await telegramField().getAttribute('contenteditable')) === 'true', { timeout: 10_000, timeoutMsg: 'Telegram\'s editor did not come up' });
+        await telegramField().click();
+        // A person's keys where they can be typed (input rules and all); emoji by the editor's own command.
+        if (/^[\x20-\x7e]*$/.test(text)) await browser.keys(text.split(''));
+        else await callTelegram('typeInField', text);
+        return;
+      }
       await typeDraft(text);
     },
     async leaveField() {
-      chatSpaceOnly('leaveField');
-      await $('[data-stand-conversation-header]').click();
+      notOnFansly('leaveField');
+      await $(site === 'telegram' ? '.messages-layout > .MiddleHeader > .Transition > .Transition_slide-active .fullName' : '[data-stand-conversation-header]').click();
     },
     async openChat(fanId, newTab = false) {
+      if (site === 'telegram') {
+        await callTelegram('openChat', fanId);
+        await dockIs((d) => d.visible && d.target?.endsWith(fanId) === true, `the dock of chat ${fanId}`);
+        return;
+      }
       chatSpaceOnly('openChat');
       await callStand('openChat', STAND_IDS.accounts.a, fanId, newTab ? { newTab: true } : {});
       await waitForChatReady(STAND_IDS.accounts.a, fanId);
@@ -593,14 +668,15 @@ function makeSee(parts: Parts): See {
     PANEL,
     Key,
     ids: STAND_IDS,
+    tg: TELEGRAM_STAND_IDS,
     world: WORLD,
-    h: { ours, allOurs, oursExists, oursText, readOurs, pressOurs, waitOursText, dockIs, callStand, fakeFansly, $ },
+    h: { ours, allOurs, oursExists, oursText, readOurs, pressOurs, waitOursText, dockIs, callStand, fakeFansly, callTelegram, $ },
   };
   return see;
 }
 
 /** One «show me» scenario: a shift on the stand, then `body` with the verbs of `See`. */
-export function scenario(title: string, body: (s: See) => Promise<void>, options: SeeOptions = {}): void {
+export function scenario<S extends SeeSite = Site>(title: string, body: (s: See<S>) => Promise<void>, options: SeeOptions<S> = {}): void {
   describe(`see: ${title}`, function (this: Mocha.Suite) {
     // On the suite: wdio's wrapper reads a test's limit before its body runs (a limit set there was the config's 2 minutes).
     this.timeout(options.timeout ?? 180_000);

@@ -35,7 +35,7 @@ export const TECH_HEADING = 'Как это устроено';
 
 export const NOTE_KINDS = ['intro', 'new', 'improved', 'fixed'] as const;
 export type NoteKind = (typeof NOTE_KINDS)[number];
-export const NOTE_SITES = ['chatspace', 'fansly'] as const;
+export const NOTE_SITES = ['chatspace', 'fansly', 'telegram'] as const;
 export type NoteSite = (typeof NOTE_SITES)[number];
 
 export const KIND_LABEL: Readonly<Record<NoteKind, string>> = { intro: 'Главное', new: 'Новое', improved: 'Улучшено', fixed: 'Исправлено' };
@@ -44,7 +44,7 @@ export const KIND_EMOJI: Readonly<Record<NoteKind, string>> = { intro: '🪿', n
  * The sites as chatters name them. They work OnlyFans through ChatSpace, so for them the site is OnlyFans (owner,
  * 2026-10-25); the field value stays `chatspace` — the released notes carry it.
  */
-export const SITE_LABEL: Readonly<Record<NoteSite, string>> = { chatspace: 'OnlyFans', fansly: 'Fansly' };
+export const SITE_LABEL: Readonly<Record<NoteSite, string>> = { chatspace: 'OnlyFans', fansly: 'Fansly', telegram: 'Telegram' };
 
 /** The sites of a note in one line: «OnlyFans и Fansly», «Fansly», «OnlyFans». */
 export const sitesLabel = (sites: readonly NoteSite[]): string => NOTE_SITES.filter((site) => sites.includes(site)).map((site) => SITE_LABEL[site]).join(' и ');

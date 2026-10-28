@@ -206,6 +206,9 @@ export const config: WebdriverIO.Config = {
     process.env['CG_FANSLY_SOCKET_URL'] = stand.fansly.fake.socketUrl;
     // Its proxy (R20 P9c): what a container's proxy is to the model's tab — the relay suite routes the tab through it.
     process.env['CG_FANSLY_PROXY'] = stand.fansly.fake.proxy.host;
+    // The Telegram stand (Telegram spec §6.10): its own loopback name (http://telegram.localhost:<port>), Web A's page
+    // at /a/. A run without its build gets the stand server's 503, not a failed start: only its scenarios open it.
+    process.env['CG_TELEGRAM_STAND_ORIGIN'] = stand.telegram.origin;
     // The fake hub: system clock, the pilot preset (switched on page by page, the owner's `"*"` row empty); specs
     // reset and script it through its control API. Every AI body is checked by the hub's own body schema, every
     // client/* request and model answer by the hub's own route schemas (the vendored SDK's): a request the real

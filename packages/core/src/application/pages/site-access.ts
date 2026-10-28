@@ -38,3 +38,31 @@ export function createSiteAccessControl(host: HostKind, rpc: PageRpc, permission
     reload: () => run(() => request({ reload: true })),
   };
 }
+
+/**
+ * An optional site's control offered only where it applies (Telegram spec §2, §6.3): `offered` says so — the person's
+ * bootstrap has a page of the site and the hub serves it. Not offered and not on, its state reads null, and the page
+ * shows no switch at all; once on, it stays shown so it can be switched off.
+ */
+export function offeredSiteAccess(control: SiteAccessControl, offered: () => Promise<boolean>): SiteAccessControl & { recheck(): Promise<void> } {
+  let shown = false;
+  const listeners = new Set<() => void>();
+  const notify = (): void => { for (const listener of listeners) listener(); };
+  const recheck = async (): Promise<void> => {
+    const next = await offered().catch(() => false);
+    if (next !== shown) { shown = next; notify(); }
+  };
+  control.subscribe(notify);
+  return {
+    get value() {
+      const view = control.value;
+      return shown || view.state?.enabled === true ? view : { ...view, state: null };
+    },
+    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    refresh: () => Promise.all([recheck(), control.refresh()]).then(() => undefined),
+    enable: () => control.enable(),
+    disable: () => control.disable(),
+    reload: () => control.reload(),
+    recheck,
+  };
+}

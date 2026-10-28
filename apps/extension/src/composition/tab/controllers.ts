@@ -12,6 +12,7 @@
 // action two families could take, and how the three «what is open» states —
 // R17's overlays, R12's surfaces, R11's Coach switch — become one.
 
+import type { Tone } from '@cg/contracts/features';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
@@ -64,6 +65,10 @@ export interface TabWorld {
   readonly host: HostPort;
   /** The site's slice of the feature manifest (the adapter's `features`). */
   readonly features: FeatureSlice;
+  /** The site's Reply tones (the adapter's `tones`); absent — every tone. */
+  readonly tones?: readonly Tone[];
+  /** The dock only on a bound account (the adapter's `dockOnlyWhenBound`). */
+  readonly dockOnlyWhenBound?: true;
   /** The site's AI policy (the adapter's `ai`, R20 F10). */
   readonly aiPolicy: AiHostPolicy;
   readonly i18n: I18n;
@@ -127,6 +132,8 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     ids: world.ids,
     catalog,
     features: world.features,
+    ...(world.tones === undefined ? {} : { tones: world.tones }),
+    ...(world.dockOnlyWhenBound === true ? { dockOnlyWhenBound: true as const } : {}),
     policy: world.aiPolicy,
     clipboard: world.clipboard,
     toasts: world.toasts,

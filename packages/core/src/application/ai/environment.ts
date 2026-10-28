@@ -13,6 +13,7 @@ import { type SettingsPatch, type SettingsState } from '@cg/contracts/settings';
 import { type AiQuotaSnapshot } from '@cg/contracts/tab-messages';
 
 import { type RpcAnswer, type RpcConnection, type TabRpcPort } from './ports';
+import { defaultPersonaOf } from '../../domain/personas';
 
 export type Loaded<T> =
   | { readonly s: 'idle' }
@@ -47,6 +48,8 @@ export class TabEnvironment {
   private sessionValue: SessionIdentity | null | undefined = undefined;
   private settingsValue: SettingsState | null = null;
   private bootstrapValue: Loaded<Bootstrap> = IDLE;
+  /** Pages whose meant persona this tab assigned (Telegram spec §5.5): asked once each. */
+  private readonly defaultsAssigned = new Set<number>();
   /** The last bootstrap this sign-in read (X45): kept across a failed read again, dropped with the sign-in. */
   private lastBootstrap: Bootstrap | null = null;
   private catalogValue: Loaded<PersonaCatalog> = IDLE;
@@ -259,7 +262,21 @@ export class TabEnvironment {
     if (settings === null || catalog.s === 'idle' || catalog.s === 'loading') return { status: 'loading', key: null, definitionId: null, label: null };
     const personas: readonly PersonaCatalogItem[] = catalog.s === 'ready' ? catalog.value.personas : [];
     const assignment = settings.settings.personas.byPageId[String(pageId)];
-    if (assignment === undefined) return { status: catalog.s === 'ready' && personas.length === 0 ? 'none' : 'unassigned', key: null, definitionId: null, label: null };
+    if (assignment === undefined) {
+      // Telegram spec §5.5: nothing assigned — the persona the hub means the page for, while the catalog has it active.
+      // It is assigned for good (the background reads the settings' choice for a start), once per page in this tab.
+      const meant = catalog.s === 'ready' ? defaultPersonaOf(this.page(pageId), personas) : null;
+      if (meant !== null) {
+        if (!this.defaultsAssigned.has(pageId)) {
+          this.defaultsAssigned.add(pageId);
+          void this.rpc.request('persona.set', { pageId, key: meant.key, definitionId: meant.definitionId }).then((answer) => {
+            if (!answer.ok) this.defaultsAssigned.delete(pageId);
+          });
+        }
+        return { status: 'ok', key: meant.key, definitionId: meant.definitionId, label: meant.displayName };
+      }
+      return { status: catalog.s === 'ready' && personas.length === 0 ? 'none' : 'unassigned', key: null, definitionId: null, label: null };
+    }
     const item = personas.find((persona) => persona.key === assignment.key);
     if (catalog.s === 'ready' && (item === undefined || item.status !== 'active')) {
       return { status: 'unavailable', key: assignment.key, definitionId: assignment.definitionId, label: item?.displayName ?? null };

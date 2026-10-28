@@ -1,4 +1,4 @@
-export const platforms = ["fansly", "onlyfans"];
+export const platforms = ["fansly", "onlyfans", "telegram"];
 /**
  * The values `exportPolicy` may take on the wire (spec 11 staging).
  *

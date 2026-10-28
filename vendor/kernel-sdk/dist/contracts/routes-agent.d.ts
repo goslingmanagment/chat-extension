@@ -2240,6 +2240,7 @@ export declare const agentPlatformCapabilitiesSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     conversationIdSemantics: z.ZodEnum<{
         equals_fan_id: "equals_fan_id";
@@ -2375,6 +2376,7 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
     platforms: z.ZodArray<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     moneyBearing: z.ZodBoolean;
     requiredCapabilities: z.ZodArray<z.ZodEnum<{
@@ -2472,6 +2474,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             platform: z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>;
             modelSlug: z.ZodString;
             modelName: z.ZodString;
@@ -2482,6 +2485,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationIdSemantics: z.ZodEnum<{
             equals_fan_id: "equals_fan_id";
@@ -2698,6 +2702,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         platforms: z.ZodArray<z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>>;
         moneyBearing: z.ZodBoolean;
         requiredCapabilities: z.ZodArray<z.ZodEnum<{
@@ -3539,6 +3544,7 @@ export declare const agentResolveBodySchema: z.ZodObject<{
     platform: z.ZodOptional<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     inputs: z.ZodArray<z.ZodObject<{
         raw: z.ZodString;
@@ -3682,6 +3688,7 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     platformUserId: z.ZodString;
     username: z.ZodNullable<z.ZodString>;
@@ -3706,6 +3713,7 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodNullable<z.ZodString>;
         storedMessageCount: z.ZodNullable<z.ZodNumber>;
@@ -3942,6 +3950,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             platform: z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>;
             platformUserId: z.ZodString;
             username: z.ZodNullable<z.ZodString>;
@@ -3966,6 +3975,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 platform: z.ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 conversationRef: z.ZodNullable<z.ZodString>;
                 storedMessageCount: z.ZodNullable<z.ZodNumber>;
@@ -4988,6 +4998,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         platformUserId: z.ZodString;
         username: z.ZodNullable<z.ZodString>;
@@ -5019,6 +5030,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         membershipState: z.ZodEnum<{
             unknown: "unknown";
@@ -5332,6 +5344,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
         fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -5398,6 +5411,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             platform: z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>;
             postTipPostRef: z.ZodString;
             postTipRef: z.ZodString;
@@ -6714,6 +6728,7 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     conversationRef: z.ZodNullable<z.ZodString>;
     messageRef: z.ZodNullable<z.ZodString>;
@@ -7026,6 +7041,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodNullable<z.ZodString>;
         messageRef: z.ZodNullable<z.ZodString>;
@@ -8096,11 +8112,13 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
     platform: z.ZodOptional<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     pageLabel: z.ZodOptional<z.ZodString>;
     personPlatform: z.ZodOptional<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     personPlatformUserId: z.ZodOptional<z.ZodString>;
     coverageStatus: z.ZodOptional<z.ZodEnum<{
@@ -8426,6 +8444,7 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     conversationRef: z.ZodString;
     fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -8753,6 +8772,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
         fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -9627,6 +9647,7 @@ export declare const agentMessageSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     conversationRef: z.ZodString;
     messageRef: z.ZodString;
@@ -9979,6 +10000,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
         fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -10006,6 +10028,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
         messageRef: z.ZodString;
@@ -11084,6 +11107,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
     }, z.core.$strict>;
@@ -11779,12 +11803,14 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
     platform: z.ZodOptional<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     pageLabels: z.ZodOptional<z.ZodArray<z.ZodString>>;
     person: z.ZodOptional<z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         platformUserId: z.ZodString;
     }, z.core.$strict>>;
@@ -11940,6 +11966,7 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     conversationRef: z.ZodNullable<z.ZodString>;
     messageRef: z.ZodString;
@@ -12193,6 +12220,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodNullable<z.ZodString>;
         messageRef: z.ZodString;
@@ -13234,11 +13262,13 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
     platform: z.ZodOptional<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     pageLabel: z.ZodOptional<z.ZodString>;
     personPlatform: z.ZodOptional<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     personPlatformUserId: z.ZodOptional<z.ZodString>;
     conversationRef: z.ZodOptional<z.ZodString>;
@@ -13252,6 +13282,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     conversationRef: z.ZodNullable<z.ZodString>;
     fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -13812,6 +13843,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodNullable<z.ZodString>;
         fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -15037,6 +15069,7 @@ export declare const agentObservationsQuerySchema: z.ZodObject<{
     platform: z.ZodOptional<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     pageLabel: z.ZodOptional<z.ZodString>;
     source: z.ZodOptional<z.ZodEnum<{
@@ -15079,6 +15112,7 @@ export declare const agentObservationEnvelopeSchema: z.ZodObject<{
     platform: z.ZodNullable<z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>>;
     pageLabel: z.ZodNullable<z.ZodString>;
     nativeAccountRef: z.ZodNullable<z.ZodString>;
@@ -15112,6 +15146,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
         platform: z.ZodNullable<z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>>;
         pageLabel: z.ZodNullable<z.ZodString>;
         nativeAccountRef: z.ZodNullable<z.ZodString>;
@@ -17094,6 +17129,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     window: z.ZodObject<{
         from: z.ZodString;
@@ -18266,6 +18302,7 @@ export declare const agentHydrationRequestSchema: z.ZodObject<{
     platform: z.ZodEnum<{
         fansly: "fansly";
         onlyfans: "onlyfans";
+        telegram: "telegram";
     }>;
     conversationRef: z.ZodString;
     target: z.ZodObject<{
@@ -18360,6 +18397,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
         target: z.ZodObject<{
@@ -19123,6 +19161,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
         target: z.ZodObject<{
@@ -19898,6 +19937,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
         target: z.ZodObject<{
@@ -20684,6 +20724,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         conversationRef: z.ZodString;
         target: z.ZodObject<{
@@ -27371,6 +27412,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
         platform: z.ZodEnum<{
             fansly: "fansly";
             onlyfans: "onlyfans";
+            telegram: "telegram";
         }>;
         audience: z.ZodEnum<{
             subscribers: "subscribers";
@@ -28165,6 +28207,7 @@ export declare const agentRouteSchemas: {
                         platform: z.ZodEnum<{
                             fansly: "fansly";
                             onlyfans: "onlyfans";
+                            telegram: "telegram";
                         }>;
                         modelSlug: z.ZodString;
                         modelName: z.ZodString;
@@ -28175,6 +28218,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationIdSemantics: z.ZodEnum<{
                         equals_fan_id: "equals_fan_id";
@@ -28391,6 +28435,7 @@ export declare const agentRouteSchemas: {
                     platforms: z.ZodArray<z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>>;
                     moneyBearing: z.ZodBoolean;
                     requiredCapabilities: z.ZodArray<z.ZodEnum<{
@@ -29258,6 +29303,7 @@ export declare const agentRouteSchemas: {
             platform: z.ZodOptional<z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>>;
             inputs: z.ZodArray<z.ZodObject<{
                 raw: z.ZodString;
@@ -29409,6 +29455,7 @@ export declare const agentRouteSchemas: {
                         platform: z.ZodEnum<{
                             fansly: "fansly";
                             onlyfans: "onlyfans";
+                            telegram: "telegram";
                         }>;
                         platformUserId: z.ZodString;
                         username: z.ZodNullable<z.ZodString>;
@@ -29433,6 +29480,7 @@ export declare const agentRouteSchemas: {
                             platform: z.ZodEnum<{
                                 fansly: "fansly";
                                 onlyfans: "onlyfans";
+                                telegram: "telegram";
                             }>;
                             conversationRef: z.ZodNullable<z.ZodString>;
                             storedMessageCount: z.ZodNullable<z.ZodNumber>;
@@ -30372,6 +30420,7 @@ export declare const agentRouteSchemas: {
             platform: z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>;
             platformUserId: z.ZodString;
         }, z.core.$strip>;
@@ -30506,6 +30555,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     platformUserId: z.ZodString;
                     username: z.ZodNullable<z.ZodString>;
@@ -30537,6 +30587,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     membershipState: z.ZodEnum<{
                         unknown: "unknown";
@@ -30850,6 +30901,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                     fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -30916,6 +30968,7 @@ export declare const agentRouteSchemas: {
                         platform: z.ZodEnum<{
                             fansly: "fansly";
                             onlyfans: "onlyfans";
+                            telegram: "telegram";
                         }>;
                         postTipPostRef: z.ZodString;
                         postTipRef: z.ZodString;
@@ -32081,6 +32134,7 @@ export declare const agentRouteSchemas: {
             platform: z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>;
             platformUserId: z.ZodString;
         }, z.core.$strip>;
@@ -32278,6 +32332,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodNullable<z.ZodString>;
                     messageRef: z.ZodNullable<z.ZodString>;
@@ -33385,11 +33440,13 @@ export declare const agentRouteSchemas: {
             platform: z.ZodOptional<z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>>;
             pageLabel: z.ZodOptional<z.ZodString>;
             personPlatform: z.ZodOptional<z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>>;
             personPlatformUserId: z.ZodOptional<z.ZodString>;
             coverageStatus: z.ZodOptional<z.ZodEnum<{
@@ -33710,6 +33767,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                     fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -34620,6 +34678,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                     fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -34647,6 +34706,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                     messageRef: z.ZodString;
@@ -35733,6 +35793,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                 }, z.core.$strict>;
@@ -36478,12 +36539,14 @@ export declare const agentRouteSchemas: {
             platform: z.ZodOptional<z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>>;
             pageLabels: z.ZodOptional<z.ZodArray<z.ZodString>>;
             person: z.ZodOptional<z.ZodObject<{
                 platform: z.ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 platformUserId: z.ZodString;
             }, z.core.$strict>>;
@@ -36645,6 +36708,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodNullable<z.ZodString>;
                     messageRef: z.ZodString;
@@ -37729,11 +37793,13 @@ export declare const agentRouteSchemas: {
             platform: z.ZodOptional<z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>>;
             pageLabel: z.ZodOptional<z.ZodString>;
             personPlatform: z.ZodOptional<z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>>;
             personPlatformUserId: z.ZodOptional<z.ZodString>;
             conversationRef: z.ZodOptional<z.ZodString>;
@@ -37751,6 +37817,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodNullable<z.ZodString>;
                     fanPlatformUserId: z.ZodNullable<z.ZodString>;
@@ -39019,6 +39086,7 @@ export declare const agentRouteSchemas: {
             platform: z.ZodOptional<z.ZodEnum<{
                 fansly: "fansly";
                 onlyfans: "onlyfans";
+                telegram: "telegram";
             }>>;
             pageLabel: z.ZodOptional<z.ZodString>;
             source: z.ZodOptional<z.ZodEnum<{
@@ -39065,6 +39133,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodNullable<z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>>;
                     pageLabel: z.ZodNullable<z.ZodString>;
                     nativeAccountRef: z.ZodNullable<z.ZodString>;
@@ -40820,6 +40889,7 @@ export declare const agentRouteSchemas: {
                 platform: z.ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 window: z.ZodObject<{
                     from: z.ZodString;
@@ -42004,6 +42074,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                     target: z.ZodObject<{
@@ -42828,6 +42899,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                     target: z.ZodObject<{
@@ -43657,6 +43729,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                     target: z.ZodObject<{
@@ -44492,6 +44565,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     conversationRef: z.ZodString;
                     target: z.ZodObject<{
@@ -50652,6 +50726,7 @@ export declare const agentRouteSchemas: {
                     platform: z.ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     audience: z.ZodEnum<{
                         subscribers: "subscribers";

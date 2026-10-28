@@ -346,7 +346,7 @@ export const UI_TEXT_KEYS = [
   'settings.account.hubAddress', 'settings.account.advanced', 'settings.account.hostAccess', 'settings.account.grantAccess',
   'settings.account.connection', 'settings.account.thisDevice', 'settings.account.signInAgain', 'settings.account.pages',
   'settings.account.compatibility', 'settings.account.hubErrorsToday', 'settings.account.lastDossierSave',
-  'settings.personas.catalog', 'settings.personas.readOnly', 'settings.personas.archived', 'settings.personas.pagesOn', 'settings.personas.sync',
+  'settings.personas.catalog', 'settings.personas.readOnly', 'settings.personas.archived', 'settings.personas.intended', 'settings.personas.pagesOn', 'settings.personas.sync',
   'settings.accounts.title', 'settings.accounts.active', 'settings.accounts.seen', 'settings.accounts.noSessions', 'settings.accounts.label',
   'settings.accounts.hubPage', 'settings.accounts.sound', 'settings.accounts.toTab',
   'settings.generation.windows', 'settings.generation.windowQuick', 'settings.generation.windowPing', 'settings.generation.windowImprove',

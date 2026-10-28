@@ -14,13 +14,13 @@ import { join } from 'node:path';
 
 import { browser } from '@wdio/globals';
 
-import { lap, OUT, recordFrames, useSee, type See } from './kit';
+import { lap, OUT, recordFrames, useSee, type See, type SeeSite } from './kit';
 import { fanslyWrites, LIVE, netRecords } from './live';
 
 const PORT = Number(process.env['CG_SEE_PORT'] ?? 47811);
 const IDLE_MS = Number(process.env['CG_SEE_IDLE_MIN'] ?? 30) * 60_000;
 
-type Run = (s: See, b: WebdriverIO.Browser) => Promise<unknown>;
+type Run = (s: See<SeeSite>, b: WebdriverIO.Browser) => Promise<unknown>;
 /** The constructor of async functions: `new AsyncFunction('s', 'browser', body)` compiles a command of `see:do`. */
 const AsyncFunction = (Object.getPrototypeOf(async function () {}) as { constructor: new (...args: string[]) => Run }).constructor;
 
@@ -52,7 +52,7 @@ describe('see: a held session', function (this: Mocha.Suite) {
   // there came too late, and every session ended at the config's 2 minutes); 0 would be a limit of 0 to it. The idle
   // stop below ends a session long before this.
   this.timeout(12 * 60 * 60_000);
-  const run = useSee({ sites: ['chatspace', 'fansly'] });
+  const run = useSee<SeeSite>({ sites: ['chatspace', 'fansly', 'telegram'] });
 
   it('serves commands until /stop', async function () {
     const s = run.see();

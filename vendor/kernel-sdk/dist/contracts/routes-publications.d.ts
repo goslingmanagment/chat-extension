@@ -68,6 +68,7 @@ export declare const publicationRouteSchemas: {
                     platform: import("zod").ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     kind: import("zod").ZodEnum<{
                         story: "story";
@@ -302,6 +303,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 kind: import("zod").ZodEnum<{
                     story: "story";
@@ -477,6 +479,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 kind: import("zod").ZodEnum<{
                     story: "story";
@@ -758,6 +761,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 kind: import("zod").ZodEnum<{
                     story: "story";
@@ -944,6 +948,7 @@ export declare const publicationRouteSchemas: {
                         platform: import("zod").ZodEnum<{
                             fansly: "fansly";
                             onlyfans: "onlyfans";
+                            telegram: "telegram";
                         }>;
                         kind: import("zod").ZodEnum<{
                             story: "story";
@@ -1121,6 +1126,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 kind: import("zod").ZodEnum<{
                     story: "story";
@@ -1307,6 +1313,7 @@ export declare const publicationRouteSchemas: {
                     platform: import("zod").ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     kind: import("zod").ZodEnum<{
                         story: "story";
@@ -1435,6 +1442,7 @@ export declare const publicationRouteSchemas: {
                     platform: import("zod").ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     kind: import("zod").ZodEnum<{
                         story: "story";
@@ -1623,6 +1631,7 @@ export declare const publicationRouteSchemas: {
                         platform: import("zod").ZodEnum<{
                             fansly: "fansly";
                             onlyfans: "onlyfans";
+                            telegram: "telegram";
                         }>;
                         kind: import("zod").ZodEnum<{
                             story: "story";
@@ -1812,6 +1821,7 @@ export declare const publicationRouteSchemas: {
                         platform: import("zod").ZodEnum<{
                             fansly: "fansly";
                             onlyfans: "onlyfans";
+                            telegram: "telegram";
                         }>;
                         kind: import("zod").ZodEnum<{
                             story: "story";
@@ -2001,6 +2011,7 @@ export declare const publicationRouteSchemas: {
                         platform: import("zod").ZodEnum<{
                             fansly: "fansly";
                             onlyfans: "onlyfans";
+                            telegram: "telegram";
                         }>;
                         kind: import("zod").ZodEnum<{
                             story: "story";
@@ -2178,6 +2189,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 kind: import("zod").ZodEnum<{
                     story: "story";
@@ -2472,6 +2484,7 @@ export declare const publicationRouteSchemas: {
                     platform: import("zod").ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     enabled: import("zod").ZodBoolean;
                     autostopReason: import("zod").ZodNullable<import("zod").ZodString>;
@@ -2542,6 +2555,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 enabled: import("zod").ZodBoolean;
                 autostopReason: import("zod").ZodNullable<import("zod").ZodString>;
@@ -2681,6 +2695,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 kind: import("zod").ZodEnum<{
                     story: "story";
@@ -2891,6 +2906,7 @@ export declare const publicationRouteSchemas: {
                     platform: import("zod").ZodEnum<{
                         fansly: "fansly";
                         onlyfans: "onlyfans";
+                        telegram: "telegram";
                     }>;
                     kind: import("zod").ZodEnum<{
                         story: "story";
@@ -3091,6 +3107,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 publishAt: import("zod").ZodString;
                 repostThresholdDays: import("zod").ZodNumber;
@@ -3205,6 +3222,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 kind: import("zod").ZodEnum<{
                     story: "story";
@@ -3450,6 +3468,7 @@ export declare const publicationRouteSchemas: {
                         platform: import("zod").ZodEnum<{
                             fansly: "fansly";
                             onlyfans: "onlyfans";
+                            telegram: "telegram";
                         }>;
                         kind: import("zod").ZodEnum<{
                             story: "story";
@@ -3702,6 +3721,7 @@ export declare const publicationRouteSchemas: {
                 platform: import("zod").ZodEnum<{
                     fansly: "fansly";
                     onlyfans: "onlyfans";
+                    telegram: "telegram";
                 }>;
                 kind: import("zod").ZodEnum<{
                     story: "story";

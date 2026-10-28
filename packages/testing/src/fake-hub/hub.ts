@@ -76,14 +76,14 @@ import {
   type VoiceNoteRef,
 } from '@cg/contracts';
 
-import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, hubFeatureNeedsOn, type HttpExchange } from '../scenarios/hub';
+import { HTTP_SCENARIOS, NOW_MS, SCENARIO_DATA, SSE_SCENARIOS, WORLD, type HttpExchange } from '../scenarios/hub';
 import { DEFAULT_CATALOG, modelStream, type Generation, type ModelStreamFacts } from './ai';
 import { aiFeatureExistsOn, aiFeatureFlag, draftMediaRefusal, liveImagesRefusal, livePpvRefusal, pingFewRefusal, resolveCoverageCheck, streamBodyRefusal, transcriptWindow, voiceScriptRefusal, type BodySchemaLike } from './ai-rules';
 import { AuthModel, FAKE_USERS, type FakeUser, type TokenRecord } from './auth';
 import { ClaimsModel, custodyExistsOn, stableJson, type ClaimContext, type FlagVerdict } from './claims';
 import { FakeHubClock, iso } from './clock';
 import { checkCommand } from './command';
-import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
+import { bootstrapOf, chatIsFan, DEFAULT_PRESET, FAKE_PAGES, featureNeedsOn, featureVerdict, pageRefOf, patchConfig, presetConfig, type FakeHubConfig, type FakePage } from './config';
 import { fakeFanMarks } from './fan-marks';
 import { CursorSigner, DataModel, type FakeActivityBeat, type FakeNoteAttribution, type FakeSendAttribution, type Read, type Refusal } from './data';
 import { FakeHubJournal, journalViolations, type JournalRecord } from './journal';
@@ -97,6 +97,7 @@ import {
   type FakeHubJournalEntry,
   type FakeHubJournalPage,
   type FakeHubServedBy,
+  type FakeClientContextRecord,
   type FakeHubStatus,
   type FakeOnlineAttempt,
   type FakeOnlinePresenceReport,
@@ -212,6 +213,8 @@ interface State {
   streams: AbortController;
   openStreams: number;
   generationSeq: number;
+  /** What the client-context lane's requests (Telegram) gave the model, in order: the chat the tab read. */
+  readonly clientContexts: FakeClientContextRecord[];
 }
 
 /** The part of a zod schema the self-check uses (testing does not depend on zod itself). */
@@ -327,6 +330,7 @@ export class FakeHub {
       streams: new AbortController(),
       openStreams: 0,
       generationSeq: 0,
+      clientContexts: [],
     };
   }
 
@@ -525,6 +529,7 @@ export class FakeHub {
       ingested: s.data.ingestedEvents().length,
       voiceNotes: s.voice.snapshot(now),
       online: { attempts: s.data.onlineAttempts(), presence: s.data.onlinePresenceReports() },
+      clientContexts: s.clientContexts.map((record) => ({ ...record })),
     };
   }
 
@@ -633,7 +638,7 @@ export class FakeHub {
       if (principal === null) return refuse({ kind: 'legacy', servedBy: 'check' }, 'unauthorized', verdict.ok ? undefined : (verdict.reason ?? undefined));
       // H-3: `pages` is not on the narrow token's allow-list — a call the client must never make.
       if (principal.token.client !== null) return refuse({ kind: 'forbidden', operation: 'pages', servedBy: 'check', token: tokenOf(principal) }, 'forbidden');
-      const body = this.grantedPages(principal.user.userId).map((page) => ({
+      const body = this.grantedPages(principal.user.userId).filter(inClosedResponses).map((page) => ({
         ...pageRefOf(page),
         username: null,
         displayName: page.title,
@@ -753,7 +758,7 @@ export class FakeHub {
     if (spec.flag !== null && page !== null) {
       if (!s.config.master) return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'disabled');
       const part = ROUTE_PARTS[route];
-      if (part !== undefined && !(hubFeatureNeedsOn(spec.flag, page.platform)?.capabilities.includes(part) ?? false)) {
+      if (part !== undefined && !(featureNeedsOn(spec.flag, page.platform)?.capabilities.includes(part) ?? false)) {
         return refuse({ ...record, servedBy: 'check' }, 'client_feature_disabled', 'platform_unsupported');
       }
       const flag = featureVerdict(s.config, page, spec.flag);
@@ -1084,7 +1089,7 @@ export class FakeHub {
         return {
           kind: 'json',
           status: 200,
-          body: { authMethod: 'device_token', user: { id: user.userId, username: user.username, role: user.role, mustChangePassword: false, assignedPages: this.grantedPages(user.userId).map(pageRefOf) } },
+          body: { authMethod: 'device_token', user: { id: user.userId, username: user.username, role: user.role, mustChangePassword: false, assignedPages: this.grantedPages(user.userId).filter(inClosedResponses).map(pageRefOf) } },
         };
       }
       case 'clientBootstrap': {
@@ -1207,7 +1212,7 @@ export class FakeHub {
     if (principal.token.client !== null) {
       if (!s.config.master) return refusal('client_feature_disabled', 'disabled');
       if (!aiFeatureExistsOn(feature, body.platform)) return refusal('client_feature_disabled', 'platform_unsupported');
-      const flag = aiFeatureFlag(feature, body.platform, (name, platform) => hubFeatureNeedsOn(name, platform) !== undefined);
+      const flag = aiFeatureFlag(feature, body.platform, (name, platform) => featureNeedsOn(name, platform) !== undefined);
       if (flag !== null) {
         const verdict = featureVerdict(s.config, page, flag);
         if (!verdict.available) return refusal('client_feature_disabled', verdict.reason ?? 'flag_off');
@@ -1237,6 +1242,10 @@ export class FakeHub {
       if (body.expectedPersonaDefinitionId !== undefined && body.expectedPersonaDefinitionId !== persona.definitionId) return refusal('persona_definition_changed');
       definitionId = persona.definitionId;
     }
+    // The client-context lane (Telegram, hub #909): the chat is the client's; the hub keeps what it was given and, with
+    // no transcript of its own (`kernelTranscript` absent), sends no context frame.
+    const clientLane = body.clientContext !== undefined;
+    if (clientLane) s.clientContexts.push({ feature, pageLabel: page.pageLabel, fanRef: body.fanRef ?? null, conversationRef: body.conversationRef, at: iso(this.clock.now()), clientContext: body.clientContext });
     const window = transcriptWindow(request, s.config.limits.deepMax);
     const served = s.data.served(page, transcript, window.limit);
     // Hi has no message limit (2026-10-21): neither its count nor its start proof refuses it.
@@ -1290,6 +1299,7 @@ export class FakeHub {
       window,
       nameFan: s.config.aiNameFan,
       texts: deepText === undefined ? s.config.aiTexts : { ...s.config.aiTexts, 'coach-chat': deepText },
+      ...(clientLane ? { contextFrame: false } : {}),
       ...(pair === undefined ? {} : { pair }),
       ...(coverageCheck === undefined ? {} : { coverageCheck }),
     });
@@ -1418,6 +1428,13 @@ export class FakeHub {
 }
 
 /** The archive a generation's transcript is read from: the fan's where a chat is its fan, the group's on Fansly. */
+/**
+ * Whether a page shows in the hub's responses with the closed platform enum — `me`, `GET /pages` — for a device token
+ * (hub #909 closed-platform-responses.ts): a Telegram page never does (an older client's SDK would refuse the whole
+ * answer); the bootstrap, with its open platform token, lists it.
+ */
+const inClosedResponses = (page: FakePage): boolean => page.platform !== 'telegram';
+
 function transcriptRefOf(page: FakePage, body: { readonly conversationRef: string; readonly fanRef?: string | null | undefined }): string {
   return chatIsFan(page) ? (body.fanRef ?? body.conversationRef) : body.conversationRef;
 }

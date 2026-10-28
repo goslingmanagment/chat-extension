@@ -28,6 +28,7 @@
 // them through the structural types below, so it imports no site package.
 
 import type { CgCode } from '@cg/contracts/errors';
+import type { Tone } from '@cg/contracts/features';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { HostContractShape, HostPort, HostTheme, MountPoints } from '@cg/contracts/host';
 import type { HostKind } from '@cg/contracts/hosts';
@@ -166,8 +167,8 @@ export interface HostAdapter<P extends HostPort = HostPort> {
   keyProbe(doc: Document, roots: ShadowRegistry): KeyOwnership & { now(): FocusPlace };
   /** Marks the dock host while a key of ours waits for the lazy part (HK-024): the one sign of it that early. */
   keyPending(dock: Element): (waiting: boolean) => void;
-  /** The route by the address, for a key pressed before the host reported one. */
-  routeOfLocation(location: Pick<Location, 'pathname'>): RouteKey;
+  /** The route by the address — its path, and on a site whose chats are its hash (Telegram) the hash too — for a key pressed before the host reported one. */
+  routeOfLocation(location: Pick<Location, 'pathname' | 'hash'>): RouteKey;
   /**
    * The site's client of the vendored key scheme (§1.5): the rows it serves run, a row of another client is a
    * reserved letter. ChatSpace — `extension`; Fansly — `fansly`, which also has Notes (⌘⇧K). The one part of the
@@ -231,6 +232,10 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    * the dock's chips, the cheatsheet's rows and every admission of the tab read it.
    */
   readonly features: FeatureSlice;
+  /** The site's Reply tones in the menu's order (Telegram: no selling tone). Absent — every tone. */
+  readonly tones?: readonly Tone[];
+  /** The dock shows only on an account bound to a page granted to the person (Telegram spec §2). Absent — always, saying why it is off. */
+  readonly dockOnlyWhenBound?: true;
   /** Local account metadata for the shared fan panel; absent on hosts without it. */
   readonly registrationOf?: (fanId: string, i18n: I18n) => FanPanelVM['registration'];
   /**

@@ -20,6 +20,7 @@
     "e2e",
     "fixture-chatspace.vite.config.ts",
     "fixture-fansly.vite.config.ts",
+    "fixture-telegram.vite.config.ts",
     "fansly-neighbor.vite.config.ts",
     "kit-gallery.vite.config.ts",
     "dock-gallery.vite.config.ts",
@@ -62,6 +63,9 @@
     },
     {
       "path": "./fixture-fansly"
+    },
+    {
+      "path": "./fixture-telegram"
     }
   ]
 }

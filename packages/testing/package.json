@@ -48,7 +48,7 @@
     "ws": "8.22.0"
   },
   "scripts": {
-    "build:stand": "vite build --config fixture-chatspace.vite.config.ts && vite build --config fixture-fansly.vite.config.ts && vite build --config fansly-neighbor.vite.config.ts",
+    "build:stand": "vite build --config fixture-chatspace.vite.config.ts && vite build --config fixture-fansly.vite.config.ts && vite build --config fansly-neighbor.vite.config.ts && vite build --config fixture-telegram.vite.config.ts",
     "stand": "pnpm build:stand && tsx src/stand-cli.ts",
     "e2e": "pnpm build:stand && wdio run e2e/wdio.conf.ts",
     "perf": "pnpm build:stand && wdio run e2e/wdio.conf.ts --spec e2e/perf/perf-probe.e2e.ts --spec e2e/perf/fansly-perf-probe.e2e.ts",

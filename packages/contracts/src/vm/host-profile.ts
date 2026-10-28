@@ -22,7 +22,7 @@ export type HostPaletteName = `--color-om-${string}`;
 export type HostPalette = Readonly<Record<HostPaletteName, string>>;
 
 /** The dock's variants: its widths and the icons of its chips differ by site, as a sheet keyed on the variant. */
-export const DOCK_VARIANTS = ['chatspace', 'fansly'] as const;
+export const DOCK_VARIANTS = ['chatspace', 'fansly', 'telegram'] as const;
 export type DockVariant = (typeof DOCK_VARIANTS)[number];
 
 /** Set by the mount on our host element, next to `data-scheme`; a site's sheet keys its rules on it. The page sees it: a neutral name (X22). */

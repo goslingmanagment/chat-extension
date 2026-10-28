@@ -482,8 +482,8 @@ describe('[fake hub] the voice script\'s gate on both sites (ai-rules.ts, hub #7
     expect(voiceScriptRefusal(body({ fanRef: null }), false)).toBe('gate_voice_identity_required');
     expect(voiceScriptRefusal(body({ fanRef: undefined }), false)).toBe('gate_voice_identity_required');
     expect(voiceScriptRefusal(body({ platform: 'fansly', conversationRef: FANSLY.chat, fanRef: FANSLY.fan }), false)).toBeNull();
-    expect(voiceScriptRefusal(body({ platform: 'fansly', conversationRef: FANSLY.chat, fanRef: FANSLY.fan, clientContext: {} }), false)).toBe('gate_voice_identity_required');
-    expect(voiceScriptRefusal(body({ platform: 'fansly', conversationRef: FANSLY.fan, fanRef: FANSLY.fan, clientContext: {} }), false)).toBeNull();
+    expect(voiceScriptRefusal(body({ platform: 'fansly', conversationRef: FANSLY.chat, fanRef: FANSLY.fan, clientContext: {} as never }), false)).toBe('gate_voice_identity_required');
+    expect(voiceScriptRefusal(body({ platform: 'fansly', conversationRef: FANSLY.fan, fanRef: FANSLY.fan, clientContext: {} as never }), false)).toBeNull();
     expect(voiceScriptRefusal(body({}), true)).toBe('gate_voice_disabled');
     expect(voiceScriptRefusal({ ...body({}), platform: 'reddit' as never }, false)).toBe('gate_voice_unsupported_platform');
   });

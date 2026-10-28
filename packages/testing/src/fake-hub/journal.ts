@@ -41,6 +41,8 @@ export const JOURNAL_KEPT_STRING_KEYS: ReadonlySet<string> = new Set([
   'composedWith',
   // «Онлайн»: when Fansly saw a follower, what wrote a message of the window, the guide's text by its id (never its text)
   'lastSeenAt', 'act', 'templateId',
+  // Telegram's chat in `clientContext` (its transcript stays a length): how much of the chat it covers, a word of a closed list
+  'transcriptCoverage',
 ]);
 const KEPT_MAX_CHARS = 200;
 const KEPT_VALUE = new RegExp(`^\\S{0,${KEPT_MAX_CHARS}}$`, 'u');

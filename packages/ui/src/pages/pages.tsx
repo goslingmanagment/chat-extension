@@ -29,7 +29,7 @@ import { DebugJournal } from './debug/Journal';
 import { DebugPrompt } from './debug/DebugPrompt';
 import { Options, type OptionsRoute } from './options/Options';
 import { type OptionsSlots } from './options/slots';
-import { SiteAccessProvider, type SiteAccessProps } from './SiteAccess';
+import { MoreSitesProvider, SiteAccessProvider, type SiteAccessProps } from './SiteAccess';
 import { Popup } from './Popup';
 import { FONTS_SOURCE } from './brand/fonts';
 import { PageServices, PageServicesProvider } from './shared';
@@ -38,6 +38,8 @@ import { PAGES_SOURCE } from './styles';
 /** What a page's composition root hands over. */
 export interface PageDeps {
   readonly siteAccess?: SiteAccessProps;
+  /** The other optional sites' switches of the popup (Telegram spec §6.3); absent — none. */
+  readonly moreSites?: readonly SiteAccessProps[];
   /** core `createPagesClient(...)`, started by the composition root. */
   readonly client: AppClient;
   readonly i18n: I18n;
@@ -86,6 +88,7 @@ function mountPage(container: HTMLElement, deps: PageDeps, surface: MountSurface
     marks: { resultShown: () => undefined, painted: () => undefined },
   };
   const hints = deps.hints ?? ALWAYS_ON;
+  const NO_SITES: readonly SiteAccessProps[] = [];
   const View = view;
   const Root: FunctionComponent = () => {
     const on = useValueSignal(hints).value;
@@ -94,7 +97,9 @@ function mountPage(container: HTMLElement, deps: PageDeps, surface: MountSurface
         <Hints value={on}>
           {/* The optional site's switch lives inside the page that has one (the popup's foot, X61), not above it. */}
           <SiteAccessProvider value={deps.siteAccess ?? null}>
-            <View />
+            <MoreSitesProvider value={deps.moreSites ?? NO_SITES}>
+              <View />
+            </MoreSitesProvider>
           </SiteAccessProvider>
         </Hints>
       </PageServicesProvider>
