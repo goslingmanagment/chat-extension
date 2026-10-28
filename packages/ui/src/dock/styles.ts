@@ -35,7 +35,7 @@
 //           status spinner in its place
 //   ≤ 420   no head meta; Insert under the text
 //   < 360   «Ещё раз» is ↻; the buttons of a Recap head take a second
-//           line; «Ещё» is ⋯
+//           line; «Ещё» is ⋯ and holds Voice too,
 //           and the chips closer still (a 320 px column, §6.5)
 //
 // No goose in the bar (decision X31): its cell is the room that keeps every
@@ -302,6 +302,8 @@ ${STALE_ROW_NARROW_CSS}
   .cg-tones__seam { margin: 0 2px; }
   .cg-more .cg-act__t { ${VISUALLY_HIDDEN} }
   .cg-more::before { content: "⋯"; }
+  ${/* Voice's 🎙 goes into «Ещё» too: with it the row ran «⋯» 10 px out of a 320 px dock. */ ''}
+  .cg-strip .cg-slot--voice { display: none; }
   ${/* Recap: a segment and up to four buttons. They do not fit one line here, and nothing may run out of the dock. */ ''}
   .cg-head--tools { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 3px; }
   .cg-head--tools > .cg-head__sp { display: none; }
