@@ -703,6 +703,8 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
     const first = uuid(0x500);
     expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain', attemptId: first });
+    // The tab's pause after a click (SEND_PACE_MS) is over; the first send's ticket (10 s) is not.
+    await h.advance(SEND_PACE_MS);
     // Inside its ticket the hub still calls the first send in flight (`custody_held`): «Отправить» of part 2 and
     // «Отправить ещё раз» of part 1 are refused, and each row says so — another send is going, wait a few seconds.
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 });
@@ -720,6 +722,7 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     h.sendState({ attemptId: uuid(0x503), state: 'nativeAccepted', platformMessageId: '4100' });
     h.sendState({ attemptId: uuid(0x503), state: 'sentObserved', platformMessageId: '4100' });
     await h.flush();
+    await h.advance(SEND_PACE_MS);
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 });
     expect(partsOf(h, 'spenders')[1]?.send).toEqual({ s: 'sending' });
     expect(h.host.calls.commits).toHaveLength(3);
@@ -829,12 +832,14 @@ describe('[SP-054] «Отправить» of the draft field: the person’s own
     await h.flush();
     expect(draftOf(h)).toBe('first words');
     // The person wrote something else meanwhile: their newer text is not replaced.
+    await h.advance(SEND_PACE_MS);
     await sendDraft();
     await h.dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text: 'other words' });
     h.sendState({ attemptId: uuid(0x502), state: 'rejected', code: 'CG-SEND-GUARD', httpStatus: 422 });
     await h.flush();
     expect(draftOf(h)).toBe('other words');
     // An unknown outcome may have reached the fan: the text stays on the card only.
+    await h.advance(SEND_PACE_MS);
     await sendDraft();
     expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain' });
     await h.advance(60_000);
