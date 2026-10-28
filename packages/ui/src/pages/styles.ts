@@ -187,7 +187,7 @@ ${/* X61: the verdict on the stage of «Статус» in the popup's width — 
 ${/* The goose stands beside the remedy, below the words: they take the stage's whole width. */ ''}
 .pg-popup__alert-t { padding-right: 8px; }
 .pg-popup__alert > .cg-btn { max-width: calc(100% - 64px); }
-.pg-popup__alert p { margin: 4px 0 0; font-size: 13.5px; line-height: 19px; color: inherit; }
+.pg-popup__alert p { margin: 4px 0 0; font-size: 13.5px; line-height: 19px; color: inherit; text-wrap: balance; }
 .pg-popup__alert .cg-btn { margin-top: 11px; }
 ${/* No remedy (Fansly has no «Открыть»): the goose stands beside the last lines, so they end before it. */ ''}
 .pg-popup__alert:not(:has(> .cg-btn)) > p, .pg-popup__alert:not(:has(> .cg-btn, > p)) > .pg-popup__alert-t { padding-right: 56px; }
