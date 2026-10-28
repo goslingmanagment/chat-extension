@@ -286,7 +286,7 @@ ${/* ── buttons of our own voice ── */ ''}
 ${/* ── no Recap of this length yet: the choice ── */ ''}
 .cg-rx-empty { max-width: 860px; margin: auto 0; padding: 24px 44px 96px 64px; }
 .cg-rx-empty__h { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; color: var(--cg-ink-strong); }
-.cg-rx-empty__lead { max-width: 560px; margin: 10px 0 28px; font-family: var(--cg-serif); font-size: 17px; line-height: 1.55; color: var(--cg-ink-2); }
+.cg-rx-empty__lead { max-width: 560px; margin: 10px 0 28px; font-family: var(--cg-serif); font-size: 17px; line-height: 1.55; color: var(--cg-ink-2); text-wrap: balance; }
 .cg-rx-empty__note { display: flex; align-items: center; gap: 8px; margin: -12px 0 18px; font-size: 13px; color: var(--cg-ink-2); }
 .cg-rx-empty__explain { max-width: 640px; margin: 20px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--cg-ink-muted); }
 .cg-rx-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 760px; border-radius: 16px; outline: none; }
