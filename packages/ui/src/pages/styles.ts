@@ -127,7 +127,9 @@ ${/* A switch named by its row (the row's name is its aria-label) says nothing m
 
 /* a choice of a few words: a groove of shade with the chosen word on paper-white */
 .pg-page .cg-seg--md { flex-wrap: wrap; max-width: 100%; padding: 3px; gap: 2px; border-radius: 10px; background: var(--pg-shade); box-shadow: none; }
-.pg-page .cg-seg--md .cg-seg__b { height: 32px; padding: 0 14px; border-radius: 7px; color: var(--cg-ink-2); font-weight: 500; }
+${/* A word that fills its cell (the choice stretched to a narrow card, below) stands in its middle: the kit's buttons
+   inherit the page's left alignment. */ ''}
+.pg-page .cg-seg--md .cg-seg__b { height: 32px; padding: 0 14px; border-radius: 7px; color: var(--cg-ink-2); font-weight: 500; text-align: center; }
 .pg-page .cg-seg--md .cg-seg__b:hover { color: var(--cg-ink-strong); }
 .pg-page .cg-seg--md .cg-seg__b[aria-pressed="true"] { background: var(--pg-card); color: var(--cg-ink-strong); font-weight: 600; box-shadow: 0 1px 2px rgb(28 27 23 / 0.12); }
 :root[data-scheme="dark"] .pg-page .cg-seg--md .cg-seg__b[aria-pressed="true"] { background: var(--pg-ink); color: var(--pg-paper); }
@@ -187,6 +189,8 @@ ${/* The goose stands beside the remedy, below the words: they take the stage's 
 .pg-popup__alert > .cg-btn { max-width: calc(100% - 64px); }
 .pg-popup__alert p { margin: 4px 0 0; font-size: 13.5px; line-height: 19px; color: inherit; }
 .pg-popup__alert .cg-btn { margin-top: 11px; }
+${/* No remedy (Fansly has no «Открыть»): the goose stands beside the last lines, so they end before it. */ ''}
+.pg-popup__alert:not(:has(> .cg-btn)) > p, .pg-popup__alert:not(:has(> .cg-btn, > p)) > .pg-popup__alert-t { padding-right: 56px; }
 ${/* The goose looking back stands on the stage's floor, or on the line over the rest when there is more to fix. */ ''}
 .pg-popup__alert > .pg-art--lost { position: absolute; right: -6px; bottom: -15px; width: 60px; }
 .pg-popup__stage:has(.pg-popup__more) .pg-popup__alert > .pg-art--lost { bottom: -10px; }
@@ -226,7 +230,9 @@ ${/* The foot: «Что нового», the optional site's switch (X61) and «�
 .pg-popup__site { display: inline-flex; min-width: 0; }
 .pg-popup__site .cg-btn { height: 22px; margin: 0 -6px; font-size: 13px; }
 .pg-popup__site-error { margin: 12px 16px 0; }
-.pg-popup__foot .pg-link { color: var(--cg-ink-2); }
+${/* «Что нового» is a link among quiet buttons: it takes their weight and their underline. */ ''}
+.pg-popup__foot .pg-link { color: var(--cg-ink-2); font-weight: 500; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
+.pg-popup__foot .pg-link:hover { color: var(--cg-ink-strong); text-decoration-color: currentColor; text-decoration-thickness: 1.5px; }
 .pg-popup__foot > .cg-btn { margin-left: auto; margin-right: -6px; }
 ${/* «Скачать лог» (2026-10-21): a quiet line of its own under the foot, in every state of the popup. */ ''}
 .pg-popup__log { display: flex; padding: 0 16px 10px; margin-top: -4px; }
@@ -269,9 +275,15 @@ ${/* The column beside the main one is the brand's quiet band: shade, no edge; w
 :root[data-scheme="dark"] .pg-grid:not(.pg-grid--even) > .pg-col:last-child > .pg-card { background: var(--pg-shade); }
 .pg-card--quiet.pg-card--quiet { background: color-mix(in srgb, var(--pg-shade) 62%, var(--pg-paper)); box-shadow: none; }
 :root[data-scheme="dark"] .pg-card--quiet.pg-card--quiet { background: var(--pg-shade); }
+${/* The hairline is almost the band's own shade: its rows are parted by the line instead, as strong as the main cards'
+   hairline on paper-white. A choice's groove is the band's shade at night: there it takes the paper. */ ''}
+.pg-grid:not(.pg-grid--even) > .pg-col:last-child > .pg-card, .pg-card--quiet { --cg-rule: var(--pg-line); }
+:root[data-scheme="dark"] .pg-grid:not(.pg-grid--even) > .pg-col:last-child > .pg-card .cg-seg--md, :root[data-scheme="dark"] .pg-card--quiet .cg-seg--md { background: var(--pg-paper); }
 .pg-card + .pg-card, .pg-card + .pg-grid, .pg-grid + .pg-card, .pg-grid + .pg-grid { margin-top: 16px; }
 .pg-card__lead { margin: 0 0 6px; max-width: 64ch; font-size: 13.5px; line-height: 20px; color: var(--cg-ink-muted); }
 .pg-card > .pg-note:last-child { margin: 12px 0 14px; }
+${/* A card's own line of actions under its field: room above it, and the card's bottom room a row would bring. */ ''}
+.pg-card > .pg-line:last-child { margin: 12px 0; }
 .pg-card--flat { padding-bottom: 22px; }
 .pg-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .pg-grid--even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -381,6 +393,14 @@ ${/* The value of a service row is short («включён», «3 генерац
 .pg-opt__k span { display: block; margin-top: 2px; font-size: 13.5px; line-height: 20px; color: var(--cg-ink-muted); }
 .pg-opt__v { min-width: 0; }
 .pg-opt__v--center { display: flex; align-items: center; }
+${/* A value whose first line holds a button: the button makes that line taller and its words stand in its middle, so the
+   name stands on the words' line (their baselines), not at the button's top. */ ''}
+.pg-opt:has(> .pg-opt__v:not(.pg-opt__v--center) > .pg-line:first-child .cg-btn) { align-items: baseline; }
+${/* A line of named switches (30 px, their words in the middle; a switch has no baseline of its own): the name comes
+   down to their words' line. One column (a narrow card) puts the name over them and needs nothing. */ ''}
+@container pg-card (min-width: 421px) {
+  .pg-opt:has(> .pg-opt__v:not(.pg-opt__v--center) > .pg-line:first-child > .cg-check--14:first-child:not([aria-label])) > .pg-opt__k { padding-top: 4px; }
+}
 ${/* A row whose control is small — a stepper, a lone switch — keeps it at the card's right edge, as the Fansly extension did. */ ''}
 .pg-opt:has(> .pg-opt__v > .pg-line > .pg-step), .pg-opt:has(> .pg-opt__v > .cg-check--14:only-child) { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 .pg-opt:has(> .pg-opt__v > .pg-line > .pg-step) > .pg-opt__v, .pg-opt:has(> .pg-opt__v > .cg-check--14:only-child) > .pg-opt__v { justify-self: end; text-align: right; }
@@ -392,6 +412,9 @@ ${/* A row whose control is small — a stepper, a lone switch — keeps it at t
   .pg-row > .pg-row__a { justify-self: start; margin: 6px 0 0 -6px; }
 }
 .pg-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+${/* A dot and its words: they stay on one line and the words wrap beside the dot, never leaving it alone above them. */ ''}
+.pg-line:has(> .cg-dot:first-child + :last-child:not(.cg-btn)) { flex-wrap: nowrap; align-items: flex-start; }
+.pg-line:has(> .cg-dot:first-child + :last-child:not(.cg-btn)) > .cg-dot { margin-top: 7px; }
 ${/* What stands between a section's title and its cards: a line of state and actions, or a note. */ ''}
 .pg-intro.pg-intro { margin: 0 0 16px; }
 .pg-value { color: var(--cg-ink-strong); font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
@@ -481,6 +504,8 @@ ${/* «Как в системе» and «Как в ChatSpace» are both halves; C
 .pg-table.pg-keys tr:last-child { border-bottom: 0; }
 .pg-table.pg-keys td { display: block; padding: 9px 0; border: 0; }
 .pg-table.pg-keys td:nth-child(2) { justify-self: end; text-align: right; }
+${/* An action's name starts with a capital like its neighbours: «вариант» is the result's own hint word, lower-case there. */ ''}
+.pg-table.pg-keys td.pg-strong::first-letter { text-transform: uppercase; }
 .pg-table.pg-keys td[data-pg-delivery] { grid-column: 1 / -1; padding: 0 0 9px; margin-top: -5px; font-size: 13px; line-height: 18px; }
 .pg-table.pg-keys td[data-pg-delivery="delivered"], .pg-table.pg-keys td[data-pg-delivery="cancelable"], .pg-table.pg-keys td[data-pg-delivery="none"] { display: none; }
 .pg-table.pg-keys .pg-table__group { display: block; border-bottom: 2px solid var(--pg-ink); }
@@ -522,6 +547,10 @@ ${/* «Как в системе» and «Как в ChatSpace» are both halves; C
 .pg-acc__acts { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .pg-acc__grid { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 36px; margin: 12px 0 0; }
 .pg-acc__fact { min-width: 0; }
+${/* The page and the persona keep their own widths, so every fact stands in the same column from one account to the
+   next; a longer page name wraps its tag under it. */ ''}
+.pg-acc__fact:first-child { flex: 0 1 272px; }
+.pg-acc__fact:first-child + .pg-acc__fact { flex: 0 1 148px; }
 .pg-acc__fact--label { flex: 1 1 240px; max-width: 320px; }
 .pg-acc__grid dt { margin: 0 0 4px; color: var(--cg-ink-muted); font-size: 13px; line-height: 18px; }
 .pg-acc__grid dd { margin: 0; min-width: 0; min-height: 30px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
