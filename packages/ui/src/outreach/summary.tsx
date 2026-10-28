@@ -80,7 +80,7 @@ export function Summary({ vm, summary }: { readonly vm: OutreachWindowVM; readon
           {bought !== null ? (
             <div class="cg-ow__stat">
               <span>{i18n.t('outreach.summary.bought')}</span>
-              <b class={`cg-num${bought.mills > 0 ? ' cg-ow__money' : ''}`}>{bought.mills > 0 ? i18n.formatMoneyMills(bought.mills, { sign: 'plus' }) : i18n.formatMoneyMills(null)}</b>
+              <b class={`cg-num${bought.mills > 0 ? ' cg-ow__money' : ''}`}>{bought.mills > 0 ? i18n.formatMoneyMills(bought.mills, { sign: 'plus' }) : i18n.formatMoneyMills(0, { zero: 'show' })}</b>
               <small>{bought.fans.length === 0 ? i18n.t('outreach.summary.noneBought') : i18n.plural('outreach.summary.boughtFans', bought.fans.length, { what: short })}</small>
             </div>
           ) : (
