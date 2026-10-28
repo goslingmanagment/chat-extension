@@ -13,8 +13,10 @@ field).
 
 The owner's decisions (2026-10-27/28):
 - Who: the owner first (pilot), then the chatters who work Lora's Telegram.
-- Reply writes warm talk and flirting only. It never sells: no offers, prices, PPV, tiers, subscriptions, links or
-  payment details. Tones: casual, flirty, spicy (spicy stays).
+- The dock is exactly Fansly's (the owner, 2026-10-28: «почему не наша панель просто»): all four Reply tones, Fix
+  written into the field as on Fansly, no Telegram-only views.
+- Reply writes warm talk and flirting and never sells on its own; only the chatter's selling tone (💰) adds a light
+  nudge. Never a price, PPV, tiers, subscriptions, links or payment details (hub #910).
 - Fix polishes the chatter's own text. A price, an offer, a promise or a payment detail the chatter wrote stays as
   written; Fix adds none of its own.
 - Coach advises the chatter, selling included: the sale is the human's job. Its proposed fan messages may carry an
@@ -161,9 +163,8 @@ read again before every start and every insert; a change stops both.
   frozen at the start and checked again after focus; the draft's digest checked before writing; replacing text the
   human typed asks first; a write that may have half-happened is uncertain and never retried by itself.
 - The fan's script check before an insert (`fanScript`) reads the transcript's fan lines.
-- **Payment details.** When the draft under Fix holds a token that looks like a wallet, a card, an IBAN, a link or an
-  amount, and Fix's result does not hold the same token character for character, the dock warns «Реквизиты
-  изменились, сверьте» before the insert. A warning the chatter can pass, not a block.
+- Fix writes its text into the field as on Fansly (X68). Payment details are kept by the hub's Fix rule (§7); the dock
+  adds no view of its own for them (dropped 2026-10-28 for the same panel as on Fansly).
 
 ### 4.5 Keys
 
@@ -217,7 +218,7 @@ in `keyRules.absent` so their keys stay Telegram's (⌘K link, ⌘⇧M monospace
 6. **Only Reply, Fix and Coach.** A per-platform AI allowlist in the client AI switch and again in the AI route (full
    device tokens skip the switch): `telegram` allows `fast-reply`, `improve-draft`, `coach-chat`. There the route
    requires `clientContext` and `fanRef` (the fan's Telegram user id), refuses `clientContext.media`,
-   `draftPurpose: "outreach"` and the `upsell` tone. The page's own row in `chatExtensionFeatures` switches on `drafts`,
+   and `draftPurpose: "outreach"` (the `upsell` tone is taken since hub #910). The page's own row in `chatExtensionFeatures` switches on `drafts`,
    `coach` and `insertion`; `splitAll` stays off; every other flag reads `platform_unsupported`. No new flag. Coach's
    recap lookup finds nothing for the page and needs no change.
 7. **Capability.** `telegram-ai-v1` in `SERVED_CLIENT_CAPABILITIES` and `CLIENT_HUB_CAPABILITY_NAMES`: the extension
@@ -265,7 +266,7 @@ in `keyRules.absent` so their keys stay Telegram's (⌘K link, ⌘⇧M monospace
    so the pilot can check the id.
 6. **Feature slice and tones.** Telegram's slice has `reply` and `fix` (PR 1) and `coach` with the Coach window's
    surface (PR 2), so the dock shows exactly those. The tone list becomes per site, in data (today one `TONES` list
-   feeds the menu and ⌘⇧O, `packages/core/src/domain/features/tone.ts`): Telegram has casual, flirty, spicy. Its own
+   feeds the menu and ⌘⇧O, `packages/core/src/domain/features/tone.ts`); Telegram uses every tone, as Fansly. Its own
    dock variant `telegram`, styled as Fansly's.
 7. **Coach (PR 2).** The window's Review chip, recap tick, «Собрать Recap», recap windows and «Обновить переписку» show
    only when the site's slice and the page have them (today `coach/controller.ts` and `ui/src/overlays/coach` draw some
@@ -283,8 +284,7 @@ in `keyRules.absent` so their keys stay Telegram's (⌘K link, ⌘⇧M monospace
     slides, list, bottom marker, day labels, header avatar and its `document` key listener that sends on Enter. The fake
     hub gets the Telegram page. `pnpm see --site telegram` scenarios: Reply, Fix, Coach, and on the same stand letters
     then Enter typed in Coach's question box (focus stays ours, nothing is sent), the chat switched during a generation,
-    the draft edited during it, the list scrolled up, the attachment window open, an unbound account, payment details
-    changed by Fix. No new e2e spec.
+    the draft edited during it, the list scrolled up, the attachment window open, an unbound account. No new e2e spec.
 11. **`pnpm see --live --site telegram`** for the live checks of §10: a park account's Telegram Web in the see profile,
     the test build against the fake hub with a page bound to that account's id.
 12. **AGENTS.md (this repo):** the red line: agents never open Lora's live Telegram (opening a chat marks it read, her
@@ -377,7 +377,7 @@ classes are hashed in the build: only global classes are anchors.
 | Telegram changes Web A's markup (it deploys often) | The contract probe hides the dock when an anchor is missing and the tab health report names it; fix the adapter. |
 | An old window or a stale answer | The bottom marker gate, incoming-message facts and the context digest in the op identity (§4.3, §6.2). |
 | The insert misses the editor model or gets rewritten | Read back after writing; the first live check; uncertain, never retried. |
-| Fix changes a wallet address | The verbatim check warns before the insert (§4.4). |
+| Fix changes a wallet address | The hub's Telegram Fix rule copies payment details character for character; the chatter sees the field before Send. |
 | An old client meets a Telegram page | Never in closed-enum responses (§5.4), covered by the compat suite. |
 | A hub rollback after the page exists | Never past this release; fix forward (§5.10). |
-| The AI sells in Reply | The Telegram persona, the Reply slot and the refused `upsell` tone; the pilot reads the replies. |
+| The AI sells in Reply | The Telegram persona and the Reply slot (selling only on the chatter's 💰 tone); the pilot reads the replies. |

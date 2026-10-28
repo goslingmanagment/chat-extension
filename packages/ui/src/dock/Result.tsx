@@ -54,7 +54,6 @@ const MARK_WORDS = {
   'window-miss': '.windowMiss',
   'deleted-served': '.deletedServed',
   'history-partial': '.historyPartial',
-  'details-changed': '.detailsChanged',
 } as const satisfies Record<StaleReason, string>;
 
 /**

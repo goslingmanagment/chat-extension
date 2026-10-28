@@ -168,9 +168,6 @@ export function createDockController(ws: AiWorkspace): DockController {
     if (state === 'canceled') return;
     const show = (): void => ws.setSheet(chatKeyOf(record.view.target.chat), { kind: 'draft', opId });
     if (state !== 'done') return show();
-    // A mark the person must see before the field changes (Telegram spec §4.4: the draft's payment details are not in
-    // the answer character for character): the result is shown with «Заменить мой черновик», never written by itself.
-    if (ws.ports.policy.verdict(record.view, record.memo.fingerprint)?.reason === 'details-changed') return show();
     const outcome = await ws.inserts.applyFix(opId, cause);
     if (outcome.kind !== 'applied') show();
   }

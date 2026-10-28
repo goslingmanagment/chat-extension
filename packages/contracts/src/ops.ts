@@ -661,10 +661,9 @@ export function coverageCheckVerdict(
  * window, or a draft's page text the hub did not serve); `deleted-served` — the context held a message the tab saw
  * deleted. Any of them holds a preview's send (CG-SEND-STALE); the dock still inserts. Telegram spec §4.3, §4.4 (a
  * site's verdict on a context the tab read itself): `history-partial` — the newest messages were not rendered when the
- * chat was read; `details-changed` — the draft's payment details (a wallet, a card, a link, an amount) are not in the
- * result character for character. Warnings the person passes: the dock still inserts.
+ * chat was read. Warnings the person passes: the dock still inserts.
  */
-export const STALE_REASONS = ['fan-wrote', 'archive-moved', 'unverified', 'window-miss', 'deleted-served', 'history-partial', 'details-changed'] as const;
+export const STALE_REASONS = ['fan-wrote', 'archive-moved', 'unverified', 'window-miss', 'deleted-served', 'history-partial'] as const;
 export type StaleReason = (typeof STALE_REASONS)[number];
 
 /** A greeting draft keeps its generation's own verdict across windows, tabs and background restarts. */

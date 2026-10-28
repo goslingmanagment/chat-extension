@@ -55,7 +55,7 @@ PPV state in `hub-calls.json`), `draft-media` (a photo in the composer, then Rep
 window and card as ChatSpace's `newcomers`). `launch` (the showcase world's pictures of 3.0's launch, below).
 On Telegram (`--site telegram`: the Web A stand, `http://telegram.localhost:<port>/a/#<peer id>`, Lora's account bound
 to the fake hub's page `lora-tg`; its page API is `s.h.callTelegram(…)`, `client-context.json` holds the chat each AI
-request carried): `telegram-reply`, `telegram-fix` (and «Реквизиты изменились, сверьте»), `telegram-keys`,
+request carried): `telegram-reply`, `telegram-fix`, `telegram-keys`,
 `telegram-switch`, `telegram-draft-edited`, `telegram-scrolled`, `telegram-attachment`, `telegram-unbound`
 (`?account=2`), `telegram-edit-mode`.
 

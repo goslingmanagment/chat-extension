@@ -112,7 +112,8 @@ type TelegramRuleBody = StreamRuleBody & { readonly clientContext?: { readonly m
 
 /**
  * `assertTelegramRequestShape`, in the hub's order and with its messages: the chat and the fan named
- * (`telegram_context_required`), no media notes, no draft media, no mass message, no selling tone (`telegram_not_allowed`).
+ * (`telegram_context_required`), no media notes, no draft media, no mass message (`telegram_not_allowed`); the selling
+ * tone is taken (hub #910).
  */
 export function telegramShapeRefusal(feature: string, body: TelegramRuleBody): StreamBodyRefusal | null {
   const bad = (message: string, reason: string): StreamBodyRefusal => ({ error: 'bad_request', message, reason });
@@ -121,7 +122,6 @@ export function telegramShapeRefusal(feature: string, body: TelegramRuleBody): S
   if (body.clientContext.media !== undefined) return bad('clientContext.media is not accepted on a telegram page', 'telegram_not_allowed');
   if (body.draftMedia !== undefined) return bad('draftMedia is not accepted on a telegram page', 'telegram_not_allowed');
   if (body.draftPurpose === 'outreach') return bad('draftPurpose "outreach" is not accepted on a telegram page', 'telegram_not_allowed');
-  if (body.replyTone === 'upsell') return bad('the upsell tone is not accepted on a telegram page', 'telegram_not_allowed');
   return null;
 }
 

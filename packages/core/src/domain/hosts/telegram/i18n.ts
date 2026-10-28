@@ -16,13 +16,9 @@ export const TELEGRAM_MARK_TEXTS: { readonly [L in Locale]: Readonly<Partial<Rec
   ru: {
     'result.stale.historyPartial.title': 'Прокрутите к последним сообщениям:',
     'result.stale.historyPartial.body': 'ответ видел не самые новые сообщения чата.',
-    'result.stale.detailsChanged.title': 'Реквизиты изменились, сверьте:',
-    'result.stale.detailsChanged.body': 'кошелёк, карта, ссылка или сумма в ответе не такие, как в черновике.',
   },
   en: {
     'result.stale.historyPartial.title': 'Scroll to the latest messages:',
     'result.stale.historyPartial.body': 'the answer did not see the newest messages of the chat.',
-    'result.stale.detailsChanged.title': 'Payment details changed, check them:',
-    'result.stale.detailsChanged.body': 'a wallet, card, link or amount in the answer differs from the draft.',
   },
 };
