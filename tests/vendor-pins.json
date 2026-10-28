@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
     "contractHash": "d13febdb54f73733f11262552926a9feea7546bcd7543f26577ac02c4c5536ac",
-    "sourceCommit": "99a494bad88407906d9a8de9e18b59e9ef405be1",
-    "note": "Vendored on 2026-10-29 with scripts/vendor-sdk.mjs from the hub deployed on prod (04ca6d0e3, #916) plus the script's one-line fix (hub #918: it staged no routes-ai-spend.ts): `clientFanNoteAttributions` (who created and last edited a fan's notes, `note-attribution-read-v1`, hub #912), ChatSpace's `chatspace-extension` note reports, the origin `transfer`. Re-vendor with the same script and update this pin together."
+    "sourceCommit": "b5de702d8b4a7461dc87494b6780a45ef3cde374",
+    "note": "Vendored on 2026-10-29 from hub main b5de702d (#918: the vendor script stages routes-ai-spend.ts) with scripts/vendor-sdk.mjs; the contract is the one prod serves (d13febdb, deployed 04ca6d0e3): `clientFanNoteAttributions` (hub #912), ChatSpace's `chatspace-extension` note reports, the origin `transfer`. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",
