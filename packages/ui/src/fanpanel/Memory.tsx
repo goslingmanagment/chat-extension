@@ -280,6 +280,7 @@ export const MEMORY_CSS = `
 .cg-mem__custom { padding: 6px 0; }
 .cg-mem__custom + .cg-mem__custom { border-top: 1px dashed var(--cg-rule); }
 .cg-mem__custom[aria-busy="true"] { opacity: 0.6; }
+.cg-mem__custom > .cg-fp__acts { margin-left: -6px; }
 .cg-mem__custom.is-delivered .cg-mem__text, .cg-mem__custom.is-cancelled .cg-mem__text { color: var(--cg-ink-2); }
 .cg-mem__ask { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
 .cg-mem__ask > span { margin-right: 2px; }
