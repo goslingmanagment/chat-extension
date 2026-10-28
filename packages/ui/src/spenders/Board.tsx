@@ -834,6 +834,8 @@ export const BOARD_CSS = `
 .cg-bd__who { display: flex; align-items: baseline; gap: 8px; }
 .cg-bd__name { flex: 0 0 auto; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--cg-ink-strong); font-weight: 500; }
 .cg-bd__handle { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); }
+${/* «в разговоре» takes the handle's place: the name says who it is, and the handle squeezed beside the mark was a clipped «@». */ ''}
+.cg-bd__who:has(> .cg-talk) > .cg-bd__handle { display: none; }
 .cg-bd__who > .cg-fbadge { align-self: center; }
 .cg-bd__last { font-size: var(--cg-text-sm2); color: var(--cg-ink); }
 .cg-bd__last.is-ours { color: var(--cg-ink-muted); }

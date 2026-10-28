@@ -362,6 +362,7 @@ export const PALETTE_CSS = `
 .cg-pal__main mark { background: none; color: var(--cg-ink-strong); font-weight: 600; text-decoration: underline; text-decoration-color: var(--cg-rule-3); text-underline-offset: 3px; }
 .cg-pal__main .cg-spin { margin-right: 8px; align-self: center; }
 .cg-pal__sub { color: var(--cg-ink-muted); margin-left: 8px; overflow: hidden; text-overflow: ellipsis; }
+.cg-pal__main .cg-talk { margin-left: 8px; }
 .cg-pal__right { color: var(--cg-ink-muted); white-space: nowrap; }
 .cg-pal__note { flex: none; padding: 6px 14px; border-top: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
 .cg-pal__state { flex: none; }
