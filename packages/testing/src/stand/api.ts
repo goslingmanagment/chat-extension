@@ -8,9 +8,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { CallOrigin, SendOutcome } from '../../fixture-chatspace/src/protocol';
 import { STAND_VAULT, plainText, type StandChat, type StandMessage } from './dataset';
 import type { ServerJournal } from './journal';
+import { noteFields, rawNote } from './notes';
 import type { SocketHub } from './socket-hub';
 import type { StandState } from './state';
-import { newMessageFrame, rawAccount, rawChat, rawFan, rawMessage } from './wire';
+import { frameAccount, newMessageFrame, rawAccount, rawChat, rawFan, rawMessage } from './wire';
 
 export interface ApiContext {
   readonly state: StandState;
@@ -301,6 +302,46 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
     }
     sendJson(response, 200, result);
     return log(200, { accountId });
+  }
+
+  // 2026-10-28: OnlyMonster's notes of a fan — ChatSpace's side panel's, and ours for the open chat's fan. A write tells
+  // the account's sockets (`account_data_updated` of type `user-notes`), as the live socket does.
+  const notesRoute = route.startsWith('v0/') ? /^fans\/([^/]+)\/notes(?:\/([^/]+))?$/.exec(rest) : null;
+  if (notesRoute) {
+    const fanId = notesRoute[1] ?? '';
+    const noteId = notesRoute[2];
+    const notes = state.chat(accountId, fanId) === undefined ? null : state.notesOf(accountId, fanId);
+    const index = noteId === undefined || notes === null ? -1 : notes.findIndex((note) => String(note.id) === noteId);
+    const at = { accountId, chatId: fanId, ...(noteId === undefined ? {} : { detail: { noteId, ...replay } }) };
+    const told = (): void => void context.hub.broadcast({ event: 'account_data_updated', type: 'user-notes', id: Number(fanId), account: frameAccount(account) }, accountId);
+    if (notes === null || (noteId !== undefined && index < 0)) {
+      sendJson(response, 404, errorBody(404));
+      return log(404, at);
+    }
+    if (noteId === undefined && method === 'GET') {
+      sendJson(response, 200, { items: notes.map((note) => rawNote(accountId, fanId, state.dataset.userId, note)) });
+      return log(200, at);
+    }
+    if (noteId !== undefined && method === 'DELETE') {
+      notes.splice(index, 1);
+      response.writeHead(204).end();
+      told();
+      return log(204, at);
+    }
+    if ((noteId === undefined && method === 'POST') || (noteId !== undefined && method === 'PUT')) {
+      const fields = noteFields(await readJson(request));
+      if (fields === null) {
+        sendJson(response, 422, errorBody(422, 'VALIDATION_ERROR', 'note is required'));
+        return log(422, at);
+      }
+      const note = noteId === undefined ? state.addNote(accountId, fanId, fields) : Object.assign(notes[index] as (typeof notes)[number], fields, { updatedAt: new Date().toISOString() });
+      const status = noteId === undefined ? 201 : 200;
+      sendJson(response, status, rawNote(accountId, fanId, state.dataset.userId, note));
+      told();
+      return log(status, { ...at, detail: { noteId: String(note.id), ...replay } });
+    }
+    sendJson(response, 405, errorBody(405, 'METHOD_NOT_ALLOWED'));
+    return log(405, at);
   }
 
   const insightsRoute = /^fans\/([^/]+)\/insights$/.exec(rest);

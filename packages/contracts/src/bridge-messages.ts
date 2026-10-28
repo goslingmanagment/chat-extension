@@ -16,8 +16,13 @@ import {
   ChatReadAnswerSchema,
   ChatWindowSchema,
   ComposerStateSchema,
+  FanNoteRemoveAnswerSchema,
+  FanNotesAnswerSchema,
+  FanNoteWriteAnswerSchema,
   HostFanSchema,
   InsertReceiptSchema,
+  OmFanNoteInputSchema,
+  OmNoteIdSchema,
   OpenChatAnswerSchema,
   OpenChatPageSchema,
   InsertWireSchema,
@@ -262,6 +267,19 @@ export const TO_MAIN = {
    * ATTACH_LIMITS.bridgeMs.
    */
   attachFile: { payload: AttachWireSchema, data: AttachAnswerSchema, write: true, timeout: 'attach' },
+  /**
+   * 2026-10-28 (the owner's exception to X54): OnlyMonster's notes of the open chat's fan, from the host's own API with
+   * the page's own session. MAIN refuses with `identity-mismatch` before any request unless the route is that very chat
+   * now, and asks once more right before the request. A failed request is an answer (`ok: false`), not a bridge error.
+   * The deadline of each is FAN_NOTES_LIMITS.bridgeMs.
+   */
+  fanNotes: { payload: z.strictObject(AccFan), data: FanNotesAnswerSchema, write: false, timeout: 'network' },
+  /** A new note of the open chat's fan, on a person's click: a write, deduplicated by request id and never retried. */
+  createFanNote: { payload: z.strictObject({ ...AccFan, note: OmFanNoteInputSchema }), data: FanNoteWriteAnswerSchema, write: true, timeout: 'network' },
+  /** The whole note in place of note `noteId` (its title, text and colour), on a person's click. */
+  updateFanNote: { payload: z.strictObject({ ...AccFan, noteId: OmNoteIdSchema, note: OmFanNoteInputSchema }), data: FanNoteWriteAnswerSchema, write: true, timeout: 'network' },
+  /** Note `noteId` deleted (OnlyMonster keeps no copy), on a person's click. */
+  deleteFanNote: { payload: z.strictObject({ ...AccFan, noteId: OmNoteIdSchema }), data: FanNoteRemoveAnswerSchema, write: true, timeout: 'network' },
 } as const satisfies Record<ToMainType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: boolean; readonly timeout: 'call' | 'navInsert' | 'network' | 'attach' }>;
 
 export type ToMainPayload<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['payload']>;
@@ -313,6 +331,11 @@ export const FROM_MAIN = {
    * called — and how often it failed in this document; sent when the count reaches 1, 2, 4, 8… The isolated side logs it.
    */
   fault: z.strictObject({ source: z.string().check(z.regex(FAULT_SITE_PATTERN)), count: z.int().check(z.gte(1)) }),
+  /**
+   * 2026-10-28: OnlyMonster's socket said the notes of this fan changed (`account_data_updated` of type `user-notes`):
+   * whoever shows them reads them again. Only with the tap script, only for the accounts the page subscribed.
+   */
+  fanNotesChanged: z.strictObject(AccFan),
 } as const satisfies Record<FromMainType, z.ZodMiniType>;
 
 export type FromMainPayload<T extends FromMainType> = z.infer<(typeof FROM_MAIN)[T]>;
@@ -358,6 +381,10 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('media'),
   requestFrame('chatReadState'),
   requestFrame('attachFile'),
+  requestFrame('fanNotes'),
+  requestFrame('createFanNote'),
+  requestFrame('updateFanNote'),
+  requestFrame('deleteFanNote'),
 ]);
 export type BridgeRequest = z.infer<typeof BridgeRequestSchema>;
 
@@ -390,6 +417,7 @@ export const BridgeEventSchema = z.discriminatedUnion('t', [
   eventFrame('previewSendState'),
   eventFrame('previewSendFuse'),
   eventFrame('fault'),
+  eventFrame('fanNotesChanged'),
 ]);
 export type BridgeEvent = z.infer<typeof BridgeEventSchema>;
 

@@ -149,6 +149,11 @@ export function contractAnchors(): Anchor[] {
     { id: `theme class ${contract.THEME_DARK_CLASS}`, group: 'theme', pattern: literal(contract.THEME_DARK_CLASS) },
     { id: `theme tokens ${contract.THEME_TOKEN_PREFIX}`, group: 'theme', pattern: text(contract.THEME_TOKEN_PREFIX) },
     { id: `fixed width ${contract.FIXED_WIDTH_VARIABLE}`, group: 'theme', pattern: text(contract.FIXED_WIDTH_VARIABLE) },
+    // 2026-10-28: «Заметки» in the conversation header, and OnlyMonster's fan notes (their path, the socket's word on them).
+    ...[contract.HEADER_SEARCH_TEST_ID, ...contract.HEADER_AFTER_TEST_IDS].map((id) => ({ id: `header test id ${id}`, group: 'chatHeader', pattern: literal(id) })),
+    { id: 'fan notes request path', group: 'fanNotes', pattern: /api\/v0\/accounts\/\$\{[^}]+\}\/fans\/\$\{[^}]+\}\/notes/ },
+    { id: `socket event ${contract.WS_DATA_UPDATED}`, group: 'fanNotes', pattern: literal(contract.WS_DATA_UPDATED) },
+    { id: `socket data type ${contract.WS_USER_NOTES}`, group: 'fanNotes', pattern: literal(contract.WS_USER_NOTES) },
   ];
   for (const [group, members] of Object.entries(contract.HOST_MEMBERS)) {
     for (const member of members) anchors.push({ id: `member ${member}`, group, pattern: word(member) });

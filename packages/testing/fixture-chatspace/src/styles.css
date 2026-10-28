@@ -83,6 +83,8 @@ button { font: inherit; color: inherit; }
 .conversation-header { height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--stand-border); }
 .conversation-header__text { display: flex; flex-direction: column; flex: 1 1 auto; }
 .conversation-header__status { color: var(--stand-muted); font-size: 12px; }
+.conversation-header__actions { display: flex; flex-shrink: 0; align-items: center; gap: 8px; }
+.conversation-header__tip { display: flex; }
 .conversation-empty { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; color: var(--stand-muted); }
 
 .messages-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }

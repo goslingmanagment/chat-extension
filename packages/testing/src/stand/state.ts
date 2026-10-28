@@ -4,6 +4,7 @@
 
 import { DEFAULT_SOCKET_TRAFFIC, type FanPatch, type MimicState, type SendOutcome, type SocketTraffic } from '../../fixture-chatspace/src/protocol';
 import { chatKey, createDataset, type StandAccount, type StandChat, type StandDataset, type StandMessage } from './dataset';
+import { seedNotes, STAND_NOTE_FIRST_ID, type StandNote } from './notes';
 
 /** What the synthetic chatter may do (names as ChatSpace's permission strings); «Media uploader» lets files into the composer. */
 export const DEFAULT_PERMISSIONS: readonly string[] = [
@@ -45,6 +46,9 @@ export class StandState {
   readonly racingHistory = new Set<string>();
   /** How long a history load past OnlyMonster's cache (`force=true`, our own read of the open chat) takes; 0 — at once. */
   forcedHistoryDelayMs = 0;
+  /** 2026-10-28: OnlyMonster's fan notes by `${accountId}:${fanId}`, oldest first (notes.ts). */
+  notes: Map<string, StandNote[]> = seedNotes();
+  private noteSeq = STAND_NOTE_FIRST_ID;
   private readonly tokens = new Set<string>();
   private tokenSeq = 0;
   private messageSeq = 5_900_000_000;
@@ -52,6 +56,8 @@ export class StandState {
 
   reset(): void {
     this.dataset = createDataset();
+    this.notes = seedNotes();
+    this.noteSeq = STAND_NOTE_FIRST_ID;
     this.permissions = [...DEFAULT_PERMISSIONS];
     this.mimic = { isActive: false, chats: {} };
     this.owner = false;
@@ -154,6 +160,21 @@ export class StandState {
 
   isOnline(accountId: string, fanId: string): boolean {
     return this.onlineFans.has(chatKey(accountId, fanId));
+  }
+
+  /** A fan's OnlyMonster notes (a live list: the API's handlers change it in place). */
+  notesOf(accountId: string, fanId: string): StandNote[] {
+    const key = chatKey(accountId, fanId);
+    let notes = this.notes.get(key);
+    if (notes === undefined) this.notes.set(key, (notes = []));
+    return notes;
+  }
+
+  addNote(accountId: string, fanId: string, fields: Pick<StandNote, 'title' | 'note' | 'color'>): StandNote {
+    const at = new Date().toISOString();
+    const note: StandNote = { id: (this.noteSeq += 1), ...fields, createdAt: at, updatedAt: at };
+    this.notesOf(accountId, fanId).push(note);
+    return note;
   }
 
   appendMessage(accountId: string, fanId: string, message: StandMessage): void {

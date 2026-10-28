@@ -809,6 +809,18 @@ const openChatPage = {
 } as const;
 const draftWire = { composerInstanceId: 'composer1', revision: 4, plainText: 'my draft', provenance: 'human-or-unknown', digest: DIGEST } as const;
 const attachWire = { intentId: uuid(11), expected: hostIdentity, file: { name: `${uuid(12)}.mp3`, type: 'audio/mpeg', bytes: new ArrayBuffer(16) } } as const;
+/** 2026-10-28: an OnlyMonster note of the open fan, as MAIN reads it (plain text, as the team writes them). */
+const omNote = {
+  noteId: '8801',
+  title: 'Характеристика',
+  text: 'Любит долгие разговоры\nПишет по вечерам',
+  color: null,
+  createdAt: ISO,
+  updatedAt: ISO,
+  updatedBy: '5501',
+  cut: false,
+} as const;
+const omNoteInput = { title: 'Анкета', text: 'Имя: Анна\nЛокация: Берлин', color: null } as const;
 
 export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeRequestFixtures } = {
   probe: { payload: empty, data: { valid: [probe], invalid: [{ ...probe, v: 2 }] } },
@@ -980,6 +992,56 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
       invalid: [{ state: 'not-attached', reason: 'dismissed' }, { state: 'refused', reason: 'gif' }, { state: 'attached' }, { state: 'unknown', reason: 'timeout' }],
     },
   },
+  // 2026-10-28: OnlyMonster's notes of the open chat's fan; a failed request is an answer, not an error.
+  fanNotes: {
+    payload: { valid: [accFan], invalid: [{ acc: IDS.acc }, { ...accFan, fan: '0' }, { ...accFan, noteId: '8801' }] },
+    data: {
+      valid: [
+        { ok: true, notes: [omNote, { ...omNote, noteId: '0d6c2b1e-3f4a-4b5c-8d9e-0f1a2b3c4d5e', title: '', text: '<p>Имя: <strong>Анна</strong></p>', color: '#480a09', updatedBy: null, cut: true }], complete: true },
+        { ok: true, notes: [], complete: false },
+        { ok: false, failure: 'http', status: 403 },
+        { ok: false, failure: 'session', status: null },
+      ],
+      invalid: [
+        // A note id never leaves its path segment; a colour never carries CSS of its own.
+        { ok: true, notes: [{ ...omNote, noteId: '../8801' }], complete: true },
+        { ok: true, notes: [{ ...omNote, color: 'red; background: url(x)' }], complete: true },
+        { ok: true, notes: [{ ...omNote, text: 'x'.repeat(20_001) }], complete: true },
+        { ok: true, notes: [omNote] },
+        { ok: false, failure: 'not-open', status: null },
+      ],
+    },
+  },
+  createFanNote: {
+    payload: {
+      valid: [{ ...accFan, note: omNoteInput }, { ...accFan, note: { title: '', text: '<p>Пишет по вечерам</p>', color: '#122314' } }],
+      invalid: [
+        // Never a blank note, never a title past the cap, never an id of a note to create.
+        { ...accFan, note: { ...omNoteInput, text: '  \n ' } },
+        { ...accFan, note: { ...omNoteInput, title: 'x'.repeat(201) } },
+        { ...accFan, noteId: '8801', note: omNoteInput },
+        { ...accFan, note: { ...omNoteInput, color: undefined } },
+      ],
+    },
+    data: {
+      valid: [{ ok: true, note: omNote }, { ok: true, note: null }, { ok: false, failure: 'unknown', status: null }, { ok: false, failure: 'http', status: 422 }],
+      invalid: [{ ok: true }, { ok: false, failure: 'unknown' }, { ok: true, note: { ...omNote, cut: 'no' } }],
+    },
+  },
+  updateFanNote: {
+    payload: {
+      valid: [{ ...accFan, noteId: '8801', note: omNoteInput }],
+      invalid: [{ ...accFan, note: omNoteInput }, { ...accFan, noteId: '8801/notes', note: omNoteInput }, { ...accFan, noteId: '8801', note: { ...omNoteInput, text: '' } }],
+    },
+    data: {
+      valid: [{ ok: true, note: { ...omNote, title: 'Анкета' } }, { ok: true, note: null }, { ok: false, failure: 'http', status: 404 }],
+      invalid: [{ ok: true, note: { ...omNote, noteId: '' } }, { ok: false, failure: 'lost', status: null }],
+    },
+  },
+  deleteFanNote: {
+    payload: { valid: [{ ...accFan, noteId: '8801' }], invalid: [{ ...accFan }, { ...accFan, noteId: '8801?force=1' }, { ...accFan, noteId: '8801', note: omNoteInput }] },
+    data: { valid: [{ ok: true }, { ok: false, failure: 'unknown', status: null }, { ok: false, failure: 'http', status: 404 }], invalid: [{ ok: true, note: null }, { ok: 'yes' }] },
+  },
 };
 
 export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } = {
@@ -1022,6 +1084,8 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
     // Not a machine token (it would reach the logs as is), no failure at all, an extra key.
     invalid: [{ source: 'route change', count: 1 }, { source: 'route', count: 0 }, { source: 'route', count: 2, stack: 'at x' }],
   },
+  // 2026-10-28: the fan whose OnlyMonster notes changed; never the notes themselves.
+  fanNotesChanged: { valid: [accFan], invalid: [{ acc: IDS.acc }, { ...accFan, text: 'Имя: Анна' }, { ...accFan, fan: 2002 }] },
 };
 
 /** Valid contract samples other packages can reuse. */

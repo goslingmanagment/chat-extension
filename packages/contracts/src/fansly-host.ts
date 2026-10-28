@@ -32,12 +32,13 @@ export interface FanslyHostPort extends HostPort {
  * What a Fansly report must name (§7.12, FS-CTR-1): every anchor of FANSLY_ANCHOR_IDS — one the report does not name is
  * `missing` — and what is off for a reason other than a break: the vault's upload input is there only on the vault
  * page, and the vault is the owner's switch (`vault`, FS-VLT); the shared capabilities Fansly has off by design (§7.7) —
- * X8's preview send and its receipt (the greeting goes by HTTP, §8.6) and the cached chat list (P17).
+ * X8's preview send and its receipt (the greeting goes by HTTP, §8.6), the cached chat list (P17), and the shared
+ * header slot (`chatHeader`, 2026-10-28): Fansly's own is `headerSlot`.
  */
 export const FANSLY_CONTRACT: HostContractShape = {
   anchors: FANSLY_ANCHOR_IDS,
   switchedAnchors: ['vaultUpload'],
-  switchedCapabilities: ['previewSend', 'receipt', 'chatList'],
+  switchedCapabilities: ['previewSend', 'receipt', 'chatList', 'chatHeader'],
 };
 
 /** Fansly's block of its report (`extensions['fansly-web']`): the state of EVERY anchor and own capability, none missing. */

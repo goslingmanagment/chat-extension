@@ -54,6 +54,21 @@ export const WS_PATH = '/api/chat-space/ws';
 export const WS_NEW_MESSAGE = 'account_new_message';
 export const WS_AUTHENTICATED = 'authenticated';
 /**
+ * 2026-10-28: the frame that says a fan's data changed (`{event, type, id, account}`), of type `user-notes` for the
+ * fan's notes (`id` the fan, `account.account_id` the OnlyMonster account). ChatSpace 0.233.0 itself reads its fan card
+ * again on it; the tap tells the isolated side, which reads the fan's notes again (main/ws-tap.ts).
+ */
+export const WS_DATA_UPDATED = 'account_data_updated';
+export const WS_USER_NOTES = 'user-notes';
+/**
+ * 2026-10-28: ChatSpace's conversation header (0.233.0 `ConversationHeader`): its actions row holds the header's
+ * buttons, each in a tooltip's wrapper — gallery, pinned messages, search, folders, refresh, open in a new tab, the
+ * widgets panel, more actions. Our slots («Заметки») stand right before the search button; for a role without
+ * message search, right after the pinned messages' button, or else the gallery's (header-slot.ts).
+ */
+export const HEADER_SEARCH_TEST_ID = 'conversation-header-search-button';
+export const HEADER_AFTER_TEST_IDS: readonly string[] = ['conversation-header-pinned-messages-button', 'conversation-header-gallery-button'];
+/**
  * The path of ChatSpace's own API under its origin (`r2.onlyMonsterUrl` + `api/v0/…`). Our one read of it, the open
  * chat's messages (X54), takes the origin from the page's own requests to this path: the path, not the origin — MAIN
  * names no origin.

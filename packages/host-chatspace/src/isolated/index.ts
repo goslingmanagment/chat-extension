@@ -13,7 +13,8 @@ export { loadValidation, type Validation, type ValidationLoader } from './valida
 export { buildContractReport, type ContractInput } from './contract';
 export { readStoredDraft, storedDraftAgrees, tiptapText, type DraftStorage, type StoredDraft } from './draft-store';
 export { aiGeneratedMark, bigramSimilarity } from './ai-mark';
-export { ADAPTER_VERSION, createChatSpaceHostPort, HostContractError, type ChatSpaceHostOptions, type ChatSpaceHostPort, type ChatSpaceLiveConfig, type HostDiagnostic, type TokenRedeemer } from './host-port';
+export { ADAPTER_VERSION, createChatSpaceHostPort, HostContractError, type ChatSpaceHeader, type ChatSpaceHostOptions, type ChatSpaceHostPort, type ChatSpaceLiveConfig, type HostDiagnostic, type TokenRedeemer } from './host-port';
+export { createHeaderSlots, findHeaderPlace, type HeaderSlot, type HeaderSlots, type HeaderState } from './header-slot';
 export { loadedScriptUrls, matchReceiptProfile, receiptModules, type ReceiptMatch } from './receipt-profile';
 export { activeSlots, COMPOSER_SLOT_SELECTOR, createMountManager, findComposerMount, waitForComposerMount, type MountDiagnostic, type MountManager, type MountManagerOptions, type WaitForComposerOptions } from './mount';
 export { HOST_ATTRIBUTE, LAYER_ATTRIBUTE, MODE_ATTRIBUTE, mountClosedHost, OVERLAY_Z, removeStaleHosts, type ClosedHost, type OverlayLayer } from '@cg/host-kit/isolated/hosts';

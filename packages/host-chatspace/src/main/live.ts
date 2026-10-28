@@ -134,6 +134,8 @@ export interface TapSink {
   readonly members: () => { has(acc: string): boolean } | null;
   /** A guarded failure of the tap script (LiveHost.fault). */
   readonly fault: (site: string) => void;
+  /** 2026-10-28: OnlyMonster's socket said the notes of this fan of a subscribed account changed (contracts FROM_MAIN.fanNotesChanged). */
+  readonly notes?: (acc: string, fan: string) => void;
 }
 
 /** The tap as the send port and the receipt observer see it (ws-tap.ts). */

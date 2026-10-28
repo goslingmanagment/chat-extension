@@ -12,13 +12,19 @@ import type { ToMainType } from '@cg/contracts/bridge';
 import type { CgCode } from '@cg/contracts/errors';
 
 /** contracts BRIDGE_WRITE_REQUESTS. */
-export const WRITE_REQUESTS: readonly ToMainType[] = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile'];
+export const WRITE_REQUESTS: readonly ToMainType[] = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile', 'createFanNote', 'updateFanNote', 'deleteFanNote'];
 /** contracts BRIDGE_UNDROPPABLE_EVENTS: never coalesced or dropped. */
-export const UNDROPPABLE_EVENTS: readonly string[] = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault'];
+export const UNDROPPABLE_EVENTS: readonly string[] = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged'];
 /** contracts BRIDGE_WRITE_FAILURES: the fixed outcome of a write that may have run (timeout, lost answer, `internal`). */
 export const WRITE_FAILURES = {
   insertGuarded: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' },
   navigate: { state: 'failed', code: 'CG-NAV-TIMEOUT', insert: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' } },
   previewSendCommit: { state: 'uncertain', code: 'CG-SEND-UNCERTAIN' },
   attachFile: { state: 'unknown' },
-} as const satisfies Record<'insertGuarded' | 'navigate' | 'previewSendCommit' | 'attachFile', { readonly state: string; readonly code?: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } }>;
+  createFanNote: { ok: false, failure: 'unknown', status: null },
+  updateFanNote: { ok: false, failure: 'unknown', status: null },
+  deleteFanNote: { ok: false, failure: 'unknown', status: null },
+} as const satisfies Record<
+  'insertGuarded' | 'navigate' | 'previewSendCommit' | 'attachFile' | 'createFanNote' | 'updateFanNote' | 'deleteFanNote',
+  { readonly state: string; readonly code?: CgCode; readonly insert?: { readonly state: string; readonly code: CgCode } } | { readonly ok: false; readonly failure: 'unknown'; readonly status: null }
+>;

@@ -42,7 +42,7 @@ export const ERR_DISABLED = 'disabled';
 export const ERR_INTERNAL = 'internal';
 
 /** contracts BRIDGE_WRITE_REQUESTS: deduplicated by request id. */
-export const WRITE_REQUESTS: readonly string[] = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile'];
+export const WRITE_REQUESTS: readonly string[] = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile', 'createFanNote', 'updateFanNote', 'deleteFanNote'];
 
 /** §5.3: UI events at most 50 per second per type; extra ones coalesce (the latest wins). */
 export const UI_EVENT_GAP_MS = 20;

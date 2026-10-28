@@ -20,7 +20,11 @@
 // (X54), only for the chat on the route now — it is read already; the vault
 // reads of a preview's media picker (X53, media.ts) — folders, a folder's
 // media, a fan's media statuses, the picks' release forms — none of them a
-// chat's history.
+// chat's history; and (2026-10-28, the owner's exception to «toward
+// OnlyMonster reads only») OnlyMonster's notes of the open chat's fan — read,
+// created, edited, deleted, only for the chat on the route, the route asked
+// again right before the request; a write only on a person's click (the
+// isolated side's), never repeated.
 // Never (§6.10): any other request of its own, history loads, store/cache writes,
 // resend/cancel/confirmEchoedMessage/reset*, ensure*/refresh*/fetch/
 // invalidate*, insertMessage/setInsertPayload, synthetic paste or any other
@@ -66,7 +70,7 @@ import {
 import { mediaRead } from './media';
 import { cachedOpenPage } from './cached-page';
 import { createOmApi } from './om-api';
-import { PAYLOAD, type AttachWire, type Identity, type InsertWire, type NavigationWire } from './requests';
+import { PAYLOAD, type AttachWire, type FanNoteInput, type Identity, type InsertWire, type NavigationWire } from './requests';
 import { QUEUE_SEND, queueShape } from './send-port';
 
 type NavReceipt = { readonly state: 'navigated'; readonly routeEpoch: number; readonly insert: Receipt | null } | { readonly state: 'failed'; readonly code: string; readonly insert: Receipt | null };
@@ -627,6 +631,11 @@ export function createMainRuntime(context: MainContext): MainRuntime {
     const fan = payload['fan'] as string;
     const expected = payload['expected'] as Identity;
     const composer = t === 'readDraft' || t === 'focus' ? composerOf(expected) : null;
+    /** The chat on the route now is acc/fan: asked before a request of ours for that chat, and again right before it goes. */
+    const open = (): boolean => {
+      const read = route();
+      return read.name === 'chat' && read.acc === acc && read.fan === fan;
+    };
     switch (t) {
       case 'chatWindow':
         return reader.chatWindow(acc, fan, payload['max'] as number);
@@ -634,19 +643,21 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         return reader.fan(acc, fan);
       case 'listChats':
         return reader.chatList(acc, payload['limit'] as number);
-      case 'openChatMessages': {
+      case 'openChatMessages':
         // The chat on the route now, or nothing is requested: another chat's history load would mark it read.
-        const open = (): boolean => {
-          const read = route();
-          return read.name === 'chat' && read.acc === acc && read.fan === fan;
-        };
         return open() ? om.openChatMessages(acc, fan, payload['limit'] as number, payload['cursor'] as string | undefined, open) : ERR_IDENTITY;
-      }
-      case 'cachedChatMessages': {
+      // 2026-10-28: OnlyMonster's notes of the fan of the chat on the route now, and of no other.
+      case 'fanNotes':
+        return open() ? om.fanNotes(acc, fan, open) : ERR_IDENTITY;
+      case 'createFanNote':
+        return open() ? om.createFanNote(acc, fan, payload['note'] as FanNoteInput, open) : ERR_IDENTITY;
+      case 'updateFanNote':
+        return open() ? om.updateFanNote(acc, fan, payload['noteId'] as string, payload['note'] as FanNoteInput, open) : ERR_IDENTITY;
+      case 'deleteFanNote':
+        return open() ? om.deleteFanNote(acc, fan, payload['noteId'] as string, open) : ERR_IDENTITY;
+      case 'cachedChatMessages':
         // What ChatSpace already holds of the chat on the route: no request, nothing marked read.
-        const read = route();
-        return read.name === 'chat' && read.acc === acc && read.fan === fan ? cachedOpenPage(reader.messagesData(acc, fan), payload['limit'] as number) : ERR_IDENTITY;
-      }
+        return open() ? cachedOpenPage(reader.messagesData(acc, fan), payload['limit'] as number) : ERR_IDENTITY;
       case 'chatReadState':
         // The chat list, and the history's newest messages only when the live list says ours is the last with nothing
         // unread: nothing new is marked read, so the chat need not be the open one. What the page already knows may
