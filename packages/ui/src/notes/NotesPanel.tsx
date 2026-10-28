@@ -713,7 +713,7 @@ function FormMeta({ copy, meta }: { readonly copy: NotesCopy; readonly meta: Non
       <span class="cg-notes__meta-p">
         {label}{' '}
         <time dateTime={when.date.iso} title={`${when.date.full} ${copy.createdAt} ${when.date.time}`}>
-          {when.date.day} {copy.createdAt} {when.date.time}
+          {when.date.year === null ? when.date.day : `${when.date.day}.${when.date.year}`} {copy.createdAt} {when.date.time}
         </time>
         {by === null ? null : (
           <>
