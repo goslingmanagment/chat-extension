@@ -291,6 +291,8 @@ export const UI_TEXT_KEYS = [
   'recap.usedBy.full', 'recap.usedBy.short', 'recap.usedBy.one', 'recap.usedBy.some', 'recap.picker.explain',
   // 2026-10-28: the Recap window as a dossier (a contents rail, the document, the build's ribbon) and its folded «Шпаргалка».
   'recap.win.sections', 'recap.win.ghost', 'recap.win.arriving', 'recap.win.keysSections', 'recap.win.keysClose', 'recap.win.freshNote', 'recap.win.freshEta', 'recap.win.end', 'recap.win.top', 'recap.win.foldTooltip', 'recap.win.emptyTitle', 'recap.win.emptyLead', 'recap.win.emptyFullTitle', 'recap.win.emptyFullLead', 'recap.win.emptyShortTitle', 'recap.win.emptyShortLead', 'recap.win.reads', 'recap.win.takes', 'recap.win.usedByMany', 'recap.win.usedByOne', 'recap.win.readsFull', 'recap.win.readsShort', 'recap.win.takesFull', 'recap.win.takesShort', 'recap.win.usedFull', 'recap.win.usedShort', 'recap.win.building', 'recap.win.buildingShort', 'recap.win.rebuilding', 'recap.win.rebuildingShort', 'recap.win.buildingNote', 'recap.win.keptNote', 'recap.win.of', 'recap.win.writing', 'recap.win.ready', 'recap.win.refreshed', 'recap.win.readyNote', 'recap.win.canceled', 'recap.win.canceledKept', 'recap.win.canceledNone', 'recap.win.stage', 'recap.win.spend', 'recap.crib.title', 'recap.crib.from', 'recap.crib.next', 'recap.crib.keep', 'recap.crib.avoid', 'recap.crib.open', 'recap.crib.openTooltip', 'recap.crib.hide',
+  // 2026-10-28: «Сводка», the board view of the Recap window (the owner's second pick).
+  'recap.view.label', 'recap.view.dossier', 'recap.view.board', 'recap.board.now', 'recap.board.who', 'recap.board.stage', 'recap.board.open', 'recap.board.inside', 'recap.board.insideMore', 'recap.board.months', 'recap.board.monthsShort', 'recap.board.zero',
   'coach.newDialog.confirm', 'coach.newDialog.keep',
   // The old card's line under a Coach draft in Cyrillic for a fan who does not write Cyrillic: neither Insert nor Copy.
   'coach.draftLanguage',
@@ -489,6 +491,7 @@ export const UI_PLURAL_KEYS = [
   'result.meta.parts', 'result.meta.variants', 'result.meta.partsEach', 'result.announce.ready', 'result.announce.retryIn',
   'recap.archiveLag', 'recap.newAfter', 'recap.coverage.whole',
   'recap.win.sectionsCount',
+  'recap.board.more', 'recap.board.topics',
   'spenders.footer', 'spenders.footerNoTotal',
   // 2026-10-22: the Spenders header's count of a list the hub has more fans for than it holds («1000 из 1240 фанов»).
   'spenders.headOf',

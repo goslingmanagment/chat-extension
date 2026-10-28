@@ -114,6 +114,42 @@ describe('[2026-10-28] a Recap as the window\'s document', () => {
   });
 });
 
+describe('[2026-10-28] what a tile of the board shows', () => {
+  const MONEY = `5. ФИНАНСОВЫЙ ПРОФИЛЬ
+
+Классификация: light spender. За почти 5 месяцев 81,97 $, все за платные сообщения. Покупки только в двух месяцах: июнь 51,97 $ и сентябрь 30 $. В июле, августе и пока в октябре ноль.
+Тренд: нерегулярный, с тенденцией к снижению.
+
+3. СТАДИЯ И ТРАЕКТОРИЯ
+
+Текущая стадия: warming up с элементами loyal-light. Пишет почти каждый день.
+Направление: растёт, если не давить.`;
+  const doc = docOf(MONEY);
+
+  it('gives the months a money section names sums for, round the year from its longest pause', () => {
+    const part = doc?.sections[0]?.parts[0];
+    expect(part).toMatchObject({ scale: { kind: 'spend', at: 1, said: 'light spender' }, figure: { sum: '81,97 $' } });
+    expect(part?.kind === 'text' ? part.months : null).toEqual([
+      { month: 5, sum: 51.97 },
+      { month: 6, sum: 0 },
+      { month: 7, sum: 0 },
+      { month: 8, sum: 30 },
+      { month: 9, sum: 0 },
+    ]);
+    expect(doc?.sections[0]?.parts[1]).toMatchObject({ label: 'Тренд', trend: 'down' });
+  });
+
+  it('says the stage in the text\'s own words, apart from what the sentence adds, and its first sentence', () => {
+    expect(doc?.sections[1]?.parts[0]).toMatchObject({ scale: { kind: 'stage', said: 'warming up', rest: 'с элементами loyal-light' }, lead: 'warming up с элементами loyal-light.' });
+    expect(doc?.sections[1]?.parts[1]).toMatchObject({ label: 'Направление', trend: 'up' });
+  });
+
+  it('names a class by its label when the label is the class', () => {
+    const short = docOf('1. КТО\nДжейми.\n\n2. ТРАТЫ\nLight spender: 81,97 $ за 5 месяцев.');
+    expect(short?.sections[1]?.parts[0]).toMatchObject({ scale: { said: 'Light spender' } });
+  });
+});
+
 describe('[2026-10-28] «Шпаргалка»', () => {
   it('takes the recommended approach, the promises and what to avoid, a sentence a line', () => {
     expect(recapCrib(docOf(FULL))).toEqual({

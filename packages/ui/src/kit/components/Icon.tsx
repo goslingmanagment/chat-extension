@@ -221,6 +221,15 @@ const PATHS = {
   bolt: <path d="M8.6 1.8L3.8 9h3.6l-.6 5.2L12.2 7H8.4z" />,
   /** «Границы». */
   shield: <path d="M8 1.9l5 1.9v3.8c0 3-2.2 5.3-5 6.5-2.8-1.2-5-3.5-5-6.5V3.8z" />,
+  /** «Сводка»: the Recap as a board of tiles. */
+  board: (
+    <>
+      <rect x="2.2" y="2.2" width="5.3" height="6.6" rx="1.2" />
+      <rect x="8.9" y="2.2" width="4.9" height="3.6" rx="1.2" />
+      <rect x="8.9" y="7.2" width="4.9" height="6.6" rx="1.2" />
+      <rect x="2.2" y="10.2" width="5.3" height="3.6" rx="1.2" />
+    </>
+  ),
   /** «Скачать лог» (2026-10-21): an arrow down into a tray. */
   download: (
     <>

@@ -53,6 +53,7 @@ import { StaleRow } from '../Result';
 import { useSteadyView } from '../Stream';
 import { EASE_OUT, LAND_MS, SPRING_FOLD, SPRING_OPEN, inOutCurve, lessMotion, morphFrames, playCurve, settle, springEasing } from './motion';
 import { SavedFact, checkingWithBuild, coverageLine, usePickerFocus, usedBy } from './recap-facts';
+import { RecapBoard } from './RecapBoard';
 import { RecapSections, Tile } from './RecapDoc';
 import { CopyAll, MadeAgo, RefreshFailedFact, debugFooter, running, type ViewProps } from './shared';
 
@@ -111,6 +112,10 @@ function writtenDoc(written: RecapWrittenVM | null): RecapDocVM {
   return { sections, labelled };
 }
 
+/** «Досье» or «Сводка»: the view the person chose last, while the tab lives (the board is the second view, 2026-10-28). */
+type View = 'dossier' | 'board';
+let chosenView: View = 'dossier';
+
 export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
@@ -133,6 +138,11 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
   const markdown = building ? (kept?.markdown ?? null) : recap.markdown;
   const mode: 'doc' | 'first' | 'empty' | 'state' = markdown !== null ? 'doc' : building ? 'first' : failedView ? 'state' : 'empty';
   const doc: RecapDocVM | null = mode === 'first' ? writtenDoc(written) : mode !== 'doc' ? null : building ? (kept?.doc ?? null) : (recap.doc ?? null);
+  // The board needs the Recap's sections: a first build, the choice of the two and a text without sections read as «Досье».
+  const [view, setView] = useState<View>(chosenView);
+  const boardable = mode === 'doc' && doc !== null;
+  const showing: View = boardable ? view : 'dossier';
+  const onBoard = showing === 'board';
   const madeAt = building ? (kept?.generatedAt ?? null) : recap.generatedAt;
   const name = recap.targetName ?? picker.targetName;
   const handle = recap.targetHandle ?? null;
@@ -262,7 +272,7 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
     head.classList.add('is-flash');
     windowOf(root)?.setTimeout(() => head.classList.remove('is-flash'), 1500);
   };
-  const jump = (index: number): void => {
+  const jump = (index: number, instant = false): void => {
     const row = rowsRef.current[index];
     const scroller = scrollRef.current;
     if (row === undefined || row.at === null || scroller === null) return;
@@ -271,7 +281,11 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
     const at = row.at;
     lock.current = index;
     setActive(index);
-    void glideTo(to).then(() => {
+    if (instant) {
+      stopGlide();
+      scroller.scrollTop = to;
+    }
+    void (instant ? Promise.resolve() : glideTo(to)).then(() => {
       flash(at);
       windowOf(root)?.setTimeout(() => {
         if (lock.current === index) lock.current = null;
@@ -291,6 +305,36 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
     }
   };
 
+  // «Сводка» ↔ «Досье»: a tile (or a row of the rail) opens its section in «Досье», at its heading.
+  const opening = useRef<number | null>(null);
+  const choose = (next: View): void => {
+    chosenView = next;
+    if (next === showing) return;
+    opening.current = null;
+    setView(next);
+  };
+  const openSection = (at: number | null): void => {
+    const index = rowsRef.current.findIndex((row) => row.at === at);
+    if (index < 0) return;
+    opening.current = index;
+    setView('dossier');
+  };
+  const shownView = useRef(showing);
+  useLayoutEffect(() => {
+    if (shownView.current === showing) return;
+    shownView.current = showing;
+    const scroller = scrollRef.current;
+    if (scroller === null) return;
+    stopGlide();
+    lock.current = null;
+    scroller.scrollTop = 0;
+    const index = opening.current;
+    opening.current = null;
+    if (index !== null) jump(index, true);
+    else spy();
+    if (!lessMotion(windowOf(root))) scroller.firstElementChild?.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 280, easing: EASE_OUT });
+  }, [showing]);
+
   // The marker sits on the active row; the first placing does not glide.
   const placed = useRef(false);
   useLayoutEffect(() => {
@@ -298,7 +342,7 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
     const marker = markerRef.current;
     if (toc === null || marker === null) return;
     const item = toc.querySelectorAll<HTMLElement>('.cg-rx-toc__item')[active];
-    if (item === undefined || ghost || mode === 'state') {
+    if (item === undefined || ghost || mode === 'state' || onBoard) {
       marker.style.opacity = '0';
       return;
     }
@@ -493,9 +537,11 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
       if (rowsRef.current[index]?.at === null || rowsRef.current[index] === undefined) return;
       event.preventDefault();
       event.stopPropagation();
-      jump(index);
+      if (onBoard) openSection(rowsRef.current[index]?.at ?? null);
+      else jump(index);
       return;
     }
+    if (onBoard) return;
     if (event.code === 'KeyJ' || event.code === 'KeyK') {
       event.preventDefault();
       event.stopPropagation();
@@ -539,10 +585,10 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
               <button
                 key={`${recap.length}:${row.key ?? row.name}`}
                 type="button"
-                class={`cg-rx-toc__item${index === active && !ghost ? ' is-on' : ''}${row.build === null ? '' : ` is-${row.build}`}`}
+                class={`cg-rx-toc__item${index === active && !ghost && !onBoard ? ' is-on' : ''}${row.build === null ? '' : ` is-${row.build}`}`}
                 disabled={ghost || row.at === null}
-                {...(index === active && !ghost ? { 'aria-current': 'true' as const } : {})}
-                onClick={() => jump(index)}
+                {...(index === active && !ghost && !onBoard ? { 'aria-current': 'true' as const } : {})}
+                onClick={() => (onBoard ? openSection(row.at) : jump(index))}
               >
                 <span class="cg-rx-toc__in">
                   <Tile section={row.key} size={14} />
@@ -576,7 +622,17 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
 
       <div class="cg-rx-doc">
         <div class={`cg-rx-top${scrolled ? ' is-scrolled' : ''}`}>
-          <div class={`cg-rx-run${runOn && activeRow !== null && mode === 'doc' ? ' is-on' : ''}`} aria-hidden="true">
+          {boardable ? (
+            <div class="cg-rx-views" role="radiogroup" aria-label={i18n.t('recap.view.label')}>
+              {(['dossier', 'board'] as const).map((option) => (
+                <button key={option} type="button" role="radio" class="cg-rx-views__b" aria-checked={showing === option ? 'true' : 'false'} onClick={() => choose(option)}>
+                  <Icon name={option === 'board' ? 'board' : 'lines'} size={14} />
+                  {i18n.t(option === 'board' ? 'recap.view.board' : 'recap.view.dossier')}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div class={`cg-rx-run${runOn && activeRow !== null && mode === 'doc' && !onBoard ? ' is-on' : ''}`} aria-hidden="true">
             {activeRow === null ? null : (
               <>
                 <Tile section={activeRow.key} size={13} />
@@ -604,7 +660,9 @@ export function RecapWindow({ debugPart }: Pick<ViewProps, 'debugPart'>): JSX.El
               lock.current = null;
             }}
           >
-            {mode === 'empty' ? (
+            {onBoard && doc !== null ? (
+              <RecapBoard doc={doc} onOpen={openSection} />
+            ) : mode === 'empty' ? (
               <Choice recap={recap} picker={picker} onPreview={setPreview} />
             ) : mode === 'state' ? (
               <div class="cg-rx-state">
