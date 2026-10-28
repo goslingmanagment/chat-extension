@@ -840,11 +840,13 @@ function QuickBox({ client, copy, quick }: Props & { readonly quick: NotesQuickV
   );
 }
 
-/** When a note was created, at its left: «16.10», the full time on hover (decision 171). */
+/** When a note was created, at its left: «16.10», the year under it outside the current year, the full time on hover
+ * (decision 171). */
 function NoteDate({ copy, date }: { readonly copy: NotesCopy; readonly date: NotesDateVM }): JSX.Element {
   return (
     <time class="cg-notes__date" dateTime={date.iso} title={`${copy.created} ${date.full} ${copy.createdAt} ${date.time}`} data-notes-date="">
       {date.day}
+      {date.year === null ? null : <span class="cg-notes__date-y">{date.year}</span>}
     </time>
   );
 }

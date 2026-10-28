@@ -90,11 +90,12 @@ export interface NotesFactVM {
   readonly date: string | null;
 }
 
-/** When a free note was created, in the chatter's clock: `day` «16.10» («16.10.2025» outside the current year), `full`
- * «16.10.2026» and `time` «19:56» for the hover, `iso` for `<time datetime>`. A questionnaire is not dated: its facts
- * carry their months. */
+/** When a free note was created, in the chatter's clock: `day` «16.10», `year` «2025» outside the current year (null in
+ * it: 2026-10-29, the owner: «год длинный», it stands under the day, the column stays narrow), `full` «16.10.2026» and
+ * `time` «19:56» for the hover, `iso` for `<time datetime>`. A questionnaire is not dated: its facts carry their months. */
 export interface NotesDateVM {
   readonly day: string;
+  readonly year: string | null;
   readonly full: string;
   readonly time: string;
   readonly iso: string;
