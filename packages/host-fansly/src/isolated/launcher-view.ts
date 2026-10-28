@@ -9,7 +9,7 @@
 //   hairline of `--cg-rule-2` and `--cg-shadow`, the glyphs in terracotta, the labels in ink; a row's hover and its
 //   wait are terracotta's chip. The chunk hands the token sheet in (`tokens`, lazy/fansly/launcher.ts), so the card
 //   wears the colours of our surfaces (2026-10-20: no palette of its own). The scheme is the one «Тема» gives our
-//   surfaces, once the application hands it (`FanslyLauncher.follow`); until then the light paper, the default.
+//   surfaces, once the application hands it (`FanslyLauncher.follow`); until then the page's own.
 // - Where: fixed, 16 px from the bottom left corner, on our layer under Fansly's modals (mount.ts `LAUNCHER_Z`): a
 //   modal of Fansly's covers it, as it covers Fansly's own page. FBuddy's toasts stand bottom right, our toasts top
 //   right, the vault's entry bottom right: the corner is nobody's. «Рассылка» folded stands above the card
@@ -115,7 +115,7 @@ export function drawFanslyLauncher(env: LauncherViewEnv): () => void {
   const doc = host.host.ownerDocument;
   const root = host.root;
   dress(root, doc, env.tokens);
-  const scheme = (): void => host.host.setAttribute('data-scheme', launcher.scheme() ?? 'light');
+  const scheme = (): void => host.host.setAttribute('data-scheme', launcher.scheme());
   scheme();
   const offTheme = launcher.onScheme(scheme);
   const card = doc.createElement('div');

@@ -864,7 +864,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       const main = bridge === null || disposed ? null : await bridge.request('fx.health', {}).catch(() => null);
       return { isolated: { route: route.stats(), anchors: anchors.stats(), stream: stream?.stats() ?? null, staleChats, sends: sends.stats(), attach: voice.stats() }, main };
     },
-    launcher: options.launcher ?? createFanslyLauncher(),
+    launcher: options.launcher ?? createFanslyLauncher(theme),
     vault: {
       album: () => vaultLoad,
       onFact(cb): Unsubscribe {

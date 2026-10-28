@@ -85,7 +85,7 @@ export function startFanslyHost(options: StartFanslyHostOptions): StartedFanslyH
   const doc = win.document;
   const mounts = createFanslyMounts(doc);
   const theme = createFanslyTheme(doc);
-  const launcher = createFanslyLauncher();
+  const launcher = createFanslyLauncher(theme);
   const validation = once(options.validation);
   const bridge = options.coexistence?.stopped.aborted ? Promise.resolve(null) : connectFanslyMain(win, validation, options.handshakeTimeoutMs).catch(() => {
     options.onDiagnostic?.({ event: 'main-missing', code: 'CG-HOST-NOT-READY' });
