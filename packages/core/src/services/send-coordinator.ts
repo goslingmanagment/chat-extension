@@ -178,21 +178,24 @@ interface Attempt {
 }
 
 /**
- * Whether a new click of the same part (same attempt key) may make a new
- * attempt after `prior`: the frozen retryable ends and a hub resolve «not
- * sent». A hold by another unresolved send to the fan (CG-SEND-UNCERTAIN) is
- * not liftable by a click (SEND_HOLD_CODES_WITHOUT_RETRY): only the hub's
- * resolve lifts it, so the click reads the custody (a safe read, never a
- * dispatch) and goes on only when nothing blocks the fan any more.
+ * Whether `begin`, a new click of the same part (same attempt key), may make a
+ * new attempt after `prior`: the frozen retryable ends and a hub resolve «not
+ * sent». The hub's refusal while another send to the fan was inside its ticket
+ * (`custody_held`, CG-SEND-UNCERTAIN) is one of them: it holds nothing, the
+ * click asks `dispatch` again — refused again inside that ticket, past it the
+ * hub sets the other send aside and answers a ticket (2026-10-23 audit). A
+ * stale hold lifts only for the click that carries the person's «Отправить
+ * всё равно» (`acceptFreshness`, 2026-10-20 audit, row 3): beginCondition then
+ * skips freshness, MAIN too; a plain click of it still holds.
  */
-function mayTryAgain(prior: Attempt): boolean | 'ask-hub' {
+function mayTryAgain(prior: Attempt, begin: SendBegin): boolean {
   const view = prior.track.view;
   if (prior.resolved !== undefined) return prior.resolved === 'not-sent';
   // 2026-10-20 audit, row 2: an unknown outcome is the person's to judge — their new click is a new attempt (the
   // old one stays unknown; nothing is ever repeated by itself, X8).
   if (view.state === 'uncertain') return true;
-  if (isRetryableEnd(view.state, view.code)) return true;
-  return view.state === 'held' && view.code === 'CG-SEND-UNCERTAIN' ? 'ask-hub' : false;
+  if (view.state === 'held' && view.code === 'CG-SEND-STALE') return begin.acceptFreshness === true;
+  return isRetryableEnd(view.state, view.code);
 }
 
 function isHubCallError(error: unknown): error is { readonly name: 'HubCallError'; readonly failure: HubFailure; readonly epoch: number } {
@@ -207,7 +210,6 @@ export class SendCoordinator {
   private readonly locks = new SendLockTable();
   private readonly writes = new WriteQueue();
   private readonly deliveries = new Set<Promise<void>>();
-  private readonly lifting = new Map<string, Promise<boolean>>();
   /** Fans whose custody could not be read or reported for want of a page label (no bootstrap yet). */
   private readonly parked = new Set<SendLockKey>();
   private readonly log: LogSink;
@@ -230,21 +232,8 @@ export class SendCoordinator {
     const key = attemptKeyOf({ generationRef: begin.group.generationRef, variant: begin.group.variant, partIndex: begin.part.index, previewRevision: begin.previewRevision });
     // One generation part and preview revision is one attempt, however many clicks arrive.
     const previous = this.byKey.get(key);
-    let prior = previous === undefined ? undefined : this.attempts.get(previous);
-    if (prior !== undefined) {
-      const again = mayTryAgain(prior);
-      if (again === false) return { ok: false, view: prior.track.view };
-      if (again === 'ask-hub') {
-        const lifted = await this.holdLifted(prior);
-        // Another click of this part may have made its attempt meanwhile.
-        const current = this.attempts.get(this.byKey.get(key) ?? '');
-        if (current !== undefined && current !== prior) return { ok: false, view: current.track.view };
-        if (!lifted) return { ok: false, view: prior.track.view };
-      }
-    }
-    const raced = this.attempts.get(begin.attemptId);
-    if (raced !== undefined) return { ok: false, view: raced.track.view };
-    prior = previous === undefined ? undefined : this.attempts.get(previous);
+    const prior = previous === undefined ? undefined : this.attempts.get(previous);
+    if (prior !== undefined && !mayTryAgain(prior, begin)) return { ok: false, view: prior.track.view };
 
     const env = this.deps.environment();
     const page = sendPageGate(env.bootstrap, begin.target.binding.pageId);
@@ -429,22 +418,6 @@ export class SendCoordinator {
     // The fan is held by a custody: when it is one of our ended attempts, its report is owed again.
     if (code === 'CG-SEND-UNCERTAIN') void this.reconcileFan(attempt.lockKey);
     return held;
-  }
-
-  /** Whether the hub says nothing blocks the fan any more (a hold by another unresolved send may then be clicked again). */
-  private holdLifted(prior: Attempt): Promise<boolean> {
-    const running = this.lifting.get(prior.key);
-    if (running !== undefined) return running;
-    const work = (async (): Promise<boolean> => {
-      const state = await this.readCustody(prior.lockKey, prior.pageId, prior.fanRef);
-      if (state === null) return false;
-      this.reconcileWith(prior.lockKey, state);
-      const block = partBlock({ purpose: prior.purpose, group: prior.group, partIndex: prior.partIndex }, this.fanAttempts(prior.lockKey, prior.track.view.attemptId));
-      if (block === 'CG-SEND-UNCERTAIN') return false;
-      return state.custody === null || !custodyBlocks(state.custody.state);
-    })().finally(() => this.lifting.delete(prior.key));
-    this.lifting.set(prior.key, work);
-    return work;
   }
 
   // ── reports ─────────────────────────────────────────────────────────────
