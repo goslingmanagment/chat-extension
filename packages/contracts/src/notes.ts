@@ -1,18 +1,57 @@
-// «Заметки» of a Fansly tab (FS-NOTE-*): the model, the actions and the client of its two surfaces, the button in the
-// header slot before «Регистрация» and the panel in our layer 900. Types only: the controller is core
-// application/hosts/fansly/notes, the requests are `fansly.notes.*` (tab-messages-fansly.ts). A note's text lives here
-// only between the panel and the background, never in a log or the hub (FS-NOTE-5).
+// «Заметки» (FS-NOTE-*), on every site that has them: the model, the actions and the client of their two surfaces, the
+// button in the chat header and the panel in our layer 900. Types only: the controller is core application/notes, each
+// site reads and writes the notes its own way (Fansly: `fansly.notes.*` of tab-messages-fansly.ts). A note's text
+// lives here only between the panel and where the site keeps it, never in a log or the hub (FS-NOTE-5).
 //
 // 2026-10-26, the owner: «непонятно… интерфейс не очень удобный… полностью с нуля переработал». The panel is one
-// screen now: the questionnaire reads as a table and a field is edited in place (a click, Enter writes it to Fansly),
-// the empty fields are «+ Метка» to fill; a free note is one line typed and Enter. 2026-10-27, the owner on the fill
-// («это основная фича»; of six prototypes he chose «Подсказки прямо в строках», and «чаттер должен контролировать, что
-// он делает»): a fan without a questionnaire gets «✨ Заполнить из чата» as the panel's first action, and what the
-// Goose found stands in the questionnaire's own rows as suggestions; each one is written to Fansly only by the
-// chatter's ✓ (or «Принять все»), × puts it aside.
-import type { CgAnyErrorWire } from './errors-fansly';
+// screen now: the questionnaire reads as a table and a field is edited in place (a click, Enter writes it to the
+// site), the empty fields are «+ Метка» to fill; a free note is one line typed and Enter. 2026-10-27, the owner on the
+// fill («это основная фича»; of six prototypes he chose «Подсказки прямо в строках», and «чаттер должен
+// контролировать, что он делает»): a fan without a questionnaire gets «✨ Заполнить из чата» as the panel's first
+// action, and what the Goose found stands in the questionnaire's own rows as suggestions; each one is written only by
+// the chatter's ✓ (or «Принять все»), × puts it aside. 2026-10-28: on ChatSpace too, kept in OnlyMonster's own fan
+// notes (the owner, asked by a chatter).
 import type { FanslyNotesView } from './settings-ext';
 import type { PhaseVM } from './vm/result';
+
+/** The panel's view (FS-NOTE-2): one for every tab of every site, stored in `settings.ext` (its name is historical). */
+export type NotesView = FanslyNotesView;
+
+/**
+ * A failure as the notes show it: a shared code, or a site's own whose texts that site's catalog carries (Fansly's
+ * `CG-FAN-*`, `CG-NOTE-*`). The panel reads its code and detail; the rest rides along as the wire has it.
+ */
+export interface NotesErrorWire {
+  readonly code: string;
+  readonly detail?: string | undefined;
+  readonly retryAt?: number | undefined;
+  readonly httpStatus?: number | undefined;
+}
+
+/**
+ * A note as the panel reads it, from any site (Fansly's `FanslyNote` is one). `foreign` — kept by another tool (FBuddy's
+ * «FBuddy Notes»): shown read only. `createdAtMs` — when it was created; null or absent — not said. `cut` — longer than
+ * NOTE_LIMITS: its beginning, read only.
+ */
+export interface NoteData {
+  readonly noteId: string;
+  readonly title: string;
+  readonly text: string;
+  readonly foreign: boolean;
+  readonly createdAtMs?: number | null | undefined;
+  readonly cut?: true | undefined;
+}
+
+/**
+ * The panel's limits of a note. The sites state none we know of; ours sit far above any real note. A text written is
+ * never cut (FS-NOTE-4: a longer one is refused); a longer note read from the site is shown cut and read only.
+ */
+export const NOTE_LIMITS = {
+  titleMaxChars: 1_000,
+  textMaxChars: 50_000,
+  customNameMaxChars: 1_000,
+  perFan: 200,
+} as const;
 
 /** Where the side panel stands: in the free column right of the chat, or over the chat's right edge (px, viewport). */
 export interface NotesPlace {
@@ -35,7 +74,7 @@ export type NotesProblem =
   /** The note changed elsewhere since it was read (audit №13): `latest` is what Fansly holds now. A note's text editor
    * shows it and its next «Сохранить» writes over it; a field or the Goose's facts are written into it. */
   | { readonly kind: 'changed'; readonly latest: { readonly title: string; readonly text: string } }
-  | { readonly kind: 'failed'; readonly error: CgAnyErrorWire; readonly created: boolean };
+  | { readonly kind: 'failed'; readonly error: NotesErrorWire; readonly created: boolean };
 
 /** A fact of a questionnaire's field and the month the Goose stamped on it («Флорида (08.2026)»). */
 export interface NotesFactVM {
@@ -144,7 +183,7 @@ export interface NotesFillVM {
   readonly phase: PhaseVM | null;
   /** A running fill: where it is (its suggestions arrive in the rows as `arriving`). */
   readonly progress: NotesFillProgressVM | null;
-  readonly error: CgAnyErrorWire | null;
+  readonly error: NotesErrorWire | null;
   /** The suggestions waiting, written by ✓, put aside by ×. */
   readonly pending: number;
   readonly written: number;
@@ -218,17 +257,17 @@ export interface NotesQuickVM {
 
 export interface NotesPanelVM {
   readonly shown: boolean;
-  readonly view: FanslyNotesView;
+  readonly view: NotesView;
   /** «Всегда справа» without room beside the chat: opened by the button, over the chat. */
   readonly narrow: boolean;
   /** null — the centred window. */
   readonly place: NotesPlace | null;
   readonly fan: { readonly name: string | null; readonly handle: string | null } | null;
   readonly body: 'loading' | 'ready' | 'error';
-  readonly error: CgAnyErrorWire | null;
+  readonly error: NotesErrorWire | null;
   /** `changed` (audit №13): the name changed elsewhere — `latest` is Fansly's now (null — none); the next Enter writes
    * the typed one over it. */
-  readonly name: { readonly value: string; readonly status: NotesNameStatus; readonly error: CgAnyErrorWire | null; readonly changed?: { readonly latest: string | null } };
+  readonly name: { readonly value: string; readonly status: NotesNameStatus; readonly error: NotesErrorWire | null; readonly changed?: { readonly latest: string | null } };
   /** null until the notes are read. */
   readonly form: NotesFormVM | null;
   /** The other notes, newest first; FBuddy's among them. */
@@ -239,7 +278,7 @@ export interface NotesPanelVM {
   /** The note whose «Удалить» asks to confirm (the questionnaire's too). */
   readonly confirmDelete: string | null;
   readonly deleting: string | null;
-  readonly deleteError: CgAnyErrorWire | null;
+  readonly deleteError: NotesErrorWire | null;
   /** A write of this fan is in flight: «Обновить» waits for it. */
   readonly writing: boolean;
 }
@@ -256,7 +295,7 @@ export type NotesAction =
   | { readonly type: 'toggle' }
   | { readonly type: 'close' }
   | { readonly type: 'refresh' }
-  | { readonly type: 'view'; readonly view: FanslyNotesView }
+  | { readonly type: 'view'; readonly view: NotesView }
   /** A questionnaire's field (or a «+ Метка») opened for typing, typed, written (Enter) or put away (Esc). */
   | { readonly type: 'field-open'; readonly label: string }
   | { readonly type: 'field-input'; readonly value: string }
@@ -316,7 +355,7 @@ export interface NotesCopy {
   readonly loading: string;
   readonly retry: string;
   readonly viewLabel: string;
-  readonly views: Readonly<Record<FanslyNotesView, string>>;
+  readonly views: Readonly<Record<NotesView, string>>;
   /** `{key}` — ⌘⇧K: the view menu's last line. */
   readonly hotkey: string;
   readonly narrow: string;

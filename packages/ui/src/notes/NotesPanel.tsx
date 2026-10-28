@@ -1,5 +1,5 @@
 // The «Заметки» panel of a Fansly tab (FS-NOTE-2…6): the fan's native Fansly notes on one screen (2026-10-26, the
-// owner: «полностью с нуля переработал»), its model the panel's own client (contracts notes-fansly.ts); nothing here
+// owner: «полностью с нуля переработал»), its model the panel's own client (contracts notes.ts); nothing here
 // reads the page or the network.
 //
 // - The head: the name for oneself, edited in place (Enter or leaving the field saves a changed name, Esc reverts it,
@@ -29,21 +29,19 @@
 import type { JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
-import type { I18nKey } from '@cg/contracts/errors';
-import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NotesClient, NotesCopy, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM } from '@cg/contracts/notes-fansly';
-import { FANSLY_NOTES_VIEWS, type FanslyNotesView } from '@cg/contracts/settings-ext';
+import type { NotesClient, NotesCopy, NotesErrorWire, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM, NotesView } from '@cg/contracts/notes';
+import { FANSLY_NOTES_VIEWS } from '@cg/contracts/settings-ext';
 
-import { Button, Dot, ElapsedTimer, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit, useReducedMotion } from '../../../kit';
+import { Button, Dot, ElapsedTimer, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit, useReducedMotion } from '../kit';
 import { useNotesTick, type NotesTexts } from './NotesButton';
 
 type Props = { readonly client: NotesClient; readonly copy: NotesCopy };
 type TextElement = HTMLInputElement | HTMLTextAreaElement;
 
-function useErrorText(): (error: CgAnyErrorWire) => string {
+function useErrorText(): (error: NotesErrorWire) => string {
   const i18n = useI18n();
-  return (error) => `${i18n.t(cgTitleKey(error.code) as I18nKey)} · ${error.code}`;
+  return (error) => `${i18n.t(cgTitleKey(error.code))} · ${error.code}`;
 }
 
 /** The key that saves a note's text: ⌘↵ on a Mac, Ctrl+↵ elsewhere (as the notes' own ⌘⇧K tells). */
@@ -171,7 +169,7 @@ function NameStatus({ copy, vm, focused }: { readonly copy: NotesCopy; readonly 
 }
 
 /** «Где показывать»: the view, one for every tab, and the key that opens the notes. */
-function ViewMenu({ client, copy, view }: Props & { readonly view: FanslyNotesView }): JSX.Element {
+function ViewMenu({ client, copy, view }: Props & { readonly view: NotesView }): JSX.Element {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement | null>(null);
   const { deps } = useKit();
@@ -199,7 +197,7 @@ function ViewMenu({ client, copy, view }: Props & { readonly view: FanslyNotesVi
         items={FANSLY_NOTES_VIEWS.map((entry) => ({ id: entry, label: copy.views[entry], checked: entry === view }))}
         align="end"
         placement="bottom"
-        onSelect={(id) => client.dispatch({ type: 'view', view: id as FanslyNotesView })}
+        onSelect={(id) => client.dispatch({ type: 'view', view: id as NotesView })}
         onClose={() => setOpen(false)}
         returnFocusTo={() => button.current}
         {...(key === null ? {} : { footer: copy.hotkey.replace('{key}', key.display) })}
@@ -266,7 +264,7 @@ function FieldRow({ client, copy, part, off }: Props & { readonly part: Extract<
   );
 }
 
-function problemText(problem: NotesProblem, words: Readonly<Record<'too-long' | 'deleted' | 'changed' | 'failed-create' | 'failed-edit', string>>, errorText: (error: CgAnyErrorWire) => string, empty: string): string {
+function problemText(problem: NotesProblem, words: Readonly<Record<'too-long' | 'deleted' | 'changed' | 'failed-create' | 'failed-edit', string>>, errorText: (error: NotesErrorWire) => string, empty: string): string {
   if (problem.kind === 'failed') return problem.error.code === 'CG-NOTE-WRITE' && problem.error.detail === 'changed' ? words.changed : `${errorText(problem.error)}. ${words[problem.created ? 'failed-create' : 'failed-edit']}`;
   return problem.kind === 'empty' ? empty : words[problem.kind];
 }

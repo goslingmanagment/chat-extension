@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { createClient, routeSchemas } from '@kernel/sdk';
 import { BootstrapSchema, HubFrameSchema, type HubStreamRequest, type Target, type AnyStartOp, type LiveTextTail, type SiteOpView, type VoiceScriptStart, type NotesFillStart } from '@cg/contracts';
 import { VoiceOpViewSchema, VoiceScriptStartSchema } from '@cg/contracts/voice';
-import { mergeNoteFill, noteFillRequest } from '@cg/core/application/hosts/fansly/notes';
+import { mergeNoteFill, noteFillRequest } from '@cg/core/application/notes';
 import { LocalSpendJournal } from '@cg/core/domain/debug';
 import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
 import { stableDigest } from '../../../src/domain/ops/digest';

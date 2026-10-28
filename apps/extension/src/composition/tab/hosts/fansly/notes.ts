@@ -4,7 +4,7 @@
 // - Only where the page's owner switched «Заметки» on and the header has its slot (the manifest's `notes`: the page's
 //   flag `notes`, the host's capability `headerSlot`), in an open one-to-one chat: the button in the header slot before
 //   «Регистрация» (order 10), the panel in our layer 900, ⌘⇧K — the early dispatcher's `notes` command — while it runs.
-// - The controller (core application/hosts/fansly/notes) asks `fansly.notes.*` of the background; the page's boxes
+// - The controller (core application/notes, every site's since 2026-10-28) asks `fansly.notes.*` of the background; the page's boxes
 //   are measured when asked (host-fansly notes-place.ts): on the route, the header, a resize — no observer of ours;
 //   the panel over the chat stops above Fansly's composer (and our dock over it), never over them.
 // - The view is `settings.ext`'s, one for every tab: read once, followed by the background's event.
@@ -21,18 +21,17 @@
 import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
 import type { SiteOpView } from '@cg/contracts/ops';
 import { chatKeyOf } from '@cg/contracts/ids';
-import type { NotesAction, NotesClient } from '@cg/contracts/notes-fansly';
+import type { NotesAction, NotesClient } from '@cg/contracts/notes';
 import type { FanslyNotesView } from '@cg/contracts/settings-ext';
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext, failureClass, type PageContextState } from '@cg/core/application/boards';
-import { notesActionFacts, notesAvailability } from '@cg/core/application/hosts/fansly/journal';
-import { createNotesController, type NoteWriteHow, type NotesPort } from '@cg/core/application/hosts/fansly/notes';
+import { createNotesController, notesActionFacts, notesAvailability, type NoteWriteHow, type NotesPort } from '@cg/core/application/notes';
 import { withFanslyOpText } from '@cg/core/application/hosts/fansly/ai';
 import { admittedOn, freshTextAdmitted } from '@cg/core/domain/features';
 import { NOTES_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanslyModalOpen, notesMeasure } from '@cg/host-fansly/isolated/notes-place';
-import { NOTES_SURFACE, notesButtonSurface, notesPanelSurface } from '@cg/ui/hosts/fansly/notes';
+import { NOTES_SURFACE, notesButtonSurface, notesPanelSurface } from '@cg/ui/notes';
 import { mountKitSurface, type KitMount } from '@cg/ui/kit';
 
 import type { SiteAppEnv } from '../../adapter';
@@ -107,24 +106,24 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
     async read(t, force) {
       const id = pageId();
       if (id === undefined) return refused;
-      return (await ask('fansly.notes.read', { pageId: id, hostAccountId: t.accountId, fanRef: t.fanId, groupId: t.groupId, ...(force ? { force: true } : {}) })) as Awaited<ReturnType<NotesPort['read']>>;
+      return await ask('fansly.notes.read', { pageId: id, hostAccountId: t.accountId, fanRef: t.fanId, groupId: t.groupId, ...(force ? { force: true } : {}) });
     },
     // `how`: for the hub's record of who wrote the note (the background checks it).
     async create(who, title, text, how) {
       const to = target(who.accountId, who.fanId);
-      return to === null ? refused : ((await ask('fansly.notes.create', { ...to, title, text, ...origin(how) })) as Awaited<ReturnType<NotesPort['create']>>);
+      return to === null ? refused : await ask('fansly.notes.create', { ...to, title, text, ...origin(how) });
     },
     async edit(who, noteId, title, text, current, how) {
       const to = target(who.accountId, who.fanId);
-      return to === null ? refused : ((await ask('fansly.notes.edit', { ...to, noteId, title, text, current, ...origin(how) })) as Awaited<ReturnType<NotesPort['edit']>>);
+      return to === null ? refused : await ask('fansly.notes.edit', { ...to, noteId, title, text, current, ...origin(how) });
     },
     async remove(who, note, how) {
       const to = target(who.accountId, who.fanId);
-      return to === null ? refused : ((await ask('fansly.notes.delete', { ...to, noteId: note.noteId, title: note.title, text: note.text, ...origin(how) })) as Awaited<ReturnType<NotesPort['remove']>>);
+      return to === null ? refused : await ask('fansly.notes.delete', { ...to, noteId: note.noteId, title: note.title, text: note.text, ...origin(how) });
     },
     async name(who, name, current) {
       const to = target(who.accountId, who.fanId);
-      return to === null ? refused : ((await ask('fansly.notes.name', { ...to, name, current })) as Awaited<ReturnType<NotesPort['name']>>);
+      return to === null ? refused : await ask('fansly.notes.name', { ...to, name, current });
     },
     fillAllowed,
     async fill(t, fanId, fields, values) {

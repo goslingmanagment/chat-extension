@@ -1,5 +1,6 @@
-// «Заметки» of a Fansly tab (FS-NOTE-1…6; FX-004…FX-024): what the button in the header and the panel show, and what
-// they ask the background. No DOM and no network: the port measures the page and asks `fansly.notes.*`.
+// «Заметки» (FS-NOTE-1…6; FX-004…FX-024), on every site that has them: what the button in the header and the panel
+// show, and what they ask the site's port. No DOM and no network: the port measures the page and reads and writes the
+// notes where the site keeps them (Fansly: the background's `fansly.notes.*`; ChatSpace: OnlyMonster's fan notes).
 //
 // 2026-10-26, the owner («непонятно… полностью с нуля переработал»): the panel is one screen, nothing switches it into
 // a mode.
@@ -33,15 +34,12 @@
 // - A note's text never leaves through here but to the background (FS-NOTE-5), and from there only a fill's values, in
 //   the hub's request body: nothing is logged.
 
-import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { NOTE_ATTRIBUTION_LIMITS, type NoteAttributionOrigin } from '@cg/contracts/hub';
-import type { NotesAction, NotesClient, NotesDateVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesSuggestionVM, NotesFormVM, NotesItemVM, NotesNameStatus, NotesPanelVM, NotesPlace, NotesProblem, NotesTriggerVM } from '@cg/contracts/notes-fansly';
+import { NOTE_LIMITS, type NoteData, type NotesAction, type NotesClient, type NotesDateVM, type NotesErrorWire, type NotesFillProgressVM, type NotesFillVM, type NotesFormPartVM, type NotesSuggestionVM, type NotesFormVM, type NotesItemVM, type NotesNameStatus, type NotesPanelVM, type NotesPlace, type NotesProblem, type NotesTriggerVM, type NotesView } from '@cg/contracts/notes';
 import type { Phase, SiteOpView } from '@cg/contracts/ops';
 import type { PhaseVM } from '@cg/contracts/vm';
-import type { FanslyNotesView } from '@cg/contracts/settings-ext';
-import { FANSLY_TAB_LIMITS, type FanslyNote } from '@cg/contracts/tab-messages-fansly';
 
-import { noteFillSeen, parseNoteFillAnswer } from '../../../../domain/hosts/fansly/notes-fill-answer';
+import { noteFillSeen, parseNoteFillAnswer } from '../../domain/notes/fill-answer';
 import { applyNoteFindings, noteFillRequest, noteFindings, noteSuggestion, type NoteFinding } from './fill';
 import { NOTE_FIELDS_MAX, noteFieldValue, noteLabelKey, parseNoteForm, splitFactDate, splitNoteFacts, writeNoteField, type NoteFormPart } from './form';
 import { NOTE_TEMPLATE_LABELS, NOTE_TEMPLATE_TEXT, NOTE_TEMPLATE_TITLE } from './template';
@@ -78,7 +76,7 @@ export const NOTES_UNDO_MS = 6000;
 /** Chats whose notes a tab keeps; a shift opens fewer. */
 const KEPT_CHATS = 300;
 
-type Failure = { readonly ok: false; readonly error: CgAnyErrorWire };
+type Failure = { readonly ok: false; readonly error: NotesErrorWire };
 type CustomName = { readonly noteId: string; readonly name: string };
 
 const pad2 = (value: number): string => String(value).padStart(2, '0');
@@ -163,11 +161,11 @@ export interface NotesPort {
   /** The tab's account and login: another one drops everything read and typed under the previous. */
   session(): string | null;
   target(): NotesTarget | null;
-  read(target: NotesTarget, force: boolean): Promise<{ readonly ok: true; readonly fanRef: string; readonly notes: readonly FanslyNote[]; readonly customName: CustomName | null } | Failure>;
-  create(who: NotesWho, title: string, text: string, how?: NoteWriteHow): Promise<{ readonly ok: true; readonly note: FanslyNote } | Failure>;
+  read(target: NotesTarget, force: boolean): Promise<{ readonly ok: true; readonly fanRef: string; readonly notes: readonly NoteData[]; readonly customName: CustomName | null } | Failure>;
+  create(who: NotesWho, title: string, text: string, how?: NoteWriteHow): Promise<{ readonly ok: true; readonly note: NoteData } | Failure>;
   /** A `changed` refusal carries `latest`, the version Fansly holds now (audit №13). */
-  edit(who: NotesWho, noteId: string, title: string, text: string, current: Pick<FanslyNote, 'title' | 'text'>, how?: NoteWriteHow): Promise<{ readonly ok: true; readonly note: FanslyNote } | (Failure & { readonly latest?: FanslyNote | undefined })>;
-  remove(who: NotesWho, note: FanslyNote, how?: NoteWriteHow): Promise<{ readonly ok: true } | Failure>;
+  edit(who: NotesWho, noteId: string, title: string, text: string, current: Pick<NoteData, 'title' | 'text'>, how?: NoteWriteHow): Promise<{ readonly ok: true; readonly note: NoteData } | (Failure & { readonly latest?: NoteData | undefined })>;
+  remove(who: NotesWho, note: NoteData, how?: NoteWriteHow): Promise<{ readonly ok: true } | Failure>;
   /** A `changed` refusal carries `latest`, the name Fansly holds now (null — none). */
   name(who: NotesWho, name: string, current: CustomName | null): Promise<{ readonly ok: true; readonly customName: CustomName | null } | (Failure & { readonly latest?: CustomName | null | undefined })>;
   /** The page's «Дополнить из чата» is on (the manifest's `notes-fill`: the page's `notesFill`). */
@@ -179,7 +177,7 @@ export interface NotesPort {
   /** «Остановить», «Отмена», a stopped start: the operation is cancelled, its answer never lands. */
   stopFill(opId: string): void;
   /** The person chose a view: the background stores it for every tab. */
-  setView(view: FanslyNotesView): void;
+  setView(view: NotesView): void;
   /** «Всегда справа» has room right of the chat. */
   fits(): boolean;
   /** Where the side panel stands now; null — no chat to stand beside. */
@@ -194,17 +192,17 @@ export interface NotesPort {
 
 interface Data {
   readonly fanRef: string;
-  readonly notes: readonly FanslyNote[];
+  readonly notes: readonly NoteData[];
   readonly customName: CustomName | null;
 }
 
-type Entry = { readonly kind: 'loading'; readonly token: number } | { readonly kind: 'ready'; readonly data: Data } | { readonly kind: 'error'; readonly error: CgAnyErrorWire };
+type Entry = { readonly kind: 'loading'; readonly token: number } | { readonly kind: 'ready'; readonly data: Data } | { readonly kind: 'error'; readonly error: NotesErrorWire };
 
 /** A note open as text. */
 interface Draft {
   noteId: string | null;
   /** The version the next «Сохранить» writes over: the one opened, or Fansly's newer one once it was shown (audit №13). */
-  current: Pick<FanslyNote, 'title' | 'text'>;
+  current: Pick<NoteData, 'title' | 'text'>;
   title: string;
   text: string;
   saving: boolean;
@@ -253,7 +251,7 @@ type Fill =
   | Running
   | Review
   | { readonly status: 'empty' }
-  | { readonly status: 'failed'; readonly error: CgAnyErrorWire };
+  | { readonly status: 'failed'; readonly error: NotesErrorWire };
 
 /**
  * A fill on its way: `asked` — the labels sent; `stream` — its answer so far (`op.update`), `parsed` — how much of it
@@ -300,7 +298,7 @@ const waits = (fill: Fill | undefined): boolean => fill?.status === 'review' && 
 
 interface NameState {
   readonly status: NotesNameStatus;
-  readonly error: CgAnyErrorWire | null;
+  readonly error: NotesErrorWire | null;
   /** The name changed elsewhere: Fansly's now (null — none). */
   readonly changed?: { readonly latest: string | null };
 }
@@ -310,10 +308,10 @@ const NO_QUICK: Quick = { text: '', saving: false, blocked: false, problem: null
 const toFailure = (error: unknown): Failure => ({ ok: false, error: { code: 'CG-FAN-REQUEST', ...(error instanceof Error ? { detail: error.name } : {}) } });
 
 /** The background's refusal of a write because the note (or the name) changed since it was read. */
-const isChanged = (error: CgAnyErrorWire): boolean => error.code === 'CG-NOTE-WRITE' && error.detail === 'changed';
+const isChanged = (error: NotesErrorWire): boolean => error.code === 'CG-NOTE-WRITE' && error.detail === 'changed';
 
 /** A newer version of a note in place of the one read: it keeps the creation time read when Fansly's answer gave none. */
-const withTime = (fresh: FanslyNote, read: FanslyNote | undefined): FanslyNote => (fresh.createdAtMs !== undefined && fresh.createdAtMs !== null) || read?.createdAtMs === undefined || read.createdAtMs === null ? fresh : { ...fresh, createdAtMs: read.createdAtMs };
+const withTime = (fresh: NoteData, read: NoteData | undefined): NoteData => (fresh.createdAtMs !== undefined && fresh.createdAtMs !== null) || read?.createdAtMs === undefined || read.createdAtMs === null ? fresh : { ...fresh, createdAtMs: read.createdAtMs };
 
 /** What a `changed` refusal carries: the version Fansly holds now; undefined — none was given. */
 const latestOf = <T>(failure: Failure): T | undefined => (failure as Failure & { readonly latest?: T }).latest;
@@ -334,7 +332,7 @@ export type NotesController = NotesClient & {
   /** The route, the account, the header changed: follow the open chat. */
   sync(): void;
   /** The stored view (the background's answer or its event). */
-  applyView(view: FanslyNotesView): void;
+  applyView(view: NotesView): void;
   /** The page moved under the panel (a resize): re-place it, show or hide «Всегда справа». */
   layout(): void;
   /** The button or ⌘⇧K; false outside a one-to-one chat of the switch. */
@@ -362,7 +360,7 @@ export function createNotesController(port: NotesPort): NotesController {
   const unplaced = new Map<string, readonly string[]>();
   const nameDrafts = new Map<string, { value: string; readonly current: CustomName | null }>();
   const nameStates = new Map<string, NameState>();
-  let view: FanslyNotesView = 'drawer';
+  let view: NotesView = 'drawer';
   /** The person wants the panel (for «Всегда справа»: unless closed). */
   let wanted = false;
   /** «Всегда справа» without room: opened over the chat by the button. */
@@ -374,7 +372,7 @@ export function createNotesController(port: NotesPort): NotesController {
   let follow: unknown = null;
   let confirm: { readonly fanId: string; readonly noteId: string } | null = null;
   let deleting: { readonly fanId: string; readonly noteId: string } | null = null;
-  let deleteError: { readonly fanId: string; readonly noteId: string; readonly error: CgAnyErrorWire } | null = null;
+  let deleteError: { readonly fanId: string; readonly noteId: string; readonly error: NotesErrorWire } | null = null;
   let disposed = false;
   let panelVM: NotesPanelVM | null = null;
   /** The open chat's fan and the panel's place as last seen, for a panel kept while its chat is gone for a moment. */
@@ -383,13 +381,13 @@ export function createNotesController(port: NotesPort): NotesController {
   let shape = '';
   const now = (): number => port.now?.() ?? Date.now();
   /** A note's questionnaire, parsed once per note read (the panel builds on every keystroke). */
-  const parsed = new WeakMap<FanslyNote, readonly NoteFormPart[] | null>();
-  const partsOf = (note: FanslyNote): readonly NoteFormPart[] | null => {
+  const parsed = new WeakMap<NoteData, readonly NoteFormPart[] | null>();
+  const partsOf = (note: NoteData): readonly NoteFormPart[] | null => {
     if (!parsed.has(note)) parsed.set(note, note.foreign ? null : parseNoteForm(note.text));
     return parsed.get(note) ?? null;
   };
   /** The fan's questionnaire: the first note that reads as one. */
-  const formNote = (data: Data): FanslyNote | null => data.notes.find((note) => partsOf(note) !== null) ?? null;
+  const formNote = (data: Data): NoteData | null => data.notes.find((note) => partsOf(note) !== null) ?? null;
 
   const target = (): NotesTarget | null => {
     const next = port.session();
@@ -440,7 +438,7 @@ export function createNotesController(port: NotesPort): NotesController {
     return null;
   };
   /** Why «✨ Дополнить из чата» cannot start now. */
-  const fillReason = (fanId: string, form: FanslyNote | null): 'editing' | 'writing' | null => {
+  const fillReason = (fanId: string, form: NoteData | null): 'editing' | 'writing' | null => {
     if (writing(fanId)) return 'writing';
     const draft = drafts.get(fanId);
     if (fields.has(fanId) || (draft !== undefined && form !== null && draft.noteId === form.noteId)) return 'editing';
@@ -549,8 +547,8 @@ export function createNotesController(port: NotesPort): NotesController {
     };
   }
 
-  function itemsVM(data: Data, form: FanslyNote | null): NotesItemVM[] {
-    const at = (note: FanslyNote): number => note.createdAtMs ?? -1;
+  function itemsVM(data: Data, form: NoteData | null): NotesItemVM[] {
+    const at = (note: NoteData): number => note.createdAtMs ?? -1;
     // Newest first; a note Fansly gave no time keeps its place after the dated ones.
     return data.notes
       .filter((note) => note !== form)
@@ -637,7 +635,7 @@ export function createNotesController(port: NotesPort): NotesController {
    * instead of an editor of nothing. A note changed elsewhere since its editor opened is shown as Fansly holds it now,
    * and the next «Сохранить» writes the draft over it (audit №13); one that already holds the draft closes as saved.
    */
-  function afterReread(fanId: string, notes: readonly FanslyNote[], customName: CustomName | null): void {
+  function afterReread(fanId: string, notes: readonly NoteData[], customName: CustomName | null): void {
     const draft = drafts.get(fanId);
     if (draft !== undefined && !draft.saving) {
       draft.blocked = false;
@@ -675,7 +673,7 @@ export function createNotesController(port: NotesPort): NotesController {
   }
 
   /** Fansly holds a newer version than the draft was opened on: shown, and the one the next «Сохранить» writes over. */
-  function showLatest(draft: Draft, latest: FanslyNote): void {
+  function showLatest(draft: Draft, latest: NoteData): void {
     draft.current = { title: latest.title, text: latest.text };
     draft.problem = { kind: 'changed', latest: { title: latest.title, text: latest.text } };
   }
@@ -772,7 +770,7 @@ export function createNotesController(port: NotesPort): NotesController {
     update('follow');
   }
 
-  function chooseView(next: FanslyNotesView): void {
+  function chooseView(next: NotesView): void {
     if (next === view) return;
     view = next;
     wanted = true;
@@ -799,7 +797,7 @@ export function createNotesController(port: NotesPort): NotesController {
 
   /** A note written: in place of the one read (keeping its time: Fansly answers an edit without it, decision 170), or
    * added — «now» until a reread brings Fansly's time (decision 171). */
-  function saved(fanId: string, note: FanslyNote): void {
+  function saved(fanId: string, note: NoteData): void {
     patch(fanId, (d) => {
       const read = d.notes.find((entry) => entry.noteId === note.noteId);
       if (read !== undefined) return { ...d, notes: d.notes.map((entry) => (entry.noteId === note.noteId ? withTime(note, read) : entry)) };
@@ -808,7 +806,7 @@ export function createNotesController(port: NotesPort): NotesController {
   }
 
   /** Fansly's version of a note now, in the list (a `changed` refusal brought it). */
-  function replaced(fanId: string, latest: FanslyNote): void {
+  function replaced(fanId: string, latest: NoteData): void {
     patch(fanId, (d) => ({ ...d, notes: d.notes.map((note) => (note.noteId === latest.noteId ? withTime(latest, note) : note)) }));
   }
 
@@ -842,7 +840,7 @@ export function createNotesController(port: NotesPort): NotesController {
       return emit();
     }
     // Refused, never cut: a cut would drop the tail of the note in Fansly.
-    if (title.length > FANSLY_TAB_LIMITS.noteTitleMaxChars || text.length > FANSLY_TAB_LIMITS.noteTextMaxChars) {
+    if (title.length > NOTE_LIMITS.titleMaxChars || text.length > NOTE_LIMITS.textMaxChars) {
       draft.problem = { kind: 'too-long' };
       return emit();
     }
@@ -856,9 +854,9 @@ export function createNotesController(port: NotesPort): NotesController {
     if (answer.ok) {
       saved(data.fanRef, answer.note);
       drafts.delete(data.fanRef);
-    } else if (draft.noteId !== null && isChanged(answer.error) && latestOf<FanslyNote>(answer) !== undefined) {
+    } else if (draft.noteId !== null && isChanged(answer.error) && latestOf<NoteData>(answer) !== undefined) {
       // Changed elsewhere (audit №13): Fansly's version now, in the list and under the draft; «Сохранить» again writes over it.
-      const latest = latestOf<FanslyNote>(answer) as FanslyNote;
+      const latest = latestOf<NoteData>(answer) as NoteData;
       showLatest(draft, latest);
       replaced(data.fanRef, latest);
     } else if (draft.noteId !== null && isChanged(answer.error)) {
@@ -880,14 +878,14 @@ export function createNotesController(port: NotesPort): NotesController {
    * «Анкета». `onto` — the note as read. On a `changed` refusal the list takes Fansly's version, and the caller's next
    * press writes into it.
    */
-  async function writeForm(data: Data, to: NotesWho, onto: FanslyNote | null, text: string, how: NoteWriteHow): Promise<{ readonly ok: true } | { readonly ok: false; readonly problem: NotesProblem; readonly blocked: boolean }> {
+  async function writeForm(data: Data, to: NotesWho, onto: NoteData | null, text: string, how: NoteWriteHow): Promise<{ readonly ok: true } | { readonly ok: false; readonly problem: NotesProblem; readonly blocked: boolean }> {
     const answer = await (onto === null ? port.create(to, NOTE_TEMPLATE_TITLE, text, how) : port.edit(to, onto.noteId, onto.title, text, { title: onto.title, text: onto.text }, how)).catch(toFailure);
     if (answer.ok) {
       saved(data.fanRef, answer.note);
       return { ok: true };
     }
     if (onto !== null && isChanged(answer.error)) {
-      const latest = latestOf<FanslyNote>(answer);
+      const latest = latestOf<NoteData>(answer);
       if (latest !== undefined) {
         replaced(data.fanRef, latest);
         return { ok: false, problem: { kind: 'changed', latest: { title: latest.title, text: latest.text } }, blocked: false };
@@ -943,7 +941,7 @@ export function createNotesController(port: NotesPort): NotesController {
       fields.delete(fanId);
       return emit();
     }
-    if (text.length > FANSLY_TAB_LIMITS.noteTextMaxChars) {
+    if (text.length > NOTE_LIMITS.textMaxChars) {
       edit.problem = { kind: 'too-long' };
       return emit();
     }
@@ -971,11 +969,11 @@ export function createNotesController(port: NotesPort): NotesController {
     if (quick === undefined || quick.saving || quick.blocked) return;
     const text = quick.text.trim();
     if (text === '') return;
-    if (text.length > FANSLY_TAB_LIMITS.noteTextMaxChars) {
+    if (text.length > NOTE_LIMITS.textMaxChars) {
       quick.problem = { kind: 'too-long' };
       return emit();
     }
-    const title = (port.author?.() ?? '').trim().slice(0, FANSLY_TAB_LIMITS.noteTitleMaxChars);
+    const title = (port.author?.() ?? '').trim().slice(0, NOTE_LIMITS.titleMaxChars);
     quick.saving = true;
     quick.title = title;
     quick.problem = null;
@@ -1031,7 +1029,7 @@ export function createNotesController(port: NotesPort): NotesController {
       nameStates.delete(fanId);
       return emit();
     }
-    if (name.length > FANSLY_TAB_LIMITS.customNameMaxChars) {
+    if (name.length > NOTE_LIMITS.customNameMaxChars) {
       nameStates.set(fanId, { status: 'too-long', error: null });
       return emit();
     }
@@ -1207,7 +1205,7 @@ export function createNotesController(port: NotesPort): NotesController {
       for (const index of going) fill.marks[index] = { state: 'written' };
       return settle(fanId, fill);
     }
-    if (applied.text.length > FANSLY_TAB_LIMITS.noteTextMaxChars) {
+    if (applied.text.length > NOTE_LIMITS.textMaxChars) {
       for (const index of going) fill.marks[index] = { state: 'pending' };
       fill.problem = { kind: 'too-long' };
       return settle(fanId, fill);

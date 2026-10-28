@@ -6,7 +6,7 @@
 // When that column is wide enough the panel stands in it and covers nothing («Всегда справа» needs it); otherwise it
 // lies over the chat's right edge, below the chat's header and above the composer — and above our dock, which stands
 // in flow right over it, when there is room for both — so the person keeps typing. It never covers the composer.
-import type { NotesPlace } from '@cg/contracts/notes-fansly';
+import type { NotesPlace } from '@cg/contracts/notes';
 
 import { FANSLY_SELECTORS } from './anchors';
 

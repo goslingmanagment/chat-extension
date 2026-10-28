@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FanslyClient } from '@cg/fansly-api';
 import { FanslyApiError } from '@cg/fansly-api';
-import { createNotesController, type NotesPort } from '@cg/core/application/hosts/fansly/notes';
+import { createNotesController, type NotesPort } from '@cg/core/application/notes';
 import type { BackgroundKit, HostSiteSender } from '../src/composition/background/host-module';
 import { createNotesService, writeFailure } from '../bg/fansly/notes';
 

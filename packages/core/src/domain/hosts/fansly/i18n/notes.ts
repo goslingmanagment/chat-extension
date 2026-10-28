@@ -1,6 +1,6 @@
 // «Заметки» of a Fansly tab: the button's and the panel's words, a host-local catalog that comes with their chunk (as
 // «Регистрация»'s). No long dash in what a chatter reads (the owner, 2026-10-26).
-import type { NotesCopy } from '@cg/contracts/notes-fansly';
+import type { NotesCopy } from '@cg/contracts/notes';
 
 const RU: NotesCopy = {
   button: 'Заметки',

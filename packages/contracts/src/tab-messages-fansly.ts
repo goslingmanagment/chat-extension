@@ -49,6 +49,7 @@ import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STOR
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, UuidSchema, displayText } from './primitives';
 import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
+import { NOTE_LIMITS } from './notes';
 import { FANSLY_NOTES_VIEWS, SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
@@ -91,12 +92,12 @@ export const FANSLY_TAB_LIMITS = {
    * Fansly states no limit; ours sit far above any real note. A text written here is never cut (FS-NOTE-4: a longer one
    * is refused); a longer note read from Fansly (its window, FBuddy) is shown cut and read-only (`FanslyNote.cut`).
    */
-  noteTitleMaxChars: 1_000,
-  noteTextMaxChars: 50_000,
-  customNameMaxChars: 1_000,
+  noteTitleMaxChars: NOTE_LIMITS.titleMaxChars,
+  noteTextMaxChars: NOTE_LIMITS.textMaxChars,
+  customNameMaxChars: NOTE_LIMITS.customNameMaxChars,
   /** A fan's «about» in the «Новые» card (NF-009); Fansly states no limit, ours sits far above a real one. */
   bioMaxChars: 4_000,
-  notesPerFan: 200,
+  notesPerFan: NOTE_LIMITS.perFan,
   /**
    * Files of one vault run. The old extension had no limit and neither does the person (2026-10-20 restrictions,
    * item 22): this only bounds the checkpoint in storage, far above a real upload.

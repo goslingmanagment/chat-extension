@@ -19,11 +19,12 @@ import * as z from 'zod/mini';
 import { type SiteOpId } from './features';
 import type { FanslyFeatureKey } from './features/fansly';
 import { LiveTextTailSchema } from './host';
-import { NoteFieldLabelSchema, NoteFieldsSchema, NoteValuesSchema, type HubAiFeature } from './hub/ai';
+import { NoteFieldsSchema, NoteValuesSchema, type HubAiFeature } from './hub/ai';
 import { HumanCauseSchema, TargetSchema } from './ids';
-import { AI_REQUEST_LIMITS, NOTE_FILL_LIMITS, OP_TIMEOUTS, type OpTimeouts } from './limits';
+import { AI_REQUEST_LIMITS, OP_TIMEOUTS, type OpTimeouts } from './limits';
+import { NOTES_FILL_OP_LIMITS, NoteFieldsResultSchema } from './notes-fill';
 import { OpViewSchema, type SiteOpResult, type SiteStartOp, type SiteOpView } from './ops';
-import { UuidSchema, displayText } from './primitives';
+import { UuidSchema } from './primitives';
 
 /** The operations of Fansly's slice, beside the shared `FEATURE_IDS`. */
 export const FANSLY_OPS = ['notes-fill'] as const satisfies readonly SiteOpId[];
@@ -34,16 +35,8 @@ export function isFanslyOp(feature: string): feature is FanslyOp {
   return (FANSLY_OPS as readonly string[]).includes(feature);
 }
 
-export const FANSLY_OP_LIMITS = {
-  /** HF-6: «Заполнить из чата» reads the whole chat, never fewer than this many messages, as the Fansly extension did; above it — the hub's `limits.deepMax` (R20 P11c). */
-  notesFillDepthMin: 3_000,
-  /** 1.16.0 (R20 P11b2; the Fansly extension's `FAN_NOTE_QUOTES_MAX`, decision 164): quotes kept per field; a fourth is ignored. */
-  noteQuotesMax: 3,
-  /** A quote's length: the hub asks for at most 200 characters; a longer one is cut by the driver, never refused. */
-  noteQuoteMaxChars: 400,
-  /** `+ Label: value` fields read from one answer (the old's `FAN_NOTE_PROPOSED_MAX`): the hub asks for two at most. */
-  noteProposedMax: 5,
-} as const;
+/** The notes fill's limits: since 2026-10-28 the fill is shared (`notes-fill.ts`); the name stays for Fansly's code. */
+export const FANSLY_OP_LIMITS = NOTES_FILL_OP_LIMITS;
 
 // ── The driver's data ──────────────────────────────────────────────────────
 
@@ -96,38 +89,9 @@ export const NotesFillStartSchema = z
 export const FanslyStartOpSchema = z.discriminatedUnion('feature', [NotesFillStartSchema]) satisfies z.ZodMiniType<SiteStartOp>;
 export type FanslyStartOp = z.infer<typeof FanslyStartOpSchema>;
 
-// ── A result ───────────────────────────────────────────────────────────────
+// ── A result (its schema is the shared `notes-fill.ts`) ──────────────────────
 
-const oneLine = (max: number) => displayText(max).check(z.regex(/^[^\r\n\u2028\u2029]*$/));
-
-/** 1.16.0 (R20 P11b2): the fan's words behind a value — up to three `> «…»` lines of the hub's merge mode, one line each. */
-export const NoteQuotesSchema = z.array(oneLine(FANSLY_OP_LIMITS.noteQuoteMaxChars).check(z.minLength(1))).check(z.maxLength(FANSLY_OP_LIMITS.noteQuotesMax));
-
-/** One asked label and what the chat gave it — one line of the note; `''`: nothing, the field stays as it is. */
-export const NoteFieldValueSchema = z.strictObject({
-  label: NoteFieldLabelSchema,
-  value: oneLine(NOTE_FILL_LIMITS.valueMaxChars),
-  /** 1.16.0: absent — no quote (the labels-only mode, or none written). */
-  quotes: z.optional(NoteQuotesSchema),
-});
-
-/** The asked labels, each once, with their values: the panel fills the empty fields and shows the rest as «было → станет». */
-export const NoteFieldsResultSchema = z
-  .strictObject({
-    kind: z.literal('note-fields'),
-    fields: z
-      .array(NoteFieldValueSchema)
-      .check(
-        z.minLength(1),
-        z.maxLength(NOTE_FILL_LIMITS.fieldsMax),
-        z.refine((fields) => new Set(fields.map((field) => field.label.toLowerCase())).size === fields.length, { message: 'a label answered twice' }),
-      ),
-    /** 1.16.0 (R20 P11b2): `+ Label: value` of the merge mode — a field the hub named itself, with a value, none an asked label. */
-    proposed: z.optional(z.array(NoteFieldValueSchema.check(z.refine((field) => field.value.trim() !== '', { message: 'a proposed field without a value' }))).check(z.maxLength(FANSLY_OP_LIMITS.noteProposedMax))),
-  })
-  .check(
-    z.refine((result) => (result.proposed ?? []).every((field) => !result.fields.some((asked) => asked.label.toLowerCase() === field.label.toLowerCase())), { message: 'a proposed field repeats an asked label' }),
-  );
+export { NoteFieldValueSchema, NoteFieldsResultSchema, NoteQuotesSchema } from './notes-fill';
 
 export const FanslyOpResultSchema = z.discriminatedUnion('kind', [NoteFieldsResultSchema]) satisfies z.ZodMiniType<SiteOpResult>;
 export type FanslyOpResult = z.infer<typeof FanslyOpResultSchema>;

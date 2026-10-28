@@ -8,7 +8,7 @@ import type { SiteStartOp } from '@cg/contracts/ops';
 import type { BuildResult, StreamRequestContext } from '../../../domain/ops';
 import { stableDigest } from '../../../domain/ops/digest';
 import type { ScheduledStart, SiteOpDriver, SiteOperations } from '../../../domain/ops/site';
-import { parseNoteFillAnswer } from '../../../domain/hosts/fansly/notes-fill-answer';
+import { parseNoteFillAnswer } from '../../../domain/notes/fill-answer';
 
 const UNUSABLE = { ok: false, code: 'CG-OUTPUT-UNUSABLE' } as const;
 
