@@ -5,8 +5,8 @@
     "note": "Vendored on 2026-10-28 from hub main 52ae2b3a (#900) with scripts/vendor-sdk.mjs: the contract of the deployed hub 9dc778ce (4250d907, prod’s own), with fan-marks-v1 (#896) for #418 and #899’s cross-spenders (not used by this client). #900 only fixed the vendor script. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
-    "sha256": "7850406c1e272025adf6149ee3330d1a5c5a7362c2455608a4ad24f35f2aedd8",
-    "sourceCommit": "0a96105d691f74473b372249fa29d998590702b5",
-    "note": "Scheme 2, vendored from hub main 0a96105d (#569) with scripts/vendor-hotkeys.mjs: adds Notes on ⌘⇧K / Ctrl+Alt+K for the Fansly extension only (hotkey client `fansly`). In this client the key is reserved (swallowed, no command) and `hotkeysForClient('extension')` is unchanged. Same sha256 and source commit as fansly-chat and onlyfans-chat."
+    "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",
+    "sourceCommit": "48b2cc69035502e273a1e812932fe49a898b4022",
+    "note": "Scheme 2, vendored on 2026-10-28 from hub main 48b2cc69 (#906, deployed) with scripts/vendor-hotkeys.mjs for #429: Notes on ⌘⇧K / Ctrl+Alt+K now serve this client (hotkey client `extension`), on both sites. fansly-chat and onlyfans-chat stay on 0a96105d (#569). Re-vendor with the same script and update this pin together: only the release gate reads it."
   }
 }
