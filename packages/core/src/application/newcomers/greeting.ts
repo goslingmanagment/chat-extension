@@ -522,6 +522,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     card.dirty = true;
     card.busy = false;
     said(card, { s: 'idle' });
+    // The result is in the field (the card's, or the list row's of a batch): Hi's `shown`, as the dock reports its own.
+    if (view.generationRef !== undefined) void rpc.request('op.reportShown', { opId }).catch(() => undefined);
     await flush(card);
     return done(type, 'started', { opId });
   }

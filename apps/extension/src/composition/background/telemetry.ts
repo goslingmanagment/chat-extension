@@ -9,11 +9,10 @@
 import { type HostContractReport } from '@cg/contracts/host';
 import { type HostKind } from '@cg/contracts/hosts';
 import { type IngestResult } from '@cg/contracts/hub';
-import { type OpView } from '@cg/contracts/ops';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
 import { type AcceptanceEvent, type TabHealthReport } from '@cg/contracts/telemetry';
 import { type Logger } from '@cg/core/domain/logging';
-import { AcceptanceTracker, type AcceptanceOutcome, type HealthClient, type HealthFootprint, type PartPosition, type SentProof } from '@cg/core/domain/telemetry';
+import { AcceptanceTracker, type AcceptanceOutcome, type HealthClient, type HealthFootprint, type LinkSource, type PartPosition, type SentProof } from '@cg/core/domain/telemetry';
 import { AcceptanceReporter, HealthReporter, TelemetryQueue, type TelemetryBinding, type TelemetryEvent } from '@cg/core/services/telemetry';
 import { type KeyValueStore } from '@cg/platform';
 
@@ -54,10 +53,11 @@ export interface BackgroundTelemetry {
   start(): Promise<void>;
   /**
    * One lifecycle event of an operation (`op.reportShown` and its siblings).
-   * The generation link is taken from the operation's view the first time —
-   * no generation link, no event (never guessed). True — queued.
+   * The generation link is taken from the operation's view the first time (or
+   * from what a «Новые» draft kept of it) — no generation link, no event (never
+   * guessed). True — queued.
    */
-  report(kind: AcceptanceKind, view: OpView | null, opId: string, position: PartPosition, proof?: SentProof): boolean;
+  report(kind: AcceptanceKind, view: LinkSource | null, opId: string, position: PartPosition, proof?: SentProof): boolean;
   /** `health.report` of a tab of `site` (as it registered). */
   mergeTab(tabSessionId: string, site: HostKind, report: TabHealthReport): void;
   onHost(site: HostKind, report: HostContractReport | null): void;

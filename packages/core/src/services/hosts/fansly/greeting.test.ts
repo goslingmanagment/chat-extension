@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { readDraftStore } from '../../../domain/newcomers/drafts';
 import { createMemoryKv } from '../../test-support/memory-kv';
-import { createFanslyGreeting, type FanslyGreetingDeps, type GreetingGeneration } from './greeting';
+import { createFanslyGreeting, type FanslyGreetingDeps, type GreetingAccepted, type GreetingGeneration } from './greeting';
 import { type FanslyNativeSend, type FanslySendStart } from './send';
 
 const C = '700000000000000017';
@@ -57,6 +57,7 @@ function world() {
   const starts: FanslySendStart[] = [];
   const natives: FanslyNativeSend[] = [];
   const greeted: string[] = [];
+  const accepted: GreetingAccepted[] = [];
   const listeners = new Set<(view: FanslySendView) => void>();
   const deps: FanslyGreetingDeps = {
     newcomers: {
@@ -99,6 +100,9 @@ function world() {
     generation: (opId) => (opId === OP ? state.generation : null),
     tabOn: () => state.tabOn,
     now: () => T0,
+    accepted: (fact) => {
+      accepted.push(fact);
+    },
   };
   let greeting = createFanslyGreeting(deps);
   const ask = async <T extends 'fansly.followers.draft' | 'fansly.followers.outcomes' | 'fansly.followers.send' | 'fansly.followers.sent'>(type: T, payload: unknown): Promise<FanslyTabResponsePayload<T>> => {
@@ -126,7 +130,7 @@ function world() {
     ...over,
   });
   const stored = () => readDraftStore(kv.read(STORAGE_KEYS.newcomersDrafts), T0);
-  return { get greeting() { return greeting; }, state, log, starts, natives, greeted, ask, draft, request, stored, restart() { greeting.dispose(); greeting = createFanslyGreeting(deps); }, emit: (view: FanslySendView) => { state.status = view; listeners.forEach((listener) => listener(view)); } };
+  return { get greeting() { return greeting; }, state, log, starts, natives, greeted, accepted, ask, draft, request, stored, restart() { greeting.dispose(); greeting = createFanslyGreeting(deps); }, emit: (view: FanslySendView) => { state.status = view; listeners.forEach((listener) => listener(view)); } };
 }
 
 describe('[host:fansly] the greeting of a «Новые» card in the background (R20 P10c)', () => {
@@ -265,6 +269,46 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     await e.draft('Hey you, welcome');
     expect(await e.ask('fansly.followers.send', e.request({ text: 'Hey you, welcome', admission: { kind: 'ai-edited', generationRef: GEN, variant: 0 } }))).toMatchObject({ ok: true });
     expect(e.starts[0]?.request.admission).toEqual({ kind: 'ai-edited', generationRef: GEN, variant: 0 });
+  });
+
+  it('[TL-004] Hi’s text that went is its generation’s `sent`: our send by its attempt, an edited result by the operation its draft kept, the person’s own send after «Открыть и вставить» without one; the person’s own text is nobody’s', async () => {
+    const ai = { kind: 'ai', generationRef: GEN, variant: 0 } as const;
+    const edited = { kind: 'ai-edited', generationRef: GEN, variant: 0 } as const;
+    const fact = (over: Partial<GreetingAccepted> = {}): GreetingAccepted => ({ opId: OP, generationRef: GEN, pageLabel: PAGE.pageLabel, platformMessageId: '830000000000000001', edited: false, attemptId: '00000000-0000-4000-8000-000000000a01', ...over });
+    // An unchanged result: the click names its operation, Fansly's receipt its message.
+    const w = world();
+    w.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: true };
+    await w.ask('fansly.followers.draft', { passId: PASS, fanRef: FAN, text: 'Hey you', generation: { opId: OP, historyRevision: REV } });
+    expect(await w.ask('fansly.followers.send', w.request({ text: 'Hey you', admission: ai, opId: OP }))).toMatchObject({ ok: true });
+    expect(w.accepted).toEqual([fact()]);
+    // Edited in the field, hours later (the operation is gone): the draft still knows the generation.
+    const e = world();
+    e.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: true };
+    await e.ask('fansly.followers.draft', { passId: PASS, fanRef: FAN, text: 'Hey you', generation: { opId: OP, historyRevision: REV } });
+    e.state.generation = null;
+    await e.draft('Hey you, welcome');
+    expect(await e.ask('fansly.followers.send', e.request({ text: 'Hey you, welcome', draftRevision: 2, admission: edited }))).toMatchObject({ ok: true });
+    expect(e.accepted).toEqual([fact({ edited: true })]);
+    // The person's own text, an AI text the background cannot vouch for, a send that did not go: no `sent`.
+    const o = world();
+    await o.draft('Hey you');
+    expect(await o.ask('fansly.followers.send', o.request({ text: 'Hey you' }))).toMatchObject({ ok: true });
+    o.state.status = null;
+    expect(await o.ask('fansly.followers.send', o.request({ attemptId: '00000000-0000-4000-8000-000000000a02', text: 'Hey you', admission: ai, opId: OP }))).toMatchObject({ ok: true });
+    expect(o.starts[1]?.request.admission).toEqual({ kind: 'own' });
+    const r = world();
+    r.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: true };
+    await r.ask('fansly.followers.draft', { passId: PASS, fanRef: FAN, text: 'Hey you', generation: { opId: OP, historyRevision: REV } });
+    r.state.view = (attemptId) => ({ attemptId, fanRef: FAN, state: 'refused', proof: 'before-dispatch', code: 'CG-CLAIM-BUSY' });
+    expect(await r.ask('fansly.followers.send', r.request({ text: 'Hey you', admission: ai, opId: OP }))).toMatchObject({ ok: true });
+    expect([...o.accepted, ...r.accepted]).toEqual([]);
+    // The person sent the inserted result with Fansly's own button: the composer's `sent`, no attempt of ours.
+    const n = world();
+    n.state.generation = { generationRef: GEN, fanRef: FAN, conversationRef: GROUP, text: 'Hey you', fresh: true };
+    await n.ask('fansly.followers.draft', { passId: PASS, fanRef: FAN, text: 'Hey you', generation: { opId: OP, historyRevision: REV } });
+    expect(await n.ask('fansly.followers.sent', { passId: PASS, hostAccountId: C, fanRef: FAN, groupId: GROUP, platformMessageId: '830000000000000009', text: 'Hey you', admission: ai })).toEqual({ recorded: true });
+    const { attemptId: _none, ...composer } = fact({ platformMessageId: '830000000000000009' });
+    expect(n.accepted).toEqual([composer]);
   });
 
   it('[NF-023] one action of a fan at a time: a second click while the first runs is busy, and only one attempt is made', async () => {

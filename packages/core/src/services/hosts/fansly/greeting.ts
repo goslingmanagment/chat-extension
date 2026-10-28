@@ -20,7 +20,8 @@
 //   code (NF-024).
 // - `sent` — the person sent the card's text with Fansly's own button after «Открыть и вставить» (FS-NEW-3): the hub's
 //   `registerNativeSend`, owed until it answers (./send.ts `native`); the fan is greeted for everyone.
-// A greeting that went (a receipt, the echo, a registration) makes the row «Уже писали» and clears the draft.
+// A greeting that went (a receipt, the echo, a registration) makes the row «Уже писали» and clears the draft; one with
+// Hi's text, changed or not, is that generation's `ai_acceptance` `sent` (`accepted`), as a dock's Hi sent is.
 //
 // Fansly's own code (`bg/fansly` chunk); it names no site and asks Fansly nothing itself.
 
@@ -50,6 +51,22 @@ export interface GreetingGeneration {
   readonly mark?: StaleReason | null;
 }
 
+/**
+ * Hi's text of a card went out — Fansly's receipt of our send, or the person's own send with Fansly's button after
+ * «Открыть и вставить»: what that generation's `ai_acceptance` `sent` names. Ids and the admission, never the text.
+ */
+export interface GreetingAccepted {
+  /** The generation's operation: an unchanged result's own, else the one its draft kept (an edited result has no other). */
+  readonly opId: string;
+  readonly generationRef: string;
+  readonly pageLabel: string;
+  readonly platformMessageId: string;
+  /** The person changed the result in the field before it went (`ai-edited`). */
+  readonly edited: boolean;
+  /** Our send's attempt; absent — the person's own send with Fansly's button. */
+  readonly attemptId?: string;
+}
+
 export interface FanslyGreetingDeps {
   readonly newcomers: Pick<FanslyNewcomers, 'row' | 'creatorOf' | 'freshProof' | 'recheck' | 'live' | 'greeted'>;
   readonly send: Pick<FanslySend, 'send' | 'native' | 'onChange' | 'status' | 'latest'>;
@@ -65,6 +82,21 @@ export interface FanslyGreetingDeps {
   tabOn(tab: string, hostAccountId: string): boolean;
   readonly now: () => number;
   readonly log?: ServiceLog;
+  /** A card's Hi went out (its acceptance telemetry); absent — not reported. Must not throw. */
+  readonly accepted?: (fact: GreetingAccepted) => void;
+}
+
+type Origin = Omit<GreetingAccepted, 'platformMessageId' | 'attemptId'>;
+
+/**
+ * The generation a card's text came from: an unchanged AI result's own operation (the click names it), or the one the
+ * fan's draft kept of the same generation — a draft outlives the operation's result, and an edited text names none.
+ * Null — the person's own text, or a generation the draft does not know.
+ */
+function originOf(admission: FanslyGreetingRequest['admission'], opId: string | undefined, saved: GreetingDraftGeneration | undefined, pageLabel: string): Origin | null {
+  if (admission.kind === 'own') return null;
+  const op = admission.kind === 'ai' && opId !== undefined ? opId : saved !== undefined && saved.generationRef === admission.generationRef ? saved.opId : null;
+  return op === null ? null : { opId: op, generationRef: admission.generationRef, pageLabel, edited: admission.kind === 'ai-edited' };
 }
 
 type Payload<T extends GreetingRequest> = FanslyTabRequestPayload<T>;
@@ -86,7 +118,7 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
   /** NF-023: one action at a time per creator and fan, across passes and tabs. */
   const busy = new Map<string, string>();
   /** The card's attempts: whose greeting each one is, to mark the fan once it went. */
-  const started = new Map<string, { readonly creator: string; readonly fanRef: string; readonly pageId: number }>();
+  const started = new Map<string, { readonly creator: string; readonly fanRef: string; readonly pageId: number; readonly origin: Origin | null }>();
 
   // ── the drafts (NF-012) ──
 
@@ -213,10 +245,23 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
     if (key !== null) void write(key, null, null);
   }
 
+  /** Hi's text went out with this message id: its `sent` (the same message again is the telemetry's duplicate). */
+  function accept(origin: Origin | null, platformMessageId: string | undefined, attemptId?: string): void {
+    if (origin === null || platformMessageId === undefined) return;
+    try {
+      deps.accepted?.({ ...origin, platformMessageId, ...(attemptId === undefined ? {} : { attemptId }) });
+    } catch {
+      // Telemetry never stops a send's own bookkeeping.
+    }
+  }
+
   const offViews = deps.send.onChange((view) => {
     const mine = started.get(view.attemptId);
     if (mine === undefined) return;
-    if (view.state === 'receipted' || view.state === 'sent') went(mine.creator, mine.fanRef, mine.pageId);
+    if (view.state === 'receipted' || view.state === 'sent') {
+      went(mine.creator, mine.fanRef, mine.pageId);
+      accept(mine.origin, view.platformMessageId, view.attemptId);
+    }
     if (view.state === 'sent' || view.state === 'refused') started.delete(view.attemptId);
   });
 
@@ -267,9 +312,13 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       const again = await deps.newcomers.recheck(request.passId, request.fanRef, tab);
       if (!again.ok) return fail(again.code, again.retryAt);
       if (again.historyRevision !== request.historyRevision) return fail('CG-FNEW-HISTORY');
-      started.set(request.attemptId, { creator: row.creator, fanRef: request.fanRef, pageId: page.page.pageId });
+      const origin = originOf(admitted.admission, admitted.opId, saved, page.page.pageLabel);
+      started.set(request.attemptId, { creator: row.creator, fanRef: request.fanRef, pageId: page.page.pageId, origin });
       const view: FanslySendView = await deps.send.send({ request: admitted, tabSessionId: tab, page: page.page });
-      if (view.state === 'receipted' || view.state === 'sent') went(row.creator, request.fanRef, page.page.pageId);
+      if (view.state === 'receipted' || view.state === 'sent') {
+        went(row.creator, request.fanRef, page.page.pageId);
+        accept(origin, view.platformMessageId, view.attemptId);
+      }
       if (view.state === 'refused' || view.state === 'sent') started.delete(request.attemptId);
       return { ok: true, attempt: view };
     } finally {
@@ -296,9 +345,13 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
     if (row !== null && (row.creator !== payload.hostAccountId || (row.view.groupId !== null && row.view.groupId !== payload.groupId))) return { recorded: false };
     const page = await deps.page(payload.hostAccountId, tab);
     if (!page.ok) return { recorded: false };
+    // Read before `went` clears the draft: its generation is the only link the inserted text has to Hi's operation.
+    const key = keyOf(page.page.pageId, payload.fanRef);
+    const origin = originOf(payload.admission, undefined, key === null ? undefined : findDraft(await loaded(), key, deps.now())?.generation, page.page.pageLabel);
     const outcome = await deps.send.native({ page: page.page, fanRef: payload.fanRef, groupId: payload.groupId, platformMessageId: payload.platformMessageId, admission: payload.admission, text: payload.text });
     log({ level: 'info', scope: 'bg.fansly.greeting', msg: 'the person sent the card', fields: { outcome } });
     went(payload.hostAccountId, payload.fanRef, page.page.pageId);
+    accept(origin, payload.platformMessageId);
     return { recorded: outcome !== 'refused' };
   }
 

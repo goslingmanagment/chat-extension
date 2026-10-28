@@ -42,6 +42,17 @@ export interface GenerationLink {
   readonly pageLabel: string;
 }
 
+/**
+ * What a generation's link is made of: an operation's view (an `OpView` is one), or what a «Новые» card's draft kept of
+ * its generation once the operation's result has expired (it lasts 30 minutes, the draft 7 days).
+ */
+export interface LinkSource {
+  readonly generationRef?: string | undefined;
+  readonly feature: FeatureId;
+  readonly surface: Surface;
+  readonly target: { readonly binding: { readonly pageLabel: string } };
+}
+
 /** Which part of a result: `part` of Split (0–9), `variant` of Hi or a Coach draft (0–2). */
 export interface PartPosition {
   readonly part?: number;
