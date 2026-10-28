@@ -17,7 +17,7 @@ import { type ComponentChildren, type JSX, type TargetedKeyboardEvent } from 'pr
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import { type ClaimVM, type I18n, type Msg, type PreviewActionId, type PreviewSource, type PreviewVM } from '@cg/contracts/vm';
 
-import { ActionButton, Button, Dot, ErrorCard, Icon, Money, TextField, ViewState, isComposing, useCountdown, useDispatch, useI18n, useMinuteClock, useNowFn, useTooltip, useView, type StyleSource } from '../../kit';
+import { ActionButton, Button, Dot, ErrorCard, FanBadge, Icon, isComposing, Money, TextField, useCountdown, useDispatch, useI18n, useMinuteClock, useNowFn, useTooltip, useView, ViewState, type StyleSource } from '../../kit';
 import { useOwnEchoes } from '../ownEchoes';
 import { coverageWord, isPlainKey, isTextEntry, timeOrUnknown } from '../window';
 import { Feed, FEED_CSS, SeenMark } from './Feed';
@@ -69,6 +69,7 @@ function Header({ vm, closable }: { readonly vm: PreviewVM; readonly closable: b
           <>
             <h3 class="cg-pv__name">
               {header.name}
+              <FanBadge badges={header.badges} inline />
               {header.username === null ? null : <span>@{header.username}</span>}
             </h3>
             {header.newcomer !== null ? null : (

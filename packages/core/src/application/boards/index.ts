@@ -2,6 +2,7 @@
 // tab's composition root gets them: the factory, the ports it takes, the
 // page context, the open-overlay state and the handles.
 
+export * from './badges';
 export * from './context';
 export * from './factory';
 export * from './handles';

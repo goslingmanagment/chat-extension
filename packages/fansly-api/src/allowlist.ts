@@ -101,7 +101,7 @@ export type FanslyRouteName = keyof typeof FANSLY_ROUTES;
 export const FANSLY_ROUTE_NAMES = Object.keys(FANSLY_ROUTES) as FanslyRouteName[];
 
 /** Why the extension asks Fansly at all: the rows of FS-NET-1's table. */
-export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv', 'preview', 'outreach', 'online'] as const;
+export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv', 'preview', 'outreach', 'online', 'badges'] as const;
 export type FanslyPurpose = (typeof FANSLY_PURPOSES)[number];
 
 /**
@@ -178,10 +178,12 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   // bar or «Обновить» asks once which copied items are bundles: Fansly's own reload files them as media.
   outreach: { 'message.send': WRITE, 'media.bundles': CLICK_READ },
   // «Онлайн»: who of the creator's followers was active lately — `followersnew?lastSeenAfter=`, the read FBuddy makes —,
-  // while a window or the bar's count needs it, at most once a minute per creator; and the window's fans' accounts
+  // while a window or the bar's count needs it, at most once a minute per creator; never queued, never during a cooldown.
+  online: { 'followers.new': POLL_READ },
+  // The fans' badges in «Онлайн», Spenders, «Рассылка» and «Новые» (2026-10-28): the shown fans' accounts
   // (`GET /account?ids=`, their blue card «Recent Spender»), each fan at most once in ten minutes. Never queued, never
   // during a cooldown.
-  online: { 'followers.new': POLL_READ, 'account.byIds': POLL_READ },
+  badges: { 'account.byIds': POLL_READ },
 };
 
 const has = (record: object, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);

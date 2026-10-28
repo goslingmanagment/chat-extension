@@ -653,6 +653,7 @@ function PassCard({ vm }: { readonly vm: NewcomersVM }): JSX.Element {
       label={label}
       name={card.name}
       custom={card.customName}
+      badges={vm.rows.find((row) => row.handle === card.handle)?.badges ?? null}
       avatarUrl={card.avatarUrl ?? null}
       meta={meta}
       metaTitle={fanslyText(i18n, 'fansly.newcomers.followedAt', { date: i18n.formatTime(card.followedAt, 'datetime') })}

@@ -1715,6 +1715,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         weWroteAt: info.weWroteAt,
         fanWroteAt: info.fanWroteAt,
         newcomer: info.newcomer,
+        badges: info.badges ?? null,
       },
       openChat: button('common.openChat', openChat, chatUnknown && deps.directories[source]?.canResolve !== true ? { enabled: false, reason: reason('conversation-unknown') } : {}),
       close: CLOSE_PREVIEW,

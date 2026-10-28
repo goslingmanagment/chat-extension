@@ -12,7 +12,7 @@ import { createOnlineController as createOnline, type OnlineControllerDeps } fro
 import { createOutreachController as createOutreach, type OutreachControllerDeps } from '@cg/core/application/outreach';
 import type { HostPort } from '@cg/contracts/host';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
-import { fanslyRequest } from '../../src/composition/tab/hosts/fansly/requests';
+import { fanBadgesRead, fanslyRequest } from '../../src/composition/tab/hosts/fansly/requests';
 import { asBundles, readCopiedMedia } from '@cg/host-fansly/isolated/copied-media';
 import type * as SharedBoards from '../entries/boards';
 import { createFanslyNewcomersController } from '../../src/composition/tab/hosts/fansly/newcomers';
@@ -26,14 +26,12 @@ const OUTREACH_TIMEOUT_MS = 45_000;
 const COPIED_TIMEOUT_MS = 35_000;
 /** Above the background's own wait for Fansly's followers read and the hub's answer. */
 const ONLINE_SEEN_TIMEOUT_MS = 30_000;
-/** Above the background's own waits for Fansly's accounts and FBuddy's tiers (8 s), read side by side. */
-const ONLINE_BADGES_TIMEOUT_MS = 35_000;
 /** The inbox search for a fan's chat, as Spenders' own. */
 const RESOLVE_TIMEOUT_MS = 17_000;
 
 export function createSpendersController(deps: SpendersControllerDeps & { readonly host: HostPort }) {
   const host = deps.host as FanslyPort;
-  return create({ ...deps, source: {
+  return create({ ...deps, badges: fanBadgesRead(deps.rpc), source: {
     cached: (account, fan) => host.groupForFan(account, fan),
     async resolve(account, fan) {
       if (host.current().contract.capabilities.navigate.state !== 'on') throw new Error('navigation unavailable');
@@ -91,11 +89,7 @@ export function createOnlineController(deps: OnlineControllerDeps & { readonly h
     async seen(pageId, account) {
       await fanslyRequest(deps.rpc, 'fansly.online.seen', { pageId, hostAccountId: account }, ONLINE_SEEN_TIMEOUT_MS);
     },
-    async badges(pageId, account, fanRefs) {
-      const answer = await fanslyRequest(deps.rpc, 'fansly.online.badges', { pageId, hostAccountId: account, fanRefs: [...fanRefs] }, ONLINE_BADGES_TIMEOUT_MS);
-      if (!answer.ok || !answer.payload.ok) return null;
-      return { fans: new Map(answer.payload.fans.map(({ fanRef, ...badges }) => [fanRef, badges])), fbuddy: answer.payload.fbuddy };
-    },
+    badges: fanBadgesRead(deps.rpc),
     async group(account, fan, active) {
       const cached = await host.groupForFan(account, fan.fanRef);
       if (cached !== null || !active) return cached;

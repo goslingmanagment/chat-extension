@@ -19,22 +19,7 @@ import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type BatchVM, type I18n, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from '@cg/contracts/vm';
 
-import {
-  ActionButton,
-  CheckGlyph,
-  Spinner,
-  ViewState,
-  VirtualList,
-  activeIn,
-  isComposing,
-  useAnnounce,
-  useDispatch,
-  useI18n,
-  useMinuteClock,
-  useSpokenMoney,
-  useTooltip,
-  TalkingMark,
-} from '../kit';
+import { ActionButton, activeIn, CheckGlyph, FanBadge, isComposing, Spinner, TalkingMark, useAnnounce, useDispatch, useI18n, useMinuteClock, useSpokenMoney, useTooltip, ViewState, VirtualList } from '../kit';
 import { BatchBar, BatchCheck, BatchLine, inBatch } from './batch';
 import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, inlinePreviewHeight, isStop, nextStop, shelfLabel, shelfTier, type BoardItem } from './rows';
@@ -291,6 +276,7 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
       {/* The row's text starts with the fan's name: search and the e2e read it so. */}
       <span role="cell" class="cg-bd__who">
         <span class="cg-bd__name">{row.name}</span>
+        <FanBadge badges={row.badges} />
         {row.deleted ? <span class="cg-bd__handle">{i18n.t('spenders.tag.deleted')}</span> : row.username === null ? null : <span class="cg-bd__handle">@{row.username}</span>}
         <TalkingMark handle={row.handle} />
       </span>

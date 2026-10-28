@@ -4,6 +4,7 @@
 // handle is, who the neighbours are, and, for «Новые», the greeting lease.
 // The controllers never import each other: they meet here.
 
+import { type FanBadges } from '@cg/contracts/fan-badges';
 import { type CgCode, type CgErrorView } from '@cg/contracts/errors';
 import { type IsoTimestamp, type MoneyMills } from '@cg/contracts/primitives';
 import { type ClaimVM, type GreetingStatusVM, type NewcomerKind, type PreviewSource, type ReasonVM, type TargetHandle } from '@cg/contracts/vm';
@@ -139,6 +140,8 @@ export interface PreviewTargetInfo {
   readonly weWroteAt: IsoTimestamp | null;
   readonly fanWroteAt: IsoTimestamp | null;
   readonly newcomer: { readonly kind: NewcomerKind; readonly subscribedAt: IsoTimestamp } | null;
+  /** Fansly: the fan's blue card and FBuddy's gem, as the list knows them; absent or null — none known. */
+  readonly badges?: FanBadges | null;
 }
 
 /** How a list answers for its fans. */

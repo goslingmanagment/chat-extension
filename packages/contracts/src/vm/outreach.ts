@@ -9,6 +9,7 @@
 // The window reads what the hub knows (the Spenders board: tiers, sums, who wrote last) and never a chat the person did
 // not open; the card is the fan's preview (`preview` from `outreach`).
 
+import { type FanBadges } from '../fan-badges';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type BatchVM } from './batch';
 import { type MediaType } from '../send-media';
@@ -145,6 +146,8 @@ export interface OutreachMediaVM {
 export interface OutreachRowVM {
   /** `outreach:<page>:<fan>`: its card is the preview from `outreach`. */
   readonly handle: TargetHandle;
+  /** Fansly: the fan's blue card and FBuddy's gem (contracts fan-badges.ts); absent — none known. */
+  readonly badges?: FanBadges;
   readonly name: string;
   readonly username: string | null;
   /** The fan's tier by the board's bounds; null — none takes the fan. */

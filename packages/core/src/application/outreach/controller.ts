@@ -13,6 +13,7 @@
 // what the outreach did.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
+import { type FanBadges } from '@cg/contracts/fan-badges';
 import { OUTREACH_FIX_CAPABILITY } from '@cg/contracts/ids';
 import { type IsoTimestamp, type MoneyMills } from '@cg/contracts/primitives';
 import { type SendAttributionComposedWith } from '@cg/contracts/hub';
@@ -129,6 +130,10 @@ export interface OutreachBoardPort {
   group(fanRef: string): Promise<string | null>;
   /** «Открыть чат» of a fan the person clicked: the board's own way into the chat (the boards close). */
   openChat(type: UiAction['type'], fanRef: string): Promise<ActionReceipt>;
+  /** Fansly: the fan's badges as the board knows them (boards/badges.ts); null — none known. */
+  badge?(fanRef: string): FanBadges | null;
+  /** Fansly: the window shows these fans — the board asks their badges (an answer comes through `subscribe`). */
+  wantBadges?(fanRefs: readonly string[]): void;
   subscribe(listener: () => void): () => void;
 }
 
@@ -626,8 +631,14 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       bought: outcome?.bought ?? null,
       replied: outcome?.replied ?? null,
       ...(aside === undefined ? {} : { aside }),
+      ...badgeOf(fanRef),
     };
   }
+
+  const badgeOf = (fanRef: string): { readonly badges?: FanBadges } => {
+    const known = deps.board.badge?.(fanRef) ?? null;
+    return known === null ? {} : { badges: known };
+  };
 
   function tierOf(index: BoardIndex, fanRef: string): OutreachRowVM['tier'] {
     const shelf = index.shelves.find((item) => item.id !== OUTSIDE_SHELF_ID && item.rows.some((row) => row.fanRef === fanRef));
@@ -727,6 +738,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const shown = tab === 'todo' ? members.filter((fanRef) => todo.includes(fanRef) || todoSnapshot.has(fanRef)) : members;
     const rows = shown.filter((fanRef) => matches(index, fanRef)).map((fanRef) => rowOf(fanRef, index, selected, locked !== null || ticked.has(fanRef), undefined));
     const aside = [...now.aside.entries()].filter(([fanRef]) => matches(index, fanRef)).map(([fanRef, reasons]) => rowOf(fanRef, index, selected, false, reasons));
+    // Fansly: the shown fans' badges, the board's store (a fan asked lately is not asked again).
+    deps.board.wantBadges?.([...shown, ...now.aside.keys()]);
 
     const count = (state: OutreachFanState): number => out.filter((fanRef) => states.get(fanRef) === state).length;
     const boughtFans = out.filter((fanRef) => (outcomes.get(fanRef)?.bought ?? null) !== null);

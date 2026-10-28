@@ -9,6 +9,7 @@
 // closes the board and drops everything it held (SP-042).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
+import { type FanBadges } from '@cg/contracts/fan-badges';
 import { type QueuePage, type SpendersStats } from '@cg/contracts/hub';
 import { CHAT_IS_FAN, OUTREACH_FIX_CAPABILITY } from '@cg/contracts/ids';
 import { type ActionReceipt, type I18n, type PartialGap, type PreviewSource, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type SpendersStatsVM, type TargetHandle, type UiAction, type ViewMap, type VmView } from '@cg/contracts/vm';
@@ -21,6 +22,7 @@ import { EMPTY_QUEUE, appendQueuePage, queueHasMore, queueRow, type QueueState }
 import { type SpenderRow } from '../../domain/spenders/rows';
 import { OUTSIDE_SHELF_ID } from '../../domain/spenders/shelves';
 import { statsModel, type StatsModel } from '../../domain/spenders/stats';
+import { createFanBadgeStore, type FanBadgesRead } from '../boards/badges';
 import { batchDispatch, createBatch, isBatchAction, type BatchPreviewPort } from '../boards/batch';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pageFlagOf } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
@@ -112,6 +114,8 @@ export interface SpendersControllerDeps {
   readonly timeZone: string;
   /** Rows of one «ждут ответа» page (QUEUE_PAGE_SIZE by default). */
   readonly queuePageSize?: number;
+  /** Fansly: the fans' badges (boards/badges.ts); absent — none (ChatSpace). */
+  readonly badges?: FanBadgesRead;
 }
 
 type BoardViews = 'spenders.board' | 'spenders.stats';
@@ -170,6 +174,19 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   /** Row view models of the visible list: rebuilt only when the list or the selection changes, not on every keystroke. */
   let shelfCache: { readonly view: BoardView; readonly selected: string | null; readonly pageId: number | null; readonly shelves: ShelfVM[] } | null = null;
   let disposed = false;
+  /** Fansly: the shown fans' badges; an answer redraws the rows and the open card. */
+  const badges = createFanBadgeStore({
+    read: deps.badges ?? null,
+    clock: deps.clock,
+    onChange: () => {
+      shelfCache = null;
+      changed('board');
+    },
+  });
+  const badgeOf = (fanRef: string): { readonly badges?: FanBadges } => {
+    const known = badges.get(fanRef);
+    return known === null ? {} : { badges: known };
+  };
   const directoryListeners = new Set<() => void>();
   /** 1.32.0: the batch — Reply to a fan who wrote last, Ping to one who did not; nothing is sent by it. */
   let batchPort: BatchPreviewPort | null = null;
@@ -283,6 +300,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       ...(tier === undefined ? {} : { tier }),
       ...(chat === undefined ? {} : { chat }),
       ...(batchPort === null ? {} : { batch: batch.row(handleOf(row.fanRef)) }),
+      ...badgeOf(row.fanRef),
     };
     return cents ? { ...base, lifetimeCents: true } : base;
   }
@@ -331,6 +349,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         };
       }
       shelves = shelfCache.shelves;
+      // The shown fans' badges (Fansly), the board's first ones first; a fan asked lately is not asked again.
+      const binding = ctx.binding;
+      if (binding !== null) badges.want(binding.pageId, binding.platformAccountId, current.view.shelves.flatMap((shelf) => shelf.rows.map((row) => row.fanRef)));
     }
 
     let view: VmView;
@@ -599,6 +620,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       epoch = state.epoch;
       reset();
       batch.reset();
+      badges.reset();
       surfaces.setList('spenders', false);
     }
     changed();
@@ -654,6 +676,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         weWroteAt: row.weWroteAt,
         fanWroteAt: row.fanWroteAt,
         newcomer: null,
+        badges: badges.get(fanRef),
       };
     }
     const queued = queue.state.items.find((item) => item.fanRef === fanRef);
@@ -672,6 +695,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       weWroteAt: asRow.weWroteAt,
       fanWroteAt: asRow.fanWroteAt,
       newcomer: null,
+      badges: badges.get(fanRef),
     };
   };
 
@@ -958,6 +982,11 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       return conversationOfRow(knownRow(fanRef)?.row).conversationRef ?? null;
     },
     openChat: (type, fanRef) => openChat(type, fanRef),
+    badge: (fanRef) => badges.get(fanRef),
+    wantBadges(fanRefs) {
+      const binding = context.current().binding;
+      if (binding !== null) badges.want(binding.pageId, binding.platformAccountId, fanRefs);
+    },
     subscribe(listener) {
       outreachListeners.add(listener);
       return () => {
@@ -1030,6 +1059,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       disposed = true;
       offBatch?.();
       batch.dispose();
+      badges.dispose();
       outreachListeners.clear();
       offContext();
       offSurfaces();

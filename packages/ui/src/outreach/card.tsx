@@ -10,7 +10,7 @@ import { useRef } from 'preact/hooks';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type I18n, type OutreachCardVM, type OutreachMediaVM, type OutreachRowVM, type OutreachWindowVM, type PartVM, type PreviewVM } from '@cg/contracts/vm';
 
-import { Button, Dot, Icon, Spinner, TextField, TalkingMark, useDispatch, useI18n, useTooltip } from '../kit';
+import { Button, Dot, FanBadge, Icon, Spinner, TalkingMark, TextField, useDispatch, useI18n, useTooltip } from '../kit';
 import { NewcomerAvatar } from '../newcomers/frame';
 import { Feed } from '../spenders/preview/Feed';
 import { priceText } from '../spenders/preview/MediaPicker';
@@ -50,6 +50,7 @@ function Head({ card, row, preview }: { readonly card: OutreachCardVM; readonly 
       <div class="cg-nc__who">
         <h3 class="cg-nc__name">
           {card.name}
+          <FanBadge badges={row?.badges ?? preview.header?.badges} inline />
           {row?.tier === null || row?.tier === undefined ? null : <span class="cg-nw__tag">{tierWords(i18n, row.tier)}</span>}
         </h3>
         <div class="cg-nc__meta cg-num">

@@ -7,6 +7,7 @@
 // does not fit is dropped, never half-read.
 
 import type { CgErrorWire } from '@cg/contracts/errors';
+import type { FanBadges, FbuddyState } from '@cg/contracts/fan-badges';
 import {
   parseFanslyTabPayload,
   type FanslyTabEventPayload,
@@ -42,4 +43,19 @@ export function fanslyEvent<T extends FanslyTabEventType>(rpc: { readonly onEven
     const checked = parseFanslyTabPayload('evt', type, payload);
     if (checked.ok) listener(checked.payload as FanslyTabEventPayload<T>);
   });
+}
+
+/** Above the background's own waits for Fansly's accounts and FBuddy's tiers (8 s), read side by side. */
+const FAN_BADGES_TIMEOUT_MS = 35_000;
+
+/**
+ * The fans' badges (2026-10-28, `fansly.fans.badges`): Fansly's blue card and FBuddy's gem, the background's — what
+ * «Онлайн», Spenders, «Рассылка» and «Новые» of a Fansly tab ask (core boards/badges.ts). null — not read.
+ */
+export function fanBadgesRead(rpc: FanslyRpc) {
+  return async (pageId: number, account: string, fanRefs: readonly string[]): Promise<{ readonly fans: ReadonlyMap<string, FanBadges>; readonly fbuddy: FbuddyState } | null> => {
+    const answer = await fanslyRequest(rpc, 'fansly.fans.badges', { pageId, hostAccountId: account, fanRefs: [...fanRefs] }, FAN_BADGES_TIMEOUT_MS);
+    if (!answer.ok || !answer.payload.ok) return null;
+    return { fans: new Map(answer.payload.fans.map(({ fanRef, ...badges }) => [fanRef, badges])), fbuddy: answer.payload.fbuddy };
+  };
 }

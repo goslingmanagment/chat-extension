@@ -16,7 +16,7 @@ import { createPassNewcomersController } from '@cg/core/application/newcomers/pa
 import { verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 
-import { fanslyEvent, fanslyRequest } from './requests';
+import { fanBadgesRead, fanslyEvent, fanslyRequest } from './requests';
 
 /** A read of the pass waits for the background's module like the vault's (it may wake the event page first). */
 export const NEWCOMERS_REQUEST_TIMEOUT_MS = 15_000;
@@ -49,6 +49,8 @@ export function createFanslyNewcomersController(deps: NewcomersControllerDeps, o
   const source = createFanslyNewcomersSource(fanslyFollowersPort(deps.rpc), origin);
   return createPassNewcomersController({
     source,
+    // 2026-10-28: the new followers' badges (FBuddy's gem, Fansly's blue card).
+    badges: fanBadgesRead(deps.rpc),
     i18n: deps.i18n,
     clock: deps.clock,
     context: deps.context,

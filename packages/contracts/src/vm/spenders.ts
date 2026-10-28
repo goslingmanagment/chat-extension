@@ -3,6 +3,7 @@
 // a known zero is blank, unknown is «—». The client never rebuilds page
 // totals from visible rows: every number is the hub's, with coverage and asOf.
 
+import { type FanBadges } from '../fan-badges';
 import { type CgErrorView } from '../errors';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type BatchRowVM, type BatchVM } from './batch';
@@ -14,6 +15,8 @@ import { type ActionButtonVM, type DataStamp, type VmView } from './view';
 
 export interface SpenderRowVM {
   readonly handle: TargetHandle;
+  /** Fansly: the fan's blue card and FBuddy's gem (contracts fan-badges.ts); absent — none known. */
+  readonly badges?: FanBadges;
   readonly name: string;
   /** @handle without the «@»; null — unknown. */
   readonly username: string | null;

@@ -301,6 +301,7 @@ export function HubCard({ vm: list }: { readonly vm: NewcomersVM }): JSX.Element
       handle={handle}
       label={label}
       name={header.name}
+      badges={header.badges ?? null}
       meta={
         <>
           {meta}

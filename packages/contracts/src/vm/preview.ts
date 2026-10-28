@@ -4,6 +4,7 @@
 // mini strip, the result with «Отправить» (X8) and «Открыть и вставить». The
 // fan's live text never enters the feed: a newer message shows as one line.
 
+import { type FanBadges } from '../fan-badges';
 import { type CgErrorView } from '../errors';
 import { SENDABLE_FEATURES, type Tone } from '../features';
 import { type FeedSender, type PingSegment } from '../hub/feed';
@@ -62,6 +63,8 @@ export interface PreviewVM {
     readonly fanWroteAt: IsoTimestamp | null;
     /** The «Новые» card: «подписался 14 мин назад». */
     readonly newcomer: { readonly kind: NewcomerKind; readonly subscribedAt: IsoTimestamp } | null;
+    /** Fansly: the fan's blue card and FBuddy's gem (contracts fan-badges.ts); absent or null — none known. */
+    readonly badges?: FanBadges | null;
   } | null;
   readonly openChat: ActionButtonVM;
   readonly close: UiAction;

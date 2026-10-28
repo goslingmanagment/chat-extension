@@ -23,6 +23,7 @@
 // with all of its checks (`NewcomerRowVM.send`): generate for many at once, send each by a click.
 // It names no site; the hub's list (ChatSpace) is ./controller.ts.
 
+import { type FanBadges } from '@cg/contracts/fan-badges';
 import { isCgCode, type CgCode, type CgErrorView } from '@cg/contracts/errors';
 import { type ChatRef } from '@cg/contracts/ids';
 import {
@@ -55,6 +56,7 @@ import { type GreetingDesk, type PreviewDirectory, type Surfaces } from '../boar
 import { ViewCell, done, refused } from '../boards/surface';
 import { dataView, failureView, loadingView, localError, msg, reason, stamp } from '../boards/views';
 import { type GreetChat, type GreetedChat, type NewcomersController } from './controller';
+import { createFanBadgeStore, type FanBadgesRead } from '../boards/badges';
 import { batchDispatch, createBatch, isBatchAction } from '../boards/batch';
 import { createCardGreeting, type PassGreetingDeps } from './greeting';
 import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQuery, type PassRow, type PassState } from './source';
@@ -88,6 +90,8 @@ export interface PassNewcomersDeps {
     conversationOf(creatorId: string, fanRef: string): Promise<string | null>;
     personalIn(chat: ChatRef, conversationRef: string): Promise<number | null>;
   };
+  /** 2026-10-28: the new followers' badges (boards/badges.ts); absent — none. */
+  readonly badges?: FanBadgesRead;
 }
 
 /** The selected fan's conversation, per pass. */
@@ -177,6 +181,12 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     reselect();
     cell.invalidate();
   };
+  /** The shown followers' badges: FBuddy's gem says who spends elsewhere, the one to greet first. */
+  const badgeOf = (fanRef: string): { readonly badges?: FanBadges } => {
+    const known = badges.get(fanRef);
+    return known === null ? {} : { badges: known };
+  };
+  const badges = createFanBadgeStore({ read: deps.badges ?? null, clock, onChange: () => { if (!disposed) cell.invalidate(); } });
   const greetingSource = source.greeting;
   const card = deps.greeting === undefined || greetingSource === undefined ? null : createCardGreeting({ greeting: deps.greeting, source: greetingSource, i18n, clock, context, surfaces, changed });
   /** 1.32.0: the batch of Hi over the pass's rows, through each fan's card; nothing is sent by it. */
@@ -734,11 +744,14 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
               selected: row.fanRef === selected,
               check: { status: row.check, customName: row.customName, dmClosed: row.dmClosed },
               avatarUrl: row.avatarUrl ?? null,
+              ...badgeOf(row.fanRef),
               ...(inBatch === null ? {} : { batch: inBatch }),
               // Only a draft the batch made is read and sent from the list.
               ...(inBatch?.state === 'ready' ? { send: sendOf(passId, row) } : {}),
             };
           });
+
+    if (ctx.binding !== null && rows.length > 0) badges.want(ctx.binding.pageId, ctx.binding.platformAccountId, rows.map((row) => row.fanRef));
 
     let view: VmView;
     const blocked = contextView(ctx);
@@ -1006,6 +1019,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
         epoch = state.epoch;
         account = creator;
         letGo(true);
+        badges.reset();
         changed();
         if (open()) void start();
         return;
@@ -1054,6 +1068,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     dispose() {
       disposed = true;
       batch.dispose();
+      badges.dispose();
       card?.dispose();
       for (const off of offs.splice(0)) off();
       if (pass !== null) source.close(pass.passId);

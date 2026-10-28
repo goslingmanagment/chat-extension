@@ -8,7 +8,7 @@ import { type JSX } from 'preact';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type I18n, type OutreachMediaVM, type OutreachRowVM } from '@cg/contracts/vm';
 
-import { Button, Dot, Icon, Spinner, TalkingMark, pure, useDispatch, useI18n, useTooltip } from '../kit';
+import { Button, Dot, FanBadge, Icon, pure, Spinner, TalkingMark, useDispatch, useI18n, useTooltip } from '../kit';
 import { NewcomerAvatar } from '../newcomers/frame';
 import { asideText, tierWords } from './words';
 
@@ -273,6 +273,7 @@ function RowView({ item, index, active, locked, media, onPick }: RowProps): JSX.
       <span class="cg-nw__copy">
         <span class="cg-nw__name">
           {row.name}
+          <FanBadge badges={row.badges} inline />
           {row.tier === null ? null : <span class="cg-nw__tag">{tierWords(i18n, row.tier)}</span>}
         </span>
         <span class="cg-nw__mline">
