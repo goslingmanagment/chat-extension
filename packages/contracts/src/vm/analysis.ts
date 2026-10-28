@@ -42,6 +42,8 @@ export interface RecapLineVM {
   readonly text: string;
   /** A pull quote: the fan's words alone on their line, the quotes taken off. */
   readonly quoted?: true;
+  /** Its first sentence, when it has more (a tile of the board shows that much); absent — one sentence. */
+  readonly lead?: string;
 }
 
 /** What a labelled part tells the chatter to do («Рекомендуемый подход», «Следующий ход») or to avoid («Чего избегать»). */
@@ -56,6 +58,16 @@ export interface RecapScaleVM {
   readonly steps: readonly string[];
   readonly at: number;
   readonly lean: readonly number[];
+  /** The words the text names the step with («warming up», «light spender»); absent — not said apart. */
+  readonly said?: string;
+  /** What the same sentence adds to it («с элементами loyal-light»); absent — nothing. */
+  readonly rest?: string;
+}
+
+/** A month the text gives a sum for («июнь 51,97 $»; «в июле ноль»): 0 is January. */
+export interface RecapMonthVM {
+  readonly month: number;
+  readonly sum: number;
 }
 
 export type RecapPartVM =
@@ -68,6 +80,12 @@ export type RecapPartVM =
       /** A sum the paragraph is about, set large («81,97 $», «за почти 5 месяцев»); null — none. */
       readonly figure: { readonly sum: string; readonly period: string | null } | null;
       readonly scale: RecapScaleVM | null;
+      /** Its first sentence, when it has more; absent — one sentence. */
+      readonly lead?: string;
+      /** «Тренд», «Направление»: which way its first sentence says it goes; absent — neither way. */
+      readonly trend?: 'up' | 'down';
+      /** The months the section gives sums for, in their order (two at least, one above zero); absent — none. */
+      readonly months?: readonly RecapMonthVM[];
     }
   | {
       readonly kind: 'list';

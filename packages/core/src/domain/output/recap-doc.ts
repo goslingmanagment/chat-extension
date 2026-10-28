@@ -5,7 +5,18 @@
 // whatever the cut does not recognise stays a paragraph or a list. The folded window's «Шпаргалка» comes from the same
 // cut: what to do next, what not to forget, what not to do.
 
-import { type RecapCribVM, type RecapDocVM, type RecapLineVM, type RecapPartVM, type RecapScaleVM, type RecapSectionKey, type RecapSectionVM, type RecapTone, type RecapWrittenVM } from '@cg/contracts/vm';
+import {
+  type RecapCribVM,
+  type RecapDocVM,
+  type RecapLineVM,
+  type RecapMonthVM,
+  type RecapPartVM,
+  type RecapScaleVM,
+  type RecapSectionKey,
+  type RecapSectionVM,
+  type RecapTone,
+  type RecapWrittenVM,
+} from '@cg/contracts/vm';
 
 import { recapSectionOf, recapWritten, type RecapBlock } from './recap';
 
@@ -166,7 +177,24 @@ function scaleOf(kind: RecapScaleVM['kind'], scale: readonly (readonly [string, 
     .sort((a, b) => a.at - b.at);
   const first = hits[0];
   if (first === undefined) return null;
-  return { kind, steps: scale.map(([name]) => name), at: first.index, lean: hits.slice(1).map((hit) => hit.index) };
+  return { kind, steps: scale.map(([name]) => name), at: first.index, lean: hits.slice(1).map((hit) => hit.index), ...saidOf(text) };
+}
+
+/**
+ * How a sentence that opens with the step names it, and what it adds: «warming up с элементами loyal-light.» →
+ * «warming up» and «с элементами loyal-light». A sentence that opens otherwise names nothing apart.
+ */
+function saidOf(sentence: string): { readonly said?: string; readonly rest?: string } {
+  const clause = /^(.+?)(?=\s+с\s+|\s+with\s+|\s+но\s+|[,.;:(]|$)/iu.exec(sentence.trim());
+  const said = clause?.[1]?.trim() ?? '';
+  if (said === '' || said.length > 32 || !/^\p{L}/u.test(said)) return {};
+  const rest = sentence
+    .trim()
+    .slice(said.length)
+    .replace(/^[\s,;:]+/u, '')
+    .replace(/[.;]\s*$/u, '')
+    .trim();
+  return rest === '' ? { said } : { said, rest };
 }
 
 /** A sum: «81,97 $», «10-20 $», «$25», «$1,200». */
@@ -209,16 +237,90 @@ function withScales(key: RecapSectionKey | null, parts: readonly RecapPartVM[]):
       }
     }
     if (spend) {
-      const scale = scaleOf('spend', SPENDERS, `${part.label ?? ''} ${firstSentence(part.text)}`);
+      const named = part.label !== null && scaleOf('spend', SPENDERS, part.label) !== null;
+      const found = scaleOf('spend', SPENDERS, `${part.label ?? ''} ${firstSentence(part.text)}`);
+      // «Light spender: 81,97 $…» names the class by its label; «Классификация: light spender.» by its first words.
+      const base = found === null ? null : { kind: found.kind, steps: found.steps, at: found.at, lean: found.lean };
+      const scale: RecapScaleVM | null = base === null ? null : named && part.label !== null ? { ...base, said: part.label } : { ...base, ...saidOf(firstSentence(part.text)) };
       const money = MONEY.exec(part.text);
       if (scale !== null || (money !== null && /классификац|classification/iu.test(part.label ?? ''))) {
         spend = false;
         // A paragraph that opens with the sum says it first itself: no figure over it.
         const figure = money === null || money.index < 2 ? null : { sum: money[0].trim().replace(/\s+/g, ' '), period: PERIOD.exec(part.text)?.[0] ?? null };
-        return { ...part, scale, figure: figure === null ? null : { ...figure, period: figure.period === null ? null : lowerFirst(figure.period) } };
+        const months = monthsOf(parts);
+        return {
+          ...part,
+          scale,
+          figure: figure === null ? null : { ...figure, period: figure.period === null ? null : lowerFirst(figure.period) },
+          ...(months === null ? {} : { months }),
+        };
       }
     }
     return part;
+  });
+}
+
+// ── what a tile of the board shows: first sentences, which way a trend goes, the sums by month ─────────────
+
+/** «Тренд: нерегулярный, с тенденцией к снижению» goes down; «Направление: растёт» goes up. */
+function trendOf(text: string): 'up' | 'down' | null {
+  if (/подъ[её]м|раст[её]т|рост|теплее|оживл|улучш|growing|rising|up\b/iu.test(text)) return 'up';
+  if (/спад|сниж|остыва|пада|хуже|угаса|declin|falling|down\b/iu.test(text)) return 'down';
+  return null;
+}
+
+const MONTHS = ['январ', 'феврал', 'март', 'апрел', 'ма[йяе]', 'июн', 'июл', 'август', 'сентябр', 'октябр', 'ноябр', 'декабр'];
+const MONTH_WORD = new RegExp(`(?<!\\p{L})(${MONTHS.join('|')})\\p{L}*`, 'giu');
+const MONTH_SUM = new RegExp(`(?<!\\p{L})(${MONTHS.join('|')})\\p{L}*\\s+(\\d[\\d \\u00a0]*(?:[.,]\\d{1,2})?)\\s?\\$`, 'giu');
+const monthIndex = (word: string): number => MONTHS.findIndex((stem) => new RegExp(`^${stem}`, 'iu').test(word));
+const amount = (digits: string): number => Number.parseFloat(digits.replace(/[\s\u00a0]/gu, '').replace(',', '.'));
+
+/**
+ * The sums a money section gives by month («июнь 51,97 $ и сентябрь 30 $»), with the months it says were empty («в июле,
+ * августе и пока в октябре ноль»), in the order they come round the year since the longest pause. Null — fewer than two
+ * months, or none above zero.
+ */
+function monthsOf(parts: readonly RecapPartVM[]): RecapMonthVM[] | null {
+  const text = parts.map((part) => (part.kind === 'text' ? part.text : part.items.map((item) => item.text).join('. '))).join(' ');
+  const found = new Map<number, number>();
+  for (const match of text.matchAll(MONTH_SUM)) {
+    const month = monthIndex(match[1] ?? '');
+    const sum = amount(match[2] ?? '');
+    if (month >= 0 && !found.has(month) && Number.isFinite(sum)) found.set(month, sum);
+  }
+  for (const sentence of sentences(text)) {
+    if (!/(?<!\p{L})ноль(?!\p{L})|(?<![\d,.])0\s?\$/iu.test(sentence)) continue;
+    for (const match of sentence.matchAll(MONTH_WORD)) {
+      const month = monthIndex(match[1] ?? '');
+      if (month >= 0 && !found.has(month)) found.set(month, 0);
+    }
+  }
+  if (found.size < 2 || ![...found.values()].some((sum) => sum > 0)) return null;
+  const months = [...found.keys()].sort((a, b) => a - b);
+  // Round the year from the month after the longest pause: June to October, not January's order.
+  let start = 0;
+  let pause = -1;
+  months.forEach((month, index) => {
+    const next = months[(index + 1) % months.length] ?? month;
+    const gap = (next - month + 12) % 12 || 12;
+    if (gap > pause) {
+      pause = gap;
+      start = (index + 1) % months.length;
+    }
+  });
+  return [...months.slice(start), ...months.slice(0, start)].map((month) => ({ month, sum: found.get(month) ?? 0 }));
+}
+
+/** Each line and paragraph gets its first sentence when it has more; a «Тренд» or «Направление» its way. */
+function withLeads(parts: readonly RecapPartVM[]): RecapPartVM[] {
+  const lead = (text: string): { readonly lead?: string } => {
+    const all = sentences(text);
+    return all.length > 1 && all[0] !== undefined ? { lead: all[0] } : {};
+  };
+  return parts.map((part) => {
+    if (part.kind === 'list') return { ...part, items: part.items.map((item) => ({ ...item, ...lead(item.text) })) };
+    const trend = /тренд|направлен|динамик|trend|direction/iu.test(part.label ?? '') ? trendOf(firstSentence(part.text)) : null;
+    return { ...part, ...lead(part.text), ...(trend === null ? {} : { trend }) };
   });
 }
 
@@ -227,7 +329,7 @@ function withScales(key: RecapSectionKey | null, parts: readonly RecapPartVM[]):
 /** A headed block as a section of the document. */
 function sectionOf(block: RecapBlock, name: (heading: string) => string): RecapSectionVM {
   const key = block.heading === '' ? null : recapSectionOf(block.heading);
-  return { key, name: block.heading === '' ? '' : name(block.heading), parts: withScales(key, partsOf(block.markdown)) };
+  return { key, name: block.heading === '' ? '' : name(block.heading), parts: withLeads(withScales(key, partsOf(block.markdown))) };
 }
 
 /**
