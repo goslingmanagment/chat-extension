@@ -12,6 +12,7 @@
 // - Every ask is said again to whoever wants the application: an application whose load failed is asked for again by
 //   the next click (nothing reloads by itself, UP-016).
 
+import type { HostTheme } from '@cg/contracts/host';
 import type { ColorScheme, ValueSignal } from '@cg/contracts/vm';
 
 /** What the launcher opens: the shared surfaces of the boards, top to bottom as the dock's chips stand. */
@@ -32,16 +33,21 @@ export interface FanslyLauncher {
   serve(run: (target: LauncherTarget) => void): () => void;
   /**
    * The scheme the buttons wear: the one the application resolved from «Тема» for our surfaces (`follow`), so the
-   * buttons are the dock's chips in every theme; null until the application came — the light paper, the default.
+   * buttons are the dock's chips in every theme; until the application came (the dock's place or the first click,
+   * never on a page without a chat) — the page's own, as «Тема» says by default («как на сайте»).
    */
-  scheme(): ColorScheme | null;
+  scheme(): ColorScheme;
   onScheme(listener: () => void): () => void;
   /** The application hands its scheme; the answer stops following it. */
   follow(scheme: ValueSignal<ColorScheme>): () => void;
 }
 
-export function createFanslyLauncher(): FanslyLauncher {
+/** The page's theme as the early bundle reads it (./theme.ts). */
+type PageTheme = { current(): HostTheme; onChange(listener: (theme: HostTheme) => void): () => void };
+
+export function createFanslyLauncher(page: PageTheme): FanslyLauncher {
   let kept: LauncherTarget | null = null;
+  /** The application's scheme; null — not handed yet, the page's is worn. */
   let scheme: ColorScheme | null = null;
   const schemeListeners = new Set<() => void>();
   let asked = false;
@@ -75,8 +81,17 @@ export function createFanslyLauncher(): FanslyLauncher {
     onWanted: (listener) => listen(wantedListeners, listener),
     pending: () => kept,
     onPending: (listener) => listen(pendingListeners, listener),
-    scheme: () => scheme,
-    onScheme: (listener) => listen(schemeListeners, listener),
+    scheme: () => scheme ?? page.current().scheme,
+    onScheme(listener) {
+      const offPage = page.onChange(() => {
+        if (scheme === null) listener();
+      });
+      const off = listen(schemeListeners, listener);
+      return () => {
+        offPage();
+        off();
+      };
+    },
     follow(signal) {
       const take = (value: ColorScheme): void => {
         if (value === scheme) return;
