@@ -163,6 +163,7 @@ import { createTabAccountsGate } from './background/tab-accounts';
 import { pickCommandTab } from './background/tab-command';
 import { createBackgroundTelemetry } from './background/telemetry';
 import { tokenRefusal } from './background/token-gate';
+import { createBackgroundNotes } from './background/notes';
 import { createBackgroundVoice } from './background/voice';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
@@ -622,6 +623,36 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     log: serviceLog,
   });
 
+  // 2026-10-28: «Заметки» of a site whose tab writes the notes itself (ChatSpace: OnlyMonster's fan notes): the panel's
+  // view, one for every tab (`settings.ext`), and «✨ Заполнить из чата» as an operation of the scheduler below.
+  const notes = createBackgroundNotes({
+    page: async (pageId, sender) => {
+      const page = await pageOf(pageId, sender);
+      return page.ok ? { ok: true } : { ok: false, code: page.code };
+    },
+    scheduler: { start: (tab, start) => scheduler.start(tab, start), siteView: (opId, host) => scheduler.siteView(opId, host), cancel: (opId) => scheduler.cancel(opId) },
+    hostOfTab: (tabSessionId) => hostOfTab(tabSessionId),
+    siteActive: (tabSessionId) => siteActive(hostOfTab(tabSessionId)),
+    view: {
+      async read() {
+        const state = await extSettings.state();
+        return state.ok ? state.state.ext.hosts[OPTIONAL_HOST].notesView : null;
+      },
+      async write(view) {
+        const saved = await extSettings.patch({ hosts: { [OPTIONAL_HOST]: { notesView: view } } });
+        return saved.ok ? saved.state.ext.hosts[OPTIONAL_HOST].notesView : null;
+      },
+    },
+    done: (view, tabSessionId) => void rpc.emit('notes.fill.done', { view }, tabSessionId === null ? undefined : { tabSessionId }),
+  });
+  /** The notes' view as last told, so a change of another setting tells nothing. */
+  let notesView: string | null = null;
+  extSettings.onChange((state) => {
+    const view = state.ext.hosts[OPTIONAL_HOST].notesView;
+    if (notesView !== null && view !== notesView) rpc.emit('notes.viewChanged', { view });
+    notesView = view;
+  });
+
   const scheduler: OpScheduler = new OpScheduler({
     clock: CLOCK,
     ids: IDS,
@@ -637,10 +668,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     // the Review frame, Recap blocks, Coach drafts).
     drivers: AI_FEATURE_DRIVERS,
     // A site's own operations come with its running module (Fansly's «Заполнить из чата»); the voice script is every
-    // site's (1.47.0), so a site without a module of operations still has it.
+    // site's (1.47.0), and the notes fill every site's that brings none of its own (2026-10-28, ChatSpace), so a site
+    // without a module of operations still has them.
     siteOps: async (host) => {
       if (!(await moduleUnderSameSignIn(host))) return null;
-      return voice.withVoice(host, hostModules.running(host)?.operations ?? null);
+      return voice.withVoice(host, notes.withNotesFill(host, hostModules.running(host)?.operations ?? null));
     },
     // «Нет связи» vs «хаб не ответил вовремя» at a deadline: what the browser itself says about the connection.
     online: () => navigator.onLine,
@@ -1574,6 +1606,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('online.list', data['online.list']);
   rpc.handle('online.attempt', data['online.attempt']);
   // 1.47.0: voice notes, both sites.
+  rpc.handle('notes.view', notes.handlers['notes.view']);
+  rpc.handle('notes.setView', notes.handlers['notes.setView']);
+  rpc.handle('notes.fill.start', notes.handlers['notes.fill.start']);
+  rpc.handle('notes.fill.read', notes.handlers['notes.fill.read']);
+  rpc.handle('notes.fill.cancel', notes.handlers['notes.fill.cancel']);
   rpc.handle('voice.read', voice.handlers['voice.read']);
   rpc.handle('voice.allowance', voice.handlers['voice.allowance']);
   rpc.handle('voice.script', voice.handlers['voice.script']);

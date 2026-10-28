@@ -18,13 +18,10 @@ import * as z from 'zod/mini';
 
 import { type SiteOpId } from './features';
 import type { FanslyFeatureKey } from './features/fansly';
-import { LiveTextTailSchema } from './host';
-import { NoteFieldsSchema, NoteValuesSchema, type HubAiFeature } from './hub/ai';
-import { HumanCauseSchema, TargetSchema } from './ids';
-import { AI_REQUEST_LIMITS, OP_TIMEOUTS, type OpTimeouts } from './limits';
-import { NOTES_FILL_OP_LIMITS, NoteFieldsResultSchema } from './notes-fill';
+import { type HubAiFeature } from './hub/ai';
+import { OP_TIMEOUTS, type OpTimeouts } from './limits';
+import { NOTES_FILL_OP_LIMITS, NoteFieldsResultSchema, NotesFillStartSchema as SharedNotesFillStartSchema } from './notes-fill';
 import { OpViewSchema, type SiteOpResult, type SiteStartOp, type SiteOpView } from './ops';
-import { UuidSchema } from './primitives';
 
 /** The operations of Fansly's slice, beside the shared `FEATURE_IDS`. */
 export const FANSLY_OPS = ['notes-fill'] as const satisfies readonly SiteOpId[];
@@ -64,27 +61,10 @@ export const FANSLY_OP_DRIVERS = {
  */
 const ofFansly = (start: { readonly target: { readonly binding: { readonly platform: string } } }): boolean => start.target.binding.platform === 'fansly';
 
-const START = {
-  target: TargetSchema,
-  cause: HumanCauseSchema,
-  /** The body's `messageCount`, within its bounds: the quick window for the script, the deep one for the notes fill. */
-  window: z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax)),
-  fresh: z.optional(LiveTextTailSchema),
-  regenerateOf: z.optional(UuidSchema),
-  force: z.optional(z.boolean()),
-};
-
 /**
- * «Дополнить из чата»: the questionnaire's labels and, 1.28.0 (X43, the owner's ruling of 2026-10-17), their values,
- * index-aligned — the body's `noteValues`, never anything else of the note (FS-NOTE-5, FX-024). Without `values` the
- * request carries one empty value per label (the merge mode of 1.16.0).
+ * «Дополнить из чата» of a Fansly chat: the shared start (`notes-fill.ts`), and the chat is Fansly's.
  */
-export const NotesFillStartSchema = z
-  .strictObject({ feature: z.literal('notes-fill'), ...START, fields: NoteFieldsSchema, values: z.optional(NoteValuesSchema) })
-  .check(
-    z.refine(ofFansly, { message: "a Fansly operation is a Fansly chat's" }),
-    z.refine((start) => start.values === undefined || start.values.length === start.fields.length, { message: 'values: one per field' }),
-  );
+export const NotesFillStartSchema = SharedNotesFillStartSchema.check(z.refine(ofFansly, { message: "a Fansly operation is a Fansly chat's" }));
 
 export const FanslyStartOpSchema = z.discriminatedUnion('feature', [NotesFillStartSchema]) satisfies z.ZodMiniType<SiteStartOp>;
 export type FanslyStartOp = z.infer<typeof FanslyStartOpSchema>;

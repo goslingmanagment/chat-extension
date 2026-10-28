@@ -477,6 +477,11 @@ export class FakePageBackground implements PageRpc {
       case 'voice.audio':
       case 'voice.attached':
       case 'voice.discard':
+      case 'notes.view':
+      case 'notes.setView':
+      case 'notes.fill.start':
+      case 'notes.fill.read':
+      case 'notes.fill.cancel':
         return refuse('CG-UNKNOWN', `${type} is not scripted`);
     }
   }

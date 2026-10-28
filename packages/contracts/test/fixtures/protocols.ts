@@ -62,7 +62,8 @@ import { DEFAULT_SETTINGS } from '../../src/index';
 const attributionFact = { chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false };
 import { HUB_SAMPLES as H } from './hub';
 import { VOICE_ALLOWANCE_FIXTURES, VOICE_SCRIPT_START_FIXTURES, fanslyVoiceSession, voiceAudio, voiceScriptStart, voiceSession } from './voice';
-import { cause } from './samples';
+import { cause, target as ofTarget } from './samples';
+import { noteFieldsResult } from './ops-fansly';
 
 export interface Verdicts {
   readonly valid: readonly unknown[];
@@ -128,6 +129,10 @@ const CUSTOM = { id: 3, pageLabel: 'model-two-fansly', granted: true, descriptio
 
 /** Chat Memory week 2: a fan's card as the hub answers it. */
 const MEMORY_CARD = { pageLabel: 'model-two-fansly', fanRef: '920000000000000003', known: true, accounts: [{ platform: 'fansly', fanRef: '920000000000000003', username: 'kai_38', displayName: 'Kai', gone: false, linkedBy: null }], pages: [{ pageLabel: 'model-two-fansly', platform: 'fansly', modelName: 'Model Two', fanRef: '920000000000000003', granted: true, alias: '💵Rowan/Norway/52', subscribed: true, subscribedSince: '2026-09-01T10:00:00.000Z', subscriptionEndsAt: null, spentMills: 120000, last30Mills: { tip: 20000 }, lastPurchaseAt: '2026-10-20T10:00:00.000Z' }], suggestions: [], facts: [{ id: 7, kind: 'about', text: 'Lives in Toronto, works nights', pageLabel: 'model-two-fansly', granted: true, conversationRef: '810000000000000001', messageRef: '930000000000000001', messageAt: '2026-10-20T10:00:00.000Z', source: 'ai', author: null, createdAt: '2026-10-20T10:20:00.000Z' }], serverNow: '2026-10-24T10:00:00.000Z' };
+
+/** 2026-10-28: «Заполнить из чата» of an OnlyFans chat (ChatSpace): the chat is the fan. */
+const notesFillStart = { feature: 'notes-fill', target: ofTarget, cause, window: 3000, fields: ['Имя', 'Локация'] } as const;
+const notesFillView = { ...opView, feature: 'notes-fill', result: noteFieldsResult, generationRef: uuid(0x560), toneUsed: null } as const;
 
 export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixtures } = {
   'tab.register': {
@@ -512,6 +517,18 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     req: { valid: [{ sessionId: uuid(0x700) }], invalid: [{}] },
     res: { valid: [{ discarded: true }, { discarded: false }], invalid: [{}] },
   },
+  // 2026-10-28: «Заметки» of ChatSpace (OnlyMonster's fan notes) — the view and the fill of the open chat.
+  'notes.view': { req: empty, res: { valid: [{ view: 'docked' }, { view: 'drawer' }, { view: 'center' }], invalid: [{ view: 'left' }, {}] } },
+  'notes.setView': { req: { valid: [{ view: 'center' }], invalid: [{ view: 'left' }, {}] }, res: { valid: [{ view: 'center' }], invalid: [{}] } },
+  'notes.fill.start': {
+    req: {
+      valid: [notesFillStart, { ...notesFillStart, values: ['Анна', ''] }, { ...notesFillStart, force: true }],
+      invalid: [{ ...notesFillStart, fields: [] }, { ...notesFillStart, values: ['Анна'] }, { ...notesFillStart, feature: 'voice-script' }, { ...notesFillStart, window: 5001 }],
+    },
+    res: { valid: [{ ok: true, opId: uuid(0x560) }], invalid: [{ ok: true }] },
+  },
+  'notes.fill.read': { req: { valid: [{ opId: uuid(0x560) }], invalid: [{ opId: 'x' }] }, res: { valid: [{ view: notesFillView }, { view: null }], invalid: [{ view: {} }, { view: { ...notesFillView, result: undefined } }] } },
+  'notes.fill.cancel': { req: { valid: [{ opId: uuid(0x560) }], invalid: [{}] }, res: { valid: [{ state: 'canceled' }, { state: null }], invalid: [{ state: 'queued' }] } },
   'site.access': {
     req: { valid: [{ host: 'fansly-web' }, { host: 'fansly-web', enabled: true }, { host: 'fansly-web', reload: true }], invalid: [{ host: 'other' }, { host: 'fansly-web', enabled: 'yes' }] },
     res: { valid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 2 }, { host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 1, reloaded: 1 }], invalid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: -1 }, { host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 0, reloaded: -1 }] },
@@ -711,6 +728,8 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
     valid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming', phase: { name: 'streaming', since: T0 }, firstChunkAt: T0 + 900 }],
     invalid: [{ opId: uuid(2), seq: 3, append: 'hey ', state: 'streaming' }],
   },
+  'notes.viewChanged': { valid: [{ view: 'drawer' }], invalid: [{ view: 'left' }, {}] },
+  'notes.fill.done': { valid: [{ view: notesFillView }, { view: { ...notesFillView, state: 'failed', result: undefined, generationRef: undefined, error: { code: 'CG-OUTPUT-UNUSABLE' } } }], invalid: [{ view: { ...notesFillView, feature: 'reply' } }] },
   'voice.changed': {
     valid: [{ chat, conversationRef: IDS.fan, session: voiceSession }, { chat, conversationRef: IDS.fan, session: null }],
     invalid: [{ chat, session: voiceSession }, { chat, conversationRef: IDS.fan, session: { ...voiceSession, sessionId: 'x' } }],

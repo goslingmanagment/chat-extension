@@ -49,6 +49,8 @@ import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
 import { SETTINGS_OPTIONS_ONLY_SECTIONS, SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
+import { FANSLY_NOTES_VIEWS } from './settings-ext';
+import { NotesFillOpViewSchema, NotesFillStartSchema } from './notes-fill';
 import { TabRegisterRequestSchema, TabRegisterResponseSchema, senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { VOICE_LIMITS, VoiceAllowanceSchema, VoiceAudioSchema, VoiceScriptStartSchema, VoiceSessionSchema, VoiceWriteResultSchema } from './voice';
 import { JOURNAL_KINDS } from './vm/selectors';
@@ -706,6 +708,22 @@ export const TAB_REQUESTS = {
     from: TAB,
   },
 
+  // ── «Заметки» of a site whose notes the tab itself reads and writes (2026-10-28: ChatSpace, OnlyMonster's fan notes;
+  // notes.ts, notes-fill.ts). Fansly's tab keeps its own `fansly.notes.*` and `fansly.ops.*`. ──
+  /** The panel's view as `settings.ext` holds it (FS-NOTE-2: one for every tab of every site). */
+  'notes.view': { req: Empty, res: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), from: TAB },
+  /** The person chose a view in the panel: stored for every tab, each tab hears `notes.viewChanged`. */
+  'notes.setView': { req: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), res: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), from: TAB },
+  /**
+   * «✨ Заполнить из чата» of the open chat (FS-NOTE-6): the shared scheduler's `notes-fill`, admitted by the page's
+   * `notesFill`, with a click's token; its stage comes as `op.update`, its end as `notes.fill.done`.
+   */
+  'notes.fill.start': { req: NotesFillStartSchema, res: AdmissionSchema, from: TAB },
+  /** The fill as the scheduler keeps it now; null — no such fill of this site. */
+  'notes.fill.read': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ view: z.nullable(NotesFillOpViewSchema) }), from: TAB },
+  /** «Остановить»: the fill is cancelled and its answer never lands; null — no such fill. */
+  'notes.fill.cancel': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ state: z.nullable(OpStateSchema) }), from: TAB },
+
   // ── service ──
   'site.access': { req: SiteAccessRequestSchema, res: SiteAccessStateSchema, from: PAGE, pages: ['popup', 'options'] },
   'settings.get': { req: Empty, res: SettingsStateSchema, from: ANY },
@@ -926,6 +944,10 @@ export const TAB_EVENTS = {
   'op.done': { payload: z.strictObject({ view: OpViewSchema }), to: ANY },
   /** 1.47.0: a chat's voice session changed (a script written, a take's state, an edit of another tab); null — it went. */
   'voice.changed': { payload: z.strictObject({ chat: ChatRefSchema, conversationRef: NativeIdSchema, session: z.nullable(VoiceSessionSchema) }), to: TAB },
+  /** 2026-10-28: the notes' view changed (`notes.setView` of any tab, or Fansly's own). */
+  'notes.viewChanged': { payload: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), to: TAB },
+  /** 2026-10-28: a fill of `notes.fill.start` ended (done, failed, cancelled): its view, to the tab that started it. */
+  'notes.fill.done': { payload: z.strictObject({ view: NotesFillOpViewSchema }), to: TAB },
   'send.state': { payload: z.strictObject({ view: SendAttemptViewSchema }), to: ANY },
   /** 1.11.0 (decision X25): the X8 fuse tripped or was reset; tabs reconfigure their host adapter by it. */
   'send.fuse': { payload: SendFuseStateSchema, to: ANY },
