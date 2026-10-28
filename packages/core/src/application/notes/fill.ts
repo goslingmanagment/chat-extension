@@ -247,6 +247,49 @@ export function noteFindings(text: string, answer: readonly AnswerField[], named
   return found;
 }
 
+/** A fact as two questionnaires compare it: without the Goose's month, composed, whitespace and case folded. */
+const factKey = (fact: string): string => splitFactDate(fact.trim()).text.normalize('NFC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('ru');
+
+/**
+ * 2026-10-29 («Вставить сюда»): the questionnaire of the fan's old account (`old`) as findings against this one's
+ * (`text`; the template when there is none), the way a fill's answer is: for each of its fields the facts this one does
+ * not hold yet, after what that field's line holds; a field this one lacks, with all its facts. Its free lines and
+ * `mark` (where the notes came from) join «Другое». Nothing this one holds is offered again, nothing is taken away.
+ */
+export function transferFindings(text: string, old: string, mark: string | null): NoteFinding[] {
+  const here = parseNoteForm(text) ?? [];
+  const lines = text.split('\n');
+  const byKey = new Map(here.filter(isField).map((field) => [noteLabelKey(field.label), field] as const));
+  const merged = new Map<string, { readonly label: string; readonly facts: string[] }>();
+  const take = (label: string, facts: readonly string[]): void => {
+    const key = noteLabelKey(label);
+    const entry = merged.get(key) ?? { label, facts: [] };
+    entry.facts.push(...facts);
+    merged.set(key, entry);
+  };
+  for (const part of parseNoteForm(old) ?? []) {
+    if (part.kind === 'field') take(part.label, part.facts);
+    else if (part.text.trim() !== '') take(NOTE_OTHER_LABEL, [part.text.trim()]);
+  }
+  if (mark !== null) take(NOTE_OTHER_LABEL, [mark]);
+  const answer: AnswerField[] = [];
+  for (const [key, { label, facts }] of merged) {
+    const field = byKey.get(key);
+    const held = new Set((field?.facts ?? []).map(factKey));
+    const extra: string[] = [];
+    for (const fact of facts.flatMap(splitNoteFacts)) {
+      const factId = factKey(fact);
+      if (factId === '' || held.has(factId)) continue;
+      held.add(factId);
+      extra.push(fact);
+    }
+    if (extra.length === 0) continue;
+    const line = field === undefined ? '' : noteFieldLineValue(lines[field.line] ?? '');
+    answer.push({ label: field?.label ?? label, value: [...splitNoteFacts(line), ...extra].join('; ') });
+  }
+  return noteFindings(text, answer);
+}
+
 export interface NoteFindingsApplied {
   readonly text: string;
   /** The fields written, as the questionnaire names them («Другое» when a fact joined it). */

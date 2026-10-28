@@ -25,12 +25,15 @@
 //   its row at once, not yet to take («ещё пишется»).
 // - «Заметки»: a box at the top (a line typed and Enter makes a note), then the notes, newest first, the date at the
 //   left; «Изменить» and «Удалить» on a note under the pointer. FBuddy's note and a long one are read only.
+// - 2026-10-29, the fan's old account: «Перенести на новый аккаунт фана» quiet under the notes; the copy said in a card
+//   at the top, and in another chat of the account a card «Заметки с аккаунта @…: анкета и 5 заметок · Вставить сюда ·
+//   Не переносить». The questionnaire's facts then stand in its rows as pills, as the Goose's do.
 
 import type { JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NoteColor, NotesClient, NotesCopy, NotesErrorWire, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM, NotesView } from '@cg/contracts/notes';
+import type { NoteColor, NotesClient, NotesCopy, NotesErrorWire, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM, NotesTransferVM, NotesView } from '@cg/contracts/notes';
 import { FANSLY_NOTES_VIEWS } from '@cg/contracts/settings-ext';
 
 import { Button, Dot, ElapsedTimer, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit, useReducedMotion } from '../kit';
@@ -378,7 +381,7 @@ function Pill({ client, copy, sug, words, inline }: Props & { readonly sug: Note
         </>
       )}
       <span class="cg-notes__said" role="tooltip">
-        <span class="cg-notes__said-h">{sug.quotes.length === 0 ? copy.noQuote : copy.quotes}</span>
+        <span class="cg-notes__said-h">{sug.transfer === true ? copy.transferQuote : sug.quotes.length === 0 ? copy.noQuote : copy.quotes}</span>
         {sug.quotes.slice(0, 2).map((quote, at) => (
           <span key={at} class="cg-notes__said-q">
             «{quote}»
@@ -476,7 +479,7 @@ function SuggestBar({ client, copy, fill }: Props & { readonly fill: NotesFillVM
           <span class="cg-notes__spark" aria-hidden="true">
             ✦
           </span>
-          {copy.suggestBar.replace('{n}', String(fill.pending))}
+          {(fill.transfer === true ? copy.transferBar : copy.suggestBar).replace('{n}', String(fill.pending))}
           {fill.written > 0 ? <span class="cg-notes__sugbar-w">{` · ${copy.suggestWritten.replace('{n}', String(fill.written))}`}</span> : null}
         </span>
         <span class="cg-notes__spacer" />
@@ -923,6 +926,74 @@ function NotesSection({ client, copy, vm }: Props & { readonly vm: NotesPanelVM 
   );
 }
 
+/** «анкета и 5 заметок»: what a copy carries. */
+function transferWhat(copy: NotesCopy, transfer: NotesTransferVM): string {
+  const notes = transfer.notes === 0 ? null : plural(transfer.notes, copy.transferNotes).replace('{n}', String(transfer.notes));
+  return [transfer.form ? copy.transferForm : null, notes].filter((part): part is string => part !== null).join(copy.transferAnd);
+}
+
+/** The old account's name and @handle, as a card names it. */
+const transferFrom = (transfer: NotesTransferVM): string => [transfer.from?.name ?? null, transfer.from?.handle === null || transfer.from?.handle === undefined ? null : `@${transfer.from.handle}`].filter((part): part is string => part !== null && part !== '').join(' · ');
+
+/**
+ * The fan's old account (2026-10-29): this chat's notes copied («Отменить»); another chat's offered here («Вставить
+ * сюда», «Не переносить»); moving them, then what moved. The questionnaire's facts wait in its rows.
+ */
+function TransferCard({ client, copy, transfer }: Props & { readonly transfer: NotesTransferVM }): JSX.Element {
+  const errorText = useErrorText();
+  const what = transferWhat(copy, transfer);
+  if (transfer.status === 'copied') {
+    return (
+      <div class="cg-notes__transfer is-copied" role="status" data-notes-transfer="copied">
+        <span class="cg-notes__transfer-i" aria-hidden="true">
+          <Icon name="check" size={13} />
+        </span>
+        <span class="cg-notes__transfer-t">{copy.transferCopied.replace('{what}', what)}</span>
+        <Button variant="quiet" size="sm" label={copy.cancel} onClick={() => client.dispatch({ type: 'transfer-drop' })} />
+      </div>
+    );
+  }
+  if (transfer.status === 'moving') {
+    return (
+      <div class="cg-notes__transfer" role="status" data-notes-transfer="moving">
+        <span class="cg-notes__transfer-t">{copy.transferMoving.replace('{k}', String(transfer.written)).replace('{n}', String(transfer.notes))}</span>
+      </div>
+    );
+  }
+  if (transfer.status === 'moved') {
+    const parts = [
+      transfer.written > 0 ? copy.transferMoved.replace('{n}', String(transfer.written)) + (transfer.skipped > 0 ? copy.transferSkipped.replace('{s}', String(transfer.skipped)) : '') + '.' : null,
+      transfer.suggested > 0 ? copy.transferFormWaits : null,
+    ].filter((part): part is string => part !== null);
+    return (
+      <div class={`cg-notes__transfer${transfer.problem === null ? ' is-done' : ' is-failed'}`} role={transfer.problem === null ? 'status' : 'alert'} data-notes-transfer="moved">
+        <span class="cg-notes__transfer-i" aria-hidden="true">
+          {transfer.problem === null ? <Icon name="check" size={13} /> : <Dot kind="danger" />}
+        </span>
+        <span class="cg-notes__transfer-t">
+          {parts.length === 0 && transfer.problem === null ? copy.transferNothing : parts.join(' ')}
+          {transfer.problem === null ? null : <span class="cg-notes__transfer-p">{transfer.problem.kind === 'failed' ? `${errorText(transfer.problem.error)}. ${copy.transferProblem}` : copy.transferProblem}</span>}
+        </span>
+        <Button variant="quiet" size="sm" iconOnly icon="x" label={copy.fillClose} onClick={() => client.dispatch({ type: 'transfer-drop' })} />
+      </div>
+    );
+  }
+  const reason = transfer.blocked ? copy.transferProblem : transfer.reason === null ? null : copy.transferReason[transfer.reason];
+  const from = transferFrom(transfer);
+  return (
+    <div class="cg-notes__transfer is-offer" role="status" data-notes-transfer="offer">
+      <span class="cg-notes__transfer-t">
+        <b>{copy.transferOffer.replace('{from}', from === '' ? copy.fan : from).replace('{what}', what)}</b>
+        {transfer.problem === null ? null : <span class="cg-notes__transfer-p">{transfer.problem.kind === 'failed' ? `${errorText(transfer.problem.error)}. ${copy.transferProblem}` : copy.transferProblem}</span>}
+      </span>
+      <span class="cg-notes__transfer-acts">
+        <Button variant="line" size="sm" label={copy.transferPaste} tooltip={copy.transferPasteHint} {...(reason === null ? {} : { reason })} onClick={() => client.dispatch({ type: 'transfer-paste' })} />
+        <Button variant="quiet" size="sm" label={copy.transferDrop} onClick={() => client.dispatch({ type: 'transfer-drop' })} />
+      </span>
+    </div>
+  );
+}
+
 function Body({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }): JSX.Element {
   const errorText = useErrorText();
   if (vm.body === 'loading') return <p class="cg-notes__empty">{copy.loading}</p>;
@@ -939,9 +1010,15 @@ function Body({ client, copy, vm }: Props & { readonly vm: NotesPanelVM }): JSX.
   }
   return (
     <>
+      {vm.transfer === null ? null : <TransferCard client={client} copy={copy} transfer={vm.transfer} />}
       {/* Keyed by the fan: «Заполнить вручную» opened for one fan is not open for the next. */}
       {vm.form === null ? null : <FormSection key={`${vm.fan?.handle ?? ''}|${vm.form.noteId ?? ''}`} client={client} copy={copy} vm={vm} form={vm.form} />}
       <NotesSection client={client} copy={copy} vm={vm} />
+      {vm.copyable && vm.editor === null ? (
+        <div class="cg-notes__transfer-foot">
+          <Button variant="quiet" size="sm" label={copy.transferCopy} tooltip={copy.transferCopyHint} {...(vm.writing ? { reason: copy.transferReason.writing } : {})} onClick={() => client.dispatch({ type: 'transfer-copy' })} />
+        </div>
+      ) : null}
     </>
   );
 }

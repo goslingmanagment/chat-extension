@@ -177,6 +177,17 @@ ${p}__seen { position: absolute; right: 8px; top: 5px; color: var(--cg-good-ink)
 @keyframes cg-notes-seen { 0% { opacity: 0; transform: scale(0.7); } 12% { opacity: 0.85; transform: none; } 65% { opacity: 0.7; } 100% { opacity: 0; } }
 ${p}__scan { position: absolute; left: 0; right: 0; top: -60px; height: 60px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgb(217 119 87 / 0), rgb(217 119 87 / 0.12) 55%, rgb(217 119 87 / 0)); animation: cg-notes-scan 1.6s var(--cg-ease) infinite; }
 @keyframes cg-notes-scan { 0% { top: -60px; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+${p}__transfer { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 7px 6px 7px 10px; border-radius: var(--cg-r-md); background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule); color: var(--cg-ink-2); font-size: var(--cg-text-sm); line-height: 18px; animation: cg-notes-in 260ms var(--cg-ease); }
+${p}__transfer.is-offer { flex-wrap: wrap; align-items: center; background: var(--cg-draft); box-shadow: inset 0 0 0 1px var(--cg-clay-line); }
+${p}__transfer.is-done, ${p}__transfer.is-copied { background: var(--cg-good-bg); box-shadow: inset 0 0 0 1px var(--cg-good-line); color: var(--cg-good-ink); }
+${p}__transfer-i { flex: none; display: inline-flex; padding-top: 2px; }
+${p}__transfer-t { flex: 1 1 220px; min-width: 0; display: grid; gap: 2px; }
+${p}__transfer-t b { color: var(--cg-ink-strong); font-weight: 600; }
+${p}__transfer-p { color: var(--cg-ink-strong); font-size: var(--cg-text-xs); line-height: 16px; }
+${p}__transfer-acts { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+${p}__transfer-foot { display: flex; justify-content: flex-end; margin: 4px -6px 0 0; }
+${p}__transfer-foot .cg-btn { color: var(--cg-ink-faint); }
+${p}__transfer-foot .cg-btn:hover { color: var(--cg-ink-2); }
 ${p}__notice { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 8px; padding: 5px 6px 5px 10px; border-radius: var(--cg-r-md); background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule); color: var(--cg-ink-2); font-size: var(--cg-text-sm); line-height: 17px; }
 ${p}__notice-t { flex: 1 1 200px; display: flex; align-items: center; gap: 6px; }
 ${p}__notice.is-failed ${p}__notice-t { color: var(--cg-ink-strong); }
@@ -249,7 +260,7 @@ ${p}__toast-b:focus-visible { outline: 2px solid var(--cg-clay); outline-offset:
 ${p}__toast-b[aria-disabled='true'] { opacity: 0.6; cursor: default; }
 @keyframes cg-notes-toast { from { opacity: 0; transform: translate(-50%, 6px); } }
 @media (prefers-reduced-motion: reduce) {
-  ${p}__pill, ${p}__pill-saving, ${p}__toast, ${p}__sugbar, ${p}__done, ${p}__run-mark, ${p}__frow.is-fresh ${p}__fact-t, ${p}__frow.is-fresh > ${p}__label { animation: none; }
+  ${p}__pill, ${p}__pill-saving, ${p}__toast, ${p}__sugbar, ${p}__done, ${p}__transfer, ${p}__run-mark, ${p}__frow.is-fresh ${p}__fact-t, ${p}__frow.is-fresh > ${p}__label { animation: none; }
   ${p}__scan, ${p}__landed, ${p}__seen { display: none; }
   ${p}__run-bar.is-busy > i, ${p}__run-bar.is-eta > i { animation: none; left: 0; width: 100%; opacity: 0.4; }
   ${p}__pill { transition: none; }

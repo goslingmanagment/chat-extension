@@ -308,4 +308,49 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     w.notes.sync();
     expect(w.notes.panel()).toMatchObject({ body: 'loading', quick: { text: '' } });
   });
+  it('[2026-10-29] the fan’s old account: its notes copied in its chat move to the new account’s by «Вставить сюда», once; the questionnaire’s facts wait in the rows for ✓', async () => {
+    const w = await opened();
+    expect(w.notes.panel().copyable).toBe(true);
+    w.notes.dispatch({ type: 'transfer-copy' });
+    expect(w.notes.panel().transfer).toMatchObject({ status: 'copied', form: true, notes: 1 });
+    w.go(B);
+    // The panel stays open on the next chat; closed and opened again, it reads that chat now.
+    w.notes.dispatch({ type: 'toggle' });
+    w.notes.dispatch({ type: 'toggle' });
+    await w.settle();
+    expect(w.notes.panel().transfer).toMatchObject({ status: 'offer', from: { handle: 'alex' }, form: true, notes: 1, reason: null });
+    w.notes.dispatch({ type: 'transfer-paste' });
+    w.notes.dispatch({ type: 'transfer-paste' });
+    await w.settle();
+    // FBuddy's note stays where it is; the free note is created once, with its own title and text.
+    expect(w.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '92' }, '', 'старая заметка', { origin: 'transfer' });
+    const panel = w.notes.panel();
+    expect(panel.transfer).toMatchObject({ status: 'moved', written: 1, skipped: 0, suggested: 4, problem: null });
+    expect(panel.form?.fill).toMatchObject({ status: 'review', transfer: true, pending: 4, unfound: [] });
+    const rows = panel.form?.parts.flatMap((part) => (part.kind === 'field' && part.suggestion !== undefined ? [`${part.label}: ${part.suggestion.value}`] : []));
+    expect(rows).toEqual(['Имя: Алекс', 'Локация: Рига', 'Хобби: бег; по утрам', 'Другое: старый аккаунт @alex']);
+    w.notes.dispatch({ type: 'suggestions-accept-all' });
+    await w.settle();
+    expect(w.port.create).toHaveBeenLastCalledWith({ accountId: '7', fanId: '92' }, NOTE_TEMPLATE_TITLE, expect.stringContaining('Имя: Алекс'), expect.objectContaining({ origin: 'transfer' }));
+    // The copy is done with: no other chat offers it again.
+    w.go(A);
+    expect(w.notes.panel().transfer).toBeNull();
+  });
+
+  it('[2026-10-29] «Вставить сюда» skips a note already there and only offers the facts the questionnaire lacks', async () => {
+    const w = await opened();
+    w.notes.dispatch({ type: 'transfer-copy' });
+    const C: NotesTarget = { accountId: '7', groupId: '83', fanId: '93', fan: null };
+    w.port.read.mockImplementationOnce(() => Promise.resolve({ ok: true as const, fanRef: '93', notes: [note('11', 'Анкета', 'Имя: Алекс\nЛокация: Рига; Юрмала\nДругое: '), note('12', '', 'старая заметка')], customName: null }));
+    w.go(C);
+    w.notes.dispatch({ type: 'toggle' });
+    w.notes.dispatch({ type: 'toggle' });
+    await w.settle();
+    w.notes.dispatch({ type: 'transfer-paste' });
+    await w.settle();
+    expect(w.port.create).not.toHaveBeenCalled();
+    expect(w.notes.panel().transfer).toMatchObject({ status: 'moved', written: 0, skipped: 1 });
+    const rows = w.notes.panel().form?.parts.flatMap((part) => (part.kind === 'field' && part.suggestion !== undefined ? [`${part.label}: ${part.suggestion.value}`] : []));
+    expect(rows).toEqual(['Другое: старый аккаунт @alex', 'Хобби: бег; по утрам']);
+  });
 });

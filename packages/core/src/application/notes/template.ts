@@ -10,3 +10,7 @@ export const NOTE_TEMPLATE_TITLE = 'Анкета';
 export const NOTE_OTHER_LABEL = 'Другое';
 export const NOTE_TEMPLATE_LABELS: readonly string[] = ['Имя', 'Локация', 'Возраст', 'Работа', 'График', 'Хобби', 'Планы и даты', 'Фетиши', 'Характеристика', 'Медиа', NOTE_OTHER_LABEL];
 export const NOTE_TEMPLATE_TEXT = NOTE_TEMPLATE_LABELS.map((label) => `${label}: `).join('\n');
+
+/** 2026-10-29: the fact «Другое» gets with a questionnaire moved from the fan's old account (`from` — its @handle, or its
+ * name): the team's notes are in Russian, as the template is. */
+export const noteTransferMark = (from: string): string => `старый аккаунт ${from}`;

@@ -138,6 +138,26 @@ const RU: NotesCopy = {
   foreignHint: 'Её ведёт FBuddy: только чтение, ChatGoose её не правит и не удаляет',
   created: 'Создана',
   createdAt: 'в',
+
+  transferCopy: 'Перенести на новый аккаунт фана',
+  transferCopyHint: 'Фан пишет с другого аккаунта? Скопируйте его анкету и заметки, откройте чат нового аккаунта и нажмите там «Вставить сюда»',
+  transferCopied: 'Скопировано: {what}. Откройте чат нового аккаунта фана и нажмите там «Вставить сюда».',
+  transferOffer: 'Заметки с аккаунта {from}: {what}',
+  transferForm: 'анкета',
+  transferNotes: ['{n} заметка', '{n} заметки', '{n} заметок'],
+  transferAnd: ' и ',
+  transferPaste: 'Вставить сюда',
+  transferPasteHint: 'Заметки появятся у этого фана, а анкета встанет подсказками в строки: каждую запишете ✓',
+  transferDrop: 'Не переносить',
+  transferReason: { editing: 'Сначала сохраните или отмените правку', writing: 'Подождите, идёт запись в Fansly', fill: 'Сначала примите или скройте подсказки Гуся' },
+  transferMoving: 'Переношу заметки: {k} из {n}…',
+  transferMoved: 'Перенесено заметок: {n}',
+  transferSkipped: ', уже были здесь: {s}',
+  transferFormWaits: 'Анкета со старого аккаунта ниже: запишите ✓ то, что нужно.',
+  transferNothing: 'Здесь уже есть всё с того аккаунта.',
+  transferProblem: 'Не все заметки перенеслись, одна могла записаться. Нажмите «Обновить» вверху, потом «Вставить сюда» ещё раз: перенесённые не повторятся.',
+  transferBar: 'Со старого аккаунта {n}',
+  transferQuote: 'Из анкеты старого аккаунта',
 };
 
 const EN: NotesCopy = {
@@ -276,6 +296,26 @@ const EN: NotesCopy = {
   foreignHint: 'FBuddy keeps it: read only, ChatGoose never edits or deletes it',
   created: 'Created',
   createdAt: 'at',
+
+  transferCopy: "Move to the fan's new account",
+  transferCopyHint: "The fan writes from another account? Copy their questionnaire and notes, open the new account's chat and press «Paste here» there",
+  transferCopied: "Copied: {what}. Open the chat of the fan's new account and press «Paste here» there.",
+  transferOffer: 'Notes from account {from}: {what}',
+  transferForm: 'questionnaire',
+  transferNotes: ['{n} note', '{n} notes', '{n} notes'],
+  transferAnd: ' and ',
+  transferPaste: 'Paste here',
+  transferPasteHint: 'The notes appear on this fan, the questionnaire comes as suggestions in its rows: write each with ✓',
+  transferDrop: "Don't move",
+  transferReason: { editing: 'Save or cancel the edit first', writing: 'Wait: writing to Fansly', fill: "Take or hide the Goose's suggestions first" },
+  transferMoving: 'Moving notes: {k} of {n}…',
+  transferMoved: 'Notes moved: {n}',
+  transferSkipped: ', already here: {s}',
+  transferFormWaits: "The old account's questionnaire is below: write what you need with ✓.",
+  transferNothing: 'Everything from that account is here already.',
+  transferProblem: 'Not every note moved, one may have landed. Press «Refresh» at the top, then «Paste here» again: moved notes are not repeated.',
+  transferBar: 'From the old account {n}',
+  transferQuote: "From the old account's questionnaire",
 };
 
 export const NOTES_TEXTS: { readonly ru: NotesCopy; readonly en: NotesCopy } = { ru: RU, en: EN };
