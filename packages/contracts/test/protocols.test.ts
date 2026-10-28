@@ -94,8 +94,8 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
       expect(entry.retry === 'after-deadline', entry.code).toBe(entry.recovery === 'wait-until');
       if (entry.retry === 'never') expect(['retry', 'new-generation'], entry.code).not.toContain(entry.recovery);
     }
-    // An unknown write is read again, never written again (FS-NOTE-4, FS-VLT-1).
-    expect(F.cgFanslyEntry('CG-NOTE-UNCERTAIN').retry).toBe('safe-read');
+    // An unknown write is read again, never written again (FS-NOTE-4, FS-VLT-1); the notes' codes are shared since 2026-10-28.
+    expect(C.CG_REGISTRY['CG-NOTE-UNCERTAIN'].retry).toBe('safe-read');
     expect(F.cgFanslyEntry('CG-VAULT-UNCERTAIN').recovery).toBe('none');
   });
 

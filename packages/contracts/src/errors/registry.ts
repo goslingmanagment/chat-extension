@@ -164,6 +164,11 @@ const SPECS = {
   'CG-VOICE-ATTACH-PERMISSION': { kind: 'voice', severity: 'warn', recovery: 'contact-owner', retry: 'none', telemetry: 'count' },
   // The composer already holds an audio (one per message), or the site's upload window is still open.
   'CG-VOICE-ATTACH-BUSY': { kind: 'voice', severity: 'info', recovery: 'none', retry: 'new-click', telemetry: 'count' },
+  // ── «Заметки», on both sites since 2026-10-28 (from the Fansly registry; the codes and their meanings unchanged) ──
+  'CG-NOTE-READ': { kind: 'note', severity: 'warn', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
+  'CG-NOTE-WRITE': { kind: 'note', severity: 'error', recovery: 'retry', retry: 'new-click', telemetry: 'count' },
+  'CG-NOTE-UNCERTAIN': { kind: 'note', severity: 'warn', recovery: 'retry', retry: 'safe-read', telemetry: 'count+sample' },
+  'CG-NOTE-TOO-LONG': { kind: 'note', severity: 'warn', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-NETWORK': { kind: 'network', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
   'CG-TIMEOUT': { kind: 'network', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count' },
   'CG-STORAGE-READ': { kind: 'storage', severity: 'error', recovery: 'retry', retry: 'safe-read', telemetry: 'count+sample', settings: 'diagnostics' },
