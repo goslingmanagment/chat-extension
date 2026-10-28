@@ -100,12 +100,14 @@ export function createOmNotesStore(deps: OmNotesStoreDeps) {
     const cut = raw.cut || title.length > NOTE_LIMITS.titleMaxChars || text.length > NOTE_LIMITS.textMaxChars;
     const color = colorOf(raw.color);
     const at = raw.createdAt === null ? NaN : Date.parse(raw.createdAt);
+    const changed = raw.updatedAt === null ? NaN : Date.parse(raw.updatedAt);
     return {
       noteId: raw.noteId,
       title: cut ? title.slice(0, NOTE_LIMITS.titleMaxChars) : title,
       text: cut ? text.slice(0, NOTE_LIMITS.textMaxChars) : text,
       foreign: false,
       createdAtMs: Number.isFinite(at) && at > 0 ? at : null,
+      updatedAtMs: Number.isFinite(changed) && changed > 0 ? changed : null,
       ...(cut ? { cut: true as const } : {}),
       ...(color === null ? {} : { color }),
     };

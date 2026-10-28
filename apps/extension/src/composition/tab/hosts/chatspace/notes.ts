@@ -19,16 +19,21 @@
 //   the questionnaire's labels and values ride in the hub's request body only. Its stage comes as `op.update`, its end as
 //   `notes.fill.done`, or with the read right after the admission.
 // - OnlyMonster's socket says when the notes change (`user-notes`): an open panel reads them again (with the tap on).
+// - 2026-10-29: each write OnlyMonster took is told to the hub's record of who wrote each note (`notes.written`; ids,
+//   the action, where in the panel, never a text), and the questionnaire says who created it and who changed it last
+//   (`notes.authors`), as on Fansly.
 // - The page's switch is read from the hub's context; its last answer holds while the context is read again or the
 //   background is out of reach, as on Fansly. A context that says no takes the button, the key and the panel away.
 
 import { AI_REQUEST_LIMITS } from '@cg/contracts/limits';
 import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
+import type { NoteAttributionAction } from '@cg/contracts/hub';
 import type { NotesAction, NotesClient } from '@cg/contracts/notes';
+import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext, failureClass, type PageContextState } from '@cg/core/application/boards';
 import { createOmNotesStore } from '@cg/core/application/hosts/chatspace/notes';
-import { createNotesController, notesActionFacts, notesAvailability, type NotesPort } from '@cg/core/application/notes';
+import { createNotesController, notesActionFacts, notesAvailability, type NoteWriteHow, type NotesPort } from '@cg/core/application/notes';
 import { admittedOn } from '@cg/core/domain/features';
 import { omNoteText, omNoteWrite } from '@cg/core/domain/hosts/chatspace/notes-html';
 import { CHATSPACE_NOTES_TEXTS } from '@cg/core/domain/hosts/chatspace/i18n/notes';
@@ -79,6 +84,15 @@ export function startChatSpaceNotes(env: SiteAppEnv<ChatSpaceHostPort>): () => v
     return chat !== null && chat.hostAccountId === accountId && chat.platformFanId === fanId ? chat : null;
   };
   const gone = { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } } as const;
+  /** The hub page this tab works, as the context last read it. */
+  const pageIdOf = (): number | undefined => context.current().page?.pageId;
+  /** A write OnlyMonster took, told to the hub's record of who wrote each note (the background admits and owes it). */
+  const told = (fanRef: string, noteRef: string, action: NoteAttributionAction, how: NoteWriteHow | undefined): void => {
+    const pageId = pageIdOf();
+    if (pageId === undefined || !NATIVE_ID_PATTERN.test(noteRef)) return;
+    const origin = how === undefined ? {} : { origin: how.origin, ...(how.fields === undefined ? {} : { fields: [...how.fields] }) };
+    void rpc.request('notes.written', { pageId, fanRef, noteRef, action, ...origin }, { timeoutMs: NOTES_REQUEST_TIMEOUT_MS }).catch(() => undefined);
+  };
 
   const port: NotesPort = {
     session() {
@@ -104,17 +118,32 @@ export function startChatSpaceNotes(env: SiteAppEnv<ChatSpaceHostPort>): () => v
       const read = await store.read(chat);
       return read.ok ? { ok: true, fanRef: chat.platformFanId, notes: read.notes, customName: null } : read;
     },
-    async create(who, title, text) {
+    async create(who, title, text, how) {
       const chat = openChat(who.accountId, who.fanId);
-      return store === null || chat === null ? gone : store.create(chat, title, text);
+      if (store === null || chat === null) return gone;
+      const made = await store.create(chat, title, text);
+      if (made.ok) told(who.fanId, made.note.noteId, 'created', how);
+      return made;
     },
-    async edit(who, noteId, title, text, current) {
+    async edit(who, noteId, title, text, current, how) {
       const chat = openChat(who.accountId, who.fanId);
-      return store === null || chat === null ? gone : store.edit(chat, noteId, title, text, current);
+      if (store === null || chat === null) return gone;
+      const changed = await store.edit(chat, noteId, title, text, current);
+      if (changed.ok) told(who.fanId, noteId, 'edited', how);
+      return changed;
     },
-    async remove(who, note) {
+    async remove(who, note, how) {
       const chat = openChat(who.accountId, who.fanId);
-      return store === null || chat === null ? gone : store.remove(chat, note.noteId);
+      if (store === null || chat === null) return gone;
+      const removed = await store.remove(chat, note.noteId);
+      if (removed.ok) told(who.fanId, note.noteId, 'deleted', how);
+      return removed;
+    },
+    async authors(_t, fanId) {
+      const pageId = pageIdOf();
+      if (pageId === undefined) return null;
+      const answer = await rpc.request('notes.authors', { pageId, fanRef: fanId }, { timeoutMs: NOTES_REQUEST_TIMEOUT_MS }).catch(() => null);
+      return answer === null || !answer.ok || !answer.payload.ok ? null : new Map(answer.payload.notes.map((note) => [note.noteId, { created: note.created, edited: note.edited }]));
     },
     // No «Имя для себя» on ChatSpace: the panel shows the fan's own name (`name` absent).
     fillAllowed,

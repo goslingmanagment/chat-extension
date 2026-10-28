@@ -35,6 +35,7 @@ import {
   type RecapStatus,
   type SendAttributionsRequest,
   type SendAttributionsResult,
+  type FanNoteAttributions,
   type NoteAttributionsRequest,
   type NoteAttributionsResult,
   type ActivityBeatRequest,
@@ -1142,12 +1143,14 @@ export class DataModel {
   }
 
   /**
-   * As the hub's `clientNoteAttributions`: Fansly pages only, the person is the token's, one row per event of a page —
+   * As the hub's `clientNoteAttributions`: Fansly's on Fansly pages, ChatSpace's on OnlyFans ones (hub #912), the person
+   * is the token's, one row per event of a page —
    * the first report wins, a repeat of the same person, note and action is `duplicate`, anything else `conflict` — and
    * a time more than 5 minutes ahead or 30 days back is `out_of_range`, stored nowhere.
    */
   noteAttributions(page: FakePage, userId: number, request: NoteAttributionsRequest, now: number): Read<NoteAttributionsResult> {
-    if (page.platform !== 'fansly' || request.source !== 'fansly-extension') return no('client_feature_disabled', 'platform_unsupported');
+    const admitted = page.platform === 'fansly' ? 'fansly-extension' : page.platform === 'onlyfans' ? 'chatspace-extension' : null;
+    if (request.source !== admitted) return no('client_feature_disabled', 'platform_unsupported');
     const results = request.facts.map((fact) => {
       const at = Date.parse(fact.observedAt);
       if (at > now + 5 * 60_000 || at < now - 30 * DAY_MS) return { eventId: fact.eventId, outcome: 'out_of_range' };
@@ -1165,6 +1168,39 @@ export class DataModel {
 
   noteAttributionRows(): readonly FakeNoteAttribution[] {
     return [...this.noteWrites.values()];
+  }
+
+  /** A scenario's record of a write made before the run (another chatter's), as if reported then. */
+  seedNoteAttribution(row: FakeNoteAttribution): void {
+    this.noteWrites.set(`${row.pageLabel}|${row.eventId.toLowerCase()}`, row);
+  }
+
+  /**
+   * As the hub's `clientFanNoteAttributions` (hub #912): each note of the fan with a recorded write, the latest written
+   * first — its earliest `created` and its latest `edited`; a note whose latest write is a delete is left out.
+   */
+  fanNoteAttributions(page: FakePage, fanRef: string, me: number, name: (userId: number) => string, now: number): FanNoteAttributions {
+    const byNote = new Map<string, FakeNoteAttribution[]>();
+    for (const row of this.noteWrites.values()) {
+      if (row.pageLabel !== page.pageLabel || row.fanRef !== fanRef) continue;
+      byNote.set(row.noteRef, [...(byNote.get(row.noteRef) ?? []), row]);
+    }
+    const who = (row: FakeNoteAttribution | undefined) => (row === undefined ? null : { userId: row.userId, name: row.name ?? name(row.userId), isMe: row.userId === me, at: row.observedAt });
+    const notes = [...byNote.entries()]
+      .map(([noteRef, rows]) => {
+        const sorted = [...rows].sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
+        return { noteRef, rows: sorted, last: sorted.at(-1) as FakeNoteAttribution };
+      })
+      .filter((note) => note.last.action !== 'deleted')
+      .sort((a, b) => Date.parse(b.last.observedAt) - Date.parse(a.last.observedAt))
+      .slice(0, 200)
+      .map(({ noteRef, rows, last }) => ({
+        noteRef,
+        noteKind: last.noteKind,
+        created: who(rows.find((row) => row.action === 'created')),
+        edited: who([...rows].reverse().find((row) => row.action === 'edited')),
+      }));
+    return { pageLabel: page.pageLabel, fanRef, notes, serverNow: iso(now) };
   }
 
   /** Chat Memory week 1, as the hub's `clientActivity`: each named page granted to the caller is recorded, others skipped. */
@@ -1493,6 +1529,8 @@ export interface FakeNoteAttribution {
   readonly origin?: string | undefined;
   readonly fields?: readonly string[] | undefined;
   readonly observedAt: string;
+  /** A seeded colleague's login (`noteWrite`); absent — the user's own. */
+  readonly name?: string | undefined;
 }
 
 /** One recorded send (X48): ids, the person, a time, two marks and how the text was written; never a text. */

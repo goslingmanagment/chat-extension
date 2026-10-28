@@ -46,6 +46,7 @@ import {
   type HubStreamRequest,
   type IngestBatch,
   type SendAttributionsRequest,
+  type FanNoteAttributionsQuery,
   type NoteAttributionsRequest,
   type ActivityBeatRequest,
   type FanCard,
@@ -481,6 +482,11 @@ export class FakeHub {
       case 'spenderFans':
         s.data.useSpenderFans(command.fans);
         return { ok: true, fans: command.fans.length };
+      case 'noteWrite': {
+        this.page(command.pageLabel);
+        s.data.seedNoteAttribution({ pageLabel: command.pageLabel, userId: 9_000, name: command.login, source: 'seeded', eventId: crypto.randomUUID(), fanRef: command.fanRef, noteRef: command.noteRef, noteKind: 'note', action: command.action, observedAt: command.at });
+        return { ok: true };
+      }
       case 'fanCard':
         this.page(command.pageLabel);
         s.data.setFanCard(command.pageLabel, command.fanRef, command.card as unknown as FanCard);
@@ -1162,6 +1168,8 @@ export class FakeHub {
         return read(s.data.sendAttributions(need(page), need(principal).user.userId, request as SendAttributionsRequest, now));
       case 'clientNoteAttributions':
         return read(s.data.noteAttributions(need(page), need(principal).user.userId, request as NoteAttributionsRequest, now));
+      case 'clientFanNoteAttributions':
+        return { kind: 'json', status: 200, body: s.data.fanNoteAttributions(need(page), (request as FanNoteAttributionsQuery).fanRef, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? 'chatter', now) };
       case 'clientActivity': {
         const who = need(principal).user.userId;
         return read(s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now));

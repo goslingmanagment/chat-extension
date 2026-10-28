@@ -43,6 +43,7 @@ export const HUB_ROUTE_PATHS = {
   clientAiUsageDaily: '/api/v1/client/pages/:pageLabel/ai-usage',
   clientSendAttributions: '/api/v1/client/pages/:pageLabel/send-attributions',
   clientNoteAttributions: '/api/v1/client/pages/:pageLabel/note-attributions',
+  clientFanNoteAttributions: '/api/v1/client/pages/:pageLabel/fans/:fanRef/note-attributions',
   clientActivity: '/api/v1/client/activity',
   clientInConversation: '/api/v1/client/pages/:pageLabel/in-conversation',
   clientFanCard: '/api/v1/client/pages/:pageLabel/fans/:fanRef/card',

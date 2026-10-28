@@ -138,6 +138,8 @@ const RU: NotesCopy = {
   foreignHint: 'Её ведёт FBuddy: только чтение, ChatGoose её не правит и не удаляет',
   created: 'Создана',
   createdAt: 'в',
+  formEdited: 'изменена',
+  formYou: 'вы',
 
   transferCopy: 'Перенести на новый аккаунт фана',
   transferCopyHint: 'Фан пишет с другого аккаунта? Скопируйте его анкету и заметки, откройте чат нового аккаунта и нажмите там «Вставить сюда»',
@@ -296,6 +298,8 @@ const EN: NotesCopy = {
   foreignHint: 'FBuddy keeps it: read only, ChatGoose never edits or deletes it',
   created: 'Created',
   createdAt: 'at',
+  formEdited: 'edited',
+  formYou: 'you',
 
   transferCopy: "Move to the fan's new account",
   transferCopyHint: "The fan writes from another account? Copy their questionnaire and notes, open the new account's chat and press «Paste here» there",

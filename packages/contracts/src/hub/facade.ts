@@ -45,7 +45,7 @@ import {
   type StatsQuery,
 } from './spenders';
 import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
-import { type NoteAttributionsRequest, type NoteAttributionsResult } from './note-attribution';
+import { type FanNoteAttributions, type FanNoteAttributionsQuery, type NoteAttributionsRequest, type NoteAttributionsResult } from './note-attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
 import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
 import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineQuery } from './online';
@@ -191,6 +191,8 @@ export interface HubFacade {
    * caller's journal owns what is owed.
    */
   noteAttributions(request: NoteAttributionsRequest): Promise<NoteAttributionsResult>;
+  /** 2026-10-29: who created each of a fan's notes and who changed it last (`note-attribution-read-v1`). */
+  fanNoteAttributions(query: FanNoteAttributionsQuery): Promise<FanNoteAttributions>;
   /**
    * Chat Memory week 1: the beat of the person signed in. Refused here without `chatter-activity-v1`; no page grant is
    * checked (the hub skips a page that is not theirs). Never repeated: a lost beat is just lost.

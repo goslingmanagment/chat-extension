@@ -529,6 +529,17 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'notes.fill.read': { req: { valid: [{ opId: uuid(0x560) }], invalid: [{ opId: 'x' }] }, res: { valid: [{ view: notesFillView }, { view: null }], invalid: [{ view: {} }, { view: { ...notesFillView, result: undefined } }] } },
   'notes.fill.cancel': { req: { valid: [{ opId: uuid(0x560) }], invalid: [{}] }, res: { valid: [{ state: 'canceled' }, { state: null }], invalid: [{ state: 'queued' }] } },
+  'notes.authors': {
+    req: { valid: [{ pageId: 3, fanRef: '74001001' }], invalid: [{ pageId: 3 }, { pageId: 3, fanRef: 'x' }] },
+    res: {
+      valid: [{ ok: true, notes: [{ noteId: '8901', created: { name: 'kate', me: true, atMs: 1_761_700_000_000 }, edited: null }] }, { ok: true, notes: [] }, { ok: false, code: 'not_admitted' }],
+      invalid: [{ ok: true, notes: [{ noteId: '8901', created: { name: 'kate', me: true, atMs: 0 }, edited: null }] }, { ok: true }],
+    },
+  },
+  'notes.written': {
+    req: { valid: [{ pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'created', origin: 'field', fields: ['Имя'] }, { pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'deleted' }], invalid: [{ pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'moved' }] },
+    res: { valid: [{ queued: true }, { queued: false }], invalid: [{}] },
+  },
   'site.access': {
     req: { valid: [{ host: 'fansly-web' }, { host: 'fansly-web', enabled: true }, { host: 'fansly-web', reload: true }], invalid: [{ host: 'other' }, { host: 'fansly-web', enabled: 'yes' }] },
     res: { valid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 2 }, { host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 1, reloaded: 1 }], invalid: [{ host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: -1 }, { host: 'fansly-web', enabled: true, granted: true, registered: true, waitingReload: 0, reloaded: -1 }] },

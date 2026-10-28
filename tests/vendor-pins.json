@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "e67afc616a744f9894960e4f812359c59f991a68952040844d870312e48a0e49",
-    "sourceCommit": "52e09102495da00f0200ae1c169d6de40a57d0b3",
-    "note": "Vendored on 2026-10-28 from hub main 52e09102 (#909, deployed to prod) with scripts/vendor-sdk.mjs: platform `telegram`, the bootstrap page's optional `defaultPersonaKey`, the capability `telegram-ai-v1`. Re-vendor with the same script and update this pin together."
+    "contractHash": "31b105f2f98cf59efa19b23096f327ee74324093ebcd6e0cb59d6cf71d04578b",
+    "sourceCommit": "17e9e2f4a22032c801432750873e17eae48e9e7b",
+    "note": "Vendored on 2026-10-29 from hub main 17e9e2f4 (#912 + #913) with scripts/vendor-sdk.mjs: `clientFanNoteAttributions` (who created and last edited a fan's notes, `note-attribution-read-v1`), ChatSpace's `chatspace-extension` note reports, the origin `transfer`. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

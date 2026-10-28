@@ -177,6 +177,9 @@ ${p}__seen { position: absolute; right: 8px; top: 5px; color: var(--cg-good-ink)
 @keyframes cg-notes-seen { 0% { opacity: 0; transform: scale(0.7); } 12% { opacity: 0.85; transform: none; } 65% { opacity: 0.7; } 100% { opacity: 0; } }
 ${p}__scan { position: absolute; left: 0; right: 0; top: -60px; height: 60px; z-index: 1; pointer-events: none; background: linear-gradient(180deg, rgb(217 119 87 / 0), rgb(217 119 87 / 0.12) 55%, rgb(217 119 87 / 0)); animation: cg-notes-scan 1.6s var(--cg-ease) infinite; }
 @keyframes cg-notes-scan { 0% { top: -60px; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+${p}__meta { margin: -6px 0 10px; color: var(--cg-ink-faint); font-size: var(--cg-text-xs); line-height: 16px; }
+${p}__meta b { color: var(--cg-ink-2); font-weight: 500; }
+${p}__meta-p { white-space: nowrap; }
 ${p}__transfer { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; padding: 7px 6px 7px 10px; border-radius: var(--cg-r-md); background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule); color: var(--cg-ink-2); font-size: var(--cg-text-sm); line-height: 18px; animation: cg-notes-in 260ms var(--cg-ease); }
 ${p}__transfer.is-offer { flex-wrap: wrap; align-items: center; background: var(--cg-draft); box-shadow: inset 0 0 0 1px var(--cg-clay-line); }
 ${p}__transfer.is-done, ${p}__transfer.is-copied { background: var(--cg-good-bg); box-shadow: inset 0 0 0 1px var(--cg-good-line); color: var(--cg-good-ink); }

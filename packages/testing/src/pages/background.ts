@@ -482,6 +482,8 @@ export class FakePageBackground implements PageRpc {
       case 'notes.fill.start':
       case 'notes.fill.read':
       case 'notes.fill.cancel':
+      case 'notes.authors':
+      case 'notes.written':
         return refuse('CG-UNKNOWN', `${type} is not scripted`);
     }
   }

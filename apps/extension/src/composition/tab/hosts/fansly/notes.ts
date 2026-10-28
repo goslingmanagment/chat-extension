@@ -125,6 +125,13 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       const to = target(who.accountId, who.fanId);
       return to === null ? refused : await ask('fansly.notes.name', { ...to, name, current });
     },
+    // 2026-10-29: who created each note and who changed it last, the hub's record of the writes the background tells it.
+    async authors(_t, fanId) {
+      const id = pageId();
+      if (id === undefined) return null;
+      const answer = await rpc.request('notes.authors', { pageId: id, fanRef: fanId }, { timeoutMs: NOTES_REQUEST_TIMEOUT_MS }).catch(() => null);
+      return answer === null || !answer.ok || !answer.payload.ok ? null : new Map(answer.payload.notes.map((note) => [note.noteId, { created: note.created, edited: note.edited }]));
+    },
     fillAllowed,
     async fill(t, fanId, fields, values) {
       const { route, accounts, identity } = host.current();

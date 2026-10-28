@@ -51,6 +51,7 @@ import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStat
 import { SETTINGS_OPTIONS_ONLY_SECTIONS, SettingsPatchSchema, SettingsStateSchema, SettingsV1Schema, ToneIdSchema } from './settings';
 import { FANSLY_NOTES_VIEWS } from './settings-ext';
 import { NotesFillOpViewSchema, NotesFillStartSchema } from './notes-fill';
+import { NOTE_ATTRIBUTION_ACTIONS } from './hub/note-attribution';
 import { TabRegisterRequestSchema, TabRegisterResponseSchema, senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { VOICE_LIMITS, VoiceAllowanceSchema, VoiceAudioSchema, VoiceScriptStartSchema, VoiceSessionSchema, VoiceWriteResultSchema } from './voice';
 import { JOURNAL_KINDS } from './vm/selectors';
@@ -345,6 +346,15 @@ const ANY = ['tab', 'page'] as const satisfies readonly TabSender[];
  * background (its own machine and journal) and finds «Новые» by its own pass; a fansly.com tab never sends these.
  */
 const CHATSPACE = ['chatspace'] as const satisfies readonly HostKind[];
+
+/** 2026-10-29: one write as the background tells it to a tab: the login, whether it is the person's own, when. */
+const NoteAuthorSchema = z.strictObject({ name: z.string().check(z.maxLength(120)), me: z.boolean(), atMs: z.int().check(z.gt(0)) });
+/** `notes.authors`: per note the hub knows a write of, who created it and who changed it last; or why none is known. */
+export const NotesAuthorsSchema = z.union([
+  z.strictObject({ ok: z.literal(true), notes: z.array(z.strictObject({ noteId: NativeIdSchema, created: z.nullable(NoteAuthorSchema), edited: z.nullable(NoteAuthorSchema) })).check(z.maxLength(200)) }),
+  z.strictObject({ ok: z.literal(false), code: z.string().check(z.maxLength(64)) }),
+]);
+export type NotesAuthors = z.infer<typeof NotesAuthorsSchema>;
 
 export const TAB_REQUESTS = {
   // ── tab lifecycle ──
@@ -723,6 +733,28 @@ export const TAB_REQUESTS = {
   'notes.fill.read': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ view: z.nullable(NotesFillOpViewSchema) }), from: TAB },
   /** «Остановить»: the fill is cancelled and its answer never lands; null — no such fill. */
   'notes.fill.cancel': { req: z.strictObject({ opId: UuidSchema }), res: z.strictObject({ state: z.nullable(OpStateSchema) }), from: TAB },
+  /**
+   * 2026-10-29 (the owner: «понимать кто и когда создавал анкетку»), every site's tab: who created each of the open
+   * fan's notes and who changed it last, as the hub recorded our writes (`clientFanNoteAttributions`). A page bound to the
+   * tab where the manifest admits `note-authors`; only ids and logins travel.
+   */
+  'notes.authors': { req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema }), res: NotesAuthorsSchema, from: TAB },
+  /**
+   * A write of «Заметки» the site took, from a tab that writes its notes itself (ChatSpace's OnlyMonster notes): told to
+   * the hub's record of who wrote each note. Fansly's background tells its own. `queued` — owed to the hub now.
+   */
+  'notes.written': {
+    req: z.strictObject({
+      pageId: HubIntIdSchema,
+      fanRef: NativeIdSchema,
+      noteRef: NativeIdSchema,
+      action: z.enum(NOTE_ATTRIBUTION_ACTIONS),
+      origin: z.optional(z.string().check(z.maxLength(64))),
+      fields: z.optional(z.array(z.string().check(z.maxLength(1000))).check(z.maxLength(200))),
+    }),
+    res: z.strictObject({ queued: z.boolean() }),
+    from: TAB,
+  },
 
   // ── service ──
   'site.access': { req: SiteAccessRequestSchema, res: SiteAccessStateSchema, from: PAGE, pages: ['popup', 'options'] },

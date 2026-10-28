@@ -262,6 +262,9 @@ export type FakeHubCommand =
   | { readonly op: 'online'; readonly pageLabel: string; readonly items?: readonly Record<string, unknown>[] | null; readonly templates?: readonly Record<string, unknown>[] | null }
   /** Chat Memory week 2: the fan's card as the hub answers it (`clientFanCard`), until a decision or a fact change moves it. */
   | { readonly op: 'fanCard'; readonly pageLabel: string; readonly fanRef: string; readonly card: Record<string, unknown> }
+  /** 2026-10-29: a note write recorded before the run (a colleague's), as `clientNoteAttributions` would have it; the
+   * person by their login (`chatter` — any other). */
+  | { readonly op: 'noteWrite'; readonly pageLabel: string; readonly fanRef: string; readonly noteRef: string; readonly action: 'created' | 'edited' | 'deleted'; readonly login: string; readonly at: string }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
 

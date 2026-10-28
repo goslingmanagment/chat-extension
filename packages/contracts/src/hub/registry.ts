@@ -36,7 +36,7 @@ import {
   StatsQuerySchema,
 } from './spenders';
 import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
-import { NoteAttributionsRequestSchema, NoteAttributionsResultSchema } from './note-attribution';
+import { FanNoteAttributionsQuerySchema, FanNoteAttributionsSchema, NoteAttributionsRequestSchema, NoteAttributionsResultSchema } from './note-attribution';
 import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
 import { HandoffQuerySchema, HandoffSchema, WinBackAttemptRequestSchema, WinBackAttemptResultSchema, WinBackListSchema, WinBackQuerySchema } from './queue';
 import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineQuerySchema } from './online';
@@ -79,6 +79,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientAiUsageDaily: { request: AiUsageQuerySchema, response: AiUsageReportSchema },
   clientSendAttributions: { request: SendAttributionsRequestSchema, response: SendAttributionsResultSchema },
   clientNoteAttributions: { request: NoteAttributionsRequestSchema, response: NoteAttributionsResultSchema },
+  clientFanNoteAttributions: { request: FanNoteAttributionsQuerySchema, response: FanNoteAttributionsSchema },
   clientActivity: { request: ActivityBeatRequestSchema, response: ActivityBeatResultSchema },
   clientInConversation: { request: InConversationQuerySchema, response: InConversationResultSchema },
   clientFanCard: { request: FanCardQuerySchema, response: FanCardSchema },

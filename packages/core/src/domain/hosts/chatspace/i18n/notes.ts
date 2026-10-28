@@ -140,6 +140,8 @@ const RU: NotesCopy = {
   foreignHint: 'Только чтение: ChatGoose её не правит и не удаляет',
   created: 'Создана',
   createdAt: 'в',
+  formEdited: 'изменена',
+  formYou: 'вы',
   colors: { red: 'Красная в Монстре', yellow: 'Жёлтая в Монстре', blue: 'Синяя в Монстре', green: 'Зелёная в Монстре' },
 
   transferCopy: 'Перенести на новый аккаунт фана',
@@ -299,6 +301,8 @@ const EN: NotesCopy = {
   foreignHint: 'Read only: ChatGoose never edits or deletes it',
   created: 'Created',
   createdAt: 'at',
+  formEdited: 'edited',
+  formYou: 'you',
   colors: { red: 'Red in OnlyMonster', yellow: 'Yellow in OnlyMonster', blue: 'Blue in OnlyMonster', green: 'Green in OnlyMonster' },
 
   transferCopy: "Move to the fan's new account",

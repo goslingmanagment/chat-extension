@@ -81,7 +81,7 @@ describe('the report', () => {
   it('a fact the hub would refuse is never taken; the same event is one fact; nobody signed in — nobody wrote it', async () => {
     const { clock, hub, reporter } = world();
     expect(reporter.report(write({ eventId: 'not-a-uuid' }))).toBe('invalid');
-    expect(reporter.report(write({ source: 'chatspace-extension' }))).toBe('invalid');
+    expect(reporter.report(write({ source: 'telegram-extension' }))).toBe('invalid');
     expect(reporter.report(write({ fields: [] }))).toBe('invalid');
     const one = write();
     expect(reporter.report(one)).toBe('queued');
