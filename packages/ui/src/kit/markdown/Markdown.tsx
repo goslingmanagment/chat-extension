@@ -10,10 +10,11 @@ import { useMemo } from 'preact/hooks';
 import { parseMarkdown, type MdBlock, type MdInline } from './parse';
 
 /**
- * A quote of the chat ("…" or “…”) or a sum ($25, $12.50, $30/мес): the old client's INLINE_DECOR_RE. A sum inside a
- * quote stays part of the quote (the earliest match wins).
+ * A quote of the chat ("…" or “…”) or a sum ($25, $12.50, $30/мес): the old client's INLINE_DECOR_RE; since 2026-10-28
+ * also a sum as the hub's Russian Recap writes it («81,97 $», «10-20 $», «1 200 $»). A sum inside a quote stays part of
+ * the quote (the earliest match wins).
  */
-const DECOR = /("[^"\n]{2,200}"|“[^”\n]{2,200}”)|(\$\d+(?:[.,]\d+)?(?:\/[а-яёa-z]+)?)/giu;
+const DECOR = /("[^"\n]{2,200}"|“[^”\n]{2,200}”)|(\$\d+(?:[.,]\d+)?(?:\/[а-яёa-z]+)?|\d[\d \u00a0]*(?:[.,]\d{1,2})?(?:\s?-\s?\d[\d \u00a0]*(?:[.,]\d{1,2})?)?\s?\$)/giu;
 
 export type DecoratedPiece = string | { readonly kind: 'quote' | 'money'; readonly text: string };
 

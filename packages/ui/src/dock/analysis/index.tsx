@@ -9,13 +9,14 @@ import { type JSX } from 'preact';
 
 import { type AnalysisProps, type LazyPart } from '../lazy-part';
 import { RecapView } from './Recap';
+import { RECAP_STYLE } from './recap.css';
 import { ANALYSIS_STYLE } from './styles';
 
 export function AnalysisView({ place, debugPart }: AnalysisProps): JSX.Element {
   return <RecapView place={place} {...(debugPart === undefined ? {} : { debugPart })} />;
 }
 
-export const analysisPart: LazyPart<AnalysisProps> = { view: AnalysisView, styles: [ANALYSIS_STYLE] };
+export const analysisPart: LazyPart<AnalysisProps> = { view: AnalysisView, styles: [ANALYSIS_STYLE, RECAP_STYLE] };
 
 export { RecapView } from './Recap';
 export { Block, CopyAll, MadeAgo, Score, type BlockTone } from './shared';

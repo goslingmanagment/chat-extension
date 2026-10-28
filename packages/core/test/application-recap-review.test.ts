@@ -111,6 +111,18 @@ describe('recap: the sheet and what is saved', () => {
 });
 
 describe('recap: building one', () => {
+  it('[2026-10-28] a build names the sections it wrote and the one it writes: the window shows them as they come', async () => {
+    const h = await start();
+    h.bg.hub.profileScript.push(saved);
+    await openRecap(h);
+    h.script({ kind: 'stream', steps: [{ kind: 'frame', frame: meta('fan-summary') }, delta(FULL_TEXT.slice(0, 40)), delta(FULL_TEXT.slice(40), 100), doneStep] });
+    await h.dispatch({ type: 'RefreshRecap', length: 'full' });
+    await h.clock.advance(20);
+    expect(h.recapView().written).toMatchObject({ done: [{ key: null, name: 'Кто он', parts: [{ kind: 'text', text: 'Марк, 34, Остин.' }] }], writing: { key: null, name: 'Деньги' } });
+    await h.finish();
+    expect(h.recapView()).toMatchObject({ written: null, doc: { sections: [{ name: 'Кто он' }, { name: 'Деньги' }, { name: 'Что дальше' }] } });
+  });
+
   it('[AI-062] [AI-064] «Полный» builds over the deep window — always a new generation, past the cache', async () => {
     const h = await start();
     h.bg.hub.profileScript.push(saved);

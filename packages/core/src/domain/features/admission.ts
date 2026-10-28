@@ -166,9 +166,10 @@ export function dockChips(
         const action: UiAction | null =
           id === 'coach'
             ? { type: 'Navigate', to: { kind: 'surface', surface: 'coach', open: !own.active } }
-            : // Recap never generates from the bar: the sheet shows what is saved or the picker.
+            : // Recap never generates from the bar: its window shows what is saved or the choice of the two (2026-10-28:
+              // the window opens at once, from the folded «Шпаргалка» too).
               id === 'recap'
-              ? { type: 'ShowAnalysis', view: 'recap', mode: 'sheet' }
+              ? { type: 'ShowAnalysis', view: 'recap', mode: 'expanded' }
               : handle === null
                 ? null
                 : { type: 'Generate', targetHandle: handle, feature: id as FeatureId, options: {} };

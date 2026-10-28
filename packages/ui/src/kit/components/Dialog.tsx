@@ -34,6 +34,8 @@ export interface DialogProps {
   readonly size?: DialogSize;
   /** The 940 scrim under centred dialogs; a press on it closes. */
   readonly scrim?: boolean;
+  /** A class of the scrim's own (the Recap window's stronger one, which it fades in and out itself). */
+  readonly scrimClass?: string;
   /**
    * A press on the scrim: the window closes in one press, as the old Fansly extension's backdrop did. Absent — `onClose`.
    * A window whose `onClose` steps back (Esc clears the search first, then the preview) gives the direct close here.
@@ -116,7 +118,7 @@ export function Dialog(props: DialogProps): JSX.Element | null {
   };
   return (
     <>
-      {props.scrim ?? size !== 'window' ? <div class="cg-scrim" aria-hidden="true" onPointerDown={props.onScrim ?? onClose} /> : null}
+      {props.scrim ?? size !== 'window' ? <div class={props.scrimClass === undefined ? 'cg-scrim' : `cg-scrim ${props.scrimClass}`} aria-hidden="true" onPointerDown={props.onScrim ?? onClose} /> : null}
       <div
         ref={boxRef}
         class={`cg-dialog cg-dialog--${size}${props.class === undefined ? '' : ` ${props.class}`}`}

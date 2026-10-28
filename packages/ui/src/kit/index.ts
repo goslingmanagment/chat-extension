@@ -76,6 +76,7 @@ export {
   type KitMountOptions,
   type SurfaceDefinition,
 } from './mount';
+export { WindowExitContext, anchorRect, useAnchor, useWindowExit, type AnchorName, type WindowExit, type WindowExitSlot } from './anchors';
 export { activeIn, containsFocus, focusQuietly, isComposing, isHeldKey, rovingIndex, swallowHeldEnter, tabbables, trapTab, type RovingOrientation } from './focus';
 export { pure } from './pure';
 export {
@@ -153,5 +154,5 @@ export {
 export { Age, Countdown, Duration, ElapsedTimer, Money, Time, useCountdownText, useSpokenMoney, type MoneyProps } from './components/Values';
 export { ViewState, remedyLabelKey, type ViewStateProps } from './components/ViewState';
 export { Boundary, type BoundaryProps } from './components/Boundary';
-export { Markdown, MarkdownView, type MarkdownProps } from './markdown/Markdown';
+export { Markdown, MarkdownView, decorateText, type DecoratedPiece, type MarkdownProps } from './markdown/Markdown';
 export { MD_MAX_CHARS, MD_MAX_DEPTH, MD_MAX_SPAN, markdownText, parseInline, parseMarkdown, safeHref, type MdBlock, type MdInline } from './markdown/parse';

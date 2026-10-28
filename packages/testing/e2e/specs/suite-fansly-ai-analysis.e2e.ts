@@ -203,8 +203,8 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
     await leaveField();
     await pressOurs('dock', '.cg-strip button', /^Recap/);
     await dockIs((d) => d.analysis === 'recap', 'the Recap sheet');
-    await pressOurs('dock', '.cg-dock button', /^Собрать полностью/);
-    // X55: the full Recap opens in its «Развернуть ↗» window.
+    // 2026-10-28: the window opens at once, on the choice of the two; the full Recap is built and read there.
+    await pressOurs('modal', '.cg-xdlg button', /^Собрать полностью/);
     await waitOursText('modal', 'Synthetic recap of the conversation.', 'the full Recap in its window', { timeout: 30_000, selector: '.cg-xdlg' });
 
     // The hub takes 3000 now: the same wish asks for 3000.
@@ -232,12 +232,12 @@ describe('Recap, Review and Coach on Fansly: the hub’s history, the verdict ov
 
   it('[AI-070] [NEW-02] the Recap lags the chat once the fan wrote after it: its facts say so, by the page’s newest message — no text of the page copied for it', async function () {
     this.timeout(120_000);
-    const lag = '.cg-xdlg .cg-facts [data-accent-use="archive-lag"]';
+    const lag = '.cg-xdlg .cg-rx-fresh [data-accent-use="archive-lag"]';
     if (!(await oursExists('modal', '.cg-xdlg'))) await pressOurs('dock', '.cg-strip button', /^Recap/);
     await waitOursText('modal', 'Synthetic short recap.', 'the short Recap in its window', { timeout: 15_000, selector: '.cg-xdlg' });
     await fakeFansly().command({ op: 'message', groupId: A.group, text: 'one more thing' });
     await browser.waitUntil(() => oursExists('modal', lag), { timeout: 15_000, timeoutMsg: 'the Recap does not say the chat went on after it' });
-    await waitOursText('modal', /После Recap (ещё \d+ сообщени|есть новые сообщения)/, 'the new message after the Recap, in its words', { selector: '.cg-xdlg .cg-facts' });
+    await waitOursText('modal', /После Recap (ещё \d+ сообщени|есть новые сообщения)/, 'the new message after the Recap, in its words', { selector: '.cg-xdlg .cg-rx-fresh' });
     await browser.keys(['Escape']);
     await dockIs((d) => d.analysis === null, 'the Recap sheet is hidden');
   });

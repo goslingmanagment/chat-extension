@@ -167,6 +167,60 @@ const PATHS = {
   ),
   /** «Удалить» of a note (2026-10-26): a bin. */
   trash: <path d="M2.8 4.4h10.4M6.2 4.4V3.2c0-.4.3-.7.7-.7h2.2c.4 0 .7.3.7.7v1.2M4.3 4.4l.6 8.1c.1.6.5 1 1.1 1h4c.6 0 1-.4 1.1-1l.6-8.1M6.8 7v4M9.2 7v4" />,
+  // 2026-10-28: the Recap window — its kicker, its facts and the sections of the hub's fan profile.
+  /** Recap as a document: an open book. */
+  book: <path d="M8 4.3C6.7 3.4 4.8 3 2.5 3.1v9.3c2.3-.1 4.2.3 5.5 1.2 1.3-.9 3.2-1.3 5.5-1.2V3.1C11.2 3 9.3 3.4 8 4.3zM8 4.3v9.2" />,
+  clock: (
+    <>
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="M8 5.1v3.1l2.1 1.3" />
+    </>
+  ),
+  /** Who reads the Recap: the features stacked on it. */
+  layers: <path d="M8 2.6l5.6 2.8L8 8.2 2.4 5.4zM2.4 8.2L8 11l5.6-2.8M2.4 10.9L8 13.7l5.6-2.8" />,
+  arrowUp: <path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7" />,
+  /** A section the hub's format does not name: lines of text. */
+  lines: <path d="M3 4.5h10M3 8h10M3 11.5h6.5" />,
+  /** «Психологический портрет». */
+  heart: <path d="M8 13.5S2.5 10.4 2.5 6.4A2.9 2.9 0 0 1 8 5a2.9 2.9 0 0 1 5.5 1.4c0 4-5.5 7.1-5.5 7.1z" />,
+  /** «Стадия и траектория». */
+  trend: <path d="M2.5 12.5L6 8.5l2.6 2.2 4.9-6.2M10.4 4.5h3.1v3.1" />,
+  /** «Как общается». */
+  bubble: <path d="M2.5 4.2c0-.9.7-1.7 1.7-1.7h7.6c.9 0 1.7.8 1.7 1.7v4.6c0 .9-.8 1.7-1.7 1.7H7.3L4.6 13v-2.5h-.4c-1 0-1.7-.8-1.7-1.7z" />,
+  /** «Деньги», «Траты». */
+  cash: (
+    <>
+      <rect x="1.5" y="4" width="13" height="8" rx="1.6" />
+      <circle cx="8" cy="8" r="1.8" />
+      <path d="M4 6.5v3M12 6.5v3" />
+    </>
+  ),
+  /** «Незакрытое», «Открытые нити»: a ring left open. */
+  loop: (
+    <>
+      <path d="M12.9 9.2A5 5 0 1 1 9.3 3.2" />
+      <circle cx="12.3" cy="4.5" r="1.2" />
+    </>
+  ),
+  /** «Стратегия». */
+  target: (
+    <>
+      <circle cx="8" cy="8" r="5.5" />
+      <circle cx="8" cy="8" r="2.6" />
+      <circle cx="8" cy="8" r=".5" />
+    </>
+  ),
+  /** «Кто». */
+  person: (
+    <>
+      <circle cx="8" cy="5.6" r="2.7" />
+      <path d="M2.8 13.6a5.2 5.2 0 0 1 10.4 0" />
+    </>
+  ),
+  /** «Триггеры». */
+  bolt: <path d="M8.6 1.8L3.8 9h3.6l-.6 5.2L12.2 7H8.4z" />,
+  /** «Границы». */
+  shield: <path d="M8 1.9l5 1.9v3.8c0 3-2.2 5.3-5 6.5-2.8-1.2-5-3.5-5-6.5V3.8z" />,
   /** «Скачать лог» (2026-10-21): an arrow down into a tray. */
   download: (
     <>

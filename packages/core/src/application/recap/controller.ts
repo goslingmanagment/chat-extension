@@ -25,6 +25,7 @@ import {
   type HubSaveVM,
   type PartialGap,
   type ReasonVM,
+  type RecapDocVM,
   type RecapLength,
   type RecapPickerVM,
   type RecapSlotVM,
@@ -36,7 +37,7 @@ import {
 
 import { featureGate } from '../../domain/features';
 import { flagRefusal, flagStateOf, isTerminalOpState } from '../../domain/ops';
-import { recapHeadingText, streamPreview } from '../../domain/output';
+import { recapCrib, recapDoc, recapHeadingText, recapWrittenVm, streamPreview } from '../../domain/output';
 import { latestLength, type RecapCopy } from '../../domain/recap';
 import { artifactHandle } from '../ai/handles';
 import { type OpRecord } from '../ai/op-store';
@@ -84,6 +85,15 @@ export function createRecapController(ws: AiWorkspace): RecapController {
   const { catalog, clock, i18n, ids } = ws.ports;
   const book = ws.recaps;
   const uis = new Map<ChatKey, RecapUi>();
+  /** A copy's document, cut once: the view model is built on every change of the tab. */
+  const docs = new WeakMap<RecapCopy, RecapDocVM | null>();
+  const headingName = (heading: string): string => recapHeadingText(heading, (key) => i18n.t(key));
+  function docOf(copy: RecapCopy): RecapDocVM | null {
+    if (docs.has(copy)) return docs.get(copy) ?? null;
+    const doc = recapDoc(copy.blocks, headingName);
+    docs.set(copy, doc);
+    return doc;
+  }
 
   function uiOf(key: ChatKey): RecapUi {
     let ui = uis.get(key);
@@ -207,7 +217,9 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     const copy = running ? null : slots[length];
     const failure = failed && op !== null ? (op.view.error ?? { code: 'CG-OP-INTERRUPTED' as const }) : null;
     const id = op?.view.opId ?? copy?.localId ?? ui?.sheetId ?? null;
-    const windowed = ui !== null && ui.window && (copy !== null || running || failed || ui.holds);
+    // 2026-10-28 (the owner: «по дефолту оно должно быть развёрнутым»): the window opens on whatever there is — a Recap,
+    // a build, the choice of the two when nothing is saved yet, the read of what is saved.
+    const windowed = ui !== null && ui.window;
     const expanded = id !== null && (ws.isExpanded(id) || (blocked === null && windowed));
 
     // The archive point this recap stands on: the served head of its generation, else the moment it was made.
@@ -243,18 +255,27 @@ export function createRecapController(ws: AiWorkspace): RecapController {
     const readers = chat === null || situation.ready?.bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY) !== true ? all : all.filter((feature) => ws.recapOn(chat.key, feature));
     const preview = running && op.view.text !== undefined ? streamPreview(op.view.feature, op.view.text) : '';
     const canBuild = (which: RecapLength): boolean => buildReason(situation, which) === null;
+    const doc = copy === null ? null : docOf(copy);
+    // A build over a saved Recap: that one stays readable under the build's ribbon until the new one replaces it.
+    const before = running ? slots[length] : null;
     return {
       view,
       length,
       lengths: { short: slots.short !== null || canBuild('short'), full: slots.full !== null || canBuild('full') },
       targetName: chat === null ? null : situation.fanName,
+      targetHandle: chat === null ? null : (situation.fanHandle ?? null),
       opId: id,
       state: op?.view.state ?? null,
       phase: op === null ? null : phaseVm(op.view, now),
       streamText: preview.length > 0 ? preview : null,
       markdown: copy?.markdown ?? null,
       // 1.20.0 (X47): the hub's English capitals («1. DOSSIER») in the reader's language.
-      blocks: copy?.blocks?.map((block) => (block.heading === '' ? block : { heading: recapHeadingText(block.heading, (key) => i18n.t(key)), markdown: block.markdown })) ?? null,
+      blocks: copy?.blocks?.map((block) => (block.heading === '' ? block : { heading: headingName(block.heading), markdown: block.markdown })) ?? null,
+      doc,
+      // Folded during a build, the cheat sheet keeps the Recap it replaces.
+      crib: recapCrib(doc ?? (before === null ? null : docOf(before))),
+      kept: before === null ? null : { markdown: before.markdown, doc: docOf(before), generatedAt: before.revision },
+      written: preview.length > 0 ? recapWrittenVm(preview, headingName) : null,
       generatedAt: copy?.revision ?? null,
       saved: saveVm(copy),
       ...(readers.length === all.length ? {} : { readers }),
@@ -409,8 +430,9 @@ export function createRecapController(ws: AiWorkspace): RecapController {
       if (opened !== null && !opened.ok) return Promise.resolve(opened);
       const ui = uiOf(chat.key);
       if (action.mode === 'expanded') {
-        // «Развернуть ↗»: the window follows what the sheet shows, a build started from it too.
+        // The bar's button and the cheat sheet's «Открыть Recap»: the window follows what the sheet shows, a build too.
         ui.window = ui.holds = true;
+        ws.bump();
       } else if (shown) {
         ui.window = ui.holds = false;
         const id = viewVm().opId;

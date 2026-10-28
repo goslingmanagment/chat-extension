@@ -79,14 +79,6 @@ export function Close({ which, place }: AnalysisProps): JSX.Element {
   return hide;
 }
 
-/** «Развернуть ↗» (UI-014): the same text in a window without the sheet's height limit. Only in the sheet. */
-export function Expand({ which, place }: AnalysisProps): JSX.Element | null {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  if (place === 'dialog') return null;
-  return <Button label={i18n.t('result.expand')} icon="expand" iconOnly variant="quiet" class="cg-expand" onClick={() => void dispatch({ type: 'ShowAnalysis', view: which, mode: 'expanded' })} />;
-}
-
 /** How long the copy icon says «Скопировано» with its check, as a part's copy does. */
 const COPIED_MS = 2000;
 
@@ -129,13 +121,17 @@ export function CopyAll({ handle, label }: { readonly handle: string | null; rea
   );
 }
 
-/** «Сделан 1 д назад», refreshed on the shared minute ticker; under a minute — «Сделан только что». A Recap's and a Review's. */
-export function MadeAgo({ at }: { readonly at: string }): JSX.Element {
+/**
+ * «Сделан 1 д назад», refreshed on the shared minute ticker; under a minute — «Сделан только что». A Recap's and a Review's.
+ * `lower` — inside a sentence: «из Recap, сделан 1 д назад».
+ */
+export function MadeAgo({ at, lower = false }: { readonly at: string; readonly lower?: boolean }): JSX.Element {
   const i18n = useI18n();
   const now = useNowFn();
   useMinuteClock();
   const fresh = now() - Date.parse(at) < MINUTE;
-  return <>{fresh ? i18n.t('review.madeNow') : i18n.t('recap.madeAgo', { age: i18n.formatAge(at, now()) })}</>;
+  const text = fresh ? i18n.t('review.madeNow') : i18n.t('recap.madeAgo', { age: i18n.formatAge(at, now()) });
+  return <>{lower ? text.replace(/^(\p{Lu})(?=\p{Ll})/u, (letter: string) => letter.toLowerCase()) : text}</>;
 }
 
 /** «Не обновилось · CG-… · Повторить»: a build that failed over a Recap that stays shown. */
