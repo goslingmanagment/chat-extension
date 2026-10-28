@@ -1082,7 +1082,7 @@ export const EN: I18nCatalog<'en'> = {
   'online.card.byArchiveAt': 'text by the archive at {time}',
   'online.card.staleTail': 'the text may not fit any more, «Again» writes a new one',
   'online.elsewhere.lead': 'Also online: {parts}. They are under «All online»',
-  'online.elsewhere.done': '{n} done',
+  'online.elsewhere.done': { one: '{n} done', other: '{n} done' },
   'online.elsewhere.other': '{n} with nothing to write about or set aside',
   'online.empty.onlyfans': 'The hub has seen none of this page\'s fans online yet. It learns about OnlyFans fans from OnlyFansAPI; new ones show up by themselves.',
   'online.empty.fansly': 'The hub has seen none of this page\'s fans online yet. Fansly is checked once a minute while the tab is open; new ones show up by themselves.',

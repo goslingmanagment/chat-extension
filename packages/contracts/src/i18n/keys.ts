@@ -239,7 +239,7 @@ export const UI_TEXT_KEYS = [
   'online.card.paused', 'online.card.sentFrom', 'online.card.sentTail', 'online.card.next', 'online.card.noChat',
   'online.card.media', 'online.card.mediaFree', 'online.card.noFeed', 'online.card.empty', 'online.card.noAi', 'online.card.noAiNoTemplate', 'online.compose.fix', 'online.compose.sendTooltip', 'online.pick.lead', 'online.pick.advice',
   'online.pick.tooltip', 'online.pick.again', 'online.pick.template', 'online.card.unwritten', 'online.card.byArchiveAt', 'online.card.staleTail',
-  'online.elsewhere.lead', 'online.elsewhere.done', 'online.elsewhere.other', 'online.empty.onlyfans', 'online.empty.fansly', 'online.empty.period',
+  'online.elsewhere.lead', 'online.elsewhere.other', 'online.empty.onlyfans', 'online.empty.fansly', 'online.empty.period',
   'online.empty.todo', 'online.empty.search', 'online.foot.sent', 'online.foot.skipped', 'online.foot.replied', 'online.foot.keys',
   'online.badge.tier.basic', 'online.badge.tier.bronze', 'online.badge.tier.silver', 'online.badge.tier.gold', 'online.badge.tier.platinum', 'online.badge.recent',
   'online.fbuddy.off', 'online.fbuddy.enable', 'online.fbuddy.signedOut',
@@ -506,6 +506,8 @@ export const UI_PLURAL_KEYS = [
   'coach.stage.reading',
   // 2026-10-26: a site whose «Новые» are not the hub's list (Fansly): the palette looked in Spenders alone.
   'palette.foot.chats', 'palette.foot.spenders',
+  // «Онлайн»: how many online fans this pass already handled («1 разобран», «3 разобраны»).
+  'online.elsewhere.done',
   'quickJump.unread',
   'settings.status.needActions', 'settings.status.warnings', 'settings.status.row.quotaLeft', 'settings.status.row.runningCount',
   // 1.30.0 (X53)
