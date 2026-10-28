@@ -207,7 +207,7 @@ export function startFanslyNotes(env: SiteAppEnv<FanslyPort>): () => void {
       form: form === null ? null : { id: form.noteId, field: form.field?.saving === true ? 'saving' : form.field === null ? null : 'open', fill: form.fill?.status ?? null },
       notes: items.map((note) => ({ id: note.noteId, foreign: note.foreign, ...(note.cut ? { cut: true } : {}) })),
       editor: editor === null ? null : { noteId: editor.noteId, saving: editor.saving, blocked: editor.blocked, problem: editor.problem?.kind ?? null },
-      name: name.status,
+      name: name?.status ?? null,
       count: controller.trigger().count,
     });
   };

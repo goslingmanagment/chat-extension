@@ -30,7 +30,7 @@ import type { JSX } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { cgTitleKey } from '@cg/contracts/i18n/keys';
-import type { NotesClient, NotesCopy, NotesErrorWire, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM, NotesView } from '@cg/contracts/notes';
+import type { NoteColor, NotesClient, NotesCopy, NotesErrorWire, NotesDateVM, NotesEditorVM, NotesFactVM, NotesFieldVM, NotesFillProgressVM, NotesFillVM, NotesFormPartVM, NotesFormVM, NotesItemVM, NotesPanelVM, NotesProblem, NotesQuickVM, NotesSuggestionVM, NotesView } from '@cg/contracts/notes';
 import { FANSLY_NOTES_VIEWS } from '@cg/contracts/settings-ext';
 
 import { Button, Dot, ElapsedTimer, Icon, Menu, MenuAnchor, StageLine, TextField, hotkeyText, isComposing, menuTriggerKeys, useI18n, useKit, useReducedMotion } from '../kit';
@@ -104,20 +104,22 @@ function useFlip(root: { readonly current: HTMLElement | null }, still: boolean)
   });
 }
 
-function NameField({ client, copy, vm, onFocused }: Props & { readonly vm: NotesPanelVM; readonly onFocused: (focused: boolean) => void }): JSX.Element {
-  const status = vm.name.status;
+type NameVM = NonNullable<NotesPanelVM['name']>;
+
+function NameField({ client, copy, vm, name, onFocused }: Props & { readonly vm: NotesPanelVM; readonly name: NameVM; readonly onFocused: (focused: boolean) => void }): JSX.Element {
+  const status = name.status;
   const locked = status === 'saving' || status === 'unconfirmed';
   const input = useRef<HTMLInputElement | null>(null);
   // The fan's own name stands in the field until a name for oneself is typed: it reads as the name, not as a hint.
   // The field is as wide as what it shows (its box mirrors the text), so the pencil stands right after the name.
-  const shown = vm.name.value || vm.fan?.name || copy.namePlaceholder;
+  const shown = name.value || vm.fan?.name || copy.namePlaceholder;
   return (
     <span class="cg-notes__namebox" data-value={shown}>
       <input
         ref={input}
         class="cg-notes__name"
         type="text"
-        value={vm.name.value}
+        value={name.value}
         placeholder={vm.fan?.name ?? copy.namePlaceholder}
         {...(vm.fan?.name === undefined || vm.fan.name === null ? {} : { 'data-notes-fan-name': '' })}
         aria-label={copy.namePlaceholder}
@@ -152,16 +154,16 @@ function NameField({ client, copy, vm, onFocused }: Props & { readonly vm: Notes
 }
 
 /** What the name field is doing, under the head while it is focused or busy. */
-function NameStatus({ copy, vm, focused }: { readonly copy: NotesCopy; readonly vm: NotesPanelVM; readonly focused: boolean }): JSX.Element | null {
-  const status = vm.name.status;
+function NameStatus({ copy, name, focused }: { readonly copy: NotesCopy; readonly name: NameVM; readonly focused: boolean }): JSX.Element | null {
+  const status = name.status;
   if (!focused && status === 'idle') return null;
   return (
     <p class="cg-notes__hint" data-status={status} role={status === 'idle' ? undefined : 'status'}>
-      {vm.name.changed !== undefined
-        ? vm.name.changed.latest === null
+      {name.changed !== undefined
+        ? name.changed.latest === null
           ? copy.nameRemoved
-          : copy.nameChanged.replace('{name}', vm.name.changed.latest)
-        : vm.name.error?.code === 'CG-NOTE-WRITE' && vm.name.error.detail === 'changed'
+          : copy.nameChanged.replace('{name}', name.changed.latest)
+        : name.error?.code === 'CG-NOTE-WRITE' && name.error.detail === 'changed'
           ? copy.problem.changed
           : copy.name[status]}
     </p>
@@ -854,8 +856,9 @@ function NoteItem({ client, copy, vm, item }: Props & { readonly vm: NotesPanelV
     <li class={`cg-notes__item${item.foreign ? ' is-foreign' : ''}${item.cut ? ' is-cut' : ''}`} data-note-id={item.noteId} {...(item.foreign ? { 'data-foreign': 'true' } : {})} {...(item.cut ? { 'data-cut': 'true' } : {})}>
       <span class="cg-notes__item-when">{item.date === null ? null : <NoteDate copy={copy} date={item.date} />}</span>
       <div class="cg-notes__item-b">
-        {item.title === '' && !locked ? null : (
+        {item.title === '' && !locked && (item.color ?? null) === null ? null : (
           <div class="cg-notes__item-head">
+            {(item.color ?? null) === null ? null : <span class={`cg-notes__swatch is-${item.color ?? ''}`} data-notes-color={item.color} title={copy.colors?.[item.color as NoteColor] ?? ''} aria-label={copy.colors?.[item.color as NoteColor] ?? ''} role="img" />}
             {item.title === '' ? null : <span class="cg-notes__item-title">{item.title}</span>}
             {item.foreign ? (
               <span class="cg-notes__tag" title={copy.foreignHint}>
@@ -900,6 +903,11 @@ function NotesSection({ client, copy, vm }: Props & { readonly vm: NotesPanelVM 
       <div class="cg-notes__sec-head">
         <h3 class="cg-notes__sec-t">{copy.notes}</h3>
         {vm.items.length === 0 ? null : <span class="cg-notes__count">{vm.items.length}</span>}
+        {copy.shared === undefined ? null : (
+          <span class="cg-notes__shared" title={copy.shared.hint} data-notes-shared="">
+            {copy.shared.label}
+          </span>
+        )}
       </div>
       <QuickBox client={client} copy={copy} quick={vm.quick} />
       {loose === null ? null : <Editor client={client} copy={copy} editor={loose} />}
@@ -959,7 +967,9 @@ export function NotesPanel({ client, texts }: { readonly client: NotesClient; re
   const closable = !center ? vm.view !== 'docked' || vm.narrow : true;
   const place = vm.place;
   const busy = vm.body === 'loading' || vm.writing;
-  const sub = [vm.name.value !== '' && vm.fan?.name !== null && vm.fan?.name !== undefined ? vm.fan.name : null, vm.fan?.handle === null || vm.fan?.handle === undefined ? null : `@${vm.fan.handle}`].filter((part): part is string => part !== null);
+  const name = vm.name;
+  // The fan's own name stands under a name for oneself; a site without one (ChatSpace) shows the fan's name alone.
+  const sub = [name !== null && name.value !== '' && vm.fan?.name !== null && vm.fan?.name !== undefined ? vm.fan.name : null, vm.fan?.handle === null || vm.fan?.handle === undefined ? null : `@${vm.fan.handle}`].filter((part): part is string => part !== null);
   const panel = (
     <section
       ref={card}
@@ -984,14 +994,14 @@ export function NotesPanel({ client, texts }: { readonly client: NotesClient; re
       <header class="cg-notes__head">
         <div class="cg-notes__row">
           <div class="cg-notes__who">
-            {vm.body === 'ready' ? <NameField client={client} copy={copy} vm={vm} onFocused={setNaming} /> : <span class="cg-notes__name is-static">{vm.fan?.name ?? copy.fan}</span>}
+            {vm.body === 'ready' && name !== null ? <NameField client={client} copy={copy} vm={vm} name={name} onFocused={setNaming} /> : <span class="cg-notes__name is-static">{vm.fan?.name ?? copy.fan}</span>}
             {sub.length === 0 ? null : <span class="cg-notes__handle">{sub.join(' · ')}</span>}
           </div>
           <Button variant="quiet" size="sm" iconOnly icon="refresh" label={copy.refresh} tooltip={copy.refreshHint} {...(busy ? { busy: true } : {})} onClick={() => client.dispatch({ type: 'refresh' })} />
           <ViewMenu client={client} copy={copy} view={vm.view} />
           {closable ? <Button variant="quiet" size="sm" iconOnly icon="x" label={copy.close} onClick={() => client.dispatch({ type: 'close' })} /> : null}
         </div>
-        {vm.body === 'ready' ? <NameStatus copy={copy} vm={vm} focused={naming} /> : null}
+        {vm.body === 'ready' && name !== null ? <NameStatus copy={copy} name={name} focused={naming} /> : null}
       </header>
       <div class="cg-notes__body">
         <Body client={client} copy={copy} vm={vm} />

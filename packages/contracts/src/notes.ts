@@ -28,6 +28,10 @@ export interface NotesErrorWire {
   readonly httpStatus?: number | undefined;
 }
 
+/** A note's colour where the site keeps one (OnlyMonster's fan notes: red, yellow, blue, green; none by default). */
+export const NOTE_COLORS = ['red', 'yellow', 'blue', 'green'] as const;
+export type NoteColor = (typeof NOTE_COLORS)[number];
+
 /**
  * A note as the panel reads it, from any site (Fansly's `FanslyNote` is one). `foreign` — kept by another tool (FBuddy's
  * «FBuddy Notes»): shown read only. `createdAtMs` — when it was created; null or absent — not said. `cut` — longer than
@@ -40,6 +44,8 @@ export interface NoteData {
   readonly foreign: boolean;
   readonly createdAtMs?: number | null | undefined;
   readonly cut?: true | undefined;
+  /** 2026-10-28: the site's colour of the note (OnlyMonster's); absent or null — none. Shown, never written by us. */
+  readonly color?: NoteColor | null | undefined;
 }
 
 /**
@@ -244,6 +250,8 @@ export interface NotesItemVM {
   readonly foreign: boolean;
   /** Longer than the panel holds: its beginning, read only. */
   readonly cut: boolean;
+  /** 2026-10-28: the site's colour of the note (OnlyMonster's), a dot before its title; absent or null — none. */
+  readonly color?: NoteColor | null | undefined;
 }
 
 /** The box at the top of the notes: a line typed and Enter makes a note of it. */
@@ -266,8 +274,8 @@ export interface NotesPanelVM {
   readonly body: 'loading' | 'ready' | 'error';
   readonly error: NotesErrorWire | null;
   /** `changed` (audit №13): the name changed elsewhere — `latest` is Fansly's now (null — none); the next Enter writes
-   * the typed one over it. */
-  readonly name: { readonly value: string; readonly status: NotesNameStatus; readonly error: NotesErrorWire | null; readonly changed?: { readonly latest: string | null } };
+   * the typed one over it. null — the site keeps no name for oneself (ChatSpace, 2026-10-28): the fan's own name stands. */
+  readonly name: { readonly value: string; readonly status: NotesNameStatus; readonly error: NotesErrorWire | null; readonly changed?: { readonly latest: string | null } } | null;
   /** null until the notes are read. */
   readonly form: NotesFormVM | null;
   /** The other notes, newest first; FBuddy's among them. */
@@ -466,4 +474,8 @@ export interface NotesCopy {
   /** «Создана» + « 16.10.2026 » + «в» + « 19:56». */
   readonly created: string;
   readonly createdAt: string;
+  /** 2026-10-28, a site whose own window shows the same notes (ChatSpace): said beside the notes' title, with its hint. */
+  readonly shared?: { readonly label: string; readonly hint: string };
+  /** 2026-10-28: the names of the site's note colours, the dot's hint. */
+  readonly colors?: Readonly<Record<NoteColor, string>>;
 }

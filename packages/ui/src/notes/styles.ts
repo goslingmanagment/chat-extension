@@ -1,6 +1,7 @@
-// «Заметки»'s sheets (ui-design §1, §2, §3.4, §3.7): the button in Fansly's header row — the row's own size and colour,
-// as «Регистрация» beside it — and the panel in our layer 900, in the site's profile (Fansly's palette in both of its
-// themes). Nothing here reaches the fan: no blue.
+// «Заметки»'s sheets (ui-design §1, §2, §3.4, §3.7): the button in the site's chat header row — the row's own size and
+// colour, as «Регистрация» beside it on Fansly — and the panel in our layer 900, in the site's profile (its palette in
+// both of its themes). Nothing here reaches the fan: no blue of ours (a note's own colour on ChatSpace is OnlyMonster's,
+// a small dot in its four colours, 2026-10-28).
 //
 // 2026-10-26 (the panel on one screen): the questionnaire is a table whose rows light up under the pointer and open in
 // place on a sunk box; the empty fields are raised «+ Метка» chips; terracotta only for the main action (Сохранить),
@@ -20,7 +21,7 @@ import { type MountSurfaceKind } from '@cg/contracts/vm';
 
 import { overlayRootCss } from '../overlays/layer';
 
-/** A surface of Fansly's own (contracts features/fansly.ts `FANSLY_SURFACES_AHEAD`). */
+/** A surface of the sites that have «Заметки» (contracts features/fansly.ts `FANSLY_SURFACES_AHEAD`, features/chatspace.ts `CHATSPACE_SURFACES_AHEAD`). */
 export const NOTES_SURFACE = 'notes' as MountSurfaceKind;
 
 export const NOTES_BUTTON_CSS = `
@@ -76,6 +77,7 @@ ${p}__sec + ${p}__sec { margin-top: 12px; border-top: 1px solid var(--cg-rule); 
 ${p}__sec-head { display: flex; align-items: center; gap: 6px; min-height: 24px; margin-bottom: 6px; }
 ${p}__sec-t { margin: 0; color: var(--cg-ink-strong); font-size: var(--cg-text-md); font-weight: 600; line-height: 20px; overflow-wrap: anywhere; }
 ${p}__count { color: var(--cg-ink-muted); font-size: var(--cg-text-sm); font-variant-numeric: tabular-nums; }
+${p}__shared { margin-left: auto; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); white-space: nowrap; cursor: help; }
 ${p}__ai.cg-btn { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line); color: var(--cg-clay-ink); font-weight: 600; }
 ${p}__ai.cg-btn:hover { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-ink); color: var(--cg-clay-ink); }
 ${p}__ai.cg-btn--sm { height: 24px; padding: 0 9px; }
@@ -256,6 +258,11 @@ ${p}__date { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-heig
 ${p}__item-b { display: grid; gap: 2px; min-width: 0; }
 ${p}__item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 ${p}__item-title { color: var(--cg-ink-strong); font-size: var(--cg-text-base); font-weight: 600; line-height: 19px; overflow-wrap: anywhere; }
+${p}__swatch { flex: none; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+${p}__swatch.is-red { background: #e5484d; }
+${p}__swatch.is-yellow { background: #f5c33b; }
+${p}__swatch.is-blue { background: #3e8ef0; }
+${p}__swatch.is-green { background: #3fb468; }
 ${p}__item-text { margin: 0; color: var(--cg-ink); font-size: var(--cg-text-base); line-height: 19px; white-space: pre-wrap; overflow-wrap: anywhere; }
 ${p}__item.is-foreign ${p}__item-title, ${p}__item.is-foreign ${p}__item-text { color: var(--cg-ink-muted); }
 ${p}__item.is-cut ${p}__item-text { max-height: 240px; overflow: auto; }

@@ -166,8 +166,9 @@ export interface NotesPort {
   /** A `changed` refusal carries `latest`, the version Fansly holds now (audit №13). */
   edit(who: NotesWho, noteId: string, title: string, text: string, current: Pick<NoteData, 'title' | 'text'>, how?: NoteWriteHow): Promise<{ readonly ok: true; readonly note: NoteData } | (Failure & { readonly latest?: NoteData | undefined })>;
   remove(who: NotesWho, note: NoteData, how?: NoteWriteHow): Promise<{ readonly ok: true } | Failure>;
-  /** A `changed` refusal carries `latest`, the name Fansly holds now (null — none). */
-  name(who: NotesWho, name: string, current: CustomName | null): Promise<{ readonly ok: true; readonly customName: CustomName | null } | (Failure & { readonly latest?: CustomName | null | undefined })>;
+  /** A `changed` refusal carries `latest`, the name Fansly holds now (null — none). Absent — the site keeps no name for
+   * oneself (ChatSpace): the panel shows the fan's own name and never writes one. */
+  name?(who: NotesWho, name: string, current: CustomName | null): Promise<{ readonly ok: true; readonly customName: CustomName | null } | (Failure & { readonly latest?: CustomName | null | undefined })>;
   /** The page's «Дополнить из чата» is on (the manifest's `notes-fill`: the page's `notesFill`). */
   fillAllowed(): boolean;
   /** Start `notes-fill` in the open chat with the questionnaire's labels and, index-aligned, their values (the owner's
@@ -561,6 +562,7 @@ export function createNotesController(port: NotesPort): NotesController {
         date: note.createdAtMs === undefined || note.createdAtMs === null ? null : noteDateVM(note.createdAtMs, now()),
         foreign: note.foreign,
         cut: note.cut === true,
+        ...(note.color === undefined || note.color === null ? {} : { color: note.color }),
       }));
   }
 
@@ -586,7 +588,7 @@ export function createNotesController(port: NotesPort): NotesController {
       fan: t?.fan ?? kept?.fan ?? null,
       body: entry === undefined || entry.kind === 'loading' ? 'loading' : entry.kind,
       error: entry?.kind === 'error' ? entry.error : null,
-      name: { value: (fanId === null ? undefined : nameDrafts.get(fanId)?.value) ?? data?.customName?.name ?? '', status: name?.status ?? 'idle', error: name?.error ?? null, ...(name?.changed === undefined ? {} : { changed: name.changed }) },
+      name: port.name === undefined ? null : { value: (fanId === null ? undefined : nameDrafts.get(fanId)?.value) ?? data?.customName?.name ?? '', status: name?.status ?? 'idle', error: name?.error ?? null, ...(name?.changed === undefined ? {} : { changed: name.changed }) },
       form: data === null || fanId === null ? null : formVM(fanId, data),
       items: data === null ? [] : itemsVM(data, form),
       quick: (fanId === null ? undefined : quicks.get(fanId)) ?? NO_QUICK,
@@ -1021,7 +1023,7 @@ export function createNotesController(port: NotesPort): NotesController {
     if (data === null || to === null) return;
     const fanId = data.fanRef;
     const typed = nameDrafts.get(fanId);
-    if (typed === undefined || nameStates.get(fanId)?.status === 'saving' || nameStates.get(fanId)?.status === 'unconfirmed') return;
+    if (port.name === undefined || typed === undefined || nameStates.get(fanId)?.status === 'saving' || nameStates.get(fanId)?.status === 'unconfirmed') return;
     const name = typed.value.trim();
     // Only a changed text is written (Enter, or the field left).
     if (name === (data.customName?.name ?? '')) {
@@ -1036,7 +1038,7 @@ export function createNotesController(port: NotesPort): NotesController {
     nameStates.set(fanId, { status: 'saving', error: null });
     emit();
     const under = epoch;
-    const answer = await port.name(to, name, typed.current).catch(toFailure);
+    const answer = await (port.name?.(to, name, typed.current) ?? Promise.resolve(toFailure(null))).catch(toFailure);
     if (disposed || under !== epoch) return;
     if (answer.ok) {
       const done = answer.customName;
