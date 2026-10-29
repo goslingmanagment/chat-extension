@@ -12,7 +12,9 @@
 // The greeting reminder's toast (2026-10-24) «Ждёт приветствия · {фан}» stays
 // until it is closed: its «Hi» opens the fan's chat, starts the dock's Hi
 // there and puts the greeting into its field (2026-10-26; `GreetNewcomer`,
-// answered by the boards), and the click closes it.
+// answered by the boards), and the click closes it. The fan's next reminder
+// (three, ten and fifteen minutes on, 2026-10-29) takes its place; the last
+// one is red.
 //
 // A toast the UI or a controller raises by itself (a key's reason, a render
 // failure) goes through ToastPort and is the overlay host's own queue; the
@@ -116,7 +118,8 @@ export function createShellController(ports: ShellPorts): ShellController {
       const action = greetNewcomer(toast.greet.pageId, toast.greet.fanRef);
       const name = fan ?? i18n.t('newcomers.col.fan');
       // 1.61.0 (the owner: «с авой»): the fan as a card — picture, name, «@handle · 11 мин назад»; «Позже» closes it.
-      const greet = { name, handle: toast.greet.username ?? null, avatarUrl: toast.greet.avatarUrl ?? null, since: toast.greet.since ?? null, page: toast.greet.page ?? null };
+      // 2026-10-29: the last of the three reminders is red.
+      const greet = { name, handle: toast.greet.username ?? null, avatarUrl: toast.greet.avatarUrl ?? null, since: toast.greet.since ?? null, page: toast.greet.page ?? null, ...(toast.greet.urgent === true ? { urgent: true } : {}) };
       const later = button('toast.later', { type: 'DismissToast', toastId: toast.toastId });
       return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: [button('dock.action.hi', action), later], copyCode: false, expiresAt: null, greet };
     }

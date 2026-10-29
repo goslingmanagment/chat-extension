@@ -1,5 +1,5 @@
-// The greeting reminder on Fansly (2026-10-25): a follow heard from a tab's socket is checked once, ten minutes on,
-// and a fan nobody greeted is a toast with «Hi» in the creator's tab.
+// The greeting reminder on Fansly (2026-10-25): a follow heard from a tab's socket is checked three, ten and fifteen
+// minutes on (2026-10-29), and a fan nobody greeted is a toast with «Hi» in the creator's tab; the third one is red.
 
 import { type SoundBatch } from '@cg/contracts/sound';
 import { BackgroundToastSchema, type BackgroundToast } from '@cg/contracts/tab-messages';
@@ -49,23 +49,29 @@ afterEach(() => {
 });
 
 describe('[host:fansly] the greeting reminder (2026-10-25)', () => {
-  it('a follow is checked once, ten minutes on, and a fan nobody greeted is a toast with Hi in the creator’s tab; the same follow from another tab is one', async () => {
+  it('a follow is checked three, ten and fifteen minutes on, and a fan nobody greeted is a toast with Hi in the creator’s tab each time, the third red; the same follow from another tab is one', async () => {
     const t = setup();
     const reminder = t.make();
     reminder.heard(t.follow());
     reminder.heard(t.follow(T0));
-    await vi.advanceTimersByTimeAsync(minutes(10) - 1);
+    await vi.advanceTimersByTimeAsync(minutes(3) - 1);
     expect(t.checks).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
     expect(t.checks).toEqual([`${C}:${FAN}`]);
-    expect(t.toasts).toEqual([
-      { tab: 'tab-1', toast: expect.objectContaining({ scope: `greet.${FAN}`, fanLabel: 'Ann', greet: { pageId: 7, fanRef: FAN, username: null, avatarUrl: null, since: new Date(T0).toISOString() } }) },
-    ]);
-    await vi.advanceTimersByTimeAsync(minutes(60));
+    const greet = { pageId: 7, fanRef: FAN, username: null, avatarUrl: null, since: new Date(T0).toISOString() };
+    expect(t.toasts).toEqual([{ tab: 'tab-1', toast: expect.objectContaining({ scope: `greet.${FAN}`, fanLabel: 'Ann', greet }) }]);
+    await vi.advanceTimersByTimeAsync(minutes(7) - 1);
     expect(t.checks).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(t.checks).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(minutes(5));
+    expect(t.checks).toHaveLength(3);
+    expect(t.toasts.map((entry) => entry.toast.greet)).toEqual([greet, greet, { ...greet, urgent: true }]);
+    await vi.advanceTimersByTimeAsync(minutes(60));
+    expect(t.checks).toHaveLength(3);
   });
 
-  it('a fan who writes within the ten minutes is never checked; a greeted fan is no toast', async () => {
+  it('a fan who writes before the first reminder is never checked; a greeted fan is no toast and no more checks', async () => {
     const t = setup({ s: 'greeted' });
     const reminder = t.make();
     reminder.heard(t.follow());
@@ -73,12 +79,12 @@ describe('[host:fansly] the greeting reminder (2026-10-25)', () => {
     await vi.advanceTimersByTimeAsync(minutes(15));
     expect(t.checks).toEqual([]);
     reminder.heard(t.batch([{ kind: 'subscriber', id: followId(Date.now()), accountId: C, followerId: '710000000000000002' }]));
-    await vi.advanceTimersByTimeAsync(minutes(10));
+    await vi.advanceTimersByTimeAsync(minutes(20));
     expect(t.checks).toHaveLength(1);
     expect(t.toasts).toEqual([]);
   });
 
-  it('a due follow waits for a tab of its creator (looked at each minute, up to an hour), and outlives the event page', async () => {
+  it('a due follow waits for a tab of its creator (looked at each minute, up to an hour), outlives the event page, and is told only the newest reminder due', async () => {
     const t = setup();
     t.setTab(null);
     const first = t.make();
@@ -92,7 +98,10 @@ describe('[host:fansly] the greeting reminder (2026-10-25)', () => {
     const second = t.make();
     await second.restore();
     await vi.advanceTimersByTimeAsync(FANSLY_GREET_RETRY_MS);
+    // Thirteen minutes on: the ten minutes' reminder, alone; the fifteen minutes' red one comes in its time.
     expect(t.toasts.map((entry) => entry.tab)).toEqual(['tab-2']);
+    await vi.advanceTimersByTimeAsync(minutes(2));
+    expect(t.toasts.map((entry) => entry.toast.greet?.urgent)).toEqual([undefined, true]);
   });
 
   it('a fan the check cannot tell about yet is asked again each minute — and no more once the follow is an hour old', async () => {
@@ -100,7 +109,7 @@ describe('[host:fansly] the greeting reminder (2026-10-25)', () => {
     const t = setup(() => answers.shift() ?? null);
     const reminder = t.make();
     reminder.heard(t.follow());
-    await vi.advanceTimersByTimeAsync(minutes(10));
+    await vi.advanceTimersByTimeAsync(minutes(3));
     expect(t.checks).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(FANSLY_GREET_RETRY_MS * 2);
     expect(t.checks).toHaveLength(3);
@@ -108,8 +117,8 @@ describe('[host:fansly] the greeting reminder (2026-10-25)', () => {
     answers = [];
     reminder.heard(t.batch([{ kind: 'subscriber', id: followId(Date.now()), accountId: C, followerId: '710000000000000002' }]));
     await vi.advanceTimersByTimeAsync(minutes(70));
-    // Asked from its tenth minute to its sixtieth, once a minute; never after.
-    expect(t.checks.filter((check) => check.endsWith(':710000000000000002')).length).toBeLessThanOrEqual(51);
+    // Asked from its third minute to its sixtieth, once a minute; never after.
+    expect(t.checks.filter((check) => check.endsWith(':710000000000000002')).length).toBeLessThanOrEqual(58);
     const asked = t.checks.length;
     await vi.advanceTimersByTimeAsync(minutes(10));
     expect(t.checks).toHaveLength(asked);

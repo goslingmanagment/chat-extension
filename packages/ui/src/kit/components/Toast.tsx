@@ -12,6 +12,7 @@
 // A greeting reminder (1.61.0, the owner: «с авой»): the fan as a card — their picture over the initial, «Ждёт
 // приветствия» in the accent, the name, «@handle · 11 мин назад»; «Hi» filled in the accent, «Позже» beside it.
 // 1.62.0: in a tab of another model the accent line names the fan's model — «Ждёт приветствия · {модель}».
+// 2026-10-29 (the owner: «третий красный через 15»): the fan's last reminder is red — the frame, the accent line and «Hi».
 
 import { type JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
@@ -83,7 +84,7 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
   return (
     <div
       ref={box}
-      class={`cg-toast cg-toast--${toast.kind}${greet === null ? '' : ' cg-toast--greet'}`}
+      class={`cg-toast cg-toast--${toast.kind}${greet === null ? '' : ' cg-toast--greet'}${greet?.urgent === true ? ' cg-toast--urgent' : ''}`}
       data-cg-toast={toast.id}
       {...(toast.kind === 'error' ? { role: 'alert' } : {})}
       onMouseEnter={() => update({ hovered: true })}
@@ -198,4 +199,8 @@ export const TOAST_CSS = `
 .cg-toast--greet .cg-toast__acts { gap: 8px; margin-top: 10px; grid-column: 2 / 4; }
 .cg-btn.cg-toast__hi { background: var(--cg-clay); color: #fff; padding: 0 16px; }
 .cg-btn.cg-toast__hi:hover { background: var(--cg-clay-ink); color: #fff; }
+.cg-toast--urgent { border-color: var(--cg-danger); box-shadow: inset 0 0 0 1px var(--cg-danger), var(--cg-shadow-float); background: color-mix(in srgb, var(--cg-danger) 6%, var(--cg-raised)); }
+.cg-toast--urgent .cg-toast__lead { color: var(--cg-danger); }
+.cg-toast--urgent .cg-btn.cg-toast__hi { background: var(--cg-danger); }
+.cg-toast--urgent .cg-btn.cg-toast__hi:hover { background: color-mix(in srgb, var(--cg-danger) 82%, #000); }
 `;

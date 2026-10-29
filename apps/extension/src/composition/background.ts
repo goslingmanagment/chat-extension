@@ -877,7 +877,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     chatspace: (__CG_TEST_HOSTS__ ? [...CHATSPACE_MATCHES, ...CHATSPACE_STAND_MATCHES] : CHATSPACE_MATCHES).map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
     'telegram-web': telegramMatches().map((pattern) => new URL(pattern.replace(/\*$/, '')).origin),
   } satisfies PerHost<readonly string[]>;
-  // 2026-10-24: a fan of «Новые» nobody greeted ten minutes after subscribing — a toast with «Hi» in the tab of their creator.
+  // 2026-10-24: a fan of «Новые» nobody greeted three, ten and fifteen minutes after subscribing (2026-10-29; the third
+  // red) — a toast with «Hi» in the tab of their creator.
   const greetings = createGreetReminder({
     ids: IDS,
     presence,

@@ -144,8 +144,9 @@ export const BackgroundToastSchema = z.strictObject({
   conversationRef: z.optional(NativeIdSchema),
   fanLabel: z.nullable(displayText(256)),
   /**
-   * 1.54.0: a fan of «Новые» nobody greeted ten minutes after subscribing (the greeting reminder). The toast stays
-   * until it is closed, and its «Hi» opens the fan's chat and puts the dock's greeting into its field, by that click.
+   * 1.54.0: a fan of «Новые» nobody greeted ten minutes after subscribing (the greeting reminder; 1.67.0 — three, ten
+   * and fifteen minutes). The toast stays until it is closed, and its «Hi» opens the fan's chat and puts the dock's
+   * greeting into its field, by that click; the fan's next reminder takes its place (the same scope).
    */
   greet: z.optional(
     z.strictObject({
@@ -160,6 +161,8 @@ export const BackgroundToastSchema = z.strictObject({
        * «Hi» goes to a tab of that model (`greet.start`).
        */
       page: z.optional(displayText(256)),
+      /** 1.67.0 (the owner, 2026-10-29: «третий красный через 15»): the last of the fan's three reminders — red. */
+      urgent: z.optional(z.literal(true)),
     }),
   ),
 });
