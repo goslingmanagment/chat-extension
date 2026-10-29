@@ -35,6 +35,8 @@ export const LAZY_ENTRIES = {
   outreach: 'entries/outreach.ts',
   // «Онлайн»: its window, one on both sites.
   online: 'entries/online.ts',
+  // «Очереди»: its window, one on both sites.
+  queues: 'entries/queues.ts',
   'fan-panel': 'entries/fan-panel.ts',
   palette: 'entries/palette.ts',
   // The preview's own window, for a fan of the palette's «Онлайн» (X24).

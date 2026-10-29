@@ -56,6 +56,10 @@ type DataRequest =
   | 'queue.handoff'
   | 'online.list'
   | 'online.attempt'
+  | 'queues.list'
+  | 'queues.take'
+  | 'queues.done'
+  | 'queues.release'
   | 'newcomers.list'
   | 'usage.get';
 
@@ -155,6 +159,17 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
         const { pageId: _pageId, ...attempt } = request;
         return deps.hub().onlineAttempt({ ...attempt, pageLabel: page.pageLabel });
       }),
+    // «Очереди» (hub `fan-queues-v1`): the person's queues of the page, a portion, each fan's outcome — one call each,
+    // never repeated (a take leases fans; a report is journaled); the portion given back. Nothing is sent to a fan here.
+    'queues.list': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().fanQueues({ pageLabel: page.pageLabel })),
+    'queues.take': (request, sender) =>
+      onPage(request.pageId, sender, (page) => deps.hub().fanQueueTake({ pageLabel: page.pageLabel, queueId: request.queueId, count: request.count, more: request.more })),
+    'queues.done': (request, sender) =>
+      onPage(request.pageId, sender, (page) => {
+        const { pageId: _pageId, ...done } = request;
+        return deps.hub().fanQueueItemDone({ ...done, pageLabel: page.pageLabel });
+      }),
+    'queues.release': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().fanQueueRelease({ pageLabel: page.pageLabel, queueId: request.queueId })),
     'newcomers.list': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
         deps.hub().audienceNew({ pageLabel: page.pageLabel, windowHours: request.windowHours, ...(request.cursor === null ? {} : { cursor: request.cursor }) }),

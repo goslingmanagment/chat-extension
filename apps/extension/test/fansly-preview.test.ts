@@ -53,7 +53,7 @@ async function preview() {
     rpc, host, clock, context, ids: { uuid: () => uuid(id++) }, surfaces: new Surfaces(),
     i18n: createI18n({ language: 'ru', now: () => clock.now(), timeZone: 'Europe/Moscow' }),
     navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 6, insert: null }) },
-    directories: { spenders: { resolve: (handle) => handle === info.handle ? info : null, neighbours: () => ({ previous: null, next: null }), subscribe: () => () => undefined }, newcomers: null, palette: null, outreach: null, online: null },
+    directories: { spenders: { resolve: (handle) => handle === info.handle ? info : null, neighbours: () => ({ previous: null, next: null }), subscribe: () => () => undefined }, newcomers: null, palette: null, outreach: null, online: null, queue: null },
     greeting: null, sender: null, drafts: null, clipboard: null, notifier: null, handover: () => undefined,
   });
   live.push(controller);

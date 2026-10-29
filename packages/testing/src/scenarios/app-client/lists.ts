@@ -20,6 +20,7 @@ import {
   type OnlineWindowVM,
   type OutreachRowVM,
   type OutreachWindowVM,
+  type QueuesWindowVM,
   type PreviewActionId,
   type PreviewSource,
   type PreviewVM,
@@ -430,6 +431,57 @@ export const defaultOnlineRows = (ctx: ScenarioCtx): OnlineRowVM[] => [
   onlineRow(ctx, FANS.marco, { selected: true, state: 'ready', version: 'okay I need your vote again 😅 you picked the third one last time and you were right. still around?' }),
   onlineRow(ctx, FANS.theodore, { lifetime: null, reason: { kind: 'never', subscribedAt: iso(ctx.now - 30 * DAY) }, act: 'template', seenAt: iso(ctx.now - 18 * MIN), presence: 'fading', state: 'ready', version: 'hey Theodore 👋 I keep seeing you here but we\'ve never actually talked? that\'s giving mystery vibes lol. shy or just picky?' }),
 ];
+
+// ── «Очереди» (2026-10-29) ──
+
+export const defaultQueueRows = (ctx: ScenarioCtx): OnlineRowVM[] => [
+  onlineRow(ctx, FANS.marco, {
+    handle: handles.queue(FANS.marco),
+    lifetime: null,
+    seenAt: iso(ctx.now - 3 * HOUR),
+    presence: 'fading',
+    reason: { kind: 'queue', queue: 'Холодные живые', why: 'Подписан 12 мар · ни разу не писал', goal: null, mass: { count: 4, lastAt: iso(ctx.now - DAY) } },
+    act: 'template',
+    selected: true,
+    state: 'ready',
+    version: 'hey Marco - I noticed you\'ve been here for a bit but we never actually talked? that\'s kinda unusual for me lol. what brought you here originally?',
+  }),
+  onlineRow(ctx, FANS.theodore, {
+    handle: handles.queue(FANS.theodore),
+    lifetime: null,
+    seenAt: iso(ctx.now - 26 * HOUR),
+    presence: 'fading',
+    reason: { kind: 'queue', queue: 'Холодные живые', why: 'Подписан 3 апр · ни разу не писал', goal: null, mass: null },
+    act: 'template',
+    state: 'ready',
+    version: 'hey Theodore 👋 I keep seeing you here but we\'ve never actually talked? that\'s giving mystery vibes lol. shy or just picky?',
+  }),
+];
+
+export function queuesWindow(ctx: ScenarioCtx, view: VmView, rows: readonly OnlineRowVM[], patch: Partial<QueuesWindowVM> = {}): QueuesWindowVM {
+  return {
+    view,
+    pageName: PERSONA.pageName,
+    creator: null,
+    me: 'Макс',
+    stamp: stamp(ctx),
+    chips: [
+      { queueId: 3, name: 'Холодные живые', standing: false, mine: false, paused: false, today: 12, perPerson: 50, done: false, selected: true },
+      { queueId: 1, name: 'Платили, молчат', standing: true, mine: false, paused: false, today: 3, perPerson: 10, done: false, selected: false },
+      { queueId: 5, name: 'Мои: спендеры на смену', standing: false, mine: true, paused: false, today: 0, perPerson: 30, done: false, selected: false },
+    ],
+    line: { goal: 'Познакомиться: пусть ответит хоть что-то. В первом сообщении не продаём.', rule: ['подписчики', 'ни разу не писали', 'не платили', 'заходили за 7 дней'], how: { action: 'template', group: 'b', own: false, batch: true }, people: false, requestedBy: 'Дмитрий' },
+    answered: [],
+    portion: rows,
+    left: rows.length,
+    taking: false,
+    day: { mine: 12, perPerson: 50, page: 61, dailyLimit: 150, pending: 1948 },
+    batch: rows.length === 0 ? null : { ready: rows.length, running: null, reason: null },
+    card: null,
+    end: rows.length === 0 ? { kind: 'pick' } : null,
+    ...patch,
+  };
+}
 
 export function onlineWindow(ctx: ScenarioCtx, view: VmView, rows: readonly OnlineRowVM[], patch: Partial<OnlineWindowVM> = {}): OnlineWindowVM {
   const groups: OnlineWindowVM['groups'] = [

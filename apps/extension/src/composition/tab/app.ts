@@ -132,7 +132,7 @@ function contractOf(report: HostContractReport, shape: HostContractShape): 'ok' 
 }
 
 /** Overlays the boards' controllers answer for: they are loaded with the first action that opens one. */
-const BOARD_SURFACES: readonly string[] = ['spenders', 'newcomers', 'outreach', 'online', 'fan-panel'];
+const BOARD_SURFACES: readonly string[] = ['spenders', 'newcomers', 'outreach', 'online', 'queues', 'fan-panel'];
 
 /** The application of a site's tab; `site` is the application's half of the site's adapter (tab/adapter.ts). */
 export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site: HostAppAdapter<P, C>): Promise<TabApp> {
@@ -341,6 +341,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     action.type === 'GreetNewcomer' ||
     // «Онлайн» opens by its own action (the bar's chip).
     (action.type === 'SetOnline' && action.open === true) ||
+    // «Очереди» too (the bar's chip, ⌘K).
+    (action.type === 'SetQueues' && action.open === true) ||
     (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface));
   /** What a board could not say itself (it has closed, or its row keeps nothing of it): a toast with the code. */
   const say = (code: CgCode, scope: string, title: I18nKey | null): void => {

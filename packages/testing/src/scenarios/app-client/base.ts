@@ -196,6 +196,7 @@ export const handles = {
   palette: (fan: FanFixture): string => `palette:${fan.key}`,
   outreach: (fan: FanFixture): string => `outreach:${fan.key}`,
   online: (fan: FanFixture): string => `online:${fan.key}`,
+  queue: (fan: FanFixture): string => `queue:${fan.key}`,
   part: (opId: string, variant: number | null, index: number): string => `part:${opId.slice(-4)}:${variant ?? 0}:${index}`,
   artifact: (kind: string, n: number): string => `${kind}:${n}`,
 };
