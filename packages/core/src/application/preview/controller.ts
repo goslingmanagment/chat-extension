@@ -111,9 +111,11 @@ export const RATE_LIMIT_HOLD_MS = 60_000;
  */
 export const SEND_PACE_MS = 500;
 
-const SOURCES = ['spenders', 'newcomers', 'palette', 'outreach', 'online'] as const satisfies readonly PreviewSource[];
-/** «Рассылка» and «Онлайн»: their windows write and send each fan's one message; the card has no Generate of its own. */
-const WINDOW_SOURCES: readonly PreviewSource[] = ['outreach', 'online'];
+const SOURCES = ['spenders', 'newcomers', 'palette', 'outreach', 'online', 'queue'] as const satisfies readonly PreviewSource[];
+/** «Рассылка», «Онлайн» and «Очереди»: their windows write and send each fan's one message; the card has no Generate of its own. */
+const WINDOW_SOURCES: readonly PreviewSource[] = ['outreach', 'online', 'queue'];
+/** «Онлайн»'s card and «Очереди»'s (2026-10-29): one card, one way to write and send. */
+const onlineLike = (source: PreviewSource | undefined): boolean => source === 'online' || source === 'queue';
 const fromWindow = (source: PreviewSource): boolean => WINDOW_SOURCES.includes(source);
 const DRAFT_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
 const ONLINE_FEATURES = ['reply', 'fix', 'hi', 'ping'] as const satisfies readonly PreviewActionId[];
@@ -326,7 +328,7 @@ export interface PreviewController extends SurfaceController<'preview'> {
    * 1.32.0: one fan of a list's batch — the preview's own Generate on the fan's card, open or not; resolves when the
    * generation ended (or did not start). The result stays on the fan's card, for the person's own «Отправить».
    */
-  batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }, opts?: BatchStartOptions): Promise<BatchOutcome>;
+  batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online' | 'queue', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }, opts?: BatchStartOptions): Promise<BatchOutcome>;
   /** The fan's result as the preview has it now: its first part, and whether it all went out; null — none. */
   batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null;
   /**
@@ -477,6 +479,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     palette: new ViewCell(() => build('palette')),
     outreach: new ViewCell(() => build('outreach')),
     online: new ViewCell(() => build('online')),
+    queue: new ViewCell(() => build('queue')),
   };
   const changed = (source?: PreviewSource): void => {
     if (disposed) return;
@@ -509,14 +512,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    * «Новые» greet; «Рассылка»'s card writes its fan's version alone (Fix of the common text, by the window's batch); the
    * card of «Онлайн» — Reply, Hi or Ping, by the window.
    */
-  const featuresOf = (source: PreviewSource): readonly PreviewActionId[] => (source === 'newcomers' ? ['hi'] : source === 'outreach' ? ['fix'] : source === 'online' ? ONLINE_FEATURES : DRAFT_FEATURES);
+  const featuresOf = (source: PreviewSource): readonly PreviewActionId[] => (source === 'newcomers' ? ['hi'] : source === 'outreach' ? ['fix'] : onlineLike(source) ? ONLINE_FEATURES : DRAFT_FEATURES);
 
   // ── drafts ──
 
   const ownerKey = (source: PreviewSource, pageId: number, fanRef: string): string | null => {
     const session = context.current().session;
     // The cards of «Рассылка» and «Онлайн» keep no draft of their own: the fan's Spenders draft is the one a Fix of theirs would read.
-    return session === null ? null : draftKey({ hubOrigin: session.hubOrigin, userId: session.userId, pageId, list: source === 'outreach' || source === 'online' ? 'spenders' : source, fanRef });
+    return session === null ? null : draftKey({ hubOrigin: session.hubOrigin, userId: session.userId, pageId, list: source === 'outreach' || onlineLike(source) ? 'spenders' : (source as 'spenders' | 'newcomers' | 'palette'), fanRef });
   };
   const draftText = (state: Pick<TargetState, 'source' | 'pageId' | 'fanRef'>): string => {
     const key = ownerKey(state.source, state.pageId, state.fanRef);
@@ -1930,7 +1933,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       window: options.window ?? messageWindowFor(feature, settings.generation.windows, bootstrap.limits.deepMax),
       ...(feature === 'fix' ? { draft: { text: source, revision: draftRevision(state), digest: digestHex(source) } } : {}),
       ...(feature === 'fix' && outreach !== null ? { draftPurpose: 'outreach' as const } : {}),
-      ...(feature === 'hi' ? { variantCount: state.source === 'newcomers' || state.source === 'online' ? (1 as const) : (options.variants ?? 3) } : {}),
+      ...(feature === 'hi' ? { variantCount: state.source === 'newcomers' || onlineLike(state.source) ? (1 as const) : (options.variants ?? 3) } : {}),
       ...(checkpoint === null ? {} : { checkpoint }),
       ...(regenerateOf === null ? {} : { regenerateOf: regenerateOf.opId, force: true }),
       // 1.20.0 (X47): the name the list already shows, for «Идут сейчас» — display only, never sent to the hub.
@@ -2050,7 +2053,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const chat = track.target.chat;
     const current = media.current(chat);
     // «Онлайн» has no media of its own: what goes with its text is what the person picked for the fan, if anything.
-    const ownMedia = current.picks.length > 0 && (track.source === 'online' || current !== adopted.get(chatKeyOf(chat)));
+    const ownMedia = current.picks.length > 0 && (onlineLike(track.source) || current !== adopted.get(chatKeyOf(chat)));
     const send = rows.send ?? null;
     const goes = send !== null && (send.s === 'available' || send.s === 'unverified' || send.s === 'held-stale' || send.s === 'held-talking' || (send.s === 'rejected' && send.canRetry));
     const paused = goes && paced();
@@ -2064,7 +2067,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       can: send?.s === 'available' && rows.order === null && !paused,
       paused,
       // Before the fan's picks take the outreach's (the version is not ready yet), what will go is the outreach's.
-      media: outreachMediaOf(current.picks.length > 0 || ownMedia || track.source === 'online' ? current : outreachMedia),
+      media: outreachMediaOf(current.picks.length > 0 || ownMedia || onlineLike(track.source) ? current : outreachMedia),
       ownMedia,
       archiveAt: state?.feed?.asOf ?? null,
     };
@@ -2093,7 +2096,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   function rowPart(handle: TargetHandle): { readonly track: OpTrack; readonly index: number; readonly rows: PartRows } | null {
     const track = tracks.get(currentOp.get(handle) ?? '');
     // X59 on a hub's «Новые»; «Рассылка» while its window exists; «Онлайн».
-    if (track === undefined || (track.source !== 'newcomers' && track.source !== 'online' && !(outreachOn && track.source === 'outreach')) || track.hidden || track.mirror.done?.state !== 'done') return null;
+    if (track === undefined || (track.source !== 'newcomers' && !onlineLike(track.source) && !(outreachOn && track.source === 'outreach')) || track.hidden || track.mirror.done?.state !== 'done') return null;
     const parts = partsOfResult(track.mirror.done.result, 0) ?? [];
     for (let index = 0; index < parts.length; index += 1) {
       const rows = rowsOf(track, 0, index);
@@ -2168,7 +2171,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     for (const listener of [...batchListeners]) listener();
   }
 
-  async function batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }, opts?: BatchStartOptions): Promise<BatchOutcome> {
+  async function batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online' | 'queue', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }, opts?: BatchStartOptions): Promise<BatchOutcome> {
     if (disposed) return { s: 'failed', code: 'CG-CONTEXT-CHANGED' };
     // «Ещё вариант» of a reminder's toast (2026-10-29): another variant of the result there is, as the card's own would ask.
     const previous = opts?.again === true ? (tracks.get(currentOp.get(handle) ?? '') ?? null) : null;
@@ -2195,7 +2198,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     try {
       // NF-015: a dialogue gets no Hi — the archive's count is read first, as an open card has it.
       if (feature === 'hi' && state.feed === null) await loadFeed(state);
-      receipt = await generate('GenerateBatch', state, feature, opts?.single === true ? { split: false } : {}, previous, outreach ?? null, outreach !== undefined || source === 'online');
+      receipt = await generate('GenerateBatch', state, feature, opts?.single === true ? { split: false } : {}, previous, outreach ?? null, outreach !== undefined || onlineLike(source));
     } finally {
       if (shadow !== null && targets.get(handle) === shadow && !shown()) closeTarget(handle);
       shadows.delete(handle);
@@ -2288,7 +2291,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     }
     // The person's own text passes no freshness warning: it was written looking at the chat. A text of the team's guide
     // «Онлайн» put on the card when it opened was not: what the fan wrote since warns, as for an AI's text.
-    const accept = anyway || (track.manual !== null && track.source !== 'online');
+    const accept = anyway || (track.manual !== null && !onlineLike(track.source));
     // Sent anyway, a result restored after a reload goes with a checkpoint taken now: the page's own document and chat.
     const checkpoint = track.checkpoint ?? (accept ? await host.checkpoint(track.target.chat).catch(() => null) : null);
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
@@ -2647,7 +2650,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const sha256 = deps.sha256;
     const state = targets.get(handle) ?? null;
     const body = text.trim();
-    if (sha256 === undefined || deps.sender === null || deps.previewSend === false || state === null || state.source !== 'online' || body === '') return false;
+    if (sha256 === undefined || deps.sender === null || deps.previewSend === false || state === null || !onlineLike(state.source) || body === '') return false;
     if (busyOf(state.pageId, state.fanRef)) return false;
     const binding = context.current().binding;
     if (binding === null) return false;
@@ -3115,7 +3118,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     outreachSend(type, handle, anyway) {
       // The card's own send of the fan's version, with the fan's media (the outreach's, unless the person picked the fan's own);
       // «Онлайн»'s text with what the person picked for the fan, if anything.
-      const online = parseFanHandle(handle)?.source === 'online';
+      const online = onlineLike(parseFanHandle(handle)?.source);
       if (deps.sender === null || (!outreachOn && !online)) return Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n)));
       const next = rowPart(handle);
       if (next === null) return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
@@ -3126,7 +3129,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     outreachEdit(handle, text) {
       const track = tracks.get(currentOp.get(handle) ?? '');
       if (track === undefined || !fromWindow(track.source)) return false;
-      return editPart(track.source === 'online' ? 'EditOnline' : 'EditOutreach', track, 0, 0, text).ok;
+      return editPart(onlineLike(track.source) ? 'EditOnline' : 'EditOutreach', track, 0, 0, text).ok;
     },
     onlineText,
     clearDraft,

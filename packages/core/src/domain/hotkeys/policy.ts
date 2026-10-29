@@ -141,7 +141,7 @@ export const LIST_COMMANDS: readonly DispatcherCommandId[] = ['chat-next', 'chat
  * Windows that cover the dock: a paid generation under them would run blind
  * (HK-027), so under them only their own toggles and Cancel work.
  */
-export const COVERING_OVERLAYS: readonly OverlayKind[] = ['cheatsheet', 'spenders', 'newcomers', 'outreach', 'online', 'palette', 'dialog', 'result-expanded'];
+export const COVERING_OVERLAYS: readonly OverlayKind[] = ['cheatsheet', 'spenders', 'newcomers', 'outreach', 'online', 'queues', 'palette', 'dialog', 'result-expanded'];
 /** What still runs under a covering window: the reference windows (the cheatsheet and the two boards, X55) and Cancel. */
 export const UNDER_COVER_COMMANDS: readonly DispatcherCommandId[] = ['cheatsheet', 'spenders', 'newcomers', 'cancel', 'close'];
 /** Side panels next to the chat: the chat stays visible and usable, so they own no keys but their own. */

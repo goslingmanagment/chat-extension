@@ -488,7 +488,7 @@ export interface OutreachCardRow {
 /** What a list's batch asks of the preview (its controller, bound late: the preview is made after the lists). */
 export interface BatchPreviewPort {
   /** `outreach` — «Рассылка»: a Fix of the common text made personal for the fan (the card's draft stays as it is). */
-  batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online', handle: string, feature: 'reply' | 'ping' | 'hi' | 'fix', outreach?: { readonly draft: string }, opts?: { readonly again?: boolean; readonly single?: boolean }): Promise<BatchOutcome>;
+  batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online' | 'queue', handle: string, feature: 'reply' | 'ping' | 'hi' | 'fix', outreach?: { readonly draft: string }, opts?: { readonly again?: boolean; readonly single?: boolean }): Promise<BatchOutcome>;
   batchLive(handle: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** 2026-10-29, «Hi» inside a greeting reminder's toast: the ready result's next part and its send (absent — none here). */
   batchNext?(handle: string): { readonly opId: string; readonly part: number | null; readonly text: string | null; readonly send: PreviewSendView | null; readonly waits: boolean } | null;

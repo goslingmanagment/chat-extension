@@ -154,7 +154,7 @@ export function dockChips(
    */
   panels: Readonly<Record<string, DockActionVM & { readonly action: UiAction | null }>> = {},
   /** 1.65.0: a window's chip that opens by its own action, with a number beside it («Онлайн N»). */
-  boards: Readonly<Record<string, { readonly action?: UiAction; readonly count?: number | null }>> = {},
+  boards: Readonly<Record<string, { readonly action?: UiAction; readonly count?: number | null; readonly answered?: boolean }>> = {},
 ): ChipVM[] {
   return Object.entries(slice)
     .flatMap(([id, entry]) => (entry.chip === undefined ? [] : [{ id, entry, chip: entry.chip }]))
@@ -183,6 +183,6 @@ export function dockChips(
       // A board's key: the scheme's row it names (Spenders), else the catalog's own row of the board — «Новые» has one
       // outside the scheme (decision X55).
       const key = entry.hotkey ?? ((CATALOG_ACTION_IDS as readonly string[]).includes(id) ? (id as CatalogActionId) : null);
-      return [{ id, group, icon, label: { key: `${id}.title` as I18nKey }, hint, action: open, enabled: true, busy: false, active: false, reason: null, hotkey: key === null ? null : keyOf(key), badge: null, ...(board?.count === undefined ? {} : { count: board.count }) }];
+      return [{ id, group, icon, label: { key: `${id}.title` as I18nKey }, hint, action: open, enabled: true, busy: false, active: false, reason: null, hotkey: key === null ? null : keyOf(key), badge: null, ...(board?.count === undefined ? {} : { count: board.count }), ...(board?.answered === true ? { answered: true } : {}) }];
     });
 }

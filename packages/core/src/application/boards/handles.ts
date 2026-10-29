@@ -6,7 +6,7 @@
 
 import { type PreviewSource, type TargetHandle } from '@cg/contracts/vm';
 
-const SOURCES = ['spenders', 'newcomers', 'palette', 'outreach', 'online'] as const satisfies readonly PreviewSource[];
+const SOURCES = ['spenders', 'newcomers', 'palette', 'outreach', 'online', 'queue'] as const satisfies readonly PreviewSource[];
 
 export interface FanHandle {
   readonly source: PreviewSource;
@@ -19,7 +19,7 @@ export function fanHandle(source: PreviewSource, pageId: number, fanRef: string)
   return `${source}:${pageId}:${fanRef}`;
 }
 
-const HANDLE = /^(spenders|newcomers|palette|outreach|online):([1-9]\d{0,15}):([1-9]\d{0,29})$/;
+const HANDLE = /^(spenders|newcomers|palette|outreach|online|queue):([1-9]\d{0,15}):([1-9]\d{0,29})$/;
 
 export function parseFanHandle(handle: string): FanHandle | null {
   const match = HANDLE.exec(handle);

@@ -431,7 +431,8 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
 
   function groupOf(reason: OnlineReasonVM, aside: OnlineAsideVM | null): OnlineGroupId {
     if (aside !== null) return 'aside';
-    return reason.kind === 'answered' ? 'waiting' : reason.kind;
+    // A queue's reason never comes from «Онлайн»'s list: «Очереди» has its own window.
+    return reason.kind === 'answered' ? 'waiting' : reason.kind === 'queue' ? 'none' : reason.kind;
   }
 
   /** The texts of the guide's group, in the hub's order. */

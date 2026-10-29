@@ -20,15 +20,19 @@ export interface SurfacesState {
   readonly outreachChip: boolean;
   /** 1.65.0: the window of «Онлайн». */
   readonly online: boolean;
+  /** 2026-10-29: the window of «Очереди». */
+  readonly queues: boolean;
   readonly fanPanel: boolean;
   /** The fan each preview shows; null — closed. */
   readonly preview: Readonly<Record<PreviewSource, TargetHandle | null>>;
 }
 
-const NO_PREVIEW: SurfacesState['preview'] = { spenders: null, newcomers: null, palette: null, outreach: null, online: null };
-const CLOSED: SurfacesState = { spenders: false, newcomers: false, outreach: false, outreachChip: false, online: false, fanPanel: false, preview: NO_PREVIEW };
-type List = 'spenders' | 'newcomers' | 'outreach' | 'online';
-const LISTS: readonly List[] = ['spenders', 'newcomers', 'outreach', 'online'];
+const NO_PREVIEW: SurfacesState['preview'] = { spenders: null, newcomers: null, palette: null, outreach: null, online: null, queue: null };
+const CLOSED: SurfacesState = { spenders: false, newcomers: false, outreach: false, outreachChip: false, online: false, queues: false, fanPanel: false, preview: NO_PREVIEW };
+type List = 'spenders' | 'newcomers' | 'outreach' | 'online' | 'queues';
+const LISTS: readonly List[] = ['spenders', 'newcomers', 'outreach', 'online', 'queues'];
+/** The preview each list's window holds: «Очереди»'s card is the preview from `queue`. */
+const PREVIEW_OF: Readonly<Record<List, PreviewSource>> = { spenders: 'spenders', newcomers: 'newcomers', outreach: 'outreach', online: 'online', queues: 'queue' };
 
 /**
  * Open state of the R12 overlays. The lists — Spenders, «Новые», «Рассылка», «Онлайн» — are
@@ -61,12 +65,14 @@ export class Surfaces {
       next.outreach === previous.outreach &&
       next.outreachChip === previous.outreachChip &&
       next.online === previous.online &&
+      next.queues === previous.queues &&
       next.fanPanel === previous.fanPanel &&
       next.preview.spenders === previous.preview.spenders &&
       next.preview.newcomers === previous.preview.newcomers &&
       next.preview.palette === previous.preview.palette &&
       next.preview.outreach === previous.preview.outreach &&
-      next.preview.online === previous.preview.online
+      next.preview.online === previous.preview.online &&
+      next.preview.queue === previous.preview.queue
     ) {
       return;
     }
@@ -77,13 +83,13 @@ export class Surfaces {
   setList(list: List, open: boolean): void {
     const s = this.state;
     if (!open) {
-      this.set({ ...s, [list]: false, preview: { ...s.preview, [list]: null } });
+      this.set({ ...s, [list]: false, preview: { ...s.preview, [PREVIEW_OF[list]]: null } });
       return;
     }
     // One list at a time: the others close with their previews, and so does the palette's.
     const preview = { ...s.preview, palette: null };
-    for (const other of LISTS) if (other !== list) preview[other] = null;
-    this.set({ ...s, spenders: list === 'spenders', newcomers: list === 'newcomers', outreach: list === 'outreach', online: list === 'online', preview });
+    for (const other of LISTS) if (other !== list) preview[PREVIEW_OF[other]] = null;
+    this.set({ ...s, spenders: list === 'spenders', newcomers: list === 'newcomers', outreach: list === 'outreach', online: list === 'online', queues: list === 'queues', preview });
   }
 
   /** «Свернуть» of «Рассылка» and back: the chip in the page's corner. */
@@ -98,7 +104,7 @@ export class Surfaces {
   setPreview(source: PreviewSource, handle: TargetHandle | null): void {
     const s = this.state;
     // The palette's preview opens in its own window: the lists and their previews close.
-    if (source === 'palette' && handle !== null) this.set({ ...s, spenders: false, newcomers: false, outreach: false, online: false, preview: { ...NO_PREVIEW, palette: handle } });
+    if (source === 'palette' && handle !== null) this.set({ ...s, spenders: false, newcomers: false, outreach: false, online: false, queues: false, preview: { ...NO_PREVIEW, palette: handle } });
     else this.set({ ...s, preview: { ...s.preview, [source]: handle } });
   }
 
@@ -108,7 +114,7 @@ export class Surfaces {
    */
   closeBoards(): void {
     const s = this.state;
-    this.set({ ...s, spenders: false, newcomers: false, outreach: false, online: false, outreachChip: s.outreachChip || s.outreach, preview: NO_PREVIEW });
+    this.set({ ...s, spenders: false, newcomers: false, outreach: false, online: false, queues: false, outreachChip: s.outreachChip || s.outreach, preview: NO_PREVIEW });
   }
 
   closeAll(): void {
