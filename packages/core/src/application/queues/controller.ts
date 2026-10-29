@@ -1161,14 +1161,23 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     return done(type, 'opened');
   }
 
-  /** The person closed the window: the untouched portion goes back to the queue for the others. */
+  /**
+   * The portion may go back to the queue: someone of it is untouched, and no send of it is on its way (a fan given back
+   * while his message goes would be reported to no one and handed out again; the lease runs out by itself then).
+   */
+  function releasable(): boolean {
+    const portion = entriesOf().portion;
+    return portion.some((entry) => !entry.done) && !portion.some((entry) => MOVING.includes(entry.facts.state) || entry.fan?.own?.state === 'sending');
+  }
+
+  /** The person closed the window: «Отправить всем» stops (what has not gone stays), the untouched portion goes back to the queue. */
   function close(type: UiActionType): ActionReceipt {
     surfaces.setList('queues', false);
+    if (run !== null) run.running = false;
     const binding = context.current().binding;
-    if (binding !== null && chosen !== null && run?.running !== true) {
+    if (binding !== null && chosen !== null && releasable()) {
       const queueId = chosen;
-      const inHand = entriesOf().portion.some((entry) => !entry.done);
-      if (inHand) void rpc.request('queues.release', { pageId: binding.pageId, queueId }).catch(() => undefined);
+      void rpc.request('queues.release', { pageId: binding.pageId, queueId }).catch(() => undefined);
     }
     return done(type);
   }
@@ -1412,7 +1421,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     if (before !== queueId) {
       // Another queue's portion leaves the window: what is untouched of it goes back to that queue for the others.
       const binding = context.current().binding;
-      if (before !== null && binding !== null && entriesOf().portion.some((entry) => !entry.done)) void rpc.request('queues.release', { pageId: binding.pageId, queueId: before }).catch(() => undefined);
+      if (before !== null && binding !== null && releasable()) void rpc.request('queues.release', { pageId: binding.pageId, queueId: before }).catch(() => undefined);
       for (const fanRef of order) if (known.get(fanRef)?.answered === null) known.delete(fanRef);
       order = [];
       take = null;
