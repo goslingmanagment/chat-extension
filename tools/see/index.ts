@@ -15,7 +15,8 @@
 // agent's shell on macOS).
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
@@ -423,6 +424,7 @@ interface SessionInfo {
   readonly port: number;
   readonly site: string;
   readonly out: string;
+  readonly token: string;
 }
 
 const alive = (pid: number): boolean => {
@@ -456,8 +458,9 @@ async function session(flags: Flags): Promise<void> {
   const label = `${bare ? 'fansly-bare' : live !== null ? 'fansly-live' : site}${world['CG_SEE_SHOWCASE'] === '1' ? '-showcase' : ''}`;
   const out = outDir(`session-${label}`);
   const idle = flags.values.get('--idle') ?? process.env['CG_SEE_IDLE_MIN'] ?? '30';
+  const token = randomBytes(32).toString('hex');
   say(`starting a ${bare ? 'bare fansly.com (the test model, no extension: real fans — a send or a post only on the owner\'s «да»)' : live !== null ? 'live fansly.com (the test model: real fans — a send or a post only on the owner\'s «да»)' : site} session (headless Firefox; stops after ${idle} min without a request)…`);
-  const { child, exit } = wdio(join(SEE_DIR, 'session.see.ts'), out, { CG_SEE_SITE: site, ...live, ...world, CG_SEE_PORT: String(SESSION_PORT), CG_SEE_IDLE_MIN: idle }, (line) => {
+  const { child, exit } = wdio(join(SEE_DIR, 'session.see.ts'), out, { CG_SEE_SITE: site, ...live, ...world, CG_SEE_PORT: String(SESSION_PORT), CG_SEE_IDLE_MIN: idle, CG_SEE_TOKEN: token }, (line) => {
     if (!line.includes('cg-see session ready')) return;
     console.log('');
     say(`session ready in ${secs()} — live view: http://127.0.0.1:${SESSION_PORT}/live`);
@@ -465,9 +468,13 @@ async function session(flags: Flags): Promise<void> {
     say(`stop it:  pnpm see:do --stop   ·   pictures: ${out}`);
   });
   mkdirSync(CACHE, { recursive: true });
-  writeFileSync(SESSION_FILE, `${JSON.stringify({ pid: process.pid, port: SESSION_PORT, site: label, out } satisfies SessionInfo)}\n`);
+  // Replace even an old world-readable session file without ever exposing the new credential in it.
+  const pendingSession = `${SESSION_FILE}.${process.pid}`;
+  writeFileSync(pendingSession, `${JSON.stringify({ pid: process.pid, port: SESSION_PORT, site: label, out, token } satisfies SessionInfo)}\n`, { mode: 0o600, flag: 'wx' });
+  renameSync(pendingSession, SESSION_FILE);
   const stop = (): void => {
-    void fetch(`http://127.0.0.1:${SESSION_PORT}/stop`, { method: 'POST' }).catch(() => child.kill('SIGINT'));
+    void fetch(`http://127.0.0.1:${SESSION_PORT}/stop`, { method: 'POST', headers: { 'x-cg-see-token': token }, redirect: 'error' })
+      .then((response) => { if (!response.ok) child.kill('SIGINT'); }, () => child.kill('SIGINT'));
   };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
@@ -479,17 +486,31 @@ async function session(flags: Flags): Promise<void> {
 
 async function call(path: string, init: RequestInit = {}): Promise<Response> {
   const info = readSession();
-  const port = info?.port ?? SESSION_PORT;
+  if (info === null) fail('see: no session in this worktree — start one: pnpm see:session [chatspace|fansly|telegram]');
+  if (typeof info.token !== 'string' || !/^[a-f0-9]{64}$/.test(info.token)) fail('see: this session has no valid credential; restart it with pnpm see:session');
+  const { port, token } = info;
+  const headers = new Headers(init.headers);
+  headers.set('x-cg-see-token', token);
   const until = Date.now() + 120_000;
   for (;;) {
+    let ready: Response;
     try {
-      return await fetch(`http://127.0.0.1:${port}${path}`, init);
+      // Only this read-only probe may be retried. A failed POST can already have pressed Send.
+      ready = await fetch(`http://127.0.0.1:${port}/ready`, { headers, redirect: 'error', signal: AbortSignal.timeout(1000) });
     } catch (error) {
-      // A session still starting: wait for it. No session at all: say so.
-      if (readSession() === null) fail(`see: no session on port ${port} — start one: pnpm see:session [chatspace|fansly|telegram]`);
+      if (readSession()?.token !== token) fail('see: the session ended or changed while waiting; no command submitted');
       if (Date.now() > until) fail(`see: the session on port ${port} does not answer: ${String(error)}`);
       await new Promise((done) => setTimeout(done, 500));
+      continue;
     }
+    if (!ready.ok) fail(`see: session readiness rejected (HTTP ${ready.status}); no command submitted`);
+    break;
+  }
+  try {
+    // No redirects either: a 307/308 could otherwise submit the same script again.
+    return await fetch(`http://127.0.0.1:${port}${path}`, { ...init, headers, redirect: 'error' });
+  } catch {
+    return fail('see: command outcome unknown: the response was lost. It was not retried. Check the session before running anything again.');
   }
 }
 
@@ -514,8 +535,8 @@ async function doCommand(flags: Flags): Promise<void> {
   const query = new URLSearchParams();
   if (flags.values.has('--name')) query.set('name', flags.values.get('--name') ?? 'do');
   if (flags.switches.has('--no-shot')) query.set('shot', '0');
-  const response = await call(`/run?${query.toString()}`, { method: 'POST', body: code });
-  const answer = (await response.json()) as { ok: boolean; result?: unknown; error?: string; shot?: string | null; seconds?: number };
+  const response = await call(`/run?${query.toString()}`, { method: 'POST', body: code, headers: { 'content-type': 'application/javascript; charset=utf-8' } });
+  const answer = (await response.json().catch(() => fail('see: script outcome unknown: the response body was lost or invalid. It was not retried. Check the session before running anything again.'))) as { ok: boolean; result?: unknown; error?: string; shot?: string | null; seconds?: number };
   if (answer.ok) console.log(JSON.stringify(answer.result, null, 2));
   else console.error(answer.error);
   if (answer.shot) console.log(`see: ${answer.shot}`);

@@ -23,6 +23,20 @@ The session's live view is `http://127.0.0.1:<port>/live` (a frame every half
 second): open it for the owner in the Claude desktop browser pane. `--gif`
 makes `see.gif` from the run's frames (needs `ffmpeg`).
 
+Commands use a fresh random credential for each session, stored in this
+worktree's `.cache/see/session.json` with mode `0600`. `see:do` reads it and
+sends `x-cg-see-token`; it refuses to use a port without a local session.
+The server rejects any `Origin` header or a `Host` other than its exact
+`127.0.0.1:<port>`. The live viewer's GET routes remain read-only; `/ready`,
+`/shot`, `/run` and `/stop` require the credential, and `/run` accepts only
+`application/javascript` after authentication.
+
+`see:do` waits up to 120 seconds using read-only readiness probes, then
+submits a command once, without redirects or retries. A lost or incomplete
+script response is **outcome unknown**: inspect the session before deciding
+what to do next. The script may already have sent a message; do not repeat it
+just because the CLI did not receive its result.
+
 Scenarios: `dock`, `reply`, `reply-wait` (the sheet at the click while the start still reads the open chat), `coach`, `coach-recap` (what a
 Recap is used by: the Recap picker's words, Coach «Recap нет» and an answer «без Recap», «Собрать Recap ▾» from Coach with
 its menu (the full or the short one) and the line while the full one is built, «Обновить Recap ▾» with each one's age,

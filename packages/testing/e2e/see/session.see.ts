@@ -6,8 +6,10 @@
 //   GET  /shot?name=x          → the path of a new picture
 //   GET  /live                 → a page that shows the tab as it is now (a frame every half second)
 //   GET  /frame.png, /status   → the latest frame; what the session is
+//   GET  /ready                → authenticated readiness probe (never executes a script)
 //   POST /stop                 → ends the session (so does CG_SEE_IDLE_MIN minutes without a request)
 
+import { timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
@@ -19,6 +21,9 @@ import { fanslyWrites, LIVE, netRecords } from './live';
 
 const PORT = Number(process.env['CG_SEE_PORT'] ?? 47811);
 const IDLE_MS = Number(process.env['CG_SEE_IDLE_MIN'] ?? 30) * 60_000;
+const TOKEN = process.env['CG_SEE_TOKEN'];
+if (TOKEN === undefined || !/^[a-f0-9]{64}$/.test(TOKEN)) throw new Error('see: a session credential is required; start with pnpm see:session');
+const tokenBytes = Buffer.from(TOKEN);
 
 type Run = (s: See<SeeSite>, b: WebdriverIO.Browser) => Promise<unknown>;
 /** The constructor of async functions: `new AsyncFunction('s', 'browser', body)` compiles a command of `see:do`. */
@@ -78,11 +83,29 @@ describe('see: a held session', function (this: Mocha.Suite) {
     };
 
     const server = createServer((request, response) => {
-      lastUse = Date.now();
-      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
       void (async () => {
         try {
+          // Every route rejects browser-origin requests and DNS rebinding, before any body is read.
+          if (request.headers.origin !== undefined || request.headers.host !== `127.0.0.1:${PORT}`) {
+            answer(response, 403, { ok: false, error: 'Origin or Host is not allowed' });
+            return;
+          }
+          const url = new URL(request.url ?? '/', `http://127.0.0.1:${PORT}`);
+          // The existing owner-facing viewer is read-only; commands and readiness require the session credential.
+          const viewerRead = request.method === 'GET' && ['/', '/live', '/frame.png', '/status'].includes(url.pathname);
+          if (!viewerRead) {
+            const supplied = request.headers['x-cg-see-token'];
+            if (typeof supplied !== 'string' || Buffer.byteLength(supplied) !== tokenBytes.length || !timingSafeEqual(Buffer.from(supplied), tokenBytes)) {
+              answer(response, 401, { ok: false, error: 'Session credential required' });
+              return;
+            }
+          }
+          lastUse = Date.now();
           if (url.pathname === '/run' && request.method === 'POST') {
+            if (request.headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/javascript') {
+              answer(response, 415, { ok: false, error: 'Expected application/javascript' });
+              return;
+            }
             const body = await read(request);
             const started = Date.now();
             last = body.trim().split('\n')[0]?.slice(0, 80) ?? '';
@@ -99,15 +122,17 @@ describe('see: a held session', function (this: Mocha.Suite) {
               }
             });
             answer(response, outcome.ok ? 200 : 500, { ...outcome, seconds: (Date.now() - started) / 1000 });
-          } else if (url.pathname === '/shot') {
+          } else if (url.pathname === '/shot' && request.method === 'GET') {
             answer(response, 200, { ok: true, shot: await serial(() => shot(url.searchParams.get('name') ?? 'shot')) });
-          } else if (url.pathname === '/frame.png') {
+          } else if (url.pathname === '/frame.png' && request.method === 'GET') {
             answer(response, 200, latest, 'image/png');
-          } else if (url.pathname === '/live' || url.pathname === '/') {
+          } else if ((url.pathname === '/live' || url.pathname === '/') && request.method === 'GET') {
             answer(response, 200, LIVE_PAGE, 'text/html; charset=utf-8');
-          } else if (url.pathname === '/status') {
+          } else if (url.pathname === '/status' && request.method === 'GET') {
             answer(response, 200, { site: s.site, live: LIVE, fanslyWrites: fanslyWrites.length, net: netRecords.length, out: OUT, port: PORT, shots, last, idleMinutes: IDLE_MS / 60_000 });
-          } else if (url.pathname === '/stop') {
+          } else if (url.pathname === '/ready' && request.method === 'GET') {
+            answer(response, 200, { ok: true });
+          } else if (url.pathname === '/stop' && request.method === 'POST') {
             stopped = true;
             answer(response, 200, { ok: true, stopping: true });
           } else {
