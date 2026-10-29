@@ -2945,6 +2945,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (state.epoch !== epoch) {
         // Another sign-in, hub or account: nothing of the old identity is shown, inserted or kept.
         epoch = state.epoch;
+        outreachMedia = EMPTY_ATTACHMENT;
+        adopted.clear();
         cancelInsert('session');
         for (const target of targets.values()) stopPoll(target);
         for (const track of tracks.values()) clearHoldTimers(track);
