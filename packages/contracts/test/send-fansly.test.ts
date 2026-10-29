@@ -38,7 +38,7 @@ describe('[host:fansly] the «Новые» greeting request (FS-NEW-3, FS-NEW-6)
   it('carries the field text, its revision, the reviewed history revision, the admission and the human action', () => {
     expectVerdicts('FanslyGreetingRequest', S.FanslyGreetingRequestSchema, FANSLY_GREETING_REQUEST_FIXTURES);
     expect(Object.keys(S.FanslyGreetingRequestSchema.def.shape).sort()).toEqual(
-      ['admission', 'attemptId', 'cause', 'draftRevision', 'fanRef', 'groupId', 'historyRevision', 'hostAccountId', 'opId', 'passId', 'text'].sort(),
+      ['admission', 'attemptId', 'batch', 'cause', 'draftRevision', 'fanRef', 'groupId', 'historyRevision', 'hostAccountId', 'opId', 'passId', 'text'].sort(),
     );
   });
 
