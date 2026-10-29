@@ -723,6 +723,8 @@ export type OpDebugView = z.infer<typeof OpDebugViewSchema>;
 
 export const OpViewSchema = z.strictObject({
   opId: UuidSchema,
+  /** The background's cache identity as a fingerprint, including for results adopted by another tab. */
+  requestDigest: z.optional(DigestSchema),
   feature: FeatureIdSchema,
   surface: SurfaceSchema,
   target: TargetSchema,

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { OpViewSchema, TAB_EVENTS, type HubFrame, type OpView, type StartOp } from '@cg/contracts';
-import { type OpsEnvironment } from '@cg/core/domain/ops';
+import { requestDigestOf, requestIdentityOf, type OpsEnvironment } from '@cg/core/domain/ops';
 import { ActionTokens, OPS_STORE_KEY, OpScheduler, type OpSchedulerDeps, type OpSchedulerHooks, type TabPresence } from '@cg/core/services';
 import { BOOTSTRAP_PILOT_PAGES, SSE_SCENARIOS, meta, resolveHubErrorReference } from '@cg/testing/hub';
 
@@ -349,12 +349,18 @@ describe('[BG-004] [RB-003] restore after an unload', () => {
     const running = opIdOf(await first.start(TAB, startOf({ target: targetOf(WORLD.otherFan) })));
     await clock.advance(10);
     // The event page unloads; a new instance starts from storage.session.
-    const raw = store.data.get(OPS_STORE_KEY) as { v: number; ops: unknown[] };
-    store.data.set(OPS_STORE_KEY, { ...raw, ops: [...raw.ops, { view: { opId: 'broken' }, meta: {} }, null] });
+    const raw = store.data.get(OPS_STORE_KEY) as { v: number; ops: { view: OpView; meta: unknown }[] };
+    // Results saved by older builds have only the cache key in metadata, not its fingerprint in the view.
+    const legacy = raw.ops.map(({ view, meta }) => {
+      const { requestDigest: _requestDigest, ...oldView } = view;
+      return { view: oldView, meta };
+    });
+    store.data.set(OPS_STORE_KEY, { ...raw, ops: [...legacy, { view: { opId: 'broken' }, meta: {} }, null] });
     const second = harness({ clock, store, firstId: 0x300 });
     expect(await second.scheduler.restore()).toEqual({ restored: 2, interrupted: 1, dropped: 2 });
     expect(second.scheduler.view(running)).toMatchObject({ state: 'interrupted', error: { code: 'CG-OP-INTERRUPTED' } });
     expect(second.scheduler.view(done)?.state).toBe('done');
+    expect(second.scheduler.view(done)?.requestDigest).toBe(requestDigestOf(requestIdentityOf({ session, start: startOf(), persona, archiveHead: null })));
     expect(await second.start(TAB, startOf())).toEqual({ kind: 'admission', admission: { ok: true, opId: done }, reopened: true });
     expect(second.hub.streams).toHaveLength(0);
     // Nothing starts by itself after a restore (BG-001).

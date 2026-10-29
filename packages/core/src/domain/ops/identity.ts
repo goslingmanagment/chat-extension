@@ -59,6 +59,10 @@ export interface RequestIdentity {
   /** The newest message id of the fresh tail sent with the request (dock), when there was one. */
   readonly freshHead: string | null;
   readonly freshDigest: string | null;
+  /** Per-click media and purchase facts, without their capture times or raw image data in the key. */
+  readonly draftMediaDigest?: string;
+  readonly livePpvDigest?: string;
+  readonly liveImagesDigest?: string;
   readonly coachDigest: string | null;
   readonly checkpoint: CheckpointIdentity | null;
   /**
@@ -124,6 +128,9 @@ export function requestIdentityOf({ session, start, persona, archiveHead }: Iden
     archiveHead,
     freshHead: lastFresh === undefined ? null : lastFresh.platformMessageId,
     freshDigest: fresh === undefined ? null : stableDigest(fresh.messages.map((m) => [m.platformMessageId, m.direction, m.text])),
+    ...(start.draftMedia === undefined ? {} : { draftMediaDigest: stableDigest({ items: start.draftMedia.items, priceUsd: start.draftMedia.priceUsd }) }),
+    ...(start.livePpv === undefined ? {} : { livePpvDigest: stableDigest(start.livePpv.items) }),
+    ...(start.liveImages === undefined ? {} : { liveImagesDigest: stableDigest(start.liveImages) }),
     coachDigest: start.coach === undefined ? null : stableDigest(start.coach),
     checkpoint: start.checkpoint === undefined ? null : checkpointIdentity(start.checkpoint),
     ...(start.proof === undefined ? {} : { proofDigest: proofDigestOf(start.proof) }),

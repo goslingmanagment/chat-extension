@@ -58,6 +58,7 @@ import {
   canceledByChange,
   chatKeyOfStart,
   decideAdmission,
+  digestHex,
   isTerminalOpState,
   nextDeadlineFor,
   readFrame,
@@ -305,7 +306,7 @@ export class OpScheduler {
 
   private restoredRun(view: AnyOpView, meta: PersistedMeta, site: SiteOperations | null): Run {
     return {
-      view,
+      view: { ...view, requestDigest: digestHex(meta.requestKey) },
       site,
       startedBy: meta.startedBy,
       ownerTab: null,
@@ -464,6 +465,7 @@ export class OpScheduler {
     return {
       view: {
         opId,
+        requestDigest: digestHex(requestKey),
         feature: start.feature,
         surface: start.surface,
         target: start.target,
