@@ -131,6 +131,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   noteWrite: { ...PAGE_FAN, noteRef: (value) => typeof value === 'string' && value !== '', action: (value) => value === 'created' || value === 'edited' || value === 'deleted', login: (value) => typeof value === 'string' && value !== '', at: (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)) },
   queue: { pageLabel: isString, waiting: isArray, winBack: isObject, handoff: isObject },
   online: { pageLabel: isString, items: isOnlineSeeds, templates: isOnlineTemplates },
+  fanQueues: { pageLabel: isString, set: oneOf('stand', null), userId: isNumber },
   status: {},
 };
 
@@ -160,6 +161,7 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   noteWrite: ['pageLabel', 'fanRef', 'noteRef', 'action', 'login', 'at'],
   queue: ['pageLabel'],
   online: ['pageLabel'],
+  fanQueues: ['pageLabel', 'set'],
 };
 
 /** Keys of a config patch (FakeHubConfigPatch). */

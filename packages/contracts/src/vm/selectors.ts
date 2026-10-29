@@ -25,9 +25,9 @@ export type ToastId = string;
 
 /**
  * Where a preview is open: the Spenders board, the «Новые» card, the palette's online fans (CS-030), the card of
- * «Рассылка» (1.63.0), or the card of «Онлайн» (1.65.0).
+ * «Рассылка» (1.63.0), the card of «Онлайн» (1.65.0), or the card of «Очереди» (2026-10-29).
  */
-export const PREVIEW_SOURCES = ['spenders', 'newcomers', 'palette', 'outreach', 'online'] as const;
+export const PREVIEW_SOURCES = ['spenders', 'newcomers', 'palette', 'outreach', 'online', 'queue'] as const;
 export type PreviewSource = (typeof PREVIEW_SOURCES)[number];
 
 /** Journals of the debug mode (§9.2, §9.3, NF-029), read by `journal.read`. */
@@ -56,6 +56,8 @@ export const MOUNT_SURFACES = [
   'outreach-chip',
   /** 1.65.0: the window of «Онлайн». */
   'online',
+  /** 2026-10-29: the window of «Очереди». */
+  'queues',
   'preview',
   'palette',
   'quick-jump',
@@ -69,7 +71,7 @@ export const MOUNT_SURFACES = [
 export type MountSurfaceKind = (typeof MOUNT_SURFACES)[number];
 
 /** Overlays the person opens and closes (Navigate); a preview closes back to its list. */
-export const OVERLAY_SURFACES = ['spenders', 'newcomers', 'outreach', 'online', 'preview', 'fan-panel', 'coach', 'palette', 'quick-jump', 'cheatsheet'] as const;
+export const OVERLAY_SURFACES = ['spenders', 'newcomers', 'outreach', 'online', 'queues', 'preview', 'fan-panel', 'coach', 'palette', 'quick-jump', 'cheatsheet'] as const;
 export type OverlaySurface = (typeof OVERLAY_SURFACES)[number];
 
 export const VIEW_NAMES = [
@@ -83,6 +85,7 @@ export const VIEW_NAMES = [
   'newcomers',
   'outreach',
   'online',
+  'queues',
   'fan-panel',
   'palette',
   'quick-jump',
@@ -112,6 +115,8 @@ export const ViewSelectorSchema = z.discriminatedUnion('of', [
   z.strictObject({ of: view('outreach') }),
   /** 1.65.0: the window of «Онлайн». */
   z.strictObject({ of: view('online') }),
+  /** 2026-10-29: the window of «Очереди». */
+  z.strictObject({ of: view('queues') }),
   z.strictObject({ of: view('fan-panel') }),
   z.strictObject({ of: view('palette') }),
   z.strictObject({ of: view('quick-jump') }),

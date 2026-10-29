@@ -60,6 +60,7 @@ export const OVERLAY_MOUNTS: Readonly<Partial<Record<OverlayKind, OverlaySpec>>>
   newcomers: { kind: 'newcomers', layer: 'modal', entry: 'newcomers', pick: surfaceOf },
   outreach: { kind: 'outreach', layer: 'modal', entry: 'outreach', pick: surfaceOf },
   online: { kind: 'online', layer: 'modal', entry: 'online', pick: surfaceOf },
+  queues: { kind: 'queues', layer: 'modal', entry: 'queues', pick: surfaceOf },
   preview: { kind: 'preview', layer: 'modal', entry: 'preview', pick: surfaceOf, only: (overlays) => overlays.previewFrom() === 'palette' },
   palette: { kind: 'palette', layer: 'modal', entry: 'palette', pick: surfaceOf },
   'quick-jump': { kind: 'quick-jump', layer: 'modal', entry: 'palette', pick: (module) => module['quickJumpSurface'] as Surface },

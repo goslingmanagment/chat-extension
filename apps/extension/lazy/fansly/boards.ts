@@ -10,6 +10,7 @@ export { createPaletteDirectory } from '@cg/core/application/preview';
 import { createSpendersController as create, type SpendersControllerDeps } from '@cg/core/application/spenders';
 import { createOnlineController as createOnline, type OnlineControllerDeps } from '@cg/core/application/online';
 import { createOutreachController as createOutreach, type OutreachControllerDeps } from '@cg/core/application/outreach';
+import { createQueuesController as createQueues, type QueuesControllerDeps } from '@cg/core/application/queues';
 import type { HostPort } from '@cg/contracts/host';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
 import { fanBadgesRead, fanslyRequest } from '../../src/composition/tab/hosts/fansly/requests';
@@ -90,6 +91,30 @@ export function createOnlineController(deps: OnlineControllerDeps & { readonly h
       await fanslyRequest(deps.rpc, 'fansly.online.seen', { pageId, hostAccountId: account }, ONLINE_SEEN_TIMEOUT_MS);
     },
     badges: fanBadgesRead(deps.rpc),
+    async group(account, fan, active) {
+      const cached = await host.groupForFan(account, fan.fanRef);
+      if (cached !== null || !active) return cached;
+      if (host.current().contract.capabilities.navigate.state !== 'on') return null;
+      const answer = await fanslyRequest(deps.rpc, 'fansly.spenders.resolve', { hostAccountId: account, ...fan }, RESOLVE_TIMEOUT_MS);
+      return answer.ok && answer.payload.ok ? answer.payload.groupId : null;
+    },
+    async send(request) {
+      const answer = await fanslyRequest(deps.rpc, 'fansly.spenders.outreach', { ...request, attachments: [] }, OUTREACH_TIMEOUT_MS);
+      // The port or the answer failed: the request may have reached the background and left — never «not sent».
+      if (!answer.ok) return { ok: false, code: 'CG-SEND-UNCERTAIN' };
+      return answer.payload.ok ? { ok: true, messageId: answer.payload.messageId } : { ok: false, code: answer.payload.error.code };
+    },
+  } });
+}
+
+/**
+ * «Очереди» on Fansly: the same window as on ChatSpace; each text goes by the background's send through Fansly's API
+ * (as «Онлайн»'s, no media), to the fan's chat — the hub's, the page's memory, else (on the person's click) the inbox
+ * search, and with none a new chat.
+ */
+export function createQueuesController(deps: QueuesControllerDeps & { readonly host: HostPort }) {
+  const host = deps.host as FanslyPort;
+  return createQueues({ ...deps, own: {
     async group(account, fan, active) {
       const cached = await host.groupForFan(account, fan.fanRef);
       if (cached !== null || !active) return cached;

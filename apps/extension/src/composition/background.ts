@@ -1667,6 +1667,11 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('queue.handoff', data['queue.handoff']);
   rpc.handle('online.list', data['online.list']);
   rpc.handle('online.attempt', data['online.attempt']);
+  // «Очереди»: the person's queues, a portion, each fan's outcome, the portion given back.
+  rpc.handle('queues.list', data['queues.list']);
+  rpc.handle('queues.take', data['queues.take']);
+  rpc.handle('queues.done', data['queues.done']);
+  rpc.handle('queues.release', data['queues.release']);
   // 1.47.0: voice notes, both sites.
   rpc.handle('notes.view', notes.handlers['notes.view']);
   rpc.handle('notes.setView', notes.handlers['notes.setView']);

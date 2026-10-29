@@ -101,6 +101,8 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   EditOnline: { type: 'EditOnline', targetHandle: 'online:42:700000000000000002', text: 'hey love 👋' },
   SkipOnline: { type: 'SkipOnline', targetHandle: 'online:42:700000000000000002', skip: true },
   DismissOnline: { type: 'DismissOnline', targetHandle: 'online:42:700000000000000002', dismiss: false },
+  SetQueues: { type: 'SetQueues', open: true, queue: 3, refresh: true, more: true },
+  SkipQueue: { type: 'SkipQueue', targetHandle: 'queue:42:700000000000000002', reason: 'later' },
   RenewClaim: { type: 'RenewClaim', targetHandle: 'newcomers:f2' },
   ReleaseClaim: { type: 'ReleaseClaim', targetHandle: 'newcomers:f2' },
   SetFanPanelTab: { type: 'SetFanPanelTab', tab: 'recap' },

@@ -16,7 +16,7 @@ import type { Tone } from '@cg/contracts/features';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { CgCode } from '@cg/contracts/errors';
 import type { FeatureSlice } from '@cg/contracts/features/types';
-import { ONLINE_CAPABILITY, type ChatRef } from '@cg/contracts/ids';
+import { FAN_QUEUES_CAPABILITY, ONLINE_CAPABILITY, type ChatRef } from '@cg/contracts/ids';
 import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import type { AiHostPolicy, OpState } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
@@ -103,6 +103,8 @@ export interface TabAi {
   plug(controller: AiChunk.AiController): void;
   /** The Recap controller, once its chunk is in (tab/recap-tab.ts reads it for the fan panel's Recap tab). */
   recap: AnalysisChunk.RecapController | null;
+  /** «Очереди N» of the dock: the open chat's page's queues as last read (the palette's group «Очереди» reads it too). */
+  readonly queues: AiChunk.QueuesCount;
   dispose(): void;
 }
 
@@ -121,6 +123,20 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     async read(page: { readonly pageId: number; readonly account: string }, minutes: number) {
       await world.onlineSeen?.(page.pageId, page.account).catch(() => undefined);
       const answer = await world.rpc.request('online.list', { pageId: page.pageId, minutes });
+      return answer.ok ? answer.payload : null;
+    },
+  });
+  // «Очереди N» on the dock's chip (2026-10-29): the open chat's page's queues with work today, or who answered («2 ↩»).
+  const queues = chunk.createQueuesCount({
+    clock: world.clock,
+    visible: () => world.win.document.visibilityState === 'visible',
+    page: () => {
+      const ready = late.workspace?.situation().ready ?? null;
+      if (ready === null || world.features['queues'] === undefined || !ready.bootstrap.capabilities.includes(FAN_QUEUES_CAPABILITY)) return null;
+      return { pageId: ready.target.binding.pageId };
+    },
+    async read(page: { readonly pageId: number }) {
+      const answer = await world.rpc.request('queues.list', { pageId: page.pageId });
       return answer.ok ? answer.payload : null;
     },
   });
@@ -144,6 +160,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     // R11 opens and closes Coach through this switch; what is open is R17's one state.
     overlays: { open: (surface) => keys.overlays.set(surface, true), close: (surface) => keys.overlays.set(surface, false), isOpen: (surface) => keys.overlays.isOpen(surface) },
     online,
+    queues,
   };
   const workspace = new chunk.AiWorkspace(ports);
   late.workspace = workspace;
@@ -166,10 +183,12 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
     workspace,
     plug,
     recap: null,
+    queues,
     dispose() {
       for (const off of offs.splice(0)) off();
       for (const controller of controllers.splice(0)) controller.dispose();
       online.dispose();
+      queues.dispose();
       workspace.dispose();
     },
   };
@@ -238,6 +257,8 @@ export function startNavigation(world: TabWorld, chunk: typeof NavigationChunk, 
     preview: { open: (chat, shown) => open.preview(chat, shown) },
     // Its «Новые» are the hub's only where the site's slice says so.
     features: world.features,
+    // «Очереди» (2026-10-29): the page's queues as the dock's chip last read them.
+    queues: ai.queues,
   });
   const quickJump = chunk.createQuickJumpController({ host, i18n, overlays, clock });
   const cheatsheet = chunk.createCheatsheetController({ catalog, features: world.features });
@@ -385,7 +406,7 @@ export interface BoardsDock {
 }
 
 /** The overlays R12's `Surfaces` opens and closes, mirrored into R17's one state. */
-const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette', 'outreach', 'online'];
+const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'palette', 'outreach', 'online', 'queue'];
 /** A greeting reminder's «Hi» (2026-10-26): the fan's chat it opened becomes the dock's within this long, or Hi is the person's. */
 export const GREET_CHAT_READY_MS = 15_000;
 /** …and its greeting is written within this long, or it stays in the dock for the person to put in. */
@@ -470,6 +491,18 @@ export async function startBoards(
     visible: () => win.document.visibilityState === 'visible',
     openChat: () => boardsHost.current().route.chat?.platformFanId ?? null,
   });
+  // «Очереди»: the person's fan queues of the page (the hub's), a portion at a time; the chunk says how each site sends.
+  const queues = chunk.createQueuesController({
+    rpc,
+    host: boardsHost,
+    i18n,
+    clock,
+    context,
+    surfaces,
+    navigator,
+    visible: () => win.document.visibilityState === 'visible',
+    openChat: () => boardsHost.current().route.chat?.platformFanId ?? null,
+  });
 
   // X8: one click — one attempt. The driver asks MAIN, then the background, then MAIN's queue; every state goes on.
   const sendListeners = new Set<(view: SendAttemptView) => void>();
@@ -502,7 +535,7 @@ export async function startBoards(
     context,
     surfaces,
     navigator,
-    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette, outreach: outreach.directory, online: online.directory },
+    directories: { spenders: spenders.directory, newcomers: newcomers.directory, palette, outreach: outreach.directory, online: online.directory, queue: queues.directory },
     greeting: newcomers.greeting,
     sender: {
       send: (click) => driver.send(click),
@@ -528,12 +561,13 @@ export async function startBoards(
   newcomers.attachBatch?.(preview);
   outreach.attachBatch(preview);
   online.attachBatch(preview);
+  queues.attachBatch(preview);
   dock.bind(preview.results);
   const offDrafts = preview.onDrafts(() => newcomers.draftsChanged());
   const fanPanel = chunk.createFanPanelController({ rpc, host: boardsHost, i18n, clock, context, surfaces, rowOf, rowsChanged, ...(world.registrationOf === undefined ? {} : { registrationOf: world.registrationOf }), ...(world.fanPanelBesideHost === true ? { besideHostPanel: true } : {}) });
 
   // R12's order: the preview first — it answers for the parts of its own results.
-  const controllers = [preview, spenders, newcomers, fanPanel, outreach, online];
+  const controllers = [preview, spenders, newcomers, fanPanel, outreach, online, queues];
   const offs = controllers.map((controller) => router.register(adopt(controller as unknown as LooseController)));
 
   /**
@@ -642,6 +676,7 @@ export async function startBoards(
       ['newcomers', state.newcomers],
       ['outreach', state.outreach],
       ['online', state.online],
+      ['queues', state.queues],
       ['fan-panel', state.fanPanel],
     ];
     world.pins?.set('outreach-chip', state.outreachChip && !state.outreach);

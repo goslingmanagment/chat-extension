@@ -572,6 +572,7 @@ export declare const syncResourceFileEnum: z.ZodEnum<{
     repair: "repair";
     probe: "probe";
     ws: "ws";
+    stats: "stats";
     "dm-conversations": "dm-conversations";
     "dm-messages": "dm-messages";
     "dm-live": "dm-live";
@@ -581,7 +582,6 @@ export declare const syncResourceFileEnum: z.ZodEnum<{
     "fan-profiles": "fan-profiles";
     "post-replies": "post-replies";
     "media-stats": "media-stats";
-    stats: "stats";
     "media-download": "media-download";
 }>;
 export declare const syncPagesResponseSchema: z.ZodObject<{
@@ -1064,6 +1064,7 @@ export declare const syncPageRefreshBodySchema: z.ZodObject<{
         repair: "repair";
         probe: "probe";
         ws: "ws";
+        stats: "stats";
         "dm-conversations": "dm-conversations";
         "dm-messages": "dm-messages";
         "dm-live": "dm-live";
@@ -1073,7 +1074,6 @@ export declare const syncPageRefreshBodySchema: z.ZodObject<{
         "fan-profiles": "fan-profiles";
         "post-replies": "post-replies";
         "media-stats": "media-stats";
-        stats: "stats";
         "media-download": "media-download";
     }>>>;
 }, z.core.$strict>;
@@ -1671,6 +1671,7 @@ export declare const syncRouteSchemas: {
                 repair: "repair";
                 probe: "probe";
                 ws: "ws";
+                stats: "stats";
                 "dm-conversations": "dm-conversations";
                 "dm-messages": "dm-messages";
                 "dm-live": "dm-live";
@@ -1680,7 +1681,6 @@ export declare const syncRouteSchemas: {
                 "fan-profiles": "fan-profiles";
                 "post-replies": "post-replies";
                 "media-stats": "media-stats";
-                stats: "stats";
                 "media-download": "media-download";
             }>>>;
         }, z.core.$strict>;

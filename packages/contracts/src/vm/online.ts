@@ -21,6 +21,7 @@ import { type DataStamp, type VmView } from './view';
 import { type OutreachMediaVM, type OutreachSendVM, type OutreachWarningVM } from './outreach';
 
 import { type OnlineChoice, type OnlinePeriod, type OnlineTab } from './online-ids';
+import { type QueueSkipReason } from './queues-ids';
 
 export * from './online-ids';
 /** The list's groups, in its order; `aside` — «Не предлагаем», `none` — «Без повода» (both under «Все онлайн» only). */
@@ -75,7 +76,18 @@ export type OnlineReasonVM =
   /** Never wrote; `subscribedAt` — since when they are here, if known. */
   | { readonly kind: 'never'; readonly subscribedAt: IsoTimestamp | null }
   /** Nothing to write about now: the conversation goes on, or the page wrote lately. */
-  | { readonly kind: 'none'; readonly lastAt: IsoTimestamp | null };
+  | { readonly kind: 'none'; readonly lastAt: IsoTimestamp | null }
+  /**
+   * 2026-10-29, «Очереди»: the fan is in a queue — its name, why he is in it (the asker's or the hub's words), the
+   * queue's goal, and for a fan with no personal history the mass messages he got in 90 days.
+   */
+  | {
+      readonly kind: 'queue';
+      readonly queue: string;
+      readonly why: string | null;
+      readonly goal: string | null;
+      readonly mass: { readonly count: number; readonly lastAt: IsoTimestamp | null } | null;
+    };
 
 /** Why a fan is set aside — a warning the click may pass, never a block. */
 export type OnlineAsideVM =
@@ -130,6 +142,8 @@ export interface OnlineRowVM {
   readonly code: string | null;
   /** Fansly: the fan's blue card and FBuddy's gem (contracts fan-badges.ts); absent or null — none known. */
   readonly badges?: FanBadges | null;
+  /** «Очереди»: a fan known only by the hub's list of answers — what he paid is not known (no «не платил»). */
+  readonly moneyUnknown?: true;
 }
 
 /** The chosen fan: why now, their conversation (the preview's feed), the text that would go and its «Отправить →». */
@@ -160,9 +174,16 @@ export interface OnlineCardVM {
   readonly choices: readonly OnlineChoiceVM[];
   /**
    * A text of the team's guide: its id, its group (A — talked before, B — never wrote), whether the fan's name stands in
-   * it in place of «love» (null — the text has no «love»).
+   * it in place of «love» (null — the text has no «love»). «Очереди» (2026-10-29): `own` — the queue's own message (its
+   * `{name}` or «love» the fan's name), the variant shown and how many the queue has («вариант 2 из 3»).
    */
-  readonly template: { readonly id: string; readonly group: 'a' | 'b'; readonly named: boolean | null; readonly greeting: string | null } | null;
+  readonly template: {
+    readonly id: string;
+    readonly group: 'a' | 'b';
+    readonly named: boolean | null;
+    readonly greeting: string | null;
+    readonly own?: { readonly n: number; readonly of: number };
+  } | null;
   readonly state: OnlineFanState;
   readonly version: string | null;
   readonly edited: boolean;
@@ -190,6 +211,13 @@ export interface OnlineCardVM {
   readonly next: { readonly handle: TargetHandle; readonly name: string } | null;
   /** Fansly: the fan's blue card and FBuddy's gem; absent or null — none known. */
   readonly badges?: FanBadges | null;
+  /**
+   * 2026-10-29: the card of «Очереди» — «Пропустить ▾» with its reasons instead of «Пропустить» and «Не предлагать»
+   * (a skip is the hub's, never undone here); `skipped` — why the fan was skipped. Absent — «Онлайн»'s card.
+   */
+  readonly queue?: { readonly skips: readonly QueueSkipReason[]; readonly skipped: QueueSkipReason | null };
+  /** «Очереди»: a fan who answered, known only by the hub's list of answers — what he paid is not known (no «не платил»). */
+  readonly moneyUnknown?: true;
 }
 
 export interface OnlineGroupVM {

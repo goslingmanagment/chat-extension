@@ -76,6 +76,7 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "request:hydration": "request:hydration";
     "write:publication_drafts": "write:publication_drafts";
     "approve:publications": "approve:publications";
+    "write:fan_queues": "write:fan_queues";
 }>;
 export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_comments: "post_comments";
@@ -2387,6 +2388,7 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
+        "write:fan_queues": "write:fan_queues";
     }>>;
     captureState: z.ZodEnum<{
         unknown: "unknown";
@@ -2451,6 +2453,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "request:hydration": "request:hydration";
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
+                "write:fan_queues": "write:fan_queues";
             }>;
             granted: z.ZodBoolean;
         }, z.core.$strict>>;
@@ -2713,6 +2716,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "request:hydration": "request:hydration";
             "write:publication_drafts": "write:publication_drafts";
             "approve:publications": "approve:publications";
+            "write:fan_queues": "write:fan_queues";
         }>>;
         captureState: z.ZodEnum<{
             unknown: "unknown";
@@ -28184,6 +28188,7 @@ export declare const agentRouteSchemas: {
                             "request:hydration": "request:hydration";
                             "write:publication_drafts": "write:publication_drafts";
                             "approve:publications": "approve:publications";
+                            "write:fan_queues": "write:fan_queues";
                         }>;
                         granted: z.ZodBoolean;
                     }, z.core.$strict>>;
@@ -28446,6 +28451,7 @@ export declare const agentRouteSchemas: {
                         "request:hydration": "request:hydration";
                         "write:publication_drafts": "write:publication_drafts";
                         "approve:publications": "approve:publications";
+                        "write:fan_queues": "write:fan_queues";
                     }>>;
                     captureState: z.ZodEnum<{
                         unknown: "unknown";

@@ -62,6 +62,9 @@ const FEATURES = {
   // 1.65.0: «Онлайн» — who of the page is online and why to write now is the hub's (`online-v1`, OnlyFansAPI's presence);
   // the card is the fan's preview (the archive feed, `preview`), each text leaves from it through X8.
   online: { base: { flags: ['preview'], hostCapabilities: [], clientNeeds: ['online-v1'] }, actions: { send: PREVIEW_SEND }, surfaces: ['online', 'preview'], source: 'hub' },
+  // 2026-10-29: «Очереди» — the person's fan queues are the hub's (`fan-queues-v1`); the card is the fan's preview, each
+  // text leaves from it through X8, «Отправить всем» of a template queue one by one through the same send.
+  queues: { base: { flags: ['preview'], hostCapabilities: [], clientNeeds: ['fan-queues-v1'] }, actions: { send: PREVIEW_SEND }, surfaces: ['queues', 'preview'], source: 'hub' },
   // «Новые» come from the hub (`audience-new`); a greeting leaves from the card through X8.
   newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: PREVIEW_SEND }, surfaces: ['newcomers', 'preview'], source: 'hub', switches: ['preview'] },
   'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub', switches: ['preview'] },

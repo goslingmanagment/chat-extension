@@ -37,6 +37,11 @@ export const FEATURES_COMMON = {
    * fan. Its chip stands first in the bar's right block, with the count of fans worth a message now.
    */
   online: { kind: 'board', chip: { group: 'windows', priority: 5, icon: 'online' } },
+  /**
+   * 2026-10-29: «Очереди» — the page's fan queues made on someone's word (through Gengar), handed out in portions of up to
+   * ten. Its chip stands first in the bar's right block: the queues with work today, or who answered a message from one.
+   */
+  queues: { kind: 'board', chip: { group: 'windows', priority: 3, icon: 'queues' } },
   spenders: { kind: 'board', chip: { group: 'windows', priority: 10, icon: 'coin' }, hotkey: 'spenders' },
   newcomers: { kind: 'board', chip: { group: 'windows', priority: 20, icon: 'userNew' } },
   'fan-panel': { kind: 'panel' },

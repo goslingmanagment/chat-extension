@@ -9841,9 +9841,9 @@ export declare const notificationsIncidentItemSchema: z.ZodObject<{
     outboxState: z.ZodNullable<z.ZodEnum<{
         pending: "pending";
         leased: "leased";
-        exhausted: "exhausted";
         suppressed: "suppressed";
         delivered: "delivered";
+        exhausted: "exhausted";
     }>>;
     outboxAttemptCount: z.ZodNullable<z.ZodNumber>;
     outboxLastError: z.ZodNullable<z.ZodString>;
@@ -9936,9 +9936,9 @@ export declare const notificationsIncidentsResponseSchema: z.ZodObject<{
         outboxState: z.ZodNullable<z.ZodEnum<{
             pending: "pending";
             leased: "leased";
-            exhausted: "exhausted";
             suppressed: "suppressed";
             delivered: "delivered";
+            exhausted: "exhausted";
         }>>;
         outboxAttemptCount: z.ZodNullable<z.ZodNumber>;
         outboxLastError: z.ZodNullable<z.ZodString>;
@@ -12047,8 +12047,8 @@ export declare const routeAuthPolicySchema: z.ZodObject<{
         session: "session";
         apiKey: "apiKey";
         agentKey: "agentKey";
-        monitoring: "monitoring";
         "any-session": "any-session";
+        monitoring: "monitoring";
         public: "public";
         hmac: "hmac";
         "device-token": "device-token";
@@ -17147,9 +17147,9 @@ declare const baseRouteSchemas: {
                     outboxState: z.ZodNullable<z.ZodEnum<{
                         pending: "pending";
                         leased: "leased";
-                        exhausted: "exhausted";
                         suppressed: "suppressed";
                         delivered: "delivered";
+                        exhausted: "exhausted";
                     }>>;
                     outboxAttemptCount: z.ZodNullable<z.ZodNumber>;
                     outboxLastError: z.ZodNullable<z.ZodString>;
@@ -19849,6 +19849,40 @@ declare const baseRouteSchemas: {
                 generatedAt: z.ZodString;
                 configured: z.ZodBoolean;
                 days: z.ZodNumber;
+                accounts: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    label: z.ZodString;
+                }, z.core.$strip>>;
+                orgs: z.ZodArray<z.ZodObject<{
+                    orgId: z.ZodString;
+                    orgName: z.ZodNullable<z.ZodString>;
+                    accountIds: z.ZodArray<z.ZodNumber>;
+                    source: z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            csv: "csv";
+                            admin_api: "admin_api";
+                        }>;
+                        at: z.ZodString;
+                        periodFrom: z.ZodNullable<z.ZodString>;
+                        periodTo: z.ZodNullable<z.ZodString>;
+                        fileName: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    keys: z.ZodArray<z.ZodObject<{
+                        apiKeyId: z.ZodString;
+                        name: z.ZodNullable<z.ZodString>;
+                        hint: z.ZodNullable<z.ZodString>;
+                        decided: z.ZodBoolean;
+                        accountId: z.ZodNullable<z.ZodNumber>;
+                        label: z.ZodNullable<z.ZodString>;
+                        source: z.ZodNullable<z.ZodEnum<{
+                            owner: "owner";
+                            name: "name";
+                            hint: "hint";
+                            guess: "guess";
+                        }>>;
+                        providerMicroUsd: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
                 syncs: z.ZodArray<z.ZodObject<{
                     labels: z.ZodArray<z.ZodString>;
                     orgId: z.ZodNullable<z.ZodString>;
@@ -19866,7 +19900,8 @@ declare const baseRouteSchemas: {
                         ok: "ok";
                         mismatch: "mismatch";
                         open: "open";
-                        no_admin_key: "no_admin_key";
+                        unmapped: "unmapped";
+                        no_source: "no_source";
                         not_synced: "not_synced";
                     }>;
                     hubMicroUsd: z.ZodNumber;
@@ -19874,7 +19909,13 @@ declare const baseRouteSchemas: {
                     providerMicroUsd: z.ZodNullable<z.ZodNumber>;
                     diffMicroUsd: z.ZodNullable<z.ZodNumber>;
                     diffPct: z.ZodNullable<z.ZodNumber>;
+                    unmappedMicroUsd: z.ZodNumber;
                     split: z.ZodBoolean;
+                    source: z.ZodNullable<z.ZodEnum<{
+                        csv: "csv";
+                        admin_api: "admin_api";
+                    }>>;
+                    providerTokensEstimated: z.ZodBoolean;
                     models: z.ZodArray<z.ZodObject<{
                         model: z.ZodString;
                         hub: z.ZodNullable<z.ZodObject<{
@@ -19904,6 +19945,7 @@ declare const baseRouteSchemas: {
                     orgId: z.ZodString;
                     orgName: z.ZodNullable<z.ZodString>;
                     kind: z.ZodEnum<{
+                        unknown: "unknown";
                         key: "key";
                         console: "console";
                         unsplit: "unsplit";
@@ -19913,6 +19955,11 @@ declare const baseRouteSchemas: {
                     keyHint: z.ZodNullable<z.ZodString>;
                     providerMicroUsd: z.ZodNumber;
                     open: z.ZodBoolean;
+                }, z.core.$strip>>;
+                hubUnattributed: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    hubMicroUsd: z.ZodNumber;
+                    requests: z.ZodNumber;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -19930,6 +19977,132 @@ declare const baseRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiReconciliationImport: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Import an organization's Cost CSV from the Anthropic console for the reconciliation";
+        readonly body: z.ZodObject<{
+            accountId: z.ZodNumber;
+            fileName: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            csv: z.ZodString;
+            hubKeyIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                importId: z.ZodNumber;
+                orgId: z.ZodString;
+                accountId: z.ZodNumber;
+                label: z.ZodString;
+                fileName: z.ZodNullable<z.ZodString>;
+                periodFrom: z.ZodString;
+                periodTo: z.ZodString;
+                days: z.ZodNumber;
+                microUsd: z.ZodNumber;
+                keys: z.ZodArray<z.ZodObject<{
+                    apiKeyId: z.ZodNullable<z.ZodString>;
+                    name: z.ZodNullable<z.ZodString>;
+                    microUsd: z.ZodNumber;
+                    accountId: z.ZodNullable<z.ZodNumber>;
+                    source: z.ZodNullable<z.ZodEnum<{
+                        owner: "owner";
+                        name: "name";
+                        hint: "hint";
+                    }>>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiReconciliationKeyUpdate: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Decide whose an Anthropic API key is (an account, or not Hub's)";
+        readonly body: z.ZodObject<{
+            orgId: z.ZodString;
+            apiKeyId: z.ZodString;
+            accountId: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                orgId: z.ZodString;
+                apiKeyId: z.ZodString;
+                accountId: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -31642,6 +31815,1291 @@ declare const baseRouteSchemas: {
                     publishAt: z.ZodString;
                     statusChangedAt: z.ZodString;
                 }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentFanQueuePreview: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            rule: z.ZodOptional<z.ZodObject<{
+                audience: z.ZodOptional<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    expired: "expired";
+                    followers: "followers";
+                    any: "any";
+                }>>;
+                fanWrote: z.ZodOptional<z.ZodEnum<{
+                    never: "never";
+                    ever: "ever";
+                }>>;
+                fanLastMessage: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                pagePersonal: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<"never">, z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>]>>;
+                lifetimeSpend: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                spend30d: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                lastPurchase: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                followed: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                subscribed: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                subscriptionEnds: z.ZodOptional<z.ZodObject<{
+                    withinDays: z.ZodNumber;
+                }, z.core.$strict>>;
+                autoRenew: z.ZodOptional<z.ZodBoolean>;
+                seen: z.ZodOptional<z.ZodUnion<readonly [z.ZodObject<{
+                    withinDays: z.ZodNumber;
+                }, z.core.$strict>, z.ZodObject<{
+                    notWithinDays: z.ZodNumber;
+                }, z.core.$strict>]>>;
+                otherPagesSpend: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                markers: z.ZodOptional<z.ZodObject<{
+                    include: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                    exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                }, z.core.$strict>>;
+                order: z.ZodOptional<z.ZodEnum<{
+                    seen: "seen";
+                    spend: "spend";
+                    followed_new: "followed_new";
+                    followed_old: "followed_old";
+                    fan_message: "fan_message";
+                    random: "random";
+                }>>;
+                limit: z.ZodOptional<z.ZodNumber>;
+            }, z.core.$strict>>;
+            fans: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                ref: z.ZodString;
+                why: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>>;
+            dailyLimit: z.ZodOptional<z.ZodNumber>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                ruleText: z.ZodArray<z.ZodString>;
+                count: z.ZodNumber;
+                excluded: z.ZodObject<{
+                    unreachable: z.ZodNumber;
+                    dismissed: z.ZodNumber;
+                    inOtherQueues: z.ZodNumber;
+                    markers: z.ZodNumber;
+                    notFound: z.ZodNumber;
+                    overLimit: z.ZodNumber;
+                }, z.core.$strip>;
+                samples: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    username: z.ZodNullable<z.ZodString>;
+                    displayName: z.ZodNullable<z.ZodString>;
+                    why: z.ZodString;
+                }, z.core.$strip>>;
+                historyIncomplete: z.ZodNumber;
+                daysAtLimit: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentFanQueueCreate: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            name: z.ZodString;
+            goal: z.ZodOptional<z.ZodString>;
+            kind: z.ZodDefault<z.ZodEnum<{
+                campaign: "campaign";
+                standing: "standing";
+            }>>;
+            rule: z.ZodOptional<z.ZodObject<{
+                audience: z.ZodOptional<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    expired: "expired";
+                    followers: "followers";
+                    any: "any";
+                }>>;
+                fanWrote: z.ZodOptional<z.ZodEnum<{
+                    never: "never";
+                    ever: "ever";
+                }>>;
+                fanLastMessage: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                pagePersonal: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<"never">, z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>]>>;
+                lifetimeSpend: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                spend30d: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                lastPurchase: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                followed: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                subscribed: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                subscriptionEnds: z.ZodOptional<z.ZodObject<{
+                    withinDays: z.ZodNumber;
+                }, z.core.$strict>>;
+                autoRenew: z.ZodOptional<z.ZodBoolean>;
+                seen: z.ZodOptional<z.ZodUnion<readonly [z.ZodObject<{
+                    withinDays: z.ZodNumber;
+                }, z.core.$strict>, z.ZodObject<{
+                    notWithinDays: z.ZodNumber;
+                }, z.core.$strict>]>>;
+                otherPagesSpend: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                markers: z.ZodOptional<z.ZodObject<{
+                    include: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                    exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                }, z.core.$strict>>;
+                order: z.ZodOptional<z.ZodEnum<{
+                    seen: "seen";
+                    spend: "spend";
+                    followed_new: "followed_new";
+                    followed_old: "followed_old";
+                    fan_message: "fan_message";
+                    random: "random";
+                }>>;
+                limit: z.ZodOptional<z.ZodNumber>;
+            }, z.core.$strict>>;
+            fans: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                ref: z.ZodString;
+                why: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>>;
+            scenario: z.ZodObject<{
+                action: z.ZodEnum<{
+                    ping: "ping";
+                    auto: "auto";
+                    reply: "reply";
+                    hi: "hi";
+                    template: "template";
+                    own: "own";
+                }>;
+                sendMode: z.ZodDefault<z.ZodEnum<{
+                    one: "one";
+                    batch: "batch";
+                }>>;
+                templates: z.ZodOptional<z.ZodEnum<{
+                    a: "a";
+                    b: "b";
+                }>>;
+                texts: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                hint: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>;
+            distribution: z.ZodDefault<z.ZodEnum<{
+                people: "people";
+                pool: "pool";
+            }>>;
+            people: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            split: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                username: z.ZodString;
+                count: z.ZodNumber;
+            }, z.core.$strict>>>;
+            perPerson: z.ZodOptional<z.ZodNumber>;
+            dailyLimit: z.ZodOptional<z.ZodNumber>;
+            endsAt: z.ZodOptional<z.ZodString>;
+            requestedBy: z.ZodString;
+            idempotencyKey: z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                queueId: z.ZodNumber;
+                pageLabel: z.ZodString;
+                name: z.ZodString;
+                goal: z.ZodNullable<z.ZodString>;
+                kind: z.ZodString;
+                status: z.ZodString;
+                rule: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                ruleText: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                scenario: z.ZodObject<{
+                    action: z.ZodString;
+                    sendMode: z.ZodString;
+                    templates: z.ZodNullable<z.ZodString>;
+                    texts: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                    hint: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+                distribution: z.ZodString;
+                people: z.ZodArray<z.ZodString>;
+                perPerson: z.ZodNullable<z.ZodNumber>;
+                dailyLimit: z.ZodNullable<z.ZodNumber>;
+                endsAt: z.ZodNullable<z.ZodString>;
+                requestedBy: z.ZodString;
+                createdAt: z.ZodString;
+                pausedAt: z.ZodNullable<z.ZodString>;
+                pausedBy: z.ZodNullable<z.ZodString>;
+                finishedAt: z.ZodNullable<z.ZodString>;
+                counts: z.ZodObject<{
+                    pending: z.ZodNumber;
+                    leased: z.ZodNumber;
+                    sent: z.ZodNumber;
+                    skipped: z.ZodNumber;
+                    dropped: z.ZodNumber;
+                }, z.core.$strip>;
+                today: z.ZodObject<{
+                    sent: z.ZodNumber;
+                    byPerson: z.ZodArray<z.ZodObject<{
+                        username: z.ZodString;
+                        sent: z.ZodNumber;
+                        skipped: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                daysLeft: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentFanQueueList: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: "The fan queues of the key's pages with their progress today and what is left (needs write:fan_queues)";
+        readonly querystring: z.ZodObject<{
+            pageLabel: z.ZodOptional<z.ZodString>;
+            status: z.ZodDefault<z.ZodEnum<{
+                all: "all";
+                active: "active";
+                paused: "paused";
+                open: "open";
+                done: "done";
+            }>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                queues: z.ZodArray<z.ZodObject<{
+                    queueId: z.ZodNumber;
+                    pageLabel: z.ZodString;
+                    name: z.ZodString;
+                    goal: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodString;
+                    status: z.ZodString;
+                    rule: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                    ruleText: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                    scenario: z.ZodObject<{
+                        action: z.ZodString;
+                        sendMode: z.ZodString;
+                        templates: z.ZodNullable<z.ZodString>;
+                        texts: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                        hint: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>;
+                    distribution: z.ZodString;
+                    people: z.ZodArray<z.ZodString>;
+                    perPerson: z.ZodNullable<z.ZodNumber>;
+                    dailyLimit: z.ZodNullable<z.ZodNumber>;
+                    endsAt: z.ZodNullable<z.ZodString>;
+                    requestedBy: z.ZodString;
+                    createdAt: z.ZodString;
+                    pausedAt: z.ZodNullable<z.ZodString>;
+                    pausedBy: z.ZodNullable<z.ZodString>;
+                    finishedAt: z.ZodNullable<z.ZodString>;
+                    counts: z.ZodObject<{
+                        pending: z.ZodNumber;
+                        leased: z.ZodNumber;
+                        sent: z.ZodNumber;
+                        skipped: z.ZodNumber;
+                        dropped: z.ZodNumber;
+                    }, z.core.$strip>;
+                    today: z.ZodObject<{
+                        sent: z.ZodNumber;
+                        byPerson: z.ZodArray<z.ZodObject<{
+                            username: z.ZodString;
+                            sent: z.ZodNumber;
+                            skipped: z.ZodNumber;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>;
+                    daysLeft: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentFanQueueGet: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            queueId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            from: z.ZodOptional<z.ZodString>;
+            to: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                queueId: z.ZodNumber;
+                pageLabel: z.ZodString;
+                name: z.ZodString;
+                goal: z.ZodNullable<z.ZodString>;
+                kind: z.ZodString;
+                status: z.ZodString;
+                rule: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                ruleText: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                scenario: z.ZodObject<{
+                    action: z.ZodString;
+                    sendMode: z.ZodString;
+                    templates: z.ZodNullable<z.ZodString>;
+                    texts: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                    hint: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+                distribution: z.ZodString;
+                people: z.ZodArray<z.ZodString>;
+                perPerson: z.ZodNullable<z.ZodNumber>;
+                dailyLimit: z.ZodNullable<z.ZodNumber>;
+                endsAt: z.ZodNullable<z.ZodString>;
+                requestedBy: z.ZodString;
+                createdAt: z.ZodString;
+                pausedAt: z.ZodNullable<z.ZodString>;
+                pausedBy: z.ZodNullable<z.ZodString>;
+                finishedAt: z.ZodNullable<z.ZodString>;
+                counts: z.ZodObject<{
+                    pending: z.ZodNumber;
+                    leased: z.ZodNumber;
+                    sent: z.ZodNumber;
+                    skipped: z.ZodNumber;
+                    dropped: z.ZodNumber;
+                }, z.core.$strip>;
+                today: z.ZodObject<{
+                    sent: z.ZodNumber;
+                    byPerson: z.ZodArray<z.ZodObject<{
+                        username: z.ZodString;
+                        sent: z.ZodNumber;
+                        skipped: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                daysLeft: z.ZodNullable<z.ZodNumber>;
+                results: z.ZodObject<{
+                    byPerson: z.ZodArray<z.ZodObject<{
+                        sent: z.ZodNumber;
+                        matured72h: z.ZodNumber;
+                        replied72h: z.ZodNumber;
+                        matured7d: z.ZodNumber;
+                        bought7d: z.ZodNumber;
+                        matured30d: z.ZodNumber;
+                        spent30dMills: z.ZodNumber;
+                        username: z.ZodString;
+                    }, z.core.$strip>>;
+                    skipped: z.ZodRecord<z.ZodString, z.ZodNumber>;
+                    dropped: z.ZodRecord<z.ZodString, z.ZodNumber>;
+                    sent: z.ZodNumber;
+                    matured72h: z.ZodNumber;
+                    replied72h: z.ZodNumber;
+                    matured7d: z.ZodNumber;
+                    bought7d: z.ZodNumber;
+                    matured30d: z.ZodNumber;
+                    spent30dMills: z.ZodNumber;
+                    from: z.ZodString;
+                    to: z.ZodString;
+                }, z.core.$strip>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentFanQueueUpdate: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            queueId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            requestedBy: z.ZodString;
+            status: z.ZodOptional<z.ZodEnum<{
+                active: "active";
+                paused: "paused";
+                done: "done";
+            }>>;
+            name: z.ZodOptional<z.ZodString>;
+            goal: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            scenario: z.ZodOptional<z.ZodObject<{
+                action: z.ZodEnum<{
+                    ping: "ping";
+                    auto: "auto";
+                    reply: "reply";
+                    hi: "hi";
+                    template: "template";
+                    own: "own";
+                }>;
+                sendMode: z.ZodDefault<z.ZodEnum<{
+                    one: "one";
+                    batch: "batch";
+                }>>;
+                templates: z.ZodOptional<z.ZodEnum<{
+                    a: "a";
+                    b: "b";
+                }>>;
+                texts: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                hint: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>;
+            perPerson: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+            dailyLimit: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+            endsAt: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            addPeople: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            removePeople: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            move: z.ZodOptional<z.ZodObject<{
+                from: z.ZodString;
+                to: z.ZodNullable<z.ZodString>;
+                count: z.ZodOptional<z.ZodNumber>;
+            }, z.core.$strict>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                queueId: z.ZodNumber;
+                pageLabel: z.ZodString;
+                name: z.ZodString;
+                goal: z.ZodNullable<z.ZodString>;
+                kind: z.ZodString;
+                status: z.ZodString;
+                rule: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                ruleText: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                scenario: z.ZodObject<{
+                    action: z.ZodString;
+                    sendMode: z.ZodString;
+                    templates: z.ZodNullable<z.ZodString>;
+                    texts: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                    hint: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>;
+                distribution: z.ZodString;
+                people: z.ZodArray<z.ZodString>;
+                perPerson: z.ZodNullable<z.ZodNumber>;
+                dailyLimit: z.ZodNullable<z.ZodNumber>;
+                endsAt: z.ZodNullable<z.ZodString>;
+                requestedBy: z.ZodString;
+                createdAt: z.ZodString;
+                pausedAt: z.ZodNullable<z.ZodString>;
+                pausedBy: z.ZodNullable<z.ZodString>;
+                finishedAt: z.ZodNullable<z.ZodString>;
+                counts: z.ZodObject<{
+                    pending: z.ZodNumber;
+                    leased: z.ZodNumber;
+                    sent: z.ZodNumber;
+                    skipped: z.ZodNumber;
+                    dropped: z.ZodNumber;
+                }, z.core.$strip>;
+                today: z.ZodObject<{
+                    sent: z.ZodNumber;
+                    byPerson: z.ZodArray<z.ZodObject<{
+                        username: z.ZodString;
+                        sent: z.ZodNumber;
+                        skipped: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                daysLeft: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly agentFanQueueAppend: {
+        readonly auth: {
+            readonly kind: "agentKey";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            queueId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            requestedBy: z.ZodString;
+            rule: z.ZodOptional<z.ZodObject<{
+                audience: z.ZodOptional<z.ZodEnum<{
+                    subscribers: "subscribers";
+                    expired: "expired";
+                    followers: "followers";
+                    any: "any";
+                }>>;
+                fanWrote: z.ZodOptional<z.ZodEnum<{
+                    never: "never";
+                    ever: "ever";
+                }>>;
+                fanLastMessage: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                pagePersonal: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<"never">, z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>]>>;
+                lifetimeSpend: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                spend30d: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                lastPurchase: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                followed: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                subscribed: z.ZodOptional<z.ZodObject<{
+                    olderThanDays: z.ZodOptional<z.ZodNumber>;
+                    withinDays: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                subscriptionEnds: z.ZodOptional<z.ZodObject<{
+                    withinDays: z.ZodNumber;
+                }, z.core.$strict>>;
+                autoRenew: z.ZodOptional<z.ZodBoolean>;
+                seen: z.ZodOptional<z.ZodUnion<readonly [z.ZodObject<{
+                    withinDays: z.ZodNumber;
+                }, z.core.$strict>, z.ZodObject<{
+                    notWithinDays: z.ZodNumber;
+                }, z.core.$strict>]>>;
+                otherPagesSpend: z.ZodOptional<z.ZodObject<{
+                    min: z.ZodOptional<z.ZodNumber>;
+                    max: z.ZodOptional<z.ZodNumber>;
+                }, z.core.$strict>>;
+                markers: z.ZodOptional<z.ZodObject<{
+                    include: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                    exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                }, z.core.$strict>>;
+                order: z.ZodOptional<z.ZodEnum<{
+                    seen: "seen";
+                    spend: "spend";
+                    followed_new: "followed_new";
+                    followed_old: "followed_old";
+                    fan_message: "fan_message";
+                    random: "random";
+                }>>;
+                limit: z.ZodOptional<z.ZodNumber>;
+            }, z.core.$strict>>;
+            fans: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                ref: z.ZodString;
+                why: z.ZodOptional<z.ZodString>;
+            }, z.core.$strict>>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 429: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                added: z.ZodNumber;
+                excluded: z.ZodObject<{
+                    unreachable: z.ZodNumber;
+                    dismissed: z.ZodNumber;
+                    inOtherQueues: z.ZodNumber;
+                    markers: z.ZodNumber;
+                    notFound: z.ZodNumber;
+                    overLimit: z.ZodNumber;
+                }, z.core.$strip>;
+                queue: z.ZodObject<{
+                    queueId: z.ZodNumber;
+                    pageLabel: z.ZodString;
+                    name: z.ZodString;
+                    goal: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodString;
+                    status: z.ZodString;
+                    rule: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                    ruleText: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                    scenario: z.ZodObject<{
+                        action: z.ZodString;
+                        sendMode: z.ZodString;
+                        templates: z.ZodNullable<z.ZodString>;
+                        texts: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                        hint: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>;
+                    distribution: z.ZodString;
+                    people: z.ZodArray<z.ZodString>;
+                    perPerson: z.ZodNullable<z.ZodNumber>;
+                    dailyLimit: z.ZodNullable<z.ZodNumber>;
+                    endsAt: z.ZodNullable<z.ZodString>;
+                    requestedBy: z.ZodString;
+                    createdAt: z.ZodString;
+                    pausedAt: z.ZodNullable<z.ZodString>;
+                    pausedBy: z.ZodNullable<z.ZodString>;
+                    finishedAt: z.ZodNullable<z.ZodString>;
+                    counts: z.ZodObject<{
+                        pending: z.ZodNumber;
+                        leased: z.ZodNumber;
+                        sent: z.ZodNumber;
+                        skipped: z.ZodNumber;
+                        dropped: z.ZodNumber;
+                    }, z.core.$strip>;
+                    today: z.ZodObject<{
+                        sent: z.ZodNumber;
+                        byPerson: z.ZodArray<z.ZodObject<{
+                            username: z.ZodString;
+                            sent: z.ZodNumber;
+                            skipped: z.ZodNumber;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>;
+                    daysLeft: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientFanQueues: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: string;
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                queues: z.ZodArray<z.ZodObject<{
+                    queueId: z.ZodNumber;
+                    name: z.ZodString;
+                    goal: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodString;
+                    status: z.ZodString;
+                    distribution: z.ZodString;
+                    mineOnly: z.ZodBoolean;
+                    scenario: z.ZodObject<{
+                        action: z.ZodString;
+                        sendMode: z.ZodString;
+                        templates: z.ZodNullable<z.ZodString>;
+                        texts: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                        hint: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>;
+                    ruleText: z.ZodNullable<z.ZodArray<z.ZodString>>;
+                    requestedBy: z.ZodString;
+                    pausedAt: z.ZodNullable<z.ZodString>;
+                    pausedBy: z.ZodNullable<z.ZodString>;
+                    perPerson: z.ZodNullable<z.ZodNumber>;
+                    dailyLimit: z.ZodNullable<z.ZodNumber>;
+                    today: z.ZodObject<{
+                        mine: z.ZodNumber;
+                        page: z.ZodNumber;
+                    }, z.core.$strip>;
+                    pending: z.ZodNumber;
+                    leasedToMe: z.ZodNumber;
+                }, z.core.$strip>>;
+                answered: z.ZodArray<z.ZodObject<{
+                    itemId: z.ZodNumber;
+                    queueId: z.ZodNumber;
+                    fanRef: z.ZodString;
+                    conversationRef: z.ZodNullable<z.ZodString>;
+                    username: z.ZodNullable<z.ZodString>;
+                    displayName: z.ZodNullable<z.ZodString>;
+                    alias: z.ZodNullable<z.ZodString>;
+                    sentAt: z.ZodString;
+                    act: z.ZodNullable<z.ZodString>;
+                    templateId: z.ZodNullable<z.ZodString>;
+                    answeredAt: z.ZodString;
+                    answerText: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                templates: z.ZodArray<z.ZodObject<{
+                    id: z.ZodString;
+                    group: z.ZodString;
+                    text: z.ZodString;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientFanQueueTake: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: string;
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            queueId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            count: z.ZodDefault<z.ZodNumber>;
+            more: z.ZodDefault<z.ZodBoolean>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                queueId: z.ZodNumber;
+                items: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    conversationRef: z.ZodNullable<z.ZodString>;
+                    username: z.ZodNullable<z.ZodString>;
+                    displayName: z.ZodNullable<z.ZodString>;
+                    alias: z.ZodNullable<z.ZodString>;
+                    greetingName: z.ZodNullable<z.ZodString>;
+                    lifetimeGrossMills: z.ZodNumber;
+                    last30dGrossMills: z.ZodNumber;
+                    seenAt: z.ZodNullable<z.ZodString>;
+                    onlineSince: z.ZodNullable<z.ZodString>;
+                    seenSource: z.ZodNullable<z.ZodString>;
+                    reason: z.ZodString;
+                    reasonAt: z.ZodNullable<z.ZodString>;
+                    act: z.ZodString;
+                    aside: z.ZodNullable<z.ZodString>;
+                    asideAt: z.ZodNullable<z.ZodString>;
+                    asideBy: z.ZodNullable<z.ZodString>;
+                    messageCount: z.ZodNumber;
+                    lastFanMessageAt: z.ZodNullable<z.ZodString>;
+                    lastPageMessageAt: z.ZodNullable<z.ZodString>;
+                    subscription: z.ZodObject<{
+                        isSubscriber: z.ZodBoolean;
+                        startedAt: z.ZodNullable<z.ZodString>;
+                        endsAt: z.ZodNullable<z.ZodString>;
+                        autoRenew: z.ZodNullable<z.ZodBoolean>;
+                    }, z.core.$strip>;
+                    itemId: z.ZodNumber;
+                    queueId: z.ZodNumber;
+                    why: z.ZodNullable<z.ZodString>;
+                    leaseUntil: z.ZodString;
+                    templateId: z.ZodNullable<z.ZodString>;
+                    followedAt: z.ZodNullable<z.ZodString>;
+                    massLast90d: z.ZodObject<{
+                        count: z.ZodNumber;
+                        lastAt: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>;
+                }, z.core.$strip>>;
+                stopped: z.ZodNullable<z.ZodString>;
+                today: z.ZodObject<{
+                    mine: z.ZodNumber;
+                    page: z.ZodNumber;
+                }, z.core.$strip>;
+                pending: z.ZodNumber;
+                dropped: z.ZodNumber;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientFanQueueItemDone: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Report a fan of the caller's portion: sent (with what) or skipped (why); journaled first";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            itemId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            outcome: z.ZodEnum<{
+                skipped: "skipped";
+                sent: "sent";
+            }>;
+            act: z.ZodOptional<z.ZodEnum<{
+                ping: "ping";
+                reply: "reply";
+                hi: "hi";
+                template: "template";
+                own: "own";
+            }>>;
+            templateId: z.ZodOptional<z.ZodString>;
+            skipReason: z.ZodOptional<z.ZodEnum<{
+                not_fit: "not_fit";
+                later: "later";
+                talking: "talking";
+                dismiss: "dismiss";
+            }>>;
+            uncertain: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                itemId: z.ZodNumber;
+                state: z.ZodString;
+                today: z.ZodObject<{
+                    mine: z.ZodNumber;
+                    page: z.ZodNumber;
+                }, z.core.$strip>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientFanQueueRelease: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Give the caller's untouched portion of a fan queue back (the window closed)";
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            queueId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{}, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                released: z.ZodNumber;
             }, z.core.$strip>;
         };
     };

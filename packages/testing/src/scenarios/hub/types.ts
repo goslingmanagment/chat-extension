@@ -57,6 +57,11 @@ export const HUB_ROUTE_PATHS = {
   clientOnline: '/api/v1/client/pages/:pageLabel/online',
   clientOnlinePresence: '/api/v1/client/pages/:pageLabel/online/presence',
   clientOnlineAttempt: '/api/v1/client/pages/:pageLabel/online/attempts',
+  // «Очереди» (hub fan queues): the caller's queues, a portion, a fan's outcome, the portion given back.
+  clientFanQueues: '/api/v1/client/pages/:pageLabel/fan-queues',
+  clientFanQueueTake: '/api/v1/client/pages/:pageLabel/fan-queues/:queueId/take',
+  clientFanQueueItemDone: '/api/v1/client/pages/:pageLabel/fan-queues/items/:itemId/done',
+  clientFanQueueRelease: '/api/v1/client/pages/:pageLabel/fan-queues/:queueId/release',
   clientFanCustomCreate: '/api/v1/client/pages/:pageLabel/fans/:fanRef/customs',
   clientFanCustomChange: '/api/v1/client/pages/:pageLabel/fans/:fanRef/customs/:customId',
   // 1.47.0: the voice-notes lane (`:id` is the note's integer id).

@@ -214,6 +214,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   /** «Онлайн»: the page's fans seen online with why to write now (`clientOnline`), Fansly presence reports, the window's rows. */
   'online-v1',
   /**
+   * 2026-10-29: «Очереди» — a person's fan queues of a page (`clientFanQueues`), a portion of up to 10 fans
+   * (`clientFanQueueTake`), each fan's outcome (`clientFanQueueItemDone`), the portion given back (`clientFanQueueRelease`).
+   * A hub without it is never asked, and no «Очереди» shows.
+   */
+  'fan-queues-v1',
+  /**
    * Who wrote each Fansly note (`clientNoteAttributions`): every write of our notes panel Fansly confirmed — ids, the
    * action, where in the panel, the questionnaire labels; never a text. A hub without it is never told.
    */

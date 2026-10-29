@@ -23,6 +23,7 @@ export * from './spenders';
 export * from './newcomers';
 export * from './outreach';
 export * from './online';
+export * from './queues';
 export * from './preview';
 export * from './voice';
 export * from './talking';

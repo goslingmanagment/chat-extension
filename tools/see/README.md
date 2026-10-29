@@ -49,7 +49,9 @@ Fix и Ping»), `recap`,
 loads the history: the card says it instead of a mark), `newcomers`, `outreach` («Рассылка» on both sites: «Кому»,
 the text and the media, «Написать N версий», the card's and a row's «Отправить», «Свернуть» into the chip and back, a
 version this window cannot send with why and «Открыть и вставить», «Итог рассылки»; `--site fansly` too), `palette`,
-`fan-panel`, `pages` (popup and settings), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
+`fan-panel`, `queues` («Очереди» on both sites over the fake hub's prototype set: the bar's «Очереди 1 ↩», ⌘K's
+group, the fan who answered with his Reply sent, the cold batch queue, Ping, «Пропустить ▾», a paused queue, a queue's
+own message, a portion done), `pages` (popup and settings), `fansly-dock`, `dock-widths` (the bar on narrower composers, Fansly
 first), `log-download` (Hi on in a long chat, Ping off in a short one by its
 gate, pressed, then «Скачать лог» in the popup; the files land in
 the run's `downloads/`). On Fansly (`--site fansly`): `dock`, `reply`, `coach`, `coach-recap`, `recap`, `palette` (⌘K over

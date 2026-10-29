@@ -45,6 +45,7 @@ import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/reca
 import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
 import { HandoffSchema, WinBackAttemptResultSchema, WinBackListSchema } from './hub/queue';
 import { ONLINE_ATTEMPT_ACTIONS, ONLINE_SENT_ACTS, OnlineAttemptResultSchema, OnlineListSchema } from './hub/online';
+import { FAN_QUEUE_PORTION_MAX, FAN_QUEUE_SENT_ACTS, FAN_QUEUE_SKIP_REASONS, FanQueueItemDoneSchema, FanQueueReleaseSchema, FanQueuesSchema, FanQueueTakeSchema } from './hub/fan-queues';
 import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
@@ -588,6 +589,36 @@ export const TAB_REQUESTS = {
   },
   /** Chat Memory week 3, «Передача» of «Очередь»: whom the team wrote to, who waits, the open promises. */
   'queue.handoff': { req: z.strictObject({ pageId: HubIntIdSchema }), res: HandoffSchema, from: TAB },
+  /**
+   * «Очереди» (hub `clientFanQueues`, `fan-queues-v1`): the person's fan queues of the page — progress today, the goal,
+   * how they write — and the fans who answered a message from a queue. Read while the window or the bar's count needs it.
+   */
+  'queues.list': { req: z.strictObject({ pageId: HubIntIdSchema }), res: FanQueuesSchema, from: TAB },
+  /** A portion of a queue (hub `clientFanQueueTake`): up to 10 fans, each re-checked by the hub. Nothing is sent. */
+  'queues.take': {
+    req: z.strictObject({ pageId: HubIntIdSchema, queueId: HubIntIdSchema, count: z.int().check(z.gte(1), z.lte(FAN_QUEUE_PORTION_MAX)), more: z.boolean() }),
+    res: FanQueueTakeSchema,
+    from: TAB,
+  },
+  /**
+   * A fan of the portion (hub `clientFanQueueItemDone`): a message went (what wrote it, the template, an unknown
+   * outcome) or the person skipped them (why). One call, never repeated; journaled by the hub.
+   */
+  'queues.done': {
+    req: z.strictObject({
+      pageId: HubIntIdSchema,
+      itemId: HubIntIdSchema,
+      outcome: z.enum(['sent', 'skipped']),
+      act: z.optional(z.enum(FAN_QUEUE_SENT_ACTS)),
+      templateId: z.optional(z.string().check(z.minLength(1), z.maxLength(32))),
+      skipReason: z.optional(z.enum(FAN_QUEUE_SKIP_REASONS)),
+      uncertain: z.optional(z.boolean()),
+    }),
+    res: FanQueueItemDoneSchema,
+    from: TAB,
+  },
+  /** The window closed: the person's untouched portion goes back to the queue (hub `clientFanQueueRelease`). */
+  'queues.release': { req: z.strictObject({ pageId: HubIntIdSchema, queueId: HubIntIdSchema }), res: FanQueueReleaseSchema, from: TAB },
   'feed.read': {
     req: z.strictObject({
       ...PageFanConversation,

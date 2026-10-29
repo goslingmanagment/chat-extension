@@ -108,6 +108,8 @@ ${/* «Онлайн N»: the number of fans worth a message now, in the green of
   background: var(--cg-good-bg); box-shadow: inset 0 0 0 1px var(--cg-good-line), 0 0 0 2px var(--cg-raised); color: var(--cg-good-ink);
   font-family: var(--cg-mono); font-size: var(--cg-text-kbd); line-height: 13px; font-weight: 600; text-align: center; pointer-events: none;
 }
+${/* «Очереди»: the number counts who answered a message from a queue — in the clay of «to answer», with ↩. */ ''}
+.cg-act__n.is-answered { background: var(--cg-clay-bg); box-shadow: inset 0 0 0 1px var(--cg-clay-line), 0 0 0 2px var(--cg-raised); color: var(--cg-clay-ink); }
 .cg-slot--more { display: none; }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
 .cg-strip .cg-menu--top { bottom: calc(100% + 9px); }

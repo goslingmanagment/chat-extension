@@ -86,7 +86,7 @@ export const UI_TEXT_KEYS = [
   // 1.13.0 (decision X28): one sentence under a control's name in its hover hint — what the button does, in the chatter's own language.
   'dock.hint.reply', 'dock.hint.replyAs', 'dock.hint.fix', 'dock.hint.hi', 'dock.hint.ping', 'dock.hint.recap', 'dock.hint.coach',
   'dock.hint.tone.casual', 'dock.hint.tone.flirty', 'dock.hint.tone.upsell', 'dock.hint.tone.spicy', 'dock.hint.toneOff', 'dock.hint.split',
-  'dock.hint.spenders', 'dock.hint.newcomers', 'dock.hint.online',
+  'dock.hint.spenders', 'dock.hint.newcomers', 'dock.hint.online', 'dock.hint.queues',
   'result.label', 'result.own', 'result.draft', 'result.draftTooltip', 'result.meta.tone', 'result.meta.inserted', 'result.meta.single', 'result.meta.onePart',
   'result.meta.forFan', 'result.meta.byYourDraft', 'result.meta.draftChanged', 'result.meta.failed', 'result.meta.notStarted', 'result.meta.unparsed',
   'result.meta.sentProgress', 'result.againTooltip', 'result.againBlocked', 'result.hideTooltip',
@@ -245,6 +245,8 @@ export const UI_TEXT_KEYS = [
   'online.fbuddy.off', 'online.fbuddy.enable', 'online.fbuddy.signedOut',
   'online.pane.pick', 'online.pane.nobody', 'online.end.title', 'online.end.sent', 'online.end.skipped', 'online.end.replied',
   'online.end.noReplies', 'online.end.note', 'online.end.showAll', 'online.reason.openCard', 'online.reason.making', 'online.reason.retry', 'online.reason.empty',
+  // 2026-10-29: «Очереди», the window of the page's fan queues.
+  'queues.title', 'queues.listLabel', 'queues.me', 'queues.chip.standing', 'queues.chip.mine', 'queues.chip.paused', 'queues.chip.count', 'queues.chip.tooltip', 'queues.line.goal', 'queues.line.who', 'queues.line.pool', 'queues.line.people', 'queues.line.by', 'queues.how.template', 'queues.how.templateOwn', 'queues.how.auto', 'queues.how.ping', 'queues.how.hi', 'queues.how.reply', 'queues.how.own', 'queues.how.batch', 'queues.how.one', 'queues.section.answered', 'queues.section.portion', 'queues.section.portionCount', 'queues.foot.today', 'queues.foot.todayOpen', 'queues.foot.page', 'queues.foot.pageOpen', 'queues.foot.pending', 'queues.foot.keys', 'queues.batch.ready', 'queues.batch.send', 'queues.batch.sendTooltip', 'queues.batch.running', 'queues.batch.held', 'queues.batch.stop', 'queues.batch.went', 'queues.batch.wait', 'queues.end.portion.title', 'queues.end.portion.sent', 'queues.end.portion.day', 'queues.end.portion.dayOpen', 'queues.end.portion.page', 'queues.end.portion.left', 'queues.end.portion.none', 'queues.end.portion.note', 'queues.end.portion.more', 'queues.end.day.title', 'queues.end.day.note', 'queues.end.day.noteOpen', 'queues.end.day.audit', 'queues.end.day.more', 'queues.end.day.full', 'queues.end.paused.title', 'queues.end.paused.note', 'queues.end.paused.noteNoTime', 'queues.end.paused.others', 'queues.end.limit.title', 'queues.end.limit.note', 'queues.end.empty.title', 'queues.end.empty.note', 'queues.end.pick', 'queues.empty', 'queues.why.lead', 'queues.why.goal', 'queues.why.answered', 'queues.why.answeredNow', 'queues.card.why.answered', 'queues.card.noFeedMass', 'queues.card.noFeedMassLast', 'queues.why.mass', 'queues.why.massLast', 'queues.line.mine', 'queues.taking', 'queues.how.templateAny', 'queues.card.ownText', 'queues.card.sentFrom', 'queues.card.variant', 'queues.card.otherVariant', 'queues.card.named', 'queues.card.unnamed', 'queues.skip', 'queues.skip.not_fit', 'queues.skip.later', 'queues.skip.talking', 'queues.skip.dismiss', 'queues.skip.hint.not_fit', 'queues.skip.hint.later', 'queues.skip.hint.talking', 'queues.skip.hint.dismiss', 'queues.skipped', 'queues.paused.list', 'queues.dayDone.list', 'queues.answered.tooltip',
   'newcomers.title', 'newcomers.personaNote', 'newcomers.col.fan', 'newcomers.col.kind', 'newcomers.col.subscription', 'newcomers.col.greeting',
   'newcomers.kind.new', 'newcomers.kind.renewed', 'newcomers.kind.returning', 'newcomers.status.none', 'newcomers.status.sendingOther',
   'newcomers.status.sending', 'newcomers.status.stopped',
@@ -306,7 +308,7 @@ export const UI_TEXT_KEYS = [
   'settings.generation.coachWindow', 'settings.generation.coachWindowHint',
   'palette.label', 'palette.placeholder', 'palette.group.actions', 'palette.group.running', 'palette.group.waiting', 'palette.group.chats',
   'palette.group.accounts', 'palette.group.navigation', 'palette.group.online', 'palette.empty', 'palette.foot.hostOnly',
-  'palette.item.running', 'palette.item.waiting', 'palette.item.spenders', 'palette.item.newcomers', 'palette.item.outreach', 'palette.item.online', 'palette.item.tone', 'palette.item.split',
+  'palette.item.running', 'palette.item.waiting', 'palette.item.spenders', 'palette.item.newcomers', 'palette.item.outreach', 'palette.item.online', 'palette.item.queues', 'palette.group.queues', 'palette.queue.paused', 'palette.queue.batch', 'palette.queue.one', 'palette.queue.done', 'palette.queue.today', 'palette.queue.todayOpen', 'palette.item.tone', 'palette.item.split',
   'palette.item.cheatsheet', 'palette.item.settings', 'palette.foot.select', 'palette.foot.run', 'palette.foot.allKeys', 'palette.partial',
   'quickJump.title', 'quickJump.empty',
   'cheatsheet.title', 'cheatsheet.group.ai', 'cheatsheet.group.windows', 'cheatsheet.group.before', 'cheatsheet.group.result',

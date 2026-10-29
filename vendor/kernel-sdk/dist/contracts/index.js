@@ -13,6 +13,8 @@ export * from "./routes-client";
 // Publications: wall posts through Hub (owner + agent drafts), spread by routes.ts.
 export * from "./publications";
 export * from "./routes-publications";
+export * from "./fan-queues";
+export * from "./routes-fan-queues";
 export * from "./publication-files";
 export * from "./routes-publication-files";
 // Narrow device-token profiles (the chat extension's route allowlist, H-3).

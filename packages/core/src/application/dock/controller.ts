@@ -64,6 +64,16 @@ import { createPartFocus } from './focus-part';
  * (the tab's online grant) — with the number of fans worth a message now beside it.
  */
 const ONLINE_CHIP = (count: number | null): Readonly<Record<string, { readonly action: UiAction; readonly count: number | null }>> => ({ online: { action: { type: 'SetOnline', open: true }, count } });
+/**
+ * 2026-10-29: «Очереди» opens its window; beside it the queues with work for the person today, or — once someone answered
+ * a message from a queue — how many answered («2 ↩»). A page where the person has no queue (or not read yet) has no chip:
+ * queues are made only on someone's word, most pages have none (⌘K still opens the window).
+ */
+const QUEUES_CHIP = (
+  tally: { readonly work: number; readonly answered: number; readonly queues: number } | null,
+): Readonly<Record<string, { readonly action: UiAction; readonly count: number | null; readonly answered: boolean; readonly hidden: boolean }>> => ({
+  queues: { action: { type: 'SetQueues', open: true }, count: tally === null ? null : tally.answered > 0 ? tally.answered : tally.work, answered: tally !== null && tally.answered > 0, hidden: tally === null || tally.queues === 0 },
+});
 
 /** A hub page as the dock's «Нет персоны» menu names it: the settings page's own handle form (`page-<id>`). */
 const dockPageHandle = (pageId: number): string => `page-${String(pageId)}`;
@@ -402,7 +412,7 @@ export function createDockController(ws: AiWorkspace): DockController {
       },
       actions: actionVms,
       // The bar's chips as data: what has a chip on this site, in the manifest's order (`dockChips`, domain/features/admission.ts).
-      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey, panels(situation, handle, sheet), ONLINE_CHIP(ws.ports.online?.count() ?? null)),
+      chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey, panels(situation, handle, sheet), { ...ONLINE_CHIP(ws.ports.online?.count() ?? null), ...QUEUES_CHIP(ws.ports.queues?.count() ?? null) }),
       result,
       focusPart,
       analysis: sheet?.kind === 'recap' ? 'recap' : null,
@@ -652,12 +662,14 @@ export function createDockController(ws: AiWorkspace): DockController {
 
   // «Онлайн N»: a new number draws the bar again; the open chat's page is read soon after it changed.
   const offOnline = ws.ports.online?.subscribe(() => ws.bump()) ?? null;
+  const offQueues = ws.ports.queues?.subscribe(() => ws.bump()) ?? null;
   let onlinePage: number | null = null;
   const offOnlinePage = ws.subscribe(() => {
     const page = ws.situation().pageId ?? null;
     if (page === onlinePage) return;
     onlinePage = page;
     ws.ports.online?.touch?.();
+    ws.ports.queues?.touch?.();
   });
   return createSurface(ws, {
     kinds: ['dock'],
@@ -666,6 +678,7 @@ export function createDockController(ws: AiWorkspace): DockController {
     dispose: () => {
       offOps();
       offOnline?.();
+      offQueues?.();
       offOnlinePage();
     },
   });

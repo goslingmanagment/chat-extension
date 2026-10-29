@@ -112,6 +112,8 @@ export interface AiPorts {
   readonly extensionVersion?: string;
   /** 1.65.0: «Онлайн N» — the fans of the open chat's page worth a message now (the hub's, read every minute). Absent — no number. */
   readonly online?: { count(): number | null; subscribe(listener: () => void): () => void; touch?(): void };
+  /** 2026-10-29: «Очереди N» on the dock's chip — the queues with work today, or who answered a message from one. */
+  readonly queues?: { count(): { readonly work: number; readonly answered: number; readonly queues: number } | null; subscribe(listener: () => void): () => void; touch?(): void };
 }
 
 /**

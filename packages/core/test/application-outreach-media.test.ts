@@ -65,7 +65,7 @@ async function world() {
     context,
     surfaces: new Surfaces(),
     navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 1, insert: null }) },
-    directories: { spenders: null, newcomers: null, palette: null, outreach: directory, online: null },
+    directories: { spenders: null, newcomers: null, palette: null, outreach: directory, online: null, queue: null },
     greeting: null,
     sender: { send, onView: () => () => undefined },
     drafts: null,

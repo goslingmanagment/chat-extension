@@ -27,6 +27,7 @@ import { type CgCode } from '@cg/contracts/errors';
 import { type FeatureId } from '@cg/contracts/features';
 import { type FeatureSlice } from '@cg/contracts/features/types';
 import { type HostPort, type NavigationItem } from '@cg/contracts/host';
+import { type FanQueueSummary, type FanQueues } from '@cg/contracts/hub';
 import { CHAT_IS_FAN, type ChatRef, type HostAccount } from '@cg/contracts/ids';
 import { OP_TERMINAL_STATES, type OpView } from '@cg/contracts/ops';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
@@ -85,6 +86,7 @@ export const PALETTE_LIMITS = {
   running: 10,
   accounts: 10,
   online: 8,
+  queues: 8,
   /** Hub rows are read again after this (the background has its own cache). */
   hubTtlMs: 60_000,
   newcomersWindowHours: 48,
@@ -174,6 +176,11 @@ export interface PaletteControllerDeps {
    * next walk exactly these fans.
    */
   readonly preview?: { open(chat: ChatRef, shown: readonly ChatRef[]): Promise<ActionReceipt> };
+  /**
+   * 2026-10-29: the open chat's page's queues as the dock's «Очереди N» last read them: the group «Очереди», each queue
+   * opening the window on it. Absent — the window's row alone.
+   */
+  readonly queues?: { list(): FanQueues | null; subscribe(listener: () => void): () => void };
 }
 
 type Loaded<T> = { readonly at: number; readonly source: PaletteSource<T> };
@@ -203,6 +210,7 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
   const { host, i18n, catalog, overlays } = deps;
   /** The site's «Новые» are the hub's list (ChatSpace's); elsewhere the palette neither asks for them nor names them. */
   const hubNewcomers = deps.features === undefined || deps.features['newcomers']?.source === 'hub';
+  const hasQueues = deps.features === undefined || deps.features['queues'] !== undefined;
   const hub = deps.hub ?? createPaletteHub(deps.rpc, { newcomers: hubNewcomers });
   const changes = createEmitter();
   const caches = new Map<string, HubCache>();
@@ -324,6 +332,10 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       item('action.outreach', text({ key: 'palette.item.outreach' }), { type: 'Navigate', to: { kind: 'surface', surface: 'outreach', open: true } }, {}),
       // 1.65.0: «Онлайн» — who of the page came online and why to write now; its own action, as the bar's chip.
       item('action.online', text({ key: 'palette.item.online' }), { type: 'SetOnline', open: true }, {}),
+    );
+    // 2026-10-29: «Очереди» — the person's portion of the page's queues; where the site has them.
+    if (hasQueues) rows.push(item('action.queues', text({ key: 'palette.item.queues' }), { type: 'SetQueues', open: true }, {}));
+    rows.push(
       item('action.cheatsheet', text({ key: 'palette.item.cheatsheet' }), { type: 'Navigate', to: { kind: 'surface', surface: 'cheatsheet', open: true } }, { hotkey: hotkeyOf(catalog.entry('cheatsheet').hotkey) }),
       item('action.settings', text({ key: 'palette.item.settings' }), { type: 'OpenSettings', route: { section: 'status' } }, { hotkey: hotkeyOf(catalog.entry('settings').hotkey) }),
     );
@@ -336,6 +348,14 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
     return searchRows(search, query, limit).map((hit) => (typeof hit.value.label === 'string' ? { ...hit.value, match: hit.match } : hit.value));
   };
   const withSublabel = (row: PaletteItemVM): readonly string[] => (row.sublabel === null ? [] : [row.sublabel]);
+  /** A queue's day in a few words: «пачкой · сегодня 12 из 50», «на паузе», «порция пройдена». */
+  const queueMeta = (queue: FanQueueSummary): string => {
+    if (queue.status === 'paused') return i18n.t('palette.queue.paused');
+    const how = i18n.t(queue.scenario.sendMode === 'batch' ? 'palette.queue.batch' : 'palette.queue.one');
+    if (queue.perPerson !== null && queue.today.mine >= queue.perPerson) return `${how} · ${i18n.t('palette.queue.done')}`;
+    const day = queue.perPerson === null ? i18n.t('palette.queue.todayOpen', { mine: queue.today.mine }) : i18n.t('palette.queue.today', { mine: queue.today.mine, per: queue.perPerson });
+    return `${how} · ${day}`;
+  };
 
   const build = (): PaletteVM => {
     const snapshot = host.current();
@@ -362,6 +382,14 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
           ? { id: 'actions', title: { key: 'palette.group.actions', params: { name: chatName } }, items: actions }
           : { id: 'navigation', title: { key: 'palette.group.navigation' }, items: actions },
       );
+    }
+
+    // ── the page's queues (2026-10-29): each opens the window on it ──
+    const queueList = hasQueues ? (deps.queues?.list() ?? null) : null;
+    if (queueList !== null) {
+      const rows = queueList.queues.map((queue) => item(`queue.${queue.queueId}`, queue.name, { type: 'SetQueues', open: true, queue: queue.queueId }, { sublabel: queueMeta(queue) }));
+      const shown = filter(rows, withSublabel, PALETTE_LIMITS.queues);
+      if (shown.length > 0) groups.push({ id: 'queues', title: { key: 'palette.group.queues' }, items: shown });
     }
 
     // ── generations that run now, in any tab of this site (CS-012) ──
@@ -510,6 +538,7 @@ export function createPaletteController(deps: PaletteControllerDeps): SurfaceCon
       if (open) lookAgain();
     }),
     deps.dock.subscribe(() => overlays.isOpen('palette') && changes.emit()),
+    deps.queues?.subscribe(() => overlays.isOpen('palette') && changes.emit()) ?? (() => undefined),
     host.subscribe((event) => {
       if (overlays.isOpen('palette') && (event.type === 'route' || event.type === 'accounts')) {
         refreshHub();

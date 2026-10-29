@@ -10,6 +10,7 @@ export { createPaletteDirectory } from '@cg/core/application/preview';
 import type { HostPort } from '@cg/contracts/host';
 import { createOnlineController as createOnline, type OnlineControllerDeps } from '@cg/core/application/online';
 import { createOutreachController as create, type OutreachControllerDeps } from '@cg/core/application/outreach';
+import { createQueuesController as createQueues, type QueuesControllerDeps } from '@cg/core/application/queues';
 import { createSpendersController as createSpenders, type SpendersControllerDeps } from '@cg/core/application/spenders';
 
 /** The board as the hub ranks it; ChatSpace has no missing-data source of its own. */
@@ -26,3 +27,9 @@ export const createOutreachController = (deps: OutreachControllerDeps & { readon
  * goes by the fan's card's own send (X8) — the controller has no send of its own here.
  */
 export const createOnlineController = (deps: OnlineControllerDeps & { readonly host: HostPort }) => createOnline(deps);
+
+/**
+ * «Очереди» on ChatSpace: the person's fan queues are the hub's; each fan's text goes by the fan's card's own send (X8),
+ * «Отправить всем» of a template queue one card after another — the controller has no send of its own here.
+ */
+export const createQueuesController = (deps: QueuesControllerDeps & { readonly host: HostPort }) => createQueues(deps);

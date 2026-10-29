@@ -96,6 +96,14 @@ import {
   type OnlinePresenceRequest,
   type OnlinePresenceResult,
   type OnlineQuery,
+  type FanQueueItemDone,
+  type FanQueueItemDoneRequest,
+  type FanQueueRelease,
+  type FanQueueReleaseRequest,
+  type FanQueues,
+  type FanQueuesQuery,
+  type FanQueueTake,
+  type FanQueueTakeRequest,
   type FanFactChangeRequest,
   type FanFactChangeResult,
   type FanLinkDecideRequest,
@@ -1007,6 +1015,29 @@ export class ChatExtensionHub implements HubFacade {
   /** What a chatter did in «Онлайн». Never repeated here: a lost answer is the person's to act on again. */
   async onlineAttempt(request: OnlineAttemptRequest): Promise<OnlineAttemptResult> {
     return (await this.client('clientOnlineAttempt', request, request.pageLabel)) as OnlineAttemptResult;
+  }
+
+  /**
+   * «Очереди» (hub fan queues): the caller's queues of a page granted by this bootstrap — progress today, the goal, how
+   * they write, who answered a message from a queue. Refused without `fan-queues-v1`; no owner switch on the hub's side.
+   */
+  async fanQueues(query: FanQueuesQuery): Promise<FanQueues> {
+    return (await this.client('clientFanQueues', query, query.pageLabel)) as FanQueues;
+  }
+
+  /** A portion of a queue. Never repeated here: a lost answer leaves the lease to expire, the next take renews it. */
+  async fanQueueTake(request: FanQueueTakeRequest): Promise<FanQueueTake> {
+    return (await this.client('clientFanQueueTake', request, request.pageLabel)) as FanQueueTake;
+  }
+
+  /** A fan of the portion sent or skipped. Never repeated here: a lost answer is the person's to act on again. */
+  async fanQueueItemDone(request: FanQueueItemDoneRequest): Promise<FanQueueItemDone> {
+    return (await this.client('clientFanQueueItemDone', request, request.pageLabel)) as FanQueueItemDone;
+  }
+
+  /** The caller's untouched portion given back (the window closed); a lost one expires by itself in 30 minutes. */
+  async fanQueueRelease(request: FanQueueReleaseRequest): Promise<FanQueueRelease> {
+    return (await this.client('clientFanQueueRelease', request, request.pageLabel)) as FanQueueRelease;
   }
 
   /**

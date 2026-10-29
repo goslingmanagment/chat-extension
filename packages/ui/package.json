@@ -24,6 +24,7 @@
     "./newcomers": "./src/newcomers/index.ts",
     "./outreach": "./src/outreach/index.ts",
     "./online": "./src/online/index.ts",
+    "./queues": "./src/queues/index.ts",
     "./fanpanel": "./src/fanpanel/index.ts",
     "./palette": "./src/palette/index.ts",
     "./preview": "./src/preview/index.ts",
