@@ -140,12 +140,13 @@ async function rig(takes: readonly VoiceTake[], draft = ''): Promise<Rig> {
   const TAB = 'tab-1';
   const ok = <T>(payload: T): { readonly ok: true; readonly payload: T } => ({ ok: true, payload });
   /** The background's answers, as its handlers give them (composition/background/voice.ts). */
-  const answers: { readonly [T in 'voice.read' | 'voice.take' | 'voice.script' | 'voice.edit' | 'voice.allowance']: (payload: TabRequestPayload<T>) => Promise<unknown> } = {
+  const answers: { readonly [T in 'voice.read' | 'voice.take' | 'voice.check' | 'voice.script' | 'voice.edit' | 'voice.allowance']: (payload: TabRequestPayload<T>) => Promise<unknown> } = {
     'voice.read': async ({ pageId, conversationRef }) => {
       const read = await service.read(TAB, pageId, conversationRef);
       return read.ok ? ok({ session: read.session }) : read;
     },
     'voice.take': async ({ sessionId, takeId, script, cause }) => ok(await service.take(TAB, sessionId, takeId, script, cause)),
+    'voice.check': async ({ sessionId, takeId, cause }) => ok(await service.check(TAB, sessionId, takeId, cause)),
     'voice.script': async ({ start, sessionId }) => ok(await service.script(TAB, start, sessionId)),
     'voice.edit': async ({ sessionId, text }) => ok(await service.edit(TAB, sessionId, text)),
     'voice.allowance': () => Promise.resolve(ok({ allowance: null })),
@@ -290,6 +291,23 @@ describe('the voice studio: one click, one render', () => {
     expect(r.vm().takes.map((one) => one.state)).toEqual(['ready', 'refused', 'uncertain']);
     expect(makeButton(r.vm()).enabled).toBe(true);
     expect(r.creates).toHaveLength(2);
+  });
+
+  it('a refused «Проверить» keeps the billing unknown, the check action and the confirmation before discarding', async () => {
+    const r = await rig([], 'a new caption for her');
+    await r.dispatch(makeButton(r.vm()).action);
+    await r.answer({ error: { code: 'CG-HUB-TIMEOUT' }, reached: 'unknown' });
+    const check = r.vm().takes[0]!.check;
+    if (check?.type !== 'CheckVoiceTake') throw new Error('the uncertain take has no check action');
+    await r.dispatch(check);
+    await r.answer({ error: { code: 'CG-FEATURE-DISABLED' }, reached: 'no' });
+
+    expect(r.vm().takes[0]).toMatchObject({ state: 'uncertain', charged: null, check });
+    expect(await r.dispatch({ type: 'ShowVoice', targetHandle: 'h1', open: true })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(await r.dispatch({ type: 'NewVoice', targetHandle: 'h1' })).toMatchObject({ ok: true, outcome: 'needs-confirm' });
+    expect(r.vm().confirm?.lead).toMatchObject({ key: 'voice.confirm.unattached' });
+    expect(r.stored()[0]!.takes).toHaveLength(1);
+    expect(r.creates).toEqual([check.takeId, check.takeId]);
   });
 });
 
