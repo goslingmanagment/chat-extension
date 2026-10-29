@@ -1037,7 +1037,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const siteAccess = createSiteAccess({
     host: OPTIONAL_HOST, key: RELOAD_KEY, storage: session,
     settings: {
-      async enabled() { const state = await extSettings.state(); return state.ok && state.state.ext.hosts[OPTIONAL_HOST].enabled; },
+      async enabled() { const state = await extSettings.state(); if (!state.ok) throw new Error(state.error.code); return state.state.ext.hosts[OPTIONAL_HOST].enabled; },
       async setEnabled(enabled) { const result = await extSettings.patch({ hosts: { [OPTIONAL_HOST]: { enabled } } }); if (!result.ok) throw new Error(result.error.code); },
       onChange: (listener) => extSettings.onChange(listener),
     },
@@ -1056,7 +1056,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   const telegramAccess = createSiteAccess({
     host: TELEGRAM_HOST, key: TELEGRAM_RELOAD_KEY, storage: session,
     settings: {
-      async enabled() { const state = await extSettings.state(); return state.ok && state.state.ext.hosts[TELEGRAM_HOST].enabled; },
+      async enabled() { const state = await extSettings.state(); if (!state.ok) throw new Error(state.error.code); return state.state.ext.hosts[TELEGRAM_HOST].enabled; },
       async setEnabled(enabled) { const result = await extSettings.patch({ hosts: { [TELEGRAM_HOST]: { enabled } } }); if (!result.ok) throw new Error(result.error.code); },
       onChange: (listener) => extSettings.onChange(listener),
     },
@@ -1090,12 +1090,12 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   }
   /**
    * The same, as the site's access stands once a change of it in flight is over (a forced sync after an update reads
-   * as off while it runs): what refuses a tab, a start or a token with `CG-SITE-OFF`, never a passing state.
+   * as off while it runs): what refuses a tab, a start or a token with `CG-SITE-OFF`, never a passing or unreadable state.
    */
   async function siteOn(host: HostKind | null): Promise<boolean> {
     const access = host === null ? undefined : optionalAccess.get(host);
     if (access === undefined) return true;
-    await access.state().catch(() => undefined);
+    await access.state();
     return access.active();
   }
   /**
