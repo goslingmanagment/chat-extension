@@ -150,6 +150,43 @@ describe('[2026-10-28] what a tile of the board shows', () => {
   });
 });
 
+describe('[2026-10-29] the sum a Recap names, all of it', () => {
+  const figureOf = (classified: string) => {
+    const part = docOf(`1. ДОСЬЕ\nИмя: Джейми.\n\n5. ФИНАНСОВЫЙ ПРОФИЛЬ\n\nКлассификация: ${classified}`)?.sections[1]?.parts[0];
+    return part?.kind === 'text' ? part.figure : undefined;
+  };
+
+  it('takes thousands and ranges whole, never the digits after a separator or a dash', () => {
+    expect(figureOf('moderate spender, всего 1,200 $ за год.')).toEqual({ sum: '1,200 $', period: 'за год' });
+    expect(figureOf('light spender, обычно 10-20 $ за покупку.')).toEqual({ sum: '10-20 $', period: null });
+    expect(figureOf('big spender, 12 500,50 $ за полгода.')).toEqual({ sum: '12 500,50 $', period: 'за полгода' });
+    expect(figureOf('big spender, $1,200.50 за 3 месяца.')).toEqual({ sum: '$1,200.50', period: 'за 3 месяца' });
+    expect(figureOf('moderate spender, чек $25-30.')).toEqual({ sum: '$25-30', period: null });
+    expect(figureOf('moderate spender, чек $10 - $20.')).toEqual({ sum: '$10 - $20', period: null });
+    expect(figureOf('big spender, $1.5k за год.')).toEqual({ sum: '$1.5k', period: 'за год' });
+    expect(figureOf('moderate spender, январь 2026 - $250.')).toEqual({ sum: '$250', period: null });
+  });
+
+  it('sets no sum large rather than a part of it', () => {
+    expect(figureOf('light spender, обычно 10 - 20 $ за покупку.')).toBeNull();
+    expect(figureOf('light spender, 1,2000 $.')).toBeNull();
+  });
+
+  it('charts a month as empty only by the zero of its own clause', () => {
+    const part = docOf('1. ДОСЬЕ\nИмя: Джейми.\n\n5. ФИНАНСОВЫЙ ПРОФИЛЬ\n\nКлассификация: light spender, 80 $ за 4 месяца.\nТраты: В июне $50, в июле ноль, в сентябре 30 $.')?.sections[1]?.parts[0];
+    // June's $50 is written in a way the chart does not read: June is left out, not shown as empty.
+    expect(part?.kind === 'text' ? part.months : null).toEqual([
+      { month: 6, sum: 0 },
+      { month: 8, sum: 30 },
+    ]);
+    const after = docOf('1. ДОСЬЕ\nИмя: Джейми.\n\n5. ФИНАНСОВЫЙ ПРОФИЛЬ\n\nКлассификация: light spender, 1 230 $ за год.\nТраты: июнь 1,200 $ и сентябрь 30 $, потом полгода ноль и разовые $15 в марте.')?.sections[1]?.parts[0];
+    expect(after?.kind === 'text' ? after.months : null).toEqual([
+      { month: 5, sum: 1200 },
+      { month: 8, sum: 30 },
+    ]);
+  });
+});
+
 describe('[2026-10-28] «Шпаргалка»', () => {
   it('takes the recommended approach, the promises and what to avoid, a sentence a line', () => {
     expect(recapCrib(docOf(FULL))).toEqual({
@@ -157,6 +194,16 @@ describe('[2026-10-28] «Шпаргалка»', () => {
       keep: ['Прислать фото утреннего кофе', 'Рассказать продолжение сета'],
       avoid: ['Не слать несколько платных предложений подряд'],
     });
+  });
+
+  it('never takes what to avoid for the next move', () => {
+    expect(recapCrib(docOf('1. ДОСЬЕ\nИмя: Джейми.\n\n7. СТРАТЕГИЯ\n\nЧто делать: Спросить про отпуск.\n\nЧего избегать: Давить на покупку.'))).toEqual({
+      next: ['Спросить про отпуск'],
+      keep: [],
+      avoid: ['Давить на покупку'],
+    });
+    expect(recapCrib(docOf('1. ДОСЬЕ\nИмя: Джейми.\n\n7. СТРАТЕГИЯ\n\nЧего избегать: Давить на покупку.'))).toEqual({ next: [], keep: [], avoid: ['Давить на покупку'] });
+    expect(recapCrib(docOf('1. КТО\nДжейми.\n\n6. СЛЕДУЮЩИЙ ХОД\nЧего избегать: давить на покупку.\n\nСпросить про перелёт.'))?.next).toEqual(['Спросить про перелёт']);
   });
 
   it('takes the short Recap\'s next move, open threads and boundaries', () => {

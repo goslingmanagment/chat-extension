@@ -1,7 +1,7 @@
 import { render, type ComponentChild } from 'preact';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { Markdown } from './Markdown';
+import { Markdown, decorateText } from './Markdown';
 
 let host: HTMLElement | null = null;
 function draw(node: ComponentChild): HTMLElement {
@@ -35,5 +35,12 @@ describe('safe Markdown renderer (architecture.md §14: no innerHTML with data)'
       expect(link.getAttribute('rel')).toBe('noopener noreferrer');
     }
     expect(root.querySelector('.cg-md')?.classList.contains('cg-x')).toBe(true);
+  });
+});
+
+describe('[2026-10-29] the sums of a Recap and a Review', () => {
+  it('are marked whole, never from the middle of a number', () => {
+    const sums = decorateText('всего 1,200 $ за год, сеты по 81,97 $ и 10-20 $, итого 1 200 $').flatMap((piece) => (typeof piece !== 'string' && piece.kind === 'money' ? [piece.text] : []));
+    expect(sums).toEqual(['1,200 $', '81,97 $', '10-20 $', '1 200 $']);
   });
 });
