@@ -35,6 +35,7 @@ export declare const agentKeyCapabilityEnum: z.ZodEnum<{
     "request:hydration": "request:hydration";
     "write:publication_drafts": "write:publication_drafts";
     "approve:publications": "approve:publications";
+    "write:fan_queues": "write:fan_queues";
 }>;
 /** The sliding default; the hard ceiling lives with the repository. */
 export declare const AGENT_KEY_DEFAULT_LIFETIME_DAYS = 90;
@@ -55,6 +56,7 @@ export declare const agentKeyItemSchema: z.ZodObject<{
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
+        "write:fan_queues": "write:fan_queues";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresAt: z.ZodString;
@@ -73,6 +75,7 @@ export declare const agentKeyCreateBodySchema: z.ZodObject<{
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
+        "write:fan_queues": "write:fan_queues";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -91,6 +94,7 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
             "request:hydration": "request:hydration";
             "write:publication_drafts": "write:publication_drafts";
             "approve:publications": "approve:publications";
+            "write:fan_queues": "write:fan_queues";
         }>>;
         pageLabels: z.ZodArray<z.ZodString>;
         expiresAt: z.ZodString;
@@ -119,6 +123,7 @@ export declare const agentKeyUpdateBodySchema: z.ZodObject<{
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
+        "write:fan_queues": "write:fan_queues";
     }>>;
 }, z.core.$strict>;
 export declare const agentKeyRevokeResponseSchema: z.ZodObject<{
@@ -143,6 +148,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "request:hydration": "request:hydration";
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
+                "write:fan_queues": "write:fan_queues";
             }>>;
             pageLabels: z.ZodArray<z.ZodString>;
             expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -162,6 +168,7 @@ export declare const agentKeyAdminRouteSchemas: {
                         "request:hydration": "request:hydration";
                         "write:publication_drafts": "write:publication_drafts";
                         "approve:publications": "approve:publications";
+                        "write:fan_queues": "write:fan_queues";
                     }>>;
                     pageLabels: z.ZodArray<z.ZodString>;
                     expiresAt: z.ZodString;
@@ -227,6 +234,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "request:hydration": "request:hydration";
                     "write:publication_drafts": "write:publication_drafts";
                     "approve:publications": "approve:publications";
+                    "write:fan_queues": "write:fan_queues";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;
@@ -269,6 +277,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "request:hydration": "request:hydration";
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
+                "write:fan_queues": "write:fan_queues";
             }>>;
         }, z.core.$strict>;
         readonly response: {
@@ -284,6 +293,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "request:hydration": "request:hydration";
                     "write:publication_drafts": "write:publication_drafts";
                     "approve:publications": "approve:publications";
+                    "write:fan_queues": "write:fan_queues";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;

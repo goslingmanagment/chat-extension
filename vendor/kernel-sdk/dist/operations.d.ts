@@ -51,6 +51,14 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/ai/reconciliation";
     };
+    readonly adminAiReconciliationImport: {
+        readonly method: "POST";
+        readonly path: "/api/v1/admin/ai/reconciliation/import";
+    };
+    readonly adminAiReconciliationKeyUpdate: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/admin/ai/reconciliation/keys";
+    };
     readonly adminAiSpend: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/ai/spend";
@@ -471,6 +479,30 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/datasets/:dataset/query";
     };
+    readonly agentFanQueueAppend: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/fan-queues/:queueId/fans";
+    };
+    readonly agentFanQueueCreate: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/pages/:pageLabel/fan-queues";
+    };
+    readonly agentFanQueueGet: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/fan-queues/:queueId";
+    };
+    readonly agentFanQueueList: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/fan-queues";
+    };
+    readonly agentFanQueuePreview: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/pages/:pageLabel/fan-queues/preview";
+    };
+    readonly agentFanQueueUpdate: {
+        readonly method: "PATCH";
+        readonly path: "/api/v1/agent/fan-queues/:queueId";
+    };
     readonly agentHistoryRequestCancel: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/history-requests/:requestRef/cancel";
@@ -746,6 +778,22 @@ export declare const kernelOperations: {
     readonly clientFanProfileFromGeneration: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/profile/from-generation";
+    };
+    readonly clientFanQueueItemDone: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fan-queues/items/:itemId/done";
+    };
+    readonly clientFanQueueRelease: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fan-queues/:queueId/release";
+    };
+    readonly clientFanQueueTake: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fan-queues/:queueId/take";
+    };
+    readonly clientFanQueues: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/fan-queues";
     };
     readonly clientHandoff: {
         readonly method: "GET";

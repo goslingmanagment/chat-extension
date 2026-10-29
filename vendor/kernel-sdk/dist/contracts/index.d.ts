@@ -6,6 +6,8 @@ export * from "./routes-sync";
 export * from "./routes-client";
 export * from "./publications";
 export * from "./routes-publications";
+export * from "./fan-queues";
+export * from "./routes-fan-queues";
 export * from "./publication-files";
 export * from "./routes-publication-files";
 export * from "./client-token-scopes";

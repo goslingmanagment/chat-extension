@@ -40,6 +40,9 @@ export declare function microUsdFromDollars(value: number): MicroUsd;
  * zero, so a day of many fractional lines carries no per-line rounding.
  */
 export declare function microUsdFromCents(amounts: readonly string[]): MicroUsd;
+/** Dollars as the console's Cost CSV writes them ("6.10") → the same amount
+ * in cents, a decimal string ("610"): the point moves, nothing is rounded. */
+export declare function centsFromDollarsDecimal(value: string): string;
 /** The exact sum of decimal cent strings, as a decimal string (several cost
  * lines that land on one stored line). */
 export declare function sumCentsDecimals(amounts: readonly string[]): string;

@@ -117,7 +117,8 @@ export declare const adminAiReconciliationRowSchema: z.ZodObject<{
         ok: "ok";
         mismatch: "mismatch";
         open: "open";
-        no_admin_key: "no_admin_key";
+        unmapped: "unmapped";
+        no_source: "no_source";
         not_synced: "not_synced";
     }>;
     hubMicroUsd: z.ZodNumber;
@@ -125,7 +126,13 @@ export declare const adminAiReconciliationRowSchema: z.ZodObject<{
     providerMicroUsd: z.ZodNullable<z.ZodNumber>;
     diffMicroUsd: z.ZodNullable<z.ZodNumber>;
     diffPct: z.ZodNullable<z.ZodNumber>;
+    unmappedMicroUsd: z.ZodNumber;
     split: z.ZodBoolean;
+    source: z.ZodNullable<z.ZodEnum<{
+        csv: "csv";
+        admin_api: "admin_api";
+    }>>;
+    providerTokensEstimated: z.ZodBoolean;
     models: z.ZodArray<z.ZodObject<{
         model: z.ZodString;
         hub: z.ZodNullable<z.ZodObject<{
@@ -154,6 +161,40 @@ export declare const adminAiReconciliationResponseSchema: z.ZodObject<{
     generatedAt: z.ZodString;
     configured: z.ZodBoolean;
     days: z.ZodNumber;
+    accounts: z.ZodArray<z.ZodObject<{
+        id: z.ZodNumber;
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    orgs: z.ZodArray<z.ZodObject<{
+        orgId: z.ZodString;
+        orgName: z.ZodNullable<z.ZodString>;
+        accountIds: z.ZodArray<z.ZodNumber>;
+        source: z.ZodNullable<z.ZodObject<{
+            kind: z.ZodEnum<{
+                csv: "csv";
+                admin_api: "admin_api";
+            }>;
+            at: z.ZodString;
+            periodFrom: z.ZodNullable<z.ZodString>;
+            periodTo: z.ZodNullable<z.ZodString>;
+            fileName: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        keys: z.ZodArray<z.ZodObject<{
+            apiKeyId: z.ZodString;
+            name: z.ZodNullable<z.ZodString>;
+            hint: z.ZodNullable<z.ZodString>;
+            decided: z.ZodBoolean;
+            accountId: z.ZodNullable<z.ZodNumber>;
+            label: z.ZodNullable<z.ZodString>;
+            source: z.ZodNullable<z.ZodEnum<{
+                owner: "owner";
+                name: "name";
+                hint: "hint";
+                guess: "guess";
+            }>>;
+            providerMicroUsd: z.ZodNumber;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
     syncs: z.ZodArray<z.ZodObject<{
         labels: z.ZodArray<z.ZodString>;
         orgId: z.ZodNullable<z.ZodString>;
@@ -171,7 +212,8 @@ export declare const adminAiReconciliationResponseSchema: z.ZodObject<{
             ok: "ok";
             mismatch: "mismatch";
             open: "open";
-            no_admin_key: "no_admin_key";
+            unmapped: "unmapped";
+            no_source: "no_source";
             not_synced: "not_synced";
         }>;
         hubMicroUsd: z.ZodNumber;
@@ -179,7 +221,13 @@ export declare const adminAiReconciliationResponseSchema: z.ZodObject<{
         providerMicroUsd: z.ZodNullable<z.ZodNumber>;
         diffMicroUsd: z.ZodNullable<z.ZodNumber>;
         diffPct: z.ZodNullable<z.ZodNumber>;
+        unmappedMicroUsd: z.ZodNumber;
         split: z.ZodBoolean;
+        source: z.ZodNullable<z.ZodEnum<{
+            csv: "csv";
+            admin_api: "admin_api";
+        }>>;
+        providerTokensEstimated: z.ZodBoolean;
         models: z.ZodArray<z.ZodObject<{
             model: z.ZodString;
             hub: z.ZodNullable<z.ZodObject<{
@@ -209,6 +257,7 @@ export declare const adminAiReconciliationResponseSchema: z.ZodObject<{
         orgId: z.ZodString;
         orgName: z.ZodNullable<z.ZodString>;
         kind: z.ZodEnum<{
+            unknown: "unknown";
             key: "key";
             console: "console";
             unsplit: "unsplit";
@@ -219,6 +268,52 @@ export declare const adminAiReconciliationResponseSchema: z.ZodObject<{
         providerMicroUsd: z.ZodNumber;
         open: z.ZodBoolean;
     }, z.core.$strip>>;
+    hubUnattributed: z.ZodArray<z.ZodObject<{
+        day: z.ZodString;
+        hubMicroUsd: z.ZodNumber;
+        requests: z.ZodNumber;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/** One organization's Cost CSV, exported from the Anthropic console, for an
+ * account: its organization is the account key's. */
+export declare const adminAiReconciliationImportBodySchema: z.ZodObject<{
+    accountId: z.ZodNumber;
+    fileName: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    csv: z.ZodString;
+    hubKeyIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+}, z.core.$strict>;
+export declare const adminAiReconciliationImportResponseSchema: z.ZodObject<{
+    importId: z.ZodNumber;
+    orgId: z.ZodString;
+    accountId: z.ZodNumber;
+    label: z.ZodString;
+    fileName: z.ZodNullable<z.ZodString>;
+    periodFrom: z.ZodString;
+    periodTo: z.ZodString;
+    days: z.ZodNumber;
+    microUsd: z.ZodNumber;
+    keys: z.ZodArray<z.ZodObject<{
+        apiKeyId: z.ZodNullable<z.ZodString>;
+        name: z.ZodNullable<z.ZodString>;
+        microUsd: z.ZodNumber;
+        accountId: z.ZodNullable<z.ZodNumber>;
+        source: z.ZodNullable<z.ZodEnum<{
+            owner: "owner";
+            name: "name";
+            hint: "hint";
+        }>>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/** The owner's decision on whose a key is: an account, or null (not Hub's). */
+export declare const adminAiReconciliationKeyBodySchema: z.ZodObject<{
+    orgId: z.ZodString;
+    apiKeyId: z.ZodString;
+    accountId: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strict>;
+export declare const adminAiReconciliationKeyResponseSchema: z.ZodObject<{
+    orgId: z.ZodString;
+    apiKeyId: z.ZodString;
+    accountId: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
 export declare const adminAiAccountParamsSchema: z.ZodObject<{
     accountId: z.ZodCoercedNumber<unknown>;
@@ -269,6 +364,9 @@ export type AdminVoiceAccountResponse = z.infer<typeof adminVoiceAccountResponse
 export type AdminAiReconciliationQuery = z.infer<typeof adminAiReconciliationQuerySchema>;
 export type AdminAiReconciliationRow = z.infer<typeof adminAiReconciliationRowSchema>;
 export type AdminAiReconciliationResponse = z.infer<typeof adminAiReconciliationResponseSchema>;
+export type AdminAiReconciliationImportBody = z.infer<typeof adminAiReconciliationImportBodySchema>;
+export type AdminAiReconciliationImportResponse = z.infer<typeof adminAiReconciliationImportResponseSchema>;
+export type AdminAiReconciliationKeyBody = z.infer<typeof adminAiReconciliationKeyBodySchema>;
 export declare const aiAccountRouteSchemas: {
     readonly adminAiAccountsList: {
         readonly auth: {
@@ -456,6 +554,40 @@ export declare const aiAccountRouteSchemas: {
                 generatedAt: z.ZodString;
                 configured: z.ZodBoolean;
                 days: z.ZodNumber;
+                accounts: z.ZodArray<z.ZodObject<{
+                    id: z.ZodNumber;
+                    label: z.ZodString;
+                }, z.core.$strip>>;
+                orgs: z.ZodArray<z.ZodObject<{
+                    orgId: z.ZodString;
+                    orgName: z.ZodNullable<z.ZodString>;
+                    accountIds: z.ZodArray<z.ZodNumber>;
+                    source: z.ZodNullable<z.ZodObject<{
+                        kind: z.ZodEnum<{
+                            csv: "csv";
+                            admin_api: "admin_api";
+                        }>;
+                        at: z.ZodString;
+                        periodFrom: z.ZodNullable<z.ZodString>;
+                        periodTo: z.ZodNullable<z.ZodString>;
+                        fileName: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    keys: z.ZodArray<z.ZodObject<{
+                        apiKeyId: z.ZodString;
+                        name: z.ZodNullable<z.ZodString>;
+                        hint: z.ZodNullable<z.ZodString>;
+                        decided: z.ZodBoolean;
+                        accountId: z.ZodNullable<z.ZodNumber>;
+                        label: z.ZodNullable<z.ZodString>;
+                        source: z.ZodNullable<z.ZodEnum<{
+                            owner: "owner";
+                            name: "name";
+                            hint: "hint";
+                            guess: "guess";
+                        }>>;
+                        providerMicroUsd: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
                 syncs: z.ZodArray<z.ZodObject<{
                     labels: z.ZodArray<z.ZodString>;
                     orgId: z.ZodNullable<z.ZodString>;
@@ -473,7 +605,8 @@ export declare const aiAccountRouteSchemas: {
                         ok: "ok";
                         mismatch: "mismatch";
                         open: "open";
-                        no_admin_key: "no_admin_key";
+                        unmapped: "unmapped";
+                        no_source: "no_source";
                         not_synced: "not_synced";
                     }>;
                     hubMicroUsd: z.ZodNumber;
@@ -481,7 +614,13 @@ export declare const aiAccountRouteSchemas: {
                     providerMicroUsd: z.ZodNullable<z.ZodNumber>;
                     diffMicroUsd: z.ZodNullable<z.ZodNumber>;
                     diffPct: z.ZodNullable<z.ZodNumber>;
+                    unmappedMicroUsd: z.ZodNumber;
                     split: z.ZodBoolean;
+                    source: z.ZodNullable<z.ZodEnum<{
+                        csv: "csv";
+                        admin_api: "admin_api";
+                    }>>;
+                    providerTokensEstimated: z.ZodBoolean;
                     models: z.ZodArray<z.ZodObject<{
                         model: z.ZodString;
                         hub: z.ZodNullable<z.ZodObject<{
@@ -511,6 +650,7 @@ export declare const aiAccountRouteSchemas: {
                     orgId: z.ZodString;
                     orgName: z.ZodNullable<z.ZodString>;
                     kind: z.ZodEnum<{
+                        unknown: "unknown";
                         key: "key";
                         console: "console";
                         unsplit: "unsplit";
@@ -520,6 +660,11 @@ export declare const aiAccountRouteSchemas: {
                     keyHint: z.ZodNullable<z.ZodString>;
                     providerMicroUsd: z.ZodNumber;
                     open: z.ZodBoolean;
+                }, z.core.$strip>>;
+                hubUnattributed: z.ZodArray<z.ZodObject<{
+                    day: z.ZodString;
+                    hubMicroUsd: z.ZodNumber;
+                    requests: z.ZodNumber;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -537,6 +682,132 @@ export declare const aiAccountRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiReconciliationImport: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Import an organization's Cost CSV from the Anthropic console for the reconciliation";
+        readonly body: z.ZodObject<{
+            accountId: z.ZodNumber;
+            fileName: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            csv: z.ZodString;
+            hubKeyIds: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                importId: z.ZodNumber;
+                orgId: z.ZodString;
+                accountId: z.ZodNumber;
+                label: z.ZodString;
+                fileName: z.ZodNullable<z.ZodString>;
+                periodFrom: z.ZodString;
+                periodTo: z.ZodString;
+                days: z.ZodNumber;
+                microUsd: z.ZodNumber;
+                keys: z.ZodArray<z.ZodObject<{
+                    apiKeyId: z.ZodNullable<z.ZodString>;
+                    name: z.ZodNullable<z.ZodString>;
+                    microUsd: z.ZodNumber;
+                    accountId: z.ZodNullable<z.ZodNumber>;
+                    source: z.ZodNullable<z.ZodEnum<{
+                        owner: "owner";
+                        name: "name";
+                        hint: "hint";
+                    }>>;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 503: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiReconciliationKeyUpdate: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Decide whose an Anthropic API key is (an account, or not Hub's)";
+        readonly body: z.ZodObject<{
+            orgId: z.ZodString;
+            apiKeyId: z.ZodString;
+            accountId: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                orgId: z.ZodString;
+                apiKeyId: z.ZodString;
+                accountId: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
