@@ -28,6 +28,8 @@ export interface QueuesCountDeps {
 export interface QueuesTally {
   readonly work: number;
   readonly answered: number;
+  /** The person's queues of the page at all: none — no chip (a page has queues only on someone's word). */
+  readonly queues: number;
 }
 
 export interface QueuesCount {
@@ -48,7 +50,7 @@ export function tallyOf(list: FanQueues): QueuesTally {
     if (queue.perPerson !== null && queue.today.mine >= queue.perPerson) return false;
     return queue.pending > 0 || queue.leasedToMe > 0;
   }).length;
-  return { work, answered: list.answered.length };
+  return { work, answered: list.answered.length, queues: list.queues.length };
 }
 
 export function createQueuesCount(deps: QueuesCountDeps): QueuesCount {
@@ -63,7 +65,7 @@ export function createQueuesCount(deps: QueuesCountDeps): QueuesCount {
 
   /** A new list tells the listeners too: the palette's group shows each queue's day. */
   const set = (next: QueuesTally | null, list: FanQueues | null = null): void => {
-    const same = next === value || (next !== null && value !== null && next.work === value.work && next.answered === value.answered);
+    const same = next === value || (next !== null && value !== null && next.work === value.work && next.answered === value.answered && next.queues === value.queues);
     if (same && list === last) return;
     value = next;
     last = list;

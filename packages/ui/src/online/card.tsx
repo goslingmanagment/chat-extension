@@ -43,7 +43,7 @@ function codeTail(i18n: I18n, code: string): string {
 function Head({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const money = [card.username === null ? null : `@${card.username}`, card.lifetime === null ? i18n.t('online.row.notPaid') : i18n.formatMoneyMills(card.lifetime)].filter((part): part is string => part !== null);
+  const money = [card.username === null ? null : `@${card.username}`, card.lifetime !== null ? i18n.formatMoneyMills(card.lifetime) : card.moneyUnknown === true ? null : i18n.t('online.row.notPaid')].filter((part): part is string => part !== null);
   const subscribed = card.subscription?.startedAt ?? null;
   return (
     <header class="cg-nc__head">
@@ -77,8 +77,11 @@ function Head({ card, preview }: { readonly card: OnlineCardVM; readonly preview
   );
 }
 
-/** Why to write now, in one calm box; a fan set aside says why, and that a click may still write. */
-function Why({ card }: { readonly card: OnlineCardVM }): JSX.Element {
+/**
+ * Why to write now, in one calm box; a fan set aside says why, and that a click may still write. A fan of a queue who
+ * got the page's mass messages has them here too, unless his empty conversation below says it (`massBelow`).
+ */
+function Why({ card, massBelow }: { readonly card: OnlineCardVM; readonly massBelow: boolean }): JSX.Element {
   const i18n = useI18n();
   if (card.aside !== null) {
     return (
@@ -139,8 +142,19 @@ function Why({ card }: { readonly card: OnlineCardVM }): JSX.Element {
       tail = reason.lastAt === null ? i18n.t('online.card.why.none') : i18n.t('online.card.why.noneLast', { age: i18n.formatAge(reason.lastAt) });
       break;
   }
-  const named = card.template === null || card.template.named === null ? null : card.template.named ? i18n.t('online.card.named', { name: card.template.greeting ?? firstName(card.name) }) : i18n.t('online.card.unnamed');
+  const named =
+    card.template === null || card.template.named === null
+      ? null
+      : card.template.own !== undefined
+        ? card.template.named
+          ? i18n.t('queues.card.named', { name: card.template.greeting ?? firstName(card.name) })
+          : i18n.t('queues.card.unnamed')
+        : card.template.named
+          ? i18n.t('online.card.named', { name: card.template.greeting ?? firstName(card.name) })
+          : i18n.t('online.card.unnamed');
   const sentence = tail === '' || /[.!?…]$/.test(tail) ? tail : `${tail}.`;
+  const mass = reason.kind === 'queue' && reason.mass !== null && !massBelow ? reason.mass : null;
+  const massLine = mass === null ? null : mass.lastAt === null ? i18n.t('queues.why.mass', { n: mass.count }) : i18n.t('queues.why.massLast', { n: mass.count, age: i18n.formatAge(mass.lastAt) });
   return (
     <div class="ol-why" data-cg-reason={reason.kind}>
       <Icon name={card.queue === undefined ? 'info' : 'queues'} size={14} />
@@ -150,6 +164,7 @@ function Why({ card }: { readonly card: OnlineCardVM }): JSX.Element {
           {mark}
         </b>{' '}
         {sentence}
+        {massLine === null ? null : ` ${massLine}.`}
         {named === null ? null : ` ${named}`}
       </span>
     </div>
@@ -205,7 +220,7 @@ function SentBubble({ card }: { readonly card: OnlineCardVM }): JSX.Element | nu
       {card.version}
       <small class="cg-num">
         {at === null ? '' : i18n.formatTime(at)}
-        {card.state === 'sent' ? ` · ${i18n.t('online.card.sentFrom')}` : ` · ${i18n.t('online.row.sending')}`}
+        {card.state === 'sent' ? ` · ${i18n.t(card.queue === undefined ? 'online.card.sentFrom' : 'queues.card.sentFrom')}` : ` · ${i18n.t('online.row.sending')}`}
       </small>
     </div>
   );
@@ -539,6 +554,14 @@ function Text({ card, preview }: { readonly card: OnlineCardVM; readonly preview
               {card.edited ? ` · ${i18n.t('outreach.card.edited')}` : null}
             </span>
           </>
+        ) : card.template.own !== undefined ? (
+          <>
+            <b>{i18n.t('queues.card.ownText')}</b>
+            <span>
+              {card.template.own.of > 1 ? i18n.t('queues.card.variant', { n: card.template.own.n, of: card.template.own.of }) : null}
+              {card.edited ? `${card.template.own.of > 1 ? ' · ' : ''}${i18n.t('outreach.card.edited')}` : null}
+            </span>
+          </>
         ) : (
           <>
             <b>{i18n.t('online.card.template', { id: card.template.id })}</b>
@@ -555,7 +578,7 @@ function Text({ card, preview }: { readonly card: OnlineCardVM; readonly preview
           </button>
         ) : card.rewrite ? (
           <button type="button" class="cg-ow__link" onClick={again}>
-            {i18n.t(card.template === null ? 'online.card.again' : 'online.card.otherTemplate')}
+            {i18n.t(card.template === null ? 'online.card.again' : card.template.own !== undefined ? 'queues.card.otherVariant' : 'online.card.otherTemplate')}
           </button>
         ) : null}
       </div>
@@ -754,7 +777,7 @@ export function OnlineCard({ card, preview }: { readonly card: OnlineCardVM; rea
   return (
     <section class="cg-nc cg-ow__card" aria-label={i18n.t('online.card.label', { name: card.name })} data-cg-online-card={card.state}>
       <Head card={card} preview={preview} />
-      <Why card={card} />
+      <Why card={card} massBelow={ours && preview.view.s !== 'loading' && preview.feed.items.length === 0 && tail === undefined} />
       <div class="cg-ow__conv">
         {ours && preview.archive.stamp.asOf !== null ? <ArchivePill preview={preview} /> : null}
         <Feed handle={ours ? preview.handle : null} feed={ours ? preview.feed : { items: [], hasOlder: false, loadingOlder: false, olderError: null }} empty={!ours || preview.view.s === 'loading' ? null : feedEmpty(card)} loading={!ours || preview.view.s === 'loading'} seen={ours ? preview.seen : null} {...(tail === undefined ? {} : { tail })} />

@@ -66,10 +66,13 @@ import { createPartFocus } from './focus-part';
 const ONLINE_CHIP = (count: number | null): Readonly<Record<string, { readonly action: UiAction; readonly count: number | null }>> => ({ online: { action: { type: 'SetOnline', open: true }, count } });
 /**
  * 2026-10-29: «Очереди» opens its window; beside it the queues with work for the person today, or — once someone answered
- * a message from a queue — how many answered («2 ↩»).
+ * a message from a queue — how many answered («2 ↩»). A page where the person has no queue (or not read yet) has no chip:
+ * queues are made only on someone's word, most pages have none (⌘K still opens the window).
  */
-const QUEUES_CHIP = (tally: { readonly work: number; readonly answered: number } | null): Readonly<Record<string, { readonly action: UiAction; readonly count: number | null; readonly answered: boolean }>> => ({
-  queues: { action: { type: 'SetQueues', open: true }, count: tally === null ? null : tally.answered > 0 ? tally.answered : tally.work, answered: tally !== null && tally.answered > 0 },
+const QUEUES_CHIP = (
+  tally: { readonly work: number; readonly answered: number; readonly queues: number } | null,
+): Readonly<Record<string, { readonly action: UiAction; readonly count: number | null; readonly answered: boolean; readonly hidden: boolean }>> => ({
+  queues: { action: { type: 'SetQueues', open: true }, count: tally === null ? null : tally.answered > 0 ? tally.answered : tally.work, answered: tally !== null && tally.answered > 0, hidden: tally === null || tally.queues === 0 },
 });
 
 /** A hub page as the dock's «Нет персоны» menu names it: the settings page's own handle form (`page-<id>`). */

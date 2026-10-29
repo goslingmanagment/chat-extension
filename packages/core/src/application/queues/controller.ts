@@ -16,7 +16,7 @@
 // The day's portion is a target, never a block: «На сегодня всё» offers «Ещё 10».
 
 import { type CgErrorWire } from '@cg/contracts/errors';
-import { type FanQueueAnswered, type FanQueueItem, type FanQueues, type FanQueueSentAct, type FanQueueSummary, type FanQueueTake, type OnlineItem, type OnlineTemplate, type SendAttributionComposedWith } from '@cg/contracts/hub';
+import { type FanQueueAnswered, type FanQueueItem, type FanQueues, type FanQueueSentAct, type FanQueueSummary, type FanQueueTake, type OnlineTemplate, type SendAttributionComposedWith } from '@cg/contracts/hub';
 import { CHAT_IS_FAN, FAN_QUEUES_CAPABILITY } from '@cg/contracts/ids';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import {
@@ -170,6 +170,8 @@ interface Facts {
 interface Known {
   readonly item: FanQueueItem;
   readonly answered: FanQueueAnswered | null;
+  /** Known only by the hub's list of answers: his money and his subscription are not known. */
+  readonly factless?: true;
 }
 
 /** «Отправить всем»'s run. */
@@ -190,6 +192,23 @@ const timeOf = (at: string | null): number | null => {
   const ms = Date.parse(at);
   return Number.isNaN(ms) ? null : ms;
 };
+
+/**
+ * A prepared text with the fan's name (2026-10-29, the owner): the queue's own message names him where it says `{name}`
+ * (every one), the guide's where it says «love» (the first one). No name: `{name}` goes away cleanly with its comma or
+ * space, «love» stays.
+ */
+export function fillQueueText(text: string, name: string | null): string {
+  const named = name === null ? '' : name.trim();
+  if (!text.includes('{name}')) return fillTemplate(text, named === '' ? null : named);
+  if (named !== '') return text.replace(/\{name\}/g, named);
+  return text
+    .replace(/^\s*\{name\}\s*[,!.:]?\s*/, '')
+    .replace(/[ \t]*\{name\}/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([,!?.])/g, '$1')
+    .trim();
+}
 
 /** How a queue writes, as its line and its chip read it. */
 export function howOfQueue(queue: FanQueueSummary): QueueHowVM {
@@ -235,7 +254,9 @@ function answeredItem(answer: FanQueueAnswered, known: FanQueueItem | undefined)
     followedAt: null,
     massLast90d: { count: 0, lastAt: null },
   };
-  return { ...base, itemId: answer.itemId, queueId: answer.queueId, reason: 'waiting', reasonAt: answer.answeredAt, act: 'reply', lastFanMessageAt: answer.answeredAt, lastPageMessageAt: answer.sentAt, conversationRef: answer.conversationRef ?? base.conversationRef };
+  // He was there when he answered: his last activity is that, unless the hub saw him later.
+  const seenAt = base.seenAt !== null && (timeOf(base.seenAt) ?? 0) > (timeOf(answer.answeredAt) ?? 0) ? base.seenAt : answer.answeredAt;
+  return { ...base, itemId: answer.itemId, queueId: answer.queueId, reason: 'waiting', reasonAt: answer.answeredAt, act: 'reply', seenAt, lastFanMessageAt: answer.answeredAt, lastPageMessageAt: answer.sentAt, conversationRef: answer.conversationRef ?? base.conversationRef };
 }
 
 export function createQueuesController(deps: QueuesControllerDeps): QueuesController {
@@ -418,7 +439,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   };
 
   const keyOf = (how: How): string => (how.template !== null ? `t:${how.template.id}` : how.act === 'own' ? 'own' : `a:${how.feature ?? ''}`);
-  const templateText = (item: FanQueueItem, template: OnlineTemplate): string => fillTemplate(template.text.replace(/\{name\}/g, 'love'), item.greetingName);
+  const templateText = (item: FanQueueItem, template: OnlineTemplate): string => fillQueueText(template.text, item.greetingName);
   const manual = (how: How): boolean => how.template !== null || how.act === 'own';
   const manualText = (fan: PassFan | undefined, item: FanQueueItem, how: How): string => fan?.edit ?? (how.template === null ? '' : templateText(item, how.template));
 
@@ -635,6 +656,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       arrived: false,
       replied: answer === null || !answeredNow(entry.fanRef) ? null : { at: answer.answeredAt, text: answer.answerText },
       code: facts.code,
+      ...(known.get(entry.fanRef)?.factless === true ? { moneyUnknown: true as const } : {}),
     };
   }
 
@@ -662,7 +684,18 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
         ? []
         : ONLINE_CHOICES.filter((choice) => choice !== 'template' || hasTemplates).map((choice) => ({ act: choice, suggested: choice === advice, current: choice === fan?.chosen && facts.state !== 'idle' }));
     const group = how.template?.group ?? null;
-    const template = how.template === null ? null : { id: how.template.id, group: group === 'a' ? ('a' as const) : ('b' as const), named: /\blove\b|\{name\}/.test(how.template.text) ? item.greetingName !== null : null, greeting: item.greetingName };
+    // The queue's own message (group `q<queueId>`): «Сообщение очереди», its variant of the queue's texts.
+    const ownTexts = how.template !== null && group !== null && group.startsWith('q') ? templatesOf(group) : null;
+    const template =
+      how.template === null
+        ? null
+        : {
+            id: how.template.id,
+            group: group === 'a' ? ('a' as const) : ('b' as const),
+            named: /\blove\b|\{name\}/.test(how.template.text) ? item.greetingName !== null : null,
+            greeting: item.greetingName,
+            ...(ownTexts === null ? {} : { own: { n: Math.max(1, ownTexts.findIndex((one) => one.id === how.template?.id) + 1), of: ownTexts.length } }),
+          };
     const noChat = own !== null && item.conversationRef === null && (fan?.group ?? null) === null;
     const answer = known.get(entry.fanRef)?.answered ?? null;
     return {
@@ -701,6 +734,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       noChat,
       next: next === null ? null : { handle: handleOf(next.fanRef), name: next.name },
       queue: { skips: entry.answered ? [] : QUEUE_SKIP_REASONS, skipped: fan?.skipped ?? null },
+      ...(known.get(entry.fanRef)?.factless === true ? { moneyUnknown: true as const } : {}),
     };
   }
 
@@ -894,11 +928,15 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     }
     loadedAt = clock.now();
     changed();
-    // The first queue with work is chosen once the list is there.
-    if (chosen === null && list !== null) {
-      const first = list.queues.find((queue) => queue.status === 'active' && (queue.perPerson === null || queue.today.mine < queue.perPerson) && (queue.pending > 0 || queue.leasedToMe > 0)) ?? list.queues[0] ?? null;
-      if (first !== null) await choose(first.queueId, false);
-    } else if (chosen !== null) await renew();
+    if (list !== null) {
+      const current = queueOf(chosen);
+      if (current === null) {
+        // The first queue with work is chosen once the list is there (or the chosen one is gone from it).
+        const first = list.queues.find((queue) => queue.status === 'active' && (queue.perPerson === null || queue.today.mine < queue.perPerson) && (queue.pending > 0 || queue.leasedToMe > 0)) ?? list.queues[0] ?? null;
+        if (first !== null) await choose(first.queueId, false);
+      } else if (take === null) await choose(current.queueId, false);
+      else await renew();
+    }
     tryStart();
   }
 
@@ -911,7 +949,8 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       if (entry !== undefined && entry.answered === null) fresh.set(fanRef, entry);
     }
     for (const answer of next.answered) {
-      fresh.set(answer.fanRef, { item: answeredItem(answer, seen.get(answer.fanRef)), answered: answer });
+      const before = seen.get(answer.fanRef);
+      fresh.set(answer.fanRef, { item: answeredItem(answer, before), answered: answer, ...(before === undefined ? { factless: true as const } : {}) });
       // He waits for an answer again: Reply is advised (written by a click on his card), the old text is history.
       const fan = pass.get(answer.fanRef);
       if (fan !== undefined && fan.sent !== null && fan.sent.at < (timeOf(answer.answeredAt) ?? 0) && fan.clickedAt !== null && fan.clickedAt < (timeOf(answer.answeredAt) ?? 0)) {
@@ -957,10 +996,21 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       order = [];
       portionDone = false;
       tally = { sent: 0, skipped: 0 };
+    } else {
+      // A fan the hub no longer holds for the person (the lease ran out while the tab was hidden, and someone else took
+      // him): out of the portion, unless something was done to him here — his own card says what.
+      const held = new Set(next.items.map((item) => item.fanRef));
+      order = order.filter((fanRef) => {
+        if (held.has(fanRef)) return true;
+        const fan = pass.get(fanRef);
+        const touched = fan !== undefined && (fan.clickedAt !== null || fan.skipped !== null || fan.skipping || fan.sent !== null);
+        if (!touched && known.get(fanRef)?.answered === null) known.delete(fanRef);
+        return touched;
+      });
     }
     for (const item of next.items) {
       seen.set(item.fanRef, item);
-      if (known.get(item.fanRef)?.answered == null) known.set(item.fanRef, { item, answered: null });
+      if ((known.get(item.fanRef)?.answered ?? null) === null) known.set(item.fanRef, { item, answered: null });
       if (!order.includes(item.fanRef)) order.push(item.fanRef);
       const fan = passOf(item.fanRef);
       // A template queue's text stands at once: nothing is written, the guide's (or the asker's) words are there.
@@ -976,7 +1026,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     if (queueId === null || binding === null) return;
     const inHand = entriesOf().portion.filter((entry) => !entry.done).length;
     if (inHand === 0) return;
-    const answer = await rpc.request('queues.take', { pageId: binding.pageId, queueId, count: inHand, more: true }).catch(() => null);
+    const answer = await rpc.request('queues.take', { pageId: binding.pageId, queueId, count: Math.min(QUEUES_PORTION, inHand), more: true }).catch(() => null);
     if (disposed || chosen !== queueId || answer === null || !answer.ok) return;
     portionFrom(answer.payload, false);
     changed();
@@ -1360,7 +1410,9 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     const before = chosen;
     chosen = queueId;
     if (before !== queueId) {
-      // Another queue's portion leaves the window (its lease runs out by itself, or the next take renews it).
+      // Another queue's portion leaves the window: what is untouched of it goes back to that queue for the others.
+      const binding = context.current().binding;
+      if (before !== null && binding !== null && entriesOf().portion.some((entry) => !entry.done)) void rpc.request('queues.release', { pageId: binding.pageId, queueId: before }).catch(() => undefined);
       for (const fanRef of order) if (known.get(fanRef)?.answered === null) known.delete(fanRef);
       order = [];
       take = null;
@@ -1479,7 +1531,11 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   }
 
   function setQueues(action: Extract<UiAction, { type: 'SetQueues' }>): Promise<ActionReceipt> | ActionReceipt {
-    if (action.open === true) return open(action.type);
+    if (action.open === true) {
+      // ⌘K's row of a queue: the window opens on it.
+      if (action.queue !== undefined && action.queue !== chosen) void choose(action.queue, true);
+      return open(action.type);
+    }
     if (action.open === false) return close(action.type);
     if (action.queue !== undefined) {
       void choose(action.queue, true);

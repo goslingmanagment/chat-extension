@@ -15,8 +15,8 @@ export const QUEUES_CSS = `
 }
 .qu .ol-why .cg-ico { color: var(--cg-clay-ink); }
 
-${/* The page's queues: one row of chips, scrolled sideways when there are many. */ ''}
-.qu-chips { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 22px; border-bottom: 1px solid var(--cg-rule); overflow-x: auto; scrollbar-width: none; }
+${/* The page's queues: a row of chips, a second row when there are many (none is hidden). */ ''}
+.qu-chips { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 22px; border-bottom: 1px solid var(--cg-rule); }
 .qu-chip {
   flex: none; display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border: 0; border-radius: var(--cg-r-pill);
   background: var(--cg-sunk); box-shadow: inset 0 0 0 1px var(--cg-rule-2); color: var(--cg-ink-2); font: inherit; font-size: var(--cg-text-md); white-space: nowrap; cursor: pointer;
@@ -32,6 +32,9 @@ ${/* The page's queues: one row of chips, scrolled sideways when there are many.
 .qu-chip__tag.is-paused { background: var(--cg-amber-bg); color: var(--cg-amber-ink); }
 .qu-chip__tag.is-mine { background: var(--cg-good-bg); color: var(--cg-good-ink); }
 .qu-chip.is-paused .qu-chip__name { color: var(--cg-ink-muted); }
+
+${/* «Пропустить ▾» opens upward over the conversation: the text's zone does not cut it while it is open. */ ''}
+.qu .cg-ow__dzone:has(.cg-menu) { overflow: visible; }
 
 ${/* The chosen queue: its goal and who is in it on the left, how it writes and who asked on the right. */ ''}
 .qu-line { flex: none; display: flex; align-items: flex-start; gap: 24px; padding: 8px 22px 9px; border-bottom: 1px solid var(--cg-rule); font-size: var(--cg-text-sm); line-height: 17px; color: var(--cg-ink-muted); }

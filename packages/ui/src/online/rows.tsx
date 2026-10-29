@@ -103,7 +103,7 @@ function RowView({ row, onSelect }: RowProps): JSX.Element {
   const i18n = useI18n();
   const draft = draftKind(row);
   const done = row.skipped || row.state === 'sent' || row.state === 'uncertain';
-  const meta = [row.username === null ? null : `@${row.username}`, row.lifetime === null ? i18n.t('online.row.notPaid') : i18n.formatMoneyMills(row.lifetime)].filter((part): part is string => part !== null && part !== '');
+  const meta = [row.username === null ? null : `@${row.username}`, row.lifetime !== null ? i18n.formatMoneyMills(row.lifetime) : row.moneyUnknown === true ? null : i18n.t('online.row.notPaid')].filter((part): part is string => part !== null && part !== '');
   return (
     <div
       class={`cg-nw__row${row.selected ? ' is-sel' : ''}${done ? ' is-handled' : ''}${row.arrived ? ' is-new' : ''}${draft === null || draft === 'writing' ? '' : ' has-draft'}`}

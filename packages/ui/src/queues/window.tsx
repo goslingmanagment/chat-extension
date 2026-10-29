@@ -201,7 +201,7 @@ function EndPane({ end }: { readonly end: QueueEndVM | null }): JSX.Element {
               {one.perPerson === null ? i18n.t('queues.end.portion.dayOpen', { mine: one.today }) : i18n.t('queues.end.portion.day', { mine: one.today, per: one.perPerson })}
               {one.dailyLimit === null ? null : ` · ${i18n.t('queues.end.portion.page', { page: one.page, limit: one.dailyLimit })}`}
             </li>
-            <li>{i18n.t('queues.end.portion.left', { n: count(i18n, one.pending) })}</li>
+            <li>{one.pending > 0 ? i18n.t('queues.end.portion.left', { n: count(i18n, one.pending) }) : i18n.t('queues.end.portion.none')}</li>
           </ul>
           <p>{i18n.t('queues.end.portion.note')}</p>
           {one.pending > 0 ? more(i18n.t('queues.end.portion.more')) : null}
@@ -255,8 +255,10 @@ function EndPane({ end }: { readonly end: QueueEndVM | null }): JSX.Element {
         </>
       );
       break;
-    default:
+    case 'pick':
+    case undefined:
       body = <p>{i18n.t('queues.end.pick')}</p>;
+      break;
   }
   return (
     <section class="cg-nc cg-ow__card" data-cg-queue-end={end?.kind ?? 'pick'}>
