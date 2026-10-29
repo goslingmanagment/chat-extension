@@ -19,9 +19,11 @@
 //   its window cut by the effective messageCount of that start; a start of
 //   the deep window asks the background for the person's depth (R20 P8c).
 // - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`; the floating launcher's clicks (X46) — «Онлайн», Spenders
-//   and «Новые» from every page, as the popup opens them.
+//   and «Новые» from every page, as the popup opens them; the mark of a chat waiting for a reply in Fansly's own list of
+//   chats (2026-10-29), as the settings page holds it.
 
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
+import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
 import { FANSLY_PHRASES, REGISTRATION_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
@@ -50,6 +52,26 @@ export function fanslyUi(theme: HostThemeSource, doc: () => Document = page): Ho
     sheet: FANSLY_DOCK_SHEET,
     phrases: FANSLY_PHRASES,
   };
+}
+
+/** The marks of the list of chats (`settings.ext`), checked here: Fansly's registry stays out of this chunk. */
+const INBOX_MARKS: readonly string[] = ['dot', 'we', 'off'] satisfies readonly FanslyInboxMark[];
+const INBOX_MARK_TIMEOUT_MS = 10_000;
+
+/**
+ * The mark of a chat waiting for a reply in Fansly's own list of chats (2026-10-29): the choice `settings.ext` holds,
+ * asked once, then every change of it the background says to all Fansly tabs. A Fansly type over the shared port, its
+ * answer checked by hand. Until the answer the list stays Fansly's own.
+ */
+export function startFanslyInboxMark(env: Pick<SiteAppEnv<FanslyPort>, 'rpc' | 'host' | 'life'>): () => void {
+  const take = (payload: unknown): void => {
+    const mark = (payload as { readonly mark?: unknown } | null)?.mark;
+    if (!env.life.aborted && typeof mark === 'string' && INBOX_MARKS.includes(mark)) env.host.fansly.setInboxMark(mark as FanslyInboxMark);
+  };
+  const off = (env.rpc.onEvent as unknown as (type: string, listener: (payload: unknown) => void) => () => void)('fansly.inbox.markChanged', take);
+  const port = env.rpc as unknown as { request(type: string, payload: unknown, options?: { readonly timeoutMs?: number }): Promise<{ readonly ok: boolean; readonly payload?: unknown }> };
+  void port.request('fansly.inbox.mark', {}, { timeoutMs: INBOX_MARK_TIMEOUT_MS }).then((answer) => answer.ok && take(answer.payload), () => undefined);
+  return off;
 }
 
 /** The vault's page (host-fansly isolated/vault `isVaultPath`: its module is the vault's chunk, not this one). */
@@ -108,7 +130,9 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   });
   // The buttons wear the scheme of our surfaces, so they stay the dock's chips under «Тема» (2026-10-20).
   const offScheme = env.host.launcher.follow(env.deps.scheme);
+  const offInboxMark = startFanslyInboxMark(env);
   return () => {
+    offInboxMark();
     offOps();
     offLauncher();
     offScheme();

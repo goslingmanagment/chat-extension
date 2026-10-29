@@ -20,7 +20,7 @@ import type { CgErrorWire, I18nKey } from '@cg/contracts/errors';
 import { HOST_PLATFORM } from '@cg/contracts/hosts';
 import type { FanslyPageFacts, FanslyPagesControl, FanslyPagesView, FanslyPageTextKey, FanslyStep, FanslyToneKey } from '@cg/contracts/pages-fansly';
 import { SETTINGS_RANGES, SOUND_TONE_IDS, type ToneId } from '@cg/contracts/settings';
-import { SETTINGS_EXT_RANGES } from '@cg/contracts/settings-ext';
+import { FANSLY_INBOX_MARKS, SETTINGS_EXT_RANGES, type FanslyInboxMark } from '@cg/contracts/settings-ext';
 import type { I18n } from '@cg/contracts/vm';
 
 import { Button, Checkbox, CodeLine, Dot, Icon, Spinner, TextField, useI18n, useView } from '../../../kit';
@@ -273,6 +273,34 @@ function ToneRow({ control, view, which, label }: { readonly control: FanslyPage
   );
 }
 
+const INBOX_MARK_KEYS: Readonly<Record<FanslyInboxMark, FanslyPageTextKey>> = { dot: 'fansly.pages.inboxMarkDot', we: 'fansly.pages.inboxMarkWe', off: 'fansly.pages.inboxMarkOff' };
+
+/** «Вид и звук»: «Кто ждёт ответа» — the mark of a chat waiting for a reply in Fansly's list of chats, while Fansly is on. */
+function InboxMarkRow({ control }: { readonly control: FanslyPagesControl }): JSX.Element | null {
+  const i18n = useI18n();
+  const view = useFansly(control);
+  if (!view.on || view.settings === null) return null;
+  const mark = view.settings.ext.hosts[FANSLY].inboxMark;
+  const label = text(i18n, 'fansly.pages.inboxMark');
+  return (
+    <Opt label={label} hint={text(i18n, 'fansly.pages.inboxMarkHint')} anchor="fansly-inbox-mark">
+      <span class="pg-line" data-pg-fansly-inbox-mark={mark}>
+        <Picker
+          label={label}
+          text={text(i18n, INBOX_MARK_KEYS[mark])}
+          value={mark}
+          options={FANSLY_INBOX_MARKS.map((id) => ({ value: id, label: text(i18n, INBOX_MARK_KEYS[id]) }))}
+          reason={lockOf(i18n, view)}
+          onChange={(value) => {
+            const next = FANSLY_INBOX_MARKS.find((id) => id === value);
+            if (next !== undefined) void control.setInboxMark(next);
+          }}
+        />
+      </span>
+    </Opt>
+  );
+}
+
 /** «Вид и звук» → «Звук»: the tones on Fansly, while Fansly is on. */
 function SoundRows({ control }: { readonly control: FanslyPagesControl }): JSX.Element | null {
   const i18n = useI18n();
@@ -432,6 +460,7 @@ export function fanslyOptionsSlots(control: FanslyPagesControl): OptionsSlots {
     accounts: () => <AccountsCard control={control} />,
     signIn: () => <FanslyCard control={control} settings={false} />,
     appearanceSound: () => <SoundRows control={control} />,
+    appearanceView: () => <InboxMarkRow control={control} />,
     generationWindows: () => <DeepRow control={control} />,
     checklist: () => <Steps control={control} />,
     personas: () => <LegacyPersonas />,

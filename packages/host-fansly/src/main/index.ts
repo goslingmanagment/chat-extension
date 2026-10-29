@@ -29,7 +29,9 @@
 //   `fx.incoming` with its group's fan; a follow `fx.follow`; deletions of the
 //   focused group `fx.deleted`; every loss and certificate `fx.coverage`; a
 //   confirmed vault upload `fx.vaultAdded`, an album the page loaded
-//   `fx.vaultLoaded` (its address only, P13a). The old extension and FBuddy's
+//   `fx.vaultLoaded` (its address only, P13a); who has the last word in each
+//   chat — the fan or the model — `fx.lastWord` when it changes, every one
+//   again after `fx.state` (last-word.ts). The old extension and FBuddy's
 //   markers are P7g's;
 // - the person's send (send-gesture.ts, P7f): the last trusted Enter or Send
 //   click of the main composer, in the capture phase on the window; a request
@@ -53,6 +55,7 @@ import type { Stamp } from './certificate';
 import { createEmitter } from './emitter';
 import { frameMessage, readFrame, type FrameMessage } from './frame-parse';
 import { createIdentity, type Identity } from './identity';
+import { createLastWords, type LastWords } from './last-word';
 import { createMemory } from './memory';
 import { createObservation, type Observation } from './observation';
 import {
@@ -65,6 +68,7 @@ import {
   EVT_FOLLOW,
   EVT_IDENTITY,
   EVT_INCOMING,
+  EVT_LAST_WORD,
   EVT_PAGE_SENT,
   EVT_SENT,
   EVT_VAULT,
@@ -206,6 +210,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   const snapshotTimes = histogram(SNAPSHOT_BOUNDS);
   let contractSent = '';
   let chatSent = '';
+  /** The isolated side asked `fx.state`: the last words go out from then on (before it, `replay` says them all anyway). */
+  let wordsLive = false;
 
   // A gap of the stream: the isolated side lost events — every chat unknown until the next certificate (§5.12).
   const emitter = createEmitter((t, payload) => context.post(t, payload), stringify, () => world().observation.lose(null, WHY_GAP));
@@ -216,7 +222,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
    * What the observation is made of, built at its first use — the first frame, answer or request, never at
    * document_start: MAIN's whole synchronous start stays ≤ 1 ms (§3.1), whatever the observation's code weighs.
    */
-  let built: { readonly identity: Identity; readonly automation: Automation; readonly observation: Observation; readonly views: Views } | null = null;
+  let built: { readonly identity: Identity; readonly automation: Automation; readonly observation: Observation; readonly views: Views; readonly lastWords: LastWords } | null = null;
   const world = (): NonNullable<typeof built> => {
     if (built !== null) return built;
     // The groups of the chats observed, and the focused one, are the last to be forgotten.
@@ -237,7 +243,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       tick: () => (seq += 1),
       seq: () => seq,
     });
-    built = { identity, automation, observation, views: createViews(observation, identity, stringify) };
+    built = { identity, automation, observation, views: createViews(observation, identity, stringify), lastWords: createLastWords() };
     return built;
   };
   /** The creator of `/account/me`, without building anything for it. */
@@ -340,6 +346,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         if (view !== null && text !== chatSent) emitter.state(EVT_CHAT, view);
         chatSent = text;
       }
+      if (wordsLive) for (const change of world().lastWords.drain()) emitter.event(EVT_LAST_WORD, { groupId: change.groupId, word: change.word });
     }
     const current = contract();
     const text = stringify(current);
@@ -367,6 +374,21 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       tip: m.tip,
       createdAt: ms >= 0 && ms <= MAX_ISO_MS ? new Date(ms).toISOString() : null,
     });
+  };
+
+  /** Whether a message is the fan's: by the creator of `/account/me`, before it by the direct chat's fan; null — not known yet. */
+  const fanWrote = (m: FrameMessage): boolean | null => {
+    const { identity } = world();
+    if (identity.creator !== null) return m.senderId !== identity.creator;
+    const fan = identity.fan(m.groupId);
+    return fan === null ? null : m.senderId === fan;
+  };
+  /** A message of a chat for its last word: the fan's, or the model's — automated by the same rule as `fx.incoming`'s. */
+  const word = (m: FrameMessage): void => {
+    const fan = fanWrote(m);
+    if (fan === null) return;
+    const { automation, lastWords } = world();
+    lastWords.message(m.groupId, m.id, fan, !fan && (madeBySomething(m.type, m.correlationId, m.inReplyTo) || automation.welcome(textHash(m.content))));
   };
 
   const inert = { wrapped: () => false, restore: () => undefined };
@@ -401,10 +423,13 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         else if (item.k === 'message') {
           observation.live(item.m);
           incoming(item.m);
+          word(item.m);
           // The echo of a send of the person's, in either order with its receipt (§5.9 п. 4).
           sends.echo(item.m);
-        } else if (item.k === 'deleted') observation.deleted(item.id, item.groupId, item.cascade);
-        else if (item.k === 'members') {
+        } else if (item.k === 'deleted') {
+          observation.deleted(item.id, item.groupId, item.cascade);
+          world().lastWords.deleted(item.id, item.groupId);
+        } else if (item.k === 'members') {
           if (identity.member(item.groupId, item.userId, item.type === 6, seq)) observation.participants(item.groupId);
         } else if (item.k === 'follow') emitter.event(EVT_FOLLOW, { eventId: item.eventId, accountId: item.accountId, followerId: item.followerId });
         // 'read': a receipt names no chat — nothing to add, nothing to lower; it never crosses the bridge (§5.3).
@@ -433,6 +458,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
     if (id === null) return;
     const last = isPlain(value) && isPlain(value['lastMessage']) ? idOf(value['lastMessage']['id']) : null;
     if (last !== null) observation.hint(id, last, stamp, { epoch, confirmed });
+    const lastMessage = isPlain(value) ? frameMessage(value['lastMessage']) : null;
+    if (lastMessage !== null && lastMessage.groupId === id) word(lastMessage);
     if (id === observation.focus) observation.dirty = true;
   };
 
@@ -445,7 +472,7 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   };
 
   const respond = (read: ResponseRead, stamp: XhrStamp | undefined): void => {
-    const { identity, automation, observation } = world();
+    const { identity, automation, observation, lastWords } = world();
     const r = read.response;
     /** The answer's place in the order of observations: its `loadstart`. */
     const seen = stamp?.seq ?? seq;
@@ -467,7 +494,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         identity.creator = idOf(account['id']);
         named = { username: nameOf(account['username']), displayName: nameOf(account['displayName']) };
         // Another account in the same document: nothing observed under the old one says anything of this one.
-        if (was !== null && was !== identity.creator) observation.reset(WHY_NOT_CERTIFIED);
+        if (was !== null && was !== identity.creator) {
+          observation.reset(WHY_NOT_CERTIFIED);
+          world().lastWords.reset();
+        }
         emitter.state(EVT_IDENTITY, identityState());
         observation.dirty = true;
         return;
@@ -475,19 +505,24 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'history': {
         const { messages, count } = messagesIn(read.groupId);
         observation.history(read.groupId as string, messages, count, stamp, { epoch, confirmed }, read.limit ?? null);
+        for (const m of messages) word(m);
         return;
       }
       case 'older':
-        observation.answer(messagesIn(read.groupId).messages, read.groupId, stamp, { epoch, confirmed });
+      case 'byIds': {
+        const { messages } = messagesIn(read.groupId);
+        observation.answer(messages, read.groupId, stamp, { epoch, confirmed });
+        for (const m of messages) word(m);
         return;
-      case 'byIds':
-        observation.answer(messagesIn(null).messages, null, stamp, { epoch, confirmed });
-        return;
+      }
       case 'receipt': {
         // The page's own `POST /message`: its new message, under the same rule as a frame (§5.12) — and, marked, the
         // receipt of the person's gesture (§5.9 п. 3).
         const m = frameMessage(r);
-        if (m !== null) observation.sent(m, stamp, { epoch, confirmed });
+        if (m !== null) {
+          observation.sent(m, stamp, { epoch, confirmed });
+          word(m);
+        }
         // Chat Memory week 1: any message the creator sent from this tab to a direct chat's fan — who sent it.
         const fanId = m === null ? null : identity.fan(m.groupId);
         if (m !== null && fanId !== null && identity.creator !== null && m.senderId === identity.creator) {
@@ -501,7 +536,10 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
           if (!isPlain(item) || (item['deletedAt'] !== null && item['deletedAt'] !== undefined && item['deletedAt'] !== 0)) continue;
           const groupId = idOf(item['groupId']);
           const messageId = idOf(item['messageId']);
-          if (groupId !== null && messageId !== null) observation.hint(groupId, messageId, stamp, { epoch, confirmed });
+          if (groupId === null || messageId === null) continue;
+          observation.hint(groupId, messageId, stamp, { epoch, confirmed });
+          // An unread message is the fan's: it waits, whatever the model sent the whole list since.
+          lastWords.message(groupId, messageId, true, false);
         }
         return;
       case 'group':
@@ -515,6 +553,9 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
           const groupId = isPlain(item) ? idOf(item['groupId']) : null;
           const last = isPlain(item) ? idOf(item['lastMessageId']) : null;
           if (groupId !== null && last !== null) observation.hint(groupId, last, stamp, { epoch, confirmed });
+          // The fan's newest unread message (the page's own counter above zero): they wait, a mass send after it or not.
+          const unread = isPlain(item) && typeof item['unreadCount'] === 'number' && item['unreadCount'] > 0 ? idOf(item['lastUnreadMessageId']) : null;
+          if (groupId !== null && unread !== null) lastWords.message(groupId, unread, true, false);
         }
         return;
       }
@@ -643,6 +684,11 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         contractSent = stringify(current);
         const chat = focusedView();
         chatSent = chat === null ? '' : stringify(chat);
+        // Every last word again after this answer: the isolated side starts over from it, after a gap too.
+        if (!stopped && !disposed) {
+          wordsLive = true;
+          world().lastWords.replay();
+        }
         // The stream goes on after this answer, not before it: the next turn.
         context.setTimer(end, 0);
         return { identity: identityState(), socket: { epoch, confirmed }, chat, contract: current, lastBatch };

@@ -8,7 +8,7 @@
 
 import type { CgErrorWire } from './errors';
 import type { ToneId } from './settings';
-import type { SettingsExtState } from './settings-ext';
+import type { FanslyInboxMark, SettingsExtState } from './settings-ext';
 import type { SiteAccessView } from './site-access';
 import type { FanslyAccountsView } from './tab-messages-fansly';
 
@@ -71,6 +71,8 @@ export interface FanslyPagesControl {
   reload(): Promise<void>;
   setViaTab(on: boolean): Promise<boolean>;
   setTone(which: FanslyToneKey, tone: ToneId): Promise<boolean>;
+  /** «Кто ждёт ответа» (2026-10-29): the mark of a chat waiting for a reply in Fansly's own list of chats. */
+  setInboxMark(mark: FanslyInboxMark): Promise<boolean>;
   /** The Recap depth on Fansly above v1's 3000; null — none (v1's depth holds). */
   setDeep(deep: number | null): Promise<boolean>;
   /** «Повторить» the write that failed; false — nothing to repeat, or it failed again. */
@@ -128,5 +130,11 @@ export const FANSLY_PAGE_TEXT_KEYS = [
   'fansly.pages.fbuddyOn',
   'fansly.pages.fbuddyOff',
   'fansly.pages.fbuddyEnable',
+  // 2026-10-29: «Кто ждёт ответа» — the mark of a chat waiting for a reply in Fansly's list of chats.
+  'fansly.pages.inboxMark',
+  'fansly.pages.inboxMarkHint',
+  'fansly.pages.inboxMarkDot',
+  'fansly.pages.inboxMarkWe',
+  'fansly.pages.inboxMarkOff',
 ] as const;
 export type FanslyPageTextKey = (typeof FANSLY_PAGE_TEXT_KEYS)[number];

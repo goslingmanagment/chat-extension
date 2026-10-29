@@ -18,6 +18,7 @@ import { FeatureIdSchema } from './features';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema as FanslyAvatarUrlSchema, START_PROOF_LIMITS, StartProofV1Schema } from './hi-start-proof';
 import type { Unsubscribe } from './host';
 import { LIVE_TEXT_LIMITS } from './limits';
+import type { FanslyInboxMark } from './settings-ext';
 import { nativeIdsAscending as ascending, CountSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText, type NativeId } from './primitives';
 
 // Preserve the site's public name; schemas share the host-neutral numeric order.
@@ -302,4 +303,9 @@ export interface FanslyPagePort {
   uploadToVault(file: FanslyFile): Promise<FanslyHandoffReceipt>;
   /** §8.5: the relay frame, lazily, for a batch of work and 60 s after. */
   readonly relay: FanslyRelayFrame;
+  /**
+   * 2026-10-29: the mark of a chat waiting for a reply in Fansly's own list of chats, as the person chose it. Until the
+   * application says it, the list stays Fansly's own; `off` takes every mark away.
+   */
+  setInboxMark(mark: FanslyInboxMark): void;
 }

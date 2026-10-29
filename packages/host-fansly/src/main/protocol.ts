@@ -35,6 +35,8 @@ export const EVT_COVERAGE = 'fx.coverage';
 export const EVT_DELETED = 'fx.deleted';
 export const EVT_VAULT = 'fx.vaultAdded';
 export const EVT_VAULT_LOADED = 'fx.vaultLoaded';
+/** Who has the last word in a chat (2026-10-29): the mark of the list of chats. */
+export const EVT_LAST_WORD = 'fx.lastWord';
 
 /** TO_MAIN_FANSLY_TYPES MAIN answers itself (`probe` is the boot's). */
 export const REQ_STATE = 'fx.state';
@@ -176,6 +178,8 @@ export const TOMBSTONES = 2048;
 export const CASCADES = 256;
 /** Groups whose members, kind and DM rules MAIN knows (§5.7), the least recently touched forgotten first. */
 export const MAX_GROUPS = 600;
+/** Chats whose last word MAIN keeps (last-word.ts), the least recently changed forgotten first: the inbox's pages and more. */
+export const LAST_WORDS_MAX = 600;
 /** Fans' accounts from the page's answers (FX-018: the avatar; 2026-10-26: the names and the «about»), the least recently seen forgotten first. */
 export const MAX_AVATARS = 300;
 /** The hub's bound on a fan's name (`fanAccount.username`, `displayName`). */

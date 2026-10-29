@@ -37,7 +37,7 @@ export interface FanslyFixture {
 }
 
 const ext = (enabled: boolean): SettingsExtState => ({
-  ext: { v: SETTINGS_EXT_VERSION, hosts: { 'fansly-web': { enabled, viaTab: false, notesView: 'drawer', sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
+  ext: { v: SETTINGS_EXT_VERSION, hosts: { 'fansly-web': { enabled, viaTab: false, notesView: 'drawer', inboxMark: 'dot', sound: { messagesTone: 'chime', subscribersTone: 'double' } }, 'telegram-web': { enabled: false } }, windows: { deep: null } },
   revision: 1,
   readOnly: false,
 });
