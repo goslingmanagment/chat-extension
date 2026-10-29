@@ -1080,9 +1080,26 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    */
   async function sendsNow(pageId: number, fanRef: string): Promise<CgCode | null> {
     const atStart = epoch;
+    // 2026-10-29: a result whose card is closed (what a reminder's toast wrote) — the journal is looked at once, not kept.
+    if (!followed(pageId, fanRef)) return heldNow(pageId, fanRef);
     const known = await loadSends(pageId, fanRef);
     if (disposed || atStart !== epoch) return 'CG-CONTEXT-CHANGED';
     return known ? null : 'CG-RUNTIME-UNREACHABLE';
+  }
+
+  /**
+   * One look at the journal for a fan no card of this tab follows: a part whose outcome is unknown, or one on its way,
+   * holds the fan (§6.7.8) — the click is refused, as an open card's would be; nothing of the answer is kept.
+   */
+  async function heldNow(pageId: number, fanRef: string): Promise<CgCode | null> {
+    if (deps.previewSend === false) return null;
+    const atStart = epoch;
+    const answer = await rpc.request('send.list', { pageId, fanRef });
+    if (disposed || atStart !== epoch) return 'CG-CONTEXT-CHANGED';
+    if (!answer.ok) return 'CG-RUNTIME-UNREACHABLE';
+    const open = answer.payload.attempts.filter((item) => item.resolved === undefined);
+    if (open.some((item) => item.view.state === 'uncertain')) return 'CG-SEND-UNCERTAIN';
+    return open.some((item) => inFlight(item.view.state)) ? 'CG-SEND-BUSY' : null;
   }
 
   /**
