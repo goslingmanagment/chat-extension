@@ -802,6 +802,10 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     clock: CLOCK,
     hub: () => hubInstance,
     enabled: () => servesNow('chatter-activity-v1'),
+    signedInAt: () => {
+      const issuedAt = hubInstance?.status().token?.issuedAt;
+      return issuedAt === undefined ? null : Date.parse(issuedAt);
+    },
     instanceId: () => instanceId,
     tabs: () => beatTabsOf(presence.tabs(), pageLabelOfAccount, beatLastPage),
     log: coreLog,
@@ -1342,6 +1346,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   let lastOwner: string | null = null;
   function wireHub(instance: ChatExtensionHub): void {
     instance.onSessionChange((change) => {
+      activity.sessionChanged();
+      beatLastPage.clear();
       rpc.emit('session.changed', { session: change.session, reason: change.reason });
       // Another person, or nobody: no mark of the old sign-in stays; the next tab report asks again.
       talking.stop();

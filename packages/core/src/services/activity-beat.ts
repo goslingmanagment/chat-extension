@@ -56,17 +56,22 @@ export function beatTabsOf(
   return out;
 }
 
-/** The pages of a beat at `now`: each bound page once, idle from its most recent input; at most ACTIVITY_LIMITS.maxPages. Pure. */
-export function beatPagesOf(tabs: readonly BeatTab[], now: number): ActivityBeatRequest['pages'] {
+/** Each bound page once; only input after this sign-in and inside the idle window can mark an active minute. Pure. */
+export function beatPagesOf(tabs: readonly BeatTab[], now: number, signedInAt: number | null): ActivityBeatRequest['pages'] {
   const latest = new Map<string, number | null>();
   for (const tab of tabs) {
     if (tab.pageLabel === null) continue;
     const known = latest.get(tab.pageLabel) ?? null;
-    latest.set(tab.pageLabel, tab.lastInputAt === null ? known : Math.max(known ?? tab.lastInputAt, tab.lastInputAt));
+    const at = tab.lastInputAt;
+    // Never move an input to fit the wire: the hub reconstructs its minute as serverNow - idleMs. A clamp at
+    // either end would invent input; an old tab's timestamp is not proof that this sign-in did anything.
+    const valid = signedInAt !== null && Number.isFinite(signedInAt) && at !== null && Number.isFinite(at)
+      && at > signedInAt && at <= now && Math.round(now - at) < ACTIVITY_LIMITS.maxIdleMs;
+    latest.set(tab.pageLabel, valid ? Math.max(known ?? at, at) : known);
   }
   return [...latest.entries()].slice(0, ACTIVITY_LIMITS.maxPages).map(([pageLabel, at]) => ({
     pageLabel,
-    idleMs: at === null ? null : Math.min(ACTIVITY_LIMITS.maxIdleMs, Math.max(0, Math.round(now - at))),
+    idleMs: at === null ? null : Math.round(now - at),
   }));
 }
 
@@ -75,6 +80,8 @@ export interface ActivityBeatDeps {
   readonly hub: () => Pick<HubFacade, 'activityBeat'> | null;
   /** Signed in and the hub lists `chatter-activity-v1`. */
   readonly enabled: () => boolean;
+  /** The current sign-in's local timestamp, restored with its token; null means no trustworthy input boundary. */
+  readonly signedInAt: () => number | null;
   /** The install's own id; one that does not fit the hub's pattern beats nothing. */
   readonly instanceId: () => string;
   readonly tabs: () => readonly BeatTab[];
@@ -93,7 +100,7 @@ export class ActivityBeat {
   /** The alarm's beat: the bound pages now; none left after an open beat — `closed`. */
   async beat(): Promise<void> {
     if (!this.deps.enabled()) return;
-    const pages = beatPagesOf(this.deps.tabs(), this.deps.clock.now());
+    const pages = beatPagesOf(this.deps.tabs(), this.deps.clock.now(), this.deps.signedInAt());
     if (pages.length === 0) return this.close();
     this.open = true;
     await this.send({ pages });
@@ -104,6 +111,11 @@ export class ActivityBeat {
     const bound = this.deps.tabs().some((tab) => tab.pageLabel !== null);
     if (bound && !this.open) return this.beat();
     if (!bound && this.open) return this.close();
+  }
+
+  /** The old sign-in's open state is not the new person's; their first bound tab must open its own beat. */
+  sessionChanged(): void {
+    this.open = false;
   }
 
   /** The last bound tab went, or the person signs out (before the token is revoked): one beat with `closed`. */
