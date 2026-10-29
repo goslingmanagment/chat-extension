@@ -224,8 +224,8 @@ export function decideKey(verdict: KeyVerdict | null, context: KeyContext): KeyD
     if (id === 'cheatsheet') return run('global');
     // On a part or a button of the dock: kept from the site and handed to the dock, which does nothing with them (X44).
     if (context.inDock === true && inOurs(context.focus)) return { act: 'isolate', otherwise: null };
-    // Under a window of ours these letters belong to that window's own lists.
-    if (windowOpen) return decideUnmatched(context);
+    // Inside any of our roots (Coach included), or under a window, these letters belong to that UI's own lists.
+    if (windowOpen || inOurs(context.focus)) return decideUnmatched(context);
     if (id === 'fan-panel') return inChat ? run('dock') : PASS;
     return context.route === 'other' ? PASS : run('global');
   }

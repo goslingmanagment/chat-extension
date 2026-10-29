@@ -150,6 +150,44 @@ describe('the early dispatcher', () => {
     expect(r.sink.ran).toEqual([]);
   });
 
+  it.each(['mac', 'win'] as const)('[M09 F1] %s: plain J/K/] on our overlay buttons never navigate or open the fan panel', (platform) => {
+    const overlays: readonly OverlayKind[][] = [['coach'], ['fan-panel'], ['result-expanded'], []];
+    for (const open of overlays) {
+      const r = rig(platform);
+      r.page.overlays = open;
+      r.own.kind = 'ours';
+      // Coach focuses its Review chip in review-only mode; Windows also focuses a clicked chip.
+      // Physical codes must stay safe in both layouts, even before the overlay is registered.
+      for (const [code, key] of [['KeyJ', 'j'], ['KeyK', 'k'], ['KeyJ', 'о'], ['KeyK', 'л'], ['BracketRight', ']'], ['BracketRight', 'ъ']] as const) {
+        const event = tap(r, code, { key });
+        expect(r.sink.ids, `${open.join(',')}: ${key}`).toEqual([]);
+        expect([event.defaultPrevented, event.stopped]).toEqual([false, false]);
+      }
+      expect(r.sink.refused).toEqual([]);
+    }
+  });
+
+  it.each(['mac', 'win'] as const)('[M09 F1] %s: plain chat keys still work with Coach open when the site has focus', (platform) => {
+    const r = rig(platform);
+    r.page.overlays = ['coach'];
+    r.own.kind = 'page';
+    tap(r, 'KeyJ', { key: 'о' });
+    tap(r, 'KeyK', { key: 'л' });
+    tap(r, 'BracketRight', { key: 'ъ' });
+    expect(r.sink.ids).toEqual(['chat-next@global', 'chat-previous@global', 'fan-panel@dock']);
+  });
+
+  it.each(['mac', 'win'] as const)('[M09 F1] %s: modifier hotkeys still work on Coach buttons', (platform) => {
+    const r = rig(platform);
+    r.page.overlays = ['coach'];
+    r.own.kind = 'ours';
+    chord(r, 'KeyK');
+    chord(r, 'KeyB', panel(platform));
+    chord(r, 'KeyU');
+    expect(r.sink.ids).toEqual(['palette@global', 'review@dock', 'next-unread@global']);
+    expect(r.sink.refused).toEqual([]);
+  });
+
   it('a synthetic event of the page never starts anything and never moves the engine (§14)', () => {
     const r = rig('mac');
     r.win.fire('keydown', new FakeKey('MetaLeft', { key: 'Meta', metaKey: true, isTrusted: false }));
