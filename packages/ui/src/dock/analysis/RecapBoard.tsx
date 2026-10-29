@@ -72,18 +72,23 @@ function piecesOf(parts: readonly RecapPartVM[], prefix: string, first = 0): Pie
   });
 }
 
-/** «Что делать сейчас»: the approach first, its first move as the lead; then what to avoid; the hooks as a strip under. */
-function heroOf(section: RecapSectionVM): { readonly pieces: Piece[]; readonly hooks: { readonly label: string; readonly heads: readonly string[] } | null } {
+/**
+ * «Что делать сейчас»: the approach first, its first move as the lead; then what to avoid; the hooks as a strip under.
+ * No approach named, no lead: what to avoid is never set large as the thing to do.
+ */
+export function heroOf(section: RecapSectionVM): { readonly pieces: Piece[]; readonly hooks: { readonly label: string; readonly heads: readonly string[] } | null } {
   const hooksPart = section.parts.find(isHooks);
   const heads = hooksPart?.kind === 'list' ? hooksPart.items.map((item) => (item.label ?? item.lead ?? item.text).replace(/[.;:]$/, '').trim()) : [];
   const hooks = hooksPart !== undefined && heads.length >= 2 && heads.every((head) => head.length > 0 && head.length <= 64) ? { label: hooksPart.label ?? '', heads } : null;
   const rest = section.parts.filter((part) => hooks === null || part !== hooksPart);
-  const approach = rest.filter(isApproach);
+  // The approach: a part its label names so, or any of «Следующий ход», which is all the next move; what to avoid never.
+  const approach = rest.filter((part) => part.tone !== 'avoid' && (section.key === 'nextMove' || isApproach(part)));
   const avoid = rest.filter((part) => !approach.includes(part) && part.tone === 'avoid');
   const others = rest.filter((part) => !approach.includes(part) && !avoid.includes(part));
   const pieces = piecesOf([...approach, ...avoid, ...others], 'h');
   const first = pieces[0];
-  if (first === undefined) return { pieces, hooks };
+  // No approach: no lead, every part keeps its label (what to avoid its colour too).
+  if (first === undefined || approach.length === 0) return { pieces, hooks };
   // The first move, set large; the rest of its text, if any, follows it.
   const lead: Piece = { ...first, key: `${first.key}L`, kind: 'lead', text: first.short ?? first.text, short: null, label: null };
   const after = first.short === null ? '' : first.text.slice(first.text.indexOf(first.short) + first.short.length).trim();

@@ -197,8 +197,16 @@ function saidOf(sentence: string): { readonly said?: string; readonly rest?: str
   return rest === '' ? { said } : { said, rest };
 }
 
-/** A sum: «81,97 $», «10-20 $», «$25», «$1,200». */
-const MONEY = /\d[\d \u00a0]*(?:[.,]\d{1,2})?\s?\$|\$\s?\d[\d,.]*\d|\$\s?\d/u;
+/** A number as the Recap writes it, all of it: «1,200», «1 200», «81,97», «1,200.50»; «1,2000» is none rather than «1,200». */
+const NUM = '(?:\\d{1,3}(?:[,\\u00a0 ]\\d{3})+|\\d+)(?:[.,]\\d{1,2})?(?![.,]?\\d)';
+/** The same with its thousands said: «$1.5k». */
+const NUM_K = `${NUM}(?:[kKкК](?!\\p{L}))?`;
+/**
+ * A sum, all of it: «81,97 $», «1,200 $», «10-20 $», «$25», «$1,200», «$25-30», «$10-$20», «$1.5k». It starts where a
+ * number starts, never inside one («1,200 $» is not «200 $») or at the far end of a range («10 - 20 $» is not «20 $»;
+ * «январь 2026 - $250» is «$250»).
+ */
+const MONEY = new RegExp(`(?<![\\d.,])(?:(?<!\\d\\s?[-–]\\s?)${NUM_K}(?:[-–—]${NUM_K})?\\s?\\$|\\$\\s?${NUM_K}(?:[-–—]\\$?${NUM_K}|\\s[-–]\\s\\$${NUM_K})?)`, 'u');
 /** What the sum covers: «за почти 5 месяцев», «за полгода». */
 const PERIOD = /за\s+(?:почти\s+|около\s+|примерно\s+|последние\s+|больше\s+|более\s+|уже\s+)?(?:\d+(?:[.,]\d+)?|полгода|год|два|две|три|четыре|пять|шесть)(?:\s*(?:мес\p{L}*|нед\p{L}*|дн\p{L}*|год\p{L}*|лет))?/iu;
 
@@ -271,14 +279,40 @@ function trendOf(text: string): 'up' | 'down' | null {
 
 const MONTHS = ['январ', 'феврал', 'март', 'апрел', 'ма[йяе]', 'июн', 'июл', 'август', 'сентябр', 'октябр', 'ноябр', 'декабр'];
 const MONTH_WORD = new RegExp(`(?<!\\p{L})(${MONTHS.join('|')})\\p{L}*`, 'giu');
-const MONTH_SUM = new RegExp(`(?<!\\p{L})(${MONTHS.join('|')})\\p{L}*\\s+(\\d[\\d \\u00a0]*(?:[.,]\\d{1,2})?)\\s?\\$`, 'giu');
+const MONTH_SUM = new RegExp(`(?<!\\p{L})(${MONTHS.join('|')})\\p{L}*\\s+(${NUM})\\s?\\$`, 'giu');
 const monthIndex = (word: string): number => MONTHS.findIndex((stem) => new RegExp(`^${stem}`, 'iu').test(word));
-const amount = (digits: string): number => Number.parseFloat(digits.replace(/[\s\u00a0]/gu, '').replace(',', '.'));
+/** «1,200» and «1 200» are 1200; «81,97» and «1,200.50» have cents. */
+const amount = (digits: string): number => {
+  const cents = /[.,](\d{1,2})$/u.exec(digits);
+  return Number.parseFloat(`${(cents === null ? digits : digits.slice(0, cents.index)).replace(/\D/gu, '')}.${cents?.[1] ?? '0'}`);
+};
+/** A zero: «ноль», «0 $». */
+const ZERO = /(?<!\p{L})ноль(?!\p{L})|(?<![\d,.])0\s?\$/giu;
+
+/** A piece of a sentence that only names months («В июле», «августе и»): the sum or the zero after it is theirs too. */
+function onlyMonths(piece: string): boolean {
+  const words = piece.match(/\p{L}+/gu) ?? [];
+  return !/[\d$]/u.test(piece) && words.some((word) => monthIndex(word) >= 0) && words.every((word) => monthIndex(word) >= 0 || /^(?:в|во|и|а|или)$/iu.test(word));
+}
+
+/** A sentence's clauses: its pieces between commas, a piece that only names months joined to the one after it. */
+function clausesOf(sentence: string): string[] {
+  const out: string[] = [];
+  let held = '';
+  for (const piece of sentence.split(/[,;]/u)) {
+    held = held === '' ? piece : `${held},${piece}`;
+    if (onlyMonths(piece)) continue;
+    out.push(held);
+    held = '';
+  }
+  if (held !== '') out.push(held);
+  return out;
+}
 
 /**
  * The sums a money section gives by month («июнь 51,97 $ и сентябрь 30 $»), with the months it says were empty («в июле,
- * августе и пока в октябре ноль»), in the order they come round the year since the longest pause. Null — fewer than two
- * months, or none above zero.
+ * августе и пока в октябре ноль»), in the order they come round the year since the longest pause. A month whose sum is
+ * written otherwise («в июне $50») is left out, never taken for empty. Null — fewer than two months, or none above zero.
  */
 function monthsOf(parts: readonly RecapPartVM[]): RecapMonthVM[] | null {
   const text = parts.map((part) => (part.kind === 'text' ? part.text : part.items.map((item) => item.text).join('. '))).join(' ');
@@ -288,9 +322,12 @@ function monthsOf(parts: readonly RecapPartVM[]): RecapMonthVM[] | null {
     const sum = amount(match[2] ?? '');
     if (month >= 0 && !found.has(month) && Number.isFinite(sum)) found.set(month, sum);
   }
-  for (const sentence of sentences(text)) {
-    if (!/(?<!\p{L})ноль(?!\p{L})|(?<![\d,.])0\s?\$/iu.test(sentence)) continue;
-    for (const match of sentence.matchAll(MONTH_WORD)) {
+  for (const clause of sentences(text).flatMap(clausesOf)) {
+    // A zero empties the months of its own clause, and only when the clause gives no sum besides it: «в июле ноль», never
+    // «В июне $50» before it or «и разовые $20 в июле» after it.
+    const rest = clause.replace(ZERO, ' ');
+    if (rest === clause || /\d\s?\$|\$\s?\d/u.test(rest)) continue;
+    for (const match of clause.matchAll(MONTH_WORD)) {
       const month = monthIndex(match[1] ?? '');
       if (month >= 0 && !found.has(month)) found.set(month, 0);
     }
@@ -381,11 +418,13 @@ export function recapCrib(doc: RecapDocVM | null): RecapCribVM | null {
   const strategy = section('strategy');
   const move = section('nextMove');
   if (strategy !== undefined) {
-    const approach = labelled(strategy, /рекомендуем|подход|recommended|approach/iu) ?? strategy.parts[strategy.parts.length - 1];
+    // The approach by its label; else the last part that is not what to avoid (the hub's format ends with the approach):
+    // a prohibition is never the next move.
+    const approach = strategy.parts.find((part) => part.tone !== 'avoid' && /рекомендуем|подход|recommended|approach/iu.test(part.label ?? '')) ?? strategy.parts.findLast((part) => part.tone !== 'avoid');
     next = linesOf(approach).slice(0, CRIB_ITEMS);
     avoid = linesOf(labelled(strategy, /избега|avoid|не делать/iu)).slice(0, 1);
   } else if (move !== undefined) {
-    next = move.parts.flatMap((part) => linesOf(part)).slice(0, CRIB_ITEMS);
+    next = move.parts.filter((part) => part.tone !== 'avoid').flatMap((part) => linesOf(part)).slice(0, CRIB_ITEMS);
   }
   const loops = section('openLoops') ?? section('threads');
   const promised = labelled(loops, /обещал|promis/iu) ?? loops?.parts[0];
