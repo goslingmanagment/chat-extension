@@ -698,7 +698,7 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     expect(h.boards.preview.dispatch({ type: 'OpenChatToVerify', attemptId: uuid(0xbad) })).toBeNull();
   });
 
-  it('[X8-09] a click inside the first send’s ticket: the hub refuses it, the row says to wait a few seconds and holds nothing; the next click past the ticket sends (2026-10-23 audit)', async () => {
+  it('[X8-09] a refused retry inside the ticket keeps the first attempt uncertain; only a new click past the ticket sends again', async () => {
     const { h, opId } = await withReply({ answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
     const first = uuid(0x500);
@@ -706,11 +706,13 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     // The tab's pause after a click (SEND_PACE_MS) is over; the first send's ticket (10 s) is not.
     await h.advance(SEND_PACE_MS);
     // Inside its ticket the hub still calls the first send in flight (`custody_held`): «Отправить» of part 2 and
-    // «Отправить ещё раз» of part 1 are refused, and each row says so — another send is going, wait a few seconds.
+    // «Отправить ещё раз» of part 1 are refused. Only part 2 is known not to have gone.
     await h.dispatch({ type: 'SendPart', operationId: opId, part: 1 });
-    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 })).toMatchObject({ ok: false, code: 'CG-SEND-UNCERTAIN' });
     const wait = { s: 'rejected', code: 'CG-SEND-UNCERTAIN', canRetry: true };
-    expect(partsOf(h, 'spenders').map((part) => part.send)).toEqual([wait, wait]);
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain', attemptId: first });
+    expect(partsOf(h, 'spenders')[0]?.openInsert).toEqual({ s: 'hidden' });
+    expect(partsOf(h, 'spenders')[1]?.send).toEqual(wait);
     expect(h.host.calls.commits).toHaveLength(1);
     // Nothing goes by itself while the person waits.
     await h.advance(11_000);
@@ -728,6 +730,54 @@ describe('[SP-054] [X8-01] [X8-08] «Отправить» is a button of one par
     expect(h.host.calls.commits).toHaveLength(3);
     // The first send stays unknown: never sent again, never called «not sent».
     expect(h.bg.coordinator.status(first)?.state).toBe('uncertain');
+  });
+
+  it('a refused retry keeps listening to the first attempt: its late receipt and echo settle the row without another send', async () => {
+    const { h, opId } = await withReply({ answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    const first = uuid(0x500);
+    const uncertain = partsOf(h, 'spenders')[0]?.send;
+    await h.advance(SEND_PACE_MS);
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual(uncertain);
+    expect(h.host.calls.commits).toHaveLength(1);
+    h.sendState({ attemptId: first, state: 'nativeAccepted', platformMessageId: '4100' });
+    await h.flush();
+    expect(partsOf(h, 'spenders')[0]?.send).toEqual(uncertain);
+    h.sendState({ attemptId: first, state: 'sentObserved', platformMessageId: '4100' });
+    await h.flush();
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'sent' });
+    expect(h.host.calls.commits).toHaveLength(1);
+  });
+
+  it('a refused retry preserves OpenChatToVerify for the original uncertain attempt', async () => {
+    const { h, opId } = await withReply({ answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    await h.advance(SEND_PACE_MS);
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'uncertain', attemptId: uuid(0x500) });
+    expect(await h.dispatch({ type: 'OpenChatToVerify', attemptId: uuid(0x500) })).toMatchObject({ ok: true, outcome: 'opened' });
+    expect(h.host.calls.navigations).toHaveLength(1);
+    expect(h.host.calls.navigations[0]?.thenInsert).toBeUndefined();
+    expect(h.host.calls.commits).toHaveLength(1);
+  });
+
+  it('a late confirmation received before the retry refusal also stays on the row', async () => {
+    const { h, opId } = await withReply({ answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    await h.advance(SEND_PACE_MS);
+    const begin = h.bg.coordinator.begin.bind(h.bg.coordinator);
+    h.bg.coordinator.begin = async (...args) => {
+      const refused = await begin(...args);
+      expect(refused).toMatchObject({ ok: false, view: { state: 'held', code: 'CG-SEND-UNCERTAIN' } });
+      h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
+      h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
+      await h.flush();
+      return refused;
+    };
+    await h.dispatch({ type: 'SendPart', operationId: opId, part: 0 });
+    expect(partsOf(h, 'spenders')[0]?.send).toMatchObject({ s: 'sent' });
+    expect(h.host.calls.commits).toHaveLength(1);
   });
 
   it('[X8-03] condition 6: a result is not sent into the chat that is open — that chat has its composer; MAIN is not even asked', async () => {

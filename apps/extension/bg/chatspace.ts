@@ -70,11 +70,14 @@ async function startChatSpace(kit: BackgroundKit): Promise<BackgroundHostHandle>
     log: log.sink,
     onSent: (fact) => {
       void telemetry.report('sent', ops.view(fact.opId), fact.opId, { part: fact.part, variant: fact.variant }, { via: 'preview', platformMessageId: fact.platformMessageId, attemptId: fact.attemptId });
-      // Decision X48: the person clicked «Отправить» of the preview — the hub records who sent the message. Only while
-      // the operation is still theirs: another sign-in since (an attempt outlives a sign-out) took the operation away,
-      // and the send is not the next person's to report.
+      // A manual preview has no scheduler operation. Its journaled sign-in, captured before dispatch, must still
+      // match; an attempt can outlive a sign-out or background restart and is never the next person's to report.
+      const owner = fact.manualOwner;
+      const session = ops.environment().session;
+      if (owner !== undefined && (session === null || session.hubOrigin !== owner.hubOrigin || session.userId !== owner.userId || session.epoch !== owner.epoch)) return;
+      // AI sends still belong to their scheduler operation, removed on a change of sign-in.
       const view = ops.view(fact.opId);
-      if (view !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId, priced: fact.priced, withMedia: fact.withMedia, composedWith: composedWithOfFeature(view.feature), ...(fact.edited === undefined ? {} : { edited: fact.edited }) });
+      if (owner !== undefined || view !== null) kit.attributions.sent({ pageId: fact.pageId, fanRef: fact.fanRef, platformMessageId: fact.platformMessageId, priced: fact.priced, withMedia: fact.withMedia, composedWith: owner === undefined ? composedWithOfFeature(view?.feature) : 'hand', ...(fact.edited === undefined ? {} : { edited: fact.edited }) });
     },
   });
 

@@ -2351,11 +2351,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     unclaimed.delete(answered.attemptId);
     const latest = early !== undefined && attemptReachable(answered.state, early.state) ? early : answered;
     // «Отправить ещё раз» of a part whose outcome is unknown, stopped before ChatSpace's queue (a busy queue, a page
-    // condition): the row keeps the unknown outcome, and the click's answer says why. The hub's refusal while the first
-    // one is still inside its ticket (CG-SEND-UNCERTAIN, its `custody_held`) is the row's to say instead — wait a few
-    // seconds, then the next click (2026-10-23 audit); the first one stays unknown in the journal all the same.
+    // condition, including custody_held inside the first ticket): only this new click was refused. Keep the original
+    // attempt and its late receipt listener; the refusal says nothing about whether that first text reached the fan.
+    // Its proof may already have arrived while the retry was waiting: a confirmed send also stays on the row.
     const before = track.attempts.get(key);
-    if (latest.state === 'held' && latest.code !== 'CG-SEND-UNCERTAIN' && before !== undefined && before.view.state === 'uncertain') {
+    if (latest.state === 'held' && before !== undefined && (before.view.state === 'uncertain' || before.view.state === 'sentObserved')) {
       unpace(until);
       if (taken !== null) media.restore(chat, taken);
       reportProgress(track);
