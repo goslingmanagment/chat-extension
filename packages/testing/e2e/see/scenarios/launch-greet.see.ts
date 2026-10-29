@@ -53,7 +53,10 @@ async function chatspace(s: See): Promise<void> {
   await s.press(/^Новые/, 'modal', '.cg-pal__item');
   await s.see('toast', 'Ждёт приветствия', 15_000);
   await s.closeAll();
+  // 2026-10-29: Hi writes the greeting into the toast; its «Открыть чат» puts it into the fan's chat.
   await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
+  await s.browser.waitUntil(() => s.has('toast', '.cg-toast__draft'), { timeout: 30_000, timeoutMsg: 'no greeting in the toast' });
+  await s.press(/^Открыть чат$/, 'toast', '.cg-toast__acts button');
   await s.browser.waitUntil(async () => (await s.browser.$(EDITOR).getText()).trim() !== '', { timeout: 30_000, timeoutMsg: 'the greeting did not land in the chat' });
   await restPointer(s);
   await s.wait(800);
