@@ -1234,6 +1234,31 @@ describe('[NF-009] [NF-013] [NF-021] the card of a new fan and the greeting leas
   });
 });
 
+describe('2026-10-29 review: the «Ждёт приветствия» toast sends its greeting alone', () => {
+  it('media picked on the fan\'s card stay there: the toast\'s «Отправить» is text only and leaves them for the card', async () => {
+    const h = await withCard({ media: VAULT });
+    const handle = newcomer('2010');
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '13', free: false });
+    await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '$25' });
+    await h.advance(300);
+    const card = (): ReturnType<typeof pv> => h.boards.preview.getSnapshot(preview('newcomers'));
+    expect(card().media).toMatchObject({ attached: { count: 1, priceCents: 2500 } });
+    h.script(0, 'hi-greeting', 'Hi there!');
+    const writing = h.boards.newcomers.greetHere?.(handle, false, () => undefined);
+    await h.advance(500);
+    expect(await writing).toMatchObject({ ok: true });
+    const here = h.boards.newcomers.greetHereState?.(handle);
+    expect(here).toMatchObject({ s: 'ready', text: 'Hi there!', send: { type: 'SendNewcomerGreeting', targetHandle: handle, textOnly: true } });
+    expect(await h.dispatch(here!.send!)).toMatchObject({ ok: true });
+    await h.flush();
+    expect(h.clicks).toHaveLength(1);
+    expect(h.clicks[0]?.media).toBeUndefined();
+    expect(card().media).toMatchObject({ picks: 1, attached: { count: 1, priceCents: 2500 } });
+  });
+});
+
 describe('[NF-019] a greeting is sent part by part, under the lease, and counts only by the receipt and its echo', () => {
   async function greeting(text = 'Hi there!\n[NEXT]\nSo happy you are here'): Promise<{ h: Harness; opId: string }> {
     const h = await withCard();
@@ -1412,6 +1437,22 @@ describe('[X53] media from the vault go with a part sent from the preview', () =
       [2, false],
       [1, true],
     ]);
+  });
+
+  it('a text-only send (a surface that shows the text alone) goes without the picks; they stay in the picker (2026-10-29 review)', async () => {
+    const { h, handle, opId } = await withReply({ media: VAULT });
+    await h.dispatch({ type: 'SetMediaOpen', targetHandle: handle, open: true });
+    await h.flush();
+    await h.dispatch({ type: 'PickMedia', targetHandle: handle, mediaId: '13', free: false });
+    await h.dispatch({ type: 'SetMediaPrice', targetHandle: handle, text: '$25' });
+    await h.advance(300);
+    expect(pv(h).media).toMatchObject({ attached: { count: 1, priceCents: 2500 }, blocked: null });
+    expect(await h.dispatch({ type: 'SendPart', operationId: opId, part: 0, textOnly: true })).toMatchObject({ ok: true });
+    await h.flush();
+    expect(h.clicks).toHaveLength(1);
+    expect(h.clicks[0]?.media).toBeUndefined();
+    expect(h.host.calls.commits.map((commit) => [commit.request.plainText, commit.request.media])).toEqual([['Hey you', undefined]]);
+    expect(pv(h).media).toMatchObject({ picks: 1, attached: { count: 1, priceCents: 2500 } });
   });
 
   it('«Отправить» of a part takes the picks: one click, one message — the text, the media in order, the price, the previews, the tags; once the platform took it they are gone', async () => {

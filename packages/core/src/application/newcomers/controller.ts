@@ -960,7 +960,10 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     return refused(type, localError(isCgCode(code) ? code : 'CG-UNKNOWN', i18n));
   }
 
-  /** The toast's greeting as the result's next part stands: «Отправить» is that part's own send (X59), by the click. */
+  /**
+   * The toast's greeting as the result's next part stands: «Отправить» is that part's own send (X59), by the click. The
+   * toast shows the text only, so its sends are `textOnly`: media picked on the fan's card never ride along unseen.
+   */
   function greetHereState(handle: TargetHandle): GreetHereState | null {
     const entry = here.get(handle);
     if (entry === undefined) return null;
@@ -975,13 +978,13 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
     if (next.waits || send === null) return view('sending', next.text);
     switch (send.s) {
       case 'available':
-        return { ...view('ready', next.text), send: { type: 'SendNewcomerGreeting', targetHandle: handle }, open };
+        return { ...view('ready', next.text), send: { type: 'SendNewcomerGreeting', targetHandle: handle, textOnly: true }, open };
       // Warnings the card's «Отправить всё равно» passes: the fan wrote since, the freshness cannot be told, a colleague talks to them.
       case 'held-stale':
       case 'unverified':
       case 'held-talking': {
         const warn: Msg = send.s === 'held-stale' ? { key: 'send.heldStale' } : send.s === 'unverified' ? { key: 'send.unverified' } : { key: 'send.talking', params: { names: send.names.join(', ') } };
-        return { ...view('ready', next.text), send: { type: 'SendPart', operationId: next.opId, part: next.part, anyway: true }, open, warn };
+        return { ...view('ready', next.text), send: { type: 'SendPart', operationId: next.opId, part: next.part, anyway: true, textOnly: true }, open, warn };
       }
       // Off for a moment (the pause between sends, the hub's minute) or for a reason the card names: not by this click now.
       case 'unavailable':
@@ -993,7 +996,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       case 'sent':
         return view('sent', next.text);
       case 'rejected':
-        return { ...view(send.code === 'CG-SEND-PART' ? 'greeted' : 'failed', next.text, send.code), send: send.canRetry ? { type: 'SendNewcomerGreeting', targetHandle: handle } : null, open };
+        return { ...view(send.code === 'CG-SEND-PART' ? 'greeted' : 'failed', next.text, send.code), send: send.canRetry ? { type: 'SendNewcomerGreeting', targetHandle: handle, textOnly: true } : null, open };
       case 'uncertain':
         return { ...view('uncertain', next.text, 'CG-SEND-UNCERTAIN'), open: { type: 'OpenChatToVerify', attemptId: send.attemptId } };
     }
