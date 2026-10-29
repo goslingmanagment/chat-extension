@@ -54,6 +54,13 @@
 //   instead of `POST /group`. «Nobody wrote» is never kept: it is read again on every pass;
 // - a blip of Fansly's (no answer, no tab, a 404) is asked again once, at the end of the queue, after 3 s (2.4.3);
 // - the check right before a send never waits out a cooldown: it is refused at once with its end (FS-NET-1 `greeting`).
+//
+// 2026-10-29 (the owner: «Hi прямо в напоминании»; the window's way, «ждать проверки всех», was too slow): «Hi» of a
+// greeting reminder's toast proves its ONE fan alone (`fansly.greet.solo`) — what the window's pass or the book already
+// proved, else the window's own check of that fan's chat and the fan's profile —, in a pass of the fan's own that the
+// card's requests (`proof`, `recheck`, `draft`, `send`, `sent`) take as a window's. Only the click's own request may make
+// the fan's chat (`POST /group`, once); a cooldown refuses it at once with its end. A few such passes per creator, let go
+// an hour after their last use and with the module.
 
 import { type CgAnyCode, type CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import { SEND_LIMITS } from '@cg/contracts/limits';
@@ -227,6 +234,15 @@ export type FanslyRemindVerdict =
 
 /** A blip of Fansly's is asked again no sooner than this (the old extension's 2.4.3: live 404s came in runs of 2–3 s). */
 export const RECHECK_DELAY_MS = 3000;
+/** 2026-10-29: the fan's pass of a reminder's Hi is let go this long after its last use (a toast lives far shorter). */
+export const SOLO_TTL_MS = 60 * 60_000;
+/** Fans' passes of the reminder's Hi kept per creator at once; the one used longest ago goes first. */
+export const SOLO_PER_CREATOR = 4;
+/** The person waits on the check of their Hi's fan: it answers within this much, below the tab's own wait (15 s). */
+export const SOLO_BUDGET_MS = 12_000;
+/** The profiles the reminder read of its due fans are their Hi's for this long (no second read of the same profile). */
+const REMIND_PROFILES_MS = 60 * 60_000;
+const REMIND_PROFILES_MAX = 200;
 /**
  * `refresh` reads the follows from this long before the period's end: the end is this machine's clock, a follow's moment
  * Fansly's (its id), and a clock a few seconds ahead of Fansly's would skip a fan who followed right after the read —
@@ -319,9 +335,20 @@ interface Work {
   readonly again: Map<string, number>;
   /** Rows asked again already in this run: a second blip is their failure. */
   readonly spent: Set<string>;
+  /** The person waits on it (a reminder's Hi): a refusal is its failure — no session, no cooldown is waited out. */
+  readonly hasty?: true;
 }
 
 const workOf = (stop: AbortSwitch, done: Promise<void> = Promise.resolve()): Work => ({ stop, done, again: new Map(), spent: new Set() });
+
+/** 2026-10-29: the pass of one fan a reminder's Hi proves alone (`fansly.greet.solo`). */
+interface Solo {
+  readonly pass: Pass;
+  readonly fanRef: string;
+  usedAt: number;
+  /** The check under way: a second click joins it — never a second `POST /group`. */
+  proving: Promise<CgAnyErrorWire | null> | null;
+}
 
 /** A chat a book names: a lead like a thin inbox entry — the check's fence confirms it before anything rests on it. */
 const knownChat = (fanRef: string, groupId: string): PassChat => ({ fanRef, groupId, verified: false, last: null, lastKnown: false, lastMessageId: null, dmRead: false, dmClosed: null });
@@ -384,6 +411,9 @@ interface Pass {
 
 type Payload<T extends keyof typeof REQUESTS> = FanslyTabRequestPayload<T>;
 type Answer<T extends keyof typeof REQUESTS> = FanslyTabResponsePayload<T>;
+/** 2026-10-29: the reminder's Hi; answered by `solo` once the caller admitted the creator's hub page (bg/fansly). */
+type SoloRequest = FanslyTabRequestPayload<'fansly.greet.solo'>;
+type SoloAnswer = FanslyTabResponsePayload<'fansly.greet.solo'>;
 const REQUESTS = {
   'fansly.followers.scan': true,
   'fansly.followers.read': true,
@@ -455,6 +485,9 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   const byId_ = new Map<string, Pass>();
   /** One open window per tab; its old id may follow a replacement until the window reads the new id. */
   const windows = new Map<string, { readonly passId: string; readonly creator: string }>();
+  /** 2026-10-29: the passes of a reminder's Hi, one per creator and fan (`creator|fan`), and the same by pass id. */
+  const solos = new Map<string, Solo>();
+  const soloById = new Map<string, Solo>();
 
   const iso = (ms: number): string => new Date(ms).toISOString();
 
@@ -550,7 +583,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         const { kind, wire } = failureOf(error);
         note(pass, 'call.failed', { route: call.route, kind, code: wire.code, httpStatus: wire.httpStatus, retryAt: wire.retryAt, durationMs: Math.max(0, monotonicNow() - started) });
         if (work.stop.aborted) throw new Aborted();
-        if (call.click === true) throw error;
+        if (call.click === true || work.hasty === true) throw error;
         // 2026-10-27: a window that opens with the page (a reload) asks before the page's own first request gave the
         // creator's session; nothing left, so the pass waits for it a little instead of stopping at once.
         if (kind === 'session' && waited < SESSION_WAIT_MS && pass.watchers.size > 0) {
@@ -1525,7 +1558,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   function find(passId: string, tab: string): Pass | null {
     const pass = byId_.get(passId);
-    if (pass !== undefined) return holds(pass, tab) ? pass : null;
+    // A reminder's Hi's pass of one fan is no window's: nobody holds it, reads its rows or runs its queue.
+    if (pass !== undefined) return !soloById.has(passId) && holds(pass, tab) ? pass : null;
     const window = windows.get(tab);
     const current = window?.passId === passId ? passes.get(window.creator) : undefined;
     return current !== undefined && current.watchers.has(tab) && deps.tabOn(tab, current.creator) ? current : null;
@@ -1687,10 +1721,22 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   // ── the greeting's part (R20 P10c) ──
 
-  /** The pass of this id, for a tab on its creator — exactly this pass, never its replacement; the tab's window is not touched. */
+  /**
+   * The pass of this id, for a tab on its creator — exactly this pass, never its replacement; the tab's window is not
+   * touched. A reminder's Hi's pass is used again (its hour starts over), or let go once its hour is over.
+   */
   function exact(passId: string, tab: string): Pass | null {
     const pass = byId_.get(passId);
-    return pass !== undefined && deps.alive(tab) && deps.tabOn(tab, pass.creator) ? pass : null;
+    if (pass === undefined || !deps.alive(tab) || !deps.tabOn(tab, pass.creator)) return null;
+    const solo = soloById.get(passId);
+    if (solo !== undefined) {
+      if (soloOver(solo)) {
+        letSoloGo(solo);
+        return null;
+      }
+      solo.usedAt = deps.now();
+    }
+    return pass;
   }
 
   /** A row of the tab's pass as the greeting reads it; null — no such pass or fan for this tab. */
@@ -1790,13 +1836,12 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
    */
   async function remind(creator: string, follows: readonly FanslyRemindFollow[]): Promise<Map<string, FanslyRemindVerdict | null>> {
     const verdicts = new Map<string, FanslyRemindVerdict | null>();
-    const open = passes.get(creator);
     const asked: FanslyRemindFollow[] = [];
     for (const follow of follows) {
       if (verdicts.has(follow.fanRef) || asked.some((other) => other.fanRef === follow.fanRef)) continue;
-      const shown = open?.byFan.get(follow.fanRef)?.view.status;
+      const shown = shownOf(creator, follow.fanRef);
       if (shown === 'greeted') verdicts.set(follow.fanRef, { s: 'greeted' });
-      else if (shown === 'dm-closed' || shown === 'excluded') verdicts.set(follow.fanRef, { s: 'closed' });
+      else if (shown === 'closed') verdicts.set(follow.fanRef, { s: 'closed' });
       else asked.push(follow);
     }
     for (const follow of asked) verdicts.set(follow.fanRef, null);
@@ -1806,33 +1851,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     reminding.add(stop);
     const work = workOf(stop);
     const rows: Row[] = asked.map((follow) => ({ view: rowView(follow.fanRef, follow.followedAt, undefined), chat: null, kept: [], keptAll: false, proof: null, avatar: null }));
-    const pass: Pass = {
-      id: deps.uuid(),
-      creator,
-      windowHours: FANSLY_TAB_LIMITS.windowHoursMin,
-      startedAt: deps.now(),
-      journal: undefined,
-      base: 'queue',
-      phase: null,
-      partial: false,
-      error: null,
-      coolingUntil: null,
-      welcome: new Set(),
-      followers: { before: '0', pages: 0, read: true, cursors: new Set() },
-      rows,
-      byFan: new Map(rows.map((row) => [row.view.fanRef, row])),
-      leads: new Map(),
-      watchers: new Set(),
-      life: new AbortSwitch(),
-      work: null,
-      preferred: null,
-      seq: 0,
-      dirty: new Set(),
-      passDirty: false,
-      flushing: false,
-      watching: false,
-      profilesAt: null,
-    };
+    const pass = bare(creator, rows);
     try {
       pass.welcome = (await freshWelcome(creator)) ?? (await welcomeTexts(pass, work));
       const book = await bookOf(creator);
@@ -1848,6 +1867,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         if (verdict?.s === 'due') due.push(fan);
       }
       const profiles = due.length === 0 ? new Map<string, PassProfile>() : await profilesOf(pass, work, due);
+      keepProfiles(creator, profiles);
       for (const fan of due) {
         const profile = profiles.get(fan);
         const name = profile === undefined ? null : profile.customName?.trim() || profile.displayName?.trim() || profile.username?.trim() || null;
@@ -1934,16 +1954,256 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     return profiles;
   }
 
-  /** The card's greeting went (sent, or the person's own send registered): the fan is «Уже писали» in the creator's pass. */
+  /**
+   * The card's greeting went (sent, or the person's own send registered): the fan is «Уже писали» in the creator's pass
+   * and in the pass of a reminder's Hi of the fan — and in the book, so the reminder's next minute finds them greeted.
+   */
   function markGreeted(creator: string, fanRef: string): void {
-    const pass = passes.get(creator);
-    const row = pass?.byFan.get(fanRef);
-    if (pass === undefined || row === undefined || row.view.status === 'greeted') return;
-    // The next window knows it without a request (the old extension's send journal, `attempt: sent`).
-    const groupId = row.chat?.groupId ?? row.view.groupId;
-    if (groupId !== null) learn(pass, row, groupId, 'sent');
-    row.proof = null;
-    set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: null, error: null, fanWrote: false, dmClosed: null, dmPriceMills: null });
+    for (const pass of [passes.get(creator), solos.get(`${creator}|${fanRef}`)?.pass]) {
+      const row = pass?.byFan.get(fanRef);
+      if (pass === undefined || row === undefined || row.view.status === 'greeted') continue;
+      // The next window knows it without a request (the old extension's send journal, `attempt: sent`).
+      const groupId = row.chat?.groupId ?? row.view.groupId;
+      if (groupId !== null) learn(pass, row, groupId, 'sent');
+      row.proof = null;
+      set(pass, row, { status: 'greeted', historyRevision: null, checkedAt: iso(deps.now()), proof: null, error: null, fanWrote: false, dmClosed: null, dmPriceMills: null });
+    }
+  }
+
+  // ── «Hi» inside a greeting reminder (2026-10-29): its one fan, proved alone ──
+
+  /** A pass of rows no window holds (the reminder's check, a reminder's Hi): no watcher, no queue, no journal. */
+  function bare(creator: string, rows: Row[]): Pass {
+    return {
+      id: deps.uuid(),
+      creator,
+      windowHours: FANSLY_TAB_LIMITS.windowHoursMin,
+      startedAt: deps.now(),
+      journal: undefined,
+      base: 'queue',
+      phase: null,
+      partial: false,
+      error: null,
+      coolingUntil: null,
+      welcome: new Set(),
+      followers: { before: '0', pages: 0, read: true, cursors: new Set() },
+      rows,
+      byFan: new Map(rows.map((row) => [row.view.fanRef, row])),
+      leads: new Map(),
+      watchers: new Set(),
+      life: new AbortSwitch(),
+      work: null,
+      preferred: null,
+      seq: 0,
+      dirty: new Set(),
+      passDirty: false,
+      flushing: false,
+      watching: false,
+      profilesAt: null,
+    };
+  }
+
+  /** What the open passes hold of a creator's fan: «Уже писали» or «Нельзя написать», in the window's or a reminder's Hi's. */
+  function shownOf(creator: string, fanRef: string): 'greeted' | 'closed' | null {
+    const statuses = [passes.get(creator), solos.get(`${creator}|${fanRef}`)?.pass].map((pass) => pass?.byFan.get(fanRef)?.view.status);
+    if (statuses.includes('greeted')) return 'greeted';
+    return statuses.includes('dm-closed') || statuses.includes('excluded') ? 'closed' : null;
+  }
+
+  /** The profiles the reminder read of its due fans (`creator|fan`): their Hi takes the names and the picture without a read. */
+  const remindProfiles = new Map<string, { readonly at: number; readonly profile: PassProfile }>();
+
+  function keepProfiles(creator: string, profiles: ReadonlyMap<string, PassProfile>): void {
+    for (const [fan, profile] of profiles) {
+      const key = `${creator}|${fan}`;
+      remindProfiles.delete(key);
+      remindProfiles.set(key, { at: deps.now(), profile });
+    }
+    for (const key of remindProfiles.keys()) {
+      if (remindProfiles.size <= REMIND_PROFILES_MAX) break;
+      remindProfiles.delete(key);
+    }
+  }
+
+  /** Nobody used it for SOLO_TTL_MS, and no check of it runs. */
+  const soloOver = (entry: Solo): boolean => entry.proving === null && deps.now() - entry.usedAt > SOLO_TTL_MS;
+
+  function letSoloGo(entry: Solo): void {
+    entry.pass.life.abort();
+    solos.delete(`${entry.pass.creator}|${entry.fanRef}`);
+    soloById.delete(entry.pass.id);
+    byId_.delete(entry.pass.id);
+  }
+
+  /** The fan's pass of a reminder's Hi: the one there is, else a new one — the creator's least used goes past SOLO_PER_CREATOR. */
+  function soloFor(creator: string, fanRef: string, followedAt: number): Solo {
+    for (const entry of [...solos.values()]) if (soloOver(entry)) letSoloGo(entry);
+    const kept = solos.get(`${creator}|${fanRef}`);
+    if (kept !== undefined) return kept;
+    const mine = [...solos.values()].filter((entry) => entry.pass.creator === creator && entry.proving === null).sort((a, b) => a.usedAt - b.usedAt);
+    for (const entry of mine.slice(0, Math.max(0, mine.length - SOLO_PER_CREATOR + 1))) letSoloGo(entry);
+    const row: Row = { view: rowView(fanRef, followedAt, undefined), chat: null, kept: [], keptAll: false, proof: null, avatar: null };
+    const entry: Solo = { pass: bare(creator, [row]), fanRef, usedAt: deps.now(), proving: null };
+    solos.set(`${creator}|${fanRef}`, entry);
+    soloById.set(entry.pass.id, entry);
+    byId_.set(entry.pass.id, entry.pass);
+    return entry;
+  }
+
+  /**
+   * `fansly.greet.solo`: «Hi» of a greeting reminder's toast proves its one fan — the fan's row in a pass of its own, or
+   * why not. `followedAt` — the follow's moment as the reminder heard it (null — not heard).
+   */
+  async function solo(payload: SoloRequest, tab: string, followedAt: number | null = null): Promise<SoloAnswer> {
+    const creator = payload.hostAccountId;
+    const fan = payload.fanRef;
+    if (fan === creator || !deps.alive(tab) || !deps.tabOn(tab, creator)) return { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } };
+    const shownAt = Date.parse(passes.get(creator)?.byFan.get(fan)?.view.followedAt ?? '');
+    const entry = soloFor(creator, fan, payload.followedAt ?? followedAt ?? (Number.isFinite(shownAt) ? shownAt : deps.now()));
+    entry.usedAt = deps.now();
+    const failed = await (entry.proving ?? prove(entry, payload.create === true));
+    entry.usedAt = deps.now();
+    if (solos.get(`${creator}|${fan}`) !== entry || entry.pass.life.aborted) return { ok: false, error: { code: 'CG-CONTEXT-CHANGED' } };
+    // The tab may have left the creator meanwhile.
+    if (!deps.tabOn(tab, creator)) return { ok: false, error: { code: 'CG-FNEW-ACCOUNT' } };
+    if (failed !== null) return { ok: false, error: failed };
+    const view = (entry.pass.byFan.get(fan) as Row).view;
+    log({ level: 'info', scope: 'bg.fansly.newcomers', msg: 'the reminder’s fan was checked alone', fields: { status: view.status } });
+    return { ok: true, passId: entry.pass.id, row: view };
+  }
+
+  /** One check of the fan at a time: a second click joins the one under way. */
+  function prove(entry: Solo, create: boolean): Promise<CgAnyErrorWire | null> {
+    const proving = proveSolo(entry, create).finally(() => {
+      if (entry.proving === proving) entry.proving = null;
+    });
+    entry.proving = proving;
+    return proving;
+  }
+
+  /**
+   * The reminder's fan, as the window would check them: null — the row is the answer (greeted, nobody may write, or
+   * «Не писали» with its proof); else why not. «Уже писали» stays; a «Не писали» proved here is checked again only when it
+   * aged (READY_FRESH_MS). Else what the window's pass proved of the fan, without a request; else — never while the creator
+   * cools down — the welcome texts, the book, the inbox's first page when nothing names the fan's chat, the window's check
+   * of the chat (its reads the greeting's: one attempt, refused at once by a cooldown) and the profile. `create` — the
+   * click's own request: a fan with no chat to be found gets `POST /group` (get-or-create by identity), once.
+   */
+  async function proveSolo(entry: Solo, create: boolean): Promise<CgAnyErrorWire | null> {
+    const { pass, fanRef: fan } = entry;
+    const row = pass.byFan.get(fan) as Row;
+    if (row.view.status === 'greeted') return null;
+    if (row.view.status === 'ready' && row.proof !== null) {
+      // A check again that cannot be made now (a cooldown, a blip) leaves the proof: the send reads the chat again.
+      if (stale(row) && deps.api.coolingUntil(pass.creator) <= deps.now()) await again(pass, row, 'hi', true);
+      return null;
+    }
+    const shown = passes.get(pass.creator)?.byFan.get(fan);
+    if (shown !== undefined && adopt(pass, row, shown)) return null;
+    const cooling = deps.api.coolingUntil(pass.creator);
+    if (cooling > deps.now()) return { code: 'CG-FAN-RATE-LIMIT', retryAt: cooling };
+    const stop = new AbortSwitch();
+    pass.life.addEventListener('abort', () => stop.abort());
+    let late = false;
+    void deps.sleep(SOLO_BUDGET_MS, stop).then(() => {
+      if (stop.aborted) return;
+      late = true;
+      stop.abort();
+    });
+    const work: Work = { ...workOf(stop), hasty: true };
+    try {
+      pass.welcome = (await freshWelcome(pass.creator)) ?? (await welcomeTexts(pass, work));
+      const book = await bookOf(pass.creator);
+      if (stop.aborted) throw new Aborted();
+      if (row.view.status !== 'pending') set(pass, row, { status: 'pending', error: null });
+      knownVerdicts(pass, book);
+      if ((row.view.status as FanslyFollowerRow['status']) === 'greeted') return null;
+      knownLeads(pass, book);
+      if (row.chat === null && !pass.leads.has(fan)) {
+        // The chat the window's pass confirmed for the fan, else the newest chats of the inbox.
+        if (shown !== undefined && shown.chat !== null) pass.leads.set(fan, shown.chat);
+        else await soloInbox(pass, work, fan);
+      }
+      await check(pass, work, row, create, true);
+      const status = row.view.status as FanslyFollowerRow['status'];
+      // No chat to be found, and none made: nothing is proved.
+      if (status === 'pending') return { code: 'CG-FNEW-UNVERIFIED' };
+      if (status === 'ready') await soloProfile(pass, work, row, shown);
+      return null;
+    } catch (error) {
+      const until = deps.api.coolingUntil(pass.creator);
+      let wire: CgAnyErrorWire;
+      if (error instanceof Aborted || stop.aborted) wire = pass.life.aborted ? { code: 'CG-CONTEXT-CHANGED' } : until > deps.now() ? { code: 'CG-FAN-RATE-LIMIT', retryAt: until } : { code: late ? 'CG-TIMEOUT' : 'CG-CONTEXT-CHANGED' };
+      else {
+        const failed = failureOf(error).wire;
+        const retryAt = failed.retryAt ?? until;
+        wire = failed.code === 'CG-FAN-RATE-LIMIT' && retryAt > deps.now() ? { code: failed.code, retryAt } : { code: failed.code };
+      }
+      row.proof = null;
+      set(pass, row, { status: 'failed', error: wire, checkedAt: iso(deps.now()), historyRevision: null, dmClosed: null, dmPriceMills: null });
+      log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the reminder’s fan was not checked', fields: { code: wire.code } });
+      return wire;
+    } finally {
+      // Ends the budget's wait.
+      stop.abort();
+    }
+  }
+
+  /**
+   * What the window's pass proved of the fan, taken as it is: «Уже писали», «Нельзя написать», or a «Не писали» it checked
+   * within READY_FRESH_MS — its chat, the history it kept and the proof the greeting takes. False — nothing to take now.
+   */
+  function adopt(pass: Pass, row: Row, shown: Row): boolean {
+    const status = shown.view.status;
+    const final = status === 'greeted' || status === 'dm-closed' || status === 'excluded';
+    if (!final && (status !== 'ready' || shown.proof === null || stale(shown))) return false;
+    row.chat = shown.chat;
+    row.kept = [...shown.kept];
+    row.keptAll = shown.keptAll;
+    row.proof = shown.proof;
+    row.avatar = shown.avatar;
+    if (shown.triedAt !== undefined) row.triedAt = shown.triedAt;
+    set(pass, row, { ...shown.view });
+    return true;
+  }
+
+  /** The start of the inbox, for the one fan's chat: positive only (absence there proves nothing); a failed read leaves no lead. */
+  async function soloInbox(pass: Pass, work: Work, fan: string): Promise<void> {
+    try {
+      const page = readInboxPage(
+        await ask(pass, work, {
+          route: 'messaging.groups',
+          query: { sortOrder: '1', flags: '0', subscriptionTierId: '', listIds: '', search: '', limit: String(PASS_BOUNDS.inboxPage), offset: '0' },
+        }),
+        pass.creator,
+        new Set([fan]),
+        deps.now(),
+      );
+      for (const chat of page?.chats ?? []) pass.leads.set(chat.fanRef, chat);
+    } catch (error) {
+      if (error instanceof Aborted || work.stop.aborted || stopsPass(error)) throw error;
+      log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the inbox was not read; the fan’s chat is found by identity', fields: { code: failureOf(error).wire.code } });
+    }
+  }
+
+  /** The fan's names and picture for the greeting: the reminder's read of them, the window's row, else one read now (a failed read — none). */
+  async function soloProfile(pass: Pass, work: Work, row: Row, shown: Row | undefined): Promise<void> {
+    if (row.view.username !== null) return;
+    const kept = remindProfiles.get(`${pass.creator}|${row.view.fanRef}`);
+    if (kept !== undefined && deps.now() - kept.at <= REMIND_PROFILES_MS) return takeProfile(pass, row, kept.profile);
+    if (shown !== undefined && shown.view.username !== null) {
+      const { username, displayName, bio, customName, avatarUrl } = shown.view;
+      row.avatar = shown.avatar;
+      set(pass, row, { username, displayName, ...(bio === undefined ? {} : { bio }), ...(customName === undefined ? {} : { customName }), ...(avatarUrl === undefined ? {} : { avatarUrl }) });
+      return;
+    }
+    const read = (await profilesOf(pass, work, [row.view.fanRef])).get(row.view.fanRef);
+    if (read !== undefined) takeProfile(pass, row, read);
+  }
+
+  function takeProfile(pass: Pass, row: Row, profile: PassProfile): void {
+    if (profile.avatarUrl !== null) row.avatar = profile.avatarUrl;
+    set(pass, row, profileFields(profile, row.view));
   }
 
   return {
@@ -1984,14 +2244,18 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     live,
     greeted: markGreeted,
     remind,
+    /** 2026-10-29: `fansly.greet.solo` — the reminder's Hi proves its one fan (the hub page and its switch are the caller's). */
+    solo,
     /** The work in flight, for tests and the module's dispose. */
     idle: async (): Promise<void> => {
       for (const pass of passes.values()) await pass.work?.done;
     },
     dispose(): void {
       for (const pass of [...passes.values()]) drop(pass);
+      for (const entry of [...solos.values()]) letSoloGo(entry);
       for (const stop of reminding) stop.abort();
       windows.clear();
+      remindProfiles.clear();
     },
   };
 }

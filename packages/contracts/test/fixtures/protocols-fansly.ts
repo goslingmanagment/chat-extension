@@ -307,6 +307,17 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     req: { valid: [{ pageId: 11, fanRef: F.fan, cause }], invalid: [{ pageId: 11, fanRef: F.fan }, { pageId: '11', fanRef: F.fan, cause }, { pageId: 11, fanRef: F.fan, cause: { kind: 'timer', actionToken: cause.actionToken } }] },
     res: { valid: [{ delivered: true }, { delivered: false }], invalid: [{ delivered: 'yes' }, {}] },
   },
+  // 1.68.0: the toast's Hi proves its one fan alone; `create` — the click's own get-or-create of the fan's chat.
+  'fansly.greet.solo': {
+    req: {
+      valid: [{ hostAccountId: F.creator, fanRef: F.fan }, { hostAccountId: F.creator, fanRef: F.fan, followedAt: T0, create: true }],
+      invalid: [{ hostAccountId: F.creator }, { hostAccountId: F.creator, fanRef: F.fan, create: false }, { hostAccountId: F.creator, fanRef: F.fan, followedAt: ISO }],
+    },
+    res: {
+      valid: [{ ok: true, passId: uuid(301), row: fanslyRow }, { ok: true, passId: uuid(301), row: { ...fanslyRow, status: 'greeted', historyRevision: null } }, failure, { ok: false, error: { code: 'CG-FNEW-UNVERIFIED' } }],
+      invalid: [{ ok: true, row: fanslyRow }, { ok: true, passId: 'pass', row: fanslyRow }, { ok: true, passId: uuid(301), row: { ...fanslyRow, status: 'sent' } }, unknownFailure],
+    },
+  },
   'fansly.followers.draft': {
     req: { valid: [{ ...passRef, fanRef: F.fan }, { ...passRef, fanRef: F.fan, text: '' }, { ...passRef, fanRef: F.fan, text: 'x'.repeat(5000) }, { ...passRef, fanRef: F.fan, text: 'Привет!', generation: { opId: greetingGeneration.opId, historyRevision: greetingGeneration.historyRevision } }], invalid: [{ ...passRef, fanRef: F.fan, text: 'x'.repeat(5001) }, { ...passRef, fanRef: F.fan, text: null }, { ...passRef, fanRef: F.fan, text: 'Привет!', generation: { opId: 'bad-id', historyRevision: uuid(0x501) } }] },
     res: {

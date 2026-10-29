@@ -8,7 +8,8 @@
 // (domain/hosts/fansly/newcomers). A failure is a failure — of the envelope or of the payload — never an empty list.
 // R20 P10b1: the queue's buttons — `pause`, `resume`, `prioritize` (NF-038). R20 P10b2: `exclude` (FS-NEW-2).
 // R20 P10c: the card's greeting — `proof`, `draft`, `send`, `sent` (FS-NEW-3, FS-NEW-6, FS-NEW-7); `outcomes` — where each
-// fan's greeting stands, for the list (2026-10-22).
+// fan's greeting stands, for the list (2026-10-22). 2026-10-29: `fansly.greet.solo` — a reminder's Hi proves its one fan
+// alone, in a pass of the fan's own that the card's greeting then takes.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
 import { type FanslySendView } from '@cg/contracts/send-fansly';
@@ -46,6 +47,8 @@ export type FanslyFollowersRequest =
   | 'fansly.followers.recheck'
   // 2026-10-25: a reminder's Hi pressed in a tab of another model.
   | 'fansly.greet.handover'
+  // 2026-10-29: a reminder's Hi proves its one fan alone.
+  | 'fansly.greet.solo'
   | 'fansly.followers.draft'
   | 'fansly.followers.outcomes'
   | 'fansly.followers.send'
@@ -119,6 +122,12 @@ export function createFanslyNewcomersSource(port: FanslyFollowersPort, origin: s
     async handover(pageId, fanRef, cause) {
       const answer = await port.request('fansly.greet.handover', { pageId, fanRef, cause });
       return answer.ok && answer.payload.delivered;
+    },
+    async solo(hostAccountId, fanRef, options) {
+      const answer = await port.request('fansly.greet.solo', { hostAccountId, fanRef, ...(options.followedAt === undefined ? {} : { followedAt: options.followedAt }), ...(options.create === true ? { create: true as const } : {}) });
+      if (!answer.ok) return { ok: false, failure: envelope(answer.error) };
+      const payload = answer.payload;
+      return payload.ok ? { ok: true, value: { passId: payload.passId, row: passRowOf(payload.row) } } : { ok: false, failure: failureOf(payload.error) };
     },
     greeting: greetingSource(port),
   };
