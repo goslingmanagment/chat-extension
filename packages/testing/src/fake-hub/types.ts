@@ -260,6 +260,12 @@ export type FakeHubCommand =
    * it was. What the chatters do in the window and the Fansly tabs' reports go on top of either.
    */
   | { readonly op: 'online'; readonly pageLabel: string; readonly items?: readonly Record<string, unknown>[] | null; readonly templates?: readonly Record<string, unknown>[] | null }
+  /**
+   * «Очереди» of a page (fan-queues.ts): `stand` — the owner's prototype over the page's board fans (a cold batch queue,
+   * the standing «Платили, молчат» with one fan who answered, one paused, one the chatter asked for); null — none, as a
+   * page of the hub has until someone asks Gengar. `userId` — the chatter the stand signs in as (WORLD.user by default).
+   */
+  | { readonly op: 'fanQueues'; readonly pageLabel: string; readonly set: 'stand' | null; readonly userId?: number }
   /** Chat Memory week 2: the fan's card as the hub answers it (`clientFanCard`), until a decision or a fact change moves it. */
   | { readonly op: 'fanCard'; readonly pageLabel: string; readonly fanRef: string; readonly card: Record<string, unknown> }
   /** 2026-10-29: a note write recorded before the run (a colleague's), as `clientNoteAttributions` would have it; the
@@ -267,6 +273,21 @@ export type FakeHubCommand =
   | { readonly op: 'noteWrite'; readonly pageLabel: string; readonly fanRef: string; readonly noteRef: string; readonly action: 'created' | 'edited' | 'deleted'; readonly login: string; readonly at: string }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
+
+/** «Очереди» (fan-queues.ts): one report of a fan's outcome, as the hub journals it (ids, a word of a closed list, a time; never a text). */
+export interface FakeFanQueueDone {
+  readonly pageLabel: string;
+  readonly userId: number;
+  readonly queueId: number;
+  readonly itemId: number;
+  readonly fanRef: string;
+  readonly outcome: 'sent' | 'skipped';
+  readonly act: string | null;
+  readonly templateId: string | null;
+  readonly skipReason: string | null;
+  readonly uncertain: boolean;
+  readonly at: string;
+}
 
 /** «Онлайн» (online.ts): one action of a chatter in the window, as the hub journals it (ids, a word of a closed list, a time; never a text). */
 export interface FakeOnlineAttempt {
@@ -328,6 +349,8 @@ export interface FakeHubStatus {
   readonly voiceNotes: readonly VoiceNoteSnapshot[];
   /** «Онлайн»: what the chatters did in the window and the Fansly tabs' presence reports, in order (ids and times). */
   readonly online: { readonly attempts: readonly FakeOnlineAttempt[]; readonly presence: readonly FakeOnlinePresenceReport[] };
+  /** «Очереди»: every fan's outcome the client reported, in order (ids and closed words only). */
+  readonly fanQueues: { readonly reports: readonly FakeFanQueueDone[] };
   /** Telegram: the chats the AI requests carried (`clientContext`), in order. */
   readonly clientContexts: readonly FakeClientContextRecord[];
 }

@@ -55,6 +55,9 @@ import {
   type Handoff,
   type WinBackAttemptRequest,
   type WinBackList,
+  type FanQueueItemDoneRequest,
+  type FanQueueReleaseRequest,
+  type FanQueueTakeRequest,
   type OnlineAttemptRequest,
   type OnlinePresenceRequest,
   type OnlineQuery,
@@ -510,6 +513,13 @@ export class FakeHub {
           ...(command.templates === undefined ? {} : { templates: command.templates as unknown as readonly OnlineTemplate[] | null }),
         });
         return { ok: true };
+      case 'fanQueues': {
+        const page = this.page(command.pageLabel);
+        const userId = command.userId ?? WORLD.user.userId;
+        // The board and the archives are read at the queues' first read: the shift seeds them after a scenario's `before`.
+        s.data.setFanQueues(page, command.set, { userId, name: s.auth.userById(userId)?.username ?? WORLD.user.username }, () => s.config.spendersTotal);
+        return { ok: true };
+      }
       case 'status':
         return this.status();
       default:
@@ -535,6 +545,7 @@ export class FakeHub {
       ingested: s.data.ingestedEvents().length,
       voiceNotes: s.voice.snapshot(now),
       online: { attempts: s.data.onlineAttempts(), presence: s.data.onlinePresenceReports() },
+      fanQueues: { reports: s.data.fanQueueReports() },
       clientContexts: s.clientContexts.map((record) => ({ ...record })),
     };
   }
@@ -1198,6 +1209,14 @@ export class FakeHub {
         return read(s.data.online(need(page), request as OnlineQuery, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now, s.config.spendersTotal));
       case 'clientOnlinePresence':
         return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now));
+      case 'clientFanQueues':
+        return read(s.data.fanQueues(need(page), need(principal).user.userId, now));
+      case 'clientFanQueueTake':
+        return read(s.data.fanQueueTake(need(page), need(principal).user.userId, request as FanQueueTakeRequest, now));
+      case 'clientFanQueueItemDone':
+        return read(s.data.fanQueueDone(need(page), need(principal).user.userId, request as FanQueueItemDoneRequest, now));
+      case 'clientFanQueueRelease':
+        return read(s.data.fanQueueRelease(need(page), need(principal).user.userId, request as FanQueueReleaseRequest, now));
       case 'clientOnlineAttempt':
         return read(s.data.onlineAttempt(need(page), need(principal).user.userId, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', request as OnlineAttemptRequest, now, s.config.spendersTotal));
       case 'voiceNoteCreate':

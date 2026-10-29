@@ -53,6 +53,13 @@ import {
   type WinBackAttemptRequest,
   type WinBackAttemptResult,
   type WinBackList,
+  type FanQueueItemDone,
+  type FanQueueItemDoneRequest,
+  type FanQueueRelease,
+  type FanQueueReleaseRequest,
+  type FanQueueTake,
+  type FanQueueTakeRequest,
+  type FanQueues,
   type OnlineAttemptRequest,
   type OnlineAttemptResult,
   type OnlineList,
@@ -77,9 +84,10 @@ import { SHOWCASE } from '../showcase';
 import { classifyPair, type PairState, type ServedRef, type StoreState } from './ai-rules';
 import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
+import { FanQueuesModel, type FanQueuesSet } from './fan-queues';
 import { ONLINE_SEEN_SOURCES, OnlineModel, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
 import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
-import { type CoachDepthKnob, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type SpenderSeed } from './types';
+import { type CoachDepthKnob, type FakeFanQueueDone, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type SpenderSeed } from './types';
 
 export interface Refusal {
   readonly error: HubErrorCode | (string & {});
@@ -303,6 +311,9 @@ export class DataModel {
   private winBackAttempts = 0;
   /** «Онлайн»: a scenario's lists, the Fansly tabs' presence reports, what the chatters did in the window. */
   private readonly onlineModel = new OnlineModel();
+  /** «Очереди»: a scenario's queues of a page, their portions and what the chatters reported of each fan. */
+  private readonly queuesModel = new FanQueuesModel();
+  private queueMessageId = 8_800_000_000;
   /** Chat Memory week 1: another chatter's message to a fan, set by a scenario (`talking`): «в разговоре» without a send. */
   private readonly talking: FakeTalking[] = [];
   /**
@@ -1364,6 +1375,53 @@ export class DataModel {
         messageCount: index === ONLINE_STAND.shortChat ? 4 : facts.messageCount,
       };
     });
+  }
+
+  // ── «Очереди» (hub fan queues; fan-queues.ts) ──
+
+  /**
+   * A scenario's queues of a page (`fanQueues`): `stand` — the prototype's over the page's first board fans (the stand's
+   * chats), their archives made to fit their stories; null — none.
+   */
+  setFanQueues(page: FakePage, set: FanQueuesSet, me: { readonly userId: number; readonly name: string }, total: () => number): void {
+    this.queuesModel.set(page, set, (now) => ({
+      board: this.rows(page, Math.min(total(), 16), now)
+        .slice(0, 16)
+        .map((row) => this.onlineFactsOf(page, row)),
+      me,
+      conversation: (ref, messages) => {
+        const seeded = messages.map((message) => {
+          this.queueMessageId += 1;
+          return { id: String(this.queueMessageId), sender: message.sender, text: message.text, at: iso(message.at) };
+        });
+        this.seedConversation(page, ref, seeded, false);
+      },
+    }));
+  }
+
+  /** As the hub's `clientFanQueues`. */
+  fanQueues(page: FakePage, userId: number, now: number): Read<FanQueues> {
+    return this.queuesModel.list(page, userId, now);
+  }
+
+  /** As the hub's `clientFanQueueTake`. */
+  fanQueueTake(page: FakePage, userId: number, request: FanQueueTakeRequest, now: number): Read<FanQueueTake> {
+    return this.queuesModel.take(page, userId, request, now);
+  }
+
+  /** As the hub's `clientFanQueueItemDone`. */
+  fanQueueDone(page: FakePage, userId: number, request: FanQueueItemDoneRequest, now: number): Read<FanQueueItemDone> {
+    return this.queuesModel.done(page, userId, request, now);
+  }
+
+  /** As the hub's `clientFanQueueRelease`. */
+  fanQueueRelease(page: FakePage, userId: number, request: FanQueueReleaseRequest, now: number): Read<FanQueueRelease> {
+    return this.queuesModel.release(page, userId, request, now);
+  }
+
+  /** «Очереди»: what the chatters reported of each fan, in order. */
+  fanQueueReports(): readonly FakeFanQueueDone[] {
+    return this.queuesModel.reports();
   }
 
   /** As the hub's `clientOnline` (online.ts): the page's fans seen online within `minutes`, why to write now and with what. */
