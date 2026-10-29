@@ -400,6 +400,34 @@ describe('the action tokens of a tab', () => {
     s.gate.dispose();
   });
 
+  it('«Hi» of two reminders pressed one after the other: each click writes its own greeting, whichever check ends first', async () => {
+    for (const order of [
+      ['second', 'first'],
+      ['first', 'second'],
+    ] as const) {
+      let now = 2_000_000;
+      const s = seam(() => now);
+      during(s.w.overlayButton, event('click', true), () => s.tokens.granted('GreetNewcomer'));
+      now += 2_000;
+      during(s.w.overlayButton, event('click', true), () => s.tokens.granted('GreetNewcomer'));
+      // Each fan is checked on Fansly before its greeting is written: longer than an ordinary grant lives.
+      now += GRANT_TTL_MS + 5_000;
+      for (const _chain of order) {
+        expect(s.gate.afterGreet('Generate')).toBeNull();
+        expect(await s.tokens.issue('generate', 'newcomers')).not.toBeNull();
+      }
+      // Two clicks, two greetings: nothing more.
+      expect(s.gate.afterGreet('Generate')).toBe('not-granted');
+      expect(s.asked).toEqual([
+        ['generate', 'newcomers'],
+        ['generate', 'newcomers'],
+      ]);
+      s.gate.dispose();
+      current?.dispose();
+      current = null;
+    }
+  });
+
   // ── a key the early dispatcher kept (HK-024, HK-025) ──
 
   it('[HK-024] only a trusted keydown that is still fresh is taken back; a kept key never sends', async () => {
