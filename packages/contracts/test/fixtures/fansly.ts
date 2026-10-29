@@ -364,6 +364,16 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
       { groupId: group, msgId: newer, fanId: null, accountId: '700000000000000001', media: false },
     ],
   },
+  'fx.lastWord': {
+    valid: [{ groupId: group, word: 'fan' }, { groupId: otherGroup, word: 'model' }, { groupId: group, word: null }],
+    invalid: [
+      // Whose word only: never a text, never a third side.
+      { groupId: group, word: 'fan', content: 'hey' },
+      { groupId: group, word: 'creator' },
+      { groupId: group },
+      { groupId: Number(group), word: 'fan' },
+    ],
+  },
   'fx.coverage': {
     valid: [
       { groupIds: 'all', state: 'unknown', reason: 'socket' },

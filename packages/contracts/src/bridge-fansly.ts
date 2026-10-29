@@ -53,6 +53,7 @@ export const FROM_MAIN_FANSLY_TYPES = [
   'fx.deleted',
   'fx.vaultAdded',
   'fx.vaultLoaded',
+  'fx.lastWord',
 ] as const;
 export type FromMainFanslyType = (typeof FROM_MAIN_FANSLY_TYPES)[number];
 
@@ -76,6 +77,7 @@ export const FANSLY_BRIDGE_UNDROPPABLE_EVENTS = [
   'fx.deleted',
   'fx.vaultAdded',
   'fx.vaultLoaded',
+  'fx.lastWord',
 ] as const satisfies readonly FromMainFanslyType[];
 
 /**

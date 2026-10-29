@@ -173,6 +173,7 @@ export function AppearanceSection({ body, readOnly }: { readonly body: Appearanc
           />
           <div class="pg-sub">{i18n.t('settings.appearance.textSizeNote')}</div>
         </Opt>
+        <Slot name="appearanceView" />
       </Card>
 
       <Card title={i18n.t('settings.appearance.sounds')}>

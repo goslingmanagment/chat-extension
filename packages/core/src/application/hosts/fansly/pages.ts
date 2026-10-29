@@ -187,6 +187,7 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
     reload: () => deps.access.reload(),
     setViaTab: (on) => write({ hosts: { 'fansly-web': { viaTab: on } } }),
     setTone: (which, tone) => write({ hosts: { 'fansly-web': { sound: which === 'messagesTone' ? { messagesTone: tone } : { subscribersTone: tone } } } }),
+    setInboxMark: (mark) => write({ hosts: { 'fansly-web': { inboxMark: mark } } }),
     // 3000 and below is v1's own depth: the wish above it goes.
     setDeep: (deep) => write({ windows: { deep: deep === null || deep <= 3000 ? null : deep } }),
     retry: () => (failed === null ? Promise.resolve(false) : write(failed)),

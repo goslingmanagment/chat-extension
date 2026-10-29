@@ -42,6 +42,13 @@ export const SETTINGS_EXT_VERSION = 1;
 export const FANSLY_NOTES_VIEWS = ['docked', 'drawer', 'center'] as const;
 export type FanslyNotesView = (typeof FANSLY_NOTES_VIEWS)[number];
 
+/**
+ * Who waits for a reply in Fansly's own list of chats (2026-10-29): `dot` — a muted terracotta dot on the avatar of a
+ * fan who wrote last (the default); `we` — «Мы:» before the preview of a chat where the model wrote last; `off`.
+ */
+export const FANSLY_INBOX_MARKS = ['dot', 'we', 'off'] as const;
+export type FanslyInboxMark = (typeof FANSLY_INBOX_MARKS)[number];
+
 export const SETTINGS_EXT_RANGES = {
   /**
    * The person's Recap depth above v1's 3000 (architecture §12: three limits). Up to 3000 it stays in v1
@@ -60,6 +67,8 @@ export const FanslySettingsSchema = z.strictObject({
   /** «Fansly через вкладку» (FS-NET-4): requests go through a relay frame in the model's tab. Off by default (X33). */
   viaTab: z.boolean(),
   notesView: z.enum(FANSLY_NOTES_VIEWS),
+  /** The mark of a chat waiting for a reply in Fansly's list of chats (2026-10-29). */
+  inboxMark: z.enum(FANSLY_INBOX_MARKS),
   /** The tones on Fansly (FS-SND-2, X26); whether a sound plays at all, the volume and the muted accounts are v1's, shared. */
   sound: z.strictObject({ messagesTone: ToneIdSchema, subscribersTone: ToneIdSchema }),
 });
@@ -70,6 +79,7 @@ export const DEFAULT_FANSLY_SETTINGS: FanslySettings = {
   enabled: false,
   viaTab: false,
   notesView: 'drawer',
+  inboxMark: 'dot',
   sound: { messagesTone: 'chime', subscribersTone: 'double' },
 };
 
@@ -102,6 +112,7 @@ export const SettingsExtPatchSchema = z.strictObject({
           enabled: z.optional(z.boolean()),
           viaTab: z.optional(z.boolean()),
           notesView: z.optional(z.enum(FANSLY_NOTES_VIEWS)),
+          inboxMark: z.optional(z.enum(FANSLY_INBOX_MARKS)),
           sound: z.optional(z.partial(FanslySettingsSchema.shape.sound)),
         }),
       ),

@@ -252,11 +252,16 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
   const unprobeSend = sendProbe !== null && greetings !== null ? sendProbe.start(greetings) : () => undefined;
   // R20 P11b: the view of «Заметки» is one for every tab (FS-NOTE-2): a change, from any panel, goes to all of them.
   let notesView = kit.settingsExt?.current().hosts['fansly-web'].notesView ?? null;
+  // 2026-10-29: so is the mark of the list of chats, chosen on the settings page.
+  let inboxMark = kit.settingsExt?.current().hosts['fansly-web'].inboxMark ?? null;
   const offSettings = kit.settingsExt?.onChange(() => {
     void refreshSettings();
     const view = kit.settingsExt?.current().hosts['fansly-web'].notesView ?? null;
     if (view !== null && view !== notesView) kit.site?.emit('fansly.notes.viewChanged', { view });
     notesView = view;
+    const mark = kit.settingsExt?.current().hosts['fansly-web'].inboxMark ?? null;
+    if (mark !== null && mark !== inboxMark) kit.site?.emit('fansly.inbox.markChanged', { mark });
+    inboxMark = mark;
   });
   await refreshSettings();
   // The client of a feature's call: the realm's own; a test build's, on the stand's loopback API.
@@ -370,6 +375,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         const answer = await kit.settingsExt.patch({ hosts: { 'fansly-web': { notesView: view } } });
         return ok({ view: answer.state.ext.hosts['fansly-web'].notesView });
       }
+      case 'fansly.inbox.mark':
+        return kit.settingsExt === undefined ? unreachable('no settings.ext port') : ok({ mark: (await kit.settingsExt.state()).state.ext.hosts['fansly-web'].inboxMark });
       case 'fansly.sound.batch': {
         const batch = payload as FanslyTabRequestPayload<'fansly.sound.batch'>;
         // Our own messages of the batch may be the echoes of greeting receipts (§8.6).

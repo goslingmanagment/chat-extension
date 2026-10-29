@@ -50,7 +50,7 @@ import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, UuidSchema, displayText } from './primitives';
 import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
 import { NOTE_LIMITS } from './notes';
-import { FANSLY_NOTES_VIEWS, SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
+import { FANSLY_INBOX_MARKS, FANSLY_NOTES_VIEWS, SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
 import { senderAllowed, type ExtensionPage, type TabEventSpec, type TabRequestSpec, type TabSender } from './tab-protocol';
 import { NEWCOMER_CHECK_FILTERS, NEWCOMERS_TABS } from './vm/actions';
@@ -774,6 +774,8 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.notes.view': { req: Empty, res: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), from: TAB, hosts: FANSLY },
   /** P11b: the person chose another view in the panel; the answer is the view as stored (the old one if the write failed). */
   'fansly.notes.setView': { req: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), res: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), from: TAB, hosts: FANSLY },
+  /** 2026-10-29: the mark of a chat waiting for a reply in Fansly's list of chats, as `settings.ext` holds it (chosen on the settings page). */
+  'fansly.inbox.mark': { req: Empty, res: z.strictObject({ mark: z.enum(FANSLY_INBOX_MARKS) }), from: TAB, hosts: FANSLY },
 
   // ── vault ──
   /**
@@ -842,6 +844,8 @@ export const FANSLY_TAB_EVENTS = {
   'fansly.ops.done': { payload: z.strictObject({ view: FanslyOpViewSchema }), to: TAB },
   /** P11b: the view of «Заметки» changed (in a panel of any tab): every Fansly tab follows it. */
   'fansly.notes.viewChanged': { payload: z.strictObject({ view: z.enum(FANSLY_NOTES_VIEWS) }), to: TAB },
+  /** 2026-10-29: the person chose another mark for the list of chats on the settings page: every Fansly tab follows it. */
+  'fansly.inbox.markChanged': { payload: z.strictObject({ mark: z.enum(FANSLY_INBOX_MARKS) }), to: TAB },
   /** Rows of an open pass changed (the window is told, it does not poll); `seq` grows per pass. */
   'fansly.followers.changed': {
     payload: z.strictObject({

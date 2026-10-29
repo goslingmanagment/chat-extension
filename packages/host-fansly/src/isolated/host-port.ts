@@ -43,6 +43,11 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 //   relay frame of «Fansly через вкладку» (P9c, relay-frame.ts) is mounted
 //   for the creator when the background asks, and goes with a change of
 //   creator.
+// - The mark of a chat waiting for a reply in Fansly's own list of chats
+//   (2026-10-29, inbox-marks.ts): MAIN's `fx.lastWord` of each chat, drawn
+//   on the rows of the list the page shows as the application says
+//   (`fansly.setInboxMark`); a new `fx.state` starts the words over, as MAIN
+//   says them all again after it.
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
@@ -72,6 +77,7 @@ import { fanslyCdnFetch } from './cdn-photos';
 import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
 import { createHeaderSlots, type HeaderSlots } from './header-slot';
+import { createInboxMarks } from './inbox-marks';
 import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
 import { createFanslyLauncher, type FanslyLauncher } from './launcher';
@@ -202,6 +208,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const doc = win.document;
   const header = createHeaderSlots(doc, mounts.registry);
   const wholeName = createWholeName(FANSLY_SELECTORS.headerName);
+  const inboxMarks = createInboxMarks(doc);
+  /** Fansly's list of chats, live: read on every sync, it costs no walk of the document. */
+  const inboxes = doc.getElementsByClassName(FANSLY_SELECTORS.inbox);
   const clock = options.now ?? (() => Date.now());
   const adapterVersion = options.adapterVersion ?? FANSLY_ADAPTER_VERSION;
   const diag = (diagnostic: FanslyDiagnostic): void => options.onDiagnostic?.(diagnostic);
@@ -447,6 +456,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     // the creator's custom name for the fan first, else the display name, else the handle (its `getDisplayName`).
     const account = routeState.chat === null ? null : (conversation?.contact?.querySelector(FANSLY_SELECTORS.headerAccount) ?? null);
     wholeName.sync(account, chatWire?.fanCustomName ?? chatWire?.fanDisplayName ?? chatWire?.fanUsername ?? null);
+    inboxMarks.place([...inboxes].find((element) => element.tagName === 'DIV') ?? null);
 
     if (routeMoved) emit({ type: 'route', route: routeState });
     if (seen !== composerSeen) {
@@ -468,6 +478,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const changeCreator = (next: string | null): boolean => {
     if (next === creator) return false;
     fanLabels.clear();
+    inboxMarks.clear();
     // Identity may change between two facts of one batch: none of the old
     // account's pending sounds may be attributed to the new one at flush.
     soundEvents = [];
@@ -517,6 +528,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (disposed) return;
     companion = { ...state.identity.fbuddy };
     network = state.contract;
+    // MAIN says every last word again right after this answer: the words held are the old stream's.
+    inboxMarks.clear();
     const renamed = takeNames(state.identity);
     const changed = changeCreator(state.identity.creatorId);
     setChat(state.chat !== null && chatFits(routeNow(), state.chat) && focused === state.chat.routeEpoch ? state.chat : null);
@@ -563,6 +576,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       }
       case 'fx.follow':
         soundEvents.push({ kind: 'subscriber', id: event.p.eventId, accountId: event.p.accountId, followerId: event.p.followerId });
+        return;
+      case 'fx.lastWord':
+        inboxMarks.word(event.p.groupId, event.p.word);
         return;
       case 'fx.coverage':
       case 'fx.deleted':
@@ -753,6 +769,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     },
     uploadToVault: (file) => (vaultUpload === null || disposed ? Promise.resolve({ state: 'refused', reason: 'anchor-missing' }) : vaultUpload(file)),
     relay: { open: () => (disposed ? Promise.resolve('failed') : relayFrame.open()), close: () => relayFrame.close() },
+    setInboxMark: (mark) => {
+      if (!disposed) inboxMarks.setMark(mark);
+    },
   };
 
   const dispose = (): void => {
@@ -772,6 +791,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     mounts.dispose();
     header.dispose();
     wholeName.dispose();
+    inboxMarks.dispose();
     theme.dispose();
     options.coexistence?.dispose();
     eventListeners.clear();

@@ -13,6 +13,8 @@ export interface OptionsSlots {
   readonly generationWindows?: ComponentType;
   /** «Вид и звук», inside the card «Звук», after the two sounds. */
   readonly appearanceSound?: ComponentType;
+  /** «Вид и звук», inside its first card, after «Размер текста»: how the site's own pages look with us (Fansly: «Кто ждёт ответа»). */
+  readonly appearanceView?: ComponentType;
   /** The sign-in screen, after the first-run steps. */
   readonly signIn?: ComponentType;
   /** The first-run checklist, after its own steps (ST-012). */

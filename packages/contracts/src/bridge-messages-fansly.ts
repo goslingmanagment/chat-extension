@@ -131,6 +131,10 @@ export const FanslyContractWireSchema = z.strictObject({
 });
 export type FanslyContractWire = z.infer<typeof FanslyContractWireSchema>;
 
+/** `fx.lastWord`: whose is the last word of a chat — the fan's (they wait for a reply) or the model's. */
+export const FANSLY_LAST_WORDS = ['fan', 'model'] as const;
+export type FanslyLastWord = (typeof FANSLY_LAST_WORDS)[number];
+
 /** The answer of `fx.state`: everything to start from, or to start again from after `fx.gap`. */
 export const FanslyStateSchema = z
   .strictObject({
@@ -312,6 +316,12 @@ export const FROM_MAIN_FANSLY = {
    * observation's number, as `fx.vaultAdded`'s: a reload after an addition has the greater one.
    */
   'fx.vaultLoaded': z.strictObject({ albumId: z.nullable(NativeIdSchema), seq: CountSchema }),
+  /**
+   * Who has the last word in a chat (2026-10-29, the mark of Fansly's list of chats): `fan` — the fan wrote last and no
+   * personal message of the model came after; `model` — the model answered; null — not known any more. Neither a mass
+   * send nor a welcome text answers a fan. Said when it changes; after `fx.state` MAIN says every one it knows again.
+   */
+  'fx.lastWord': z.strictObject({ groupId: NativeIdSchema, word: z.nullable(z.enum(FANSLY_LAST_WORDS)) }),
 } as const satisfies Record<FromMainFanslyType, z.ZodMiniType>;
 
 export type FromMainFanslyPayload<T extends FromMainFanslyType> = z.infer<(typeof FROM_MAIN_FANSLY)[T]>;
@@ -333,6 +343,7 @@ export const FanslyBatchEventSchema = z.discriminatedUnion('t', [
   batchEvent('fx.deleted'),
   batchEvent('fx.vaultAdded'),
   batchEvent('fx.vaultLoaded'),
+  batchEvent('fx.lastWord'),
 ]);
 
 const STATES: readonly string[] = FANSLY_BRIDGE_STATE_EVENTS;
