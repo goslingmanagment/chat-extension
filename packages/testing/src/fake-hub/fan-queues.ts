@@ -403,8 +403,11 @@ export class FanQueuesModel {
 
   /** Fans the caller can still be handed: the listed pending ones and, while the listed ones are worked, the counted rest. */
   private pending(queue: Queue): number {
+    const listed = queue.fans.filter((fan) => fan.state === 'pending').length;
+    // A paused queue keeps its fans, counted ones too.
+    if (queue.status === 'paused') return listed + queue.more;
     const open = queue.fans.filter((fan) => fan.state === 'pending' || fan.state === 'leased').length;
-    return open === 0 ? 0 : queue.fans.filter((fan) => fan.state === 'pending').length + queue.more;
+    return open === 0 ? 0 : listed + queue.more;
   }
 
   private summary(queue: Queue, userId: number, now: number): FanQueueSummary {
