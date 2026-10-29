@@ -374,8 +374,13 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('SendNewcomerGreeting', { targetHandle: HandleSchema }),
   /** 1.15.0 (R20 P10c): «Открыть и вставить» of that card: the fan's chat opens with the field's text for the person's own send. */
   act('InsertNewcomerGreeting', { targetHandle: HandleSchema }),
-  /** 1.54.0: «Hi» of a greeting reminder's toast; 2026-10-26 — the fan's chat opens and the dock's Hi writes the greeting into its field, by this one click. */
-  act('GreetNewcomer', { targetHandle: HandleSchema }),
+  /**
+   * 1.54.0: «Hi» of a greeting reminder's toast; 2026-10-26 — the fan's chat opens and the dock's Hi writes the greeting
+   * into its field, by this one click. 1.68.0 (the owner, 2026-10-29: «Hi прямо в напоминании»): `here` — the greeting is
+   * written for the fan without opening their chat and stands in the toast for its own «Отправить»; `again` — another
+   * variant of the one there. Without `here` it is «Открыть чат»: the old way into the fan's chat.
+   */
+  act('GreetNewcomer', { targetHandle: HandleSchema, here: z.optional(z.literal(true)), again: z.optional(z.literal(true)) }),
   act('SetNewcomersWindow', { hours: z.int().check(z.gte(NEWCOMERS_WINDOW_HOURS.min), z.lte(NEWCOMERS_WINDOW_HOURS.max)) }),
   act('LoadMore', { list: z.enum(['spenders', 'newcomers']) }),
   /**

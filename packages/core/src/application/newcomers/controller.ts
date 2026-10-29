@@ -16,6 +16,7 @@ import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
 import {
   type ActionReceipt,
   type ClaimVM,
+  type GreetCardVM,
   type GreetingFilter,
   type GreetingStatusVM,
   type I18n,
@@ -133,6 +134,29 @@ export interface NewcomersController extends SurfaceController<'newcomers'> {
    * of another model is ever reminded here.
    */
   greetElsewhere?(handle: TargetHandle, grant: () => void): Promise<boolean | null>;
+  /**
+   * 2026-10-29 (the owner chose «Hi прямо в напоминании»): «Hi» of a reminder's toast writes the fan's greeting without
+   * opening their chat; the toast shows it (`greetHereState`) with «Отправить» — the list's own send of a greeting —,
+   * «Ещё вариант» (`again`) and «Открыть чат». `grant` opens the click's grant of the generation right before its token is
+   * asked for. Absent — the toast's Hi opens the fan's chat (`greetChat`).
+   */
+  greetHere?(handle: TargetHandle, again: boolean, grant: () => void): Promise<ActionReceipt>;
+  /** What the toast shows of the reminder's greeting now; null — nothing was started for this fan. */
+  greetHereState?(handle: TargetHandle): GreetHereState | null;
+  /** A greeting `greetHereState` tells of changed. */
+  onGreetHere?(listener: () => void): () => void;
+}
+
+/** The reminder's greeting as the toast shows it (2026-10-29): its state and text, and what its buttons do now. */
+export interface GreetHereState {
+  readonly s: GreetCardVM['s'];
+  readonly text: string | null;
+  /** Why it did not go (failed, uncertain); null — nothing to say. */
+  readonly code: string | null;
+  /** «Отправить»: the click that sends the greeting now; null — it cannot go by a plain click now. */
+  readonly send: UiAction | null;
+  /** «Открыть чат»: the fan's chat with this greeting in its field, or the chat to look at; null — the old Hi (no `here`). */
+  readonly open: UiAction | null;
 }
 
 /** The reminder's fan's chat for its «Hi» (2026-10-26): what to open, and the fan's name for a toast. */
