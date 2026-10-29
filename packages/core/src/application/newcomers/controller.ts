@@ -9,7 +9,7 @@
 // still holds is shown, never counted down. Nothing here sends: «AI ничего не
 // отправляет сам» (NF-028).
 
-import { type CgCode, type CgErrorView, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
+import { isCgCode, type CgCode, type CgErrorView, type CgErrorWire, type I18nKey } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort } from '@cg/contracts/host';
 import { type ClaimState } from '@cg/contracts/hub';
 import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
@@ -20,6 +20,7 @@ import {
   type GreetingFilter,
   type GreetingStatusVM,
   type I18n,
+  type Msg,
   type NewcomerRowVM,
   type NewcomersTab,
   type NewcomersVM,
@@ -157,6 +158,8 @@ export interface GreetHereState {
   readonly send: UiAction | null;
   /** «Открыть чат»: the fan's chat with this greeting in its field, or the chat to look at; null — the old Hi (no `here`). */
   readonly open: UiAction | null;
+  /** A warning `send` passes (the card's «Отправить всё равно»), in the person's words; absent or null — a plain send. */
+  readonly warn?: Msg | null;
 }
 
 /** The reminder's fan's chat for its «Hi» (2026-10-26): what to open, and the fan's name for a toast. */
@@ -169,6 +172,9 @@ export interface GreetChat {
 
 /** Somebody wrote to the reminder's fan already: their chat, and their name for the toast. */
 export type GreetedChat = GreetChat;
+
+/** The fans whose greeting a reminder's toast wrote, kept for the tab's life (2026-10-29). */
+const GREET_HERE_KEPT = 50;
 
 export function createNewcomersController(deps: NewcomersControllerDeps): NewcomersController {
   const { rpc, host, i18n, clock, context, surfaces, navigator } = deps;
@@ -897,6 +903,102 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
   }
   schedulePoll();
 
+  // ── «Hi» inside a greeting reminder's toast (2026-10-29, the owner chose «Hi прямо в напоминании») ──
+
+  /**
+   * The reminder's fans whose greeting the toast wrote: `writing` until the preview's own Generate ended, `written` — then
+   * the result's rows say how it stands; `greeted` / `failed` — what stopped it before there was a result.
+   */
+  const here = new Map<TargetHandle, { readonly s: 'writing' | 'written' | 'greeted' | 'failed'; readonly code: string | null; readonly run: number }>();
+  const hereListeners = new Set<() => void>();
+  let hereRuns = 0;
+  const hereChanged = (): void => {
+    for (const listener of [...hereListeners]) listener();
+  };
+
+  /**
+   * The fan's greeting written by the card's own Generate with the card closed (the batch's way: one part, the archive's
+   * history), never into the open chat's field. The hub's list is read first: a fan somebody greeted gets nothing.
+   */
+  async function greetHere(handle: TargetHandle, again: boolean, grant: () => void): Promise<ActionReceipt> {
+    const type = 'GreetNewcomer';
+    const fanRef = own(handle);
+    const port = batchPort;
+    if (disposed || fanRef === null || port === null) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    // One greeting at a time for a fan: a second press while it writes is nothing.
+    if (here.get(handle)?.s === 'writing') return done(type, 'noop');
+    hereRuns += 1;
+    const run = hereRuns;
+    const settle = (s: 'writing' | 'written' | 'greeted' | 'failed', code: string | null = null): void => {
+      if (disposed || (here.get(handle)?.run ?? run) !== run) return;
+      here.delete(handle);
+      here.set(handle, { s, code, run });
+      // The toasts of this tab's life: the oldest go first.
+      for (const old of [...here.keys()].slice(0, Math.max(0, here.size - GREET_HERE_KEPT))) here.delete(old);
+      hereChanged();
+    };
+    settle('writing');
+    await refresh().catch(() => undefined);
+    if (disposed) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    const block = hiBlock(statusOf(fanRef));
+    if (block === 'greeted') {
+      settle('greeted');
+      return done(type, 'noop');
+    }
+    if (block !== null) {
+      settle('failed', 'CG-SEND-BUSY');
+      return refused(type, localError('CG-SEND-BUSY', i18n));
+    }
+    grant();
+    const outcome = await port.batchStart('newcomers', handle, 'hi', undefined, { again, single: true });
+    if (outcome.s === 'ready') {
+      settle('written');
+      return done(type);
+    }
+    const code = outcome.s === 'busy' ? 'CG-OP-TAB-LIMIT' : outcome.code;
+    settle(code === 'CG-GATE-HI' ? 'greeted' : 'failed', code);
+    return refused(type, localError(isCgCode(code) ? code : 'CG-UNKNOWN', i18n));
+  }
+
+  /** The toast's greeting as the result's next part stands: «Отправить» is that part's own send (X59), by the click. */
+  function greetHereState(handle: TargetHandle): GreetHereState | null {
+    const entry = here.get(handle);
+    if (entry === undefined) return null;
+    const view = (s: GreetHereState['s'], text: string | null = null, code: string | null = null): GreetHereState => ({ s, text, code, send: null, open: null });
+    if (entry.s === 'writing' || entry.s === 'greeted') return view(entry.s);
+    const next = entry.s === 'written' ? (batchPort?.batchNext?.(handle) ?? null) : null;
+    if (next === null) return view('failed', null, entry.code ?? 'CG-OP-INTERRUPTED');
+    if (next.part === null) return view('sent', next.text);
+    // «Открыть чат»: the fan's chat with this part in ChatSpace's field, for the person's own Send there.
+    const open: UiAction = { type: 'OpenAndInsertPart', operationId: next.opId, part: next.part };
+    const send = next.send;
+    if (next.waits || send === null) return view('sending', next.text);
+    switch (send.s) {
+      case 'available':
+        return { ...view('ready', next.text), send: { type: 'SendNewcomerGreeting', targetHandle: handle }, open };
+      // Warnings the card's «Отправить всё равно» passes: the fan wrote since, the freshness cannot be told, a colleague talks to them.
+      case 'held-stale':
+      case 'unverified':
+      case 'held-talking': {
+        const warn: Msg = send.s === 'held-stale' ? { key: 'send.heldStale' } : send.s === 'unverified' ? { key: 'send.unverified' } : { key: 'send.talking', params: { names: send.names.join(', ') } };
+        return { ...view('ready', next.text), send: { type: 'SendPart', operationId: next.opId, part: next.part, anyway: true }, open, warn };
+      }
+      // Off for a moment (the pause between sends, the hub's minute) or for a reason the card names: not by this click now.
+      case 'unavailable':
+        return { ...view('ready', next.text, send.code), open };
+      case 'queued':
+      case 'sending':
+      case 'accepted':
+        return view('sending', next.text);
+      case 'sent':
+        return view('sent', next.text);
+      case 'rejected':
+        return { ...view(send.code === 'CG-SEND-PART' ? 'greeted' : 'failed', next.text, send.code), send: send.canRetry ? { type: 'SendNewcomerGreeting', targetHandle: handle } : null, open };
+      case 'uncertain':
+        return { ...view('uncertain', next.text, 'CG-SEND-UNCERTAIN'), open: { type: 'OpenChatToVerify', attemptId: send.attemptId } };
+    }
+  }
+
   return {
     kinds: ['newcomers'],
     getSnapshot: () => cell.get(),
@@ -919,6 +1021,14 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       if (disposed || fanRef === null || hiBlock(statusOf(fanRef)) !== 'greeted') return null;
       return { ...chat, name: rowOf(fanRef)?.name ?? chat.name };
     },
+    greetHere,
+    greetHereState,
+    onGreetHere(listener) {
+      hereListeners.add(listener);
+      return () => {
+        hereListeners.delete(listener);
+      };
+    },
     draftsChanged() {
       if (!disposed) cell.invalidate();
     },
@@ -926,7 +1036,9 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       offBatch?.();
       batchPort = port;
       offBatch = port.onBatch(() => {
-        if (!disposed) cell.invalidate();
+        if (disposed) return;
+        cell.invalidate();
+        if (here.size > 0) hereChanged();
       });
       cell.invalidate();
     },
@@ -940,6 +1052,8 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       if (searchTimer !== null) clock.clearTimer(searchTimer);
       deskListeners.clear();
       directoryListeners.clear();
+      hereListeners.clear();
+      here.clear();
       cell.clear();
     },
   };

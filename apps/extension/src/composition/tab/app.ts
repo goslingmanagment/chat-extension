@@ -334,6 +334,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   let boards: Promise<TabBoards> | null = null;
   /** The boards once they started, for what a toast asks synchronously. */
   let boardsReady: TabBoards | null = null;
+  /** 2026-10-29: the reminders' toasts follow what their «Hi» wrote; the boards tell once they started. */
+  const greetHereListeners = new Set<() => void>();
   const needsBoards = (action: UiAction): boolean =>
     action.type === 'OpenPreview' ||
     action.type === 'GreetNewcomer' ||
@@ -492,6 +494,15 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     i18n,
     clock,
     chatHandle: (chat, conversationRef) => navigationChunk.chatHandle(chat, conversationRef),
+    greetHere: {
+      state: (handle) => boardsReady?.greetHere(handle) ?? null,
+      subscribe(listener) {
+        greetHereListeners.add(listener);
+        return () => {
+          greetHereListeners.delete(listener);
+        };
+      },
+    },
     tab: {
       reload: () => win.location.reload(),
       reloadSurface: (surface) => surfaces?.reload(surface) ?? false,
@@ -844,7 +855,15 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
               const state = ai.workspace.ops.get(opId)?.view.state;
               return state === 'done' || state === 'failed' || state === 'canceled' || state === 'interrupted' ? state : null;
             }, ms),
-        }).then((ready) => (boardsReady = ready)),
+        }).then((ready) => {
+          boardsReady = ready;
+          offs.push(
+            ready.onGreetHere(() => {
+              for (const listener of [...greetHereListeners]) listener();
+            }),
+          );
+          return ready;
+        }),
       (error: unknown) => {
         boards = null;
         logger.error('tab.app', 'a part of the application did not load', { code: 'CG-UI-FAILED', fields: { part: 'boards', name: error instanceof Error ? error.name : typeof error } });

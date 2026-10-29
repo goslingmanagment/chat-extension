@@ -3,7 +3,7 @@
 // state, the chat navigator, the palette's online fans. Loaded with the first of those surfaces; the preview
 // controller is its own entry (`boards-preview`).
 
-export { Surfaces, createChatNavigator, createPageContext } from '@cg/core/application/boards';
+export { Surfaces, createChatNavigator, createPageContext, parseFanHandle } from '@cg/core/application/boards';
 export { createFanPanelController } from '@cg/core/application/fanpanel';
 export { createNewcomersController } from '@cg/core/application/newcomers';
 export { createPaletteDirectory } from '@cg/core/application/preview';
