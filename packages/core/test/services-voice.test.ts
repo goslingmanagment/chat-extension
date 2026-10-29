@@ -1,7 +1,7 @@
 // The voice notes of the background (1.47.0; services/voice/service.ts): the
 // paid take is written before the hub is asked and never asked again by
-// itself; «Проверить» asks again with the same id; a refusal the hub said
-// spent nothing; the state is read until it settles; the MP3 is checked
+// itself; «Проверить» asks again with the same id; a refused first create
+// spent nothing, a refused re-check decides nothing; the MP3 is checked
 // before anyone gets it; a rewrite keeps what was paid for; a restart turns
 // an open create uncertain; another sign-in finds none of the sessions; the
 // page's day allowance (1.49.0) is kept a few seconds and read again once a
@@ -348,6 +348,78 @@ describe('voice notes in the background', () => {
     await flush();
     expect(w.creates.map((create) => create.clientRequestId)).toEqual([uuid(0x805), uuid(0x805)]);
     expect(w.store.stored()[0]!.takes[0]).toMatchObject({ state: 'working', voiceNoteId: 78 });
+  });
+
+  it.each<VoiceFailure>([
+    { error: { code: 'CG-FEATURE-DISABLED' }, reached: 'no' },
+    { error: { code: 'CG-BINDING-NOT-GRANTED' }, reached: 'no' },
+    { error: { code: 'CG-AUTH-REQUIRED', httpStatus: 401 }, reached: 'refused' },
+    { error: { code: 'CG-HUB-REQUEST', httpStatus: 404 }, reached: 'refused' },
+    { error: { code: 'CG-FEATURE-DISABLED', httpStatus: 409 }, reached: 'refused' },
+    { error: { code: 'CG-VOICE-QUOTA', httpStatus: 429 }, reached: 'refused' },
+    { error: { code: 'CG-HUB-TIMEOUT' }, reached: 'unknown' },
+  ])('a failed re-check ($reached, $error.code) keeps the original take uncertain, protected and recoverable by the same id', async (failure) => {
+    const w = world();
+    const session = await withScript(w);
+    const takeId = uuid(0x80e);
+    w.hub.create = () => Promise.reject(new Failed({ error: { code: 'CG-HUB-TIMEOUT' }, reached: 'unknown' }));
+    await w.service.take(TAB, session.sessionId, takeId, SCRIPT, CAUSE);
+    await flush();
+    const original = w.store.stored()[0]!.takes[0]!;
+
+    w.hub.create = () => Promise.reject(new Failed(failure));
+    await w.service.check(TAB, session.sessionId, takeId, CAUSE);
+    await flush();
+    expect(w.store.stored()[0]!.takes).toEqual([{ ...original, error: failure.error }]);
+    // Neither a timer nor clearing local data may lose this take or ask for another paid render.
+    await w.service.clear();
+    await w.tick();
+    expect(w.store.stored()[0]?.takes[0]).toMatchObject({ takeId, state: 'uncertain', voiceNoteId: null, billed: null });
+    expect(w.creates).toHaveLength(2);
+    expect(w.statuses).toHaveLength(0);
+
+    // Access is back: only another human click recovers the billed render, with its original id and script.
+    await w.service.edit(TAB, session.sessionId, 'a different script in the editor');
+    w.hub.create = () => Promise.resolve(note({ state: 'completed', billed: true, audioSha256: sha(MP3), audioBytesLen: MP3.byteLength }));
+    await w.service.check(TAB, session.sessionId, takeId, CAUSE);
+    await flush();
+    expect(w.creates.map((create) => [create.clientRequestId, create.script])).toEqual([[takeId, SCRIPT], [takeId, SCRIPT], [takeId, SCRIPT]]);
+    expect(w.store.stored()[0]!.takes[0]).toMatchObject({ takeId, state: 'ready', billed: true, voiceNoteId: 77, error: null });
+    expect(await w.service.audio(TAB, session.sessionId, takeId)).toMatchObject({ ok: true, audio: { sha256: sha(MP3) } });
+  });
+
+  it.each([
+    { state: 'quota_denied', expected: 'refused' },
+    { state: 'failed_definite', expected: 'failed' },
+  ] as const)('a re-check accepts the hub note’s definite $state verdict for the same request', async ({ state, expected }) => {
+    const original = keptTake(1, { state: 'uncertain', voiceNoteId: null, audio: null, billed: null, error: { code: 'CG-VOICE-UNCERTAIN' } });
+    const session = keptSession(FAN, 0, [original]);
+    const w = world({ store: new MemoryPort().keep([session]) });
+    w.hub.create = () => Promise.resolve(note({ state, billed: false }));
+    await w.service.check(TAB, session.sessionId, original.takeId, CAUSE);
+    await flush();
+    expect(w.creates.map((create) => create.clientRequestId)).toEqual([original.takeId]);
+    expect(w.store.stored()[0]!.takes[0]).toMatchObject({ state: expected, billed: false, voiceNoteId: 77 });
+  });
+
+  it('a refused re-check after a background restart keeps the unanswered create uncertain across another restart', async () => {
+    const original = keptTake(1, { state: 'creating', voiceNoteId: null, audio: null, billed: null });
+    const session = keptSession(FAN, 0, [original]);
+    const store = new MemoryPort().keep([session]);
+    const w = world({ store });
+    w.hub.create = () => Promise.reject(new Failed({ error: { code: 'CG-FEATURE-DISABLED' }, reached: 'no' }));
+    await w.service.resume();
+    await w.tick();
+    expect(w.creates).toHaveLength(0);
+    await w.service.check(TAB, session.sessionId, original.takeId, CAUSE);
+    await flush();
+
+    const next = world({ store });
+    await next.service.resume();
+    await next.service.clear();
+    await next.tick();
+    expect(next.store.stored()[0]?.takes[0]).toMatchObject({ takeId: original.takeId, state: 'uncertain', billed: null, voiceNoteId: null, error: { code: 'CG-FEATURE-DISABLED' } });
+    expect(next.creates).toHaveLength(0);
   });
 
   it('a refusal the hub said spent nothing: refused, never asked again', async () => {

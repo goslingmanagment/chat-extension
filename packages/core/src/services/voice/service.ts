@@ -9,8 +9,9 @@
 // never asked again by itself: an answer that does not come leaves it
 // `uncertain`, and only the person's «Проверить» asks again — with the same
 // id, which the hub answers with the note it already has (or admits once).
-// A refusal the hub states (quota, script, a switch) spent nothing. Reads
-// (status, audio) are free and are repeated with a growing pause.
+// A refusal of the first create (quota, script, a switch) spent nothing. A
+// refused re-check says nothing about the earlier create: only the hub's
+// note can settle it. Reads (status, audio) are free and are repeated with a growing pause.
 //
 // The sessions are the signed-in person's: another sign-in finds none of the
 // previous one's (their notes are not that person's to read).
@@ -65,7 +66,7 @@ export interface VoiceHubPort {
 
 /**
  * How a failed hub call reads: its error, and whether the request reached the hub. `no` — the hub layer refused it
- * itself (a switch, a capability, the page); `refused` — the hub answered a refusal (nothing was admitted or spent);
+ * itself (a switch, a capability, the page); `refused` — the hub refused this request, not a verdict on an earlier one;
  * `unknown` — no answer that says so (a lost connection, a timeout, an unreadable answer, a server failure).
  */
 export interface VoiceFailure {
@@ -334,7 +335,7 @@ export class VoiceService<S> {
       const saved = await this.put({ ...session, script: { ...session.script, edited }, takes: [...session.takes, take] });
       if (!saved.ok) return saved;
       this.inFlight.add(takeId);
-      void this.create(session.sessionId, takeId);
+      void this.create(session.sessionId, takeId, 'initial');
       return saved;
     });
   }
@@ -358,7 +359,7 @@ export class VoiceService<S> {
         const saved = await this.put(withTake(session, { ...take, state: 'creating', error: null }));
         if (!saved.ok) return saved;
         this.inFlight.add(takeId);
-        void this.create(session.sessionId, takeId);
+        void this.create(session.sessionId, takeId, 'check');
         return saved;
       }
       if (take.voiceNoteId !== null) {
@@ -455,7 +456,7 @@ export class VoiceService<S> {
   // ── the hub ──────────────────────────────────────────────────────────────
 
   /** The one create of a take, or the person's second one with the same id. Its answer is written; none is never retried. */
-  private async create(sessionId: string, takeId: string): Promise<void> {
+  private async create(sessionId: string, takeId: string, attempt: 'initial' | 'check'): Promise<void> {
     const session = this.sessions.get(sessionId);
     const take = session?.takes.find((candidate) => candidate.takeId === takeId);
     if (session === undefined || take === undefined) {
@@ -494,13 +495,16 @@ export class VoiceService<S> {
           return { ...current, voiceNoteId: view.voiceNoteId, state: reading.state, error: reading.error, billed: reading.billed, audio: reading.audio };
         }
         const read = failure ?? { error: { code: 'CG-UNKNOWN' }, reached: 'unknown' as const };
-        // A refusal said by the hub (or by our hub layer before any request) spent nothing; anything else may have.
+        // A re-check can be refused before the hub finds the original note. That create may already have been billed:
+        // keep its billing and recovery until the hub returns the note for the same request id.
+        if (attempt === 'check') return { ...current, state: 'uncertain', error: read.error };
+        // A refusal of the first create spent nothing; an unanswered first create may have.
         return read.reached === 'unknown'
           ? { ...current, state: 'uncertain', error: { code: 'CG-VOICE-UNCERTAIN', ...(read.error.detail === undefined ? {} : { detail: read.error.detail }) }, billed: null }
           : { ...current, state: 'refused', error: read.error, billed: false };
       }),
     );
-    this.log(view === null ? 'warn' : 'info', view === null ? 'voice take not admitted' : 'voice take admitted', failure?.error.code, { reached: failure?.reached ?? 'yes' });
+    this.log(view === null ? 'warn' : 'info', view === null ? 'voice take request failed' : 'voice take admitted', failure?.error.code, { reached: failure?.reached ?? 'yes' });
     this.schedulePoll(VOICE_LIMITS.pollMs);
   }
 
