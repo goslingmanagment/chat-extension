@@ -25,7 +25,8 @@ const GROUP_PATH = /^\/messages\/(\d+)$/;
 
 /** «оранж, но не яркий» (the owner, 2026-10-29): the family's terracotta, dimmed for Fansly's list. */
 export const INBOX_DOT_COLOR = '#b9765d';
-const DOT_STYLE = `position:absolute;top:-1px;right:-1px;width:10px;height:10px;box-sizing:border-box;border-radius:50%;background:${INBOX_DOT_COLOR};box-shadow:0 0 0 2px var(--dark-1,#111215);pointer-events:none;z-index:2`;
+/** 8 px in a ring of the page's background: as large as Fansly's own online dot with its border (the owner: «чуть меньше»). */
+const DOT_STYLE = `position:absolute;top:0;right:0;width:8px;height:8px;box-sizing:border-box;border-radius:50%;background:${INBOX_DOT_COLOR};box-shadow:0 0 0 2px var(--dark-1,#111215);pointer-events:none;z-index:2`;
 const WE_STYLE = 'color:var(--font-tint-3,#9da2ad)';
 export const INBOX_WE_TEXT = 'Мы:';
 
