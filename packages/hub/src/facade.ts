@@ -925,8 +925,10 @@ export class ChatExtensionHub implements HubFacade {
    * page not theirs). Refused without `chatter-activity-v1`; never repeated: a lost beat is just lost.
    */
   async activityBeat(request: ActivityBeatRequest): Promise<ActivityBeatResult> {
-    await this.ready;
+    // The input was sampled under this sign-in. Capture it before any await can publish a new person's token.
     const connection = this.ctx.connection('clientActivity');
+    await this.ready;
+    if (!this.ctx.isCurrent(connection)) throw this.ctx.failure('clientActivity', transportFailure('aborted'), connection);
     if (!ActivityBeatRequestSchema.safeParse(request).success) throw this.ctx.failure('clientActivity', transportFailure('contract'), connection);
     const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
     if (!hasCapability(entry.bootstrap.capabilities, 'chatter-activity-v1')) throw new FacadeCheckError('capabilityMissing', 'clientActivity', connection.epoch, 'chatter-activity-v1');

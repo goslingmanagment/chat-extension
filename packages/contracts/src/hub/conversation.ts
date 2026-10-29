@@ -19,7 +19,7 @@ export const ACTIVITY_LIMITS = {
   beatMs: 60_000,
   /** Pages one beat may name (hub CLIENT_ACTIVITY_MAX_PAGES). */
   maxPages: 20,
-  /** The longest idle a beat may say (hub CLIENT_ACTIVITY_MAX_IDLE_MS); older activity goes as this. */
+  /** Hub CLIENT_ACTIVITY_MAX_IDLE_MS; input at or beyond this age is reported as null, never clamped. */
   maxIdleMs: 24 * 60 * 60_000,
 } as const;
 
@@ -32,7 +32,7 @@ export const ActivityBeatRequestSchema = z.strictObject({
     .array(
       z.strictObject({
         pageLabel: PageLabelSchema,
-        /** Milliseconds since the person was last active on this page's tabs; null — not since they opened. */
+        /** Milliseconds since input in this sign-in on this page's tabs; null — none inside the idle window. */
         idleMs: z.nullable(z.int().check(z.gte(0), z.lte(ACTIVITY_LIMITS.maxIdleMs))),
       }),
     )

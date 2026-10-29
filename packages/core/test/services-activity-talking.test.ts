@@ -4,7 +4,7 @@
 // - «В разговоре»: the person themself never shows; a mark that ran out is gone; a mark names its page's fan and the
 //   chat of every account of this browser bound to the page.
 
-import { type ActivityBeatRequest, type InConversationResult } from '@cg/contracts';
+import { ACTIVITY_LIMITS, type ActivityBeatRequest, type InConversationResult } from '@cg/contracts';
 import { talkingKeyOfHandle } from '@cg/contracts/vm';
 import { createTalkingController } from '@cg/core/application/navigation';
 import { ActivityBeat, TalkingMarksService, beatPagesOf, beatTabsOf, talkingMarksOf, type BeatTab } from '@cg/core/services';
@@ -14,6 +14,7 @@ import { FakeClock, settle } from './support/clock';
 
 const NOW = Date.parse('2026-10-24T10:00:00.000Z');
 const INSTANCE = '1b4e28ba-2fa1-11d2-883f-0016d3cca427';
+const SIGNED_IN_AT = NOW - 7 * ACTIVITY_LIMITS.maxIdleMs;
 
 describe('the beat', () => {
   it('a page once, idle from its most recent input over its tabs; a page with no input since its tabs opened says null', () => {
@@ -23,12 +24,38 @@ describe('the beat', () => {
       { pageLabel: 'lora-1', lastInputAt: null },
       { pageLabel: null, lastInputAt: NOW },
     ];
-    expect(beatPagesOf(tabs, NOW)).toEqual([
+    expect(beatPagesOf(tabs, NOW, SIGNED_IN_AT)).toEqual([
       { pageLabel: 'ari-1', idleMs: 20_000 },
       { pageLabel: 'lora-1', idleMs: null },
     ]);
-    // Older than the hub takes: said as the longest it takes.
-    expect(beatPagesOf([{ pageLabel: 'ari-1', lastInputAt: NOW - 3 * 86_400_000 }], NOW)).toEqual([{ pageLabel: 'ari-1', idleMs: 86_400_000 }]);
+  });
+
+  it.each([ACTIVITY_LIMITS.maxIdleMs, ACTIVITY_LIMITS.maxIdleMs + 1, 3 * ACTIVITY_LIMITS.maxIdleMs])('idle for %i ms reports no input, including on later beats', (idleMs) => {
+    const tabs: BeatTab[] = [{ pageLabel: 'ari-1', lastInputAt: NOW - idleMs }];
+    for (const elapsed of [0, ACTIVITY_LIMITS.beatMs, 2 * ACTIVITY_LIMITS.beatMs]) {
+      expect(beatPagesOf(tabs, NOW + elapsed, SIGNED_IN_AT)).toEqual([{ pageLabel: 'ari-1', idleMs: null }]);
+    }
+    expect(beatPagesOf([{ pageLabel: 'ari-1', lastInputAt: NOW - ACTIVITY_LIMITS.maxIdleMs + 1 }], NOW, SIGNED_IN_AT))
+      .toEqual([{ pageLabel: 'ari-1', idleMs: ACTIVITY_LIMITS.maxIdleMs - 1 }]);
+  });
+
+  it('only input after this sign-in counts; invalid or future input cannot hide another tab\'s real input', () => {
+    const signedInAt = NOW - 10_000;
+    expect(beatPagesOf([
+      { pageLabel: 'lora-1', lastInputAt: signedInAt - 1 },
+      { pageLabel: 'lora-1', lastInputAt: signedInAt },
+      { pageLabel: 'ari-1', lastInputAt: NOW - 500 },
+      { pageLabel: 'ari-1', lastInputAt: NOW + 1 },
+      { pageLabel: 'ari-1', lastInputAt: Number.NaN },
+    ], NOW, signedInAt)).toEqual([
+      { pageLabel: 'lora-1', idleMs: null },
+      { pageLabel: 'ari-1', idleMs: 500 },
+    ]);
+    const tabs: BeatTab[] = [{ pageLabel: 'ari-1', lastInputAt: NOW }];
+    expect(beatPagesOf(tabs, NOW, signedInAt)).toEqual([{ pageLabel: 'ari-1', idleMs: 0 }]);
+    for (const unknown of [null, Number.NaN, NOW + 1]) {
+      expect(beatPagesOf(tabs, NOW, unknown)).toEqual([{ pageLabel: 'ari-1', idleMs: null }]);
+    }
   });
 
   it('the first bound tab beats at once; the alarm beats again; the last tab going closes once; a sign-out closes before the token goes', async () => {
@@ -40,6 +67,7 @@ describe('the beat', () => {
       clock,
       hub: () => ({ activityBeat: (request) => Promise.resolve(void sent.push(request)).then(() => ({ recorded: request.pages.length, serverNow: new Date(clock.now()).toISOString() })) }),
       enabled: () => enabled,
+      signedInAt: () => SIGNED_IN_AT,
       instanceId: () => INSTANCE,
       tabs: () => tabs,
     });
@@ -73,6 +101,54 @@ describe('the beat', () => {
     await beat.tabsChanged();
     await beat.beat();
     expect(sent).toHaveLength(5);
+  });
+
+  it.each([false, true])('a new sign-in rejects retained input and waits for this person\'s input (explicit sign-out: %s)', async (signOut) => {
+    const clock = new FakeClock(NOW);
+    const sent: { userId: number; request: ActivityBeatRequest }[] = [];
+    let session: { userId: number; signedInAt: number } | null = { userId: 1, signedInAt: SIGNED_IN_AT };
+    let tabs: BeatTab[] = [{ pageLabel: 'ari-1', lastInputAt: NOW - 1000 }];
+    const deps = {
+      clock,
+      hub: () => ({ activityBeat: (request: ActivityBeatRequest) => {
+        if (session === null) throw new Error('not signed in');
+        sent.push({ userId: session.userId, request });
+        return Promise.resolve({ recorded: request.pages.length, serverNow: new Date(clock.now()).toISOString() });
+      } }),
+      enabled: () => session !== null,
+      signedInAt: () => session?.signedInAt ?? null,
+      instanceId: () => INSTANCE,
+      tabs: () => tabs,
+    };
+    let beat = new ActivityBeat(deps);
+    await beat.tabsChanged();
+    expect(sent[0]).toEqual({ userId: 1, request: { instanceId: INSTANCE, pages: [{ pageLabel: 'ari-1', idleMs: 1000 }] } });
+    if (signOut) {
+      await beat.close();
+      expect(sent.at(-1)).toEqual({ userId: 1, request: { instanceId: INSTANCE, pages: [], closed: true } });
+      session = null;
+      beat.sessionChanged();
+      await beat.tabsChanged();
+    }
+    session = { userId: 2, signedInAt: clock.now() };
+    beat.sessionChanged();
+    const before = sent.length;
+    // Presence still retains A's timestamp. B's first keepalive must open with no active minute.
+    await beat.tabsChanged();
+    expect(sent).toHaveLength(before + 1);
+    expect(sent.at(-1)).toEqual({ userId: 2, request: { instanceId: INSTANCE, pages: [{ pageLabel: 'ari-1', idleMs: null }] } });
+    // A suspended background starts again. The stored sign-in boundary still rejects A's input.
+    beat = new ActivityBeat(deps);
+    await beat.tabsChanged();
+    expect(sent.at(-1)?.request.pages).toEqual([{ pageLabel: 'ari-1', idleMs: null }]);
+    clock.t += 1000;
+    tabs = [{ pageLabel: 'ari-1', lastInputAt: clock.now() }];
+    await beat.beat();
+    expect(sent.at(-1)).toEqual({ userId: 2, request: { instanceId: INSTANCE, pages: [{ pageLabel: 'ari-1', idleMs: 0 }] } });
+    // A later alarm reports the same real input instant, never a new active minute.
+    clock.t += ACTIVITY_LIMITS.beatMs;
+    await beat.beat();
+    expect(sent.at(-1)?.request.pages).toEqual([{ pageLabel: 'ari-1', idleMs: ACTIVITY_LIMITS.beatMs }]);
   });
 
   it("ChatSpace's overview «/» keeps the page the tab was last on — not the pages it lists, not input made on it", () => {
