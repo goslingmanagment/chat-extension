@@ -298,13 +298,13 @@ const CLIENT_CONTEXT_HUB_FEATURES: ReadonlySet<string> = new Set(['fast-reply', 
 /**
  * A request on a platform the hub keeps no archive of carries the chat (`clientContext`) and the fan (`fanRef`); no
  * other carries it. Beside it never the page text, the PPV state, photos, draft media or the window check, never the
- * mass-message Fix or the selling tone (hub `assertTelegramRequestShape`).
+ * mass-message Fix (hub `assertTelegramRequestShape`).
  */
 function clientContextHolds(r: { readonly feature: string; readonly body: AiFeatureStreamBody }): boolean {
   const body = r.body;
   if (!CLIENT_CONTEXT_PLATFORMS[body.platform]) return body.clientContext === undefined;
   if (body.clientContext === undefined || body.fanRef === undefined || body.fanRef === null || !CLIENT_CONTEXT_HUB_FEATURES.has(r.feature)) return false;
-  if (body.draftPurpose !== undefined || body.replyTone === 'upsell') return false;
+  if (body.draftPurpose !== undefined) return false;
   return [body.liveTextContext, body.livePpvContext, body.liveImages, body.coverageCheck, body.draftMedia].every((field) => field === undefined);
 }
 
@@ -344,7 +344,7 @@ export const HubStreamRequestSchema = z
     z.refine((r) => hiStartProofMatches(r.body, r.body.conversationRef), { message: 'start_proof_mismatch' }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),
     // Telegram spec §5.6, §6.2: the hub's own rules of a Telegram page — the chat in `clientContext` and the fan in
-    // `fanRef`, Reply, Fix and Coach only, never the other sites' context beside it, no selling tone (400 otherwise).
+    // `fanRef`, Reply, Fix and Coach only, never the other sites' context beside it or a mass-message Fix (400 otherwise).
     z.refine(clientContextHolds, { message: 'the chat context does not fit the request' }),
     // 1.15.0 (R20 P4b3), the hub's own rules of the site operations (its handler; else 400, or 409 for our narrow
     // token on a page without the switch): the notes fill (both platforms since 2026-10-28, hub#906) and the voice
