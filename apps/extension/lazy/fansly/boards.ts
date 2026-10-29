@@ -3,7 +3,7 @@
 // groups the same source finds — and «Рассылка» with Fansly's own send. This
 // module is Fansly's own lazy entry; none of its registry or host code reaches
 // ChatSpace.
-export { Surfaces, createChatNavigator, createPageContext } from '@cg/core/application/boards';
+export { Surfaces, createChatNavigator, createPageContext, parseFanHandle } from '@cg/core/application/boards';
 export { createFanPanelController } from '@cg/core/application/fanpanel';
 export { createPaletteDirectory } from '@cg/core/application/preview';
 
