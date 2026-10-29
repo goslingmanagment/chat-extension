@@ -21,6 +21,10 @@
 // X59 (the owner, 2026-10-18): the period opens on the one the person chose last (the site remembers it, 12 hours
 // before any choice); a row with a batch's draft has its own «Отправить» — the card's send by one click in the list,
 // with all of its checks (`NewcomerRowVM.send`): generate for many at once, send each by a click.
+// 2026-10-29 (the owner: «Hi прямо в напоминании»): «Hi» of a greeting reminder's toast writes the greeting of its one fan
+// while the person stays in their chat (`greetHere`): the site proves that fan alone (`source.solo`, no window), and a
+// card of its own — never the window's: its reset, period and fan on screen leave it be — writes, sends («Отправить» is
+// the card's `SendNewcomerGreeting`) and opens the chat with the text («Открыть чат»: `InsertNewcomerGreeting`).
 // It names no site; the hub's list (ChatSpace) is ./controller.ts.
 
 import { type FanBadges } from '@cg/contracts/fan-badges';
@@ -48,6 +52,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { filterLeavesTodo, historyReadable, placePassPage, prependHistory, writable } from '../../domain/newcomers/pass';
+import { chatHandle } from '../navigation/chat-handle';
 import { parseFanHandle } from '../boards/handles';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
 import { issueCause } from '../boards/navigate';
@@ -55,7 +60,7 @@ import { type BoardsClock } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused } from '../boards/surface';
 import { dataView, failureView, loadingView, localError, msg, reason, stamp } from '../boards/views';
-import { type GreetChat, type GreetedChat, type NewcomersController } from './controller';
+import { type GreetChat, type GreetedChat, type GreetHereState, type NewcomersController } from './controller';
 import { createFanBadgeStore, type FanBadgesRead } from '../boards/badges';
 import { batchDispatch, createBatch, isBatchAction } from '../boards/batch';
 import { createCardGreeting, type PassGreetingDeps } from './greeting';
@@ -93,6 +98,27 @@ export interface PassNewcomersDeps {
   /** 2026-10-28: the new followers' badges (boards/badges.ts); absent — none. */
   readonly badges?: FanBadgesRead;
 }
+
+/** 2026-10-29: the greeting a reminder's «Hi» writes for its one fan in the toast (`greetHere`). */
+interface Solo {
+  readonly fanRef: string;
+  /** The fan's pass of its own in the background (`source.solo`); null — not proved yet. */
+  passId: string | null;
+  row: PassRow | null;
+  /** A click of the toast is under way: the check of the fan, the draft, the generation. */
+  busy: boolean;
+  /** The check of the fan runs. */
+  proving: boolean;
+  /** Why the check of the fan gave nothing to greet; null — it did not fail. */
+  failure: NewcomersFailureVM | null;
+  /** The toast's «Отправить» found the fan greeted already (a colleague, an earlier send): nothing went by it. */
+  part: boolean;
+}
+
+/** Fans whose reminder's greeting the tab keeps at once (a toast's lifetime each): the oldest idle one goes. */
+const SOLOS_KEPT = 16;
+/** A refusal a plain «Отправить» again cannot get past: the chat changed, the fan is nobody's to greet now, the pass is gone. */
+const SEND_SPENT: ReadonlySet<string> = new Set(['CG-FNEW-HISTORY', 'CG-CONTEXT-CHANGED', 'CG-FNEW-UNVERIFIED', 'CG-FNEW-DM-CLOSED', 'CG-FNEW-ACCOUNT', 'CG-SEND-PART']);
 
 /** The selected fan's conversation, per pass. */
 interface History {
@@ -189,6 +215,26 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   const badges = createFanBadgeStore({ read: deps.badges ?? null, clock, onChange: () => { if (!disposed) cell.invalidate(); } });
   const greetingSource = source.greeting;
   const card = deps.greeting === undefined || greetingSource === undefined ? null : createCardGreeting({ greeting: deps.greeting, source: greetingSource, i18n, clock, context, surfaces, changed });
+  /** 2026-10-29: the reminders' greetings by fan, and who hears them change (the toast). */
+  const solos = new Map<string, Solo>();
+  const hereListeners = new Set<() => void>();
+  /** Grows with every identity: a late answer of a reminder's Hi of an older one is nobody's. */
+  let soloRun = 0;
+  const soloChanged = (): void => {
+    if (disposed) return;
+    for (const listener of [...hereListeners]) {
+      try {
+        listener();
+      } catch {
+        // A toast that failed to read it is its own: the greeting goes on.
+      }
+    }
+  };
+  /** The reminders' greetings: a card of their own over each fan's pass of its own — never the window's card. */
+  const soloCard =
+    deps.greeting === undefined || greetingSource === undefined || source.solo === undefined
+      ? null
+      : createCardGreeting({ greeting: deps.greeting, source: greetingSource, i18n, clock, context, surfaces, changed: soloChanged });
   /** 1.32.0: the batch of Hi over the pass's rows, through each fan's card; nothing is sent by it. */
   const batch = createBatch({
     clock,
@@ -578,6 +624,193 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     return source.handover(fan.pageId, fan.fanRef, issued.cause).catch(() => false);
   }
 
+  // ── «Hi» inside a greeting reminder (2026-10-29) ──
+
+  /** The reminder's greeting of a fan of this tab's page (a fan handle of «Новые»); null — another page's, or none. */
+  function soloFan(handle: TargetHandle): string | null {
+    const fan = parseFanHandle(handle);
+    const binding = context.current().binding;
+    return fan === null || fan.source !== 'newcomers' || binding === null || fan.pageId !== binding.pageId ? null : fan.fanRef;
+  }
+
+  function soloOf(fanRef: string): Solo {
+    let solo = solos.get(fanRef);
+    if (solo === undefined) {
+      solo = { fanRef, passId: null, row: null, busy: false, proving: false, failure: null, part: false };
+      solos.set(fanRef, solo);
+      for (const [key, old] of solos) {
+        if (solos.size <= SOLOS_KEPT) break;
+        if (!old.busy) solos.delete(key);
+      }
+    }
+    return solo;
+  }
+
+  /** The reminder's greeting of a toast's handle: the card's `SendNewcomerGreeting` / `InsertNewcomerGreeting` of its pass. */
+  function soloAt(handle: TargetHandle): Solo | null {
+    const parsed = parsePassHandle(handle);
+    const solo = parsed === null ? undefined : solos.get(parsed.fanRef);
+    return solo !== undefined && solo.passId !== null && solo.passId === parsed?.passId ? solo : null;
+  }
+
+  /**
+   * «Hi» of a greeting reminder's toast (`again` — its «Ещё вариант»): the fan is proved alone (`source.solo`; its click
+   * may make the fan's chat, once), the draft read, then one greeting written into the fan's own card — `grant` opens
+   * the click's grant of the generation right before its token. A greeting written for the fan before (an earlier Hi,
+   * the window's card) is shown as it is; one that went or may have gone is never written over from the toast.
+   */
+  async function greetHere(handle: TargetHandle, again: boolean, grant: () => void): Promise<ActionReceipt> {
+    const type = 'GreetNewcomer';
+    const fanRef = soloFan(handle);
+    const creator = context.current().account?.hostAccountId ?? null;
+    if (disposed || fanRef === null || creator === null) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    if (soloCard === null || source.solo === undefined || !usable()) return refused(type, localError('CG-FEATURE-DISABLED', i18n));
+    const solo = soloOf(fanRef);
+    const before = solo.passId === null ? null : soloCard.stateOf(solo.passId, fanRef);
+    if (solo.busy || before?.s === 'sending' || before?.s === 'generating') return refused(type, localError('CG-SEND-BUSY', i18n));
+    // Gone out, or unknown whether it went: the toast's «Открыть чат» shows the chat.
+    if (before?.s === 'sent' || before?.s === 'uncertain') return done(type, 'noop');
+    const mine = soloRun;
+    const late = (): boolean => disposed || mine !== soloRun;
+    solo.busy = true;
+    solo.proving = true;
+    solo.failure = null;
+    solo.part = false;
+    soloChanged();
+    try {
+      const followed = Date.parse(rowOf(fanRef)?.followedAt ?? '');
+      const proved = await source.solo(creator, fanRef, { create: true, ...(Number.isFinite(followed) ? { followedAt: followed } : {}) });
+      if (late()) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+      solo.proving = false;
+      if (!proved.ok) {
+        solo.failure = proved.failure;
+        return refused(type, localError(sharedCode(proved.failure), i18n));
+      }
+      const { passId, row } = proved.value;
+      solo.passId = passId;
+      solo.row = row;
+      if (row.check === 'greeted') return done(type, 'noop');
+      if (row.check === 'dm-closed' || row.check === 'excluded') return refused(type, localError('CG-DATA-UNAVAILABLE', i18n));
+      if ((row.check !== 'ready' && row.check !== 'reply') || row.conversationRef === null || (row.historyRevision ?? null) === null) {
+        solo.failure = { code: 'CG-FNEW-UNVERIFIED', retryAt: null };
+        return refused(type, localError('CG-DATA-UNAVAILABLE', i18n));
+      }
+      // The fan's draft first: what was written for them before stands.
+      const ready = await soloCard.ready(passId, fanRef);
+      if (late()) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+      const now = soloCard.stateOf(passId, fanRef);
+      if (now?.s === 'sent' || now?.s === 'uncertain') return done(type, 'noop');
+      if (!ready) return refused(type, localError('CG-RUNTIME-UNREACHABLE', i18n));
+      const written = soloCard.batchLive(passId, fanRef)?.text ?? null;
+      if (!again && written !== null) {
+        soloCard.calm(passId, fanRef);
+        return done(type, 'noop');
+      }
+      return await soloCard.here(passId, row, grant);
+    } catch {
+      if (late()) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+      solo.failure = { code: 'CG-RUNTIME-UNREACHABLE', retryAt: null };
+      return refused(type, localError('CG-RUNTIME-UNREACHABLE', i18n));
+    } finally {
+      if (!late()) {
+        solo.busy = false;
+        solo.proving = false;
+        soloChanged();
+      }
+    }
+  }
+
+  function onGreetHere(listener: () => void): () => void {
+    hereListeners.add(listener);
+    return () => {
+      hereListeners.delete(listener);
+    };
+  }
+
+  /** What the toast shows of a fan's reminder's greeting now; null — no Hi was pressed for this fan of this page. */
+  function greetHereState(handle: TargetHandle): GreetHereState | null {
+    const fanRef = soloFan(handle);
+    const solo = fanRef === null ? undefined : solos.get(fanRef);
+    return solo === undefined ? null : hereOf(solo);
+  }
+
+  /**
+   * The reminder's greeting as the toast shows it: the check of the fan or the generation — `writing`; a text the card
+   * may send — `ready` with «Отправить» (the card's `SendNewcomerGreeting`); `sending`; `sent`; the fan greeted by
+   * someone (the pass, the history read again, a send that found it) — `greeted`; a refusal — `failed` with its code
+   * («Отправить» again only past a refusal a click can get past); an unknown outcome — `uncertain`, never sent from here.
+   * «Открыть чат»: the card's text into the fan's chat (`InsertNewcomerGreeting`) while the card may put it there, else
+   * the chat to look at; null — no chat known (the toast's old Hi finds it).
+   */
+  function hereOf(solo: Solo): GreetHereState {
+    const binding = context.current().binding;
+    const { passId, row, fanRef } = solo;
+    const state = soloCard === null || passId === null ? null : soloCard.stateOf(passId, fanRef);
+    const vm = soloCard === null || passId === null || row === null ? null : soloCard.vm(passId, row);
+    const text = vm === null || vm.text.trim() === '' ? null : vm.text;
+    const handle = passId === null ? null : passHandle(passId, fanRef);
+    const conversationRef = row?.conversationRef ?? null;
+    const look: UiAction | null = binding === null || conversationRef === null ? null : { type: 'Navigate', to: { kind: 'chat', targetHandle: chatHandle({ hostAccountId: binding.hostAccountId, platformFanId: fanRef }, conversationRef) } };
+    const insert: UiAction | null = handle !== null && vm?.canInsert === true ? { type: 'InsertNewcomerGreeting', targetHandle: handle } : null;
+    const send: UiAction | null = handle !== null && vm?.canSend === true ? { type: 'SendNewcomerGreeting', targetHandle: handle } : null;
+    const at = (s: GreetHereState['s'], more: Partial<GreetHereState> = {}): GreetHereState => ({ s, text: null, code: null, send: null, open: look, ...more });
+    if (solo.proving) return at('writing');
+    if (solo.failure !== null) return solo.failure.code === 'CG-SEND-PART' ? at('greeted') : at('failed', { code: solo.failure.code });
+    if (state?.s === 'sent') return solo.part ? at('greeted') : at('sent', { text });
+    if (row === null) return solo.busy ? at('writing') : at('failed');
+    if (row.check === 'greeted') return at('greeted');
+    if (row.check === 'dm-closed' || row.check === 'excluded') return at('failed', { code: 'CG-FNEW-DM-CLOSED' });
+    switch (state?.s) {
+      case 'generating':
+        return at('writing');
+      case 'sending':
+        return at('sending', { text });
+      case 'uncertain':
+        return at('uncertain', { text, code: state.failure.code });
+      case 'not-drafted':
+      case 'refused': {
+        const code = state.failure.code;
+        if (code === 'CG-SEND-PART') return at('greeted');
+        return at('failed', { text, code, send: SEND_SPENT.has(code) ? null : send, open: insert ?? look });
+      }
+      // In the site's field for the person's own send there: no «Отправить» of ours beside it.
+      case 'inserted':
+        return at('ready', { text, open: insert ?? look });
+      case 'idle':
+      case undefined:
+        if (text !== null) return at('ready', { text, send, open: insert ?? look });
+        return solo.busy ? at('writing') : at('failed');
+    }
+  }
+
+  /** The toast's «Отправить» and «Открыть чат»: the card's own actions over the fan's pass of its own. */
+  function soloDispatch(action: Extract<UiAction, { readonly targetHandle: TargetHandle }>, solo: Solo): Promise<ActionReceipt> {
+    const type = action.type;
+    if (type !== 'SendNewcomerGreeting' && type !== 'InsertNewcomerGreeting') return stale(type);
+    if (soloCard === null || solo.passId === null || solo.row === null) return stale(type);
+    if (solo.busy) return Promise.resolve(refused(type, localError('CG-SEND-BUSY', i18n)));
+    const before = soloCard.stateOf(solo.passId, solo.fanRef)?.s;
+    const going = soloCard.dispatch(action, solo.passId, solo.row);
+    if (going === null) return stale(type);
+    return going.then((receipt) => {
+      // Nothing went by this click: the fan was greeted already (a colleague, an earlier send).
+      if (type === 'SendNewcomerGreeting' && !receipt.ok && receipt.code === 'CG-SEND-PART' && before !== 'sent') solo.part = true;
+      soloChanged();
+      return receipt;
+    });
+  }
+
+  /** Another sign-in, account or binding, or «Новые» switched off: the reminders' greetings and their late answers go. */
+  function forgetSolos(): void {
+    soloRun += 1;
+    solos.clear();
+    soloCard?.reset();
+    soloChanged();
+  }
+
+  /** A generation of a reminder's greeting: its end is the toast's, never an «AI готово» of its own. */
+  const soloOwns = (opId: string): boolean => soloCard !== null && (soloCard.fromCard(opId) || soloCard.fromBatch(opId));
+
   /**
    * `first` — the first page, once; `older` — the page before the oldest shown («Более ранние сообщения»); `again` —
    * «Повторить загрузку»: the older page when that is what failed, else the newest again.
@@ -962,6 +1195,9 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     if (action.type === 'SetPreviewDraft' || action.type === 'Generate' || action.type === 'SendNewcomerGreeting' || action.type === 'InsertNewcomerGreeting') {
       // R20 P10c: the card's greeting; a handle that is not the pass's is a preview's or the dock's.
       if (parsePassHandle(action.targetHandle) === null) return null;
+      // 2026-10-29: a reminder's greeting in its toast — its own card, never the window's.
+      const solo = soloAt(action.targetHandle);
+      if (solo !== null) return soloDispatch(action, solo);
       const fanRef = own(action.targetHandle);
       const row = fanRef === null ? null : rowOf(fanRef);
       if (row === null || pass === null || card === null) return stale(type);
@@ -1005,6 +1241,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
   const offs: (() => void)[] = [
     source.onChange(heard),
     source.onReconnect(() => {
+      // The reminders' greetings read their drafts and attempts again, whatever the window does.
+      soloCard?.refresh();
       // A closed window reads nothing (a read would hold the pass for it again): the next open reads what is on screen.
       if (!open()) return;
       card?.refresh();
@@ -1019,11 +1257,14 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
         epoch = state.epoch;
         account = creator;
         letGo(true);
+        forgetSolos();
         badges.reset();
         changed();
         if (open()) void start();
         return;
       }
+      // The owner's switch went off on the page: the reminders' greetings go too.
+      if (state.phase === 'ready' && !pageFlag(state, 'newcomers') && solos.size > 0) forgetSolos();
       if (state.phase === 'ready' && !pageFlag(state, 'newcomers') && stage !== 'idle') {
         // The owner's switch went off on the page: the pass is let go, nothing more is read. (A context blocked while
         // the port is down keeps what is shown; the port's return reads it again.)
@@ -1062,14 +1303,18 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     greetChat,
     greetedNow,
     greetElsewhere,
+    ...(soloCard === null ? {} : { greetHere, greetHereState, onGreetHere }),
     draftsChanged: () => undefined,
-    fromBatch: (opId) => card?.fromBatch(opId) ?? false,
-    inCard: (opId) => open() && (card?.fromCard(opId) ?? false),
+    fromBatch: (opId) => (card?.fromBatch(opId) ?? false) || soloOwns(opId),
+    inCard: (opId) => (open() && (card?.fromCard(opId) ?? false)) || soloOwns(opId),
     dispose() {
       disposed = true;
       batch.dispose();
       badges.dispose();
       card?.dispose();
+      soloCard?.dispose();
+      solos.clear();
+      hereListeners.clear();
       for (const off of offs.splice(0)) off();
       if (pass !== null) source.close(pass.passId);
       if (searchTimer !== null) clock.clearTimer(searchTimer);

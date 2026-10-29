@@ -571,6 +571,21 @@ export const FANSLY_TAB_REQUESTS = {
     hosts: FANSLY,
   },
   /**
+   * 1.68.0 (the owner, 2026-10-29: «Hi прямо в напоминании»): «Hi» of a greeting reminder's toast proves ONE new follower
+   * alone, with no window and no other fan: what the window's pass or this browser already proved of the fan, else the
+   * window's own check of the fan's chat (the inbox's first page, the participants' fence, the history to its empty page)
+   * and the fan's profile. `create` — the person's click itself: a fan with no chat to be found gets `POST /group`
+   * (get-or-create by identity, as the toast's Hi did before), once, never repeated. The answer is the fan's row in a
+   * pass of its own (`passId`) that the card's requests take as a window's (`fansly.followers.{proof,recheck,draft,send,
+   * sent}`); refused at once while the creator cools down (`CG-FAN-RATE-LIMIT` with `retryAt`), never waited out.
+   */
+  'fansly.greet.solo': {
+    req: z.strictObject({ hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, followedAt: z.optional(EpochMsSchema), create: z.optional(z.literal(true)) }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), passId: UuidSchema, row: FanslyFollowerRowSchema }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
    * 1.15.0 R20 P10c (NF-012, FS-NEW-6): the card's draft — read without `text`, written with it (an empty one clears
    * it). The background keeps it per creator and fan (the shared `newcomers.drafts`, at most 7 days) and knows its revision at
    * the send's final check.

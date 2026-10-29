@@ -4,11 +4,14 @@
 
 import { FANSLY_TAB_REQUESTS, FANSLY_TAB_EVENTS, type FanslyFollowerRow, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 import { StartProofV1Schema } from '@cg/contracts/fansly';
+import { type FanslyGreetingRequest } from '@cg/contracts/send-fansly';
 import { FanslyGreetingProofSchema } from '@cg/contracts/tab-messages-fansly';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rules';
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
+import { createFanslyGreeting } from './greeting';
+import { type FanslySendStart } from './send';
 import { COOLING_LOOK_MS, KNOWN_FLUSH_MS, NEWCOMERS_KNOWN_PREFIX, READY_FRESH_MS, RECHECK_DELAY_MS, SESSION_LOOK_MS, WATCH_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
@@ -965,5 +968,162 @@ describe('[host:fansly] «Новые» loading (2026-10-27: «открывает
     expect(t.world.calls.some((call) => call.query?.['groupId'] === greetedChat.id || call.path?.['group'] === greetedChat.id)).toBe(false);
     const done = await t.ask('fansly.followers.read', { passId, offset: 0, limit: 100, query: { search: '', tab: 'todo', filter: 'any' } });
     expect(done.rows.map((row) => row.fanRef)).toEqual([newest, older]);
+  });
+});
+
+describe('[host:fansly] «Hi» inside a greeting reminder: its one fan, proved alone (2026-10-29)', () => {
+  const SOLO = FANSLY_TAB_REQUESTS['fansly.greet.solo'];
+  const solo = async (t: ReturnType<typeof setup>, fanRef: string, create = true, tab = TAB) => {
+    const payload = { hostAccountId: C, fanRef, ...(create ? { create: true as const } : {}) };
+    expect(SOLO.req.safeParse(payload).success).toBe(true);
+    const answer = await t.service.solo(payload, tab);
+    expect(SOLO.res.safeParse(answer).success, 'fansly.greet.solo answer').toBe(true);
+    return answer;
+  };
+  const passOf = (answer: Awaited<ReturnType<typeof solo>>): string => {
+    if (!answer.ok) throw new Error(answer.error.code);
+    return answer.passId;
+  };
+
+  it('[2026-10-29] checks the fan alone, as the window would: the inbox’s first page names the chat, its history to the start, the profile — nobody else is asked, no window hears it; its own pass gives the greeting’s proof', async () => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(3), { name: 'Ann' });
+    const chat = t.world.chat(fan, [{ from: 'model', content: 'Thanks for the follow' }]);
+    const other = t.world.follow(2, T0 - minutes(4));
+    const otherChat = t.world.chat(other, [{ from: 'fan', content: 'hi' }]);
+    const answer = await solo(t, fan);
+    expect(answer).toMatchObject({ ok: true, row: { fanRef: fan, groupId: chat.id, status: 'ready', username: 'fan_1', displayName: 'Ann', historyRevision: expect.any(String) } });
+    const passId = passOf(answer);
+    expect(t.creates()).toEqual([]);
+    expect(t.routes()).not.toContain('followers.new');
+    expect(t.world.calls.some((call) => call.query?.['groupId'] === otherChat.id || call.path?.['group'] === otherChat.id)).toBe(false);
+    expect(t.world.calls.filter((call) => call.route === 'account.byIds').map((call) => call.query?.['ids'])).toEqual([fan]);
+    // The chat's reads are the greeting's: one attempt, refused at once by a cooldown.
+    expect(t.world.calls.filter((call) => call.route === 'message.history').every((call) => call.click === true)).toBe(true);
+    expect(t.heard).toEqual([]);
+    const proof = t.service.greetingProof(passId, fan, TAB);
+    expect(proof.ok && proof.proof.groupId).toBe(chat.id);
+    // Asked again while fresh: the same pass, no request.
+    const calls = t.world.calls.length;
+    expect(passOf(await solo(t, fan))).toBe(passId);
+    expect(t.world.calls.length).toBe(calls);
+    // No window's request reaches it, and a tab of another account gets nothing of it.
+    expect(await t.ask('fansly.followers.read', { passId, offset: 0, limit: 10 })).toEqual({ pass: null, rows: [], total: 0 });
+    const elsewhere = setup({ tabOn: (tab) => tab !== OTHER_TAB });
+    expect(await elsewhere.service.solo({ hostAccountId: C, fanRef: fan, create: true }, OTHER_TAB)).toEqual({ ok: false, error: { code: 'CG-FNEW-ACCOUNT' } });
+    expect(t.service.row(passId, fan, TAB)).not.toBeNull();
+    t.service.dispose();
+    expect(t.service.row(passId, fan, TAB)).toBeNull();
+  });
+
+  it('[2026-10-29] a fan with no chat to be found: only the click’s own request makes it, once — a failed `POST /group` is never asked again by itself', async () => {
+    const t = setup();
+    const fan = t.world.follow(1, T0 - minutes(3));
+    expect(await solo(t, fan, false)).toEqual({ ok: false, error: { code: 'CG-FNEW-UNVERIFIED' } });
+    expect(t.creates()).toEqual([]);
+    expect(await solo(t, fan)).toMatchObject({ ok: true, row: { status: 'ready', groupId: expect.any(String) } });
+    expect(t.creates()).toEqual([fan]);
+
+    const unlucky = t.world.follow(2, T0 - minutes(4));
+    t.world.failures.set('group.create', new ApiError('network', 'CG-FAN-NETWORK'));
+    expect(await solo(t, unlucky)).toEqual({ ok: false, error: { code: 'CG-FAN-NETWORK' } });
+    await vi.advanceTimersByTimeAsync(RECHECK_DELAY_MS * 10);
+    expect(t.creates()).toEqual([fan, unlucky]);
+  });
+
+  it('[2026-10-29] never waits out a cooldown, and takes what the window proved without a request: «Уже писали», a fresh «Не писали»; an aged one is read again before the next greeting', async () => {
+    const cold = setup();
+    const lone = cold.world.follow(1, T0 - minutes(3));
+    const until = Date.now() + 90_000;
+    cold.world.setCooling(until);
+    expect(await solo(cold, lone)).toEqual({ ok: false, error: { code: 'CG-FAN-RATE-LIMIT', retryAt: until } });
+    expect(cold.world.calls).toEqual([]);
+
+    const t = setup();
+    const greeted = t.world.follow(1, T0 - minutes(5));
+    t.world.chat(greeted, [{ from: 'fan', content: 'hi' }, { from: 'model', content: 'hey you' }]);
+    const fresh = t.world.follow(2, T0 - minutes(6));
+    const freshChat = t.world.chat(fresh, [{ from: 'fan', content: 'hello?' }]);
+    await t.scan();
+    await t.settle();
+    t.world.setCooling(until);
+    const calls = t.world.calls.length;
+    expect(await solo(t, greeted)).toMatchObject({ ok: true, row: { status: 'greeted' } });
+    expect(await solo(t, fresh)).toMatchObject({ ok: true, row: { status: 'ready', groupId: freshChat.id } });
+    expect(t.world.calls.length).toBe(calls);
+    // The check aged: the fan's chat is read again before the next greeting (no inbox, no `POST /group`).
+    t.world.setCooling(0);
+    await vi.advanceTimersByTimeAsync(READY_FRESH_MS + 1);
+    const before = t.world.calls.length;
+    const again = await solo(t, fresh);
+    expect(again).toMatchObject({ ok: true, row: { status: 'ready', groupId: freshChat.id } });
+    expect(t.world.calls.slice(before).map((call) => call.route)).toContain('message.history');
+    expect(t.world.calls.slice(before).map((call) => call.route)).not.toContain('messaging.groups');
+    expect(t.world.calls.slice(before).map((call) => call.route)).not.toContain('group.create');
+  });
+
+  it('[2026-10-29] the card’s send takes the solo’s row as a window’s: the history read again before the custody, a colleague’s greeting refuses it; one that went makes the fan «Уже писали» — for the book and the reminder’s next minute', async () => {
+    const t = setup({ tabOn: (tab) => tab !== OTHER_TAB });
+    const fan = t.world.follow(1, T0 - minutes(3));
+    const chat = t.world.chat(fan, [{ from: 'model', content: 'Thanks for the follow' }]);
+    const late = t.world.follow(2, T0 - minutes(4));
+    const lateChat = t.world.chat(late, [{ from: 'model', content: 'Thanks for the follow' }]);
+    const sends: FanslySendStart[] = [];
+    const page = { pageId: 13, pageLabel: 'lora-fansly', flagRevision: 4 };
+    const greeting = createFanslyGreeting({
+      newcomers: t.service,
+      send: {
+        send(start) {
+          sends.push(start);
+          return Promise.resolve({ attemptId: start.request.attemptId, fanRef: start.request.fanRef, state: 'sent', proof: 'echo', platformMessageId: '830000000000000001' });
+        },
+        native: () => Promise.resolve('registered'),
+        onChange: () => () => undefined,
+        status: () => Promise.resolve(null),
+        latest: () => Promise.resolve([]),
+      },
+      local: t.kv.open(),
+      session: () => ({ hubOrigin: 'https://hub.example.test', userId: 7 }),
+      page: (creator, tab) => Promise.resolve(creator === C && tab === TAB ? { ok: true, page } : { ok: false, code: 'CG-BINDING-NOT-GRANTED' }),
+      generation: () => null,
+      tabOn: (tab, creator) => tab === TAB && creator === C,
+      now: () => Date.now(),
+    });
+    const go = async (fanRef: string, groupId: string, tab = TAB) => {
+      const answer = await solo(t, fanRef);
+      if (!answer.ok) throw new Error(answer.error.code);
+      const written = (await greeting.answer('fansly.followers.draft', { passId: answer.passId, fanRef, text: 'Hey you, welcome!' }, TAB)) as FanslyTabResponsePayload<'fansly.followers.draft'>;
+      if (!written.ok) throw new Error(written.error.code);
+      const request: FanslyGreetingRequest = { attemptId: `00000000-0000-4000-8000-0000000a${fanRef.slice(-4)}`, passId: answer.passId, hostAccountId: C, fanRef, groupId, text: 'Hey you, welcome!', draftRevision: written.draft.revision, historyRevision: answer.row.historyRevision ?? '', admission: { kind: 'own' }, cause: { kind: 'click', actionToken: 'a'.repeat(32) } };
+      return { passId: answer.passId, sent: (await greeting.answer('fansly.followers.send', request, tab)) as FanslyTabResponsePayload<'fansly.followers.send'> };
+    };
+
+    // A colleague greets the fan after the Hi: the history read again before the custody finds it — nothing goes.
+    const answer = await solo(t, late);
+    if (!answer.ok) throw new Error(answer.error.code);
+    lateChat.messages.push({ id: sf(Date.now()), senderId: C, type: 1, content: 'hey babe 💕', correlationId: null, inReplyTo: null });
+    const written = (await greeting.answer('fansly.followers.draft', { passId: answer.passId, fanRef: late, text: 'Hey you, welcome!' }, TAB)) as FanslyTabResponsePayload<'fansly.followers.draft'>;
+    if (!written.ok) throw new Error(written.error.code);
+    expect(await greeting.answer('fansly.followers.send', { attemptId: '00000000-0000-4000-8000-0000000a0001', passId: answer.passId, hostAccountId: C, fanRef: late, groupId: lateChat.id, text: 'Hey you, welcome!', draftRevision: written.draft.revision, historyRevision: answer.row.historyRevision ?? '', admission: { kind: 'own' }, cause: { kind: 'click', actionToken: 'a'.repeat(32) } }, TAB)).toEqual({ ok: false, error: { code: 'CG-SEND-PART' } });
+    expect(sends).toEqual([]);
+
+    // A tab of another account sends nothing for it.
+    const { passId, sent } = await go(fan, chat.id, OTHER_TAB);
+    expect(sent).toEqual({ ok: false, error: { code: 'CG-CONTEXT-CHANGED' } });
+    expect(sends).toEqual([]);
+
+    const ok = await go(fan, chat.id);
+    expect(ok.passId).toBe(passId);
+    expect(ok.sent).toMatchObject({ ok: true, attempt: { state: 'sent' } });
+    expect(sends.map((start) => [start.request.passId, start.request.groupId])).toEqual([[passId, chat.id]]);
+    expect(t.service.row(passId, fan, TAB)?.view.status).toBe('greeted');
+    expect(t.service.live(passId, fan)).toBeNull();
+    await vi.advanceTimersByTimeAsync(KNOWN_FLUSH_MS + 1);
+    expect(t.kv.read<{ fans: Record<string, { p?: unknown }> }>(`${NEWCOMERS_KNOWN_PREFIX}${C}`)?.fans[fan]?.p).toBe('sent');
+    // The reminder's next minute: greeted, with no request.
+    const calls = t.world.calls.length;
+    expect(Object.fromEntries(await t.service.remind(C, [{ fanRef: fan, followedAt: T0 - minutes(3) }]))).toEqual({ [fan]: { s: 'greeted' } });
+    expect(t.world.calls.length).toBe(calls);
+    greeting.dispose();
   });
 });

@@ -13,18 +13,21 @@
 // приветствия» in the accent, the name, «@handle · 11 мин назад»; «Hi» filled in the accent, «Позже» beside it.
 // 1.62.0: in a tab of another model the accent line names the fan's model — «Ждёт приветствия · {модель}».
 // 2026-10-29 (the owner: «третий красный через 15»): the fan's last reminder is red — the frame, the accent line and «Hi».
+// 2026-10-29 (the owner chose «Hi прямо в напоминании»): what «Hi» wrote stands in the card — «Пишу приветствие…», then the
+// greeting as an AI draft (dashed, serif) with «Отправить» filled, «Ещё вариант» and «Открыть чат»; a line under it says
+// «Отправляю…», «Отправлено», why it did not go, or that somebody greeted the fan already.
 
 import { type JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 
-import { type ToastVM } from '@cg/contracts/vm';
+import { type GreetCardVM, type ToastVM } from '@cg/contracts/vm';
 
 import { useDispatch, useI18n, useKit, useView } from '../context';
 import { LAYERS } from '../layers';
 import { ActionButton, Button } from './Button';
 import { CodeLine, CopyCodeButton, technicalLine } from './ErrorCard';
 import { Icon } from './Icon';
-import { Dot } from './Indicators';
+import { Dot, Spinner } from './Indicators';
 import { Age, useCountdownText } from './Values';
 
 /** At most three on screen (ui-design §3.9). */
@@ -62,6 +65,52 @@ function GreetAvatar({ name, url }: { readonly name: string; readonly url: strin
   );
 }
 
+/** «Открыть чат» of what «Hi» wrote: the fan's chat with it in the field, the chat to check, or the old «Hi». */
+const opensChat = (action: ToastVM['actions'][number]['action']): boolean =>
+  action.type === 'OpenAndInsertPart' || action.type === 'InsertNewcomerGreeting' || action.type === 'OpenChatToVerify' || (action.type === 'GreetNewcomer' && action.here !== true);
+
+/** What «Hi» wrote in the reminder: the greeting and the line of its state. */
+function GreetCard({ card }: { readonly card: GreetCardVM }): JSX.Element {
+  const i18n = useI18n();
+  if (card.s === 'writing') {
+    return (
+      <div class="cg-toast__state" data-cg-greet="writing">
+        <Spinner />
+        {i18n.t('toast.greetWriting')}
+      </div>
+    );
+  }
+  const line =
+    card.s === 'sending'
+      ? i18n.t('toast.greetSending')
+      : card.s === 'sent'
+        ? i18n.t('toast.greetSent')
+        : card.s === 'greeted'
+          ? i18n.t('toast.greetGreetedHere')
+          : card.s === 'uncertain'
+            ? i18n.t('toast.greetUncertain')
+            : card.s === 'failed'
+              ? card.why === null
+                ? i18n.t('toast.greetFailed')
+                : `${i18n.t('toast.greetFailed')}: ${card.why}`
+              : card.why;
+  return (
+    <>
+      {card.text === null ? null : (
+        <div class="cg-toast__draft" data-cg-greet={card.s}>
+          {card.text}
+        </div>
+      )}
+      {line === null ? null : (
+        <div class={`cg-toast__state is-${card.s}`}>
+          {card.s === 'sending' ? <Spinner /> : card.s === 'sent' ? <Icon name="check" size={14} /> : null}
+          {line}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Element {
   const i18n = useI18n();
   const { root } = useKit();
@@ -84,7 +133,7 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
   return (
     <div
       ref={box}
-      class={`cg-toast cg-toast--${toast.kind}${greet === null ? '' : ' cg-toast--greet'}${greet?.urgent === true ? ' cg-toast--urgent' : ''}`}
+      class={`cg-toast cg-toast--${toast.kind}${greet === null ? '' : ' cg-toast--greet'}${greet?.urgent === true ? ' cg-toast--urgent' : ''}${greet?.card === undefined ? '' : ' has-card'}`}
       data-cg-toast={toast.id}
       {...(toast.kind === 'error' ? { role: 'alert' } : {})}
       onMouseEnter={() => update({ hovered: true })}
@@ -122,13 +171,19 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
         </div>
       )}
       <Button label={i18n.t('toast.closeAria')} icon="x" iconOnly variant="quiet" class="cg-toast__x" onClick={onDismiss} />
+      {greet?.card === undefined ? null : (
+        <div class="cg-toast__card">
+          <GreetCard card={greet.card} />
+        </div>
+      )}
       {toast.actions.length > 0 || copyCode !== null || counting ? (
         <div class="cg-toast__acts">
           {toast.actions.map((vm, index) =>
-            vm.action.type === 'GreetNewcomer' ? (
+            // The filled one: «Hi», or «Отправить» of what it wrote.
+            greet !== null && (greet.card === undefined ? vm.action.type === 'GreetNewcomer' : vm.action.type === 'SendNewcomerGreeting' || vm.action.type === 'SendPart') ? (
               <ActionButton key={index} vm={vm} class="cg-toast__hi" />
             ) : (
-              <ActionButton key={index} vm={vm} variant={vm.action.type === 'Navigate' || greet !== null ? 'line' : 'plain'} />
+              <ActionButton key={index} vm={vm} variant={greet?.card !== undefined && opensChat(vm.action) ? 'quiet' : vm.action.type === 'Navigate' || greet !== null ? 'line' : 'plain'} />
             ),
           )}
           {counting ? <span class="cg-count cg-toast__count">{`${i18n.t('common.retry')} ${i18n.t('cg.retryIn', { n: Math.ceil(remaining / 1000) })}`}</span> : null}
@@ -199,6 +254,19 @@ export const TOAST_CSS = `
 .cg-toast--greet .cg-toast__acts { gap: 8px; margin-top: 10px; grid-column: 2 / 4; }
 .cg-btn.cg-toast__hi { background: var(--cg-clay); color: #fff; padding: 0 16px; }
 .cg-btn.cg-toast__hi:hover { background: var(--cg-clay-ink); color: #fff; }
+.cg-toast__card { grid-column: 1 / 4; min-width: 0; margin: 2px 8px 0 12px; }
+.cg-toast--greet.has-card .cg-toast__acts { grid-column: 1 / 4; margin-left: 12px; gap: 6px; }
+.cg-toast--greet.has-card .cg-btn.cg-toast__hi { padding: 0 14px; }
+.cg-toast--greet.has-card .cg-btn--quiet { margin-left: auto; }
+.cg-toast__draft {
+  margin: 8px 0 0; padding: 6px 9px; border: 1px dashed var(--cg-clay-line); border-radius: var(--cg-r-md); background: var(--cg-draft);
+  font-family: var(--cg-serif); font-size: var(--cg-text-md); line-height: 19px; color: var(--cg-ink-strong); overflow-wrap: anywhere; white-space: pre-wrap;
+}
+.cg-toast__state { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-muted); }
+.cg-toast__state.is-sent { color: var(--cg-money); }
+.cg-toast__state.is-failed, .cg-toast__state.is-uncertain { color: var(--cg-danger); }
+.cg-toast__state.is-ready { color: var(--cg-warn-ink); }
+.cg-btn.cg-toast__hi:disabled { opacity: 0.5; }
 .cg-toast--urgent { border-color: var(--cg-danger); box-shadow: inset 0 0 0 1px var(--cg-danger), var(--cg-shadow-float); background: color-mix(in srgb, var(--cg-danger) 6%, var(--cg-raised)); }
 .cg-toast--urgent .cg-toast__lead { color: var(--cg-danger); }
 .cg-toast--urgent .cg-btn.cg-toast__hi { background: var(--cg-danger); }

@@ -23,7 +23,7 @@ import type { SendAttemptView } from '@cg/contracts/send';
 import type { HostPort, NavigationReceipt } from '@cg/contracts/host';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, TargetHandle, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
-import type { GreetedChat } from '@cg/core/application/newcomers';
+import type { GreetHereState, GreetedChat } from '@cg/core/application/newcomers';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
 import { toastKindOf } from '@cg/core/domain/errors';
 import type { Logger } from '@cg/core/domain/logging';
@@ -354,6 +354,10 @@ export interface TabBoards {
   fromBatch(opId: string): boolean;
   /** The open «Новые» card (a pass's) shows this generation's result in its field. */
   inCard(opId: string): boolean;
+  /** 2026-10-29: what «Hi» of a reminder's toast wrote for the fan of this handle, as the toast shows it; null — nothing. */
+  greetHere(handle: TargetHandle): GreetHereState | null;
+  /** A greeting `greetHere` tells of changed. */
+  onGreetHere(listener: () => void): () => void;
   dispose(): void;
 }
 
@@ -582,6 +586,23 @@ export async function startBoards(
     return as(await router.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 0 }));
   }
 
+  /**
+   * 2026-10-29 (the owner chose «Hi прямо в напоминании»): «Hi» of a reminder's toast writes the fan's greeting without
+   * leaving the chat the person is in; the toast shows it with «Отправить», «Ещё вариант» and «Открыть чат» (the boards'
+   * `greetHere`). A fan of another model's tab, a fan whose chat is the open one, or a list that cannot write it so go
+   * the old way (`GreetNewcomer` without `here`: its toast closes, the chat opens with the greeting in its field). Its
+   * generation rides the click's deferred greet grant (`afterGreet`), opened right before its token is asked for.
+   */
+  async function hiHere(handle: string, again: boolean): Promise<ActionReceipt> {
+    const as = (receipt: ActionReceipt): ActionReceipt => ({ ...receipt, type: 'GreetNewcomer' });
+    const fan = chunk.parseFanHandle(handle);
+    const binding = context.current().binding;
+    const ownFan = fan !== null && fan.source === 'newcomers' && binding !== null && fan.pageId === binding.pageId;
+    const onScreen = ownFan && chatOnScreen(host.current().route, { hostAccountId: binding.hostAccountId, platformFanId: fan.fanRef });
+    if (!ownFan || onScreen || newcomers.greetHere === undefined) return as(await router.dispatch({ type: 'GreetNewcomer', targetHandle: handle }));
+    return as(await newcomers.greetHere(handle, again, () => void world.gate.afterGreet('Generate')));
+  }
+
   function notify(code: CgCode, scope: string): void {
     void toasts.show({ kind: toastKindOf(code), code, scope, title: { key: CG_REGISTRY[code].title }, body: { key: CG_REGISTRY[code].body } });
   }
@@ -609,7 +630,7 @@ export async function startBoards(
         kinds: [],
         getSnapshot: () => undefined,
         subscribe: () => () => undefined,
-        dispatch: (action) => (action.type === 'GreetNewcomer' ? greet(action.targetHandle) : null),
+        dispatch: (action) => (action.type !== 'GreetNewcomer' ? null : action.here === true ? hiHere(action.targetHandle, action.again === true) : greet(action.targetHandle)),
       }),
     ),
   );
@@ -639,6 +660,8 @@ export async function startBoards(
     openChat: (chat, conversationRef) => navigator.open(chat, 'preview', ['spenders'], conversationRef),
     fromBatch: (opId) => preview.fromBatch(opId) || (newcomers.fromBatch?.(opId) ?? false),
     inCard: (opId) => newcomers.inCard?.(opId) ?? false,
+    greetHere: (handle) => newcomers.greetHereState?.(handle) ?? null,
+    onGreetHere: (listener) => newcomers.onGreetHere?.(listener) ?? (() => undefined),
     dispose() {
       dock.bind(null);
       win.removeEventListener('online', onOnline);

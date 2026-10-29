@@ -382,7 +382,23 @@ export interface ToastVM {
     readonly page?: string | null;
     /** 1.67.0: the last of the fan's three reminders (fifteen minutes on) — the card is red. */
     readonly urgent?: boolean;
+    /** 1.68.0: the greeting «Hi» wrote inside the toast (absent — not pressed yet). */
+    readonly card?: GreetCardVM;
   };
+}
+
+/**
+ * 1.68.0 (the owner, 2026-10-29: «Hi прямо в напоминании»): the reminder's greeting, written while the person stays in
+ * their chat. `writing` — Hi writes it; `ready` — the text, for «Отправить»; `sending` — on its way; `sent` — it went;
+ * `greeted` — somebody greeted the fan meanwhile, nothing goes; `failed` — refused, nothing went; `uncertain` — whether it
+ * went is unknown (never sent again by itself).
+ */
+export interface GreetCardVM {
+  readonly s: 'writing' | 'ready' | 'sending' | 'sent' | 'greeted' | 'failed' | 'uncertain';
+  /** The greeting: ready, sending, sent; a refused or uncertain one keeps it. */
+  readonly text: string | null;
+  /** Why it did not go (failed, uncertain), in the person's words; null — nothing to say. */
+  readonly why: string | null;
 }
 
 export interface ToastsVM {

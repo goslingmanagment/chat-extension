@@ -108,6 +108,17 @@ export interface CardGreeting {
    * when the generation ended. A field that holds the person's own text is never written over: that fan is skipped.
    */
   batchStart(passId: string, row: PassRow): Promise<BatchOutcome>;
+  /**
+   * 2026-10-29, «Hi» inside a greeting reminder's toast: «Сгенерировать» of the fan's card, open or not, with the card's
+   * own checks (the draft read first: `ready`); `grant` opens the click's grant of the generation right before its token
+   * is asked for. Resolves when the generation ended: its text is the card's field.
+   */
+  here(passId: string, row: PassRow, grant: () => void): Promise<ActionReceipt>;
+  /**
+   * 2026-10-29: a new look at the card's text (a reminder's Hi on a greeting written before): the last refusal or insert
+   * is the old click's — the card stands idle with its text. «Уже писали» stays.
+   */
+  calm(passId: string, fanRef: string): void;
   /** The card's field as it is now, and whether it went out; null — no card of the fan. */
   batchLive(passId: string, fanRef: string): { readonly text: string | null; readonly sent: boolean } | null;
   /** A batch started this generation (its end is said by its row), or a Hi whose chat was being read again: no toast. */
@@ -364,7 +375,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     }),
   );
 
-  async function generate(type: UiAction['type'], card: Card, row: PassRow): Promise<ActionReceipt> {
+  /** `grant` — a reminder's Hi: the click's grant of the generation, opened right before its token is asked for. */
+  async function generate(type: UiAction['type'], card: Card, row: PassRow, grant?: () => void): Promise<ActionReceipt> {
     const ctx = context.current();
     const binding = ctx.binding;
     const bootstrap = ctx.bootstrap;
@@ -414,6 +426,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
               if (!watch.greeted && watch.opId !== null) batchOps.delete(watch.opId);
             });
     const fanLabel = (row.displayName ?? row.username)?.trim().slice(0, 256) || null;
+    grant?.();
     const issued = await issueCause(rpc, 'generate', 'newcomers');
     if (!same()) return stop('CG-CONTEXT-CHANGED');
     if (!issued.ok) return stop(issued.code);
@@ -704,11 +717,29 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     return { s: 'failed', code };
   }
 
+  function here(passId: string, row: PassRow, grant: () => void): Promise<ActionReceipt> {
+    const type = 'GreetNewcomer';
+    const card = cardOf(passId, row.fanRef);
+    if (card.loaded !== 'yes') return Promise.resolve(refused(type, localError('CG-DATA-NOT-READY', i18n)));
+    // NF-023: one action of a fan at a time; gone out: never again from this card.
+    if (card.busy) return Promise.resolve(refused(type, localError('CG-SEND-BUSY', i18n)));
+    if (card.state.s === 'sent') return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
+    if (!greets(row)) return Promise.resolve(refused(type, localError(row.check === 'greeted' ? 'CG-SEND-PART' : 'CG-DATA-NOT-READY', i18n)));
+    return generate(type, card, row, grant);
+  }
+
   return {
     vm,
     open,
     ready,
     batchStart,
+    here,
+    calm(passId, fanRef) {
+      const card = cards.get(keyOf(passId, fanRef));
+      if (card === undefined || card.busy) return;
+      const state = card.state;
+      if (state.s === 'inserted' || ((state.s === 'refused' || state.s === 'not-drafted') && state.failure.code !== 'CG-SEND-PART')) said(card, { s: 'idle' });
+    },
     batchLive(passId, fanRef) {
       const card = cards.get(keyOf(passId, fanRef));
       return card === undefined ? null : { text: card.text.trim() === '' ? null : card.text, sent: card.state.s === 'sent' };

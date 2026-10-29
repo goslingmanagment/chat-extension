@@ -25,7 +25,12 @@ scenario(
     await fakeFansly().command({ op: 'follow', followerId: FAN, agoMs: 11 * 60_000 });
     await s.see('toast', 'Ждёт приветствия', 30_000);
     await s.shot('fansly-reminder');
+    // 2026-10-29: Hi writes the greeting into the toast (the fan proved alone, no window); «Открыть чат» puts it into
+    // the fan's chat, in Fansly's own field.
     await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
+    await s.browser.waitUntil(() => s.has('toast', '.cg-toast__draft'), { timeout: 90_000, timeoutMsg: 'no greeting in the toast' });
+    await s.shot('fansly-reminder-written');
+    await s.press(/^Открыть чат$/, 'toast', '.cg-toast__acts button');
     await s.browser.waitUntil(async () => ((await s.browser.$(FANSLY_MAIN.field).getValue().catch(() => '')) as string).trim() !== '', { timeout: 90_000, timeoutMsg: 'the greeting did not land in the chat' });
     await s.shot('fansly-reminder-chat');
   },

@@ -13,7 +13,7 @@ import { type LiveTextTail } from '@cg/contracts/host';
 import { type HumanCause } from '@cg/contracts/ids';
 import { type CoverageWindowEntry, type GreetingDraftGeneration, type StartOp } from '@cg/contracts/ops';
 
-import { type PassChange, type PassHistoryPage, type PassPage, type PassQuery, type PassState, type SourceAnswer } from '../../domain/newcomers/pass';
+import { type PassChange, type PassHistoryPage, type PassPage, type PassQuery, type PassRow, type PassState, type SourceAnswer } from '../../domain/newcomers/pass';
 
 export type { PassChange, PassCounts, PassHistoryPage, PassPage, PassQuery, PassRow, PassRunState, PassState, SourceAnswer } from '../../domain/newcomers/pass';
 
@@ -63,6 +63,13 @@ export interface NewcomersPassSource {
    * `navigate` token: the site brings a tab of the fan's model forward and greets there. True — handed over.
    */
   handover?(pageId: number, fanRef: string, cause: HumanCause): Promise<boolean>;
+  /**
+   * 2026-10-29 (the owner: «Hi прямо в напоминании»): «Hi» of a greeting reminder's toast proves its one fan alone — no
+   * window, no other fan: the fan's row in a pass of its own (`passId`), which the card's greeting takes as a window's.
+   * `create` — the person's click itself: a fan with no chat to be found gets one made (once, never repeated);
+   * `followedAt` — the follow's moment, when the tab knows it. Absent — the toast's Hi opens the fan's chat.
+   */
+  solo?(hostAccountId: string, fanRef: string, options: { readonly create?: boolean; readonly followedAt?: number }): Promise<SourceAnswer<{ readonly passId: string; readonly row: PassRow }>>;
   /** R20 P10c: the card's greeting (FS-NEW-3, FS-NEW-6, FS-NEW-7); absent — the site greets from no card. */
   readonly greeting?: PassGreetingSource;
 }

@@ -41,6 +41,7 @@ import {
   type NewcomerRowSendVM,
   type PartialGap,
   type PreviewActionId,
+  type PreviewSendView,
   type PreviewSource,
   type PreviewVM,
   type ReasonVM,
@@ -293,6 +294,25 @@ export interface PreviewControllerDeps {
   readonly talking?: { mark(chatKey: string): { readonly names: readonly string[]; readonly lastSentAt: string } | null; onChange(listener: () => void): () => void } | null;
 }
 
+/** 2026-10-29, «Hi» inside a greeting reminder's toast: `again` — another variant of the result there is; `single` — one part. */
+export interface BatchStartOptions {
+  readonly again?: boolean;
+  readonly single?: boolean;
+}
+
+/** A ready result's next part as a greeting reminder's toast shows it (2026-10-29). */
+export interface BatchNext {
+  readonly opId: string;
+  /** The next part not sent; null — every part went. */
+  readonly part: number | null;
+  /** That part's text (every part went: the first). */
+  readonly text: string | null;
+  /** How that part's send stands; null — every part went, or the card's send has nothing to say yet. */
+  readonly send: PreviewSendView | null;
+  /** An earlier part of it is still on its way: this one waits its turn. */
+  readonly waits: boolean;
+}
+
 export interface PreviewController extends SurfaceController<'preview'> {
   /** The local drafts are read; resolves once (tests, a first paint that wants the draft). */
   ready(): Promise<void>;
@@ -306,9 +326,14 @@ export interface PreviewController extends SurfaceController<'preview'> {
    * 1.32.0: one fan of a list's batch — the preview's own Generate on the fan's card, open or not; resolves when the
    * generation ended (or did not start). The result stays on the fan's card, for the person's own «Отправить».
    */
-  batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }): Promise<BatchOutcome>;
+  batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }, opts?: BatchStartOptions): Promise<BatchOutcome>;
   /** The fan's result as the preview has it now: its first part, and whether it all went out; null — none. */
   batchLive(handle: TargetHandle): { readonly text: string | null; readonly sent: boolean } | null;
+  /**
+   * 2026-10-29, «Hi» inside a greeting reminder's toast: the fan's ready result as the toast shows it — its next part
+   * not sent and how that part's send stands (`part` null — every part went); null — no ready result.
+   */
+  batchNext(handle: TargetHandle): BatchNext | null;
   /** A result a batch made moved on (it ended, a part went out). */
   onBatch(listener: () => void): () => void;
   /** A batch started this generation: its end is said by its row, not by a toast. */
@@ -1055,9 +1080,26 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    */
   async function sendsNow(pageId: number, fanRef: string): Promise<CgCode | null> {
     const atStart = epoch;
+    // 2026-10-29: a result whose card is closed (what a reminder's toast wrote) — the journal is looked at once, not kept.
+    if (!followed(pageId, fanRef)) return heldNow(pageId, fanRef);
     const known = await loadSends(pageId, fanRef);
     if (disposed || atStart !== epoch) return 'CG-CONTEXT-CHANGED';
     return known ? null : 'CG-RUNTIME-UNREACHABLE';
+  }
+
+  /**
+   * One look at the journal for a fan no card of this tab follows: a part whose outcome is unknown, or one on its way,
+   * holds the fan (§6.7.8) — the click is refused, as an open card's would be; nothing of the answer is kept.
+   */
+  async function heldNow(pageId: number, fanRef: string): Promise<CgCode | null> {
+    if (deps.previewSend === false) return null;
+    const atStart = epoch;
+    const answer = await rpc.request('send.list', { pageId, fanRef });
+    if (disposed || atStart !== epoch) return 'CG-CONTEXT-CHANGED';
+    if (!answer.ok) return 'CG-RUNTIME-UNREACHABLE';
+    const open = answer.payload.attempts.filter((item) => item.resolved === undefined);
+    if (open.some((item) => item.view.state === 'uncertain')) return 'CG-SEND-UNCERTAIN';
+    return open.some((item) => inFlight(item.view.state)) ? 'CG-SEND-BUSY' : null;
   }
 
   /**
@@ -2035,6 +2077,15 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return { text: firstPart(track.mirror.done), sent: sent !== null && sent.total > 0 && sent.sent >= sent.total };
   }
 
+  function batchNext(handle: TargetHandle): BatchNext | null {
+    const track = tracks.get(currentOp.get(handle) ?? '');
+    if (track === undefined || track.hidden || track.mirror.done?.state !== 'done') return null;
+    const next = rowPart(handle);
+    if (next === null) return { opId: track.opId, part: null, text: firstPart(track.mirror.done), send: null, waits: false };
+    const parts = partsOfResult(track.mirror.done.result, 0) ?? [];
+    return { opId: track.opId, part: next.index, text: parts[next.index] ?? null, send: next.rows.send ?? null, waits: next.rows.order !== null };
+  }
+
   /**
    * The part a «Новые» row's «Отправить» sends (X59 on a hub's list): the next part of the fan's greeting that has not
    * gone, as the card's «Отправить →» holds it; null — none waits.
@@ -2112,8 +2163,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     for (const listener of [...batchListeners]) listener();
   }
 
-  async function batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }): Promise<BatchOutcome> {
+  async function batchStart(source: 'spenders' | 'newcomers' | 'outreach' | 'online', handle: TargetHandle, feature: PreviewActionId, outreach?: { readonly draft: string }, opts?: BatchStartOptions): Promise<BatchOutcome> {
     if (disposed) return { s: 'failed', code: 'CG-CONTEXT-CHANGED' };
+    // «Ещё вариант» of a reminder's toast (2026-10-29): another variant of the result there is, as the card's own would ask.
+    const previous = opts?.again === true ? (tracks.get(currentOp.get(handle) ?? '') ?? null) : null;
+    if (previous !== null) {
+      const rule = regenerateRule(previous);
+      if (!rule.allowed) return { s: 'failed', code: rule.reason === null ? 'CG-SEND-BUSY' : reasonCode(rule.reason) };
+    }
     const shown = (): boolean => SOURCES.some((s) => surfaces.current().preview[s] === handle);
     let state = targets.get(handle) ?? null;
     let shadow: TargetState | null = null;
@@ -2133,7 +2190,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     try {
       // NF-015: a dialogue gets no Hi — the archive's count is read first, as an open card has it.
       if (feature === 'hi' && state.feed === null) await loadFeed(state);
-      receipt = await generate('GenerateBatch', state, feature, {}, null, outreach ?? null, outreach !== undefined || source === 'online');
+      receipt = await generate('GenerateBatch', state, feature, opts?.single === true ? { split: false } : {}, previous, outreach ?? null, outreach !== undefined || source === 'online');
     } finally {
       if (shadow !== null && targets.get(handle) === shadow && !shown()) closeTarget(handle);
       shadows.delete(handle);
@@ -3024,6 +3081,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       });
     },
     batchLive,
+    batchNext,
     batchSend,
     batchSendState,
     batchSendNow,

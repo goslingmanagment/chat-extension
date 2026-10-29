@@ -53,7 +53,10 @@ async function chatspace(s: See): Promise<void> {
   await s.press(/^Новые/, 'modal', '.cg-pal__item');
   await s.see('toast', 'Ждёт приветствия', 15_000);
   await s.closeAll();
+  // 2026-10-29: Hi writes the greeting into the toast; its «Открыть чат» puts it into the fan's chat.
   await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
+  await s.browser.waitUntil(() => s.has('toast', '.cg-toast__draft'), { timeout: 30_000, timeoutMsg: 'no greeting in the toast' });
+  await s.press(/^Открыть чат$/, 'toast', '.cg-toast__acts button');
   await s.browser.waitUntil(async () => (await s.browser.$(EDITOR).getText()).trim() !== '', { timeout: 30_000, timeoutMsg: 'the greeting did not land in the chat' });
   await restPointer(s);
   await s.wait(800);
@@ -72,21 +75,23 @@ async function fansly(s: See): Promise<void> {
   await s.toChat();
 
   // Jordan followed eleven minutes ago and his reminder came; meanwhile a colleague greeted him from another browser.
-  // Hi on his reminder opens his chat with the colleague's greeting, writes nothing into the field, and the toast says
-  // somebody was faster.
+  // Hi on his reminder (2026-10-29: written in the toast) finds the colleague's greeting, writes nothing, and the toast
+  // says somebody was faster.
   await fakeFansly().command({ op: 'follow', followerId: JORDAN, agoMs: 11 * MIN });
   await s.see('toast', 'Ждёт приветствия', 30_000);
   for (const text of COLLEAGUE) await fakeFansly().command({ op: 'message', groupId: groups.get(JORDAN) ?? '', from: 'creator', text, silent: true });
   await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
   // The toast goes by itself in a few seconds: the picture is taken as soon as it is there.
-  await s.see('toast', 'Кто-то уже поприветствовал', 30_000);
+  await s.see('toast', 'уже кто-то поприветствовал', 30_000);
   await s.shot('already-greeted', { file: 'greet-reminder-team', clip: box(0, 0, 1440, 900) });
 
-  // Matt followed eleven minutes ago too, and nobody wrote to him: Hi on his reminder opens his chat at once, Hi writes
-  // the greeting there, and it stands in Fansly's own field.
+  // Matt followed eleven minutes ago too, and nobody wrote to him: Hi on his reminder writes the greeting into the toast,
+  // and its «Открыть чат» opens his chat with it in Fansly's own field.
   await fakeFansly().command({ op: 'follow', followerId: MATT, agoMs: 11 * MIN });
   await s.see('toast', 'Matt Riley', 30_000);
   await s.press(/^Hi$/, 'toast', '.cg-toast__acts button');
+  await s.browser.waitUntil(() => s.has('toast', '.cg-toast__draft'), { timeout: 90_000, timeoutMsg: 'no greeting in the toast' });
+  await s.press(/^Открыть чат$/, 'toast', '.cg-toast__acts button');
   await s.browser.waitUntil(async () => ((await s.browser.$(FANSLY_MAIN.field).getValue().catch(() => '')) as string).trim() !== '', { timeout: 90_000, timeoutMsg: 'the greeting did not land in the chat' });
   await restPointer(s);
   await s.wait(800);

@@ -62,6 +62,10 @@
 // is the pass's row and the draft's revision; every history the pass walks
 // confirms the receipts it shows.
 //
+// 2026-10-29: «Hi» inside a greeting reminder's toast proves its one fan alone
+// (`fansly.greet.solo`, the creator's page granted with «Новые» on): the
+// fan's row in a pass of its own, which the card's requests above take.
+//
 // R20 P14c: Fansly switched off or its rights taken back while tabs still run
 // our copies (FS-PERM-5; `kit.siteActive`): nothing new begins — an AI start, a
 // pass of «Новые», a greeting, a read of Fansly's — and the send and the vault
@@ -97,6 +101,7 @@ import {
   mayRequestFansly,
   parseFanslyTabPayload,
   type FanslyTabRequestPayload,
+  type FanslyTabResponsePayload,
 } from '@cg/contracts/tab-messages-fansly';
 import { createFanslyOperations } from '@cg/core/services/hosts/fansly/operations';
 import { featureSlice } from '@cg/core/domain/features';
@@ -135,7 +140,7 @@ const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? o
  * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
  * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself with `CG-SITE-OFF`.
  */
-const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.copied', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState', 'fansly.online.seen', 'fansly.fans.badges', 'fansly.marks.read']);
+const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.greet.solo', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.copied', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState', 'fansly.online.seen', 'fansly.fans.badges', 'fansly.marks.read']);
 
 /** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
 async function pageRequest(kit: BackgroundKit, accounts: FanslyAccounts | null, type: string, payload: unknown): Promise<HostAnswer> {
@@ -401,6 +406,9 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       // 2026-10-25: «Hi» of a greeting reminder's toast pressed in a tab of another model.
       case 'fansly.greet.handover':
         return ok(await handoverGreet(kit, payload as FanslyTabRequestPayload<'fansly.greet.handover'>, tab));
+      // 2026-10-29: «Hi» inside a greeting reminder's toast — its one fan proved alone, no window.
+      case 'fansly.greet.solo':
+        return newcomers === null ? unreachable('no newcomers') : ok(await greetSolo(kit, newcomers, reminder, payload as FanslyTabRequestPayload<'fansly.greet.solo'>, tab));
       default:
         // «Новые» (R20 P10b1, P10b2): the pass, its queue and the exclusions; P10c: the card's greeting.
         if (newcomers?.handles(type) === true) return ok(await newcomers.answer(type, payload, tab));
@@ -576,6 +584,23 @@ async function handoverGreet(kit: BackgroundKit, request: FanslyTabRequestPayloa
   kit.router.events.emit(best.tabSessionId, 'greet.start', { pageId: page.pageId, fanRef: request.fanRef });
   kit.log.service({ level: 'info', scope: 'bg.fansly.greet', msg: 'greeting handed over to the model tab', fields: { pageId: page.pageId } });
   return { delivered: true };
+}
+
+/**
+ * «Hi» inside a greeting reminder (2026-10-29; core services/hosts/fansly/newcomers.ts `solo`): the toast's one fan proved
+ * alone — only for the creator's hub page granted to this tab (the card's greeting's page) with its «Новые» on (the
+ * reminder's own switch). The follow's moment is the reminder's.
+ */
+async function greetSolo(kit: BackgroundKit, newcomers: FanslyNewcomers, reminder: FanslyGreetReminder | null, request: FanslyTabRequestPayload<'fansly.greet.solo'>, tab: string): Promise<FanslyTabResponsePayload<'fansly.greet.solo'>> {
+  const bootstrap = kit.hub.bootstrap();
+  if (bootstrap === null) return { ok: false, error: { code: 'CG-HUB-UNAVAILABLE' } };
+  const ids = [request.hostAccountId, ...(kit.networkSession?.aliases(request.hostAccountId) ?? [])];
+  const page = bootstrap.pages.find((entry) => entry.platform === 'fansly' && entry.platformAccountId !== null && ids.includes(entry.platformAccountId));
+  if (page === undefined) return { ok: false, error: { code: 'CG-BINDING-NOT-GRANTED' } };
+  if (!flagUsable(bootstrap, page.pageId, 'newcomers')) return { ok: false, error: { code: 'CG-FEATURE-DISABLED' } };
+  const granted = await kit.hub.page(page.pageId, { kind: 'tab', tabSessionId: tab });
+  if (!granted.ok) return { ok: false, error: { code: granted.code } };
+  return newcomers.solo(request, tab, reminder?.followedAt(request.hostAccountId, request.fanRef) ?? null);
 }
 
 /** The creator's tab the person looks at, else the one they were on last; null — no tab of the creator. */

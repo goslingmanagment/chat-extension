@@ -14,7 +14,12 @@
 // there and puts the greeting into its field (2026-10-26; `GreetNewcomer`,
 // answered by the boards), and the click closes it. The fan's next reminder
 // (three, ten and fifteen minutes on, 2026-10-29) takes its place; the last
-// one is red.
+// one is red. 2026-10-29 (the owner chose «Hi прямо в напоминании»): with
+// the boards' `greetHere` its «Hi» writes the greeting into the toast itself
+// — «Пишу приветствие…», then the text with «Отправить» (the list's own send
+// of a greeting, by that click), «Ещё вариант» and «Открыть чат» (the fan's
+// chat with the text in its field, which closes the toast) — and the person
+// stays in their chat; «Отправлено» closes it a moment later.
 //
 // A toast the UI or a controller raises by itself (a key's reason, a render
 // failure) goes through ToastPort and is the overlay host's own queue; the
@@ -26,16 +31,18 @@
 // Ports only: no browser.*, no DOM, no timers of its own.
 
 import { type CgCode, type SettingsRoute } from '@cg/contracts/errors';
+import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type ChatRef } from '@cg/contracts/ids';
 import { type BackgroundToast, type TabEventPayload } from '@cg/contracts/tab-messages';
-import { type ActionButtonVM, type ActionReceipt, type I18n, type MountSurfaceKind, type ToastVM, type ToastsVM, type UiAction, type UiActionType, type ViewSelector } from '@cg/contracts/vm';
+import { type ActionButtonVM, type ActionReceipt, type GreetCardVM, type I18n, type Msg, type MountSurfaceKind, type ToastVM, type ToastsVM, type UiAction, type UiActionType, type ViewSelector } from '@cg/contracts/vm';
 
 import { TOAST_TIMING, errorView, settingsRouteOf, toastKey, toastLifetimeMs, viewOfCode } from '../../domain/errors';
 import { translatorOf } from '../../domain/i18n/live';
 import { fanHandle } from '../boards/handles';
+import { type GreetHereState } from '../newcomers/controller';
 
 /** «Hi» of a greeting reminder about this fan of this page — the toast's own, or one another tab handed over (2026-10-25). */
-export function greetNewcomer(pageId: number, fanRef: string): UiAction {
+export function greetNewcomer(pageId: number, fanRef: string): Extract<UiAction, { type: 'GreetNewcomer' }> {
   return { type: 'GreetNewcomer', targetHandle: fanHandle('newcomers', pageId, fanRef) };
 }
 
@@ -72,6 +79,14 @@ export interface ShellPorts {
    * not the fan (1.15.0, on Fansly); absent — toasts carry no «Открыть чат».
    */
   readonly chatHandle?: (chat: ChatRef, conversationRef?: string) => string;
+  /**
+   * 2026-10-29: the reminder's greeting the boards wrote for its toast, by the fan's handle (`fanHandle('newcomers', …)`);
+   * absent — the toast's «Hi» opens the fan's chat, as before.
+   */
+  readonly greetHere?: {
+    state(handle: string): GreetHereState | null;
+    subscribe(listener: () => void): () => void;
+  };
 }
 
 export interface ShellController {
@@ -95,6 +110,13 @@ interface Entry {
 
 /** A held toast that is let go lives at least this long: the pointer only passed over it. */
 const HELD_MIN_LEFT_MS = 1000;
+/** «Отправлено» in a reminder's toast stays this long, then the toast goes (2026-10-29). */
+export const GREET_SENT_SHOWN_MS = 4000;
+/** «Его уже поприветствовали» stays a little longer: there is something to read. */
+export const GREET_GREETED_SHOWN_MS = 8000;
+
+/** The registry's title of a shared code; a site's own code has none here. */
+const titleOf = (code: string | null): Msg | null => (code !== null && Object.hasOwn(CG_REGISTRY, code) ? { key: CG_REGISTRY[code as keyof typeof CG_REGISTRY].title } : null);
 
 const done = (type: UiActionType, outcome: Extract<ActionReceipt, { ok: true }>['outcome'] = 'done'): ActionReceipt => ({ ok: true, type, outcome });
 
@@ -108,6 +130,35 @@ export function createShellController(ports: ShellPorts): ShellController {
 
   const button = (label: ActionButtonVM['label']['key'], action: UiAction): ActionButtonVM => ({ label: { key: label }, action, enabled: true, reason: null, hotkey: null });
 
+  /** The greeting «Hi» wrote, as the toast shows it: the text, and why it did not go. */
+  function cardOf(here: GreetHereState): GreetCardVM {
+    const why = here.warn ?? titleOf(here.code);
+    return { s: here.s, text: here.text, why: why === null ? null : i18n.t(why.key, why.params) };
+  }
+
+  /**
+   * The buttons of a written greeting: «Отправить» (or «Отправить всё равно» over a warning), off while it cannot go by
+   * a plain click; «Ещё вариант»; «Открыть чат» — the fan's chat with the text in its field, else the old «Hi».
+   */
+  function cardActions(target: Extract<UiAction, { type: 'GreetNewcomer' }>, here: GreetHereState): ActionButtonVM[] {
+    const again = button('toast.greetAgain', { ...target, here: true, again: true });
+    const open = button(here.s === 'uncertain' ? 'send.openToVerify' : 'common.openChat', here.open ?? target);
+    const send: ActionButtonVM = { ...button(here.warn === undefined || here.warn === null ? 'send.button' : 'send.anyway', here.send ?? { type: 'SendNewcomerGreeting', targetHandle: target.targetHandle }), enabled: here.send !== null };
+    switch (here.s) {
+      case 'ready':
+        return [send, again, open];
+      case 'failed':
+        return here.send === null ? [again, open] : [send, again, open];
+      case 'uncertain':
+        return here.open === null ? [] : [open];
+      case 'writing':
+      case 'sending':
+      case 'sent':
+      case 'greeted':
+        return [];
+    }
+  }
+
   function viewOf(entry: Entry): ToastVM {
     const { toast } = entry;
     const error = toast.error === undefined ? null : errorView(toast.error, translatorOf(i18n));
@@ -115,13 +166,23 @@ export function createShellController(ports: ShellPorts): ShellController {
     const fan = toast.fanLabel;
     const actions: ActionButtonVM[] = [];
     if (toast.greet !== undefined) {
-      const action = greetNewcomer(toast.greet.pageId, toast.greet.fanRef);
+      const target = greetNewcomer(toast.greet.pageId, toast.greet.fanRef);
       const name = fan ?? i18n.t('newcomers.col.fan');
+      const here = ports.greetHere?.state(target.targetHandle) ?? null;
       // 1.61.0 (the owner: «с авой»): the fan as a card — picture, name, «@handle · 11 мин назад»; «Позже» closes it.
-      // 2026-10-29: the last of the three reminders is red.
-      const greet = { name, handle: toast.greet.username ?? null, avatarUrl: toast.greet.avatarUrl ?? null, since: toast.greet.since ?? null, page: toast.greet.page ?? null, ...(toast.greet.urgent === true ? { urgent: true } : {}) };
+      // 2026-10-29: the last of the three reminders is red; what «Hi» wrote stands in it.
+      const greet = {
+        name,
+        handle: toast.greet.username ?? null,
+        avatarUrl: toast.greet.avatarUrl ?? null,
+        since: toast.greet.since ?? null,
+        page: toast.greet.page ?? null,
+        ...(toast.greet.urgent === true ? { urgent: true } : {}),
+        ...(here === null ? {} : { card: cardOf(here) }),
+      };
       const later = button('toast.later', { type: 'DismissToast', toastId: toast.toastId });
-      return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: [button('dock.action.hi', action), later], copyCode: false, expiresAt: null, greet };
+      const hi = button('dock.action.hi', ports.greetHere === undefined ? target : { ...target, here: true });
+      return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: here === null ? [hi, later] : cardActions(target, here), copyCode: false, expiresAt: entry.expiresAt, greet };
     }
     // §9.5: a background toast leads to its chat — by the person's click only.
     if (toast.chat !== undefined && ports.chatHandle !== undefined) actions.push(button('common.openChat', { type: 'Navigate', to: { kind: 'chat', targetHandle: ports.chatHandle(toast.chat, toast.conversationRef) } }));
@@ -187,6 +248,17 @@ export function createShellController(ports: ShellPorts): ShellController {
       show(toast);
     }),
     i18n.subscribe(() => changed()),
+    ports.greetHere?.subscribe(() => {
+      // «Отправлено» and «уже поприветствовали» say their word, then the toast goes.
+      for (const entry of entries) {
+        const greet = entry.toast.greet;
+        if (greet === undefined || entry.timer !== null) continue;
+        const s = ports.greetHere?.state(fanHandle('newcomers', greet.pageId, greet.fanRef))?.s;
+        if (s === 'sent') arm(entry, GREET_SENT_SHOWN_MS);
+        else if (s === 'greeted') arm(entry, GREET_GREETED_SHOWN_MS);
+      }
+      changed();
+    }) ?? (() => undefined),
   ];
 
   return {
@@ -220,8 +292,20 @@ export function createShellController(ports: ShellPorts): ShellController {
         return Promise.resolve(done(action.type));
       }
       // «Hi» of a reminder: its toast goes; the boards open the fan's chat, start Hi there and put it into the field.
+      // 2026-10-29: `here` — the greeting is written into the toast, which stays.
       if (action.type === 'GreetNewcomer') {
+        if (action.here === true) return null;
         for (const entry of entries.filter((item) => item.toast.greet !== undefined && fanHandle('newcomers', item.toast.greet.pageId, item.toast.greet.fanRef) === action.targetHandle)) remove(entry.toast.toastId);
+        return null;
+      }
+      // «Открыть чат» of a written greeting: the boards open the fan's chat with it; its toast goes.
+      if (action.type === 'OpenAndInsertPart' || action.type === 'InsertNewcomerGreeting' || action.type === 'OpenChatToVerify') {
+        const key = JSON.stringify(action);
+        for (const entry of entries.filter((item) => item.toast.greet !== undefined)) {
+          const greet = entry.toast.greet;
+          const open = greet === undefined ? null : (ports.greetHere?.state(fanHandle('newcomers', greet.pageId, greet.fanRef))?.open ?? null);
+          if (open !== null && JSON.stringify(open) === key) remove(entry.toast.toastId);
+        }
         return null;
       }
       if (action.type === 'ReloadTab') {

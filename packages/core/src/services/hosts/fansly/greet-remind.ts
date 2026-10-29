@@ -77,6 +77,8 @@ export interface FanslyGreetReminder {
   restore(): Promise<void>;
   /** A tab's socket facts (`fansly.sound.batch`): its follows, and the messages of fans who wrote. */
   heard(batch: SoundBatch): void;
+  /** 2026-10-29: when the fan followed the creator, as heard (the reminder's Hi keeps it); null — not heard within the hour. */
+  followedAt(creator: string, fanRef: string): number | null;
   dispose(): void;
 }
 
@@ -237,6 +239,14 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
       prune(now);
       persist();
       schedule();
+    },
+    followedAt(creator, fanRef) {
+      // The newest follow of the fan (oldest first here).
+      for (let at = follows.length - 1; at >= 0; at -= 1) {
+        const follow = follows[at];
+        if (follow !== undefined && follow.c === creator && follow.f === fanRef) return follow.at;
+      }
+      return null;
     },
     dispose() {
       disposed = true;
