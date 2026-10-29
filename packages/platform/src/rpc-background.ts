@@ -150,6 +150,7 @@ export interface BackgroundRpcOptions {
   /**
    * Whether a site's tab may register now; false — the site is off in this browser, and the tab hears `CG-SITE-OFF`
    * (it lets go of the site). A promise: the answer may wait for a change of the site's access in flight.
+   * A rejection means access is unknown: the tab hears CG-RUNTIME-UNREACHABLE and can reconnect.
    */
   readonly allowTab?: (host: TabHostKind) => boolean | Promise<boolean>;
   readonly onTabRegistered?: (info: TabSessionInfo) => void;
@@ -316,7 +317,11 @@ export function createBackgroundRpc(options: BackgroundRpcOptions): BackgroundRp
       reject('origin', 'tab.register', 'tab');
       return null;
     }
-    if ((await options.allowTab?.(state.host)) === false) return rpcError('CG-SITE-OFF', 'site disabled');
+    try {
+      if ((await options.allowTab?.(state.host)) === false) return rpcError('CG-SITE-OFF', 'site disabled');
+    } catch {
+      return rpcError('CG-RUNTIME-UNREACHABLE', 'site access unavailable');
+    }
     if (!tabPorts.has(state)) return rpcError('CG-RUNTIME-UNREACHABLE', 'port closed');
     // One session per port: a repeated register answers the same session.
     if (!state.session) {

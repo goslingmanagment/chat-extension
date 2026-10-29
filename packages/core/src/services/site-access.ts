@@ -35,17 +35,19 @@ export function createSiteAccess(deps: SiteAccessDeps) {
   let granted = false;
   let registered = false;
   let synced = false;
-  const ready = chain(async () => {
+  let loaded = false;
+  async function ready(): Promise<void> {
+    if (loaded) return;
     const stored = await deps.storage.get([deps.key]);
     if (!stored.ok) throw new Error(stored.code);
     const value = stored.value[deps.key];
     if (Array.isArray(value)) for (const tab of value) if (typeof tab === 'number' && Number.isInteger(tab) && tab >= 0) waiting.add(tab);
-  });
-  void ready.catch(deps.failed);
+    loaded = true;
+  }
   const save = async (): Promise<void> => { const result = await deps.storage.set({ [deps.key]: [...waiting] }); if (!result.ok) throw new Error(result.code); };
   const state = (): SiteAccessState => ({ host: deps.host, enabled, granted, registered, waitingReload: granted ? waiting.size : 0 });
   async function sync(notice: boolean, grant: boolean, force = false): Promise<SiteAccessState> {
-    await ready;
+    await ready();
     const nextGranted = await deps.permissions.has();
     // onAdded completes activation even when the popup closed during Firefox's permission dialog.
     let nextEnabled = await deps.settings.enabled();
@@ -85,6 +87,7 @@ export function createSiteAccess(deps: SiteAccessDeps) {
   /** The tabs that wait for a reload, reloaded now; those that failed keep waiting with their notice. */
   const reloadWaiting = (): Promise<SiteAccessState> =>
     chain(async () => {
+      await ready();
       if (!(await deps.permissions.has())) return sync(false, false);
       const alive = await deps.tabs.list();
       const targets = [...waiting].filter((tab) => alive.includes(tab));
@@ -107,19 +110,20 @@ export function createSiteAccess(deps: SiteAccessDeps) {
     void schedule(false, added).then(async (next) => { if (added && next.registered) { await deps.startModule(); await reloadWaiting(); } }).catch(deps.failed);
   });
   deps.settings.onChange(() => { void schedule().catch(deps.failed); });
-  deps.tabs.onRemoved((tab) => { void chain(async () => { if (waiting.delete(tab)) await save(); }).catch(deps.failed); });
+  deps.tabs.onRemoved((tab) => { void chain(async () => { await ready(); if (waiting.delete(tab)) await save(); }).catch(deps.failed); });
   return {
     start: () => schedule(false, false, true),
     installed: () => schedule(true, false, true),
-    state: () => chain(async () => { await ready; return state(); }),
+    // A failed startup read is unknown, not off. The next request retries initialization in the same queue.
+    state: () => chain(async () => synced ? state() : sync(false, false)),
     setEnabled(value: boolean): Promise<SiteAccessState> {
       return chain(async () => { if (await deps.settings.enabled() !== value) await deps.settings.setEnabled(value); return sync(false, false); });
     },
     registered(tabId: number): Promise<void> {
-      return chain(async () => { await ready; if (waiting.delete(tabId)) await save(); });
+      return chain(async () => { await ready(); if (waiting.delete(tabId)) await save(); });
     },
     reload: reloadWaiting,
     active: () => enabled && granted && registered,
-    idle: () => chain(async () => { await ready; }),
+    idle: () => chain(async () => { await ready(); }),
   };
 }
