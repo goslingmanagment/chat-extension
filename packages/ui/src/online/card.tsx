@@ -6,14 +6,18 @@
 // or a text of the team's guide — stands in the box with «Ещё раз» / «Другой шаблон», «Править», «Пропустить»,
 // «Не предлагать» and the blue «Отправить →». One click, one message; an unknown outcome is never sent again by our
 // button: the person looks in the chat.
+//
+// «Очереди» (2026-10-29) shows this same card for a fan of its portion (`card.queue`): why he is in the queue, the
+// mass messages he got where there was no conversation, and «Пропустить ▾» with its reasons instead of «Пропустить» and
+// «Не предлагать».
 
 import { Fragment, type JSX } from 'preact';
-import { useRef } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { type I18n, type OnlineCardVM, type OnlineChoice, type PartVM, type PreviewVM } from '@cg/contracts/vm';
+import { type I18n, type Msg, type OnlineCardVM, type OnlineChoice, type PartVM, type PreviewVM, type QueueSkipReason } from '@cg/contracts/vm';
 
-import { Button, Dot, FanBadge, GooseMark, Icon, Spinner, StripButton, TextField, useDispatch, useHints, useI18n, useTooltip } from '../kit';
+import { Button, Dot, FanBadge, GooseMark, Icon, Menu, MenuAnchor, Spinner, StripButton, TextField, menuTriggerKeys, useDispatch, useHints, useI18n, useTooltip } from '../kit';
 import { Feed } from '../spenders/preview/Feed';
 import { priceText } from '../spenders/preview/MediaPicker';
 import { SEGMENT_LETTERS, ToneCapsule, reasonText, stripKeys } from '../spenders/preview/MiniStrip';
@@ -89,14 +93,26 @@ function Why({ card }: { readonly card: OnlineCardVM }): JSX.Element {
   const reason = card.reason;
   let lead: string;
   let tail: string;
+  // A queue's lead reads as a heading of its why: «Очередь «Холодные живые»: подписан 12 мар, ни разу не писал».
+  let mark = '.';
   switch (reason.kind) {
     case 'waiting':
       lead = reason.since === null ? i18n.t('online.why.waitingNow') : i18n.t('online.why.waiting', { age: i18n.formatAge(reason.since) });
       tail = i18n.t('online.card.why.waiting');
       break;
     case 'answered':
+      if (card.queue !== undefined) {
+        lead = reason.at === null ? i18n.t('queues.why.answeredNow') : i18n.t('queues.why.answered', { age: i18n.formatAge(reason.at) });
+        tail = i18n.t('queues.card.why.answered');
+        break;
+      }
       lead = i18n.t('online.why.answered', { act: actWord(i18n, card.act === 'reply' ? null : card.act), age: reason.at === null ? i18n.t('common.unknown') : i18n.formatAge(reason.at) });
       tail = i18n.t('online.card.why.answered');
+      break;
+    case 'queue':
+      lead = i18n.t('queues.why.lead', { name: reason.queue });
+      tail = reason.why ?? (reason.goal === null ? '' : i18n.t('queues.why.goal', { goal: reason.goal }));
+      mark = ':';
       break;
     case 'new':
       lead = reason.subscribedAt === null ? i18n.t('online.why.newNow') : i18n.t('online.why.new', { age: i18n.formatAge(reason.subscribedAt) });
@@ -124,15 +140,32 @@ function Why({ card }: { readonly card: OnlineCardVM }): JSX.Element {
       break;
   }
   const named = card.template === null || card.template.named === null ? null : card.template.named ? i18n.t('online.card.named', { name: card.template.greeting ?? firstName(card.name) }) : i18n.t('online.card.unnamed');
+  const sentence = tail === '' || /[.!?…]$/.test(tail) ? tail : `${tail}.`;
   return (
     <div class="ol-why" data-cg-reason={reason.kind}>
-      <Icon name="info" size={14} />
+      <Icon name={card.queue === undefined ? 'info' : 'queues'} size={14} />
       <span>
-        <b>{lead}.</b> {tail}
+        <b>
+          {lead}
+          {mark}
+        </b>{' '}
+        {sentence}
         {named === null ? null : ` ${named}`}
       </span>
     </div>
   );
+}
+
+/**
+ * Where the archive holds no conversation: «Личной переписки ещё нет»; for a fan of a queue who got the page's mass
+ * messages and never wrote, how many in 90 days and the last one's age (the prototype's note in the empty chat).
+ */
+function feedEmpty(card: OnlineCardVM): Msg {
+  const reason = card.reason;
+  if (reason.kind !== 'queue' || reason.mass === null) return { key: 'online.card.noFeed' };
+  return reason.mass.lastAt === null
+    ? { key: 'queues.card.noFeedMass', params: { n: reason.mass.count } }
+    : { key: 'queues.card.noFeedMassLast', params: { n: reason.mass.count, age: { age: reason.mass.lastAt } } };
 }
 
 /** «Из архива на 19:12 · чат не открыт, останется непрочитанным»: the archive is the card's only source. */
@@ -224,10 +257,56 @@ function Calm({ card, preview }: { readonly card: OnlineCardVM; readonly preview
   );
 }
 
-/** «Пропустить» and «Не предлагать» of the card, beside its main button. */
+/**
+ * «Пропустить ▾» of a fan of «Очереди»: «Не подходит», «Позже», «Уже общаемся», «Не предлагать», each with what it
+ * does. One report to the hub (`SkipQueue`); a fan who answered has none (he is no longer in the portion).
+ */
+function QueueSkip({ card, busy }: { readonly card: OnlineCardVM; readonly busy: boolean }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const skips = card.queue?.skips ?? [];
+  if (skips.length === 0) return null;
+  return (
+    <MenuAnchor>
+      <Button
+        label={i18n.t('queues.skip')}
+        variant="quiet"
+        size="sm"
+        haspopup="menu"
+        expanded={open}
+        buttonRef={button}
+        trailing={<Icon name="chevronDown" size={12} />}
+        reason={busy ? i18n.t('outreach.card.going') : null}
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (!open) menuTriggerKeys(event, () => setOpen(true));
+        }}
+      />
+      <Menu
+        open={open}
+        kind="action"
+        label={i18n.t('queues.skip')}
+        items={skips.map((reason) => ({ id: reason, label: i18n.t(`queues.skip.${reason}`), note: i18n.t(`queues.skip.hint.${reason}`) }))}
+        align="end"
+        placement="top"
+        onSelect={(id) => {
+          setOpen(false);
+          void dispatch({ type: 'SkipQueue', targetHandle: card.handle, reason: id as QueueSkipReason });
+        }}
+        onClose={() => setOpen(false)}
+        returnFocusTo={() => button.current}
+      />
+    </MenuAnchor>
+  );
+}
+
+/** «Пропустить» and «Не предлагать» of the card, beside its main button; a queue's fan has «Пропустить ▾» instead. */
 function PassButtons({ card, busy }: { readonly card: OnlineCardVM; readonly busy: boolean }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
+  if (card.queue !== undefined) return <QueueSkip card={card} busy={busy} />;
   return (
     <>
       <Button label={i18n.t('online.card.skip')} variant="quiet" size="sm" trailing={<kbd>S</kbd>} tooltip={i18n.t('online.card.skipTooltip')} reason={busy ? i18n.t('outreach.card.going') : null} onClick={() => void dispatch({ type: 'SkipOnline', targetHandle: card.handle, skip: true })} />
@@ -580,6 +659,17 @@ function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview
   const act = actWord(i18n, card.act);
 
   const went = card.state === 'sending' || card.state === 'accepted' || card.state === 'sent' || card.state === 'uncertain';
+  // A fan of a queue skipped: the hub took the reason, it stands (the queue gives him back by its own rules).
+  const queueSkip = card.queue?.skipped ?? null;
+  if (!went && queueSkip !== null) {
+    return (
+      <div class="cg-ow__dzone is-empty" data-cg-zone="skipped">
+        <span>{i18n.t('queues.skipped', { why: i18n.t(`queues.skip.${queueSkip}`).toLocaleLowerCase('ru') })}</span>
+        <span class="cg-nw__grow" />
+        {card.next === null ? null : <Button label={i18n.t('online.card.next', { name: card.next.name })} variant="line" size="sm" trailing={<Icon name="arrowRight" size={14} />} onClick={() => void dispatch({ type: 'SelectOnline', targetHandle: card.next?.handle ?? card.handle })} />}
+      </div>
+    );
+  }
   // «Пропущен» and the person's own «Не предлагать» (a teammate's mark is a warning over the text, never a block).
   if (!went && (card.skipped || (card.aside?.kind === 'dismissed' && card.aside.by === null))) {
     const skipped = card.skipped;
@@ -667,7 +757,7 @@ export function OnlineCard({ card, preview }: { readonly card: OnlineCardVM; rea
       <Why card={card} />
       <div class="cg-ow__conv">
         {ours && preview.archive.stamp.asOf !== null ? <ArchivePill preview={preview} /> : null}
-        <Feed handle={ours ? preview.handle : null} feed={ours ? preview.feed : { items: [], hasOlder: false, loadingOlder: false, olderError: null }} empty={!ours || preview.view.s === 'loading' ? null : { key: 'online.card.noFeed' }} loading={!ours || preview.view.s === 'loading'} seen={ours ? preview.seen : null} {...(tail === undefined ? {} : { tail })} />
+        <Feed handle={ours ? preview.handle : null} feed={ours ? preview.feed : { items: [], hasOlder: false, loadingOlder: false, olderError: null }} empty={!ours || preview.view.s === 'loading' ? null : feedEmpty(card)} loading={!ours || preview.view.s === 'loading'} seen={ours ? preview.seen : null} {...(tail === undefined ? {} : { tail })} />
       </div>
       <Zone card={card} preview={preview} />
     </section>

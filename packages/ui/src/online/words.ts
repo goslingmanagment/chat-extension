@@ -50,6 +50,9 @@ export function reasonShort(i18n: I18n, reason: OnlineReasonVM, sentAct: OnlineA
       return reason.subscribedAt === null ? i18n.t('online.why.never') : i18n.t('online.why.neverFor', { age: i18n.formatAge(reason.subscribedAt) });
     case 'none':
       return reason.lastAt === null ? i18n.t('online.why.none') : i18n.t('online.why.noneLast', { age: i18n.formatAge(reason.lastAt) });
+    case 'queue':
+      // «Очереди»: why the fan is in the queue, as the asker or the hub put it; else the queue's name.
+      return reason.why ?? i18n.t('queues.why.lead', { name: reason.queue });
   }
 }
 

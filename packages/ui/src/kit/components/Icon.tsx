@@ -116,6 +116,15 @@ const PATHS = {
       <circle cx="12.6" cy="4.3" r="2.2" fill="currentColor" stroke="none" />
     </>
   ),
+  /** «Очереди» (2026-10-29): a list of fans, the first marked: a portion to go through. */
+  queues: (
+    <>
+      <path d="M6.2 4.2h7.6M6.2 8h7.6M6.2 11.8h7.6" />
+      <circle cx="2.9" cy="4.2" r="1.1" fill="currentColor" stroke="none" />
+      <circle cx="2.9" cy="8" r="0.75" />
+      <circle cx="2.9" cy="11.8" r="0.75" />
+    </>
+  ),
   /** Voice (1.47.0): a microphone on its stand. */
   mic: (
     <>
