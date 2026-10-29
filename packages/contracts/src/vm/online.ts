@@ -21,6 +21,7 @@ import { type DataStamp, type VmView } from './view';
 import { type OutreachMediaVM, type OutreachSendVM, type OutreachWarningVM } from './outreach';
 
 import { type OnlineChoice, type OnlinePeriod, type OnlineTab } from './online-ids';
+import { type QueueSkipReason } from './queues-ids';
 
 export * from './online-ids';
 /** The list's groups, in its order; `aside` — «Не предлагаем», `none` — «Без повода» (both under «Все онлайн» only). */
@@ -75,7 +76,18 @@ export type OnlineReasonVM =
   /** Never wrote; `subscribedAt` — since when they are here, if known. */
   | { readonly kind: 'never'; readonly subscribedAt: IsoTimestamp | null }
   /** Nothing to write about now: the conversation goes on, or the page wrote lately. */
-  | { readonly kind: 'none'; readonly lastAt: IsoTimestamp | null };
+  | { readonly kind: 'none'; readonly lastAt: IsoTimestamp | null }
+  /**
+   * 2026-10-29, «Очереди»: the fan is in a queue — its name, why he is in it (the asker's or the hub's words), the
+   * queue's goal, and for a fan with no personal history the mass messages he got in 90 days.
+   */
+  | {
+      readonly kind: 'queue';
+      readonly queue: string;
+      readonly why: string | null;
+      readonly goal: string | null;
+      readonly mass: { readonly count: number; readonly lastAt: IsoTimestamp | null } | null;
+    };
 
 /** Why a fan is set aside — a warning the click may pass, never a block. */
 export type OnlineAsideVM =
@@ -190,6 +202,11 @@ export interface OnlineCardVM {
   readonly next: { readonly handle: TargetHandle; readonly name: string } | null;
   /** Fansly: the fan's blue card and FBuddy's gem; absent or null — none known. */
   readonly badges?: FanBadges | null;
+  /**
+   * 2026-10-29: the card of «Очереди» — «Пропустить ▾» with its reasons instead of «Пропустить» and «Не предлагать»
+   * (a skip is the hub's, never undone here); `skipped` — why the fan was skipped. Absent — «Онлайн»'s card.
+   */
+  readonly queue?: { readonly skips: readonly QueueSkipReason[]; readonly skipped: QueueSkipReason | null };
 }
 
 export interface OnlineGroupVM {

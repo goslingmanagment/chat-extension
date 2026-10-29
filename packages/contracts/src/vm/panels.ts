@@ -289,7 +289,7 @@ export interface FanPanelVM {
   readonly close: UiAction;
 }
 
-export type PaletteGroupId = 'actions' | 'running' | 'waiting' | 'chats' | 'accounts' | 'navigation' | 'online';
+export type PaletteGroupId = 'actions' | 'running' | 'waiting' | 'chats' | 'accounts' | 'navigation' | 'online' | 'queues';
 
 export interface PaletteItemVM {
   readonly id: string;

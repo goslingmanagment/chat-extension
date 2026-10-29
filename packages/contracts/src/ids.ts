@@ -87,6 +87,8 @@ export const OUTREACH_FIX_CAPABILITY = 'outreach-fix-v1';
 
 /** 1.65.0: «Онлайн» — the hub's list of the page's fans seen online, with why to write now (`clientOnline`). */
 export const ONLINE_CAPABILITY = 'online-v1';
+/** 2026-10-29: «Очереди» — a person's fan queues of a page (hub `fan-queues-v1`). */
+export const FAN_QUEUES_CAPABILITY = 'fan-queues-v1';
 
 /**
  * 1.15.0 (R20 P9d): the page's switches the hub admits a greeting's custody `dispatch` under, by platform (hub HF-3,

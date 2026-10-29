@@ -86,6 +86,14 @@ export const HUB_ROUTES = {
   clientOnlinePresence: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
   /** A message sent from «Онлайн», «Не предлагать» and its undo: journaled, shared by the team. */
   clientOnlineAttempt: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
+  /** «Очереди»: the caller's fan queues of a page — progress today, the goal, who answered a message from a queue. No owner switch. */
+  clientFanQueues: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-queues-v1'], narrowToken: true },
+  /** A portion of up to 10 fans, each re-checked by the hub; a 30-minute lease renewed by each take. Nothing is sent. */
+  clientFanQueueTake: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-queues-v1'], narrowToken: true },
+  /** A fan of the portion sent (with what) or skipped (why): journaled, once, never repeated. */
+  clientFanQueueItemDone: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-queues-v1'], narrowToken: true },
+  /** The window closed: the caller's untouched portion goes back to the queue. */
+  clientFanQueueRelease: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-queues-v1'], narrowToken: true },
   clientHandoff: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['handoff-v1'], narrowToken: true },
   /** Chat Memory week 4: a custom written into the fan's card, and its paid / delivered / cancel / edit. No owner switch. */
   clientFanCustomCreate: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-customs-v1'], narrowToken: true },

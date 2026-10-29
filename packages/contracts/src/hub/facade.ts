@@ -49,6 +49,7 @@ import { type FanNoteAttributions, type FanNoteAttributionsQuery, type NoteAttri
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
 import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
 import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineQuery } from './online';
+import { type FanQueueItemDone, type FanQueueItemDoneRequest, type FanQueueRelease, type FanQueueReleaseRequest, type FanQueues, type FanQueuesQuery, type FanQueueTake, type FanQueueTakeRequest } from './fan-queues';
 import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type FanMarks, type FanMarksQuery } from './fan-marks';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
@@ -224,6 +225,14 @@ export interface HubFacade {
   onlinePresence(request: OnlinePresenceRequest): Promise<OnlinePresenceResult>;
   /** What a chatter did in «Онлайн» (a message sent, «Не предлагать», its undo); never repeated by itself. */
   onlineAttempt(request: OnlineAttemptRequest): Promise<OnlineAttemptResult>;
+  /** «Очереди»: the caller's fan queues of the page; refused without `fan-queues-v1`. */
+  fanQueues(query: FanQueuesQuery): Promise<FanQueues>;
+  /** A portion of a queue: never repeated by itself (a take leases fans). */
+  fanQueueTake(request: FanQueueTakeRequest): Promise<FanQueueTake>;
+  /** A fan's outcome: one call, never repeated by itself. */
+  fanQueueItemDone(request: FanQueueItemDoneRequest): Promise<FanQueueItemDone>;
+  /** The caller's portion given back. */
+  fanQueueRelease(request: FanQueueReleaseRequest): Promise<FanQueueRelease>;
   /**
    * 1.47.0: the paid voicing of a script (`voiceNoteCreate`): idempotent per `clientRequestId` at the hub, never
    * repeated by the facade — the caller wrote the take before it asked. Needs the page's `voice` and `voice-notes-v1`.

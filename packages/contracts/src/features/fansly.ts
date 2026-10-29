@@ -65,6 +65,9 @@ const FEATURES = {
   // 1.65.0: «Онлайн» — the hub's list (`online-v1`), fed by the followers the tab saw active (`fansly.online.seen`); the
   // card is the fan's preview, each text leaves by the background's send (as «Рассылка»'s).
   online: { base: { flags: ['preview'], hostCapabilities: [], clientNeeds: ['online-v1'] }, actions: { send: NOTHING }, surfaces: ['online', 'preview'], source: 'hub' },
+  // 2026-10-29: «Очереди» — the hub's queues (`fan-queues-v1`); the card is the fan's preview, each text leaves by the
+  // background's send (as «Онлайн»'s).
+  queues: { base: { flags: ['preview'], hostCapabilities: [], clientNeeds: ['fan-queues-v1'] }, actions: { send: NOTHING }, surfaces: ['queues', 'preview'], source: 'hub' },
   newcomers: { base: { flags: ['newcomers'], hostCapabilities: [] }, actions: { send: NOTHING }, surfaces: ['newcomers'], source: 'host-pass' },
   'fan-panel': { base: { flags: ['fanPanel'], hostCapabilities: [] }, actions: {}, surfaces: ['fan-panel'], source: 'hub' },
   sound: { base: { flags: ['sound'], hostCapabilities: [] }, actions: {}, surfaces: [] },

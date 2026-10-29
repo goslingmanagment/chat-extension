@@ -18,6 +18,7 @@ import { type SpendersPeriodSchema } from '../tab-messages';
 import { BATCH_LISTS } from './batch';
 import { OUTREACH_CONDITIONS, OUTREACH_PANES, OUTREACH_TABS } from './outreach-ids';
 import { ONLINE_CHOICES, ONLINE_TABS } from './online-ids';
+import { QUEUE_SKIP_REASONS } from './queues-ids';
 
 /** The old Fansly extension's persona export may carry the old local persona texts too: a generous bound. */
 export const LEGACY_PERSONAS_MAX_CHARS = 4_000_000;
@@ -404,9 +405,9 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * after another with a second between them (and no faster than the hub's minute limit), each as its row's own
    * «Отправить» would send it. Nothing indeterminate is sent again; «Остановить» (`StopBatchSend`) ends it.
    */
-  act('SendBatch', { list: z.enum(['newcomers']) }),
+  act('SendBatch', { list: z.enum(['newcomers', 'queue']) }),
   /** «Остановить» of «Отправить всем»: what has not gone stays on its row for its own «Отправить». */
-  act('StopBatchSend', { list: z.enum(['newcomers']) }),
+  act('StopBatchSend', { list: z.enum(['newcomers', 'queue']) }),
   /**
    * 1.63.0, the window of «Рассылка» (vm/outreach): one move of the person, nothing sent — `open` from Spenders (its ticked
    * fans or its tier become the audience) or ⌘K; `minimized` — the window folds into the chip in the page's corner and
@@ -481,6 +482,23 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('SkipOnline', { targetHandle: HandleSchema, skip: z.boolean() }),
   /** 1.65.0: «Не предлагать» for the page's whole team (the hub keeps it); `dismiss: false` — «Вернуть». Nothing is sent. */
   act('DismissOnline', { targetHandle: HandleSchema, dismiss: z.boolean() }),
+  /**
+   * 2026-10-29, the window of «Очереди» (vm/queues): one move of the person, nothing sent — `open` (the bar's «Очереди»,
+   * ⌘K); `queue` — a queue's chip chosen (its portion is taken); `refresh` — the list read again now; `more` — «Ещё 10»
+   * past the day's portion, or the next portion once one is done. A fan's card, its text and its «Отправить →» are
+   * «Онлайн»'s actions with the card's `queue:` handle (`SelectOnline`, `RewriteOnline`, `EditOnline`, `SendOnline`).
+   */
+  act('SetQueues', {
+    open: z.optional(z.boolean()),
+    queue: z.optional(z.int().check(z.gte(1))),
+    refresh: z.optional(z.literal(true)),
+    more: z.optional(z.literal(true)),
+  }),
+  /**
+   * 2026-10-29: «Пропустить ▾» of a fan of «Очереди»: why — «Не подходит», «Позже» (back in three days), «Уже общаемся»,
+   * «Не предлагать» (the team's mark, as «Онлайн»'s). One report to the hub, never repeated; the next fan's card opens.
+   */
+  act('SkipQueue', { targetHandle: HandleSchema, reason: z.enum(QUEUE_SKIP_REASONS) }),
   /** The lease is taken on Generate; renewing and releasing are explicit (§8.5). */
   act('RenewClaim', { targetHandle: HandleSchema }),
   act('ReleaseClaim', { targetHandle: HandleSchema }),
