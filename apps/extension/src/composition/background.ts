@@ -1048,7 +1048,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   // Starts immediately, independent of the hub's readiness/availability.
   // Telegram Web A: its own switch, rights and script (site-access.ts); nothing of Fansly's services is its.
-  const telegramTabs = createScriptTabs(telegramMatches(), 'telegram.js', api);
+  const telegramTabs = createScriptTabs(telegramMatches(), 'telegram-notice.js', api);
   const telegramAccess = createSiteAccess({
     host: TELEGRAM_HOST, key: TELEGRAM_RELOAD_KEY, storage: session,
     settings: {
@@ -1058,8 +1058,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     },
     permissions: createPermissionBundle(telegramPermissionSet(), api),
     syncScripts: (enabled) => syncDynamicScripts(telegramScriptSet(), enabled, api),
-    // No notice script: a tab open before the grant reloads with it (`reload`); nothing of Telegram's is observed.
-    tabs: { ...telegramTabs, notice: () => Promise.resolve() },
+    // The notice script only takes the previous realm's dead hosts off an open tab (an update leaves the dock in the
+    // composer without its key hold); a tab open before the grant reloads with it (`reload`). Nothing is observed.
+    tabs: telegramTabs,
     observe: { attach: () => undefined, detach: () => undefined },
     setCaptureEnabled: () => Promise.resolve(),
     startModule: async () => { await barrier.ready; return hostModules.ensure(TELEGRAM_HOST); },

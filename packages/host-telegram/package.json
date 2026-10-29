@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     "./isolated": "./src/isolated/index.ts",
+    "./isolated/notice": "./src/isolated/notice.ts",
     "./isolated/palette": "./src/isolated/palette.ts"
   },
   "dependencies": {

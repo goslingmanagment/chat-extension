@@ -51,6 +51,8 @@ export const TELEGRAM: HostDescriptor = {
   scripts: {
     // The isolated bootstrap: the host's start, the keys of our roots held on `window`, the early dispatcher (§4.5).
     isolated: { entry: 'telegram', file: 'telegram.js', world: 'ISOLATED', registration: 'dynamic' },
+    // On install and update: the previous realm's dead hosts off an open tab, whose key hold died with them.
+    notice: { entry: 'telegram-notice', file: 'telegram-notice.js', world: 'ISOLATED', registration: 'execute' },
   },
   lazy: { root: TELEGRAM_LAZY_ROOT, entries: TELEGRAM_LAZY_ENTRIES, layers: TELEGRAM_LAZY_LAYERS, beforeTheDock: ['tab-protocol', 'tab-app'] },
   // Asked for on the person's gesture («Включить Telegram»): the pages only — the extension talks to nothing of Telegram's.
