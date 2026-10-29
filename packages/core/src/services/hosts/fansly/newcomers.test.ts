@@ -1071,6 +1071,7 @@ describe('[host:fansly] «Hi» inside a greeting reminder: its one fan, proved a
     const sends: FanslySendStart[] = [];
     const page = { pageId: 13, pageLabel: 'lora-fansly', flagRevision: 4 };
     const greeting = createFanslyGreeting({
+      tokens: { redeem: () => true },
       newcomers: t.service,
       send: {
         send(start) {

@@ -268,7 +268,11 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
         if (state?.s === 'uncertain' || state?.s === 'inserted') return 'no';
         return card.vm(pass.passId, row)?.canSend === true ? 'now' : 'no';
       },
-      send: (handle) => dispatch({ type: 'SendNewcomerGreeting', targetHandle: handle }) ?? stale('SendNewcomerGreeting'),
+      send(handle) {
+        const fanRef = own(handle);
+        const row = fanRef === null ? null : rowOf(fanRef);
+        return row === null || pass === null || card === null ? stale('SendNewcomerGreeting') : card.batchSend(pass.passId, row);
+      },
       perMinute: () => GREETINGS_PER_MINUTE,
     },
     changed: () => {

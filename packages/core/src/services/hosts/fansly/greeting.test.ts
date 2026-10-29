@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { readDraftStore } from '../../../domain/newcomers/drafts';
 import { createMemoryKv } from '../../test-support/memory-kv';
+import { ActionTokens } from '../../tokens';
 import { createFanslyGreeting, type FanslyGreetingDeps, type GreetingAccepted, type GreetingGeneration } from './greeting';
 import { type FanslyNativeSend, type FanslySendStart } from './send';
 
@@ -40,7 +41,7 @@ const readyRow = (patch: Partial<FanslyFollowerRow> = {}): FanslyFollowerRow => 
   ...patch,
 });
 
-function world() {
+function world(tokens: Pick<ActionTokens, 'redeem'> = { redeem: () => true }) {
   const kv = createMemoryKv();
   const log: string[] = [];
   const state = {
@@ -60,6 +61,7 @@ function world() {
   const accepted: GreetingAccepted[] = [];
   const listeners = new Set<(view: FanslySendView) => void>();
   const deps: FanslyGreetingDeps = {
+    tokens,
     newcomers: {
       row: (passId, fanRef, tab) => (passId === PASS && fanRef === FAN && tab === TAB && state.row !== null ? { creator: state.creator, view: state.row, proof: state.row.status === 'ready' && state.row.historyRevision !== null ? { groupId: GROUP, historyRevision: state.row.historyRevision, window: [], startProof: { v: 1, source: 'pass-empty-page', groupId: GROUP, startWitnessId: null, coveredCount: 0, personalCount: 0, automatedIds: [] } } : null } : null),
       creatorOf: (passId, tab) => (passId === PASS && tab === TAB ? state.creator : null),
@@ -134,6 +136,52 @@ function world() {
 }
 
 describe('[host:fansly] the greeting of a «Новые» card in the background (R20 P10c)', () => {
+  it.each(['unknown', 'spent', 'expired', 'other-tab', 'other-kind', 'other-surface'] as const)('refuses a %s send token before history or a send attempt', async (fault) => {
+    let now = T0;
+    const tokens = new ActionTokens({ now: () => now, setTimer: () => 0, clearTimer: () => undefined }, { token: () => 'a'.repeat(32) });
+    const w = world(tokens);
+    await w.draft('Hi there!');
+    if (fault !== 'unknown') tokens.issue(fault === 'other-tab' ? 'other' : TAB, fault === 'other-kind' ? 'generate' : 'send', fault === 'other-surface' ? 'preview' : 'newcomers');
+    if (fault === 'spent') tokens.redeem({ tabSessionId: TAB, kind: 'send', surface: 'newcomers', actionToken: 'a'.repeat(32) });
+    if (fault === 'expired') now += 10_000;
+    expect(await w.ask('fansly.followers.send', w.request())).toEqual({ ok: false, error: { code: 'CG-UI-FAILED' } });
+    expect(w.log).toEqual([]);
+    expect(w.starts).toEqual([]);
+  });
+
+  it('redeems a valid newcomers send token once; an explicit retry needs a fresh click token', async () => {
+    let tokenId = 0;
+    const tokens = new ActionTokens({ now: () => T0, setTimer: () => 0, clearTimer: () => undefined }, { token: () => String(++tokenId).padStart(32, 'a') });
+    const w = world(tokens);
+    await w.draft('Hi there!');
+    w.state.view = (attemptId) => ({ attemptId, fanRef: FAN, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' });
+    const cause = { kind: 'click' as const, actionToken: tokens.issue(TAB, 'send', 'newcomers').actionToken };
+    expect(await w.ask('fansly.followers.send', w.request({ cause }))).toMatchObject({ ok: true });
+    const attemptId = '00000000-0000-4000-8000-000000000a02';
+    expect(await w.ask('fansly.followers.send', w.request({ cause, attemptId }))).toEqual({ ok: false, error: { code: 'CG-UI-FAILED' } });
+    expect(w.starts).toHaveLength(1);
+    expect(await w.ask('fansly.followers.send', w.request({ attemptId, cause: { kind: 'click', actionToken: tokens.issue(TAB, 'send', 'newcomers').actionToken } }))).toMatchObject({ ok: true });
+    expect(w.starts).toHaveLength(2);
+  });
+
+  it.each(['ready', 'claimed', 'routed', 'dispatched', 'intentWritten', 'requestStarted', 'uncertain'] as const)('a batch refuses a prior %s greeting at background admission', async (state) => {
+    const w = world();
+    await w.draft('Hi there!');
+    const prior = { attemptId: '00000000-0000-4000-8000-000000000b01', fanRef: FAN };
+    w.state.status = state === 'uncertain' ? { ...prior, state, code: 'CG-SEND-UNCERTAIN', cause: 'network' } : { ...prior, state };
+    expect(await w.ask('fansly.followers.send', w.request({ batch: true }))).toEqual({ ok: false, error: { code: 'CG-SEND-UNCERTAIN' } });
+    expect(w.log).toEqual([]);
+    expect(w.starts).toEqual([]);
+  });
+
+  it.each([false, true])('a batch sends with no unresolved attempt (previous refusal: %s)', async (refused) => {
+    const w = world();
+    await w.draft('Hi there!');
+    if (refused) w.state.status = { attemptId: '00000000-0000-4000-8000-000000000b01', fanRef: FAN, state: 'refused', code: 'CG-CLAIM-BUSY', proof: 'before-dispatch' };
+    expect(await w.ask('fansly.followers.send', w.request({ batch: true }))).toMatchObject({ ok: true, attempt: { state: 'sent' } });
+    expect(w.starts).toHaveLength(1);
+  });
+
   it('[NF-012] [NF-018] the card’s draft: kept per creator and fan in the shared drafts with the history revision it was written on; read back; an empty text clears it', async () => {
     const w = world();
     expect(await w.draft()).toEqual({ text: '', revision: 0, historyRevision: null });
@@ -319,6 +367,7 @@ describe('[host:fansly] the greeting of a «Новые» card in the background 
     const first = w.ask('fansly.followers.send', w.request());
     await settle();
     expect(await w.ask('fansly.followers.send', w.request({ attemptId: '00000000-0000-4000-8000-000000000a02' }))).toEqual({ ok: false, error: { code: 'CG-SEND-BUSY' } });
+    expect(await w.ask('fansly.followers.send', w.request({ attemptId: '00000000-0000-4000-8000-000000000a03', batch: true }))).toEqual({ ok: false, error: { code: 'CG-SEND-UNCERTAIN' } });
     open();
     expect(await first).toMatchObject({ ok: true });
     expect(w.starts).toHaveLength(1);

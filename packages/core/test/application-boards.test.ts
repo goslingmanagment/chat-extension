@@ -1358,6 +1358,37 @@ const VAULT: FakeMediaVault = {
 const pv = (h: Harness) => h.boards.preview.getSnapshot(preview('spenders'));
 
 describe('X59 on ChatSpace: a batch draft of «Новые» is sent by its row’s own «Отправить»', () => {
+  it.each(['row', 'batch'] as const)('the %s send skips a greeting after the list learns of a colleague\'s hand send', async (from) => {
+    const h = await harness({ config: X8, checkpointFan: '2010' });
+    await h.dispatch(open('newcomers'));
+    await h.dispatch({ type: 'SetNewcomersTab', tab: 'all' });
+    h.script(0, 'hi-greeting', 'Hi there!');
+    await h.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [newcomer('2010')], picked: true });
+    await h.dispatch({ type: 'GenerateBatch', list: 'newcomers' });
+    await h.advance(500);
+    const row = (): NewcomerRowVM | undefined => h.boards.newcomers.getSnapshot(NEWCOMERS).rows.find((entry) => entry.handle === newcomer('2010'));
+    expect(row()).toMatchObject({ batch: { state: 'ready' }, send: { can: true } });
+    const attributed = await hubCall(h.hub.fetch, h.hub.origin, 'clientSendAttributions', {
+      pageLabel: PAGE.pageLabel,
+      source: 'chatspace-extension',
+      facts: [{ platformMessageId: '910001', fanRef: '2010', observedAt: iso(h.clock.now()), priced: false, withMedia: false }],
+    }, { token: h.hub.issueToken() });
+    expect(attributed.status).toBe(200);
+    await h.advance(16 * 60_000);
+    await h.boards.newcomers.refresh();
+    await h.flush();
+    expect(row()?.greeting.s).toBe('greeted');
+    if (from === 'row') {
+      expect(await h.dispatch({ type: 'SendNewcomerGreeting', targetHandle: newcomer('2010') })).toMatchObject({ ok: false, code: 'CG-SEND-PART' });
+    } else {
+      await h.dispatch({ type: 'SendBatch', list: 'newcomers' });
+      await h.advance(10_000);
+    }
+    expect(h.clicks).toEqual([]);
+    expect(row()?.send).toEqual({ can: false, refused: { code: 'CG-SEND-PART', retryAt: null } });
+    expect(h.host.calls.navigations).toEqual([]);
+  });
+
   it('one click sends the greeting’s next part by the card’s own send, the card never opened; nothing more while it goes', async () => {
     const h = await harness({ config: X8, checkpointFan: '2010' });
     await h.dispatch(open('newcomers'));
@@ -1388,6 +1419,9 @@ describe('X59 on ChatSpace: a batch draft of «Новые» is sent by its row�
     expect(await h.dispatch({ type: 'SendNewcomerGreeting', targetHandle: newcomer('2010') })).toMatchObject({ ok: true });
     expect(h.clicks).toHaveLength(2);
     expect(h.clicks[1]).toMatchObject({ part: { variant: 0, index: 1 } });
+    h.sendState({ attemptId: uuid(0x501), state: 'sentObserved', platformMessageId: '4101' });
+    await h.flush();
+    expect(h.boards.preview.batchSendState(newcomer('2010'))).toBe('done');
   });
 });
 

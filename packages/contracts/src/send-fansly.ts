@@ -176,6 +176,8 @@ export const FanslyGreetingRequestSchema = z.strictObject({
   admission: FanslyGreetingAdmissionSchema,
   /** The trusted click or key that asked for it: no send without one. */
   cause: HumanCauseSchema,
+  /** «Отправить всем» cannot take over an unknown or pending greeting; only a per-fan click can retry. */
+  batch: z.optional(z.literal(true)),
   /**
    * 1.15.0 R20 P10c: with an `ai` admission, the operation of that generation in this background — the background reads
    * its result and its own verdict (FS-TAIL-8) and refuses a text that is not the result or a verdict that is not fresh.

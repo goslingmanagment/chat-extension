@@ -108,6 +108,8 @@ export interface CardGreeting {
    * when the generation ended. A field that holds the person's own text is never written over: that fan is skipped.
    */
   batchStart(passId: string, row: PassRow): Promise<BatchOutcome>;
+  /** The batch's continuation never retries an unknown or pending greeting, even if the final read discovers it. */
+  batchSend(passId: string, row: PassRow): Promise<ActionReceipt>;
   /**
    * 2026-10-29, «Hi» inside a greeting reminder's toast: «Сгенерировать» of the fan's card, open or not, with the card's
    * own checks (the draft read first: `ready`); `grant` opens the click's grant of the generation right before its token
@@ -543,7 +545,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
 
   // ── «Отправить» (NF-019) ──
 
-  async function send(type: UiAction['type'], card: Card, row: PassRow): Promise<ActionReceipt> {
+  async function send(type: UiAction['type'], card: Card, row: PassRow, batch = false): Promise<ActionReceipt> {
     const account = context.current().account?.hostAccountId ?? null;
     const blocked = blockedOf(card, row);
     if (card.text.trim() === '' || account === null || row.conversationRef === null || (row.historyRevision ?? null) === null) return refused(type, localError('CG-DATA-NOT-READY', i18n));
@@ -568,6 +570,8 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
       card.busy = false;
       return refused(type, localError('CG-SEND-PART', i18n));
     }
+    // A batch is continuation of the earlier admission; an unknown or pending send needs a person's explicit retry click.
+    if (batch && card.state.s === 'uncertain') return stop('CG-SEND-UNCERTAIN', true);
     if (card.text !== clickedText) return stop('CG-DRAFT-CHANGED');
     const currentBlock = blockedOf(card, row);
     if (currentBlock !== null) return stop(currentBlock.code);
@@ -592,6 +596,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
         historyRevision: row.historyRevision as string,
         admission,
         cause: issued.cause,
+        ...(batch ? { batch: true as const } : {}),
         ...(admission.kind === 'ai' && gen !== null ? { opId: gen.opId } : {}),
       });
     } catch {
@@ -717,6 +722,16 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     return { s: 'failed', code };
   }
 
+  function batchSend(passId: string, row: PassRow): Promise<ActionReceipt> {
+    const card = cardOf(passId, row.fanRef);
+    if (card.loaded !== 'yes') return Promise.resolve(refused('SendNewcomerGreeting', localError('CG-DATA-NOT-READY', i18n)));
+    if (card.busy) return Promise.resolve(refused('SendNewcomerGreeting', localError('CG-SEND-BUSY', i18n)));
+    if (card.state.s === 'sent') return Promise.resolve(refused('SendNewcomerGreeting', localError('CG-SEND-PART', i18n)));
+    if (!greets(row)) return Promise.resolve(refused('SendNewcomerGreeting', localError(row.check === 'greeted' ? 'CG-SEND-PART' : 'CG-DATA-NOT-READY', i18n)));
+    if (card.state.s === 'uncertain' || card.state.s === 'inserted') return Promise.resolve(refused('SendNewcomerGreeting', localError('CG-SEND-UNCERTAIN', i18n)));
+    return send('SendNewcomerGreeting', card, row, true);
+  }
+
   function here(passId: string, row: PassRow, grant: () => void): Promise<ActionReceipt> {
     const type = 'GreetNewcomer';
     const card = cardOf(passId, row.fanRef);
@@ -733,6 +748,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
     open,
     ready,
     batchStart,
+    batchSend,
     here,
     calm(passId, fanRef) {
       const card = cards.get(keyOf(passId, fanRef));

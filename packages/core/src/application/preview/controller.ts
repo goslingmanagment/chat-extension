@@ -2102,10 +2102,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return null;
   }
 
+  /** A colleague's hand send is in the list's status, even when it has no ChatGoose greeting claim. */
+  const newcomerGreeted = (track: OpTrack): boolean => track.source === 'newcomers' && deps.greeting?.greeting(track.fanRef).s === 'greeted';
+
   function batchSend(handle: TargetHandle): NewcomerRowSendVM | null {
     const next = rowPart(handle);
     const send = next?.rows.send;
     if (next === null || send === undefined) return null;
+    if (newcomerGreeted(next.track)) return { can: false, refused: { code: 'CG-SEND-PART', retryAt: null } };
     // Only what the card would send by one plain click: a warning («фан написал новое») or a part in work is the card's.
     const can = send.s === 'available' && next.rows.order === null;
     // «Рассылка»: a version made with the chat closed is unverified; its row may pass that, as the card's «Отправить всё равно».
@@ -2132,6 +2136,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const send = rows.send;
       if (send === undefined) return 'no';
       if (send.s === 'sent') continue;
+      if (newcomerGreeted(track)) return 'no';
       if (send.s === 'queued' || send.s === 'sending' || send.s === 'accepted') {
         going = true;
         continue;
@@ -2256,6 +2261,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
    * only the text (the reminder's toast): the chat's picks stay in the picker and go with nothing.
    */
   async function sendPart(type: UiActionType, track: OpTrack, variant: number, index: number, anyway = false, textOnly = false): Promise<ActionReceipt> {
+    if (type === 'SendNewcomerGreeting' && newcomerGreeted(track)) return refused(type, localError('CG-SEND-PART', i18n));
     const sender = deps.sender;
     const view = track.mirror.done;
     const texts = partsOfResult(view?.result, variant);
