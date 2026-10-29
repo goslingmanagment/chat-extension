@@ -143,7 +143,7 @@ export function createShellController(ports: ShellPorts): ShellController {
   function cardActions(target: Extract<UiAction, { type: 'GreetNewcomer' }>, here: GreetHereState): ActionButtonVM[] {
     const again = button('toast.greetAgain', { ...target, here: true, again: true });
     const open = button(here.s === 'uncertain' ? 'send.openToVerify' : 'common.openChat', here.open ?? target);
-    const send: ActionButtonVM = { ...button(here.warn === undefined || here.warn === null ? 'send.button' : 'send.anyway', here.send ?? { type: 'SendNewcomerGreeting', targetHandle: target.targetHandle }), enabled: here.send !== null };
+    const send: ActionButtonVM = { ...button(here.warn === undefined || here.warn === null ? 'send.button' : 'send.anyway', here.send ?? { type: 'SendNewcomerGreeting', targetHandle: target.targetHandle, textOnly: true }), enabled: here.send !== null };
     switch (here.s) {
       case 'ready':
         return [send, again, open];

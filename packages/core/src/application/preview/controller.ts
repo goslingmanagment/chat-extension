@@ -82,7 +82,7 @@ import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type 
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { button, dataView, errorOf, failureClass, failureView, loadingView, localError, msg, reason, reasonCode, stamp, type BoardReasonId } from '../boards/views';
 import { EMPTY_ATTACHMENT, attachmentProblem, parsePrice, type Attachment } from '../../domain/media/attachment';
-import { MediaDesk, OUTREACH_PICKER_FAN, PRICE_PROBLEM_KEYS } from './media';
+import { type MediaAttachment, MediaDesk, OUTREACH_PICKER_FAN, PRICE_PROBLEM_KEYS } from './media';
 import { SeenDesk, hostChatReadPort, type ChatReadPort } from './seen';
 import { partsOfResult, previewResult, type PartRows } from './result';
 import { clickable, fanAttempts, fanSendsOf, inFlight, openInsertRow, partKey, partOrder, progressOf, refusal, sendRow, type FanSendFact, type FanSends, type PartAttempt } from './send-rows';
@@ -2251,8 +2251,11 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     for (const handle of [...batched.keys()]) batchChanged(handle);
   }
 
-  /** `anyway` — «Отправить всё равно» on a freshness warning (2026-10-20 audit, rows 3–4). */
-  async function sendPart(type: UiActionType, track: OpTrack, variant: number, index: number, anyway = false): Promise<ActionReceipt> {
+  /**
+   * `anyway` — «Отправить всё равно» on a freshness warning (2026-10-20 audit, rows 3–4). `textOnly` — a surface that shows
+   * only the text (the reminder's toast): the chat's picks stay in the picker and go with nothing.
+   */
+  async function sendPart(type: UiActionType, track: OpTrack, variant: number, index: number, anyway = false, textOnly = false): Promise<ActionReceipt> {
     const sender = deps.sender;
     const view = track.mirror.done;
     const texts = partsOfResult(view?.result, variant);
@@ -2271,7 +2274,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (!anyway) return refused(type, localError('CG-SEND-BUSY', i18n));
       track.talkAccepted = true;
       changed();
-      return sendPart(type, track, variant, index, false);
+      return sendPart(type, track, variant, index, false, textOnly);
     }
     if (!clickable(rows.send, rows.order, anyway)) {
       const code: CgCode = rows.order !== null ? 'CG-SEND-BUSY' : rows.send.s === 'unavailable' || rows.send.s === 'rejected' ? rows.send.code : rows.send.s === 'held-stale' ? 'CG-SEND-STALE' : rows.send.s === 'unverified' ? 'CG-SEND-FRESHNESS' : rows.send?.s === 'uncertain' ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY';
@@ -2288,7 +2291,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // Decision X53: the picked media go with this part, as they are at the click. They leave the picker with it: what the
     // person does in the picker meanwhile neither changes nor repeats what goes.
     const chat = track.target.chat;
-    const attached = media.attachment(chat);
+    const attached: MediaAttachment = textOnly ? { kind: 'none' } : media.attachment(chat);
     if (attached.kind === 'blocked') return refused(type, localError('CG-SEND-MEDIA', i18n));
     const taken = attached.kind === 'media' ? media.take(chat) : null;
     // The button is off from the first click, before anything answers (§6.7.7, lock 1).
@@ -2862,7 +2865,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       // X59 on a hub's «Новые»: the row's «Отправить» is the card's own send of the greeting's next part, by this click.
       const next = rowPart(action.targetHandle);
       if (next === null) return null;
-      return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index);
+      return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index, false, action.textOnly === true);
     }
     if (action.type === 'Regenerate' || action.type === 'CancelGeneration' || action.type === 'HideResult' || action.type === 'ExpandResult' || action.type === 'SendPart' || action.type === 'OpenAndInsertPart') {
       const track = tracks.get(action.operationId);
@@ -2892,7 +2895,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         if (!rule.allowed) return Promise.resolve(refused(type, localError(rule.reason === null ? 'CG-SEND-BUSY' : reasonCode(rule.reason), i18n)));
         return generate(type, state, track.feature, {}, track);
       }
-      if (action.type === 'SendPart') return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, track, action.variant ?? 0, action.part, action.anyway === true);
+      if (action.type === 'SendPart') return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, track, action.variant ?? 0, action.part, action.anyway === true, action.textOnly === true);
       return openAndInsert(type, track, action.variant ?? 0, action.part);
     }
     if (action.type === 'ReloadView') {

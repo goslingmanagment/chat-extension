@@ -229,9 +229,10 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('OpenAndInsertPart', { operationId: UuidSchema, variant, part }),
   /**
    * X8: a button click only; never a hotkey, never «send all», never the next
-   * part by itself. `anyway` — «Отправить всё равно» on a freshness warning.
+   * part by itself. `anyway` — «Отправить всё равно» on a freshness warning. `textOnly` — a surface that shows only the
+   * text (the «Ждёт приветствия» toast): the media picked for the chat stay in its picker and do not go with it.
    */
-  act('SendPart', { operationId: UuidSchema, variant, part, anyway: z.optional(z.literal(true)) }),
+  act('SendPart', { operationId: UuidSchema, variant, part, anyway: z.optional(z.literal(true)), textOnly: z.optional(z.literal(true)) }),
   /**
    * A preview part the person edits before sending (2026-10-20 audit, row 1): `text` — the part as it is to go (opens
    * the editor), null — back to the AI text. Local only: what «Отправить» then sends is this text.
@@ -369,9 +370,10 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('ExcludeNewcomer', { targetHandle: HandleSchema, excluded: z.boolean() }),
   /**
    * 1.15.0 (R20 P10c): «Отправить» on the card of a fan a background pass checked (FS-NEW-3, NF-019): one click, one
-   * attempt of the background's send with the hub's custody; the field's content goes, never repeated.
+   * attempt of the background's send with the hub's custody; the field's content goes, never repeated. `textOnly` — the
+   * reminder's toast, which shows the greeting only: the media picked on the fan's card stay there (2026-10-29 review).
    */
-  act('SendNewcomerGreeting', { targetHandle: HandleSchema }),
+  act('SendNewcomerGreeting', { targetHandle: HandleSchema, textOnly: z.optional(z.literal(true)) }),
   /** 1.15.0 (R20 P10c): «Открыть и вставить» of that card: the fan's chat opens with the field's text for the person's own send. */
   act('InsertNewcomerGreeting', { targetHandle: HandleSchema }),
   /**
