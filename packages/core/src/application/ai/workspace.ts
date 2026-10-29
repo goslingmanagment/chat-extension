@@ -27,7 +27,7 @@ import { type DockStatus, type ReasonVM, type TargetHandle, type UiAction, type 
 
 import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, remembersTone, toneAfterStart, toneForRegenerate, toneOnLeave, windowFor, type FanScript, type GateFacts } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
-import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, starFlag, type FlagState } from '../../domain/ops';
+import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, requestDigestOf, requestIdentityOf, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
 import { archiveLag, type ArchiveLag, type ArchivePoint, type RecapSlotKey } from '../../domain/recap';
 import { recapByDefault } from '../../domain/settings';
@@ -925,13 +925,16 @@ export class AiWorkspace {
       // The feature's «с Recap» likewise, to a hub that can leave the Recap out.
       recapOff: isRecapReader(feature) && !this.recapOn(chat.key, feature) && bootstrap.capabilities.includes(RECAP_OFF_CAPABILITY),
       draftMedia,
-      // A used-up or stale answer of this chat is not what a new click asks for: the click makes a new one, never the
-      // cached one again (2026-10-22, with the sheet that leaves on the chat switch).
-      force: request.force === true || (original === undefined && this.spentIn(chat.key, feature)),
+      force: request.force === true,
     });
     if (!plan.ok) return failed(plan.code);
 
-    const outcome = await this.ops.start(plan.start, {
+    // The background keys a tab's start with no archive head. Check the answer for this exact request, including
+    // its media and PPV facts: another tone's or attachment set's newest result says nothing about this one.
+    const session = this.env.session;
+    const requestDigest = session === null || session === undefined ? undefined : requestDigestOf(requestIdentityOf({ session, start: plan.start, persona: ready.persona, archiveHead: null }));
+    const start = original === undefined && requestDigest !== undefined && this.spentIn(requestDigest) ? { ...plan.start, force: true } : plan.start;
+    const outcome = await this.ops.start(start, {
       fixSource: plan.start.draft !== undefined && feature === 'fix' ? plan.start.draft : null,
       personaDefinitionId: ready.persona.definitionId,
       fingerprint: policy.fingerprint(proof),
@@ -1339,16 +1342,15 @@ export class AiWorkspace {
   }
 
   /**
-   * Whether the newest finished answer of the feature in this chat — the one the result cache gives back — is used up
-   * or stale (`spent`). An older spent answer under a newer one says nothing: the newer one, hidden with «Скрыть», comes
-   * back on the same click (AI-128) instead of a new paid one.
+   * Whether the newest finished answer for this request is used up or stale (`spent`). As in ResultCache.remember,
+   * the newest start owns its slot; answers for other request keys cannot force or suppress a new generation.
    */
-  private spentIn(key: ChatKey, feature: FeatureId): boolean {
+  private spentIn(requestDigest: string): boolean {
     let newest: OpRecord | null = null;
     for (const record of this.ops.all()) {
       const { view } = record;
-      if (view.feature !== feature || view.state !== 'done' || !isOwnSurface(view.surface) || chatKeyOf(view.target.chat) !== key) continue;
-      if (newest === null || (view.endedAt ?? view.startedAt) > (newest.view.endedAt ?? newest.view.startedAt)) newest = record;
+      if (view.state !== 'done' || view.requestDigest !== requestDigest) continue;
+      if (newest === null || view.startedAt >= newest.view.startedAt) newest = record;
     }
     return newest !== null && this.spent(newest.view.opId);
   }
