@@ -65,8 +65,10 @@
 // The click opens the fan's chat, the dock's Hi writes one greeting there, and it goes into the site's field — for the
 // person's own send. Its click keeps a DEFERRED GREET grant: one `navigate`, one `generate` and one `insert`, within
 // DEFERRED_GREET_TTL_MS, handed out only by `afterGreet` — the toast's own chain naming the next action of it (the
-// chat's `Navigate`, the dock's `Generate`, then its `InsertPart`), as an ordinary grant of that one action. A newer
-// toast Hi replaces it; it can never send.
+// chat's `Navigate`, the dock's `Generate`, then its `InsertPart`), as an ordinary grant of that one action. It can
+// never send. Every Hi click keeps its own (2026-10-30: a second reminder's Hi pressed while the first one's fan was
+// still checked took the first one's generation, and that toast said «Сбой интерфейса»); a chain takes from the oldest
+// click that still has the kinds, so N clicks write N greetings, never more.
 //
 // One human action happens outside this document: a click on our own popup
 // or options page that acts in ChatSpace (`tab.command`, §9.9). The
@@ -316,8 +318,11 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
   let sendBatch: BatchGrant | null = null;
   /** X68: the deferred insert of the last Fix click (see the head of this file). */
   let deferred: { readonly gesture: Gesture; readonly at: number } | null = null;
-  /** The toast's Hi of the last such click and the kinds it has left (see the head of this file). */
-  let greet: { readonly gesture: Gesture; readonly at: number; readonly kinds: Set<ActionKind> } | null = null;
+  /** The toast's Hi clicks still going on, oldest first, and the kinds each has left (see the head of this file). */
+  let greets: Array<{ readonly gesture: Gesture; readonly at: number; readonly kinds: Set<ActionKind> }> = [];
+  const greetOpened = (gesture: Gesture): void => {
+    greets = [...greets.filter((grant) => now() - grant.at <= DEFERRED_GREET_TTL_MS), { gesture, at: now(), kinds: new Set(GREET_KINDS) }].slice(-GRANTS_KEPT);
+  };
   // A synthetic event never replaces the human one in flight (a page script may dispatch its own inside it).
   const note = (event: Event): void => {
     if (event.isTrusted) current = event;
@@ -367,19 +372,18 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       grants = [...grants.filter((grant) => now() - grant.at <= GRANT_TTL_MS), { gesture, kinds: new Set(kinds), at: now() }].slice(-GRANTS_KEPT);
       // A Fix of the open chat's composer: the click on the dock, or a key (⌘I in the field) — never another surface's.
       if (deferInsert && action === 'Generate' && (gesture.via === null || gesture.via === env.mounts.dock.host)) deferred = { gesture, at: now() };
-      if (action === 'GreetNewcomer') greet = { gesture, at: now(), kinds: new Set(GREET_KINDS) };
+      if (action === 'GreetNewcomer') greetOpened(gesture);
       return null;
     },
     afterGreet(action) {
-      const grant = greet;
       const kinds = GRANTED_KINDS[action] ?? [];
-      if (grant === null || !GREET_CHAIN.includes(action) || kinds.length === 0 || !kinds.every((kind) => grant.kinds.has(kind))) return 'not-granted';
-      if (now() - grant.at > DEFERRED_GREET_TTL_MS) {
-        greet = null;
-        return 'expired';
-      }
+      if (!GREET_CHAIN.includes(action) || kinds.length === 0) return 'not-granted';
+      const fits = greets.filter((open) => kinds.every((kind) => open.kinds.has(kind)));
+      greets = greets.filter((open) => now() - open.at <= DEFERRED_GREET_TTL_MS);
+      const grant = fits.find((open) => now() - open.at <= DEFERRED_GREET_TTL_MS);
+      if (grant === undefined) return fits.length === 0 ? 'not-granted' : 'expired';
       for (const kind of kinds) grant.kinds.delete(kind);
-      if (grant.kinds.size === 0) greet = null;
+      if (grant.kinds.size === 0) greets = greets.filter((open) => open !== grant);
       grants = [...grants.filter((open) => now() - open.at <= GRANT_TTL_MS), { gesture: grant.gesture, kinds: new Set(kinds), at: now() }].slice(-GRANTS_KEPT);
       return null;
     },
@@ -446,7 +450,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       const gesture: Gesture = { event: new Event('cg-command'), click: true, via: null };
       const kinds: readonly ActionKind[] = greeting ? (GRANTED_KINDS.GreetNewcomer ?? []) : ['navigate'];
       grants = [...grants.filter((grant) => now() - grant.at <= GRANT_TTL_MS), { gesture, kinds: new Set<ActionKind>(kinds), at: now() }].slice(-GRANTS_KEPT);
-      if (greeting) greet = { gesture, at: now(), kinds: new Set(GREET_KINDS) };
+      if (greeting) greetOpened(gesture);
     },
     cause() {
       const gesture = inFlight();
@@ -465,7 +469,7 @@ export function createGestureGate(win: Window, env: GateEnv, now: () => number =
       batch = null;
       sendBatch = null;
       deferred = null;
-      greet = null;
+      greets = [];
     },
   };
 }
