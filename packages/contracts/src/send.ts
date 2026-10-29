@@ -260,6 +260,8 @@ export const SendJournalEntrySchema = z
   platformMessageId: z.optional(NativeIdSchema),
   /** 1.30.0 (X53): the marks of what the part took along; absent — its text alone. */
   marks: z.optional(SendMarksSchema),
+  /** A manual preview has no scheduler operation: keep its authenticated sign-in for late send attribution. */
+  manualOwner: z.optional(z.strictObject({ userId: HubIntIdSchema, epoch: CountSchema })),
   createdAt: EpochMsSchema,
   updatedAt: EpochMsSchema,
   })

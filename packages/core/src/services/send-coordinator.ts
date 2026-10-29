@@ -133,6 +133,8 @@ export interface SendCoordinatorDeps {
     /** 1.30.0 (X53): what the part took along (a price, media), as the hub records who sent it. */
     readonly priced: boolean;
     readonly withMedia: boolean;
+    /** The sign-in captured for a manual send, including after a background restart; never supplied by the tab. */
+    readonly manualOwner?: NonNullable<SendJournalEntry['manualOwner']> & { readonly hubOrigin: string };
     /** The person changed the part's text before the send (its `textRevision` above 0); absent — not known (restored). */
     readonly edited?: boolean;
   }) => void;
@@ -296,7 +298,10 @@ export class SendCoordinator {
     }
 
     // The journal record BEFORE dispatch: an unwritten record means no queue call.
-    attempt.entry = journalEntryOf(begin, clock.now());
+    attempt.entry = {
+      ...journalEntryOf(begin, clock.now()),
+      ...(begin.manual === undefined || env.session === null ? {} : { manualOwner: { userId: env.session.userId, epoch: env.session.epoch } }),
+    };
     try {
       await this.saveJournal();
     } catch {
@@ -626,6 +631,7 @@ export class SendCoordinator {
         fanRef: attempt.fanRef,
         priced: attempt.marks?.priced ?? false,
         withMedia: attempt.marks?.withMedia ?? false,
+        ...(attempt.entry?.manualOwner === undefined ? {} : { manualOwner: { ...attempt.entry.manualOwner, hubOrigin: attempt.entry.hubOrigin } }),
         ...(attempt.edited === undefined ? {} : { edited: attempt.edited }),
       });
     }
