@@ -827,6 +827,52 @@ describe('[host:fansly] «Новые» on Fansly: a batch generated for many, ea
   }
   const sentTo = (w: Awaited<ReturnType<typeof batchReady>>): string[] => w.background.of('fansly.followers.send').map((payload) => (payload as { fanRef: string }).fanRef);
 
+  it('a ready batch sends once with its batch admission carried to the background', async () => {
+    const w = await batchReady([wireRow(1)]);
+    await w.controller.dispatch({ type: 'SendBatch', list: 'newcomers' });
+    await settle();
+    expect(sentTo(w)).toEqual([fan(1)]);
+    expect(w.background.of('fansly.followers.send')[0]).toMatchObject({ batch: true });
+    expect(w.greeting()).toMatchObject({ state: { s: 'sent' } });
+    await w.clock.advance(10_000);
+    expect(sentTo(w)).toEqual([fan(1)]);
+  });
+
+  it.each(['uncertain', 'requestStarted'] as const)('a batch never retries a %s greeting learned only at the final draft read', async (state) => {
+    const w = await batchReady([wireRow(1)]);
+    const prior: FanslySendView = state === 'uncertain'
+      ? { attemptId: uuid(0xb1), fanRef: fan(1), state, code: 'CG-SEND-UNCERTAIN', cause: 'network' }
+      : { attemptId: uuid(0xb1), fanRef: fan(1), state };
+    // Another tab or the reminder sent it after the window loaded its card. No event reached this card.
+    w.background.attempts.set(fan(1), prior);
+    expect(w.greeting()).toMatchObject({ state: { s: 'idle' }, canSend: true });
+    await w.controller.dispatch({ type: 'SendBatch', list: 'newcomers' });
+    await settle();
+    await w.clock.advance(10_000);
+    expect(sentTo(w)).toEqual([]);
+    expect(w.tab.tokens).toEqual([]);
+    expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' }, canSend: true });
+    // The person's explicit per-fan click remains a retry, once the prior send is no longer pending.
+    w.background.attempts.set(fan(1), { ...prior, state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' });
+    expect(await w.send(1)).toMatchObject({ ok: true });
+    expect(sentTo(w)).toEqual([fan(1)]);
+  });
+
+  it('a batch BUSY continuation stops when the other send becomes uncertain', async () => {
+    const w = await batchReady([wireRow(1)]);
+    w.background.sendAnswer = () => {
+      w.background.attempts.set(fan(1), { attemptId: uuid(0xb1), fanRef: fan(1), state: 'uncertain', code: 'CG-SEND-UNCERTAIN', cause: 'network' });
+      return { ok: false, error: { code: 'CG-SEND-BUSY' } };
+    };
+    await w.controller.dispatch({ type: 'SendBatch', list: 'newcomers' });
+    await settle();
+    expect(sentTo(w)).toEqual([fan(1)]);
+    await w.clock.advance(1_000);
+    await w.clock.advance(10_000);
+    expect(sentTo(w)).toEqual([fan(1)]);
+    expect(w.greeting()).toMatchObject({ state: { s: 'uncertain' } });
+  });
+
   it('[X59] [NF-019] a row with the batch’s draft has its own «Отправить»: one click sends that fan’s draft — the card’s send, without opening the card; the row says it went', async () => {
     const w = await batchReady();
     expect(w.vm().rows.map((row) => row.send)).toEqual([{ can: true, refused: null }, { can: true, refused: null }, { can: true, refused: null }]);

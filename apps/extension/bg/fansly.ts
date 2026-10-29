@@ -626,6 +626,7 @@ function tabOnCreator(kit: BackgroundKit, tab: string, creator: string): boolean
  */
 function startGreeting(kit: BackgroundKit, newcomers: FanslyNewcomers, send: FanslySend): FanslyGreeting {
   return createFanslyGreeting({
+    tokens: kit.tokens,
     newcomers,
     send,
     local: kit.storage.local,

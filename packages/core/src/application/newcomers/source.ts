@@ -117,6 +117,8 @@ export interface PassGreetingSend {
   readonly historyRevision: string;
   readonly admission: PassAdmission;
   readonly cause: HumanCause;
+  /** A continuation of «Отправить всем», never permission to retry an unresolved greeting. */
+  readonly batch?: true;
   /** With an unchanged AI text: its operation. */
   readonly opId?: string;
 }

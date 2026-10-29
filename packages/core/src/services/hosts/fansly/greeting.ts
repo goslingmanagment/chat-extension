@@ -34,6 +34,7 @@ import { FANSLY_TAB_LIMITS, type FanslyTabRequestPayload, type FanslyTabResponse
 import { EMPTY_DRAFTS, draftKey, findDraft, mergeDraftStores, putDraft, readDraftStore, removeDraft, type DraftStore, type PreviewDraft } from '../../../domain/newcomers/drafts';
 import { WriteQueue } from '../../ports';
 import { NO_LOG, type KeyValuePort, type ServiceLog } from '../../storage/ports';
+import { type ActionTokens } from '../../tokens';
 import { notReady, type FanslyNewcomers } from './newcomers';
 import { type FanslySend, type FanslySendLive, type FanslySendPage } from './send';
 
@@ -68,6 +69,7 @@ export interface GreetingAccepted {
 }
 
 export interface FanslyGreetingDeps {
+  readonly tokens: Pick<ActionTokens, 'redeem'>;
   readonly newcomers: Pick<FanslyNewcomers, 'row' | 'creatorOf' | 'freshProof' | 'recheck' | 'live' | 'greeted'>;
   readonly send: Pick<FanslySend, 'send' | 'native' | 'onChange' | 'status' | 'latest'>;
   /** storage.local: the drafts (the shared `newcomers.drafts`). */
@@ -266,13 +268,14 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
   });
 
   async function send(request: FanslyGreetingRequest, tab: string): Promise<Answer<'fansly.followers.send'>> {
+    if (!deps.tokens.redeem({ tabSessionId: tab, kind: 'send', surface: 'newcomers', actionToken: request.cause.actionToken })) return { ok: false, error: { code: 'CG-UI-FAILED' } };
     /** `retryAt` — a cooldown of Fansly's: the card says how long, at once (never «Отправляем…» while it lasts). */
     const fail = (code: CgAnyCode, retryAt?: number): Answer<'fansly.followers.send'> => {
       log({ level: 'info', scope: 'bg.fansly.greeting', msg: 'greeting refused before an attempt', fields: { attemptId: request.attemptId, code } });
       return { ok: false, error: retryAt === undefined ? { code } : { code, retryAt } };
     };
     const lock = `${request.hostAccountId}|${request.fanRef}`;
-    if (busy.has(lock)) return fail('CG-SEND-BUSY');
+    if (busy.has(lock)) return fail(request.batch === true ? 'CG-SEND-UNCERTAIN' : 'CG-SEND-BUSY');
     busy.set(lock, request.attemptId);
     try {
       const row = deps.newcomers.row(request.passId, request.fanRef, tab);
@@ -286,7 +289,9 @@ export function createFanslyGreeting(deps: FanslyGreetingDeps) {
       const prior = await deps.send.status(page.page, request.fanRef);
       // X5: a greeting that went is never sent again.
       if (prior?.state === 'sent' || prior?.state === 'receipted') return fail('CG-SEND-PART');
-      // One under way holds the fan; an unknown outcome does not («как раньше»): this is the person's own new click.
+      // A batch cannot turn a pending or unknown greeting into another attempt, including after a BUSY answer.
+      if (request.batch === true && prior !== null && prior.state !== 'refused') return fail('CG-SEND-UNCERTAIN');
+      // One under way holds the fan; only the person's explicit per-fan click may retry an unknown outcome.
       if (prior !== null && prior.state !== 'refused' && prior.state !== 'uncertain') return fail('CG-SEND-BUSY');
       const held = await loaded();
       const key = keyOf(page.page.pageId, request.fanRef);
