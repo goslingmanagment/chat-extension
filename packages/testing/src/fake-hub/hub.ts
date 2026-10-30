@@ -714,6 +714,10 @@ export class FakeHub {
       if (typeof body === 'object' && body !== null && 'fanAccount' in body && !s.config.capabilities.includes('hi-fan-account-v1')) {
         return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['fanAccount: an unknown key on a hub without hi-fan-account-v1']);
       }
+      // 2026-10-30: a hub before `fan-custom-name-v1` has no `fanCustomName` in its strict body — an unknown key, 400.
+      if (typeof body === 'object' && body !== null && 'fanCustomName' in body && !s.config.capabilities.includes('fan-custom-name-v1')) {
+        return refuse({ route, servedBy: 'check', token, request: facade.request }, 'bad_request', undefined, undefined, ['fanCustomName: an unknown key on a hub without fan-custom-name-v1']);
+      }
       const rule = typeof body === 'object' && body !== null ? streamBodyRefusal(feature, body, capabilities) : null;
       if (rule !== null) return refuse({ route, servedBy: 'check', token, request: facade.request }, rule.error, rule.reason, undefined, [rule.message]);
       if (feature === 'voice-script' && typeof body === 'object' && body !== null) {

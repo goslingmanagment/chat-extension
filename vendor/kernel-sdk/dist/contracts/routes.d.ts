@@ -4297,6 +4297,7 @@ export declare const aiFeatureStreamBodySchema: z.ZodObject<{
         displayName: z.ZodOptional<z.ZodString>;
         about: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
+    fanCustomName: z.ZodOptional<z.ZodString>;
     liveTextContext: z.ZodOptional<z.ZodObject<{
         capturedAt: z.ZodString;
         items: z.ZodArray<z.ZodObject<{
@@ -13489,6 +13490,7 @@ declare const baseRouteSchemas: {
                 displayName: z.ZodOptional<z.ZodString>;
                 about: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>>;
+            fanCustomName: z.ZodOptional<z.ZodString>;
             liveTextContext: z.ZodOptional<z.ZodObject<{
                 capturedAt: z.ZodString;
                 items: z.ZodArray<z.ZodObject<{

@@ -860,6 +860,11 @@ export const HostFanSchema = z.strictObject({
   chat: ChatRefSchema,
   username: z.nullable(displayText(128)),
   displayName: z.nullable(displayText(256)),
+  /**
+   * 2026-10-30: the chatter's own name for the fan alone (ChatSpace: OnlyMonster's `customName`, OnlyFans' rename),
+   * which `displayName` shows in place of his name; null — none set; absent — the site keeps none.
+   */
+  customName: z.optional(z.nullable(displayText(256))),
   isBlocked: z.nullable(z.boolean()),
   canReceiveMessages: z.nullable(z.boolean()),
   isRestricted: z.nullable(z.boolean()),

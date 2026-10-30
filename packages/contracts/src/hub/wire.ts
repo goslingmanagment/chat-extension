@@ -247,6 +247,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * against a hub that lists it.
    */
   'telegram-ai-v1',
+  /**
+   * 2026-10-30 (hub #930): Reply, Fix, Hi and Ping on OnlyFans take `fanCustomName`, the chatter's own name for the fan
+   * as ChatSpace shows it, beside `fan-custom-name-v1` in the request header. A hub without it refuses the field (400),
+   * so it goes only to a hub that lists it.
+   */
+  'fan-custom-name-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 
@@ -276,8 +282,9 @@ export type ClientFeatureUnavailableReason = (typeof CLIENT_FEATURE_UNAVAILABLE_
  * `hi-start-proof-v1` (HF-5) admits the three Hi fields on Fansly; ChatSpace never says it either.
  * `hi-fan-account-v1` (2026-10-26) admits Hi's `fanAccount` on Fansly, to a hub that lists it among its capabilities.
  * `coach-depth-v1` (2026-10-27): a Coach question reads past 1500 and may get a ```more note, from a hub that lists it.
+ * `fan-custom-name-v1` (2026-10-30) admits OnlyFans' `fanCustomName`, to a hub that lists it among its capabilities.
  */
-export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1', 'hi-start-proof-v1', 'hi-fan-account-v1', 'coach-depth-v1'] as const;
+export const AI_STREAM_CAPABILITIES = ['debug-input-v1', 'context-v1', 'split-all-v1', 'coverage-check-v1', 'hi-start-proof-v1', 'hi-fan-account-v1', 'coach-depth-v1', 'fan-custom-name-v1'] as const;
 export const AiStreamCapabilitySchema = z.enum(AI_STREAM_CAPABILITIES);
 export type AiStreamCapability = z.infer<typeof AiStreamCapabilitySchema>;
 

@@ -176,6 +176,8 @@ export const AI_REQUEST_LIMITS = {
   personaKeyMaxChars: 120,
   /** `draftText`: Fix's source, Coach's attached draft. */
   draftMaxChars: 20_000,
+  /** `fanCustomName`: the chatter's own name for the fan (hub `fan-custom-name-v1`). */
+  fanCustomNameMaxChars: 200,
 } as const;
 
 /** Sign-in fields as the hub's device-token route takes them (`authIssueDeviceTokenWithPassword`). */

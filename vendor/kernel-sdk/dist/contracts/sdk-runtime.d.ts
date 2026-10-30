@@ -124,7 +124,7 @@ export declare function subscribeSyncEvents(options: KernelClientOptions, input:
  * token yet behaves exactly as without it), and the SDK writes the header in
  * this order.
  */
-export declare const AI_STREAM_CAPABILITIES: readonly ["debug-input-v1", "context-v1", "split-all-v1", "coverage-check-v1", "hi-start-proof-v1", "hi-fan-account-v1", "coach-depth-v1"];
+export declare const AI_STREAM_CAPABILITIES: readonly ["debug-input-v1", "context-v1", "split-all-v1", "coverage-check-v1", "hi-start-proof-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-custom-name-v1"];
 export type AiStreamCapability = (typeof AI_STREAM_CAPABILITIES)[number];
 /**
  * Stream one AI generation through the gateway

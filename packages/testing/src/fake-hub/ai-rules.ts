@@ -95,7 +95,7 @@ export function streamBodyRefusal(feature: string, body: StreamRuleBody, capabil
     return { error: 'bad_request', message: 'fanRef is required on fansly for coach-chat and short fan-summary' };
   }
   if (body.platform === 'fansly' && blank(body.fanRef) && feature === 'fan-notes-fill') return { error: 'bad_request', message: 'fanRef is required on fansly for fan-notes-fill' };
-  return clientContextBesideRefusal(feature, body) ?? hiStartProofShapeRefusal(feature, body, capabilities) ?? hiFanAccountRefusal(feature, body, capabilities);
+  return clientContextBesideRefusal(feature, body) ?? hiStartProofShapeRefusal(feature, body, capabilities) ?? hiFanAccountRefusal(feature, body, capabilities) ?? fanCustomNameRefusal(feature, body, capabilities);
 }
 
 // ── Telegram (hub #909: ai-platform-features.ts, features/index.ts `assertTelegramRequestShape`) ──
@@ -228,6 +228,19 @@ function hiFanAccountRefusal(feature: string, body: StreamRuleBody, capabilities
   if (body.clientContext !== undefined) return bad('fanAccount cannot be combined with clientContext', 'fan_account_not_allowed');
   if (body.platform !== 'fansly') return bad('fanAccount is only accepted for fansly pages', 'fan_account_not_allowed');
   if (!capabilities.includes('hi-fan-account-v1')) return bad('fanAccount requires the hi-fan-account-v1 capability', 'capability_required');
+  return null;
+}
+
+// ── The chatter's own name for the fan (hub context/fan-names.ts `assertFanCustomNameRequestShape`, 2026-10-30) ──
+
+/** Why the hub refuses `fanCustomName`: only OnlyFans Reply, Fix, Hi and Ping without clientContext, from a caller that says fan-custom-name-v1. */
+function fanCustomNameRefusal(feature: string, body: StreamRuleBody, capabilities: readonly string[]): StreamBodyRefusal | null {
+  if (body.fanCustomName === undefined) return null;
+  const bad = (message: string, reason: string): StreamBodyRefusal => ({ error: 'bad_request', message, reason });
+  if (!['fast-reply', 'improve-draft', 'hi-greeting', 'ping'].includes(feature)) return bad(`${feature} does not accept fanCustomName`, 'fan_custom_name_not_allowed');
+  if (body.clientContext !== undefined) return bad('fanCustomName cannot be combined with clientContext', 'fan_custom_name_not_allowed');
+  if (body.platform !== 'onlyfans') return bad('fanCustomName is only accepted for onlyfans pages', 'fan_custom_name_not_allowed');
+  if (!capabilities.includes('fan-custom-name-v1')) return bad('fanCustomName requires the fan-custom-name-v1 capability', 'capability_required');
   return null;
 }
 

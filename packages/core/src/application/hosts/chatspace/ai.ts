@@ -24,7 +24,12 @@
 //   ten messages is the shared gate's (domain/features/gates.ts);
 // - no fingerprint — a result keeps nothing of its start's proof (F8: after
 //   the start no tail is kept anywhere in the tab);
-// - the verdict — the background's «фан написал новое» (§6.7.5) as the mark.
+// - the verdict — the background's «фан написал новое» (§6.7.5) as the mark;
+// - the chatter's own name for the fan (2026-10-30, the owner: «и дефолт имя и
+//   кастом»): ChatSpace's custom name, read from page memory with or without
+//   fresh text, for Reply, Fix, Hi and Ping — the hub holds no saved name for
+//   OnlyFans, and Reply and Fix had turned «Коко» into "Koko" for a fan saved as
+//   «Coco/37/France».
 //
 // It rides with ChatSpace's application half of the adapter
 // (apps/extension/src/composition/tab/hosts/chatspace/app.ts) in ChatSpace's
@@ -34,8 +39,8 @@
 
 import type { ChatRef } from '@cg/contracts/ids';
 import type { HostPort, LiveImage, LiveImageRef, LiveTextTail, OpenChatPage } from '@cg/contracts/host';
-import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
-import type { AiHostPolicy, LivePpvState } from '@cg/contracts/ops';
+import { AI_REQUEST_LIMITS, LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
+import type { AiHostPolicy, AiProofAsk, LivePpvState } from '@cg/contracts/ops';
 
 /**
  * X54: the starts that carry the PPV state — the draft features, as the start's schema admits it (`StartOp.livePpv`).
@@ -47,11 +52,29 @@ const LIVE_PPV_FEATURES: ReadonlySet<string> = new Set(['reply', 'fix', 'hi', 'p
 /** The starts that carry the fan's newest photos as images (`StartOp.liveImages`, contracts LIVE_IMAGE_FEATURES). */
 const LIVE_IMAGE_FEATURES: ReadonlySet<string> = new Set(['reply', 'fix', 'coach']);
 
+/** The starts that carry the chatter's own name for the fan (`StartOp.fanCustomName`, contracts FAN_CUSTOM_NAME_FEATURES). */
+const FAN_CUSTOM_NAME_FEATURES: ReadonlySet<string> = new Set(['reply', 'fix', 'hi', 'ping']);
+
 /** What a ChatSpace start gathers of the open chat: the visible tail (D-14), the PPV state (X54) and the fan's newest photos; each may be absent. */
 export interface ChatSpaceProof {
   readonly tail: LiveTextTail | null;
   readonly livePpv: LivePpvState | null;
   readonly liveImages?: readonly LiveImage[];
+  readonly fanCustomName?: string;
+}
+
+/** The chatter's own name for the open chat's fan as page memory holds it, trimmed and bounded; null — none set, or not this start's. */
+export function fanCustomNameOf(host: HostPort, ask: Pick<AiProofAsk, 'feature' | 'identity'>): string | null {
+  const chat = ask.identity.chat;
+  if (chat === null || !FAN_CUSTOM_NAME_FEATURES.has(ask.feature)) return null;
+  let name: string | null | undefined;
+  try {
+    name = host.fan(chat)?.customName;
+  } catch {
+    return null;
+  }
+  const trimmed = name?.trim().slice(0, AI_REQUEST_LIMITS.fanCustomNameMaxChars).trim() ?? '';
+  return trimmed === '' ? null : trimmed;
 }
 
 /**
@@ -178,7 +201,9 @@ export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
   proof: (host, ask) => {
     const fresh = ask.fresh;
     const chat = ask.identity.chat;
-    if (fresh === null) return null;
+    const customName = fanCustomNameOf(host, ask);
+    const named = customName === null ? {} : { fanCustomName: customName };
+    if (fresh === null) return customName === null ? null : Promise.resolve({ tail: null, livePpv: null, ...named });
     const ppv = ask.livePpv === true && LIVE_PPV_FEATURES.has(ask.feature);
     const images = ask.liveImages === true && LIVE_IMAGE_FEATURES.has(ask.feature) && host.loadImages !== undefined;
     // Both reads at once: page memory's tail and the open chat's page — the host's API, or ChatSpace's own copy when the
@@ -191,12 +216,14 @@ export const CHATSPACE_AI: AiHostPolicy<ChatSpaceProof, null> = {
       tail: tailOf(read, tail, fresh.maxItems),
       livePpv: ppv && read !== null ? livePpvOf(read) : null,
       ...(liveImages.length > 0 ? { liveImages } : {}),
+      ...named,
     }));
   },
   fields: (proof) => ({
     fresh: proof?.tail ?? null,
     ...(proof?.livePpv ? { livePpv: proof.livePpv } : {}),
     ...(proof?.liveImages !== undefined && proof.liveImages.length > 0 ? { liveImages: [...proof.liveImages] } : {}),
+    ...(proof?.fanCustomName !== undefined ? { fanCustomName: proof.fanCustomName } : {}),
   }),
   fingerprint: () => null,
   verdict: (view) => view.stale ?? null,
