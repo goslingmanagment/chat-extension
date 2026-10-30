@@ -37,7 +37,8 @@
 // custody — no frame in time is `tab`, provably unsent, and never the direct
 // route instead. `start` asks the route whether it still holds (the same frame,
 // tab, document and session) right before it sends; the route dispatches before
-// it yields.
+// it yields. A direct request with no answer is told to the transport, which
+// then tries the tab for a while (transport.ts `DIRECT_LOST_MS`).
 
 import { admit, addressOf, FANSLY_API_BASE, FANSLY_ROUTES, type FanslyAddressParts, type FanslyPurpose, type FanslyRouteName, type FanslyRouteSpec } from './allowlist';
 import { FanslyApiError, readEnvelope, retryAfterMs } from './errors';
@@ -289,7 +290,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
         } catch {
           request = Promise.reject(new TypeError('send threw'));
         }
-        return answerOf(request, () => timedOut, live, pass, spec, route.transport === 'direct').finally(() => {
+        return answerOf(request, () => timedOut, live, pass, spec, route.transport === 'direct', call.signal).finally(() => {
           finish();
           pass.release();
         });
@@ -298,15 +299,20 @@ export function createFanslyClient(deps: FanslyClientDeps) {
   }
 
   /** Reads the answer of a request; the pass learns what Fansly said of the pace. */
-  async function answerOf(request: Promise<FanslyHttpResponse>, timedOut: () => boolean, template: FanslySessionTemplate, pass: PacerPass, spec: FanslyRouteSpec, direct: boolean): Promise<FanslyAnswer> {
+  async function answerOf(request: Promise<FanslyHttpResponse>, timedOut: () => boolean, template: FanslySessionTemplate, pass: PacerPass, spec: FanslyRouteSpec, direct: boolean, signal?: AbortSignal): Promise<FanslyAnswer> {
     let response: FanslyHttpResponse;
     let text: string;
+    /** No answer: the direct route tells its transport (the next requests try the tab), unless the caller gave up. */
+    const unanswered = (): FanslyApiError => {
+      if (direct && !isAborted(signal)) transport.unanswered?.();
+      return new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true, direct });
+    };
     try {
       response = await request;
     } catch (error) {
       // The route took nothing (no frame took the post, or the frame's own check refused): provably no request.
       if (error instanceof FanslyRouteRefused) throw notSent('tab');
-      throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true, direct });
+      throw unanswered();
     }
     const status = response.status;
     if (status === 429) {
@@ -321,7 +327,7 @@ export function createFanslyClient(deps: FanslyClientDeps) {
     try {
       text = await response.text();
     } catch {
-      throw new FanslyApiError(timedOut() ? 'timeout' : 'network', { sent: true, direct });
+      throw unanswered();
     }
     const reading = readEnvelope(status, text, spec.emptyAnswer === true);
     if (!reading.ok) throw reading.error;
