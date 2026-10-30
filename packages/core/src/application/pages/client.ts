@@ -31,7 +31,7 @@ import { type SessionIdentity } from '@cg/contracts/ids';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import { HUB_ORIGIN_PATTERN } from '@cg/contracts/primitives';
 import { DEFAULT_HUB_ORIGIN, DEFAULT_SETTINGS, HOST_ACCOUNT_KEY_PATTERN, SETTINGS_RANGES, hostAccountKeyOf, type HostAccountKey, type SettingsPatch, type SettingsState, type UiTheme } from '@cg/contracts/settings';
-import { type TabRequestPayload, type TabResponsePayload } from '@cg/contracts/tab-messages';
+import { type AiLimitSnapshot, type TabRequestPayload, type TabResponsePayload } from '@cg/contracts/tab-messages';
 import {
   UiActionSchema,
   selectorKey,
@@ -191,6 +191,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let bindingsKey: string | null = null;
   let bindingsRun = 0;
   let quotas: PagesModel['quotas'] = new Map();
+  let aiLimit: AiLimitSnapshot | null = null;
   let ops: PagesModel['ops'] = IDLE;
   let consent: boolean | null = null;
   let hubAccess: boolean | null = null;
@@ -343,6 +344,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       siteAccounts,
       bindings,
       quotas,
+      aiLimit,
       ops,
       consent,
       // An answer for another address says nothing about this one.
@@ -473,6 +475,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       bindings = new Map();
       bindingsKey = null;
       quotas = new Map();
+      aiLimit = null;
       newcomers = null;
       aiTodayMicroUsd = null;
       fanLabels = new Map();
@@ -598,8 +601,11 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       const answer = await ask('quota.get', { pageId });
       if (answer.ok) read.set(pageId, answer.payload.quota);
     });
+    // `ai-limit-v1`: the person's own daily AI limit (all pages); `quota.personalChanged` keeps it current.
+    const limit = await ask('quota.personal', {});
     if (disposed || generation !== sessionGeneration || run !== bindingsRun) return;
     quotas = read;
+    if (limit.ok && limit.payload.limit !== null) aiLimit = limit.payload.limit;
     emit();
   }
 
@@ -1376,6 +1382,10 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         }),
         rpc.onEvent('quota.changed', (payload) => {
           quotas = new Map(quotas).set(payload.quota.pageId, payload.quota);
+          emit();
+        }),
+        rpc.onEvent('quota.personalChanged', (payload) => {
+          aiLimit = payload.limit;
           emit();
         }),
         rpc.onEvent('op.update', scheduleOps),

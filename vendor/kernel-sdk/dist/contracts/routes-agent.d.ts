@@ -77,6 +77,7 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "write:publication_drafts": "write:publication_drafts";
     "approve:publications": "approve:publications";
     "write:fan_queues": "write:fan_queues";
+    "read:content": "read:content";
 }>;
 export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_comments: "post_comments";
@@ -122,6 +123,7 @@ export declare const agentPlaneNameEnum: z.ZodEnum<{
     creator_raw_media: "creator_raw_media";
     creator_vault_album_members: "creator_vault_album_members";
     creator_vault_album_scans: "creator_vault_album_scans";
+    ofapi_media_catalog: "ofapi_media_catalog";
     creator_media: "creator_media";
     creator_media_bundles: "creator_media_bundles";
     creator_post_tips: "creator_post_tips";
@@ -224,6 +226,7 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     wallRefs: "wallRefs";
     rawMedia: "rawMedia";
     vaultInventory: "vaultInventory";
+    ofapiVaultMedia: "ofapiVaultMedia";
     postAttachment: "postAttachment";
     postTargetTipAmountMills: "postTargetTipAmountMills";
     attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -322,6 +325,19 @@ export declare const agentDatasetEnum: z.ZodEnum<{
     creator_stats_subscriptions: "creator_stats_subscriptions";
     creator_stats_revenue: "creator_stats_revenue";
     creator_stats_levels: "creator_stats_levels";
+    page_profile: "page_profile";
+    page_profile_daily: "page_profile_daily";
+    mass_messages: "mass_messages";
+    promo_links: "promo_links";
+    tier_promos: "tier_promos";
+    polls: "polls";
+    revenue_months: "revenue_months";
+    automated_messages: "automated_messages";
+    page_settings: "page_settings";
+    pending_balance: "pending_balance";
+    tracking_link_daily: "tracking_link_daily";
+    geo_blocks: "geo_blocks";
+    discovery_tags: "discovery_tags";
     creator_stats_engagement: "creator_stats_engagement";
     creator_stats_windows: "creator_stats_windows";
     creator_stats_geo: "creator_stats_geo";
@@ -343,7 +359,6 @@ export declare const agentPlannedDatasetEnum: z.ZodEnum<{
     fan_earnings: "fan_earnings";
     fan_lists: "fan_lists";
     livestreams: "livestreams";
-    polls: "polls";
     chargebacks: "chargebacks";
     blocks: "blocks";
 }>;
@@ -480,6 +495,7 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         creator_raw_media: "creator_raw_media";
         creator_vault_album_members: "creator_vault_album_members";
         creator_vault_album_scans: "creator_vault_album_scans";
+        ofapi_media_catalog: "ofapi_media_catalog";
         creator_media: "creator_media";
         creator_media_bundles: "creator_media_bundles";
         creator_post_tips: "creator_post_tips";
@@ -566,6 +582,7 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         creator_raw_media: "creator_raw_media";
         creator_vault_album_members: "creator_vault_album_members";
         creator_vault_album_scans: "creator_vault_album_scans";
+        ofapi_media_catalog: "ofapi_media_catalog";
         creator_media: "creator_media";
         creator_media_bundles: "creator_media_bundles";
         creator_post_tips: "creator_post_tips";
@@ -747,6 +764,7 @@ export declare const agentGapSchema: z.ZodObject<{
         creator_raw_media: "creator_raw_media";
         creator_vault_album_members: "creator_vault_album_members";
         creator_vault_album_scans: "creator_vault_album_scans";
+        ofapi_media_catalog: "ofapi_media_catalog";
         creator_media: "creator_media";
         creator_media_bundles: "creator_media_bundles";
         creator_post_tips: "creator_post_tips";
@@ -888,6 +906,7 @@ export declare const agentSourceErrorSchema: z.ZodObject<{
         creator_raw_media: "creator_raw_media";
         creator_vault_album_members: "creator_vault_album_members";
         creator_vault_album_scans: "creator_vault_album_scans";
+        ofapi_media_catalog: "ofapi_media_catalog";
         creator_media: "creator_media";
         creator_media_bundles: "creator_media_bundles";
         creator_post_tips: "creator_post_tips";
@@ -1128,6 +1147,7 @@ export declare const agentClaimSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -1257,6 +1277,7 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -1357,6 +1378,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -1443,6 +1465,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -1553,6 +1576,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -1694,6 +1718,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -1813,6 +1838,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -2346,6 +2372,19 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         creator_stats_subscriptions: "creator_stats_subscriptions";
         creator_stats_revenue: "creator_stats_revenue";
         creator_stats_levels: "creator_stats_levels";
+        page_profile: "page_profile";
+        page_profile_daily: "page_profile_daily";
+        mass_messages: "mass_messages";
+        promo_links: "promo_links";
+        tier_promos: "tier_promos";
+        polls: "polls";
+        revenue_months: "revenue_months";
+        automated_messages: "automated_messages";
+        page_settings: "page_settings";
+        pending_balance: "pending_balance";
+        tracking_link_daily: "tracking_link_daily";
+        geo_blocks: "geo_blocks";
+        discovery_tags: "discovery_tags";
         creator_stats_engagement: "creator_stats_engagement";
         creator_stats_windows: "creator_stats_windows";
         creator_stats_geo: "creator_stats_geo";
@@ -2366,7 +2405,6 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         fan_earnings: "fan_earnings";
         fan_lists: "fan_lists";
         livestreams: "livestreams";
-        polls: "polls";
         chargebacks: "chargebacks";
         blocks: "blocks";
     }>]>;
@@ -2389,7 +2427,9 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
         "write:fan_queues": "write:fan_queues";
+        "read:content": "read:content";
     }>>;
+    ownContent: z.ZodBoolean;
     captureState: z.ZodEnum<{
         unknown: "unknown";
         discarded_at_capture: "discarded_at_capture";
@@ -2454,6 +2494,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
                 "write:fan_queues": "write:fan_queues";
+                "read:content": "read:content";
             }>;
             granted: z.ZodBoolean;
         }, z.core.$strict>>;
@@ -2591,6 +2632,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -2674,6 +2716,19 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             creator_stats_subscriptions: "creator_stats_subscriptions";
             creator_stats_revenue: "creator_stats_revenue";
             creator_stats_levels: "creator_stats_levels";
+            page_profile: "page_profile";
+            page_profile_daily: "page_profile_daily";
+            mass_messages: "mass_messages";
+            promo_links: "promo_links";
+            tier_promos: "tier_promos";
+            polls: "polls";
+            revenue_months: "revenue_months";
+            automated_messages: "automated_messages";
+            page_settings: "page_settings";
+            pending_balance: "pending_balance";
+            tracking_link_daily: "tracking_link_daily";
+            geo_blocks: "geo_blocks";
+            discovery_tags: "discovery_tags";
             creator_stats_engagement: "creator_stats_engagement";
             creator_stats_windows: "creator_stats_windows";
             creator_stats_geo: "creator_stats_geo";
@@ -2694,7 +2749,6 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             fan_earnings: "fan_earnings";
             fan_lists: "fan_lists";
             livestreams: "livestreams";
-            polls: "polls";
             chargebacks: "chargebacks";
             blocks: "blocks";
         }>]>;
@@ -2717,7 +2771,9 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "write:publication_drafts": "write:publication_drafts";
             "approve:publications": "approve:publications";
             "write:fan_queues": "write:fan_queues";
+            "read:content": "read:content";
         }>>;
+        ownContent: z.ZodBoolean;
         captureState: z.ZodEnum<{
             unknown: "unknown";
             discarded_at_capture: "discarded_at_capture";
@@ -2817,6 +2873,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -2934,6 +2991,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -3020,6 +3078,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -3130,6 +3189,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -3271,6 +3331,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -3390,6 +3451,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -3633,6 +3695,7 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -3796,6 +3859,7 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -4058,6 +4122,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 wallRefs: "wallRefs";
                 rawMedia: "rawMedia";
                 vaultInventory: "vaultInventory";
+                ofapiVaultMedia: "ofapiVaultMedia";
                 postAttachment: "postAttachment";
                 postTargetTipAmountMills: "postTargetTipAmountMills";
                 attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -4272,6 +4337,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -4358,6 +4424,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -4468,6 +4535,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -4609,6 +4677,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -4728,6 +4797,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -4943,6 +5013,7 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -5186,6 +5257,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -5491,6 +5563,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 wallRefs: "wallRefs";
                 rawMedia: "rawMedia";
                 vaultInventory: "vaultInventory";
+                ofapiVaultMedia: "ofapiVaultMedia";
                 postAttachment: "postAttachment";
                 postTargetTipAmountMills: "postTargetTipAmountMills";
                 attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -5723,6 +5796,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -5934,6 +6008,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -6020,6 +6095,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -6130,6 +6206,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -6271,6 +6348,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -6390,6 +6468,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -6630,6 +6709,7 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -6846,6 +6926,7 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -7159,6 +7240,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -7384,6 +7466,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -7470,6 +7553,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -7580,6 +7664,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -7721,6 +7806,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -7840,6 +7926,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -8060,6 +8147,7 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -8286,6 +8374,7 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -8614,6 +8703,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -8885,6 +8975,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -8971,6 +9062,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -9081,6 +9173,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -9222,6 +9315,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -9341,6 +9435,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -9559,6 +9654,7 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -9749,6 +9845,7 @@ export declare const agentMessageSchema: z.ZodObject<{
         creator_raw_media: "creator_raw_media";
         creator_vault_album_members: "creator_vault_album_members";
         creator_vault_album_scans: "creator_vault_album_scans";
+        ofapi_media_catalog: "ofapi_media_catalog";
         creator_media: "creator_media";
         creator_media_bundles: "creator_media_bundles";
         creator_post_tips: "creator_post_tips";
@@ -9851,6 +9948,7 @@ export declare const agentMessageSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -10130,6 +10228,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -10232,6 +10331,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -10457,6 +10557,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -10543,6 +10644,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -10653,6 +10755,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -10794,6 +10897,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -10913,6 +11017,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -11200,6 +11305,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -11286,6 +11392,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -11396,6 +11503,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -11537,6 +11645,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -11656,6 +11765,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -11902,6 +12012,7 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -12059,6 +12170,7 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -12313,6 +12425,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -12538,6 +12651,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -12624,6 +12738,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -12734,6 +12849,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -12875,6 +12991,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -12994,6 +13111,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -13208,6 +13326,7 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -13335,6 +13454,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -13421,6 +13541,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -13531,6 +13652,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             creator_raw_media: "creator_raw_media";
             creator_vault_album_members: "creator_vault_album_members";
             creator_vault_album_scans: "creator_vault_album_scans";
+            ofapi_media_catalog: "ofapi_media_catalog";
             creator_media: "creator_media";
             creator_media_bundles: "creator_media_bundles";
             creator_post_tips: "creator_post_tips";
@@ -13696,6 +13818,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -13896,6 +14019,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -13982,6 +14106,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -14092,6 +14217,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -14257,6 +14383,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -14467,6 +14594,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -14553,6 +14681,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -14663,6 +14792,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -14804,6 +14934,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -14923,6 +15054,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -15226,6 +15358,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -15312,6 +15445,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -15422,6 +15556,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -15563,6 +15698,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -15682,6 +15818,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -15931,6 +16068,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -16017,6 +16155,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -16127,6 +16266,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -16268,6 +16408,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -16387,6 +16528,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -16581,6 +16723,19 @@ export declare const agentPageDatasetParamsSchema: z.ZodObject<{
         creator_stats_subscriptions: "creator_stats_subscriptions";
         creator_stats_revenue: "creator_stats_revenue";
         creator_stats_levels: "creator_stats_levels";
+        page_profile: "page_profile";
+        page_profile_daily: "page_profile_daily";
+        mass_messages: "mass_messages";
+        promo_links: "promo_links";
+        tier_promos: "tier_promos";
+        polls: "polls";
+        revenue_months: "revenue_months";
+        automated_messages: "automated_messages";
+        page_settings: "page_settings";
+        pending_balance: "pending_balance";
+        tracking_link_daily: "tracking_link_daily";
+        geo_blocks: "geo_blocks";
+        discovery_tags: "discovery_tags";
         creator_stats_engagement: "creator_stats_engagement";
         creator_stats_windows: "creator_stats_windows";
         creator_stats_geo: "creator_stats_geo";
@@ -16710,6 +16865,7 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -16812,6 +16968,19 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         creator_stats_subscriptions: "creator_stats_subscriptions";
         creator_stats_revenue: "creator_stats_revenue";
         creator_stats_levels: "creator_stats_levels";
+        page_profile: "page_profile";
+        page_profile_daily: "page_profile_daily";
+        mass_messages: "mass_messages";
+        promo_links: "promo_links";
+        tier_promos: "tier_promos";
+        polls: "polls";
+        revenue_months: "revenue_months";
+        automated_messages: "automated_messages";
+        page_settings: "page_settings";
+        pending_balance: "pending_balance";
+        tracking_link_daily: "tracking_link_daily";
+        geo_blocks: "geo_blocks";
+        discovery_tags: "discovery_tags";
         creator_stats_engagement: "creator_stats_engagement";
         creator_stats_windows: "creator_stats_windows";
         creator_stats_geo: "creator_stats_geo";
@@ -16901,6 +17070,7 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         wallRefs: "wallRefs";
         rawMedia: "rawMedia";
         vaultInventory: "vaultInventory";
+        ofapiVaultMedia: "ofapiVaultMedia";
         postAttachment: "postAttachment";
         postTargetTipAmountMills: "postTargetTipAmountMills";
         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -17113,6 +17283,19 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
         creator_stats_subscriptions: "creator_stats_subscriptions";
         creator_stats_revenue: "creator_stats_revenue";
         creator_stats_levels: "creator_stats_levels";
+        page_profile: "page_profile";
+        page_profile_daily: "page_profile_daily";
+        mass_messages: "mass_messages";
+        promo_links: "promo_links";
+        tier_promos: "tier_promos";
+        polls: "polls";
+        revenue_months: "revenue_months";
+        automated_messages: "automated_messages";
+        page_settings: "page_settings";
+        pending_balance: "pending_balance";
+        tracking_link_daily: "tracking_link_daily";
+        geo_blocks: "geo_blocks";
+        discovery_tags: "discovery_tags";
         creator_stats_engagement: "creator_stats_engagement";
         creator_stats_windows: "creator_stats_windows";
         creator_stats_geo: "creator_stats_geo";
@@ -17186,6 +17369,19 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             creator_stats_subscriptions: "creator_stats_subscriptions";
             creator_stats_revenue: "creator_stats_revenue";
             creator_stats_levels: "creator_stats_levels";
+            page_profile: "page_profile";
+            page_profile_daily: "page_profile_daily";
+            mass_messages: "mass_messages";
+            promo_links: "promo_links";
+            tier_promos: "tier_promos";
+            polls: "polls";
+            revenue_months: "revenue_months";
+            automated_messages: "automated_messages";
+            page_settings: "page_settings";
+            pending_balance: "pending_balance";
+            tracking_link_daily: "tracking_link_daily";
+            geo_blocks: "geo_blocks";
+            discovery_tags: "discovery_tags";
             creator_stats_engagement: "creator_stats_engagement";
             creator_stats_windows: "creator_stats_windows";
             creator_stats_geo: "creator_stats_geo";
@@ -17275,6 +17471,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -17511,6 +17708,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -17597,6 +17795,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -17707,6 +17906,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -17848,6 +18048,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -17967,6 +18168,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -18235,6 +18437,7 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -18548,6 +18751,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -18634,6 +18838,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -18744,6 +18949,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -18885,6 +19091,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -19004,6 +19211,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -19308,6 +19516,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -19394,6 +19603,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -19504,6 +19714,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -19645,6 +19856,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -19764,6 +19976,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -20089,6 +20302,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -20175,6 +20389,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -20285,6 +20500,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -20426,6 +20642,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -20545,6 +20762,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -20871,6 +21089,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -20957,6 +21176,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -21067,6 +21287,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -21208,6 +21429,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -21327,6 +21549,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -21656,6 +21879,7 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -22111,6 +22335,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -22197,6 +22422,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -22307,6 +22533,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -22448,6 +22675,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -22567,6 +22795,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -22944,6 +23173,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -23030,6 +23260,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -23140,6 +23371,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -23281,6 +23513,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -23400,6 +23633,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -23704,6 +23938,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -23790,6 +24025,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -23900,6 +24136,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -24041,6 +24278,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -24160,6 +24398,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -24465,6 +24704,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -24551,6 +24791,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -24661,6 +24902,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -24802,6 +25044,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -24921,6 +25164,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -25098,9 +25342,9 @@ export declare const agentSyncPageHoldKindEnum: z.ZodEnum<{
 export declare const agentSyncAttemptOutcomeEnum: z.ZodEnum<{
     unknown: "unknown";
     timeout: "timeout";
+    sent: "sent";
     shadow: "shadow";
     admitted: "admitted";
-    sent: "sent";
     response: "response";
     transport_error: "transport_error";
     aborted_before_send: "aborted_before_send";
@@ -25621,9 +25865,9 @@ export declare const agentSyncWorkSchema: z.ZodObject<{
         outcome: z.ZodEnum<{
             unknown: "unknown";
             timeout: "timeout";
+            sent: "sent";
             shadow: "shadow";
             admitted: "admitted";
-            sent: "sent";
             response: "response";
             transport_error: "transport_error";
             aborted_before_send: "aborted_before_send";
@@ -25968,6 +26212,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -26054,6 +26299,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -26164,6 +26410,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -26305,6 +26552,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -26424,6 +26672,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -26678,9 +26927,9 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             outcome: z.ZodEnum<{
                 unknown: "unknown";
                 timeout: "timeout";
+                sent: "sent";
                 shadow: "shadow";
                 admitted: "admitted";
-                sent: "sent";
                 response: "response";
                 transport_error: "transport_error";
                 aborted_before_send: "aborted_before_send";
@@ -26755,6 +27004,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -26841,6 +27091,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -26951,6 +27202,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -27092,6 +27344,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -27211,6 +27464,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -27529,6 +27783,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -27615,6 +27870,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -27725,6 +27981,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -27866,6 +28123,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 creator_raw_media: "creator_raw_media";
                 creator_vault_album_members: "creator_vault_album_members";
                 creator_vault_album_scans: "creator_vault_album_scans";
+                ofapi_media_catalog: "ofapi_media_catalog";
                 creator_media: "creator_media";
                 creator_media_bundles: "creator_media_bundles";
                 creator_post_tips: "creator_post_tips";
@@ -27985,6 +28243,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
             wallRefs: "wallRefs";
             rawMedia: "rawMedia";
             vaultInventory: "vaultInventory";
+            ofapiVaultMedia: "ofapiVaultMedia";
             postAttachment: "postAttachment";
             postTargetTipAmountMills: "postTargetTipAmountMills";
             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -28189,6 +28448,7 @@ export declare const agentRouteSchemas: {
                             "write:publication_drafts": "write:publication_drafts";
                             "approve:publications": "approve:publications";
                             "write:fan_queues": "write:fan_queues";
+                            "read:content": "read:content";
                         }>;
                         granted: z.ZodBoolean;
                     }, z.core.$strict>>;
@@ -28326,6 +28586,7 @@ export declare const agentRouteSchemas: {
                         creator_raw_media: "creator_raw_media";
                         creator_vault_album_members: "creator_vault_album_members";
                         creator_vault_album_scans: "creator_vault_album_scans";
+                        ofapi_media_catalog: "ofapi_media_catalog";
                         creator_media: "creator_media";
                         creator_media_bundles: "creator_media_bundles";
                         creator_post_tips: "creator_post_tips";
@@ -28409,6 +28670,19 @@ export declare const agentRouteSchemas: {
                         creator_stats_subscriptions: "creator_stats_subscriptions";
                         creator_stats_revenue: "creator_stats_revenue";
                         creator_stats_levels: "creator_stats_levels";
+                        page_profile: "page_profile";
+                        page_profile_daily: "page_profile_daily";
+                        mass_messages: "mass_messages";
+                        promo_links: "promo_links";
+                        tier_promos: "tier_promos";
+                        polls: "polls";
+                        revenue_months: "revenue_months";
+                        automated_messages: "automated_messages";
+                        page_settings: "page_settings";
+                        pending_balance: "pending_balance";
+                        tracking_link_daily: "tracking_link_daily";
+                        geo_blocks: "geo_blocks";
+                        discovery_tags: "discovery_tags";
                         creator_stats_engagement: "creator_stats_engagement";
                         creator_stats_windows: "creator_stats_windows";
                         creator_stats_geo: "creator_stats_geo";
@@ -28429,7 +28703,6 @@ export declare const agentRouteSchemas: {
                         fan_earnings: "fan_earnings";
                         fan_lists: "fan_lists";
                         livestreams: "livestreams";
-                        polls: "polls";
                         chargebacks: "chargebacks";
                         blocks: "blocks";
                     }>]>;
@@ -28452,7 +28725,9 @@ export declare const agentRouteSchemas: {
                         "write:publication_drafts": "write:publication_drafts";
                         "approve:publications": "approve:publications";
                         "write:fan_queues": "write:fan_queues";
+                        "read:content": "read:content";
                     }>>;
+                    ownContent: z.ZodBoolean;
                     captureState: z.ZodEnum<{
                         unknown: "unknown";
                         discarded_at_capture: "discarded_at_capture";
@@ -28552,6 +28827,7 @@ export declare const agentRouteSchemas: {
                     wallRefs: "wallRefs";
                     rawMedia: "rawMedia";
                     vaultInventory: "vaultInventory";
+                    ofapiVaultMedia: "ofapiVaultMedia";
                     postAttachment: "postAttachment";
                     postTargetTipAmountMills: "postTargetTipAmountMills";
                     attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -28669,6 +28945,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -28755,6 +29032,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -28865,6 +29143,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -29006,6 +29285,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -29125,6 +29405,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -29394,6 +29675,7 @@ export declare const agentRouteSchemas: {
                     wallRefs: "wallRefs";
                     rawMedia: "rawMedia";
                     vaultInventory: "vaultInventory";
+                    ofapiVaultMedia: "ofapiVaultMedia";
                     postAttachment: "postAttachment";
                     postTargetTipAmountMills: "postTargetTipAmountMills";
                     attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -29565,6 +29847,7 @@ export declare const agentRouteSchemas: {
                             wallRefs: "wallRefs";
                             rawMedia: "rawMedia";
                             vaultInventory: "vaultInventory";
+                            ofapiVaultMedia: "ofapiVaultMedia";
                             postAttachment: "postAttachment";
                             postTargetTipAmountMills: "postTargetTipAmountMills";
                             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -29779,6 +30062,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -29865,6 +30149,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -29975,6 +30260,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -30116,6 +30402,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -30235,6 +30522,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -30501,6 +30789,7 @@ export declare const agentRouteSchemas: {
                 wallRefs: "wallRefs";
                 rawMedia: "rawMedia";
                 vaultInventory: "vaultInventory";
+                ofapiVaultMedia: "ofapiVaultMedia";
                 postAttachment: "postAttachment";
                 postTargetTipAmountMills: "postTargetTipAmountMills";
                 attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -30745,6 +31034,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -31050,6 +31340,7 @@ export declare const agentRouteSchemas: {
                             wallRefs: "wallRefs";
                             rawMedia: "rawMedia";
                             vaultInventory: "vaultInventory";
+                            ofapiVaultMedia: "ofapiVaultMedia";
                             postAttachment: "postAttachment";
                             postTargetTipAmountMills: "postTargetTipAmountMills";
                             attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -31282,6 +31573,7 @@ export declare const agentRouteSchemas: {
                     wallRefs: "wallRefs";
                     rawMedia: "rawMedia";
                     vaultInventory: "vaultInventory";
+                    ofapiVaultMedia: "ofapiVaultMedia";
                     postAttachment: "postAttachment";
                     postTargetTipAmountMills: "postTargetTipAmountMills";
                     attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -31493,6 +31785,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -31579,6 +31872,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -31689,6 +31983,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -31830,6 +32125,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -31949,6 +32245,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -32214,6 +32511,7 @@ export declare const agentRouteSchemas: {
                 wallRefs: "wallRefs";
                 rawMedia: "rawMedia";
                 vaultInventory: "vaultInventory";
+                ofapiVaultMedia: "ofapiVaultMedia";
                 postAttachment: "postAttachment";
                 postTargetTipAmountMills: "postTargetTipAmountMills";
                 attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -32452,6 +32750,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -32677,6 +32976,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -32763,6 +33063,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -32873,6 +33174,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -33014,6 +33316,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -33133,6 +33436,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -33390,6 +33694,7 @@ export declare const agentRouteSchemas: {
                 wallRefs: "wallRefs";
                 rawMedia: "rawMedia";
                 vaultInventory: "vaultInventory";
+                ofapiVaultMedia: "ofapiVaultMedia";
                 postAttachment: "postAttachment";
                 postTargetTipAmountMills: "postTargetTipAmountMills";
                 attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -33611,6 +33916,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -33882,6 +34188,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -33968,6 +34275,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -34078,6 +34386,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -34219,6 +34528,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -34338,6 +34648,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -34600,6 +34911,7 @@ export declare const agentRouteSchemas: {
                 wallRefs: "wallRefs";
                 rawMedia: "rawMedia";
                 vaultInventory: "vaultInventory";
+                ofapiVaultMedia: "ofapiVaultMedia";
                 postAttachment: "postAttachment";
                 postTargetTipAmountMills: "postTargetTipAmountMills";
                 attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -34810,6 +35122,7 @@ export declare const agentRouteSchemas: {
                         creator_raw_media: "creator_raw_media";
                         creator_vault_album_members: "creator_vault_album_members";
                         creator_vault_album_scans: "creator_vault_album_scans";
+                        ofapi_media_catalog: "ofapi_media_catalog";
                         creator_media: "creator_media";
                         creator_media_bundles: "creator_media_bundles";
                         creator_post_tips: "creator_post_tips";
@@ -34912,6 +35225,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -35137,6 +35451,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -35223,6 +35538,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -35333,6 +35649,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -35474,6 +35791,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -35593,6 +35911,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -35888,6 +36207,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -35974,6 +36294,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -36084,6 +36405,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -36225,6 +36547,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -36344,6 +36667,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -36640,6 +36964,7 @@ export declare const agentRouteSchemas: {
                     wallRefs: "wallRefs";
                     rawMedia: "rawMedia";
                     vaultInventory: "vaultInventory";
+                    ofapiVaultMedia: "ofapiVaultMedia";
                     postAttachment: "postAttachment";
                     postTargetTipAmountMills: "postTargetTipAmountMills";
                     attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -36803,6 +37128,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -37028,6 +37354,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -37114,6 +37441,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -37224,6 +37552,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -37365,6 +37694,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -37484,6 +37814,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -37741,6 +38072,7 @@ export declare const agentRouteSchemas: {
                 wallRefs: "wallRefs";
                 rawMedia: "rawMedia";
                 vaultInventory: "vaultInventory";
+                ofapiVaultMedia: "ofapiVaultMedia";
                 postAttachment: "postAttachment";
                 postTargetTipAmountMills: "postTargetTipAmountMills";
                 attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -37872,6 +38204,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -37958,6 +38291,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -38068,6 +38402,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -38233,6 +38568,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -38443,6 +38779,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -38529,6 +38866,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -38639,6 +38977,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -38780,6 +39119,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -38899,6 +39239,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -39215,6 +39556,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -39301,6 +39643,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -39411,6 +39754,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -39552,6 +39896,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -39671,6 +40016,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -39958,6 +40304,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -40044,6 +40391,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -40154,6 +40502,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -40295,6 +40644,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -40414,6 +40764,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -40656,6 +41007,19 @@ export declare const agentRouteSchemas: {
                 creator_stats_subscriptions: "creator_stats_subscriptions";
                 creator_stats_revenue: "creator_stats_revenue";
                 creator_stats_levels: "creator_stats_levels";
+                page_profile: "page_profile";
+                page_profile_daily: "page_profile_daily";
+                mass_messages: "mass_messages";
+                promo_links: "promo_links";
+                tier_promos: "tier_promos";
+                polls: "polls";
+                revenue_months: "revenue_months";
+                automated_messages: "automated_messages";
+                page_settings: "page_settings";
+                pending_balance: "pending_balance";
+                tracking_link_daily: "tracking_link_daily";
+                geo_blocks: "geo_blocks";
+                discovery_tags: "discovery_tags";
                 creator_stats_engagement: "creator_stats_engagement";
                 creator_stats_windows: "creator_stats_windows";
                 creator_stats_geo: "creator_stats_geo";
@@ -40772,6 +41136,7 @@ export declare const agentRouteSchemas: {
                     wallRefs: "wallRefs";
                     rawMedia: "rawMedia";
                     vaultInventory: "vaultInventory";
+                    ofapiVaultMedia: "ofapiVaultMedia";
                     postAttachment: "postAttachment";
                     postTargetTipAmountMills: "postTargetTipAmountMills";
                     attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -40875,6 +41240,19 @@ export declare const agentRouteSchemas: {
                     creator_stats_subscriptions: "creator_stats_subscriptions";
                     creator_stats_revenue: "creator_stats_revenue";
                     creator_stats_levels: "creator_stats_levels";
+                    page_profile: "page_profile";
+                    page_profile_daily: "page_profile_daily";
+                    mass_messages: "mass_messages";
+                    promo_links: "promo_links";
+                    tier_promos: "tier_promos";
+                    polls: "polls";
+                    revenue_months: "revenue_months";
+                    automated_messages: "automated_messages";
+                    page_settings: "page_settings";
+                    pending_balance: "pending_balance";
+                    tracking_link_daily: "tracking_link_daily";
+                    geo_blocks: "geo_blocks";
+                    discovery_tags: "discovery_tags";
                     creator_stats_engagement: "creator_stats_engagement";
                     creator_stats_windows: "creator_stats_windows";
                     creator_stats_geo: "creator_stats_geo";
@@ -40948,6 +41326,19 @@ export declare const agentRouteSchemas: {
                         creator_stats_subscriptions: "creator_stats_subscriptions";
                         creator_stats_revenue: "creator_stats_revenue";
                         creator_stats_levels: "creator_stats_levels";
+                        page_profile: "page_profile";
+                        page_profile_daily: "page_profile_daily";
+                        mass_messages: "mass_messages";
+                        promo_links: "promo_links";
+                        tier_promos: "tier_promos";
+                        polls: "polls";
+                        revenue_months: "revenue_months";
+                        automated_messages: "automated_messages";
+                        page_settings: "page_settings";
+                        pending_balance: "pending_balance";
+                        tracking_link_daily: "tracking_link_daily";
+                        geo_blocks: "geo_blocks";
+                        discovery_tags: "discovery_tags";
                         creator_stats_engagement: "creator_stats_engagement";
                         creator_stats_windows: "creator_stats_windows";
                         creator_stats_geo: "creator_stats_geo";
@@ -41037,6 +41428,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -41273,6 +41665,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -41359,6 +41752,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -41469,6 +41863,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -41610,6 +42005,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -41729,6 +42125,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -42007,6 +42404,7 @@ export declare const agentRouteSchemas: {
                     wallRefs: "wallRefs";
                     rawMedia: "rawMedia";
                     vaultInventory: "vaultInventory";
+                    ofapiVaultMedia: "ofapiVaultMedia";
                     postAttachment: "postAttachment";
                     postTargetTipAmountMills: "postTargetTipAmountMills";
                     attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -42227,6 +42625,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -42313,6 +42712,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -42423,6 +42823,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -42564,6 +42965,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -42683,6 +43085,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -43048,6 +43451,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -43134,6 +43538,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -43244,6 +43649,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -43385,6 +43791,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -43504,6 +43911,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -43883,6 +44291,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -43969,6 +44378,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -44079,6 +44489,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -44220,6 +44631,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -44339,6 +44751,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -44714,6 +45127,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -44800,6 +45214,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -44910,6 +45325,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -45051,6 +45467,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -45170,6 +45587,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -45432,6 +45850,7 @@ export declare const agentRouteSchemas: {
                     wallRefs: "wallRefs";
                     rawMedia: "rawMedia";
                     vaultInventory: "vaultInventory";
+                    ofapiVaultMedia: "ofapiVaultMedia";
                     postAttachment: "postAttachment";
                     postTargetTipAmountMills: "postTargetTipAmountMills";
                     attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -45731,6 +46150,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -45817,6 +46237,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -45927,6 +46348,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -46068,6 +46490,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -46187,6 +46610,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -46625,6 +47049,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -46711,6 +47136,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -46821,6 +47247,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -46962,6 +47389,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -47081,6 +47509,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -47438,6 +47867,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -47524,6 +47954,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -47634,6 +48065,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -47775,6 +48207,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -47894,6 +48327,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -48250,6 +48684,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -48336,6 +48771,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -48446,6 +48882,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -48587,6 +49024,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -48706,6 +49144,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -49227,6 +49666,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -49313,6 +49753,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -49423,6 +49864,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -49564,6 +50006,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -49683,6 +50126,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -49982,9 +50426,9 @@ export declare const agentRouteSchemas: {
                         outcome: z.ZodEnum<{
                             unknown: "unknown";
                             timeout: "timeout";
+                            sent: "sent";
                             shadow: "shadow";
                             admitted: "admitted";
-                            sent: "sent";
                             response: "response";
                             transport_error: "transport_error";
                             aborted_before_send: "aborted_before_send";
@@ -50059,6 +50503,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -50145,6 +50590,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -50255,6 +50701,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -50396,6 +50843,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -50515,6 +50963,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";
@@ -50845,6 +51294,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -50931,6 +51381,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -51041,6 +51492,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -51182,6 +51634,7 @@ export declare const agentRouteSchemas: {
                             creator_raw_media: "creator_raw_media";
                             creator_vault_album_members: "creator_vault_album_members";
                             creator_vault_album_scans: "creator_vault_album_scans";
+                            ofapi_media_catalog: "ofapi_media_catalog";
                             creator_media: "creator_media";
                             creator_media_bundles: "creator_media_bundles";
                             creator_post_tips: "creator_post_tips";
@@ -51301,6 +51754,7 @@ export declare const agentRouteSchemas: {
                         wallRefs: "wallRefs";
                         rawMedia: "rawMedia";
                         vaultInventory: "vaultInventory";
+                        ofapiVaultMedia: "ofapiVaultMedia";
                         postAttachment: "postAttachment";
                         postTargetTipAmountMills: "postTargetTipAmountMills";
                         attachmentTipAmountMills: "attachmentTipAmountMills";

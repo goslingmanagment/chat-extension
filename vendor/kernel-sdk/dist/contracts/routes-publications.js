@@ -1,11 +1,12 @@
 import { errorResponseSchema } from "./primitives";
-import { agentPublicationCreateBodySchema, agentPublicationListQuerySchema, agentPublicationMediaQuerySchema, agentPublicationMediaResponseSchema, publicationApproveBodySchema, publicationApproveResponseSchema, publicationCreateBodySchema, publicationDetailSchema, publicationIdParamsSchema, publicationListQuerySchema, publicationListResponseSchema, publicationPageParamsSchema, publicationResolveBodySchema, publicationResolveResponseSchema, publicationSchema, publicationSettingsListResponseSchema, publicationSettingsSchema, publicationSettingsUpdateBodySchema, publicationUpdateBodySchema, publicationQueueListResponseSchema, publicationQueueRefreshBodySchema, publicationQueueRefreshResponseSchema, publicationWithdrawPageBodySchema, publicationWithdrawResponseSchema, } from "./publications";
+import { agentPublicationChangesQuerySchema, agentPublicationChangesResponseSchema, agentPublicationCreateBodySchema, agentPublicationListQuerySchema, agentPublicationMediaQuerySchema, agentPublicationMediaResponseSchema, agentPublicationTargetsResponseSchema, publicationApproveBodySchema, publicationApproveResponseSchema, publicationCreateBodySchema, publicationDetailSchema, publicationIdParamsSchema, publicationListQuerySchema, publicationListResponseSchema, publicationPageParamsSchema, publicationResolveBodySchema, publicationResolveResponseSchema, publicationSchema, publicationSettingsListResponseSchema, publicationSettingsSchema, publicationSettingsUpdateBodySchema, publicationUpdateBodySchema, publicationQueueListResponseSchema, publicationQueueRefreshBodySchema, publicationQueueRefreshResponseSchema, publicationWithdrawPageBodySchema, publicationWithdrawResponseSchema, } from "./publications";
 // Publications (docs/plans/2026-10-23-wall-posts, spec §9). The owner's routes
 // draft, approve, cancel, answer "unknown" and set the pages' publishing; an
 // agent key with write:publication_drafts drafts on its own pages, reads
 // their statuses and picks files from the page's media; one with
 // approve:publications also approves them, on the owner's word in the chat
-// (owner 2026-10-27). Nothing here talks to a platform.
+// (owner 2026-10-27). An agent cancels what its key drafted while Hub has not
+// handed it to the platform (owner 2026-10-29). Nothing here talks to a platform.
 const owner = { kind: "owner-session" };
 const ownerErrors = {
     400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema,
@@ -13,6 +14,7 @@ const ownerErrors = {
     409: errorResponseSchema,
 };
 const agentErrors = { ...ownerErrors, 429: errorResponseSchema, 503: errorResponseSchema };
+// publication_handed_to_platform: Hub has sent it to the platform; only the owner takes it off, in Hub.
 export const publicationRouteSchemas = {
     adminPublicationList: {
         auth: owner, tags: ["admin"],
@@ -131,6 +133,28 @@ export const publicationRouteSchemas = {
         params: publicationPageParamsSchema,
         querystring: agentPublicationMediaQuerySchema,
         response: { 200: agentPublicationMediaResponseSchema, ...agentErrors },
+    },
+    agentPublicationChanges: {
+        auth: { kind: "agentKey" }, tags: ["agent"],
+        summary: "This key's own publications on its pages changed since a time, oldest change first: status, its"
+            + " reason, the platform's post or album, times (needs write:publication_drafts). Keyset-paginated by cursor",
+        querystring: agentPublicationChangesQuerySchema,
+        response: { 200: agentPublicationChangesResponseSchema, ...agentErrors },
+    },
+    agentPublicationCancel: {
+        auth: { kind: "agentKey" }, tags: ["agent"],
+        summary: "Cancel a publication this key drafted while Hub has not handed it to the platform: a draft or an"
+            + " approved one (needs write:publication_drafts). Later it is the owner's, in Hub: 409"
+            + " publication_handed_to_platform. A cancelled one answers as it is",
+        params: publicationIdParamsSchema,
+        response: { 200: publicationSchema, ...agentErrors },
+    },
+    agentPublicationTargets: {
+        auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],
+        summary: "The page's Fansly walls and subscription tiers a draft may name, without prices"
+            + " (needs write:publication_drafts)",
+        params: publicationPageParamsSchema,
+        response: { 200: agentPublicationTargetsResponseSchema, ...agentErrors },
     },
     agentPublicationGet: {
         // An id path, so no declarative page scope: the handler checks the grant.

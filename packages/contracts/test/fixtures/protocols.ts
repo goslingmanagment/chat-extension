@@ -78,6 +78,8 @@ export interface RequestFixtures {
 const settingsState = { settings: DEFAULT_SETTINGS, revision: 3, readOnly: false } as const;
 const ack = { valid: [{ recorded: true }], invalid: [{ recorded: 'yes' }] } as const;
 const empty = { valid: [{}], invalid: [{ extra: 1 }] } as const;
+/** `ai-limit-v1`: the person's own daily AI limit, $2.80 of $3.50 spent. */
+const aiLimit = { dailyLimitMicroUsd: 3_500_000, todayMicroUsd: 2_800_000, remainingMicroUsd: 700_000, resetsAt: '2026-10-03T21:00:00.000Z', observedAt: '2026-10-03T12:00:00.000Z' } as const;
 const pageFan = { pageId: 11, fanRef: IDS.fan } as const;
 /** 1.15.0 (R20 F6b): a Fansly fan and the group of the read, apart from each other. */
 const fanslyPageGroup = { pageId: 13, fanRef: FANSLY_IDS.fan, conversationRef: FANSLY_IDS.group } as const;
@@ -189,6 +191,13 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'quota.get': {
     req: { valid: [{ pageId: 11 }], invalid: [{ pageId: 0 }] },
     res: { valid: [{ quota }, { quota: null }], invalid: [{ quota: { ...quota, resetsAt: T0 } }] },
+  },
+  'quota.personal': {
+    req: { valid: [{}], invalid: [{ pageId: 11 }] },
+    res: {
+      valid: [{ limit: aiLimit }, { limit: { ...aiLimit, dailyLimitMicroUsd: null, remainingMicroUsd: null } }, { limit: null }],
+      invalid: [{ limit: { ...aiLimit, todayMicroUsd: -1 } }],
+    },
   },
   'accounts.seen': {
     req: empty,
@@ -834,6 +843,7 @@ export const TAB_EVENT_FIXTURES: { readonly [T in TabEventType]: Verdicts } = {
   'fans.changed': empty,
   'newcomers.changed': { valid: [{ pageId: 11 }], invalid: [{ pageId: '11' }] },
   'quota.changed': { valid: [{ quota }], invalid: [{ quota: { ...quota, observedAt: null } }, {}] },
+  'quota.personalChanged': { valid: [{ limit: aiLimit }], invalid: [{ limit: { ...aiLimit, resetsAt: null } }, {}] },
   'flags.changed': {
     valid: [{ flags: { previewSend: false, someFutureFlag: true }, configRevision: 9 }],
     invalid: [{ flags: { previewSend: 'off' }, configRevision: 9 }],

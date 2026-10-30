@@ -212,6 +212,13 @@ ${/* The facts: one paper-white card, a line each — the word on the left, the 
 .pg-popup__fact dd > small { flex-basis: 100%; min-width: 0; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pg-popup__fact dd > .cg-btn--quiet { height: 20px; margin: -2px -6px -2px 0; font-size: 13px; color: var(--cg-ink-muted); }
 .pg-popup__fact dd > small.pg-popup__by { flex-basis: auto; }
+${/* The person's own daily AI limit (the owner, 2026-10-31): the money, a thin bar under it; amber from 80 %, red when spent. */ ''}
+.pg-popup__fact dd > b.pg-popup__ailimit.is-low { color: var(--cg-amber-ink, #96691c); }
+.pg-popup__fact dd > b.pg-popup__ailimit.is-out { color: var(--cg-danger); }
+.pg-popup__ailimit-bar { display: block; flex-basis: 100%; height: 4px; margin: 5px 0 1px; border-radius: 999px; background: var(--pg-line-2); overflow: hidden; }
+.pg-popup__ailimit-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--cg-good-ink, #3a7d44); }
+.pg-popup__ailimit-bar.is-low > span { background: var(--cg-amber-ink, #96691c); }
+.pg-popup__ailimit-bar.is-out > span { background: var(--cg-danger); }
 .pg-popup__fact--note { display: block; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); text-align: right; }
 .pg-popup__nil { color: var(--cg-ink-muted); }
 .pg-popup__handle { font-weight: 400; color: var(--cg-ink-muted); }

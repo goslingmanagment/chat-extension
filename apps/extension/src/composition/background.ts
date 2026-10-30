@@ -98,6 +98,7 @@ import {
   type TalkingPage,
   RecapProfileSaver,
   WsTapSwitch,
+  createAiLimitAlerts,
   createConsentState,
   createPresence,
   createReadinessBarrier,
@@ -220,6 +221,8 @@ const ALARMS = {
   health: { name: 'cg.telemetry.health', periodMs: HEALTH_TICK_MS },
   /** Chat Memory week 1: the beat of the hub's shift, once a minute while a tab is open. */
   activity: { name: 'cg.activity.beat', periodMs: ACTIVITY_LIMITS.beatMs },
+  /** `ai-limit-v1`: the person's own daily AI limit read again (other devices, the day turning over at 00:00 МСК). */
+  aiLimit: { name: 'cg.ai.limit', periodMs: 5 * 60_000 },
 } as const;
 
 /**
@@ -891,6 +894,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     session: throwingStoreOf(session),
     log: coreLog,
   });
+  // `ai-limit-v1`: «ИИ на сегодня почти закончился» at 80 % of the person's own daily limit, «исчерпан» at 100 %.
+  const aiLimitAlerts = createAiLimitAlerts({ ids: IDS, events, local: throwingStoreOf(local), log: coreLog, hasTabs: () => rpc.tabs().length > 0 });
   const sound = createBackgroundSound({
     greetings,
     local: throwingStoreOf(local),
@@ -1264,6 +1269,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         case ALARMS.activity.name:
           await activity.beat();
           break;
+        case ALARMS.aiLimit.name:
+          if (hubInstance !== null && hubInstance.session() !== null) await hubInstance.refreshAiLimit().catch(() => null);
+          break;
         default:
           break;
       }
@@ -1367,6 +1375,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         // that is open erases its own copy of the drafts; without one the key would stay on disk.
         sound.forget();
         greetings.forget();
+        aiLimitAlerts.forget();
         void local.remove([STORAGE_KEYS.newcomersDrafts]);
       }
       // §9.4: at sign-out what is finished of the X8 journal goes; open records stay until resolved.
@@ -1399,12 +1408,18 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       attributions.resume();
       noteAttributions.resume();
       sound.sync();
+      // The person's own daily AI limit: the dock and the popup show it from the first minute, not the first generation.
+      void instance.refreshAiLimit().catch(() => null);
     });
     instance.onCatalogChange(() => {
       rpc.emit('catalog.changed', {});
       void instance.catalog().then(followPersonas).catch(() => undefined);
     });
     instance.onQuotaChange((quota) => rpc.emit('quota.changed', { quota }));
+    instance.onAiLimitChange((limit) => {
+      rpc.emit('quota.personalChanged', { limit });
+      aiLimitAlerts.note(limit);
+    });
     // §7 «Сервис недоступен, повтор через 5 с…»: the facade waits before its one retry; the operation says so.
     instance.onStreamNotice((notice) => {
       if (notice.kind === 'retrying') scheduler.noteRetry(notice.clientRequestId, notice.retryAt);
@@ -1525,6 +1540,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     }),
   );
   rpc.handle('quota.get', ({ pageId }) => ok({ quota: hub().quotaOf(pageId) ?? scheduler.quota(pageId) }));
+  rpc.handle('quota.personal', () => {
+    const known = hub().aiLimitOf();
+    // Not known yet (a fresh event page, a new day): asked now, `quota.personalChanged` brings the answer.
+    if (known === null) void hub().refreshAiLimit().catch(() => null);
+    // A tab came: an alert the limit already called for while no tab was open is said now (once a day still).
+    else aiLimitAlerts.note(known);
+    return ok({ limit: known });
+  });
   rpc.handle('accounts.seen', () => ok({ accounts: [...presence.seenAccounts()] }));
   rpc.handle('persona.set', async ({ pageId, key, definitionId }, sender) => {
     const page = await pageOf(pageId, sender);
@@ -1967,7 +1990,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     { name: 'send-attributions', run: () => attributions.restore() },
     { name: 'note-attributions', run: () => noteAttributions.restore() },
     { name: 'presence', run: () => presence.start() },
-    { name: 'sound', run: () => Promise.all([sound.start(), greetings.restore()]) },
+    { name: 'sound', run: () => Promise.all([sound.start(), greetings.restore(), aiLimitAlerts.restore()]) },
     { name: 'consent', run: () => consent.start() },
     { name: 'telemetry', run: () => Promise.all([telemetry.start(), spend.start()]) },
     { name: 'ws-tap', run: () => wsTap.fromBootstrap(hubInstance?.cachedBootstrap()?.bootstrap ?? null) },

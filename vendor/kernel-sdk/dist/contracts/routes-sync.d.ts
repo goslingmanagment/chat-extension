@@ -967,9 +967,9 @@ export declare const syncPageWorkResponseSchema: z.ZodObject<{
             outcome: z.ZodEnum<{
                 unknown: "unknown";
                 timeout: "timeout";
+                sent: "sent";
                 shadow: "shadow";
                 admitted: "admitted";
-                sent: "sent";
                 response: "response";
                 transport_error: "transport_error";
                 aborted_before_send: "aborted_before_send";
@@ -1038,9 +1038,9 @@ export declare const syncPageWorkGetResponseSchema: z.ZodObject<{
             outcome: z.ZodEnum<{
                 unknown: "unknown";
                 timeout: "timeout";
+                sent: "sent";
                 shadow: "shadow";
                 admitted: "admitted";
-                sent: "sent";
                 response: "response";
                 transport_error: "transport_error";
                 aborted_before_send: "aborted_before_send";
@@ -1498,9 +1498,9 @@ export declare const syncRouteSchemas: {
                         outcome: z.ZodEnum<{
                             unknown: "unknown";
                             timeout: "timeout";
+                            sent: "sent";
                             shadow: "shadow";
                             admitted: "admitted";
-                            sent: "sent";
                             response: "response";
                             transport_error: "transport_error";
                             aborted_before_send: "aborted_before_send";
@@ -1606,9 +1606,9 @@ export declare const syncRouteSchemas: {
                         outcome: z.ZodEnum<{
                             unknown: "unknown";
                             timeout: "timeout";
+                            sent: "sent";
                             shadow: "shadow";
                             admitted: "admitted";
-                            sent: "sent";
                             response: "response";
                             transport_error: "transport_error";
                             aborted_before_send: "aborted_before_send";

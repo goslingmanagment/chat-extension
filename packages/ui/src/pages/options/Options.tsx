@@ -63,6 +63,7 @@ const ANCHORS: Partial<Record<CgCode, string>> = {
   'CG-SEND-HOST': 'preview-send',
   'CG-SEND-RECEIPT': 'preview-send',
   'CG-QUOTA-DAILY': 'quota',
+  'CG-AI-LIMIT': 'quota',
   'CG-FEATURE-DISABLED': 'spenders',
   'CG-PERSONA-NONE': 'pages',
   'CG-PERSONA-UNASSIGNED': 'pages',

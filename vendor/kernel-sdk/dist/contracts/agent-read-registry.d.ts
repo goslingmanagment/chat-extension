@@ -300,6 +300,9 @@ export declare const AGENT_CLAIM_CLASSES: {
             readonly vaultInventory: {
                 readonly required: readonly ["creator_vault_album_members", "creator_vault_album_scans"];
             };
+            readonly ofapiVaultMedia: {
+                readonly required: readonly ["ofapi_media_catalog"];
+            };
             readonly postAttachment: {
                 readonly required: readonly ["creator_posts", "creator_media", "creator_media_bundles", "creator_raw_media"];
             };

@@ -156,6 +156,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     "fan-queues-v1",
     // Reply, Fix, Hi and Ping on OnlyFans take `fanCustomName`, the chatter's own name for the fan in ChatSpace.
     "fan-custom-name-v1",
+    // The caller's personal daily AI limit: `clientAiLimit`, `quota.personal` in the meta frame, the 429 reason.
+    "ai-limit-v1",
 ];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
@@ -666,6 +668,24 @@ export const clientAiUsageResponseSchema = z.object({
         remainingRequestsToday: count.nullable(),
         remainingMicroUsdToday: count.nullable(),
     }).nullable(),
+});
+// ── Personal daily AI limit ──────────────────────────────────────────────────
+//
+// The caller's own limit, set by the owner: what their AI may cost in one
+// Moscow day over all pages. At the limit every AI call of the caller is
+// refused (429 `quota_denied`, reason `personal_daily_limit`) until `resetsAt`.
+export const clientAiLimitResponseSchema = z.object({
+    asOf: isoTimestamp,
+    /** The Moscow day the spend is counted in, YYYY-MM-DD. */
+    day: z.string(),
+    /** 00:00 Moscow time of the next day: the limit starts over. */
+    resetsAt: isoTimestamp,
+    /** Null: the caller has no personal limit (the common per-page cap still applies). */
+    dailyLimitMicroUsd: count.nullable(),
+    /** The caller's AI spend today over all pages. */
+    todayMicroUsd: count,
+    /** What is left today; null when there is no limit. */
+    remainingMicroUsd: count.nullable(),
 });
 // ── Spenders statistics (H-8b) ───────────────────────────────────────────────
 //
@@ -2845,6 +2865,19 @@ export const clientRouteSchemas = {
             403: errorResponseSchema,
             404: errorResponseSchema,
             409: errorResponseSchema,
+        },
+    },
+    clientAiLimit: {
+        auth: { kind: "apiKey" },
+        tags: ["client"],
+        summary: "The caller's personal daily AI limit and their AI spend today over all pages",
+        description: "Read-only and database-only. The limit is the owner's, per Moscow day over all pages; "
+            + "null when the caller has none. At the limit every AI generation of the caller answers 429 "
+            + "`quota_denied` with reason `personal_daily_limit` and `retryAfterMs` until `resetsAt`.",
+        response: {
+            200: clientAiLimitResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
         },
     },
     clientSpenderStats: {

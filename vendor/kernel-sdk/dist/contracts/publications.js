@@ -184,6 +184,29 @@ export const publicationListQuerySchema = z.object({
 });
 export const agentPublicationListQuerySchema = publicationListQuerySchema.omit({ pageLabel: true });
 export const publicationListResponseSchema = z.object({ publications: z.array(publicationSchema) });
+/**
+ * The key's own publications whose `updatedAt` is at or after `since`, oldest
+ * change first (owner 2026-10-29: ContentOps reads its statuses every 10
+ * minutes). `updatedAt` moves with every status change, its reason, the
+ * platform's post or album and every edit. Keep the greatest `updatedAt` you
+ * saw and ask again from it minus an overlap; a row may come again.
+ */
+export const agentPublicationChangesQuerySchema = z.object({
+    /** Changed at or after this time; left out — from the first one. */
+    since: isoDateTime({ offset: true }).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(100),
+    /** Continues a listing. It carries `since` and `limit`: resending `since` beside it is a 400. */
+    cursor: agentCursorString.optional(),
+}).strict().superRefine((value, ctx) => {
+    if (value.cursor !== undefined && value.since !== undefined) {
+        ctx.addIssue({ code: "custom", path: ["cursor"], message: "cursor pins the listing; do not resend `since`" });
+    }
+});
+export const agentPublicationChangesResponseSchema = z.object({
+    publications: z.array(publicationSchema),
+    /** null: nothing more has changed yet. */
+    nextCursor: z.string().nullable(),
+});
 export const publicationIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });
 export const publicationApproveBodySchema = z.strictObject({
     /** One or many; each with the version the person saw. Approved in this order. */
@@ -352,4 +375,27 @@ export const agentPublicationMediaResponseSchema = z.object({
     media: z.array(publicationPageMediaSchema),
     /** null: the listing is complete. */
     nextCursor: z.string().nullable(),
+});
+/**
+ * Where a draft of the page can go and who sees it: its Fansly walls and
+ * subscription tiers as Hub last read them, by name — no prices (owner
+ * 2026-10-29: a key without read:money names the audience of a post).
+ * `wallRefs` and `tierRefs` of a draft name these; an empty `wallRefs` is the
+ * default wall. OnlyFans has neither: both lists are empty.
+ */
+export const agentPublicationTargetsResponseSchema = z.object({
+    pageLabel: z.string(),
+    platform: platformEnum,
+    walls: z.array(z.object({
+        wallRef: z.string(),
+        name: z.string().nullable(),
+        defaultWall: z.boolean(),
+        mainWall: z.boolean(),
+    })),
+    tiers: z.array(z.object({
+        tierRef: z.string(),
+        name: z.string().nullable(),
+        /** The page's own order of its tiers. */
+        pos: z.number().int().nullable(),
+    })),
 });

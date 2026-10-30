@@ -12,7 +12,7 @@ import { type HostAccount, type HubBinding, type SessionIdentity } from '@cg/con
 import { type LogRecord } from '@cg/contracts/logs';
 import { type OpView } from '@cg/contracts/ops';
 import { hostAccountKeyOf, type HostAccountKey, type SettingsState, type SettingsV1 } from '@cg/contracts/settings';
-import { type AiQuotaSnapshot, type DiagnosticsSnapshot, type PromptSnapshotView } from '@cg/contracts/tab-messages';
+import { type AiLimitSnapshot, type AiQuotaSnapshot, type DiagnosticsSnapshot, type PromptSnapshotView } from '@cg/contracts/tab-messages';
 import {
   UNAVAILABLE_REASONS,
   type ActionButtonVM,
@@ -114,6 +114,8 @@ export interface PagesModel {
   readonly bindings: ReadonlyMap<HostAccountKey, BindingSlot>;
   /** Per hub page; null — the background has seen no generation on it yet. */
   readonly quotas: ReadonlyMap<number, AiQuotaSnapshot | null>;
+  /** `ai-limit-v1`: the person's own daily AI limit; absent or null — none, or not known yet. */
+  readonly aiLimit?: AiLimitSnapshot | null;
   readonly ops: Slot<readonly OpView[]>;
   /** `technicalAndInteraction`: null — the browser could not tell. */
   readonly consent: boolean | null;

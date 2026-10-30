@@ -51,6 +51,7 @@ export function quotaSlot(vm: DockVM): 'zero' | 'low' | null {
  */
 const STATE_CODES: ReadonlySet<string> = new Set([
   'CG-QUOTA-DAILY',
+  'CG-AI-LIMIT',
   'CG-OP-TAB-LIMIT',
   'CG-OP-CHAT-BUSY',
   'CG-OP-COACH-BUSY',

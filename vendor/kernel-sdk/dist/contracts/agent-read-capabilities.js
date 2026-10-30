@@ -15,9 +15,9 @@
  * Design reference: `investigations/agent-read-api-design-2026-07-31.md` §8.
  */
 /**
- * Exactly six. Adding a seventh is a contract change: it widens what a key can be
- * granted, so it travels with a migration for the `agent_keys` CHECK, an entry in
- * the per-operation requirement table, and regression coverage.
+ * Adding one is a contract change: it widens what a key can be granted, so it
+ * travels with a migration for the `agent_keys` CHECK, an entry in the
+ * per-operation requirement table, and regression coverage.
  */
 export const AGENT_CAPABILITIES = [
     /** Verbatim message text: transcripts, search snippets, thread material. */
@@ -40,6 +40,14 @@ export const AGENT_CAPABILITIES = [
      * word of the person who asked (`requestedBy`). Nothing is sent to a fan.
      */
     "write:fan_queues",
+    /**
+     * The page's own published material and its statistics, nothing else: the
+     * datasets marked `ownContent` (posts, attachments, files, vault, their
+     * views and likes, capture coverage, sync streams) with this capability
+     * ALONE — no `read:datasets`, so no thread inventory, fans, purchases or
+     * money. The ContentOps key's narrow right (owner 2026-10-29).
+     */
+    "read:content",
 ];
 const AGENT_CAPABILITY_SET = new Set(AGENT_CAPABILITIES);
 /**

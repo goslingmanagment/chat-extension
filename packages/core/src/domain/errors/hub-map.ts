@@ -38,6 +38,14 @@ export function nextUtcMidnight(now: number): number {
   return Math.floor(now / DAY_MS) * DAY_MS + DAY_MS;
 }
 
+/** Moscow is UTC+3 all year (no DST since 2014). */
+const MSK_OFFSET_MS = 3 * 3_600_000;
+
+/** The next 00:00 Moscow time strictly after `now`: the personal AI limit's day boundary (CG-AI-LIMIT). */
+export function nextMskMidnight(now: number): number {
+  return nextUtcMidnight(now + MSK_OFFSET_MS) - MSK_OFFSET_MS;
+}
+
 function conditionHolds(condition: HubErrorCondition, context: HubErrorContext): boolean {
   switch (condition) {
     case 'stale-sign-in':
@@ -108,7 +116,9 @@ export const resolveHubError: ResolveHubError = (failure: HubFailure, context: H
       const retryAt =
         rule.retryAt === 'next-utc-midnight'
           ? nextUtcMidnight(context.now)
-          : rule.retryAt === 'retry-after' && failure.retryAfterMs !== null
+          : rule.retryAt === 'next-msk-midnight'
+            ? nextMskMidnight(context.now)
+            : rule.retryAt === 'retry-after' && failure.retryAfterMs !== null
             ? context.now + failure.retryAfterMs
             : null;
       return { code: rule.cg, disposition: rule.disposition, retryAt, httpStatus: failure.status };

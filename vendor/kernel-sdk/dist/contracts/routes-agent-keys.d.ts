@@ -36,6 +36,7 @@ export declare const agentKeyCapabilityEnum: z.ZodEnum<{
     "write:publication_drafts": "write:publication_drafts";
     "approve:publications": "approve:publications";
     "write:fan_queues": "write:fan_queues";
+    "read:content": "read:content";
 }>;
 /** The sliding default; the hard ceiling lives with the repository. */
 export declare const AGENT_KEY_DEFAULT_LIFETIME_DAYS = 90;
@@ -57,6 +58,7 @@ export declare const agentKeyItemSchema: z.ZodObject<{
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
         "write:fan_queues": "write:fan_queues";
+        "read:content": "read:content";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresAt: z.ZodString;
@@ -76,6 +78,7 @@ export declare const agentKeyCreateBodySchema: z.ZodObject<{
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
         "write:fan_queues": "write:fan_queues";
+        "read:content": "read:content";
     }>>;
     pageLabels: z.ZodArray<z.ZodString>;
     expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -95,6 +98,7 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
             "write:publication_drafts": "write:publication_drafts";
             "approve:publications": "approve:publications";
             "write:fan_queues": "write:fan_queues";
+            "read:content": "read:content";
         }>>;
         pageLabels: z.ZodArray<z.ZodString>;
         expiresAt: z.ZodString;
@@ -124,6 +128,7 @@ export declare const agentKeyUpdateBodySchema: z.ZodObject<{
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
         "write:fan_queues": "write:fan_queues";
+        "read:content": "read:content";
     }>>;
 }, z.core.$strict>;
 export declare const agentKeyRevokeResponseSchema: z.ZodObject<{
@@ -149,6 +154,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
                 "write:fan_queues": "write:fan_queues";
+                "read:content": "read:content";
             }>>;
             pageLabels: z.ZodArray<z.ZodString>;
             expiresInDays: z.ZodDefault<z.ZodNumber>;
@@ -169,6 +175,7 @@ export declare const agentKeyAdminRouteSchemas: {
                         "write:publication_drafts": "write:publication_drafts";
                         "approve:publications": "approve:publications";
                         "write:fan_queues": "write:fan_queues";
+                        "read:content": "read:content";
                     }>>;
                     pageLabels: z.ZodArray<z.ZodString>;
                     expiresAt: z.ZodString;
@@ -235,6 +242,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "write:publication_drafts": "write:publication_drafts";
                     "approve:publications": "approve:publications";
                     "write:fan_queues": "write:fan_queues";
+                    "read:content": "read:content";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;
@@ -278,6 +286,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
                 "write:fan_queues": "write:fan_queues";
+                "read:content": "read:content";
             }>>;
         }, z.core.$strict>;
         readonly response: {
@@ -294,6 +303,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "write:publication_drafts": "write:publication_drafts";
                     "approve:publications": "approve:publications";
                     "write:fan_queues": "write:fan_queues";
+                    "read:content": "read:content";
                 }>>;
                 pageLabels: z.ZodArray<z.ZodString>;
                 expiresAt: z.ZodString;

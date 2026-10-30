@@ -125,6 +125,12 @@ export interface FakeHubConfig {
   /** H-2: `client/bootstrap` is deployed. */
   readonly clientBootstrap: boolean;
   readonly quotaRequestsToday: number | null;
+  /**
+   * `ai-limit-v1`: the person's own daily AI limit (the owner's), the same for every user of the stand: what is spent
+   * today and what one generation costs. Null — no limit (the hub's default). At the limit 429 `quota_denied` with
+   * reason `personal_daily_limit`.
+   */
+  readonly personalAiLimit: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number } | null;
   readonly generationVisibleAfterMs: number;
   readonly spendersTotal: number;
   readonly aiChunkDelayMs: number;
@@ -161,6 +167,7 @@ const BASE = {
   narrowTokens: true,
   clientBootstrap: true,
   quotaRequestsToday: 120,
+  personalAiLimit: null,
   generationVisibleAfterMs: 0,
   spendersTotal: 1240,
   aiChunkDelayMs: 0,
@@ -274,6 +281,7 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.narrowTokens === undefined ? {} : { narrowTokens: patch.narrowTokens }),
     ...(patch.clientBootstrap === undefined ? {} : { clientBootstrap: patch.clientBootstrap }),
     ...(patch.quotaRequestsToday === undefined ? {} : { quotaRequestsToday: patch.quotaRequestsToday }),
+    ...(patch.personalAiLimit === undefined ? {} : { personalAiLimit: patch.personalAiLimit }),
     ...(patch.generationVisibleAfterMs === undefined ? {} : { generationVisibleAfterMs: patch.generationVisibleAfterMs }),
     ...(patch.spendersTotal === undefined ? {} : { spendersTotal: patch.spendersTotal }),
     ...(patch.aiChunkDelayMs === undefined ? {} : { aiChunkDelayMs: patch.aiChunkDelayMs }),

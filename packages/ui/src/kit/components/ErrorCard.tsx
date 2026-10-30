@@ -101,7 +101,7 @@ export interface ErrorCardProps {
 export function ErrorCard(props: ErrorCardProps): JSX.Element {
   const i18n = useI18n();
   const { error } = props;
-  const countdownStyle = props.countdown ?? (error.code === 'CG-QUOTA-DAILY' ? 'reset' : 'retry');
+  const countdownStyle = props.countdown ?? (error.code === 'CG-QUOTA-DAILY' || error.code === 'CG-AI-LIMIT' ? 'reset' : 'retry');
   const retryAt = countdownStyle === 'none' ? null : (error.retryAt ?? null);
   const { text: left, remaining } = useCountdownText(retryAt);
   const waiting = retryAt !== null && remaining > 0;

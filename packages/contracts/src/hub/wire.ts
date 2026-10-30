@@ -253,6 +253,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * so it goes only to a hub that lists it.
    */
   'fan-custom-name-v1',
+  /** The person's own daily AI limit: `clientAiLimit`, `quota.personal` in the meta frame, the 429 reason. */
+  'ai-limit-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

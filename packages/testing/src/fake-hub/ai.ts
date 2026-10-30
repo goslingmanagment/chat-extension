@@ -47,6 +47,8 @@ export interface ModelStreamFacts {
   readonly requestId: string;
   readonly personaDefinitionId: string | null;
   readonly remainingRequestsToday: number | null;
+  /** `ai-limit-v1`: the person's own daily limit before this call (`quota.personal`); absent — none. */
+  readonly personal?: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly remainingMicroUsd: number; readonly resetsAt: string } | null;
   /** The page's `splitAll` flag (H-10: Hi/Ping/Coach split only with it and `split-all-v1`). */
   readonly splitAllFlag: boolean;
   /** The page's `freshText` flag (H-4c: off → the fresh text is ignored, `live.status = disabled`). */
@@ -183,7 +185,7 @@ export function modelStream(request: HubStreamRequest, facts: ModelStreamFacts):
       providerResponseId: null,
       ...(facts.personaDefinitionId === null ? {} : { personaDefinitionId: facts.personaDefinitionId }),
       ...(facts.attachedRecaps === undefined ? {} : { attachedRecaps: facts.attachedRecaps }),
-      quota: { accepted: true, remainingRequestsToday: facts.remainingRequestsToday, remainingMicroUsdToday: null },
+      quota: { accepted: true, remainingRequestsToday: facts.remainingRequestsToday, remainingMicroUsdToday: null, ...(facts.personal === undefined ? {} : { personal: facts.personal }) },
     }),
   ];
   if (debug) {

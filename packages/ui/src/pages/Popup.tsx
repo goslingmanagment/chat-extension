@@ -249,6 +249,19 @@ function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
           </dd>
         </div>
       )}
+      {vm.aiLimit === undefined || vm.aiLimit === null ? null : (
+        <div class="pg-popup__fact" data-pg-fact="ai-limit">
+          <dt>{i18n.t('popup.aiLimit')}</dt>
+          <dd>
+            {/* The person's own daily AI limit (the owner, 2026-10-31): the money, a thin bar, when it starts over. */}
+            <b class={`pg-popup__ailimit is-${vm.aiLimit.level}`}>{i18n.t('popup.aiLimitValue', { spent: vm.aiLimit.spent, limit: vm.aiLimit.limit })}</b>
+            <span class={`pg-popup__ailimit-bar is-${vm.aiLimit.level}`} aria-hidden="true">
+              <span style={{ width: `${Math.round(vm.aiLimit.share * 100)}%` }} />
+            </span>
+            <small class="pg-popup__by">{i18n.t(vm.aiLimit.level === 'out' ? 'popup.aiLimitOut' : 'popup.aiLimitReset')}</small>
+          </dd>
+        </div>
+      )}
       {vm.account === null || signOut === null ? null : (
         <div class="pg-popup__fact" data-pg-fact="account">
           <dt>{i18n.t('popup.account')}</dt>

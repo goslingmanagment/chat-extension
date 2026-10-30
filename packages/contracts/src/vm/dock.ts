@@ -96,6 +96,19 @@ export interface ChipVM extends DockActionVM {
   readonly answered?: boolean;
 }
 
+/**
+ * The person's own daily AI limit (the owner's; Moscow day, all pages) for the dock and the popup: money already
+ * written («$1.20»), the spent share (0…1) and the level — `low` from 80 %, `out` when it is spent (every AI button
+ * then answers CG-AI-LIMIT until `resetsAt`, 00:00 МСК).
+ */
+export interface AiLimitVM {
+  readonly spent: string;
+  readonly limit: string;
+  readonly share: number;
+  readonly level: 'ok' | 'low' | 'out';
+  readonly resetsAt: IsoTimestamp;
+}
+
 export interface DockVM {
   readonly view: VmView;
   /** Only in an open chat (UI-012). */
@@ -143,6 +156,8 @@ export interface DockVM {
    * `resetsAt` gives «Обновится в 03:00» and the CG-QUOTA-DAILY countdown; null — unknown.
    */
   readonly quota: { readonly remaining: number | null; readonly low: boolean; readonly resetsAt: IsoTimestamp | null } | null;
+  /** The person's own daily AI limit (the owner's): «ИИ $1.20 / $3.50» with a bar; absent or null — no limit or not known. */
+  readonly aiLimit?: AiLimitVM | null;
   readonly options: {
     /** The one-off tone of the next Reply (Б1); null — «Тон». */
     readonly tone: Tone | null;

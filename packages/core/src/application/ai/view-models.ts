@@ -147,7 +147,7 @@ export function errorActions(wire: CgErrorWire, ctx: ErrorActionContext): Action
   const out: ActionButtonVM[] = [];
   // The day's quota is gone (ui-design §4.8, `final-7a`): the card counts down to the reset and offers the code —
   // a «Повторить» that stays off for hours and a link to settings that cannot add quota are not offered.
-  const quota = wire.code === 'CG-QUOTA-DAILY';
+  const quota = wire.code === 'CG-QUOTA-DAILY' || wire.code === 'CG-AI-LIMIT';
   for (const action of recoveryActions(wire, ctx.now)) {
     if (action.label === null) continue;
     if (quota && action.kind !== 'copy-code') continue;

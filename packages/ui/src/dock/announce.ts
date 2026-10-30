@@ -80,7 +80,7 @@ export function RetryAnnouncer({ error, actions }: RetryAnnouncerProps): null {
   const i18n = useI18n();
   const announce = useAnnounce();
   const now = useNowFn();
-  const waits = error !== null && error.code !== 'CG-QUOTA-DAILY' && actions.some((vm) => vm.reason?.id === 'wait-until' || !vm.enabled);
+  const waits = error !== null && error.code !== 'CG-QUOTA-DAILY' && error.code !== 'CG-AI-LIMIT' && actions.some((vm) => vm.reason?.id === 'wait-until' || !vm.enabled);
   const until = waits ? (error.retryAt ?? null) : null;
   const left = useCountdown(until, now);
   const counting = until !== null && left > 0;
