@@ -137,6 +137,10 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   // 2026-10-26: the fan's names and «about» for Hi on Fansly, to a hub that takes them; else they stay home.
   const fanAccount = hiByProof && start.fanAccount !== undefined && hasCapability(ctx.bootstrap.capabilities, 'hi-fan-account-v1') ? start.fanAccount : undefined;
   if (fanAccount !== undefined) capabilities.push('hi-fan-account-v1');
+  // 2026-10-30: the chatter's own name for the fan on OnlyFans (ChatSpace's), to a hub that takes it; else it stays home.
+  const fanCustomName =
+    start.fanCustomName !== undefined && start.target.binding.platform === 'onlyfans' && hasCapability(ctx.bootstrap.capabilities, 'fan-custom-name-v1') ? start.fanCustomName : undefined;
+  if (fanCustomName !== undefined) capabilities.push('fan-custom-name-v1');
   // 2026-10-27: a Coach question reads as deep as the chatter chose and may get a ```more note — to a hub that serves it.
   if (start.feature === 'coach' && contextV1 && hasCapability(ctx.bootstrap.capabilities, 'coach-depth-v1')) capabilities.push('coach-depth-v1');
 
@@ -165,6 +169,7 @@ export function buildStreamRequest(start: StartOp, ctx: StreamRequestContext): B
   else if (start.feature === 'hi' && start.startProof === undefined && start.personalMessageCount !== undefined) body.personalMessageCount = start.personalMessageCount;
   if (hiByProof && start.fanAvatarUrl !== undefined) body.fanAvatarUrl = start.fanAvatarUrl;
   if (fanAccount !== undefined) body.fanAccount = { ...fanAccount };
+  if (fanCustomName !== undefined) body.fanCustomName = fanCustomName;
   if (start.feature === 'recap-short') body.summaryMode = 'short';
   if (start.feature === 'coach' && start.coach !== undefined) {
     // A preset's question lives on the hub: the hub refuses a body that names both («coach-chat preset forbids

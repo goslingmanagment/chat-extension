@@ -63,6 +63,8 @@ export const HUB_FEATURE_ONLY_FIELDS = {
   personalMessageCount: ['hi-greeting'],
   fanAvatarUrl: ['hi-greeting'],
   fanAccount: ['hi-greeting'],
+  /** 2026-10-30: the chatter's own name for the fan, where the prompt shows it (hub `FAN_CUSTOM_NAME_FEATURES`). */
+  fanCustomName: ['fast-reply', 'improve-draft', 'hi-greeting', 'ping'],
   summaryMode: ['fan-summary'],
   chatterQuestion: ['coach-chat'],
   coachHistory: ['coach-chat'],
@@ -283,6 +285,11 @@ export const AiFeatureStreamBodySchema = z.strictObject({
    * `hi-fan-account-v1`. The hub keeps its own values where it has them and fills the rest from these.
    */
   fanAccount: z.optional(HiFanAccountSchema),
+  /**
+   * 2026-10-30 (`StartOp.fanCustomName`): the chatter's own name for the fan as ChatSpace shows it, «Coco/37/France» —
+   * only OnlyFans, under `fan-custom-name-v1`. The hub holds no saved name for OnlyFans; Fansly's is the hub's own.
+   */
+  fanCustomName: z.optional(boundedText(AI_REQUEST_LIMITS.fanCustomNameMaxChars)),
   /** 1.48.0: «с Recap» unticked for the chat (`StartOp.recap`) — only to a hub that lists `recap-off-v1`. */
   recap: z.optional(z.literal('off')),
   /** «Рассылка» (`StartOp.draftPurpose`): Fix of a mass message for one fan — only to a hub that lists `outreach-fix-v1`. */
@@ -340,6 +347,9 @@ export const HubStreamRequestSchema = z
     }),
     z.refine((r) => r.body.fanAccount === undefined || (r.body.platform === 'fansly' && r.capabilities.includes('hi-fan-account-v1')), {
       message: 'fanAccount needs Fansly and hi-fan-account-v1',
+    }),
+    z.refine((r) => r.body.fanCustomName === undefined || (r.body.platform === 'onlyfans' && r.capabilities.includes('fan-custom-name-v1')), {
+      message: 'fanCustomName needs OnlyFans and fan-custom-name-v1',
     }),
     z.refine((r) => hiStartProofMatches(r.body, r.body.conversationRef), { message: 'start_proof_mismatch' }),
     z.refine((r) => r.feature !== 'improve-draft' || r.body.draftText !== undefined, { message: 'Fix needs draftText' }),

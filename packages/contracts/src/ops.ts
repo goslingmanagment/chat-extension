@@ -195,6 +195,9 @@ export const LIVE_IMAGE_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['
  */
 export const DRAFT_MEDIA_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['reply', 'fix', 'hi', 'ping', 'coach']);
 
+/** The starts whose prompt names the fan by the chatter's own name for him (`StartOp.fanCustomName`; hub `FAN_CUSTOM_NAME_FEATURES`). */
+export const FAN_CUSTOM_NAME_FEATURES: ReadonlySet<FeatureId> = new Set<FeatureId>(['reply', 'fix', 'hi', 'ping']);
+
 /**
  * Telegram spec §4.3, §6.2: the open chat as the tab read it from the page, on a platform the hub keeps no archive of
  * (`CLIENT_CONTEXT_PLATFORMS`): the transcript, its message count, the fan's name as the page shows it, and `window`
@@ -361,6 +364,11 @@ export const StartOpSchema = z
     fanAvatarUrl: z.optional(HiFanAvatarUrlSchema),
     /** 2026-10-26: the fan's names and «about» the page or the pass read — Fansly Hi only (hub `fanAccount`). */
     fanAccount: z.optional(HiFanAccountSchema),
+    /**
+     * 2026-10-30: the chatter's own name for the fan as ChatSpace shows it («Coco/37/France»), for the starts whose
+     * prompt names the fan — OnlyFans only (hub `fanCustomName`, sent to a hub that lists `fan-custom-name-v1`).
+     */
+    fanCustomName: z.optional(boundedText(AI_REQUEST_LIMITS.fanCustomNameMaxChars)),
     regenerateOf: z.optional(UuidSchema),
     /** Bypass the result cache (Regenerate, Refresh). */
     force: z.optional(z.boolean()),
@@ -414,6 +422,9 @@ export const StartOpSchema = z
       message: 'Hi fields only on Fansly Hi; OnlyFans Hi only its personal count',
     }),
     z.refine((op) => op.fanAccount === undefined || (op.feature === 'hi' && op.target.binding.platform === 'fansly'), { message: 'fanAccount only on Fansly Hi' }),
+    z.refine((op) => op.fanCustomName === undefined || (FAN_CUSTOM_NAME_FEATURES.has(op.feature) && op.target.binding.platform === 'onlyfans'), {
+      message: 'fanCustomName only on OnlyFans Reply, Fix, Hi and Ping',
+    }),
     z.refine((op) => hiStartProofMatches(op, op.target.conversationRef), { message: 'Hi proof conversation or count mismatch' }),
   );
 export type StartOp = z.infer<typeof StartOpSchema>;
@@ -840,6 +851,8 @@ export interface AiStartFields {
   readonly personalMessageCount?: StartOp['personalMessageCount'];
   readonly fanAvatarUrl?: StartOp['fanAvatarUrl'];
   readonly fanAccount?: StartOp['fanAccount'];
+  /** The chatter's own name for the fan (2026-10-30): ChatSpace's. */
+  readonly fanCustomName?: StartOp['fanCustomName'];
 }
 
 /**

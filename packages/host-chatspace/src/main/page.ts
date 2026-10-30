@@ -215,6 +215,7 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
         chat: chatRef(acc, fan),
         username: text(raw['username'], 128),
         displayName: name(raw),
+        customName: text(raw['customName'], 256),
         isBlocked: flag(raw['isBlocked']),
         canReceiveMessages: flag(raw['canReceiveMessages']),
         isRestricted: flag(raw['isRestricted']),

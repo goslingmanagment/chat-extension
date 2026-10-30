@@ -196,6 +196,17 @@ describe('[AI-134] windows and the default request (§8.4)', () => {
     expect(StartOpSchema.safeParse(startOf({ feature: 'reply', draftPurpose: 'outreach' })).success).toBe(false);
   });
 
+  it('2026-10-30: the chatter’s own name for an OnlyFans fan goes as fanCustomName with fan-custom-name-v1, only to a hub that lists it', () => {
+    const served = { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: [...BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'fan-custom-name-v1'), 'fan-custom-name-v1'] } };
+    const built = buildStreamRequest(startOf({ feature: 'reply', fanCustomName: 'Coco/37/France' }), served);
+    expect(built.ok && [built.request.body.fanCustomName, built.request.capabilities.includes('fan-custom-name-v1')]).toEqual(['Coco/37/France', true]);
+    // A hub before it is never sent the field (its body is strict).
+    const older = buildStreamRequest(startOf({ feature: 'reply', fanCustomName: 'Coco/37/France' }), { ...ctx, bootstrap: { ...BOOTSTRAP_PILOT_PAGES, capabilities: BOOTSTRAP_PILOT_PAGES.capabilities.filter((c) => c !== 'fan-custom-name-v1') } });
+    expect(older.ok && ['fanCustomName' in older.request.body, older.request.capabilities.includes('fan-custom-name-v1')]).toEqual([false, false]);
+    // Only the starts whose prompt names the fan.
+    expect(StartOpSchema.safeParse(startOf({ feature: 'coach', fanCustomName: 'Coco' })).success).toBe(false);
+  });
+
   it('[X54] the open chat’s PPV state goes as livePpvContext only where fresh text may go, to a hub that lists live-ppv-v1', () => {
     const livePpv = { capturedAt: '2026-10-17T06:00:00.000Z', items: [{ platformMessageId: '9002', priceUsd: 25, purchased: true }] };
     // The pilot's hub before its deploy does not list it; a hub that does:

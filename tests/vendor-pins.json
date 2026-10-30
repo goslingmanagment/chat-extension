@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "3a64b6b39b479c75ca0ad6b263ffd20c7c6a7a5e8bee2b2a6ba3720ec39a4f4f",
-    "sourceCommit": "a08a51de99959ce3485aca87aac4d567ae52f4d2",
-    "note": "Vendored on 2026-10-29 from hub main a08a51de (fan queues #926 plus #927) with scripts/vendor-sdk.mjs; the contract is the one prod serves (3a64b6b3, deployed 72fc3e959): the fan queue routes clientFanQueues, clientFanQueueTake, clientFanQueueItemDone, clientFanQueueRelease (capability fan-queues-v1) for «Очереди» (#455). Re-vendor with the same script and update this pin together."
+    "contractHash": "acfa7edbf993e74580d9cbeb5cb0389b3d1d3ff09974729492b5e85d0ccff733",
+    "sourceCommit": "b273fdf732c7bafa72ffb713fb5a7e1c61b1b5e4",
+    "note": "Vendored on 2026-10-30 from hub main b273fdf7 (#930) with scripts/vendor-sdk.mjs: the AI body's fanCustomName (capability fan-custom-name-v1), the chatter's own name for an OnlyFans fan as ChatSpace shows it, for Reply, Fix, Hi and Ping. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",
