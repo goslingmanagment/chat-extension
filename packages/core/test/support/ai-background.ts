@@ -348,6 +348,9 @@ export class FakeBackground {
         return this.bindingOf(request['account'] as HostAccount);
       case 'quota.get':
         return ok({ quota: this.scheduler.quota(request['pageId'] as number) });
+      case 'quota.personal':
+        // The person's own daily AI limit: none here (the dock shows no chip).
+        return ok({ limit: null });
       case 'token.issue': {
         if (request['deferred'] === true && this.deferredTokens === 'refuse') return { ok: false, error: { code: 'CG-UI-FAILED', detail: 'no action token' } };
         const issued = this.tokens.issue(tab, request['kind'] as 'generate', request['surface'] as 'dock');
