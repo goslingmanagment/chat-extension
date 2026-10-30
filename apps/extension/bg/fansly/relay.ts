@@ -5,8 +5,9 @@
 // - The switch is the person's (`settings.ext`, `hosts['fansly-web'].viaTab`,
 //   off by default, X33), read at each route; settings that are not read yet
 //   give no route at all (no guess, no direct request instead). Off, a direct
-//   request with no answer sends the next 30 minutes through the tab's frame
-//   when one serves (transport.ts `DIRECT_LOST_MS`), said once in the log.
+//   request with no answer sends what follows through the tab's frame when one
+//   serves, until the browser restarts (`fansly.directLost` in storage.session),
+//   said in the log once a realm.
 // - A tab of the request's session is the one whose own page requests the core
 //   bound to that session (`networkSession.forTab`, P9a); the module asks it to
 //   raise its frame (`fansly.relay.open`, to the tab) and posts the request to
@@ -18,7 +19,7 @@
 //   that it is our relay page in a subframe of that registered tab; the core
 //   says when a frame's port went (`relayGone`).
 
-import { createRelayTransport, DIRECT_LOST_MS, type FanslyFetch, type RelayHub } from '@cg/fansly-api';
+import { createRelayTransport, type FanslyFetch, type RelayHub } from '@cg/fansly-api';
 import type { FanslyTabRequestPayload } from '@cg/contracts/tab-messages-fansly';
 
 import type { BackgroundKit, HostAnswer, HostSiteSender } from '../../src/composition/background/host-module';
@@ -35,6 +36,9 @@ export interface RelayService {
 
 const ok = (recorded: boolean): HostAnswer => ({ ok: true, payload: { recorded } });
 
+/** storage.session: a direct request of this browser session got no answer (transport.ts `lostMemory`). */
+const DIRECT_LOST_KEY = 'fansly.directLost';
+
 export function createRelayService(kit: BackgroundKit, viaTab: () => boolean | null, options: { readonly fetch?: FanslyFetch; readonly settled?: () => Promise<void> } = {}): RelayService {
   const site = kit.site;
   const session = kit.networkSession;
@@ -47,9 +51,17 @@ export function createRelayService(kit: BackgroundKit, viaTab: () => boolean | n
     sessionOfTab: (tabId) => session?.forTab(tabId)?.legacyId ?? null,
     open: (tabSessionId) => (site?.emit('fansly.relay.open', {}, { tabSessionId }) ?? 0) > 0,
     post: (tabSessionId, type, payload) => site?.emit(type, payload, { tabSessionId }) ?? 0,
-    // The switch off and a direct request unanswered: the next 30 minutes try the tab's frame first.
-    directLost: () => kit.log.service({ level: 'info', scope: 'fansly.relay', msg: 'direct line unanswered: through the tab', fields: { minutes: DIRECT_LOST_MS / 60_000 } }),
-    now: () => kit.clock.now(),
+    // The switch off and a direct request unanswered: what follows tries the tab's frame first, until the browser restarts.
+    directLost: ({ remembered }) => kit.log.service({ level: 'info', scope: 'fansly.relay', msg: 'direct line unanswered: through the tab', fields: { remembered } }),
+    lostMemory: {
+      load: async () => {
+        const kept = await kit.storage.session.get([DIRECT_LOST_KEY]);
+        return kept.ok && kept.value[DIRECT_LOST_KEY] === true;
+      },
+      save: async () => {
+        await kit.storage.session.set({ [DIRECT_LOST_KEY]: true });
+      },
+    },
     randomUUID: () => kit.ids.uuid(),
     setTimer: (callback, ms) => kit.clock.setTimer(ms, callback),
     clearTimer: (handle) => kit.clock.clearTimer(handle as ReturnType<BackgroundKit['clock']['setTimer']>),

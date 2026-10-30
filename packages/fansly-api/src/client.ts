@@ -38,7 +38,7 @@
 // route instead. `start` asks the route whether it still holds (the same frame,
 // tab, document and session) right before it sends; the route dispatches before
 // it yields. A direct request with no answer is told to the transport, which
-// then tries the tab for a while (transport.ts `DIRECT_LOST_MS`).
+// then tries the tab until the browser restarts (transport.ts).
 
 import { admit, addressOf, FANSLY_API_BASE, FANSLY_ROUTES, type FanslyAddressParts, type FanslyPurpose, type FanslyRouteName, type FanslyRouteSpec } from './allowlist';
 import { FanslyApiError, readEnvelope, retryAfterMs } from './errors';
