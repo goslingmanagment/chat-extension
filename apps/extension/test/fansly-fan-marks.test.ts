@@ -75,6 +75,19 @@ describe('[host:fansly] the fan marks of the chat header (`fansly.marks.read`)',
     expect(w.fanMarks).toHaveBeenCalledTimes(3);
   });
 
+  it('an answer with no mark is kept one minute: a fan reported to the blocklist a moment ago shows on the next opening', async () => {
+    const w = world();
+    w.fanMarks.mockImplementationOnce(() => Promise.resolve({ ...answer(), lists: [], blocklist: [] }));
+    const none = await w.reader.read(request, sender);
+    expect(none.ok && none.marks).toEqual({ lists: [], blocklist: [] });
+    w.advance(FAN_MARKS_CACHE.emptyTtlMs - 1);
+    expect(await w.reader.read(request, sender)).toBe(none);
+    w.advance(1);
+    const marked = await w.reader.read(request, sender);
+    expect(marked.ok && marked.marks.blocklist).toHaveLength(1);
+    expect(w.fanMarks).toHaveBeenCalledTimes(2);
+  });
+
   it('the answer a tab takes: bounded, this page marked, a model without a name by its page; a link off Telegram dropped', async () => {
     const w = world();
     const read = await w.reader.read(request, sender);

@@ -11,6 +11,14 @@
 // them, as it carries the page's own. With the switch on there is no direct
 // request ever, not even as a fallback: that line is what the mode avoids.
 //
+// With the switch off, a direct request that got no answer (the connection
+// failed, or nothing came in time, the caller still waiting) sends the next
+// 30 minutes through the relay frame as well: a chatter whose tab rides a
+// proxy and whose own line lets Fansly's small answers through but freezes the
+// large ones (a send passes, a followers page or a chat never comes; Ivan,
+// 2026-10-30) gets the background's work through the tab without knowing the
+// switch. No frame of the session's tab — the direct route, as before.
+//
 // The route is chosen before anything is handed to the hub's custody (P9d):
 // - a tab of the request's session — the one whose own page requests the core
 //   bound to that session (P9a) — is asked to raise its frame
@@ -114,6 +122,8 @@ export interface FanslyRouteRequest {
 export interface FanslyTransport {
   /** Chooses the route before the custody (§8.6); rejects with `FanslyRouteUnavailable`, nothing sent. */
   route(request: FanslyRouteRequest): Promise<FanslyRoute>;
+  /** A request on the direct route got no answer (no connection, or none in time) while its caller still waited. */
+  unanswered?(): void;
 }
 
 const directRoute = (doFetch: FanslyFetch, holds: () => boolean): FanslyRoute => ({
@@ -149,6 +159,8 @@ export function directTransport(doFetch: FanslyFetch): FanslyTransport {
 
 /** How long a route waits for the tab's frame to say it is up (its page loads, its port opens). */
 export const RELAY_WAIT_MS = 5_000;
+/** How long the switch off still sends through the tab after a direct request got no answer. */
+export const DIRECT_LOST_MS = 30 * 60_000;
 /** Response headers the client reads; the frame hands back no other. */
 export const RELAY_RESPONSE_HEADERS = ['content-type', 'content-length', 'retry-after'] as const;
 /** Where the relay's wire points: Fansly's API (contracts FANSLY_RELAY_TARGET). */
@@ -184,6 +196,9 @@ export interface RelayTransportPorts {
   post(tabSessionId: string, type: 'fansly.relay.fetch' | 'fansly.relay.abort', payload: RelayFetchEvent | { readonly requestId: string }): number;
   /** The direct route: the event page's `fetch` (the global one by default). */
   readonly fetch?: FanslyFetch;
+  /** The direct line got no answer: the next DIRECT_LOST_MS go through the tab (said once per such stretch). */
+  directLost?(): void;
+  readonly now?: () => number;
   readonly waitMs?: number;
   readonly randomUUID?: () => string;
   readonly setTimer?: (callback: () => void, ms: number) => unknown;
@@ -239,6 +254,7 @@ const abortReason = (signal: AbortSignal): Error => (signal.reason instanceof Er
  */
 export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
   const waitMs = ports.waitMs ?? RELAY_WAIT_MS;
+  const now = ports.now ?? (() => Date.now());
   const uuid = ports.randomUUID ?? (() => crypto.randomUUID());
   const setTimer = ports.setTimer ?? ((callback: () => void, ms: number): unknown => setTimeout(callback, ms));
   const clearTimer = ports.clearTimer ?? ((handle: unknown): void => clearTimeout(handle as ReturnType<typeof setTimeout>));
@@ -246,6 +262,9 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
   const requests = new Map<string, PendingRelay>();
   const waiters = new Set<Waiter>();
   const direct = directRoute(ports.fetch ?? ((url, init) => fetch(url, init)), () => ports.viaTab() === false);
+  /** When a direct request last got no answer; null — never in this realm. */
+  let lostAt: number | null = null;
+  const directLost = (): boolean => lostAt !== null && now() - lostAt < DIRECT_LOST_MS;
 
   /** The newest frame up in a tab session (a second frame of one document is a stale one going away). */
   const frameOf = (tabSessionId: string): RelayFrame | null => {
@@ -333,6 +352,18 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
     for (const [requestId, pending] of [...requests]) if (keyOf(pending.frame) === key) settle(pending, requestId, { error: relayLost() });
   }
 
+  async function viaFrame(legacyId: string, canonicalId: string | null, signal: AbortSignal | undefined): Promise<FanslyRoute> {
+    if (signal?.aborted === true) throw new FanslyRouteUnavailable('aborted');
+    const candidates = ports.tabs().filter((tab) => ports.sessionOfTab(tab.tabId) === legacyId);
+    // A tab whose frame is up already (the newest such), else the newest tab of the session.
+    const target = [...candidates].reverse().find((tab) => frameOf(tab.tabSessionId) !== null) ?? candidates.at(-1);
+    if (target === undefined) throw new FanslyRouteUnavailable('no-tab');
+    if (!ports.open(target.tabSessionId)) throw new FanslyRouteUnavailable('no-tab');
+    const frame = frameOf(target.tabSessionId) ?? (await waitFor(target.tabSessionId, signal));
+    if (canonicalId !== null && frame.hostAccountId !== canonicalId) throw new FanslyRouteUnavailable('account');
+    return tabRoute(target.tabSessionId, target.tabId, frame, legacyId);
+  }
+
   return {
     async route({ legacyId, canonicalId, tab, signal }) {
       if (tab !== true) {
@@ -341,18 +372,24 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
           await ports.settled().catch(() => undefined);
           mode = ports.viaTab();
         }
-        if (mode === false) return direct;
         if (mode === null) throw new FanslyRouteUnavailable('settings');
+        if (mode === false) {
+          if (!directLost()) return direct;
+          // The direct line went unanswered lately: the tab's frame if one serves the session, else direct as before.
+          try {
+            return await viaFrame(legacyId, canonicalId, signal);
+          } catch (error) {
+            if (error instanceof FanslyRouteUnavailable && error.reason === 'aborted') throw error;
+            return direct;
+          }
+        }
       }
-      if (signal?.aborted === true) throw new FanslyRouteUnavailable('aborted');
-      const candidates = ports.tabs().filter((tab) => ports.sessionOfTab(tab.tabId) === legacyId);
-      // A tab whose frame is up already (the newest such), else the newest tab of the session.
-      const target = [...candidates].reverse().find((tab) => frameOf(tab.tabSessionId) !== null) ?? candidates.at(-1);
-      if (target === undefined) throw new FanslyRouteUnavailable('no-tab');
-      if (!ports.open(target.tabSessionId)) throw new FanslyRouteUnavailable('no-tab');
-      const frame = frameOf(target.tabSessionId) ?? (await waitFor(target.tabSessionId, signal));
-      if (canonicalId !== null && frame.hostAccountId !== canonicalId) throw new FanslyRouteUnavailable('account');
-      return tabRoute(target.tabSessionId, target.tabId, frame, legacyId);
+      return viaFrame(legacyId, canonicalId, signal);
+    },
+    unanswered() {
+      const first = !directLost();
+      lostAt = now();
+      if (first) ports.directLost?.();
     },
     hello(ref, said) {
       const frame: RelayFrame = { tabSessionId: ref.tabSessionId, frameId: ref.frameId, hostAccountId: said.hostAccountId, relayId: said.relayId };

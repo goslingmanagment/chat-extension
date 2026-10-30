@@ -4,8 +4,10 @@
 // `fan-marks` (a hub with `fan-marks-v1`; no owner switch).
 //
 // The tab asks once per opened chat. Each page's and fan's answer is kept ten minutes for the person signed in, so a
-// chat opened again (in this tab or another) is answered from it, and a call while a read is in flight joins it. A
-// failed read is not kept: it is answered as its failure, and only the next opening of the chat asks again. The hub's
+// chat opened again (in this tab or another) is answered from it, and a call while a read is in flight joins it. An
+// answer with no mark is kept one minute: a fan reported to the blocklist a moment ago shows on the next opening once
+// the hub has read the post (Ivan reopened such a chat within the ten minutes, 2026-10-30). A failed read is not kept:
+// it is answered as its failure, and only the next opening of the chat asks again. The hub's
 // answer is bounded to what a tab shows: a post's link only when it is a `https://t.me/` one.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
@@ -20,8 +22,8 @@ import type { BackgroundKit, HostSiteSender } from '../../src/composition/backgr
 type Request = FanslyTabRequestPayload<'fansly.marks.read'>;
 type Answer = FanslyTabResponsePayload<'fansly.marks.read'>;
 
-/** How long a page's and fan's answer is kept; how many are kept at most (the oldest goes first). */
-export const FAN_MARKS_CACHE = { ttlMs: 10 * 60_000, max: 200 } as const;
+/** How long a page's and fan's answer is kept (one with no mark, shorter); how many are kept at most (the oldest goes first). */
+export const FAN_MARKS_CACHE = { ttlMs: 10 * 60_000, emptyTtlMs: 60_000, max: 200 } as const;
 
 /** A Telegram post's own address: `https://t.me/c/<chat>/<message>` (or a public group's `https://t.me/<name>/<message>`). */
 const TELEGRAM_LINK = /^https:\/\/t\.me\/[\w/+-]+$/;
@@ -71,6 +73,8 @@ interface Held {
   answer: Promise<Answer>;
   settled: boolean;
   ok: boolean;
+  /** The answer named no list and no post. */
+  empty: boolean;
 }
 
 export interface FanMarksReader {
@@ -86,9 +90,10 @@ export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 
 
   async function ask(held: Held, pageLabel: string, request: Request): Promise<Answer> {
     try {
-      const marks = await kit.hub.facade.fanMarks({ pageLabel, fanRef: request.fanRef, ...(request.username === undefined ? {} : { username: request.username }) });
+      const marks = boundFanMarks(await kit.hub.facade.fanMarks({ pageLabel, fanRef: request.fanRef, ...(request.username === undefined ? {} : { username: request.username }) }), pageLabel);
       held.ok = true;
-      return { ok: true, marks: boundFanMarks(marks, pageLabel) };
+      held.empty = marks.lists.length === 0 && marks.blocklist.length === 0;
+      return { ok: true, marks };
     } catch (error) {
       const wire = kit.hub.errorWire(error);
       kit.log.service({ level: 'warn', scope: 'fansly.marks', msg: 'marks not read', fields: { code: wire.code } });
@@ -114,10 +119,10 @@ export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 
       const key = [who.hubOrigin, String(who.userId), pageLabel, request.fanRef, request.username ?? ''].join('|');
       const now = kit.clock.now();
       const held = kept.get(key);
-      if (held !== undefined && (!held.settled || now - held.at < FAN_MARKS_CACHE.ttlMs)) return held.answer;
+      if (held !== undefined && (!held.settled || now - held.at < (held.empty ? FAN_MARKS_CACHE.emptyTtlMs : FAN_MARKS_CACHE.ttlMs))) return held.answer;
       kept.delete(key);
       // Set before anything is awaited: a call that comes meanwhile joins this read.
-      const next: Held = { at: now, answer: Promise.resolve(fail({ code: 'CG-HUB-UNKNOWN' })), settled: false, ok: false };
+      const next: Held = { at: now, answer: Promise.resolve(fail({ code: 'CG-HUB-UNKNOWN' })), settled: false, ok: false, empty: false };
       next.answer = ask(next, pageLabel, request).finally(() => {
         next.settled = true;
         // A failure is not kept: the next opening of the chat asks again.

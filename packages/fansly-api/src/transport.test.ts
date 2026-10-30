@@ -11,7 +11,7 @@ import { FANSLY_API_BASE } from './allowlist';
 import type { FanslyCall, FanslySessionTemplate } from './client';
 import { FanslyApiError } from './errors';
 import { createFanslyApi, type FanslyNetworkSession } from './index';
-import { createRelayTransport, FanslyRouteUnavailable, type FanslyFetch, type FanslyWireRequest, type RelayFetchEvent, type RelayTransportPorts } from './transport';
+import { createRelayTransport, DIRECT_LOST_MS, FanslyRouteUnavailable, type FanslyFetch, type FanslyWireRequest, type RelayFetchEvent, type RelayTransportPorts } from './transport';
 
 const T0 = Date.UTC(2026, 9, 16, 9, 0, 0);
 const CREATOR = '300000000000000001';
@@ -85,9 +85,9 @@ const wire = (overrides: Partial<FanslyWireRequest> = {}): FanslyWireRequest => 
 const hello = { hostAccountId: CREATOR, relayId: RELAY_ID } as const;
 
 /** The client over the relay transport, as Fansly's module wires it (bg/fansly.ts). */
-function clientWorld() {
+function clientWorld(extra: Partial<RelayTransportPorts> = {}) {
   const core = corePorts();
-  const hub = createRelayTransport(core.ports);
+  const hub = createRelayTransport({ ...core.ports, ...extra });
   let template: FanslySessionTemplate | null = { ...TEMPLATE };
   const session: FanslyNetworkSession = {
     ready: Promise.resolve(),
@@ -238,5 +238,54 @@ describe('[host:fansly] the client through the tab (R20 P9c, FS-NET-4, FX-001)',
     w.hub.gone(FRAME);
     // Through the tab already: no pointer to «Fansly через вкладку» (CG-FAN-NETWORK is the direct route's).
     expect(await failure(lost)).toMatchObject({ kind: 'network', code: 'CG-FAN-REQUEST', sent: true });
+  });
+});
+
+describe('[host:fansly] the direct line that goes unanswered (Ivan, 2026-10-30)', () => {
+  /** A line that lets the request out and brings nothing back: only an abort ends it. */
+  const silentLine = () => {
+    const asked: string[] = [];
+    const fetch: FanslyFetch = (url, init) => {
+      asked.push(url);
+      return new Promise((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError'))));
+    };
+    return { asked, fetch };
+  };
+  const routeOf = async (w: ReturnType<typeof clientWorld>): Promise<string> => {
+    const prepared = await settle(w.api.client.prepare(registration));
+    prepared.cancel();
+    return prepared.transport;
+  };
+
+  it('with the switch off, a direct request with no answer sends the next 30 minutes through the tab’s frame; no frame — direct', async () => {
+    const line = silentLine();
+    const lost: number[] = [];
+    const w = clientWorld({ fetch: line.fetch, directLost: () => lost.push(Date.now()) });
+    w.state.viaTab = false;
+    w.hub.hello(FRAME, hello);
+    expect(await failure(w.api.client.call(registration))).toMatchObject({ kind: 'timeout', code: 'CG-FAN-NETWORK', sent: true });
+    expect([line.asked.length, lost]).toEqual([1, [T0 + 30_000]]);
+    expect(await routeOf(w)).toBe(`tab:${TAB.tabSessionId}`);
+    // No tab of the session: the direct route, as before.
+    w.state.tabs = [];
+    expect(await routeOf(w)).toBe('direct');
+    w.state.tabs = [TAB];
+    await vi.advanceTimersByTimeAsync(DIRECT_LOST_MS);
+    expect(await routeOf(w)).toBe('direct');
+    expect(lost).toHaveLength(1);
+  });
+
+  it('a caller that gave up is not the line’s silence: the next request stays direct', async () => {
+    const line = silentLine();
+    const w = clientWorld({ fetch: line.fetch });
+    w.state.viaTab = false;
+    w.hub.hello(FRAME, hello);
+    const abort = new AbortController();
+    const call = failure(w.api.client.call({ ...registration, signal: abort.signal }));
+    for (let step = 0; line.asked.length === 0 && step < 100; step++) await vi.advanceTimersByTimeAsync(10);
+    expect(line.asked).toHaveLength(1);
+    abort.abort();
+    await call;
+    expect(await routeOf(w)).toBe('direct');
   });
 });

@@ -8,6 +8,8 @@ export function traceFanslyTransport(transport: FanslyTransport, trace: (event: 
   let attempt = 0;
   let lastResponse: number | null = null;
   return {
+    // The direct line's silence is the transport's to know, traced or not.
+    ...(transport.unanswered === undefined ? {} : { unanswered: () => transport.unanswered?.() }),
     async route(request) {
       const route = await transport.route(request);
       return {
