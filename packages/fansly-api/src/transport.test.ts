@@ -11,7 +11,7 @@ import { FANSLY_API_BASE } from './allowlist';
 import type { FanslyCall, FanslySessionTemplate } from './client';
 import { FanslyApiError } from './errors';
 import { createFanslyApi, type FanslyNetworkSession } from './index';
-import { createRelayTransport, DIRECT_LOST_MS, FanslyRouteUnavailable, type FanslyFetch, type FanslyWireRequest, type RelayFetchEvent, type RelayTransportPorts } from './transport';
+import { createRelayTransport, FanslyRouteUnavailable, type FanslyFetch, type FanslyWireRequest, type RelayFetchEvent, type RelayTransportPorts } from './transport';
 
 const T0 = Date.UTC(2026, 9, 16, 9, 0, 0);
 const CREATOR = '300000000000000001';
@@ -257,22 +257,28 @@ describe('[host:fansly] the direct line that goes unanswered (Ivan, 2026-10-30)'
     return prepared.transport;
   };
 
-  it('with the switch off, a direct request with no answer sends the next 30 minutes through the tab’s frame; no frame — direct', async () => {
+  it('with the switch off, a direct request with no answer sends what follows through the tab’s frame until the browser restarts; no frame — direct', async () => {
     const line = silentLine();
-    const lost: number[] = [];
-    const w = clientWorld({ fetch: line.fetch, directLost: () => lost.push(Date.now()) });
+    const memory = { kept: false, load: () => Promise.resolve(memory.kept), save: () => Promise.resolve(void (memory.kept = true)) };
+    const said: boolean[] = [];
+    const w = clientWorld({ fetch: line.fetch, lostMemory: memory, directLost: ({ remembered }) => said.push(remembered) });
     w.state.viaTab = false;
     w.hub.hello(FRAME, hello);
     expect(await failure(w.api.client.call(registration))).toMatchObject({ kind: 'timeout', code: 'CG-FAN-NETWORK', sent: true });
-    expect([line.asked.length, lost]).toEqual([1, [T0 + 30_000]]);
+    expect([line.asked.length, said, memory.kept]).toEqual([1, [false], true]);
     expect(await routeOf(w)).toBe(`tab:${TAB.tabSessionId}`);
     // No tab of the session: the direct route, as before.
     w.state.tabs = [];
     expect(await routeOf(w)).toBe('direct');
     w.state.tabs = [TAB];
-    await vi.advanceTimersByTimeAsync(DIRECT_LOST_MS);
-    expect(await routeOf(w)).toBe('direct');
-    expect(lost).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+    expect(await routeOf(w)).toBe(`tab:${TAB.tabSessionId}`);
+    // The event page woke anew: storage.session still says the line is silent.
+    const woke = clientWorld({ fetch: line.fetch, lostMemory: memory, directLost: ({ remembered }) => said.push(remembered) });
+    woke.state.viaTab = false;
+    woke.hub.hello(FRAME, hello);
+    expect(await routeOf(woke)).toBe(`tab:${TAB.tabSessionId}`);
+    expect([line.asked.length, said]).toEqual([1, [false, true]]);
   });
 
   it('a caller that gave up is not the line’s silence: the next request stays direct', async () => {

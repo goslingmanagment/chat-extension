@@ -12,12 +12,14 @@
 // request ever, not even as a fallback: that line is what the mode avoids.
 //
 // With the switch off, a direct request that got no answer (the connection
-// failed, or nothing came in time, the caller still waiting) sends the next
-// 30 minutes through the relay frame as well: a chatter whose tab rides a
-// proxy and whose own line lets Fansly's small answers through but freezes the
-// large ones (a send passes, a followers page or a chat never comes; Ivan,
-// 2026-10-30) gets the background's work through the tab without knowing the
-// switch. No frame of the session's tab — the direct route, as before.
+// failed, or nothing came in time, the caller still waiting) sends everything
+// after it through the relay frame as well, until the browser restarts (kept
+// in storage.session, so the event page's sleeps do not forget it): a chatter
+// whose tab rides a proxy and whose own line lets Fansly's small answers
+// through but freezes the large ones (a send passes, a followers page or a
+// chat never comes; Ivan, 2026-10-30) gets the background's work through the
+// tab without knowing the switch, and loses one read a browser session at
+// most. No frame of the session's tab — the direct route, as before.
 //
 // The route is chosen before anything is handed to the hub's custody (P9d):
 // - a tab of the request's session — the one whose own page requests the core
@@ -159,8 +161,6 @@ export function directTransport(doFetch: FanslyFetch): FanslyTransport {
 
 /** How long a route waits for the tab's frame to say it is up (its page loads, its port opens). */
 export const RELAY_WAIT_MS = 5_000;
-/** How long the switch off still sends through the tab after a direct request got no answer. */
-export const DIRECT_LOST_MS = 30 * 60_000;
 /** Response headers the client reads; the frame hands back no other. */
 export const RELAY_RESPONSE_HEADERS = ['content-type', 'content-length', 'retry-after'] as const;
 /** Where the relay's wire points: Fansly's API (contracts FANSLY_RELAY_TARGET). */
@@ -196,9 +196,10 @@ export interface RelayTransportPorts {
   post(tabSessionId: string, type: 'fansly.relay.fetch' | 'fansly.relay.abort', payload: RelayFetchEvent | { readonly requestId: string }): number;
   /** The direct route: the event page's `fetch` (the global one by default). */
   readonly fetch?: FanslyFetch;
-  /** The direct line got no answer: the next DIRECT_LOST_MS go through the tab (said once per such stretch). */
-  directLost?(): void;
-  readonly now?: () => number;
+  /** The direct line is taken for silent: now (`remembered: false`), or as this realm learns it from `lostMemory`. Once a realm. */
+  directLost?(how: { readonly remembered: boolean }): void;
+  /** Where the direct line's silence outlives the realm (storage.session: the event page's sleeps, not the browser's restart). */
+  readonly lostMemory?: { load(): Promise<boolean>; save(): Promise<void> };
   readonly waitMs?: number;
   readonly randomUUID?: () => string;
   readonly setTimer?: (callback: () => void, ms: number) => unknown;
@@ -254,7 +255,6 @@ const abortReason = (signal: AbortSignal): Error => (signal.reason instanceof Er
  */
 export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
   const waitMs = ports.waitMs ?? RELAY_WAIT_MS;
-  const now = ports.now ?? (() => Date.now());
   const uuid = ports.randomUUID ?? (() => crypto.randomUUID());
   const setTimer = ports.setTimer ?? ((callback: () => void, ms: number): unknown => setTimeout(callback, ms));
   const clearTimer = ports.clearTimer ?? ((handle: unknown): void => clearTimeout(handle as ReturnType<typeof setTimeout>));
@@ -262,9 +262,18 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
   const requests = new Map<string, PendingRelay>();
   const waiters = new Set<Waiter>();
   const direct = directRoute(ports.fetch ?? ((url, init) => fetch(url, init)), () => ports.viaTab() === false);
-  /** When a direct request last got no answer; null — never in this realm. */
-  let lostAt: number | null = null;
-  const directLost = (): boolean => lostAt !== null && now() - lostAt < DIRECT_LOST_MS;
+  /** A direct request got no answer, in this realm or an earlier one of this browser session. */
+  let lost = false;
+  let recalled: Promise<void> | null = null;
+  const recall = (): Promise<void> =>
+    (recalled ??= (ports.lostMemory?.load() ?? Promise.resolve(false)).then(
+      (was) => {
+        if (!was || lost) return;
+        lost = true;
+        ports.directLost?.({ remembered: true });
+      },
+      () => undefined,
+    ));
 
   /** The newest frame up in a tab session (a second frame of one document is a stale one going away). */
   const frameOf = (tabSessionId: string): RelayFrame | null => {
@@ -374,8 +383,9 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
         }
         if (mode === null) throw new FanslyRouteUnavailable('settings');
         if (mode === false) {
-          if (!directLost()) return direct;
-          // The direct line went unanswered lately: the tab's frame if one serves the session, else direct as before.
+          await recall();
+          if (!lost) return direct;
+          // The direct line went unanswered: the tab's frame if one serves the session, else direct as before.
           try {
             return await viaFrame(legacyId, canonicalId, signal);
           } catch (error) {
@@ -387,9 +397,10 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
       return viaFrame(legacyId, canonicalId, signal);
     },
     unanswered() {
-      const first = !directLost();
-      lostAt = now();
-      if (first) ports.directLost?.();
+      if (lost) return;
+      lost = true;
+      ports.lostMemory?.save().catch(() => undefined);
+      ports.directLost?.({ remembered: false });
     },
     hello(ref, said) {
       const frame: RelayFrame = { tabSessionId: ref.tabSessionId, frameId: ref.frameId, hostAccountId: said.hostAccountId, relayId: said.relayId };
