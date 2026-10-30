@@ -18,3 +18,4 @@ export const OP_LIMITS = { perChat: 1, perTab: 3 } as const;
 export const hotkeySchemeVersion: number = HOTKEY_SCHEME_VERSION;
 
 export * from './errors/hub-map';
+export * from './ai-limit';

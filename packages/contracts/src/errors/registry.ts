@@ -64,6 +64,7 @@ const SPECS = {
   'CG-CONTEXT-CHANGED': { kind: 'context', severity: 'info', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
   'CG-CONTEXT-CONFLICT': { kind: 'context', severity: 'warn', recovery: 'new-generation', retry: 'new-click', telemetry: 'count' },
   'CG-QUOTA-DAILY': { kind: 'quota', severity: 'warn', recovery: 'wait-until', retry: 'after-deadline', telemetry: 'count', settings: 'status' },
+  'CG-AI-LIMIT': { kind: 'quota', severity: 'warn', recovery: 'wait-until', retry: 'after-deadline', telemetry: 'count', settings: 'status' },
   'CG-GATE-DRAFT': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-GATE-HISTORY': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },
   'CG-GATE-HI': { kind: 'gate', severity: 'info', recovery: 'none', retry: 'none', telemetry: 'count' },

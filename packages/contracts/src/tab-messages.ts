@@ -166,6 +166,17 @@ export const BackgroundToastSchema = z.strictObject({
       urgent: z.optional(z.literal(true)),
     }),
   ),
+  /**
+   * The person's own daily AI limit: `low` at 80 % of it, `out` when it is spent (once a Moscow day each). The tab
+   * writes «Потрачено $2.80 из $3.50» and when the AI comes back.
+   */
+  aiLimit: z.optional(
+    z.strictObject({
+      level: z.enum(['low', 'out']),
+      todayMicroUsd: CountSchema,
+      dailyLimitMicroUsd: CountSchema,
+    }),
+  ),
 });
 export type BackgroundToast = z.infer<typeof BackgroundToastSchema>;
 
@@ -180,6 +191,23 @@ export const AiQuotaSnapshotSchema = z.strictObject({
   observedAt: IsoTimestampSchema,
 });
 export type AiQuotaSnapshot = z.infer<typeof AiQuotaSnapshotSchema>;
+
+/**
+ * The person's own daily AI limit (`ai-limit-v1`, the owner's; Moscow day, all pages) as the background last saw it:
+ * the hub's `clientAiLimit`, a generation's `meta` (`quota.personal`, spend before that call) or its 429. The dock, the
+ * popup and the alerts show it; the hub stays the judge.
+ */
+export const AiLimitSnapshotSchema = z.strictObject({
+  /** Null: the owner set no limit for this person. */
+  dailyLimitMicroUsd: z.nullable(CountSchema),
+  todayMicroUsd: CountSchema,
+  /** Null without a limit. */
+  remainingMicroUsd: z.nullable(CountSchema),
+  /** 00:00 МСК of the next day: the limit starts over. */
+  resetsAt: IsoTimestampSchema,
+  observedAt: IsoTimestampSchema,
+});
+export type AiLimitSnapshot = z.infer<typeof AiLimitSnapshotSchema>;
 
 const ContractHashSchema = z.string().check(z.regex(CONTRACT_HASH_PATTERN));
 
@@ -415,6 +443,8 @@ export const TAB_REQUESTS = {
   'catalog.get': { req: z.strictObject({ force: z.optional(z.boolean()) }), res: PersonaCatalogSchema, from: ANY },
   /** The quota of a page as last seen; null — no generation on it since the background started (unknown). */
   'quota.get': { req: z.strictObject({ pageId: HubIntIdSchema }), res: z.strictObject({ quota: z.nullable(AiQuotaSnapshotSchema) }), from: ANY },
+  /** The person's own daily AI limit as last seen; null — not known yet (asks the hub then) or no `ai-limit-v1`. */
+  'quota.personal': { req: z.strictObject({}), res: z.strictObject({ limit: z.nullable(AiLimitSnapshotSchema) }), from: ANY },
   /**
    * Options «Аккаунты»: the host accounts this browser has seen, and how many tabs show each now —
    * `openTabs` have it loaded, `routeTabs` (1.8.0) are on it, its route (absent — not counted).
@@ -1039,6 +1069,8 @@ export const TAB_EVENTS = {
   'newcomers.changed': { payload: z.strictObject({ pageId: HubIntIdSchema }), to: TAB },
   /** A generation's `meta` moved a page's quota. */
   'quota.changed': { payload: z.strictObject({ quota: AiQuotaSnapshotSchema }), to: ANY },
+  /** The person's own daily AI limit moved (the hub's answer, a generation's meta, its 429). */
+  'quota.personalChanged': { payload: z.strictObject({ limit: AiLimitSnapshotSchema }), to: ANY },
   /** Owner kill switches; unknown flag names mean "off" (open tokens, critic item 14). */
   'flags.changed': { payload: z.strictObject({ flags: z.record(OpenTokenSchema, z.boolean()), configRevision: CountSchema }), to: ANY },
   /**

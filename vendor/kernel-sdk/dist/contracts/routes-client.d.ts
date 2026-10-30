@@ -90,7 +90,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -553,6 +553,14 @@ export declare const clientAiUsageResponseSchema: z.ZodObject<{
         remainingRequestsToday: z.ZodNullable<z.ZodNumber>;
         remainingMicroUsdToday: z.ZodNullable<z.ZodNumber>;
     }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const clientAiLimitResponseSchema: z.ZodObject<{
+    asOf: z.ZodString;
+    day: z.ZodString;
+    resetsAt: z.ZodString;
+    dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
+    todayMicroUsd: z.ZodNumber;
+    remainingMicroUsd: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
 /** v1 serves one window length; another one is a new value of `windowDays`. */
 export declare const CLIENT_SPENDER_STATS_WINDOW_DAYS = 30;
@@ -3285,6 +3293,38 @@ export declare const clientRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientAiLimit: {
+        readonly auth: {
+            readonly kind: "apiKey";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The caller's personal daily AI limit and their AI spend today over all pages";
+        readonly description: string;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                asOf: z.ZodString;
+                day: z.ZodString;
+                resetsAt: z.ZodString;
+                dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
+                todayMicroUsd: z.ZodNumber;
+                remainingMicroUsd: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;
@@ -6851,6 +6891,7 @@ export type ClientAiUsageQuery = z.infer<typeof clientAiUsageQuerySchema>;
 export type ClientAiUsageTotals = z.infer<typeof clientAiUsageTotalsSchema>;
 export type ClientAiUsageDay = z.infer<typeof clientAiUsageDaySchema>;
 export type ClientAiUsageResponse = z.infer<typeof clientAiUsageResponseSchema>;
+export type ClientAiLimitResponse = z.infer<typeof clientAiLimitResponseSchema>;
 export type ClientSpenderStatsQuery = z.infer<typeof clientSpenderStatsQuerySchema>;
 export type ClientSpenderStatsMoneyWindow = z.infer<typeof clientSpenderStatsMoneyWindowSchema>;
 export type ClientSpenderStatsResponse = z.infer<typeof clientSpenderStatsResponseSchema>;

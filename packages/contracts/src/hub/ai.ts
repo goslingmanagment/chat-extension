@@ -23,6 +23,7 @@ import {
   UuidSchema,
   boundedText,
 } from '../primitives';
+import { AiPersonalLimitSchema } from './usage';
 import { AI_STREAM_CAPABILITIES, AiStreamCapabilitySchema, PageLabelSchema, type ClientHubCapability } from './wire';
 
 // ── Persona catalog (`aiPersonaCatalog`: metadata only, never prompt text) ──
@@ -388,6 +389,8 @@ const QuotaSchema = z.object({
   accepted: z.boolean(),
   remainingRequestsToday: z.nullable(CountSchema),
   remainingMicroUsdToday: z.nullable(MicroUsdSchema),
+  /** `ai-limit-v1`: the person's own daily limit before this call; absent or null — none. */
+  personal: z.optional(z.nullable(AiPersonalLimitSchema)),
 });
 
 const AttachedRecapSchema = z.strictObject({ generatedAt: IsoTimestampSchema, ageMs: CountSchema });

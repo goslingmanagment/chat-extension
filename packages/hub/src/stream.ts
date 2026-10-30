@@ -49,6 +49,7 @@ import { SLOW_CALL_MS, type Connection, type HubContext } from './context';
 import { featureOfHub, type PromptEchoStore } from './debug-echo';
 import { FacadeCheckError, flagRefused, transportFailure } from './errors';
 import { type FetchLike } from './ports';
+import { type AiLimitTracker } from './ai-limit';
 import { type QuotaTracker } from './quota';
 import { callScope, errorFacts, isStructuredHubError, onAbort } from './wire';
 
@@ -89,6 +90,10 @@ export interface StreamDeps {
   readonly bootstrap: BootstrapService;
   readonly catalog: CatalogService;
   readonly quota: QuotaTracker;
+  /** `ai-limit-v1`: the person's own daily AI limit — from the meta frame and the 429 of the limit. */
+  readonly aiLimit?: AiLimitTracker;
+  /** A generation reached the hub (its cost lands there): the facade asks for the limit again shortly. */
+  readonly afterGeneration?: () => void;
   readonly echo: PromptEchoStore;
   readonly transport: AiStreamTransport;
   readonly fetch: FetchLike;
@@ -148,7 +153,12 @@ export class StreamService {
           case 'thrown':
             throw outcome.error;
           case 'failure': {
-            if (outcome.failure.kind === 'http' && outcome.failure.error === 'quota_denied') this.deps.quota.denied(pageId);
+            if (outcome.failure.kind === 'http' && outcome.failure.error === 'quota_denied') {
+              // The person's own limit is not the page's quota: the page keeps its count.
+              if (outcome.failure.reason === 'personal_daily_limit') {
+                if (this.deps.aiLimit?.denied() === false) this.deps.afterGeneration?.();
+              } else this.deps.quota.denied(pageId);
+            }
             throw ctx.failure('aiFeatureStream', outcome.failure, connection, {
               pageLabel: checked.body.pageLabel,
               beforeFirstFrame: !outcome.framesSeen,
@@ -159,6 +169,8 @@ export class StreamService {
       }
     } finally {
       if (echo) this.deps.echo.finished(opId);
+      // The request reached the hub: what it cost is the hub's to say — asked again only for a person with a limit.
+      if ((this.deps.aiLimit?.get()?.dailyLimitMicroUsd ?? null) !== null) this.deps.afterGeneration?.();
     }
   }
 
@@ -289,6 +301,7 @@ export class StreamService {
           }
           meta = frame;
           this.deps.quota.fromMeta(pageId, frame);
+          this.deps.aiLimit?.fromMeta(frame);
           return deliver(frame);
         }
         case 'context_v1':

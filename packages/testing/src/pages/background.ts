@@ -11,7 +11,7 @@ import {
   hostBindingKey,
   mayRequest,
   parseTabPayload,
-  type AiQuotaSnapshot,
+  type AiLimitSnapshot, type AiQuotaSnapshot,
   type AudienceNewItem,
   type AiUsageReport,
   type Bootstrap,
@@ -69,6 +69,8 @@ export interface BackgroundState {
   diagnostics: DiagnosticsSnapshot;
   accounts: SeenAccountFixture[];
   quotas: Record<number, AiQuotaSnapshot | null>;
+  /** The person's own daily AI limit (`ai-limit-v1`); absent or null — none known. */
+  aiLimit?: AiLimitSnapshot | null;
   ops: OpView[];
   journals: Partial<Record<JournalKind, JournalFixture>>;
   prompts: Record<string, PromptSnapshotView>;
@@ -347,6 +349,8 @@ export class FakePageBackground implements PageRpc {
       }
       case 'quota.get':
         return { ok: true, payload: { quota: state.quotas[(payload as TabRequestPayload<'quota.get'>).pageId] ?? null } };
+      case 'quota.personal':
+        return { ok: true, payload: { limit: state.aiLimit ?? null } };
       case 'accounts.seen':
         return { ok: true, payload: { accounts: state.accounts } };
       case 'op.list':

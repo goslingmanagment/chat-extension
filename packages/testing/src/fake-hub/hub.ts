@@ -1179,6 +1179,24 @@ export class FakeHub {
       }
       case 'clientAiUsageDaily':
         return read(s.data.aiUsage(need(page), request as AiUsageQuery, need(principal).user.userId, now, s.config.quotaRequestsToday));
+      case 'clientAiLimit': {
+        need(principal);
+        const limit = s.config.personalAiLimit;
+        const resetsAt = new Date(nextMskMidnight(now)).toISOString();
+        const day = new Date(nextMskMidnight(now) - DAY_MS + MSK_OFFSET_MS).toISOString().slice(0, 10);
+        return {
+          kind: 'json',
+          status: 200,
+          body: {
+            asOf: new Date(now).toISOString(),
+            day,
+            resetsAt,
+            dailyLimitMicroUsd: limit?.dailyLimitMicroUsd ?? null,
+            todayMicroUsd: limit?.todayMicroUsd ?? 0,
+            remainingMicroUsd: limit === null ? null : Math.max(limit.dailyLimitMicroUsd - limit.todayMicroUsd, 0),
+          },
+        };
+      }
       case 'clientSendAttributions':
         return read(s.data.sendAttributions(need(page), need(principal).user.userId, request as SendAttributionsRequest, now));
       case 'clientNoteAttributions':
@@ -1289,12 +1307,21 @@ export class FakeHub {
       // An active fan refuses no Ping on either platform (the owner, 2026-10-22; hub `gate_ping_active` gone).
     }
     if (feature === 'fan-notes-fill' && served.window.length === 0) return refusal('gate_min_messages');
+    // `ai-limit-v1`: the person's own daily limit is spent — before the common quota, as the hub checks it.
+    const personalLimit = s.config.personalAiLimit;
+    if (personalLimit !== null && personalLimit.todayMicroUsd >= personalLimit.dailyLimitMicroUsd) {
+      this.recordUsage(request, principal, 'quota-denied');
+      return refusal('quota_denied', 'personal_daily_limit');
+    }
     if (s.config.quotaRequestsToday === 0) {
       this.recordUsage(request, principal, 'quota-denied');
       return refusal('quota_denied');
     }
     const remaining = s.config.quotaRequestsToday === null ? null : s.config.quotaRequestsToday - 1;
     if (remaining !== null) s.config = { ...s.config, quotaRequestsToday: remaining };
+    // The meta frame carries the spend before this call; the call's cost lands right after it.
+    const personal = personalLimit === null ? null : personalOf(personalLimit, this.clock.now());
+    if (personalLimit !== null) s.config = { ...s.config, personalAiLimit: { ...personalLimit, todayMicroUsd: personalLimit.todayMicroUsd + personalLimit.perCallMicroUsd } };
     s.generationSeq += 1;
     const archive = s.data.archiveFacts(page, transcript);
     // On Fansly the frame describes what the serving reader read: the hub's tombstones and what it holds beside the
@@ -1316,6 +1343,7 @@ export class FakeHub {
       requestId: crypto.randomUUID(),
       personaDefinitionId: definitionId,
       remainingRequestsToday: remaining,
+      ...(personal === null ? {} : { personal }),
       splitAllFlag: featureVerdict(s.config, page, 'splitAll').available,
       freshTextFlag: featureVerdict(s.config, page, 'freshText').available,
       archive: chatIsFan(page)
@@ -1495,4 +1523,23 @@ function conversationOf(page: FakePage, request: { readonly fanRef: string; read
 /** A fake hub for one test file (in-process mode). */
 export function createFakeHub(options: FakeHubOptions = {}): FakeHub {
   return new FakeHub(options);
+}
+
+const DAY_MS = 86_400_000;
+/** Moscow is UTC+3 all year. */
+const MSK_OFFSET_MS = 3 * 3_600_000;
+
+/** The next 00:00 Moscow time strictly after `now`: the personal AI limit's day boundary. */
+function nextMskMidnight(now: number): number {
+  return Math.floor((now + MSK_OFFSET_MS) / DAY_MS) * DAY_MS + DAY_MS - MSK_OFFSET_MS;
+}
+
+/** `quota.personal` of a meta frame: the person's own limit before this call. */
+function personalOf(limit: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number }, now: number) {
+  return {
+    dailyLimitMicroUsd: limit.dailyLimitMicroUsd,
+    todayMicroUsd: limit.todayMicroUsd,
+    remainingMicroUsd: Math.max(limit.dailyLimitMicroUsd - limit.todayMicroUsd, 0),
+    resetsAt: new Date(nextMskMidnight(now)).toISOString(),
+  };
 }

@@ -85,6 +85,17 @@ export type AgentDatasetDefinition = {
      * defaulted, and a test pins the derivation.
      */
     readonly disclosesPurchase: boolean;
+    /**
+     * The page's OWN published material or its statistics: no row names a fan,
+     * a conversation, a purchase or an amount, and any free text is the page's
+     * own (its post copy, file and album names). A key holding `read:content`
+     * reads such a dataset with that capability alone, in place of
+     * `agentDatasetRequiredCapabilities` (owner 2026-10-29: ContentOps reads
+     * posts, files and vault without the conversations). Absent means no: a
+     * dataset that grows a fan, money or a conversation must drop the flag, and
+     * a test pins it against the other flags.
+     */
+    readonly ownContent?: true;
     /** Wire field -> scalar kind. This map IS the filter/sort allowlist. */
     readonly fields: Readonly<Record<string, AgentDatasetFieldKind>>;
     readonly defaultSort: AgentDatasetSort;
@@ -583,6 +594,7 @@ export declare const AGENT_DATASETS: {
         readonly stableKey: readonly ["eventId"];
     };
     readonly posts: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: true;
         readonly disclosesPurchase: false;
@@ -607,6 +619,7 @@ export declare const AGENT_DATASETS: {
         readonly stableKey: readonly ["postId"];
     };
     readonly raw_media: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: true;
         readonly disclosesPurchase: false;
@@ -631,6 +644,8 @@ export declare const AGENT_DATASETS: {
             readonly firstObservedAt: "timestamp";
             readonly lastObservedAt: "timestamp";
             readonly rowUpdatedAt: "timestamp";
+            /** Bytes of the largest served rendition (OnlyFans `files.full.size`); null when not served. */
+            readonly byteSize: "int";
         };
         readonly defaultSort: {
             readonly field: "firstObservedAt";
@@ -640,6 +655,7 @@ export declare const AGENT_DATASETS: {
         readonly stableKey: readonly ["mediaRef"];
     };
     readonly post_attachments: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: true;
         readonly disclosesPurchase: false;
@@ -817,6 +833,7 @@ export declare const AGENT_DATASETS: {
         readonly stableKey: readonly ["mediaBucketKey"];
     };
     readonly top_media: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: false;
         readonly disclosesPurchase: false;
@@ -988,6 +1005,7 @@ export declare const AGENT_DATASETS: {
         readonly stableKey: readonly ["likeKey"];
     };
     readonly vault_media: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: true;
         readonly disclosesPurchase: false;
@@ -1008,6 +1026,12 @@ export declare const AGENT_DATASETS: {
             readonly durationMs: "int";
             readonly originalWidth: "int";
             readonly originalHeight: "int";
+            /** Served dimensions and bytes of the file (OnlyFans `files.full`). */
+            readonly width: "int";
+            readonly height: "int";
+            readonly byteSize: "int";
+            /** The platform's own type name (`photo`, `video`, …); OnlyFans has no numeric `mediaType`. */
+            readonly providerType: "string";
             /** Raw file identity. This is the membership key on the live creator
              *  vault and remains distinct from an optional offer id. */
             readonly mediaRef: "string";
@@ -1118,6 +1142,7 @@ export declare const AGENT_DATASETS: {
         readonly stableKey: readonly ["payoutKey"];
     };
     readonly capture_coverage: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: false;
         readonly disclosesPurchase: false;
@@ -1144,6 +1169,7 @@ export declare const AGENT_DATASETS: {
         readonly stableKey: readonly ["coverageKey"];
     };
     readonly sync_streams: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: false;
         readonly disclosesPurchase: false;
@@ -1310,6 +1336,363 @@ export declare const AGENT_DATASETS: {
             readonly nullsLast: false;
         };
         readonly stableKey: readonly ["creatorStatsLevelsKey"];
+    };
+    /** The page's own Fansly profile (0337, `/account/me`): one row per distinct
+     *  content it showed — name, bio, location, social links (`providerId:handle`;
+     *  1 X, 4 Instagram, 5 TikTok, 8 Bluesky, 9 Fleshlight), the badges Fansly
+     *  awarded (leaderboard «Top 500 …»), pinned posts, walls. `current` marks the
+     *  version seen last; the window applies to `lastSeenAt`. */
+    readonly page_profile: {
+        readonly ownContent: true;
+        readonly moneyBearing: false;
+        readonly verbatimText: true;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly firstSeenAt: "timestamp";
+            readonly lastSeenAt: "timestamp";
+            readonly current: "bool";
+            readonly username: "string";
+            readonly displayName: "string";
+            readonly aboutText: "string";
+            readonly location: "string";
+            readonly socials: "string_array";
+            readonly badgeTitles: "string_array";
+            readonly badgeAwardedAt: "string_array";
+            readonly pinnedPostRefs: "string_array";
+            readonly walls: "string_array";
+            readonly avatarMediaRef: "string";
+            readonly bannerMediaRef: "string";
+        };
+        readonly defaultSort: {
+            readonly field: "lastSeenAt";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["pageProfileVersionKey"];
+    };
+    /** The counters under the profile a UTC day, from the day's last `/account/me`
+     *  (0337, since 2026-07): followers, subscribers, likes, the timeline's media
+     *  counts, stories, the stream's status (2 live) and the earnings balance. */
+    readonly page_profile_daily: {
+        readonly moneyBearing: true;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly day: "date";
+            readonly followers: "int";
+            readonly subscribers: "int";
+            readonly postLikes: "int";
+            readonly mediaLikes: "int";
+            readonly images: "int";
+            readonly videos: "int";
+            readonly bundles: "int";
+            readonly bundleImages: "int";
+            readonly bundleVideos: "int";
+            readonly stories: "int";
+            readonly hasActiveStories: "bool";
+            readonly streamStatus: "int";
+            readonly earningsBalanceMills: "mills";
+            readonly capturedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["pageProfileDailyKey"];
+    };
+    /** Fansly mass messages as the stats lists show them (`list`: live,
+     *  scheduled, deleted; collected daily since 2026-08): delivery, reads,
+     *  tips, the offers' price range and their sales. */
+    readonly mass_messages: {
+        readonly moneyBearing: true;
+        readonly verbatimText: true;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly broadcastRef: "string";
+            readonly list: "string";
+            readonly createdAt: "timestamp";
+            readonly scheduledFor: "timestamp";
+            readonly deletedAt: "timestamp";
+            readonly messageText: "string";
+            readonly sent: "int";
+            readonly delivered: "int";
+            readonly read: "int";
+            readonly tipsMills: "mills";
+            readonly offeredMedia: "int";
+            readonly offeredBundles: "int";
+            readonly minPriceMills: "mills";
+            readonly maxPriceMills: "mills";
+            readonly salesCount: "int";
+            readonly salesNetMills: "mills";
+            readonly salesPendingMills: "mills";
+            readonly lastObservedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "createdAt";
+            readonly dir: "desc";
+            readonly nullsLast: true;
+        };
+        readonly stableKey: readonly ["massMessageKey"];
+    };
+    /** Fansly tracking links (`linkKind` tracking; `linkType` 1 = Fansly's own
+     *  FYP / Suggestions / Search, 1000 = the creator's) and gift links
+     *  (`gift_code`), one row per link
+     *  and UTC day it was read: the counters are cumulative, so a period's
+     *  growth is the difference of two days. */
+    readonly promo_links: {
+        readonly moneyBearing: true;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly linkKind: "string";
+            readonly linkRef: "string";
+            readonly day: "date";
+            readonly label: "string";
+            readonly linkType: "int";
+            readonly status: "int";
+            readonly createdAt: "timestamp";
+            readonly clicks: "int";
+            readonly claims: "int";
+            readonly follows: "int";
+            readonly subscriptions: "int";
+            readonly grossMills: "mills";
+            readonly netMills: "mills";
+            readonly uses: "int";
+            readonly maxUses: "int";
+            readonly priceMills: "mills";
+            readonly originalPriceMills: "mills";
+            readonly startsAt: "timestamp";
+            readonly endsAt: "timestamp";
+            readonly missingSince: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["promoLinkKey"];
+    };
+    /** Promotions of the subscription plans (a discounted price for a while),
+     *  one row per promotion, with its tier and plan. */
+    readonly tier_promos: {
+        readonly moneyBearing: true;
+        readonly verbatimText: true;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly tierRef: "string";
+            readonly tierName: "string";
+            readonly planRef: "string";
+            readonly planDurationDays: "int";
+            readonly planPriceMills: "mills";
+            readonly promoRef: "string";
+            readonly priceMills: "mills";
+            readonly durationDays: "int";
+            readonly status: "int";
+            readonly maxUses: "int";
+            readonly newSubscribersOnly: "bool";
+            readonly startsAt: "timestamp";
+            readonly endsAt: "timestamp";
+            readonly descriptionText: "string";
+            readonly lastObservedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "lastObservedAt";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["tierPromoKey"];
+    };
+    /** The page's polls, one row per option with its votes. */
+    readonly polls: {
+        readonly moneyBearing: false;
+        readonly verbatimText: true;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly pollRef: "string";
+            readonly pollTitleText: "string";
+            readonly pollDescriptionText: "string";
+            readonly status: "int";
+            readonly createdAt: "timestamp";
+            readonly optionPos: "int";
+            readonly optionText: "string";
+            readonly votes: "int";
+            readonly lastObservedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "createdAt";
+            readonly dir: "desc";
+            readonly nullsLast: true;
+        };
+        readonly stableKey: readonly ["pollOptionKey"];
+    };
+    /** Fansly's own month totals with the creator's place among creators:
+     *  `topPercent` «Top X%» (decimal text, smaller is better). Year 0 month 0 is
+     *  Fansly's rolling last 30 days (`windowStart`..`windowEnd`). */
+    readonly revenue_months: {
+        readonly moneyBearing: true;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly year: "int";
+            readonly month: "int";
+            readonly windowStart: "timestamp";
+            readonly windowEnd: "timestamp";
+            readonly grossMills: "mills";
+            readonly netMills: "mills";
+            readonly topPercent: "string";
+            readonly maxTopPercent: "string";
+            readonly lastObservedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "year";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["revenueMonthKey"];
+    };
+    /** The page's automated messages: trigger (3 new follower, 15 new subscriber,
+     *  15002 new gift-link subscriber, 15010 renew, 15012 gift-link renew, 7001
+     *  new tip, 0 off), the tier it names, delay, cooldown and the text. */
+    readonly automated_messages: {
+        readonly moneyBearing: false;
+        readonly verbatimText: true;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly automationRef: "string";
+            readonly triggerType: "int";
+            readonly tierName: "string";
+            readonly delaySeconds: "int";
+            readonly cooldownSeconds: "int";
+            readonly messageText: "string";
+            readonly attachmentCount: "int";
+            readonly missingSince: "timestamp";
+            readonly lastObservedAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "lastObservedAt";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["automationKey"];
+    };
+    /** The page's Fansly settings and standing (0338, read daily): one row per
+     *  setting (`route`) and distinct answer, with one line in Russian; `current`
+     *  marks the answer seen last. The pending balance is `pending_balance`. */
+    readonly page_settings: {
+        readonly moneyBearing: false;
+        readonly verbatimText: true;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly route: "string";
+            readonly summaryText: "string";
+            readonly firstSeenAt: "timestamp";
+            readonly lastSeenAt: "timestamp";
+            readonly current: "bool";
+        };
+        readonly defaultSort: {
+            readonly field: "lastSeenAt";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["pageSettingsVersionKey"];
+    };
+    /** The page's balance in Fansly's hold (`/account/wallets/earnings`
+     *  `pendingBalance`, read daily since 0338): one row per distinct value. */
+    readonly pending_balance: {
+        readonly moneyBearing: true;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly pendingMills: "mills";
+            readonly firstSeenAt: "timestamp";
+            readonly lastSeenAt: "timestamp";
+            readonly current: "bool";
+        };
+        readonly defaultSort: {
+            readonly field: "lastSeenAt";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["pendingBalanceKey"];
+    };
+    /** One tracking link's days (0339): clicks, claims, follows and
+     *  subscriptions a UTC day, and its revenue that day over every transaction
+     *  type (gross and net as Fansly serves them). Read from each link's creation;
+     *  inside the read history a missing day is a zero. */
+    readonly tracking_link_daily: {
+        readonly moneyBearing: true;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly day: "date";
+            readonly linkRef: "string";
+            readonly label: "string";
+            readonly clicks: "int";
+            readonly claims: "int";
+            readonly follows: "int";
+            readonly subscriptions: "int";
+            readonly grossMills: "mills";
+            readonly netMills: "mills";
+        };
+        readonly defaultSort: {
+            readonly field: "day";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["trackingLinkDayKey"];
+    };
+    /** The page's geo-blocks as its current answer names them (0338). */
+    readonly geo_blocks: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly countryCode: "string";
+            readonly country: "string";
+            readonly stateCode: "string";
+            readonly state: "string";
+            readonly city: "string";
+            readonly seenAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "seenAt";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["geoBlockKey"];
+    };
+    /** The tags discovery (For You, Suggestions, search) keeps for the page and
+     *  its content, as the current answer names them (0338). */
+    readonly discovery_tags: {
+        readonly moneyBearing: false;
+        readonly verbatimText: false;
+        readonly disclosesPurchase: false;
+        readonly fields: {
+            readonly platform: "string";
+            readonly tag: "string";
+            readonly contentRef: "string";
+            readonly contentType: "int";
+            readonly seenAt: "timestamp";
+        };
+        readonly defaultSort: {
+            readonly field: "seenAt";
+            readonly dir: "desc";
+            readonly nullsLast: false;
+        };
+        readonly stableKey: readonly ["discoveryTagKey"];
     };
     /** Comments and post likes a UTC day (`source` -1) and media likes per surface. */
     readonly creator_stats_engagement: {
@@ -1546,6 +1929,7 @@ export declare const AGENT_DATASETS: {
     /** Views and watch time of one media of an offer per surface and UTC day.
      *  `uniqueViewers` is per day: summing it over days double-counts. */
     readonly creator_stats_media_daily: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: false;
         readonly disclosesPurchase: false;
@@ -1697,6 +2081,7 @@ export declare const AGENT_DATASETS: {
     };
     /** An offer's likes and unlikes per surface and UTC day. */
     readonly creator_stats_media_likes: {
+        readonly ownContent: true;
         readonly moneyBearing: false;
         readonly verbatimText: false;
         readonly disclosesPurchase: false;
@@ -1789,7 +2174,6 @@ export declare const AGENT_PLANNED_DATASETS: {
     readonly stories: {};
     readonly fan_lists: {};
     readonly livestreams: {};
-    readonly polls: {};
     readonly chargebacks: {};
     readonly blocks: {};
 };
@@ -1822,6 +2206,14 @@ export declare function agentDatasetFilterIssue(dataset: string, input: {
  * field or a text body cannot keep the narrower requirement.
  */
 export declare function agentDatasetRequiredCapabilities(dataset: AgentDataset): readonly AgentCapability[];
+/** The datasets a `read:content` key reads (see `ownContent`). */
+export declare const AGENT_OWN_CONTENT_DATASETS: ("notifications" | "posts" | "likes" | "transactions" | "fan_spend_daily" | "fan_notes" | "capture_coverage" | "ofapi_financial_snapshots" | "ofapi_payout_requests" | "campaign_snapshots" | "campaign_runs" | "campaign_bindings" | "campaigns" | "campaign_money_daily" | "fan_memberships" | "dm_threads" | "subscriptions" | "subscription_events" | "tip_transactions" | "follows" | "followers_daily" | "fan_aliases" | "note_attributions" | "raw_media" | "post_attachments" | "post_monetization" | "post_tips" | "tip_goals" | "traffic_daily" | "media_stats" | "top_media" | "top_tags" | "revenue_mix" | "message_media_sales" | "comments" | "vault_media" | "subscription_tiers" | "payouts" | "sync_streams" | "creator_stats_views" | "creator_stats_profile" | "creator_stats_follows" | "creator_stats_subscriptions" | "creator_stats_revenue" | "creator_stats_levels" | "page_profile" | "page_profile_daily" | "mass_messages" | "promo_links" | "tier_promos" | "polls" | "revenue_months" | "automated_messages" | "page_settings" | "pending_balance" | "tracking_link_daily" | "geo_blocks" | "discovery_tags" | "creator_stats_engagement" | "creator_stats_windows" | "creator_stats_geo" | "creator_stats_tags" | "creator_stats_tag_series" | "creator_stats_benchmarks" | "creator_stats_media_shown" | "creator_stats_active_hours" | "creator_stats_media_daily" | "creator_stats_media_hourly" | "creator_stats_media_totals" | "creator_stats_media_tags" | "creator_stats_media_tag_series" | "creator_stats_media_likes" | "creator_stats_media_top")[];
+/**
+ * What THIS key needs to query the dataset: `read:content` alone for an
+ * `ownContent` dataset when the key holds it, otherwise the declared
+ * requirement. A key without `read:content` is answered exactly as before.
+ */
+export declare function agentDatasetCapabilitiesFor(dataset: AgentDataset, granted: ReadonlySet<string>): readonly AgentCapability[];
 /**
  * Free-form content includes `*Text` fields and user-written file/album names.
  *

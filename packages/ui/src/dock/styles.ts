@@ -113,6 +113,15 @@ ${/* «Очереди»: the number counts who answered a message from a queue �
 .cg-slot--more { display: none; }
 ${/* «Ещё» opens above the whole bar, not over its upper edge. */ ''}
 .cg-strip .cg-menu--top { bottom: calc(100% + 9px); }
+${/* The person's own daily AI limit (the owner, 2026-10-31): money over a thin bar; amber from 80 %, red when spent. */ ''}
+.cg-ailimit { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; height: 30px; padding: 0 6px; cursor: default; }
+.cg-ailimit__t { font-family: var(--cg-mono); font-size: var(--cg-text-2xs); line-height: 12px; font-weight: 600; color: var(--cg-ink-2); white-space: nowrap; }
+.cg-ailimit__bar { display: block; width: 100%; min-width: 64px; height: 3px; border-radius: var(--cg-r-pill); background: var(--cg-rule-3); overflow: hidden; }
+.cg-ailimit__bar > span { display: block; height: 100%; border-radius: inherit; background: var(--cg-good-ink); }
+.cg-ailimit.is-low .cg-ailimit__t { color: var(--cg-amber-ink); }
+.cg-ailimit.is-low .cg-ailimit__bar > span { background: var(--cg-amber-ink); }
+.cg-ailimit.is-out .cg-ailimit__t { color: var(--cg-danger); }
+.cg-ailimit.is-out .cg-ailimit__bar > span { background: var(--cg-danger); }
 .cg-hint {
   padding: 0 5px; border-radius: 5px; box-shadow: inset 0 0 0 1px var(--cg-rule-3), 0 1px 0 var(--cg-rule-3);
   font-family: var(--cg-mono); font-size: var(--cg-text-2xs); line-height: 18px; color: var(--cg-ink-muted); white-space: nowrap;

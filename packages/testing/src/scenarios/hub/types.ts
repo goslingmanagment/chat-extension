@@ -41,6 +41,7 @@ export const HUB_ROUTE_PATHS = {
   clientFanClaimStatus: '/api/v1/client/pages/:pageLabel/fans/:fanRef/claim',
   clientAudienceNew: '/api/v1/client/pages/:pageLabel/audience-new',
   clientAiUsageDaily: '/api/v1/client/pages/:pageLabel/ai-usage',
+  clientAiLimit: '/api/v1/client/ai/limit',
   clientSendAttributions: '/api/v1/client/pages/:pageLabel/send-attributions',
   clientNoteAttributions: '/api/v1/client/pages/:pageLabel/note-attributions',
   clientFanNoteAttributions: '/api/v1/client/pages/:pageLabel/fans/:fanRef/note-attributions',

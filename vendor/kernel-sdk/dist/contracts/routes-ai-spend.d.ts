@@ -557,9 +557,44 @@ export declare const adminAiSpendResponseSchema: z.ZodObject<{
         }, z.core.$strip>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
+/**
+ * The owner's personal daily AI limits: every living person, their limit and
+ * what their AI cost in the current Moscow day over all pages. At the limit Hub
+ * refuses every AI call of the person (429 quota_denied) until 00:00 Moscow time.
+ */
+export declare const adminAiChatterLimitSchema: z.ZodObject<{
+    userId: z.ZodNumber;
+    username: z.ZodString;
+    role: z.ZodString;
+    dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
+    todayMicroUsd: z.ZodNumber;
+    blocked: z.ZodBoolean;
+}, z.core.$strip>;
+export declare const adminAiChatterLimitsResponseSchema: z.ZodObject<{
+    generatedAt: z.ZodString;
+    day: z.ZodString;
+    resetsAt: z.ZodString;
+    chatters: z.ZodArray<z.ZodObject<{
+        userId: z.ZodNumber;
+        username: z.ZodString;
+        role: z.ZodString;
+        dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
+        todayMicroUsd: z.ZodNumber;
+        blocked: z.ZodBoolean;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const adminAiChatterLimitParamsSchema: z.ZodObject<{
+    userId: z.ZodCoercedNumber<unknown>;
+}, z.core.$strip>;
+export declare const adminAiChatterLimitUpdateBodySchema: z.ZodObject<{
+    dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strict>;
 export type AdminAiSpendQuery = z.infer<typeof adminAiSpendQuerySchema>;
 export type AdminAiSpendResponse = z.infer<typeof adminAiSpendResponseSchema>;
 export type AiSpendRow = z.infer<typeof aiSpendRowSchema>;
+export type AdminAiChatterLimit = z.infer<typeof adminAiChatterLimitSchema>;
+export type AdminAiChatterLimitsResponse = z.infer<typeof adminAiChatterLimitsResponseSchema>;
+export type AdminAiChatterLimitUpdateBody = z.infer<typeof adminAiChatterLimitUpdateBodySchema>;
 export declare const aiSpendRouteSchemas: {
     readonly adminAiSpend: {
         readonly auth: {
@@ -1015,6 +1050,98 @@ export declare const aiSpendRouteSchemas: {
                 statusUrl: z.ZodOptional<z.ZodString>;
             }, z.core.$strip>;
             readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiChatterLimits: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Personal daily AI limits: each person's limit and AI spend in the current Moscow day";
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                generatedAt: z.ZodString;
+                day: z.ZodString;
+                resetsAt: z.ZodString;
+                chatters: z.ZodArray<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    username: z.ZodString;
+                    role: z.ZodString;
+                    dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
+                    todayMicroUsd: z.ZodNumber;
+                    blocked: z.ZodBoolean;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly adminAiChatterLimitUpdate: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "Set or remove a person's personal daily AI limit";
+        readonly params: z.ZodObject<{
+            userId: z.ZodCoercedNumber<unknown>;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                generatedAt: z.ZodString;
+                day: z.ZodString;
+                resetsAt: z.ZodString;
+                chatters: z.ZodArray<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    username: z.ZodString;
+                    role: z.ZodString;
+                    dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
+                    todayMicroUsd: z.ZodNumber;
+                    blocked: z.ZodBoolean;
+                }, z.core.$strip>>;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
                 error: z.ZodString;
                 message: z.ZodString;
                 statusCode: z.ZodNumber;

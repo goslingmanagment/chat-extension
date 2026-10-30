@@ -47,6 +47,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { dockChips, featureGate, featurePresent, isDraftFeature, policyOf, toggleTone } from '../../domain/features';
+import { aiLimitVm } from '../../domain/ai-limit';
 import { contractBroken } from '../../domain/host';
 import { flagUsable, isTerminalOpState } from '../../domain/ops';
 import { targetHandle } from '../ai/handles';
@@ -398,6 +399,8 @@ export function createDockController(ws: AiWorkspace): DockController {
       mark: situation.off !== null ? 'faint' : 'normal',
       // UI-031: silence is the norm — the quota shows only when it is low or gone.
       quota: quota !== null && low ? { remaining, low: remaining !== 0, resetsAt: quota.resetsAt } : null,
+      // `ai-limit-v1`: the person's own daily AI limit, always in sight while one is set (the owner, 2026-10-31).
+      aiLimit: aiLimitVm(ws.env.aiLimit(ws.ports.clock.now())),
       options: {
         tone: chat === null ? null : ws.tone(chat.key),
         // The site's tones (Telegram: no selling tone), else every one.

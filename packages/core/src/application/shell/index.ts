@@ -36,6 +36,7 @@ import { type ChatRef } from '@cg/contracts/ids';
 import { type BackgroundToast, type TabEventPayload } from '@cg/contracts/tab-messages';
 import { type ActionButtonVM, type ActionReceipt, type GreetCardVM, type I18n, type Msg, type MountSurfaceKind, type ToastVM, type ToastsVM, type UiAction, type UiActionType, type ViewSelector } from '@cg/contracts/vm';
 
+import { formatAiMoney } from '../../domain/ai-limit';
 import { TOAST_TIMING, errorView, settingsRouteOf, toastKey, toastLifetimeMs, viewOfCode } from '../../domain/errors';
 import { translatorOf } from '../../domain/i18n/live';
 import { fanHandle } from '../boards/handles';
@@ -184,6 +185,21 @@ export function createShellController(ports: ShellPorts): ShellController {
       const hi = button('dock.action.hi', ports.greetHere === undefined ? target : { ...target, here: true });
       return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: here === null ? [hi, later] : cardActions(target, here), copyCode: false, expiresAt: entry.expiresAt, greet };
     }
+    // `ai-limit-v1`: «ИИ на сегодня почти закончился» / «исчерпан» with the money; it stays until closed.
+    if (toast.aiLimit !== undefined) {
+      const money = { spent: formatAiMoney(toast.aiLimit.todayMicroUsd), limit: formatAiMoney(toast.aiLimit.dailyLimitMicroUsd) };
+      const out = toast.aiLimit.level === 'out';
+      return {
+        id: toast.toastId,
+        kind: toast.kind,
+        code: null,
+        title: i18n.t(out ? 'toast.aiLimitOut.title' : 'toast.aiLimitLow.title'),
+        body: i18n.t(out ? 'toast.aiLimitOut.body' : 'toast.aiLimitLow.body', money),
+        actions: [button('common.close', { type: 'DismissToast', toastId: toast.toastId })],
+        copyCode: false,
+        expiresAt: entry.expiresAt,
+      };
+    }
     // §9.5: a background toast leads to its chat — by the person's click only.
     if (toast.chat !== undefined && ports.chatHandle !== undefined) actions.push(button('common.openChat', { type: 'Navigate', to: { kind: 'chat', targetHandle: ports.chatHandle(toast.chat, toast.conversationRef) } }));
     const route = code === null ? null : settingsRouteOf(code);
@@ -236,7 +252,7 @@ export function createShellController(ports: ShellPorts): ShellController {
     const kept = [entry, ...entries.filter((item) => !same(item))];
     for (const extra of kept.slice(TOAST_TIMING.maxVisible)) stop(extra);
     entries = kept.slice(0, TOAST_TIMING.maxVisible);
-    if (toast.greet === undefined) arm(entry, toastLifetimeMs(toast.kind, toast.code ?? null));
+    if (toast.greet === undefined && toast.aiLimit === undefined) arm(entry, toastLifetimeMs(toast.kind, toast.code ?? null));
     changed();
   }
 

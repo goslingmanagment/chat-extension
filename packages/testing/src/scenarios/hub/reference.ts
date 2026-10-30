@@ -67,7 +67,9 @@ export const resolveHubErrorReference: ResolveHubError = (failure: HubFailure, c
   const retryAt =
     rule.retryAt === 'next-utc-midnight'
       ? Math.floor(ctx.now / DAY_MS) * DAY_MS + DAY_MS
-      : rule.retryAt === 'retry-after' && failure.retryAfterMs !== null
+      : rule.retryAt === 'next-msk-midnight'
+        ? Math.floor((ctx.now + 3 * 3_600_000) / DAY_MS) * DAY_MS + DAY_MS - 3 * 3_600_000
+        : rule.retryAt === 'retry-after' && failure.retryAfterMs !== null
         ? ctx.now + failure.retryAfterMs
         : null;
   return { code: rule.cg, disposition: rule.disposition, retryAt, httpStatus: failure.status };

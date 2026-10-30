@@ -28,7 +28,7 @@ import { Fragment, type JSX, type TargetedKeyboardEvent } from 'preact';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import { type Tone } from '@cg/contracts/features';
-import { type ChipVM, type DockChipGroup, type DockVM, type UiAction } from '@cg/contracts/vm';
+import { type AiLimitVM, type ChipVM, type DockChipGroup, type DockVM, type UiAction } from '@cg/contracts/vm';
 
 import {
   CheckGlyph,
@@ -85,6 +85,25 @@ function Quota({ count, text }: { readonly count: number; readonly text: string 
     <>
       <span class={`cg-quota cg-num${count === 0 ? ' is-zero' : ''}`} role="img" aria-label={text} {...tip.props}>
         {count}
+      </span>
+      {tip.description}
+    </>
+  );
+}
+
+/**
+ * `ai-limit-v1`: the person's own daily AI limit — «ИИ $1.20 / $3.50» over a thin bar on the bar's right, amber from
+ * 80 %, red when it is spent («ИИ до 00:00»). Its hint says it in words whatever the hints setting is.
+ */
+function AiLimit({ vm, text, tooltip }: { readonly vm: AiLimitVM; readonly text: string; readonly tooltip: string }): JSX.Element {
+  const tip = useTooltip(tooltip);
+  return (
+    <>
+      <span class={`cg-ailimit is-${vm.level}`} role="img" aria-label={tooltip} {...tip.props}>
+        <span class="cg-ailimit__t cg-num">{text}</span>
+        <span class="cg-ailimit__bar" aria-hidden="true">
+          <span style={{ width: `${Math.round(vm.share * 100)}%` }} />
+        </span>
       </span>
       {tip.description}
     </>
@@ -405,6 +424,13 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
           </span>
         ) : null}
         {windows.length === 0 ? null : <span class={DOCK_GROUP_SLOT[WINDOWS]}>{windows.map(chipButton)}</span>}
+        {vm.aiLimit === undefined || vm.aiLimit === null ? null : (
+          <AiLimit
+            vm={vm.aiLimit}
+            text={vm.aiLimit.level === 'out' ? t('dock.aiLimit.out') : t('dock.aiLimit.label', { spent: vm.aiLimit.spent, limit: vm.aiLimit.limit })}
+            tooltip={vm.aiLimit.level === 'out' ? t('cg.aiLimit.body') : t('dock.aiLimit.tooltip', { spent: vm.aiLimit.spent, limit: vm.aiLimit.limit })}
+          />
+        )}
         {vm.paletteHotkey === null ? null : <Word class="cg-hint" text={hotkeyText(vm.paletteHotkey)?.display ?? ''} tooltip={hints ? t('dock.paletteHint.tooltip') : null} />}
       </div>
     </div>

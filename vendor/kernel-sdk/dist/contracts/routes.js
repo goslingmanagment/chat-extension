@@ -1695,10 +1695,29 @@ export const aiGatewayUsageSchema = z.object({
     costMicroUsd: z.number().int().nonnegative(),
     costApproximate: z.boolean(),
 });
+/** The caller's personal daily AI limit: micro-USD per Moscow day over all pages, set by the owner. */
+export const aiPersonalLimitSchema = z.object({
+    dailyLimitMicroUsd: z.number().int().nonnegative(),
+    /** The caller's AI spend today over all pages, before this call. */
+    todayMicroUsd: z.number().int().nonnegative(),
+    remainingMicroUsd: z.number().int().nonnegative(),
+    /** 00:00 Moscow time of the next day: the limit starts over. */
+    resetsAt: isoTimestamp,
+});
 export const aiGatewayQuotaSchema = z.object({
     accepted: z.boolean(),
     remainingRequestsToday: z.number().int().nonnegative().nullable(),
     remainingMicroUsdToday: z.number().int().nonnegative().nullable(),
+    /** The caller's personal daily limit; absent or null — the caller has none. */
+    personal: aiPersonalLimitSchema.nullable().optional(),
+});
+/**
+ * 429 `quota_denied` of an AI generation. At the caller's personal daily limit
+ * it carries `reason: "personal_daily_limit"` and `retryAfterMs` until 00:00
+ * Moscow time (also sent as `Retry-After`); the common caps send neither.
+ */
+export const aiQuotaDeniedResponseSchema = errorResponseSchema.extend({
+    retryAfterMs: z.number().int().nonnegative().optional(),
 });
 const aiFeatureAttachedRecapSchema = z.object({
     generatedAt: isoTimestamp,
@@ -5184,6 +5203,247 @@ const insightsTrafficRowSchema = z.object({
  *  that length when Hub holds one (uniques and paying fans are not sums of
  *  days); everything else is the daily rows as served — a day without a row
  *  inside the covered span had no activity. */
+/** The page's own Fansly profile (0337), read out of `/account/me`: every
+ *  distinct content it showed (name, bio, location, social links, the badges
+ *  Fansly awarded, pinned posts, walls) with when it was first and last seen,
+ *  the current one, and the counters under it per UTC day. */
+export const pageProfileQuerySchema = z.object({
+    days: z.coerce.number().int().min(1).max(400).default(90),
+});
+const pageProfileVersionSchema = z.object({
+    contentSha256: z.string(),
+    firstSeenAt: isoTimestamp,
+    lastSeenAt: isoTimestamp,
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
+    about: z.string().nullable(),
+    location: z.string().nullable(),
+    avatarMediaRef: z.string().nullable(),
+    bannerMediaRef: z.string().nullable(),
+    socials: z.array(z.object({ providerId: z.string(), handle: z.string() })),
+    badges: z.array(z.object({
+        badgeRef: z.string(),
+        badgeType: z.number().int().nullable(),
+        title: z.string().nullable(),
+        description: z.string().nullable(),
+        awardedAt: isoTimestamp.nullable(),
+    })),
+    pinnedPosts: z.array(z.object({
+        postRef: z.string(), wallRef: z.string().nullable(), pos: z.number().int().nullable(), pinnedAt: isoTimestamp.nullable(),
+    })),
+    walls: z.array(z.object({
+        wallRef: z.string(),
+        pos: z.number().int().nullable(),
+        name: z.string().nullable(),
+        description: z.string().nullable(),
+        private: z.boolean(),
+        mainWall: z.boolean(),
+        defaultWall: z.boolean(),
+    })),
+    profileFlags: z.number().int().nullable(),
+    accountFlags: z.number().int().nullable(),
+    profileAccessFlags: z.number().int().nullable(),
+});
+const pageProfileCount = z.number().int().nullable();
+export const pageProfileResponseSchema = z.object({
+    page: insightsPageSchema,
+    /** The version seen last; null before the first answer was read. */
+    current: pageProfileVersionSchema.nullable(),
+    /** Every version, the earliest first seen first. */
+    versions: z.array(pageProfileVersionSchema),
+    /** The last `days` UTC days that have an answer, oldest first. */
+    daily: z.array(z.object({
+        day: z.string(),
+        followers: pageProfileCount,
+        subscribers: pageProfileCount,
+        postLikes: pageProfileCount,
+        mediaLikes: pageProfileCount,
+        images: pageProfileCount,
+        videos: pageProfileCount,
+        bundles: pageProfileCount,
+        stories: pageProfileCount,
+        streamStatus: pageProfileCount,
+        earningsBalanceMills: mills.nullable(),
+        capturedAt: isoTimestamp,
+    })),
+});
+/** What Fansly's creator pages show about selling (projections Hub has
+ *  collected for months): tiers with plans and promotions, gift links,
+ *  tracking links with their growth over 7 and 30 days, «Top X%» per month,
+ *  the yearly Recap, polls and the automated messages. */
+const pagePromoGrowthSchema = z.object({
+    sinceDay: z.string(),
+    clicks: z.number().int().nullable(),
+    claims: z.number().int().nullable(),
+    follows: z.number().int().nullable(),
+    subscriptions: z.number().int().nullable(),
+    /** Fansly serves a link's revenue gross only (its `totalNet` is always 0). */
+    grossMills: mills.nullable(),
+}).nullable();
+export const pagePromoResponseSchema = z.object({
+    page: insightsPageSchema,
+    /** «Top X%» over Fansly's rolling last 30 days. */
+    currentRank: z.object({
+        topPercent: z.number().nullable(),
+        maxTopPercent: z.number().nullable(),
+        grossMills: mills.nullable(),
+        netMills: mills.nullable(),
+        windowStart: isoTimestamp.nullable(),
+        windowEnd: isoTimestamp.nullable(),
+    }).nullable(),
+    tiers: z.array(z.object({
+        tierRef: z.string(),
+        name: z.string().nullable(),
+        color: z.string().nullable(),
+        pos: z.number().int().nullable(),
+        basePriceMills: mills.nullable(),
+        maxSubscribers: z.number().int().nullable(),
+        benefits: z.array(z.string()),
+        missingSince: isoTimestamp.nullable(),
+        plans: z.array(z.object({
+            planRef: z.string(),
+            status: z.number().int().nullable(),
+            durationDays: z.number().int().nullable(),
+            priceMills: mills.nullable(),
+            missingSince: isoTimestamp.nullable(),
+            promotions: z.array(z.object({
+                promoRef: z.string().nullable(),
+                priceMills: mills.nullable(),
+                durationDays: z.number().int().nullable(),
+                status: z.number().int().nullable(),
+                maxUses: z.number().int().nullable(),
+                newSubscribersOnly: z.boolean(),
+                startsAt: isoTimestamp.nullable(),
+                endsAt: isoTimestamp.nullable(),
+                description: z.string().nullable(),
+            })),
+        })),
+    })),
+    giftLinks: z.array(z.object({
+        linkRef: z.string(),
+        label: z.string().nullable(),
+        status: z.number().int().nullable(),
+        priceMills: mills.nullable(),
+        originalPriceMills: mills.nullable(),
+        durationDays: z.number().int().nullable(),
+        uses: z.number().int().nullable(),
+        maxUses: z.number().int().nullable(),
+        newSubscribersOnly: z.boolean(),
+        createdAt: isoTimestamp.nullable(),
+        startsAt: isoTimestamp.nullable(),
+        endsAt: isoTimestamp.nullable(),
+        missingSince: isoTimestamp.nullable(),
+        lastSeenDay: z.string(),
+    })),
+    trackingLinks: z.array(z.object({
+        linkRef: z.string(),
+        label: z.string().nullable(),
+        description: z.string().nullable(),
+        linkType: z.number().int().nullable(),
+        status: z.number().int().nullable(),
+        createdAt: isoTimestamp.nullable(),
+        clicks: z.number().int().nullable(),
+        claims: z.number().int().nullable(),
+        follows: z.number().int().nullable(),
+        subscriptions: z.number().int().nullable(),
+        grossMills: mills.nullable(),
+        netMills: mills.nullable(),
+        missingSince: isoTimestamp.nullable(),
+        lastSeenDay: z.string(),
+        last7: pagePromoGrowthSchema,
+        last30: pagePromoGrowthSchema,
+    })),
+    months: z.array(z.object({
+        year: z.number().int(),
+        month: z.number().int(),
+        grossMills: mills.nullable(),
+        netMills: mills.nullable(),
+        topPercent: z.number().nullable(),
+        maxTopPercent: z.number().nullable(),
+    })),
+    recap: z.array(z.object({ year: z.number().int(), statRef: z.string(), statName: z.string(), value: z.string().nullable() })),
+    polls: z.array(z.object({
+        pollRef: z.string(),
+        title: z.string().nullable(),
+        description: z.string().nullable(),
+        status: z.number().int().nullable(),
+        createdAt: isoTimestamp.nullable(),
+        options: z.array(z.object({ title: z.string().nullable(), votes: z.number().int().nullable() })),
+    })),
+    /** The tracking links' days of the last 90 UTC days (0339; only days with activity). */
+    trackingDays: z.array(z.object({
+        day: z.string(),
+        linkRef: z.string(),
+        follows: z.number().int().nullable(),
+        subscriptions: z.number().int().nullable(),
+        grossMills: mills.nullable(),
+    })),
+    automations: z.array(z.object({
+        automationRef: z.string(),
+        triggerType: z.number().int().nullable(),
+        tierName: z.string().nullable(),
+        delaySeconds: z.number().int().nullable(),
+        cooldownSeconds: z.number().int().nullable(),
+        messageText: z.string().nullable(),
+        attachmentCount: z.number().int(),
+        missingSince: isoTimestamp.nullable(),
+    })),
+});
+/** The page's mass messages as Fansly's stats lists show them (live,
+ *  scheduled, deleted): delivery, reads, tips and sales of each. */
+export const pageMassMessagesQuerySchema = z.object({
+    list: z.enum(["live", "scheduled", "deleted", "all"]).default("all"),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    offset: z.coerce.number().int().min(0).default(0),
+});
+export const pageMassMessagesResponseSchema = z.object({
+    page: insightsPageSchema,
+    total: z.number().int(),
+    totals: z.object({
+        sent: z.number().int(),
+        read: z.number().int(),
+        salesCount: z.number().int(),
+        salesNetMills: mills,
+        tipsMills: mills,
+    }),
+    rows: z.array(z.object({
+        broadcastRef: z.string(),
+        list: z.string(),
+        createdAt: isoTimestamp.nullable(),
+        scheduledFor: isoTimestamp.nullable(),
+        deletedAt: isoTimestamp.nullable(),
+        text: z.string().nullable(),
+        sent: z.number().int().nullable(),
+        delivered: z.number().int().nullable(),
+        read: z.number().int().nullable(),
+        tipsMills: mills.nullable(),
+        offeredMedia: z.number().int(),
+        offeredBundles: z.number().int(),
+        minPriceMills: mills.nullable(),
+        maxPriceMills: mills.nullable(),
+        salesCount: z.number().int().nullable(),
+        salesNetMills: mills.nullable(),
+        salesPendingMills: mills.nullable(),
+    })),
+});
+/** The page's settings and standing on Fansly (0338, `page-settings.daily`):
+ *  per route its current answer (one line in Russian and the body as served,
+ *  without the account's e-mail) and its earlier ones. */
+const pageSettingsVersionSchema = z.object({
+    route: z.string(),
+    summary: z.string(),
+    body: z.unknown(),
+    firstSeenAt: isoTimestamp,
+    lastSeenAt: isoTimestamp,
+});
+export const pageSettingsResponseSchema = z.object({
+    page: insightsPageSchema,
+    routes: z.array(z.object({
+        route: z.string(),
+        current: pageSettingsVersionSchema,
+        earlier: z.array(pageSettingsVersionSchema),
+    })),
+});
 export const creatorStatsOverviewQuerySchema = z.object({
     days: z.coerce.number().int().refine((value) => [7, 30, 90, 180, 365].includes(value), "days must be 7, 30, 90, 180 or 365").default(30),
     to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a UTC day YYYY-MM-DD").optional(),
@@ -5870,7 +6130,7 @@ const baseRouteSchemas = {
             403: errorResponseSchema,
             404: errorResponseSchema,
             409: errorResponseSchema,
-            429: errorResponseSchema,
+            429: aiQuotaDeniedResponseSchema,
             503: errorResponseSchema,
         },
     },
@@ -7366,7 +7626,7 @@ const baseRouteSchemas = {
             403: errorResponseSchema,
             404: errorResponseSchema,
             409: errorResponseSchema,
-            429: errorResponseSchema,
+            429: aiQuotaDeniedResponseSchema,
             503: errorResponseSchema,
         },
     },
@@ -8337,6 +8597,58 @@ const baseRouteSchemas = {
         response: {
             200: statsTagsResponseSchema,
             400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageProfile: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "The page's own Fansly profile: its versions (bio, socials, badges, pinned posts, walls) and the counters per day",
+        params: pageParamsSchema,
+        querystring: pageProfileQuerySchema,
+        response: {
+            200: pageProfileResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pagePromo: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "What the page sells and how: tiers and promotions, gift and tracking links, Top X% per month, Recap, polls, automated messages",
+        params: pageParamsSchema,
+        response: {
+            200: pagePromoResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageMassMessages: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "The page's mass messages with delivery, reads, tips and sales, as Fansly's stats lists show them",
+        params: pageParamsSchema,
+        querystring: pageMassMessagesQuerySchema,
+        response: {
+            200: pageMassMessagesResponseSchema,
+            400: errorResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    pageSettings: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "The page's Fansly settings and standing: geo-blocks, permissions, watermark, alerts, referrals, pending balance, tip goals, discovery tags",
+        params: pageParamsSchema,
+        response: {
+            200: pageSettingsResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
             404: errorResponseSchema,

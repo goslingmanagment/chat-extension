@@ -88,3 +88,27 @@ export const AiUsageReportSchema = z.object({
   ),
 });
 export type AiUsageReport = z.infer<typeof AiUsageReportSchema>;
+
+/**
+ * The person's own daily AI limit (`ai-limit-v1`): the owner's, per Moscow day over all pages. At the limit every AI
+ * call of the person answers 429 `quota_denied` with reason `personal_daily_limit` until `resetsAt` (00:00 МСК).
+ */
+export const AiPersonalLimitSchema = z.object({
+  dailyLimitMicroUsd: CountSchema,
+  /** Spent today over all pages (in the meta frame: before this call). */
+  todayMicroUsd: CountSchema,
+  remainingMicroUsd: CountSchema,
+  resetsAt: IsoTimestampSchema,
+});
+export type AiPersonalLimit = z.infer<typeof AiPersonalLimitSchema>;
+
+/** `clientAiLimit`: the limit is null when the owner set none (the hub's common caps still apply). */
+export const AiLimitReportSchema = z.object({
+  asOf: IsoTimestampSchema,
+  day: BusinessDateSchema,
+  resetsAt: IsoTimestampSchema,
+  dailyLimitMicroUsd: z.nullable(CountSchema),
+  todayMicroUsd: CountSchema,
+  remainingMicroUsd: z.nullable(CountSchema),
+});
+export type AiLimitReport = z.infer<typeof AiLimitReportSchema>;

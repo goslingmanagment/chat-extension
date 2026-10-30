@@ -130,8 +130,8 @@ export interface HubHttpErrorRule {
   /** null = no code to show (ignore, empty). */
   readonly cg: CgCode | null;
   readonly disposition: HubErrorDisposition;
-  /** Where the deadline comes from: the failure's `retryAfterMs`, or the AI quota's 00:00 UTC. */
-  readonly retryAt?: 'retry-after' | 'next-utc-midnight';
+  /** Where the deadline comes from: the failure's `retryAfterMs`, the AI quota's 00:00 UTC, or the personal AI limit's 00:00 МСК. */
+  readonly retryAt?: 'retry-after' | 'next-utc-midnight' | 'next-msk-midnight';
 }
 
 const show = (error: string | null, cg: CgCode, extra: Omit<HubHttpErrorRule, 'error' | 'cg' | 'disposition'> = {}): HubHttpErrorRule => ({
@@ -165,6 +165,8 @@ export const HUB_HTTP_ERROR_RULES: readonly HubHttpErrorRule[] = [
   // ── limits ──
   show('rate_limit_exceeded', 'CG-HUB-RATE-LIMIT', { retryAt: 'retry-after' }),
   show('preview_send_rate_limited', 'CG-HUB-RATE-LIMIT', { routes: ['claim'], retryAt: 'retry-after' }),
+  /** `ai-limit-v1`: the person's own daily AI limit (the owner's) is spent; it starts over at 00:00 МСК. */
+  show('quota_denied', 'CG-AI-LIMIT', { reason: 'personal_daily_limit', retryAt: 'next-msk-midnight' }),
   show('quota_denied', 'CG-QUOTA-DAILY', { retryAt: 'next-utc-midnight' }),
 
   // ── availability: one transparent AI retry, never for a send ──

@@ -10,7 +10,7 @@ import { type CgErrorWire } from '@cg/contracts/errors';
 import { type Bootstrap, type BootstrapPage, type PersonaCatalog, type PersonaCatalogItem } from '@cg/contracts/hub';
 import { type HostAccount, type HubBinding, type SessionIdentity } from '@cg/contracts/ids';
 import { type SettingsPatch, type SettingsState } from '@cg/contracts/settings';
-import { type AiQuotaSnapshot } from '@cg/contracts/tab-messages';
+import { type AiLimitSnapshot, type AiQuotaSnapshot } from '@cg/contracts/tab-messages';
 
 import { type RpcAnswer, type RpcConnection, type TabRpcPort } from './ports';
 import { defaultPersonaOf } from '../../domain/personas';
@@ -55,6 +55,9 @@ export class TabEnvironment {
   private catalogValue: Loaded<PersonaCatalog> = IDLE;
   private readonly quotas = new Map<number, AiQuotaSnapshot>();
   private readonly quotaAsked = new Set<number>();
+  /** `ai-limit-v1`: the person's own daily AI limit as the background last saw it; asked once per sign-in. */
+  private aiLimitValue: AiLimitSnapshot | null = null;
+  private aiLimitAsked = false;
   private readonly bindings = new Map<string, Loaded<HubBinding>>();
   /** The last binding read of each account in this sign-in and config (X45): kept across a failed read again. */
   private readonly lastBindings = new Map<string, HubBinding>();
@@ -88,6 +91,10 @@ export class TabEnvironment {
       rpc.onEvent('catalog.changed', () => this.loadCatalog()),
       rpc.onEvent('quota.changed', ({ quota }) => {
         this.quotas.set(quota.pageId, quota);
+        this.emit('quota');
+      }),
+      rpc.onEvent('quota.personalChanged', ({ limit }) => {
+        this.aiLimitValue = limit;
         this.emit('quota');
       }),
       rpc.onEvent('flags.changed', ({ flags, configRevision }) => {
@@ -208,6 +215,24 @@ export class TabEnvironment {
       });
     }
     return known ?? null;
+  }
+
+  /**
+   * The person's own daily AI limit (`ai-limit-v1`); null — not known yet or its Moscow day is over. Asked once per
+   * sign-in; `quota.personalChanged` keeps it current (an answer of the hub, a generation's meta, its 429).
+   */
+  aiLimit(now: number): AiLimitSnapshot | null {
+    if (this.aiLimitValue === null && !this.aiLimitAsked && this.sessionValue) {
+      this.aiLimitAsked = true;
+      const generation = this.generation;
+      void this.rpc.request('quota.personal', {}).then((answer) => {
+        if (generation !== this.generation || !answer.ok || answer.payload.limit === null || this.aiLimitValue !== null) return;
+        this.aiLimitValue = answer.payload.limit;
+        this.emit('quota');
+      });
+    }
+    const limit = this.aiLimitValue;
+    return limit !== null && now < Date.parse(limit.resetsAt) ? limit : null;
   }
 
   /**
@@ -337,6 +362,7 @@ export class TabEnvironment {
     const generation = this.generation;
     this.dropBindings();
     this.quotaAsked.clear();
+    this.aiLimitAsked = false;
     this.bootstrapValue = LOADING;
     this.emit('bootstrap');
     const failed = (error: CgErrorWire): void => {
@@ -369,6 +395,8 @@ export class TabEnvironment {
       this.dropBindings();
       this.quotas.clear();
       this.quotaAsked.clear();
+      this.aiLimitValue = null;
+      this.aiLimitAsked = false;
       this.starRevision = 0;
       this.bootstrapValue = IDLE;
       this.lastBootstrap = null;

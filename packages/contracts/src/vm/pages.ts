@@ -13,6 +13,7 @@ import { type IsoTimestamp } from '../primitives';
 import { type CoachAutoRecap, type ToneId, type UiLocale, type UiResultStyle, type UiTextSize, type UiTheme } from '../settings';
 import { type UiAction } from './actions';
 import { type CatalogActionId, type HotkeyLabel, type HotkeyPlatform } from './catalog';
+import { type AiLimitVM } from './dock';
 import { type Msg } from './i18n';
 import { type AccountHandle, type ArtifactHandle, type JournalKind, type PageHandle } from './selectors';
 import { type ColorScheme } from './theme';
@@ -92,6 +93,8 @@ export interface PopupVM {
   } | null;
   /** «осталось 12 — обновится в 03:00»; monochrome, no amber (ui-design §9.2 п. 12). */
   readonly quota: { readonly remaining: number | null; readonly resetsAt: IsoTimestamp | null; readonly low: boolean } | null;
+  /** «ИИ сегодня $1.20 из $3.50» with a bar: the person's own daily limit; absent or null — none or not known. */
+  readonly aiLimit?: AiLimitVM | null;
   /** «AI сегодня $» — debug only, «только этот браузер» until H-15 (§9.3). */
   readonly aiTodayLine: string | null;
   readonly newcomersCount: number | null;

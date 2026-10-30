@@ -13,6 +13,7 @@ import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type HostCapability } from '@cg/contracts/host';
 import { type ActionButtonVM, type PopupAlertVM, type PopupVerdictVM, type PopupVM, type ReasonVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
+import { aiLimitVm } from '../../domain/ai-limit';
 import { formatMicroUsd } from '../../domain/debug';
 import { errorTone } from '../../domain/errors';
 import { hotkeyOf } from './hotkeys';
@@ -193,6 +194,8 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
             copyIds: { ...(chat.conversationRef === undefined ? {} : { conversationRef: chat.conversationRef }), fanId: chat.platformFanId, hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },
           },
     quota: bound === null ? null : { remaining: quota?.remainingRequestsToday ?? null, resetsAt: quota?.resetsAt ?? null, low: quota !== null && quota.remainingRequestsToday !== null && quota.remainingRequestsToday <= QUOTA_LOW },
+    // `ai-limit-v1` (the owner, 2026-10-31): the person sees their own daily AI limit and what they spent of it.
+    aiLimit: valueOf(model.session) === null ? null : aiLimitVm(model.aiLimit !== undefined && model.aiLimit !== null && model.now < Date.parse(model.aiLimit.resetsAt) ? model.aiLimit : null),
     // Money of AI only in debug (Б4, PU-016); the hub's own number for this person and page.
     // A known zero of money is not drawn (ui-design §1 п. 6): the line appears with the first cent of the day.
     aiTodayLine: debug && model.aiTodayMicroUsd !== null && model.aiTodayMicroUsd > 0 ? model.t.text('popup.aiCostToday', { money: formatMicroUsd(model.aiTodayMicroUsd) }) : null,

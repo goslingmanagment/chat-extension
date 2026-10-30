@@ -107,6 +107,7 @@ export {
 } from './presence';
 export { createConsentState, type ConsentDeps, type ConsentState, type ConsentStatus } from './consent';
 export { ActivityBeat, beatPagesOf, beatTabsOf, type ActivityBeatDeps, type BeatTab, type BeatTabSeen } from './activity-beat';
+export { createAiLimitAlerts, type AiLimitAlertDeps, type AiLimitAlerts } from './ai-limit-alerts';
 export { TalkingMarksService, talkingMarksOf, type TalkingDeps, type TalkingPage } from './talking';
 
 // R10 (./ports also holds R18's `Scheduler` and `KeyValuePort`, served by `@cg/core/services/logs`)

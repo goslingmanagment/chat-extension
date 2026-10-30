@@ -19,6 +19,14 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/ai/accounts";
     };
+    readonly adminAiChatterLimitUpdate: {
+        readonly method: "PUT";
+        readonly path: "/api/v1/admin/ai/chatter-limits/:userId";
+    };
+    readonly adminAiChatterLimits: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/ai/chatter-limits";
+    };
     readonly adminAiPersonaArchive: {
         readonly method: "DELETE";
         readonly path: "/api/v1/admin/ai/personas/:key";
@@ -571,6 +579,14 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/publications/approve";
     };
+    readonly agentPublicationCancel: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/publications/:id/cancel";
+    };
+    readonly agentPublicationChanges: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/publications/changes";
+    };
     readonly agentPublicationCreate: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/publications";
@@ -590,6 +606,10 @@ export declare const kernelOperations: {
     readonly agentPublicationMedia: {
         readonly method: "GET";
         readonly path: "/api/v1/agent/pages/:pageLabel/publication-media";
+    };
+    readonly agentPublicationTargets: {
+        readonly method: "GET";
+        readonly path: "/api/v1/agent/pages/:pageLabel/publication-targets";
     };
     readonly agentPublicationUpdate: {
         readonly method: "PUT";
@@ -718,6 +738,10 @@ export declare const kernelOperations: {
     readonly clientActivity: {
         readonly method: "POST";
         readonly path: "/api/v1/client/activity";
+    };
+    readonly clientAiLimit: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/ai/limit";
     };
     readonly clientAiUsageDaily: {
         readonly method: "GET";
@@ -1375,9 +1399,21 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/followers/daily";
     };
+    readonly pageMassMessages: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/mass-messages";
+    };
     readonly pageMessagesBlock: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/sync/blocks/messages";
+    };
+    readonly pageProfile: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/profile";
+    };
+    readonly pagePromo: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/promo";
     };
     readonly pageRevenue: {
         readonly method: "GET";
@@ -1386,6 +1422,10 @@ export declare const kernelOperations: {
     readonly pageRevenueDaily: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/revenue/daily";
+    };
+    readonly pageSettings: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/settings";
     };
     readonly pageSpenderAutoListDetail: {
         readonly method: "GET";

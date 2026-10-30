@@ -26,6 +26,8 @@ import {
   narrowPlatform,
   type AbortSignalLike,
   type AcceptanceEvent,
+  type AiLimitReport,
+  type AiLimitSnapshot,
   type AiQuotaSnapshot,
   type AiStreamCapability,
   type AiUsageQuery,
@@ -142,6 +144,7 @@ import { HubContext, type CallFacts, type Connection } from './context';
 import { PromptEchoStore, type EchoTicket } from './debug-echo';
 import { FacadeCallError, FacadeCheckError, failureDetail, flagRefused, transportFailure } from './errors';
 import { SILENT_LOG, SYSTEM_CLOCK, type FetchLike, type HubClock, type HubEnvironment, type HubKeyValueStore, type HubLog, type UuidSource } from './ports';
+import { AiLimitTracker } from './ai-limit';
 import { QuotaTracker } from './quota';
 import { SpendersBoardService, type BoardOptions, type BoardRequest } from './spenders-board';
 import { StreamService, type StreamNotice } from './stream';
@@ -216,6 +219,8 @@ const OS_LABELS = { windows: 'Windows', macos: 'macOS', linux: 'Linux', other: '
  */
 const deviceLabel = (os: keyof typeof OS_LABELS): string => `Firefox · ${OS_LABELS[os]} · ChatGoose`;
 const WIPE_REASONS = new Set(['token_revoked', 'token_expired']);
+/** After a generation ends, ask the hub for the person's own AI limit this much later (its cost lands there first). */
+const AI_LIMIT_REFRESH_DELAY_MS = 3_000;
 
 /** A UUID-shaped id derived from `seed` (FNV-1a, four lanes): the same report always gets the same `clientEventId`. */
 export function stableEventId(seed: string): string {
@@ -275,6 +280,8 @@ export class ChatExtensionHub implements HubFacade {
   private readonly bootstrapService: BootstrapService;
   private readonly catalogService: CatalogService;
   private readonly quota: QuotaTracker;
+  private readonly aiLimitTracker: AiLimitTracker;
+  private aiLimitTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly echo: PromptEchoStore;
   private readonly board: SpendersBoardService;
   private readonly streams: StreamService;
@@ -301,6 +308,7 @@ export class ChatExtensionHub implements HubFacade {
     this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {}, compatPlatforms: options.compatPlatforms ?? [] });
     this.catalogService = new CatalogService(this.ctx, options.local);
     this.quota = new QuotaTracker(() => clock.now());
+    this.aiLimitTracker = new AiLimitTracker(() => clock.now());
     this.echo = new PromptEchoStore(clock, uuid);
     this.board = new SpendersBoardService(
       this.ctx,
@@ -319,6 +327,8 @@ export class ChatExtensionHub implements HubFacade {
       bootstrap: this.bootstrapService,
       catalog: this.catalogService,
       quota: this.quota,
+      aiLimit: this.aiLimitTracker,
+      afterGeneration: () => this.refreshAiLimitSoon(),
       echo: this.echo,
       transport: options.streamTransport ?? sdkStreamTransport,
       fetch: options.fetch,
@@ -369,6 +379,7 @@ export class ChatExtensionHub implements HubFacade {
     this.catalogService.reset();
     this.board.clear();
     this.quota.clear();
+    this.aiLimitTracker.clear();
     this.echo.clear();
     this.inFlight.clear();
     if (change.session === null) {
@@ -397,6 +408,11 @@ export class ChatExtensionHub implements HubFacade {
   /** `quota.changed` (TL-013). */
   onQuotaChange(listener: (quota: AiQuotaSnapshot) => void): Unsubscribe {
     return this.quota.onChange(listener);
+  }
+
+  /** `quota.personalChanged`: the person's own daily AI limit moved (`ai-limit-v1`). */
+  onAiLimitChange(listener: (limit: AiLimitSnapshot) => void): Unsubscribe {
+    return this.aiLimitTracker.onChange(listener);
   }
 
   /** «Сервис недоступен, повтор через 5 с…» of an operation. */
@@ -722,6 +738,36 @@ export class ChatExtensionHub implements HubFacade {
 
   quotaOf(pageId: number): AiQuotaSnapshot | null {
     return this.quota.get(pageId);
+  }
+
+  /** The person's own daily AI limit as last seen; null — not known yet, or its day is over. */
+  aiLimitOf(): AiLimitSnapshot | null {
+    return this.aiLimitTracker.get();
+  }
+
+  /**
+   * `ai-limit-v1`: asks the hub for the person's own daily AI limit and today's spend (all pages). Null without the
+   * capability or a sign-in; never repeated by itself (the next alarm or generation asks again).
+   */
+  async refreshAiLimit(): Promise<AiLimitSnapshot | null> {
+    const connection = this.ctx.connection('clientAiLimit');
+    await this.ready;
+    if (!this.ctx.isCurrent(connection) || this.custody.current() === null) return null;
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    if (!hasCapability(entry.bootstrap.capabilities, 'ai-limit-v1')) return null;
+    const report = (await this.ctx.client('clientAiLimit', null, {}, connection)) as AiLimitReport;
+    if (!this.ctx.isCurrent(connection)) return null;
+    this.aiLimitTracker.fromReport(report);
+    return this.aiLimitTracker.get();
+  }
+
+  /** After a generation: its cost lands at the hub a moment later; one ask for all that end close together. */
+  private refreshAiLimitSoon(): void {
+    if (this.aiLimitTimer !== null) clearTimeout(this.aiLimitTimer);
+    this.aiLimitTimer = setTimeout(() => {
+      this.aiLimitTimer = null;
+      this.refreshAiLimit().catch(() => undefined);
+    }, AI_LIMIT_REFRESH_DELAY_MS);
   }
 
   /** DB-006: an operation's echo as a token and counters for the tab. */
@@ -1199,6 +1245,7 @@ export class ChatExtensionHub implements HubFacade {
     this.board.clear();
     this.echo.clear();
     this.quota.clear();
+    this.aiLimitTracker.clear();
     this.inFlight.clear();
     if (this.custody.current() === null) return;
     this.bootstrapService.refresh().catch(() => undefined);

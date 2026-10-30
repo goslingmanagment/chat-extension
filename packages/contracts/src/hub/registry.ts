@@ -43,7 +43,7 @@ import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema } from './fan-marks';
 import { FanQueueItemDoneRequestSchema, FanQueueItemDoneSchema, FanQueueReleaseRequestSchema, FanQueueReleaseSchema, FanQueuesQuerySchema, FanQueuesSchema, FanQueueTakeRequestSchema, FanQueueTakeSchema } from './fan-queues';
-import { AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
+import { AiLimitReportSchema, AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
 import { PageFanParamsSchema, PageParamsSchema } from './wire';
 import { VoiceAllowanceQuerySchema, VoiceAllowanceSchema, VoiceNoteAudioBytesSchema, VoiceNoteCreateRequestSchema, VoiceNoteRefSchema, VoiceNoteViewSchema } from '../voice';
 
@@ -78,6 +78,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientFanClaimStatus: { request: PageFanParamsSchema, response: ClaimStateSchema },
   clientAudienceNew: { request: AudienceNewQuerySchema, response: AudienceNewPageSchema },
   clientAiUsageDaily: { request: AiUsageQuerySchema, response: AiUsageReportSchema },
+  clientAiLimit: { request: null, response: AiLimitReportSchema },
   clientSendAttributions: { request: SendAttributionsRequestSchema, response: SendAttributionsResultSchema },
   clientNoteAttributions: { request: NoteAttributionsRequestSchema, response: NoteAttributionsResultSchema },
   clientFanNoteAttributions: { request: FanNoteAttributionsQuerySchema, response: FanNoteAttributionsSchema },
