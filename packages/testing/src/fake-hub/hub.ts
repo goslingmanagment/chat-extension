@@ -61,6 +61,7 @@ import {
   type OnlineAttemptRequest,
   type OnlinePresenceRequest,
   type OnlyfansFeedRequest,
+  type OnlyfansPollRequest,
   type OnlineQuery,
   type OnlineTemplate,
   type FanCardQuery,
@@ -549,7 +550,7 @@ export class FakeHub {
       ingested: s.data.ingestedEvents().length,
       voiceNotes: s.voice.snapshot(now),
       online: { attempts: s.data.onlineAttempts(), presence: s.data.onlinePresenceReports(), probes: s.data.onlineProbes() },
-      onlyfansFeed: { records: s.data.onlyfansFeedRecords().map((entry) => ({ ...entry })), transactions: s.data.onlyfansFeedTransactions() },
+      onlyfansFeed: { records: s.data.onlyfansFeedRecords().map((entry) => ({ ...entry })), transactions: s.data.onlyfansFeedTransactions(), passes: s.data.onlyfansFeedPasses() },
       fanQueues: { reports: s.data.fanQueueReports() },
       clientContexts: s.clientContexts.map((record) => ({ ...record })),
       aiReads: s.aiReads.map((record) => ({ ...record })),
@@ -1245,7 +1246,7 @@ export class FakeHub {
       case 'clientOnlinePresence':
         return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now, s.config.spendersTotal));
       case 'clientOnlyfansPoll':
-        return read(s.data.onlyfansPoll(need(page), now));
+        return read(s.data.onlyfansPoll(need(page), now, (request as OnlyfansPollRequest).passed));
       case 'clientOnlyfansFeed':
         return read(s.data.onlyfansFeed(need(page), need(principal).user.userId, request as OnlyfansFeedRequest, now));
       case 'clientOnlineProbe':

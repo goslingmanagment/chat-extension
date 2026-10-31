@@ -10,7 +10,7 @@
 // 20, 40 and at most 60 minutes later. Reads only: no chat is opened, nothing is marked read or written. What a read
 // brings reaches the hub through the OnlyFans feed (MAIN feed.ts), which dedups it with every other sighting.
 
-import { ONLYFANS_POLL_EVERY_MS, ONLYFANS_POLL_LISTS, type OnlyfansPollResult } from '@cg/contracts/hub';
+import { ONLYFANS_POLL_EVERY_MS, ONLYFANS_POLL_LISTS, type OnlyfansPollPass, type OnlyfansPollResult } from '@cg/contracts/hub';
 import type { FeedPollPort } from '@cg/contracts/host';
 import type { HostAccount } from '@cg/contracts/ids';
 
@@ -31,8 +31,11 @@ export interface ChatSpaceFeedPollDeps {
   readonly port: FeedPollPort | null;
   /** ChatSpace's OnlyFans accounts as the port has them: the creator's OnlyFans id names its page. */
   readonly accounts: () => readonly HostAccount[];
-  /** The page's poll asked of the hub (`feed.poll`); null — refused (the page's switch is off), or no answer. */
-  readonly lend: (hostAccountId: string, creatorId: string) => Promise<OnlyfansPollResult | null>;
+  /**
+   * The page's poll asked of the hub (`feed.poll`); null — refused (the page's switch is off), or no answer. With
+   * `passed` (hub #961), the report of the pass just made instead of an ask: the hub vouches for «Новые» by it.
+   */
+  readonly lend: (hostAccountId: string, creatorId: string, passed?: OnlyfansPollPass) => Promise<OnlyfansPollResult | null>;
   readonly clock: { now(): number };
   readonly random: () => number;
   readonly setTimer: (ms: number, fn: () => void) => unknown;
@@ -45,9 +48,14 @@ interface AccountPoll {
   running: boolean;
 }
 
-/** The poll of one account, once lent: each list back to the hub's cursor. False — a page failed (the poll stops). */
-export async function pollAccount(deps: Pick<ChatSpaceFeedPollDeps, 'setTimer'> & { readonly port: FeedPollPort }, hostAccountId: string, lent: OnlyfansPollResult): Promise<boolean> {
+/**
+ * The poll of one account, once lent: each list back to the hub's cursor. Each list `true` when read back to it, or
+ * to its end, or as far as the hub's pages go; a page ChatSpace refused ends the poll (that list and those after it
+ * `false`). Null — the page does not have the account: nothing was read, nothing to report.
+ */
+export async function pollAccount(deps: Pick<ChatSpaceFeedPollDeps, 'setTimer'> & { readonly port: FeedPollPort }, hostAccountId: string, lent: OnlyfansPollResult): Promise<OnlyfansPollPass | null> {
   const wait = (ms: number): Promise<void> => new Promise((resolve) => void deps.setTimer(ms, resolve));
+  const passed: OnlyfansPollPass = { subscribers: false, ledger: false };
   let first = true;
   for (const list of ONLYFANS_POLL_LISTS) {
     const known = lent.cursors[list];
@@ -56,14 +64,15 @@ export async function pollAccount(deps: Pick<ChatSpaceFeedPollDeps, 'setTimer'> 
       if (!first) await wait(FEED_POLL_PAGE_GAP_MS);
       first = false;
       const read = await deps.port.read(hostAccountId, list, cursor);
-      if (!read.ok) return read.reason === 'account';
+      if (!read.ok) return read.reason === 'account' ? null : passed;
       // Back to what the hub holds: no further.
       if (known !== null && read.refs.includes(known)) break;
       if (!read.hasMore || read.next === null) break;
       cursor = read.next;
     }
+    passed[list] = true;
   }
-  return true;
+  return passed;
 }
 
 export function startChatSpaceFeedPoll(deps: ChatSpaceFeedPollDeps): () => void {
@@ -89,8 +98,11 @@ export function startChatSpaceFeedPoll(deps: ChatSpaceFeedPollDeps): () => void 
         state.nextAt = clock.now() + waitMs + Math.floor(deps.random() * LEND_SPREAD_MS);
         return;
       }
-      const done = await pollAccount({ port, setTimer: deps.setTimer }, account.hostAccountId, lent);
-      if (done) {
+      const passed = await pollAccount({ port, setTimer: deps.setTimer }, account.hostAccountId, lent);
+      if (passed === null) return;
+      // The hub vouches for «Новые» by it (hub #961): one report, never repeated.
+      await deps.lend(account.hostAccountId, account.platformAccountId, passed);
+      if (passed.subscribers && passed.ledger) {
         state.backoffMs = 0;
         return;
       }

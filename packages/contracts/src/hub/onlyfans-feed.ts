@@ -171,10 +171,16 @@ export const ONLYFANS_POLL_EVERY_MS = 600_000;
 export const ONLYFANS_POLL_LISTS = ['subscribers', 'ledger'] as const;
 export type OnlyfansPollList = (typeof ONLYFANS_POLL_LISTS)[number];
 
+/** How a holder's pass of the page's poll went (hub #961): each list `true` when read back to the hub's cursor. */
+export const OnlyfansPollPassSchema = z.strictObject({ subscribers: z.boolean(), ledger: z.boolean() });
+export type OnlyfansPollPass = z.infer<typeof OnlyfansPollPassSchema>;
+
 export const OnlyfansPollRequestSchema = z.strictObject({
   pageLabel: PageLabelSchema,
   hostAccountRef: z.string().check(z.regex(ONLYFANS_FEED_HOST_ACCOUNT_PATTERN)),
   creatorRef: NativeIdSchema,
+  /** hub #961: a report of the pass this tab just made while it held the poll, instead of an ask; lends nothing. */
+  passed: z.optional(OnlyfansPollPassSchema),
 });
 export type OnlyfansPollRequest = z.infer<typeof OnlyfansPollRequestSchema>;
 

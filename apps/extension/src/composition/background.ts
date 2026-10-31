@@ -1724,13 +1724,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
 
   // hub #955: the page's poll of ChatSpace, asked by a ChatSpace tab for one of its accounts; null — not ours to ask.
-  rpc.handle('feed.poll', async ({ hostAccountId, creatorId }, sender) => {
+  // hub #961: with `passed`, the tab's report of the pass it just made (the hub vouches for «Новые» by it).
+  rpc.handle('feed.poll', async ({ hostAccountId, creatorId, passed }, sender) => {
     if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
     if (hostOfTab(sender.tabSessionId) !== 'chatspace') return ok(null);
     await tabAccounts.known(sender.tabSessionId);
     const target = onlyfansFeedTarget(boundPageOf('chatspace', hostAccountId), hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf, 'onlyfans-poll');
     if (!target.ok) return ok(null);
-    return ok(await hub().onlyfansPoll({ pageLabel: target.pageLabel, hostAccountRef: `onlymonster:${hostAccountId}`, creatorRef: creatorId }).catch(() => null));
+    const request = { pageLabel: target.pageLabel, hostAccountRef: `onlymonster:${hostAccountId}`, creatorRef: creatorId, ...(passed === undefined ? {} : { passed }) };
+    return ok(await hub().onlyfansPoll(request).catch(() => null));
   });
 
   // a site's own requests: its module answers them (X8 and the greeting leases of «Новые» — bg/chatspace)

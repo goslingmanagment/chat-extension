@@ -32,7 +32,7 @@ const now = (ms: number, fn: () => void) => {
 describe('a lent poll', () => {
   it('reads each list back to the hub’s newest item and no further', async () => {
     const port = chatspace({ subscribers: [page(['9', '8'], '8'), page(['7', '6'], '6'), page(['5'], null)], ledger: [page(['t3', 't2'], 't2')] });
-    expect(await pollAccount({ port, setTimer: now }, '910101', lent({ cursors: { subscribers: '7', ledger: 't2' } }))).toBe(true);
+    expect(await pollAccount({ port, setTimer: now }, '910101', lent({ cursors: { subscribers: '7', ledger: 't2' } }))).toEqual({ subscribers: true, ledger: true });
     expect(port.asked).toEqual(['subscribers:-', 'subscribers:8', 'ledger:-']);
   });
 
@@ -44,7 +44,7 @@ describe('a lent poll', () => {
 
   it('stops at a page ChatSpace refused: nothing is asked again', async () => {
     const port = chatspace({ subscribers: [{ ok: false, reason: 'http', status: 429 }], ledger: [page(['t1'], null)] });
-    expect(await pollAccount({ port, setTimer: now }, '910101', lent())).toBe(false);
+    expect(await pollAccount({ port, setTimer: now }, '910101', lent())).toEqual({ subscribers: false, ledger: false });
     expect(port.asked).toEqual(['subscribers:-']);
   });
 });
@@ -54,11 +54,18 @@ describe('the tab’s poller', () => {
     let clock = 0;
     const timers: Array<{ at: number; fn: () => void }> = [];
     const port = chatspace({ subscribers: [{ ok: false, reason: 'http', status: 503 }], ledger: [] });
-    const answers: (OnlyfansPollResult | null)[] = [lent({ granted: false }), lent()];
+    const answers: (OnlyfansPollResult | null)[] = [lent({ granted: false }), lent(), null];
+    const reports: unknown[] = [];
     const stop = startChatSpaceFeedPoll({
       port,
       accounts: () => [{ host: 'chatspace', hostAccountId: '910101', platform: 'onlyfans', platformAccountId: '830000101', username: null, displayName: null }],
-      lend: () => Promise.resolve(answers.shift() ?? null),
+      lend: (_acc, _creator, passed) => {
+        if (passed !== undefined) {
+          reports.push(passed);
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(answers.shift() ?? null);
+      },
       clock: { now: () => clock },
       random: () => 0,
       setTimer: (ms, fn) => timers.push({ at: clock + ms, fn }),
@@ -80,6 +87,8 @@ describe('the tab’s poller', () => {
     expect(port.asked).toEqual([]);
     await run(20 * 60_000);
     expect(port.asked).toEqual(['subscribers:-']);
+    // The hub hears how the pass went: «Новые» stay partial while it fails.
+    expect(reports).toEqual([{ subscribers: false, ledger: false }]);
     // Refused: no read again within the back-off.
     await run(20 * 60_000 + FEED_POLL_BACKOFF_MS - 60_000);
     expect(port.asked).toEqual(['subscribers:-']);
