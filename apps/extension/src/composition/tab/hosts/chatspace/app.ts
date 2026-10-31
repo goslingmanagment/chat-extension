@@ -67,7 +67,8 @@ export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () =
   const stopPoll = startChatSpaceFeedPoll({
     port: env.host.feedPoll,
     accounts: () => env.host.current().accounts,
-    lend: (hostAccountId, creatorId) => env.rpc.request('feed.poll', { hostAccountId, creatorId }).then((answer) => (answer.ok ? answer.payload : null), () => null),
+    lend: (hostAccountId, creatorId, passed) =>
+      env.rpc.request('feed.poll', { hostAccountId, creatorId, ...(passed === undefined ? {} : { passed }) }).then((answer) => (answer.ok ? answer.payload : null), () => null),
     clock: { now: () => Date.now() },
     random: Math.random,
     setTimer: (ms, fn) => env.win.setTimeout(fn, ms),

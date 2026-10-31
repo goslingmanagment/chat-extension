@@ -380,7 +380,12 @@ export interface FakeHubStatus {
   /** «Онлайн»: what the chatters did in the window, the tabs' presence reports and the probes lent, in order (ids and times). */
   readonly online: { readonly attempts: readonly FakeOnlineAttempt[]; readonly presence: readonly FakeOnlinePresenceReport[]; readonly probes: readonly FakeOnlineProbe[] };
   /** hub #953: the OnlyFans feed's records as reported (with who and what the fake did) and the transactions it wrote. */
-  readonly onlyfansFeed: { readonly records: readonly FakeFeedRecord[]; readonly transactions: readonly FakeFeedTransaction[] };
+  readonly onlyfansFeed: {
+    readonly records: readonly FakeFeedRecord[];
+    readonly transactions: readonly FakeFeedTransaction[];
+    /** hub #961: the poll holders' reports of their passes. */
+    readonly passes: readonly { readonly pageLabel: string; readonly at: string; readonly subscribers: boolean; readonly ledger: boolean }[];
+  };
   /** «Очереди»: every fan's outcome the client reported, in order (ids and closed words only). */
   readonly fanQueues: { readonly reports: readonly FakeFanQueueDone[] };
   /** Telegram: the chats the AI requests carried (`clientContext`), in order. */

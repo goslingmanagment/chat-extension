@@ -1220,7 +1220,7 @@ export declare const CLIENT_AUDIENCE_NEW_STATUS_SOURCES: readonly ["sweep", "web
  * - `audience_sweep_unverified`: the last sweep ended without a result the hub
  *   trusts (`partial`).
  */
-export declare const CLIENT_AUDIENCE_NEW_COVERAGE_REASONS: readonly ["delivery_history_off", "delivery_history_pending", "delivery_history_before_window", "delivery_history_behind", "subscription_event_pending", "subscription_projection_pending", "subscription_projection_failed", "audience_sweep_missing", "audience_sweep_unverified"];
+export declare const CLIENT_AUDIENCE_NEW_COVERAGE_REASONS: readonly ["delivery_history_off", "delivery_history_pending", "delivery_history_before_window", "delivery_history_behind", "subscription_event_pending", "subscription_projection_pending", "subscription_projection_failed", "audience_sweep_missing", "audience_sweep_unverified", "notifications_poll_pending", "notifications_poll_before_window", "notifications_poll_behind", "notifications_poll_failing"];
 /**
  * The `reason` beside this route's 400 `bad_request`. `cursor_invalid`: the
  * cursor is not one this hub issued for this request (forged or cut, issued
@@ -1864,6 +1864,10 @@ export declare const CLIENT_ONLYFANS_POLL_MAX_PAGES = 5;
 export declare const clientOnlyfansPollBodySchema: z.ZodObject<{
     hostAccountRef: z.ZodString;
     creatorRef: z.ZodString;
+    passed: z.ZodOptional<z.ZodObject<{
+        subscribers: z.ZodBoolean;
+        ledger: z.ZodBoolean;
+    }, z.core.$strict>>;
 }, z.core.$strict>;
 export declare const clientOnlyfansPollResponseSchema: z.ZodObject<{
     pageLabel: z.ZodString;
@@ -4549,6 +4553,10 @@ export declare const clientRouteSchemas: {
         readonly body: z.ZodObject<{
             hostAccountRef: z.ZodString;
             creatorRef: z.ZodString;
+            passed: z.ZodOptional<z.ZodObject<{
+                subscribers: z.ZodBoolean;
+                ledger: z.ZodBoolean;
+            }, z.core.$strict>>;
         }, z.core.$strict>;
         readonly response: {
             readonly 200: z.ZodObject<{

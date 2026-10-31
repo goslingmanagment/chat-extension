@@ -8,7 +8,7 @@
 //   client-onlyfans-feed-money.ts, simplified: no earlier writer here). The hub's writer gate is not modelled: the
 //   stand's pages take the feed's money.
 
-import { type OnlyfansFeedRecord, type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollResult } from '@cg/contracts/hub';
+import { type OnlyfansFeedRecord, type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollPass, type OnlyfansPollResult } from '@cg/contracts/hub';
 
 import { iso } from './clock';
 
@@ -88,6 +88,8 @@ export class FakeOnlyfansFeed {
   private readonly rows: FakeFeedTransaction[] = [];
   /** When each page's poll may be lent again. */
   private readonly polls = new Map<string, number>();
+  /** The holders' reports of their passes (hub #961), in order. */
+  readonly passes: { readonly pageLabel: string; readonly at: string; readonly subscribers: boolean; readonly ledger: boolean }[] = [];
   private asked = 0;
 
   report(userId: number, request: OnlyfansFeedRequest, now: number, archive: FeedArchive): OnlyfansFeedResult {
@@ -160,10 +162,12 @@ export class FakeOnlyfansFeed {
    * As the hub's `clientOnlyfansPoll` (hub #955): the page's poll lent to one tab every ten minutes (the fake has no
    * always-on tab), with the newest notification and ledger row the feed brought.
    */
-  poll(pageLabel: string, now: number): OnlyfansPollResult {
+  poll(pageLabel: string, now: number, passed?: OnlyfansPollPass): OnlyfansPollResult {
     this.asked += 1;
+    // hub #961: a holder's report of its pass lends nothing; the fake keeps it.
+    if (passed !== undefined) this.passes.push({ pageLabel, at: iso(now), ...passed });
     const due = this.polls.get(pageLabel) ?? 0;
-    const granted = now >= due;
+    const granted = passed === undefined && now >= due;
     if (granted) this.polls.set(pageLabel, now + 600_000);
     const newest = (kind: 'subscriber' | 'ledger'): string | null => {
       let best: { readonly ref: string; readonly at: number } | null = null;

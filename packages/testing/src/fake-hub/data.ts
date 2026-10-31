@@ -30,6 +30,7 @@ import {
   type IngestBatch,
   type OnlyfansFeedRequest,
   type OnlyfansFeedResult,
+  type OnlyfansPollPass,
   type OnlyfansPollResult,
   type IngestResult,
   type QueuePage,
@@ -740,13 +741,18 @@ export class DataModel {
   }
 
   /** As the hub's `clientOnlyfansPoll` (hub #955): the page's poll lent to one tab every ten minutes. */
-  onlyfansPoll(page: FakePage, now: number): Read<OnlyfansPollResult> {
-    return ok(this.feedModel.poll(page.pageLabel, now));
+  onlyfansPoll(page: FakePage, now: number, passed?: OnlyfansPollPass): Read<OnlyfansPollResult> {
+    return ok(this.feedModel.poll(page.pageLabel, now, passed));
   }
 
   /** hub #953: every record the tabs reported, in order, with who reported it and what the fake hub did with it. */
   onlyfansFeedRecords(): readonly FakeFeedRecord[] {
     return this.feedModel.records();
+  }
+
+  /** hub #961: the poll holders' reports of their passes, in order. */
+  onlyfansFeedPasses(): readonly { readonly pageLabel: string; readonly at: string; readonly subscribers: boolean; readonly ledger: boolean }[] {
+    return [...this.feedModel.passes];
   }
 
   /** hub #953: the transactions the feed wrote, with the sightings each one counts. */

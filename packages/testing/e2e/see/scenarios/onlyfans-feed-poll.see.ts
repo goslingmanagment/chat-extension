@@ -20,8 +20,10 @@ scenario(
     await s.ready();
     await s.browser.waitUntil(
       async () => {
-        const kinds = new Set((await s.hub.status()).onlyfansFeed.records.map((entry) => entry.record.kind));
-        return kinds.has('subscriber') && kinds.has('ledger');
+        const feed = (await s.hub.status()).onlyfansFeed;
+        const kinds = new Set(feed.records.map((entry) => entry.record.kind));
+        // hub #961: and the tab told the hub how its pass went.
+        return kinds.has('subscriber') && kinds.has('ledger') && feed.passes.length > 0;
       },
       { timeout: 45_000, interval: 500, timeoutMsg: 'the fake hub got no subscriber and ledger records from the poll' },
     );
@@ -29,7 +31,7 @@ scenario(
     const reads = (await s.stand.journal(mark)).entries.filter((entry) => entry.kind === 'http' && /\/(notifications|platforms\/onlyfans\/transactions)/.test(String(entry.path)));
     writeFileSync(
       join(s.out, 'onlyfans-feed-poll.json'),
-      `${JSON.stringify({ records: status.onlyfansFeed.records.filter((entry) => entry.record.kind === 'subscriber' || entry.record.kind === 'ledger'), transactions: status.onlyfansFeed.transactions, standReads: reads.map((entry) => ({ path: entry.path, status: entry.status, origin: entry.origin })) }, null, 2)}\n`,
+      `${JSON.stringify({ records: status.onlyfansFeed.records.filter((entry) => entry.record.kind === 'subscriber' || entry.record.kind === 'ledger'), transactions: status.onlyfansFeed.transactions, passes: status.onlyfansFeed.passes, standReads: reads.map((entry) => ({ path: entry.path, status: entry.status, origin: entry.origin })) }, null, 2)}\n`,
     );
   },
   {

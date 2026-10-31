@@ -40,7 +40,7 @@ import { HiFanAvatarUrlSchema } from './hi-start-proof';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
 import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
-import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema, OnlyfansPollResultSchema } from './hub/onlyfans-feed';
+import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema, OnlyfansPollPassSchema, OnlyfansPollResultSchema } from './hub/onlyfans-feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
 import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
@@ -1032,7 +1032,8 @@ export const TAB_REQUESTS = {
    * hub). Never repeated: the next ask is the tab's own, at its pace.
    */
   'feed.poll': {
-    req: z.strictObject({ hostAccountId: NativeIdSchema, creatorId: NativeIdSchema }),
+    /** `passed` (hub #961): the report of the pass this tab just made while it held the poll, instead of an ask. */
+    req: z.strictObject({ hostAccountId: NativeIdSchema, creatorId: NativeIdSchema, passed: z.optional(OnlyfansPollPassSchema) }),
     res: z.nullable(OnlyfansPollResultSchema),
     from: TAB,
   },
