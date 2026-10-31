@@ -53,6 +53,10 @@ ${/* FBuddy's line in the foot (the badges themselves are the kit's FanBadge). *
 .ol-fbuddy { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; color: var(--cg-ink-muted); font-size: var(--cg-text-sm); line-height: 16px; }
 .ol-fbuddy .cg-ico { color: #0891b2; }
 
+${/* 2026-10-31: the page's probe ChatSpace did not answer, under the line. */ ''}
+.ol-probe { background: var(--cg-amber-bg); color: var(--cg-amber-ink); }
+.ol-probe > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+
 ${/* The bar: «Зашли за» and its menu. */ ''}
 .ol-period { display: inline-flex; align-items: center; gap: 4px; }
 

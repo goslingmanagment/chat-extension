@@ -44,7 +44,7 @@ import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
 import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
 import { HandoffSchema, WinBackAttemptResultSchema, WinBackListSchema } from './hub/queue';
-import { ONLINE_ATTEMPT_ACTIONS, ONLINE_SENT_ACTS, OnlineAttemptResultSchema, OnlineListSchema } from './hub/online';
+import { ONLINE_ATTEMPT_ACTIONS, ONLINE_PRESENCE_MAX, ONLINE_SENT_ACTS, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceResultSchema, OnlineProbeResultSchema } from './hub/online';
 import { FAN_QUEUE_PORTION_MAX, FAN_QUEUE_SENT_ACTS, FAN_QUEUE_SKIP_REASONS, FanQueueItemDoneSchema, FanQueueReleaseSchema, FanQueuesSchema, FanQueueTakeSchema } from './hub/fan-queues';
 import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
@@ -608,6 +608,25 @@ export const TAB_REQUESTS = {
    * and with what, the team's guide texts with them. Read while the window or the bar's count needs it; nothing is sent.
    */
   'online.list': { req: z.strictObject({ pageId: HubIntIdSchema, minutes: z.int().check(z.gte(5), z.lte(180)) }), res: OnlineListSchema, from: TAB },
+  /**
+   * 2026-10-31 (hub #952): «Онлайн» on OnlyFans — the fans ChatSpace found online, as the tab read them from the page's
+   * own memory or from the page's probe, reported to the hub as their presence (`clientOnlinePresence`). One call, never
+   * repeated; nothing is sent to anyone.
+   */
+  'online.presence': {
+    req: z.strictObject({
+      pageId: HubIntIdSchema,
+      seen: z.array(z.strictObject({ fanRef: NativeIdSchema, lastSeenAt: IsoTimestampSchema })).check(z.minLength(1), z.maxLength(ONLINE_PRESENCE_MAX)),
+    }),
+    res: OnlinePresenceResultSchema,
+    from: TAB,
+    hosts: CHATSPACE,
+  },
+  /**
+   * 2026-10-31 (hub #952): the page's probe of who of its known spenders is online (`clientOnlineProbe`), lent to one
+   * tab of the team at a time — refused while the page's `onlineProbe` is off. Asked at the tab's own pace; never repeated.
+   */
+  'online.probe': { req: z.strictObject({ pageId: HubIntIdSchema }), res: OnlineProbeResultSchema, from: TAB, hosts: CHATSPACE },
   /**
    * What a chatter did in «Онлайн» (hub `clientOnlineAttempt`): a message went from the window (what wrote it, the
    * template), «Не предлагать» or its undo. One call, never repeated; journaled and shared by the page's team.

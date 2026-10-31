@@ -84,12 +84,14 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * `voice` (the voice script and the voice-note routes, `voice-notes-v1`,
  * HF-4б), `notes` and `notesFill` (the fan's notes and their fill; on
  * OnlyFans since 2026-10-28) exist on both. `previewSend`,
- * `previewSendMarkAiGenerated`, `navigation`, `wsTap` and `stats` exist on
- * OnlyFans only; every other flag on both. A Fansly page is switched on by its
- * own row of the owner's switches alone, never by the `"*"` row, so the
- * top-level `flags` (the `"*"` row) say nothing about a Fansly page.
+ * `previewSendMarkAiGenerated`, `navigation`, `wsTap`, `stats` and
+ * `onlineProbe` (the page's one bounded probe of who is online,
+ * `clientOnlineProbe`) exist on OnlyFans only; every other flag on both. A
+ * Fansly page is switched on by its own row of the owner's switches alone,
+ * never by the `"*"` row, so the top-level `flags` (the `"*"` row) say nothing
+ * about a Fansly page.
  */
-export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration"];
+export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration", "onlineProbe"];
 export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
@@ -2286,8 +2288,12 @@ export declare const CLIENT_ONLINE_DEFAULT_MINUTES = 30;
 export declare const CLIENT_ONLINE_MAX_MINUTES = 180;
 /** Fans one read lists at most: the newest activity first. */
 export declare const CLIENT_ONLINE_MAX_ITEMS = 200;
-/** Fansly fans one presence report names at most (a `followersnew` page is 100). */
+/** Fans one presence report names at most (a Fansly `followersnew` page is 100). */
 export declare const CLIENT_ONLINE_PRESENCE_MAX = 200;
+/** Fans one probe names at most: one `fans-online` request of ChatSpace's own size. */
+export declare const CLIENT_ONLINE_PROBE_MAX = 400;
+/** One probe of a page this often at most, for the whole team: ChatSpace's own pace of its online poll. */
+export declare const CLIENT_ONLINE_PROBE_EVERY_SECONDS = 300;
 export declare const clientOnlineQuerySchema: z.ZodObject<{
     minutes: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strict>;
@@ -2372,6 +2378,13 @@ export declare const clientOnlinePresenceBodySchema: z.ZodObject<{
 export declare const clientOnlinePresenceResponseSchema: z.ZodObject<{
     recorded: z.ZodNumber;
     skipped: z.ZodNumber;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export declare const clientOnlineProbeBodySchema: z.ZodObject<{}, z.core.$strict>;
+export declare const clientOnlineProbeResponseSchema: z.ZodObject<{
+    granted: z.ZodBoolean;
+    fanRefs: z.ZodArray<z.ZodString>;
+    nextAt: z.ZodString;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 export declare const clientOnlineAttemptBodySchema: z.ZodObject<{
@@ -5148,7 +5161,7 @@ export declare const clientRouteSchemas: {
             readonly scope: "page";
         };
         readonly tags: readonly ["client"];
-        readonly summary: "The Fansly fans a chatter's tab saw active, kept as their presence";
+        readonly summary: "The fans a chatter's tab saw online, kept as their presence";
         readonly description: string;
         readonly params: z.ZodObject<{
             pageLabel: z.ZodString;
@@ -5163,6 +5176,62 @@ export declare const clientRouteSchemas: {
             readonly 200: z.ZodObject<{
                 recorded: z.ZodNumber;
                 skipped: z.ZodNumber;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientOnlineProbe: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Lends one tab of the team the page's probe of who of its known spenders is online";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{}, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                granted: z.ZodBoolean;
+                fanRefs: z.ZodArray<z.ZodString>;
+                nextAt: z.ZodString;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -6952,6 +7021,8 @@ export type ClientOnlineItem = z.infer<typeof clientOnlineItemSchema>;
 export type ClientOnlineResponse = z.infer<typeof clientOnlineResponseSchema>;
 export type ClientOnlinePresenceBody = z.infer<typeof clientOnlinePresenceBodySchema>;
 export type ClientOnlinePresenceResponse = z.infer<typeof clientOnlinePresenceResponseSchema>;
+export type ClientOnlineProbeBody = z.infer<typeof clientOnlineProbeBodySchema>;
+export type ClientOnlineProbeResponse = z.infer<typeof clientOnlineProbeResponseSchema>;
 export type ClientOnlineAttemptBody = z.infer<typeof clientOnlineAttemptBodySchema>;
 export type ClientOnlineAttemptResponse = z.infer<typeof clientOnlineAttemptResponseSchema>;
 export type TeamWinBackResultsQuery = z.infer<typeof teamWinBackResultsQuerySchema>;

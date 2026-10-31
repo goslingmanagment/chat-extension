@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "83f3fd187aa2a07c1dd22ad4cd2355d0850ebc5f163aee3c7686a1ea2f65fac3",
-    "sourceCommit": "b9a378f80ab5aef008cebf3e2fe46276053cea92",
-    "note": "Vendored on 2026-10-31 from hub main b9a378f8 (#950, deployed) with scripts/vendor-sdk.mjs; the contract is the one prod serves: the shared pool of yesterday's unspent personal AI limits — poolMicroUsd / poolRemainingMicroUsd in clientAiLimit and in quota.personal of the AI meta frame. Re-vendor with the same script and update this pin together."
+    "contractHash": "9595f353a38e9b05512a49f63cb98caa4cc0e6780a0f277ccb381f8ab65b7a59",
+    "sourceCommit": "120e94a4e8291fc657432c2fbf4c45d2cf4f6082",
+    "note": "Vendored on 2026-10-31 from hub main 120e94a4 (#952) with scripts/vendor-sdk.mjs: «Онлайн» on OnlyFans from ChatSpace — clientOnlinePresence takes an OnlyFans page's report, clientOnlineProbe lends the page's probe to one tab (the owner's onlineProbe). Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

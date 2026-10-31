@@ -94,6 +94,9 @@ import type {
   NavigationItem,
   NavigationReceipt,
   OmFanNoteInput,
+  OnlinePresencePort,
+  OnlineProbeRead,
+  OnlineSeenRead,
   OpenChatPage,
   OpenChatRead,
   OpenChatReadOptions,
@@ -104,7 +107,7 @@ import type { CgCode } from '@cg/contracts/errors';
 import type { ReceiptProfile } from '@cg/contracts/hub';
 import type { DispatchTicket, FreshnessCheckpoint, PreviewSendCommit, PreviewSendPort, PreviewSendPreflight, PreviewSendRequest, SendAttemptView, SendFuseState } from '@cg/contracts/send';
 import { PREVIEW_SEND_CONDITION_CODES, type PreviewSendConditionCode } from '@cg/contracts/send-rules';
-import { ATTACH_LIMITS, BRIDGE_LIMITS, CHAT_READ_LIMITS, FAN_NOTES_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
+import { ATTACH_LIMITS, BRIDGE_LIMITS, CHAT_READ_LIMITS, FAN_NOTES_LIMITS, LIVE_TEXT_LIMITS, MEDIA_LIMITS, ONLINE_SOURCE_LIMITS, OPEN_CHAT_LIMITS } from '@cg/contracts/limits';
 import type { MediaFanState, MediaFoldersPage, MediaItemsPage, MediaRead, MediaRequest } from '@cg/contracts/media';
 import type { MediaTags } from '@cg/contracts/send-media';
 
@@ -197,6 +200,8 @@ export interface ChatSpaceHostPort extends HostPort {
   attachFile(intent: AttachIntent): Promise<AttachReceipt>;
   /** 2026-10-28: OnlyMonster's notes of the open chat's fan; ChatSpace's port always has them. */
   readonly fanNotes: FanNotesPort;
+  /** 2026-10-31: who ChatSpace itself says is online («Онлайн» on OnlyFans); ChatSpace's port always has it. */
+  readonly onlinePresence: OnlinePresencePort;
   /**
    * 2026-10-28: slots of ours in the conversation header's actions row, right before ChatSpace's search button
    * (header-slot.ts): whether the row is there, its changes, and a closed root at an order of ours.
@@ -857,6 +862,29 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
   /** Only the three keys of a note cross to MAIN (it refuses any other). */
   const noteWire = (input: OmFanNoteInput): OmFanNoteInput => ({ title: input.title, text: input.text, color: input.color });
 
+  /**
+   * 2026-10-31: who ChatSpace itself says is online. `seen` — its own poll's word from the page's memory (MAIN requests
+   * nothing); `probe` — one `fans-online` read about the fans the hub lent the page's probe for (MAIN asks only while the
+   * page is on screen). Each resolves, never rejects: a lost answer is `unavailable`, and nothing is asked again here.
+   */
+  const onlinePresence: OnlinePresencePort = {
+    async seen(hostAccountId) {
+      if (!bridge || disposed) return { ok: false, reason: 'unavailable' };
+      return bridge.request('onlineSeen', { acc: hostAccountId }, ONLINE_SOURCE_LIMITS.seenBridgeMs).then(
+        (answer): OnlineSeenRead => ({ ok: true, fans: answer.fans }),
+        (): OnlineSeenRead => ({ ok: false, reason: 'unavailable' }),
+      );
+    },
+    async probe(hostAccountId, fanRefs) {
+      if (fanRefs.length === 0 || fanRefs.length > ONLINE_SOURCE_LIMITS.probeMax) throw new HostContractError('onlinePresence.probe: 1…probeMax fans');
+      if (!bridge || disposed) return { ok: false, reason: 'unavailable', status: null };
+      return bridge.request('onlineProbe', { acc: hostAccountId, fans: [...fanRefs] }, ONLINE_SOURCE_LIMITS.probeBridgeMs).then(
+        (answer): OnlineProbeRead => (answer.ok ? { ok: true, online: answer.online, timedOut: answer.timedOut, at: answer.at } : { ok: false, reason: answer.failure, status: answer.status }),
+        (): OnlineProbeRead => ({ ok: false, reason: 'unavailable', status: null }),
+      );
+    },
+  };
+
   const fanNotes: FanNotesPort = {
     async list(chat) {
       const refused = notesRefusal(chat);
@@ -1033,6 +1061,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     },
 
     fanNotes,
+    onlinePresence,
     header: { available: header.available, onChange: header.onChange, mount: header.mount },
 
     media: {

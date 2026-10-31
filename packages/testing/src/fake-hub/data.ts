@@ -65,6 +65,7 @@ import {
   type OnlineList,
   type OnlinePresenceRequest,
   type OnlinePresenceResult,
+  type OnlineProbeResult,
   type OnlineQuery,
   type OnlineTemplate,
   type SharedRecaps,
@@ -85,9 +86,9 @@ import { classifyPair, type PairState, type ServedRef, type StoreState } from '.
 import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
 import { FanQueuesModel, type FanQueuesSet } from './fan-queues';
-import { ONLINE_SEEN_SOURCES, OnlineModel, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
+import { ONLINE_RULES, ONLINE_SEEN_SOURCES, OnlineModel, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
 import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
-import { type CoachDepthKnob, type FakeFanQueueDone, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type SpenderSeed } from './types';
+import { type CoachDepthKnob, type FakeFanQueueDone, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type FakeOnlineProbe, type SpenderSeed } from './types';
 
 export interface Refusal {
   readonly error: HubErrorCode | (string & {});
@@ -1291,8 +1292,11 @@ export class DataModel {
     this.onlineModel.set(pageLabel, set);
   }
 
-  /** What «Онлайн» reads of this model: the board's first fans with their stories, a reported follower, «в разговоре». */
-  private onlineWorld(page: FakePage, userId: number, names: (userId: number) => string, now: number, total: number): OnlineWorld {
+  /**
+   * What «Онлайн» reads of this model: the board's first fans with their stories (none with `stand` off — the page
+   * has only its tabs' word), a reported fan, «в разговоре».
+   */
+  private onlineWorld(page: FakePage, userId: number, names: (userId: number) => string, now: number, total: number, stand = true): OnlineWorld {
     const others = new Map<string, OthersTalking>();
     const talking = this.inConversation(page, userId, names, now);
     for (const fan of talking.ok ? talking.body.fans : []) {
@@ -1301,7 +1305,7 @@ export class DataModel {
       if (newest !== undefined) others.set(fan.fanRef, { names: chatters.map((chatter) => chatter.name), lastSentAt: Date.parse(newest.lastSentAt) });
     }
     return {
-      stand: () => this.onlineStand(page, now, total),
+      stand: () => (stand ? this.onlineStand(page, now, total) : []),
       known: (fanRef) => {
         const row = this.row(page, fanRef, total, now);
         if (row !== null) return { ...this.onlineFactsOf(page, row), seenAt: null, onlineSince: null, seenSource: null };
@@ -1424,14 +1428,32 @@ export class DataModel {
     return this.queuesModel.reports();
   }
 
-  /** As the hub's `clientOnline` (online.ts): the page's fans seen online within `minutes`, why to write now and with what. */
-  online(page: FakePage, query: OnlineQuery, userId: number, names: (userId: number) => string, now: number, total: number): Read<OnlineList> {
-    return ok(this.onlineModel.list(page, query.minutes, this.onlineWorld(page, userId, names, now, total), now));
+  /**
+   * As the hub's `clientOnline` (online.ts): the page's fans seen online within `minutes`, why to write now and with
+   * what; `stand` off — no presence of the stand's own, only what the tabs reported.
+   */
+  online(page: FakePage, query: OnlineQuery, userId: number, names: (userId: number) => string, now: number, total: number, stand = true): Read<OnlineList> {
+    return ok(this.onlineModel.list(page, query.minutes, this.onlineWorld(page, userId, names, now, total, stand), now));
   }
 
-  /** As the hub's `clientOnlinePresence`: a Fansly page's followers its tab saw active. */
-  onlinePresence(page: FakePage, userId: number, request: OnlinePresenceRequest, now: number): Read<OnlinePresenceResult> {
-    return this.onlineModel.report(page, userId, request, now);
+  /** As the hub's `clientOnlinePresence`: a Fansly page's followers its tab saw active, an OnlyFans page's fans ChatSpace found online. */
+  onlinePresence(page: FakePage, userId: number, request: OnlinePresenceRequest, now: number, total: number): Read<OnlinePresenceResult> {
+    return this.onlineModel.report(page, userId, request, now, (fanRef) => this.knowsFan(page, fanRef, total));
+  }
+
+  /** As the hub's `clientOnlineProbe` (hub #952): the page's probe, with the board's paying fans, the most paid first. */
+  onlineProbe(page: FakePage, userId: number, now: number, total: number): Read<OnlineProbeResult> {
+    const spenders = (): string[] =>
+      this.rows(page, Math.min(total, ONLINE_RULES.probeMax), now)
+        .filter((row) => row.metrics.lifetime.scopeGrossAmountMills > 0)
+        .sort((a, b) => b.metrics.lifetime.scopeGrossAmountMills - a.metrics.lifetime.scopeGrossAmountMills)
+        .map((row) => row.fan.platformUserId);
+    return this.onlineModel.probe(page, userId, spenders, now);
+  }
+
+  /** «Онлайн»: every lend of a page's probe, in order. */
+  onlineProbes(): readonly FakeOnlineProbe[] {
+    return this.onlineModel.probeRows();
   }
 
   /** As the hub's `clientOnlineAttempt`: a fan the page has (its list, its board, its archive, a report), else 409 `not_listed`. */

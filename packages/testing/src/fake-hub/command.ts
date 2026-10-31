@@ -186,6 +186,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'voiceLaneOff',
   'voiceDay',
   'coachDepth',
+  'onlineStand',
 ]);
 
 const VOICE_DAY_FIELDS: Readonly<Record<string, FieldCheck>> = {
@@ -230,6 +231,7 @@ export function checkCommand(value: unknown): FakeHubCommand {
     }
     const day = patch['voiceDay'];
     if (day !== undefined && !isVoiceDay(day)) throw new Error('fake hub control: config.patch.voiceDay takes pageChars, globalChars, scriptMaxChars (whole, ≥ 1) and spentToday (page → whole chars ≥ 0)');
+    if (patch['onlineStand'] !== undefined && !isBoolean(patch['onlineStand'])) throw new Error('fake hub control: config.patch.onlineStand is true or false');
   }
   return value as FakeHubCommand;
 }

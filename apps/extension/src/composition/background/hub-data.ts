@@ -55,6 +55,8 @@ type DataRequest =
   | 'queue.winback.pick'
   | 'queue.handoff'
   | 'online.list'
+  | 'online.presence'
+  | 'online.probe'
   | 'online.attempt'
   | 'queues.list'
   | 'queues.take'
@@ -154,6 +156,11 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
     // «Онлайн» (hub `online-v1`): the page's fans seen online within the window; what a chatter did there — one call,
     // never repeated (a message sent, «Не предлагать», its undo). Nothing is sent to a fan here.
     'online.list': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().online({ pageLabel: page.pageLabel, minutes: request.minutes })),
+    // OnlyFans (hub #952; only a ChatSpace tab asks, about a page of its own accounts): the fans ChatSpace found online,
+    // reported as their presence; the page's probe, lent to one tab of the team at a time while the page's
+    // `onlineProbe` is on (the facade refuses it here when off). One call each, never repeated.
+    'online.presence': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().onlinePresence({ pageLabel: page.pageLabel, seen: request.seen })),
+    'online.probe': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().onlineProbe({ pageLabel: page.pageLabel })),
     'online.attempt': (request, sender) =>
       onPage(request.pageId, sender, (page) => {
         const { pageId: _pageId, ...attempt } = request;

@@ -168,6 +168,7 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientHandoff: { params: PAGE },
   clientOnline: { params: PAGE, query: true, integers: ['minutes'] },
   clientOnlinePresence: { params: PAGE, body: 'merge' },
+  clientOnlineProbe: { params: PAGE, body: 'merge' },
   clientOnlineAttempt: { params: PAGE, body: 'merge' },
   clientFanQueues: { params: PAGE },
   clientFanQueueTake: { params: { pageLabel: 'pageLabel', queueId: 'queueId' }, body: 'merge', integers: ['queueId'] },

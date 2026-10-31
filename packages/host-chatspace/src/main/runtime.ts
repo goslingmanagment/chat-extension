@@ -658,6 +658,17 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       case 'cachedChatMessages':
         // What ChatSpace already holds of the chat on the route: no request, nothing marked read.
         return open() ? cachedOpenPage(reader.messagesData(acc, fan), payload['limit'] as number) : ERR_IDENTITY;
+      case 'onlineSeen':
+        // 2026-10-31: who ChatSpace's own poll found online, from the page's memory; nothing is requested.
+        return { ok: true, fans: reader.onlineSeen(acc, clock()) };
+      case 'onlineProbe': {
+        // One `fans-online` read about the account's own fans, only while the page is on screen (ChatSpace's own poll
+        // asks only then), asked again right before the request; never a chat's history.
+        const onScreen = (): boolean => doc.visibilityState === 'visible';
+        if (!reader.accounts().some((account) => account.hostAccountId === acc)) return { ok: false, failure: 'account', status: null };
+        if (!onScreen()) return { ok: false, failure: 'hidden', status: null };
+        return om.onlineProbe(acc, payload['fans'] as string[], onScreen);
+      }
       case 'chatReadState':
         // The chat list, and the history's newest messages only when the live list says ours is the last with nothing
         // unread: nothing new is marked read, so the chat need not be the open one. What the page already knows may

@@ -97,6 +97,8 @@ import {
   type OnlineList,
   type OnlinePresenceRequest,
   type OnlinePresenceResult,
+  type OnlineProbeRequest,
+  type OnlineProbeResult,
   type OnlineQuery,
   type FanQueueItemDone,
   type FanQueueItemDoneRequest,
@@ -1065,11 +1067,20 @@ export class ChatExtensionHub implements HubFacade {
   }
 
   /**
-   * The followers a Fansly tab saw active, as their presence on the hub (an OnlyFans page is the hub's to refuse:
-   * OnlyFansAPI reports its presence). Never repeated here: a lost report is just lost, the next read reports again.
+   * The fans a tab saw online, as their presence on the hub: a Fansly tab's followers active lately, an OnlyFans tab's
+   * fans ChatSpace found online (hub #952). Never repeated here: a lost report is just lost, the next read reports again.
    */
   async onlinePresence(request: OnlinePresenceRequest): Promise<OnlinePresenceResult> {
     return (await this.client('clientOnlinePresence', request, request.pageLabel)) as OnlinePresenceResult;
+  }
+
+  /**
+   * The page's probe of who of its known spenders is online (hub #952, OnlyFans): lent to this tab now (`granted`,
+   * with the fans to ask about once), or when it may be. Refused here while the page's `onlineProbe` is off; never
+   * repeated: a lost answer lends nothing, and the next ask is the tab's own, at its pace.
+   */
+  async onlineProbe(request: OnlineProbeRequest): Promise<OnlineProbeResult> {
+    return (await this.client('clientOnlineProbe', request, request.pageLabel)) as OnlineProbeResult;
   }
 
   /** What a chatter did in «Онлайн». Never repeated here: a lost answer is the person's to act on again. */

@@ -496,6 +496,7 @@ export function onlineWindow(ctx: ScenarioCtx, view: VmView, rows: readonly Onli
     persona: PERSONA.label,
     stamp: stamp(ctx),
     seenBy: 'hub',
+    probe: null,
     minutes: 30,
     periods: [
       { minutes: 10, count: 2 },

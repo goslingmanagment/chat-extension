@@ -21,6 +21,7 @@ import {
   MEDIA_PRICE_MAX,
   MEDIA_PRICE_MIN,
   MEDIA_TYPES,
+  ONLINE_PROBE_MAX,
   OPEN_CHAT_PAGE_MAX,
   SEND_MAX_CHARS,
 } from './protocol';
@@ -218,6 +219,9 @@ const isNote = shape({
 });
 
 const accFan = { acc: isId, fan: isId };
+/** The fans of a probe: 1…ONLINE_PROBE_MAX ids, each a whole number the API takes as one (it is sent as a number). */
+const isProbeFans: Check = (value) =>
+  Array.isArray(value) && value.length >= 1 && value.length <= ONLINE_PROBE_MAX && value.every((id) => isId(id) && /^[1-9]\d{0,15}$/.test(id) && Number.isSafeInteger(Number(id)));
 const max = int(1, MAX_SNAPSHOT);
 const empty = shape({});
 const byExpected = shape({ expected: isIdentity });
@@ -264,4 +268,7 @@ export const PAYLOAD: Record<string, Check> = {
   createFanNote: shape({ ...accFan, note: isNote }),
   updateFanNote: shape({ ...accFan, noteId: isNoteId, note: isNote }),
   deleteFanNote: shape({ ...accFan, noteId: isNoteId }),
+  // 2026-10-31: «Онлайн» on OnlyFans — who ChatSpace's own poll found online (the page's memory), and the page's probe.
+  onlineSeen: shape({ acc: isId }),
+  onlineProbe: shape({ acc: isId, fans: isProbeFans }),
 };

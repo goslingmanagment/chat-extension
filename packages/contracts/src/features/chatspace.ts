@@ -23,7 +23,7 @@ import type { Requirement } from './types';
 export const CHATSPACE_FEATURE_FLAGS = [
   'insertion', 'freshText', 'newcomers', 'spenders', 'stats', 'preview', 'previewSend',
   'previewSendMarkAiGenerated', 'fanPanel', 'navigation', 'wsTap', 'sound', 'coach',
-  'recap', 'review', 'splitAll', 'voice', 'notes', 'notesFill',
+  'recap', 'review', 'splitAll', 'voice', 'notes', 'notesFill', 'onlineProbe',
 ] as const satisfies readonly ClientFeatureFlag[];
 export type ChatSpaceFeatureFlag = (typeof CHATSPACE_FEATURE_FLAGS)[number];
 
@@ -59,9 +59,11 @@ const FEATURES = {
   // `stats`: the statistics and the «waiting» queue of the board; `preview`: the archive feed of a fan's preview.
   // 2026-10-25: «Рассылка» is the board's own window (its fans, its tiers) and its chip; each version goes by the card's send.
   spenders: { base: { flags: ['spenders'], hostCapabilities: [] }, actions: {}, surfaces: ['spenders', 'preview', 'outreach', 'outreach-chip'], source: 'hub', switches: ['stats', 'preview'] },
-  // 1.65.0: «Онлайн» — who of the page is online and why to write now is the hub's (`online-v1`, OnlyFansAPI's presence);
-  // the card is the fan's preview (the archive feed, `preview`), each text leaves from it through X8.
-  online: { base: { flags: ['preview'], hostCapabilities: [], clientNeeds: ['online-v1'] }, actions: { send: PREVIEW_SEND }, surfaces: ['online', 'preview'], source: 'hub' },
+  // 1.65.0: «Онлайн» — who of the page is online and why to write now is the hub's (`online-v1`); since 2026-10-31
+  // (hub #952, OnlyFansAPI's presence stops) the tab tells the hub whom ChatSpace itself found online, and `onlineProbe`
+  // (the owner's) adds the page's probe of its spenders, lent to one tab of the team every five minutes. The card is the
+  // fan's preview (the archive feed, `preview`), each text leaves from it through X8.
+  online: { base: { flags: ['preview'], hostCapabilities: [], clientNeeds: ['online-v1'] }, actions: { send: PREVIEW_SEND }, surfaces: ['online', 'preview'], source: 'hub', switches: ['onlineProbe'] },
   // 2026-10-29: «Очереди» — the person's fan queues are the hub's (`fan-queues-v1`); the card is the fan's preview, each
   // text leaves from it through X8, «Отправить всем» of a template queue one by one through the same send.
   queues: { base: { flags: ['preview'], hostCapabilities: [], clientNeeds: ['fan-queues-v1'] }, actions: { send: PREVIEW_SEND }, surfaces: ['queues', 'preview'], source: 'hub' },

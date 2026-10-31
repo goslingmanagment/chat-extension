@@ -66,6 +66,10 @@ export type HubErrorBody = z.infer<typeof HubErrorBodySchema>;
  * has no action behind them). They exist on Fansly only, as `previewSend`, `previewSendMarkAiGenerated`,
  * `navigation`, `wsTap` and `stats` exist on OnlyFans only. A Fansly page is switched on by its own row alone,
  * never by `"*"`: the top-level `flags` say nothing about it.
+ *
+ * 2026-10-31 (hub #952): `onlineProbe`, OnlyFans only — «Онлайн»'s one bounded probe of who of the page's known
+ * spenders is online (`clientOnlineProbe`, one `fans-online` read of ChatSpace's own size every five minutes a page);
+ * the owner's off switch for it.
  */
 export const CLIENT_FEATURE_FLAG_NAMES = [
   'insertion',
@@ -90,6 +94,7 @@ export const CLIENT_FEATURE_FLAG_NAMES = [
   'notes',
   'vault',
   'registration',
+  'onlineProbe',
 ] as const;
 export type ClientFeatureFlag = (typeof CLIENT_FEATURE_FLAG_NAMES)[number];
 

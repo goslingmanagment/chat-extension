@@ -39,7 +39,7 @@ import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './a
 import { FanNoteAttributionsQuerySchema, FanNoteAttributionsSchema, NoteAttributionsRequestSchema, NoteAttributionsResultSchema } from './note-attribution';
 import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
 import { HandoffQuerySchema, HandoffSchema, WinBackAttemptRequestSchema, WinBackAttemptResultSchema, WinBackListSchema, WinBackQuerySchema } from './queue';
-import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineQuerySchema } from './online';
+import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineProbeRequestSchema, OnlineProbeResultSchema, OnlineQuerySchema } from './online';
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema } from './fan-marks';
 import { FanQueueItemDoneRequestSchema, FanQueueItemDoneSchema, FanQueueReleaseRequestSchema, FanQueueReleaseSchema, FanQueuesQuerySchema, FanQueuesSchema, FanQueueTakeRequestSchema, FanQueueTakeSchema } from './fan-queues';
@@ -93,6 +93,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientHandoff: { request: HandoffQuerySchema, response: HandoffSchema },
   clientOnline: { request: OnlineQuerySchema, response: OnlineListSchema },
   clientOnlinePresence: { request: OnlinePresenceRequestSchema, response: OnlinePresenceResultSchema },
+  clientOnlineProbe: { request: OnlineProbeRequestSchema, response: OnlineProbeResultSchema },
   clientOnlineAttempt: { request: OnlineAttemptRequestSchema, response: OnlineAttemptResultSchema },
   clientFanQueues: { request: FanQueuesQuerySchema, response: FanQueuesSchema },
   clientFanQueueTake: { request: FanQueueTakeRequestSchema, response: FanQueueTakeSchema },

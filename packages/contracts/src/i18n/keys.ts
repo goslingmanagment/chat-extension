@@ -220,7 +220,7 @@ export const UI_TEXT_KEYS = [
   // 1.65.0: the window of «Онлайн».
   'online.title', 'online.listLabel', 'online.tab.todo', 'online.tab.all', 'online.period.label', 'online.period.minutes', 'online.period.hours',
   'online.stage', 'online.search', 'online.refresh', 'online.line.first', 'online.line.persona', 'online.line.guide', 'online.line.sourceHub',
-  'online.line.sourceTab', 'online.group.waiting', 'online.group.new', 'online.group.expiring', 'online.group.silent', 'online.group.quiet',
+  'online.line.sourceTab', 'online.line.sourceChatspace', 'online.line.probeError', 'online.line.probeTimeout', 'online.group.waiting', 'online.group.new', 'online.group.expiring', 'online.group.silent', 'online.group.quiet',
   'online.group.never', 'online.group.none', 'online.group.aside', 'online.act.reply', 'online.act.hi', 'online.act.ping', 'online.act.template',
   'online.act.templateLower', 'online.act.text', 'online.act.fix', 'online.act.own', 'online.act.ownLower', 'online.why.waiting', 'online.why.waitingNow', 'online.why.answered', 'online.why.new',
   'online.why.newNow', 'online.why.expiring', 'online.why.expiringSoon', 'online.why.silent', 'online.why.silentNow', 'online.why.quiet',
@@ -239,7 +239,7 @@ export const UI_TEXT_KEYS = [
   'online.card.paused', 'online.card.sentFrom', 'online.card.sentTail', 'online.card.next', 'online.card.noChat',
   'online.card.media', 'online.card.mediaFree', 'online.card.noFeed', 'online.card.empty', 'online.card.noAi', 'online.card.noAiNoTemplate', 'online.compose.fix', 'online.compose.sendTooltip', 'online.pick.lead', 'online.pick.advice',
   'online.pick.tooltip', 'online.pick.again', 'online.pick.template', 'online.card.unwritten', 'online.card.byArchiveAt', 'online.card.staleTail',
-  'online.elsewhere.lead', 'online.elsewhere.other', 'online.empty.onlyfans', 'online.empty.fansly', 'online.empty.period',
+  'online.elsewhere.lead', 'online.elsewhere.other', 'online.empty.onlyfans', 'online.empty.fansly', 'online.empty.chatspace', 'online.empty.period',
   'online.empty.todo', 'online.empty.search', 'online.foot.sent', 'online.foot.skipped', 'online.foot.replied', 'online.foot.keys',
   'online.badge.tier.basic', 'online.badge.tier.bronze', 'online.badge.tier.silver', 'online.badge.tier.gold', 'online.badge.tier.platinum', 'online.badge.recent',
   'online.fbuddy.off', 'online.fbuddy.enable', 'online.fbuddy.signedOut',

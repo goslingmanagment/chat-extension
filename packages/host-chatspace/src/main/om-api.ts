@@ -20,6 +20,11 @@
 //   asked again right before the request). Each goes once: the boot answers a
 //   repeated request id with the first answer (WRITE_REQUESTS), and a request
 //   that went out with no answer is `unknown` — never sent again.
+// - «Онлайн» on OnlyFans (2026-10-31, the owner's `onlineProbe`, hub #952): one
+//   `fans-online` read about the page's known spenders, as ChatSpace's own poll
+//   of its chat list asks — a read that writes nothing and opens no chat, only
+//   while the page is on screen, at the pace the hub lends it (once in five
+//   minutes a page, one tab of the team).
 // Nothing is retried or kept; the isolated side checks every answer with its
 // schema.
 
@@ -40,6 +45,8 @@ import {
   LIVE_IMAGE_PER_MESSAGE,
   LIVE_IMAGE_URL_MAX,
   LIVE_IMAGE_WINDOW,
+  ONLINE_PROBE_MAX,
+  ONLINE_PROBE_REQUEST_MS,
   OPEN_CHAT_PRICE_MAX,
   OPEN_CHAT_REQUEST_MS,
   PHOTO_URL,
@@ -273,6 +280,22 @@ export const writtenNote = (body: unknown): Plain => {
   return { ok: true, note: null };
 };
 
+/**
+ * The answer of `fans-online` (`{online: [id], timed_out?}`) as contracts OnlineProbeAnswer: the fans asked about it
+ * names online (an id it gives as a number or a string; any other id left out), at most ONLINE_PROBE_MAX, and whether
+ * OnlyMonster's own read timed out (then the answer is partial). Any other shape is `invalid`.
+ */
+export const onlineOf = (body: unknown, asked: ReadonlySet<string>, at: string): Plain => {
+  const online = isPlain(body) ? body['online'] : null;
+  if (!Array.isArray(online)) return fail('invalid');
+  const found = new Set<string>();
+  for (const raw of online) {
+    const id = idOf(raw);
+    if (id !== null && asked.has(id) && found.size < ONLINE_PROBE_MAX) found.add(id);
+  }
+  return { ok: true, online: [...found], timedOut: (body as Plain)['timed_out'] === true, at };
+};
+
 /** A note as ChatSpace's own editor sends it (`{title?, note, color}`): no title when it has none. */
 const noteBody = (note: FanNoteInput): Plain => ({ ...(note.title === '' ? {} : { title: note.title }), note: note.text, color: note.color });
 
@@ -311,7 +334,7 @@ export function createOmApi(win: Window, setTimer: Timer) {
    */
   const omRequest = async (
     path: string,
-    init?: { readonly method: 'GET' | 'POST' | 'PUT' | 'DELETE'; readonly json?: unknown; readonly write?: true },
+    init?: { readonly method: 'GET' | 'POST' | 'PUT' | 'DELETE'; readonly json?: unknown; readonly write?: true; readonly deadlineMs?: number },
     still?: () => boolean,
   ): Promise<{ readonly ok: true; readonly body: unknown } | Failed | typeof ERR_IDENTITY> => {
     const root = apiBase();
@@ -323,7 +346,7 @@ export function createOmApi(win: Window, setTimer: Timer) {
     setTimer(() => {
       abort.abort();
       expire();
-    }, OPEN_CHAT_REQUEST_MS);
+    }, init?.deadlineMs ?? OPEN_CHAT_REQUEST_MS);
     let token: unknown;
     try {
       token = await Promise.race([(win as PageWindow).Clerk?.session?.getToken?.(), late]);
@@ -430,6 +453,18 @@ export function createOmApi(win: Window, setTimer: Timer) {
     async deleteFanNote(acc: string, fan: string, noteId: string, open: () => boolean): Promise<Plain | typeof ERR_IDENTITY> {
       const sent = await omRequest(`accounts/${acc}/fans/${fan}/notes/${noteId}`, { method: 'DELETE', write: true }, open);
       return typeof sent === 'string' || !sent.ok ? sent : { ok: true };
+    },
+    /**
+     * 2026-10-31 (the owner's `onlineProbe`): which of `fans` OnlyMonster says are online — one
+     * `POST …/platforms/onlyfans/fans-online` with their ids as numbers, as ChatSpace's own poll of its chat list asks
+     * (up to ONLINE_PROBE_MAX at once, its own client waiting up to 40 s: ours ONLINE_PROBE_REQUEST_MS). A read: nothing
+     * is written, no chat is opened. `onScreen` is asked once more right before the request: false — `hidden`, nothing
+     * asked. OnlyMonster's own `timed_out` is said, never hidden: ChatSpace drops such an answer for OnlyFans.
+     */
+    async onlineProbe(acc: string, fans: readonly string[], onScreen: () => boolean): Promise<Plain> {
+      const sent = await omRequest(`accounts/${acc}/platforms/onlyfans/fans-online`, { method: 'POST', json: { fan_ids: fans.map(Number) }, deadlineMs: ONLINE_PROBE_REQUEST_MS }, onScreen);
+      if (typeof sent === 'string') return fail('hidden');
+      return sent.ok ? onlineOf(sent.body, new Set(fans), new Date().toISOString()) : sent;
     },
   };
 }

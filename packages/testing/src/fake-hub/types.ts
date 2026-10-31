@@ -91,6 +91,11 @@ export interface FakeHubConfigPatch {
   /** Every part of a draft the model writes ends with ` @<conversationRef>`: a test can tell whose chat a text was written for. */
   readonly aiNameFan?: boolean;
   /**
+   * «Онлайн»: the stand's own presence of a page — its first board fans seen lately, OnlyFansAPI's «online now» on an
+   * OnlyFans page (default on). Off — a page knows only what its tabs reported (OnlyFansAPI's feed gone, hub #952).
+   */
+  readonly onlineStand?: boolean;
+  /**
    * What the model answers for a hub feature (`fast-reply`, `hi-greeting`, `fan-summary`, `chat-review`,
    * `coach-chat`…), as it is — `[NEXT]`, `[VARIANT]`, the Review frame and Coach's draft fences included.
    * Features not named keep their synthetic answer; `{}` restores them all.
@@ -309,11 +314,19 @@ export interface FakeOnlineAttempt {
   readonly at: number;
 }
 
-/** One presence report a Fansly tab sent, as kept: the followers of the page and when Fansly saw each. */
+/** One presence report a tab sent, as kept: the fans of the page and when each was seen (Fansly) or found online (ChatSpace). */
 export interface FakeOnlinePresenceReport {
   readonly pageLabel: string;
   readonly userId: number;
   readonly seen: readonly { readonly fanRef: string; readonly lastSeenAt: string }[];
+  readonly at: number;
+}
+
+/** One lend of a page's probe (hub #952): to whom, how many spenders it named, when. */
+export interface FakeOnlineProbe {
+  readonly pageLabel: string;
+  readonly userId: number;
+  readonly fanRefs: number;
   readonly at: number;
 }
 
@@ -352,8 +365,8 @@ export interface FakeHubStatus {
   readonly ingested: number;
   /** Every voice note the lane admitted, in order, with its state now: one per paid create (a replay adds none). */
   readonly voiceNotes: readonly VoiceNoteSnapshot[];
-  /** «Онлайн»: what the chatters did in the window and the Fansly tabs' presence reports, in order (ids and times). */
-  readonly online: { readonly attempts: readonly FakeOnlineAttempt[]; readonly presence: readonly FakeOnlinePresenceReport[] };
+  /** «Онлайн»: what the chatters did in the window, the tabs' presence reports and the probes lent, in order (ids and times). */
+  readonly online: { readonly attempts: readonly FakeOnlineAttempt[]; readonly presence: readonly FakeOnlinePresenceReport[]; readonly probes: readonly FakeOnlineProbe[] };
   /** «Очереди»: every fan's outcome the client reported, in order (ids and closed words only). */
   readonly fanQueues: { readonly reports: readonly FakeFanQueueDone[] };
   /** Telegram: the chats the AI requests carried (`clientContext`), in order. */
