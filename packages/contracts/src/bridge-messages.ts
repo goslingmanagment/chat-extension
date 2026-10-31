@@ -344,6 +344,18 @@ export const FROM_MAIN = {
     fanSequence: CountSchema,
   }),
   coverage: z.strictObject({ acc: NativeIdSchema, state: z.enum(['ok', 'unknown']), reason: boundedText(64) }),
+  /**
+   * 2026-11-01: ChatSpace's socket as the tap sees it, with no traffic needed (the always-on tab's report): connecting,
+   * open or closed and since when (this browser's clock), authenticated or not, and the accounts ChatSpace has
+   * subscribed (its own `subscribedAccountIds`, of the accounts the port serves; `observable` false — not readable).
+   */
+  socket: z.strictObject({
+    state: z.enum(['connecting', 'open', 'closed']),
+    since: EpochMsSchema,
+    authed: z.boolean(),
+    subscribed: z.array(NativeIdSchema).check(z.maxLength(50)),
+    observable: z.boolean(),
+  }),
   /** A human send from the composer (§6.6): once per send, after the native chain settled (HumanSendFact). */
   humanSend: z.strictObject({
     ...AccFan,
@@ -459,6 +471,7 @@ export const BridgeEventSchema = z.discriminatedUnion('t', [
   eventFrame('contract'),
   eventFrame('incoming'),
   eventFrame('coverage'),
+  eventFrame('socket'),
   eventFrame('humanSend'),
   eventFrame('previewSendState'),
   eventFrame('previewSendFuse'),

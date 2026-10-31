@@ -1147,6 +1147,20 @@ export const CoverageEventSchema = z.strictObject({
 });
 export type CoverageEvent = z.infer<typeof CoverageEventSchema>;
 
+/**
+ * 2026-11-01: ChatSpace's socket as the tap sees it (the always-on tab's report): its own state and since when, and the
+ * accounts ChatSpace subscribed on it. No traffic needed to know it is up; `observable` false — the subscription set
+ * could not be read.
+ */
+export const SocketStateEventSchema = z.strictObject({
+  state: z.enum(['connecting', 'open', 'closed']),
+  since: EpochMsSchema,
+  authed: z.boolean(),
+  subscribed: z.array(NativeIdSchema).check(z.maxLength(50)),
+  observable: z.boolean(),
+});
+export type SocketStateEvent = z.infer<typeof SocketStateEventSchema>;
+
 /** A host account this browser has seen in a ChatSpace tab, and when (§9.9 «Аккаунты, которые видел этот браузер»). */
 export const SeenHostAccountSchema = z.strictObject({ account: HostAccountSchema, lastSeenAt: IsoTimestampSchema });
 export type SeenHostAccount = z.infer<typeof SeenHostAccountSchema>;
@@ -1185,6 +1199,8 @@ export type HostEvent =
   | { readonly type: 'chatCache'; readonly chat: ChatRef }
   | { readonly type: 'incoming'; readonly fact: IncomingFact }
   | { readonly type: 'coverage'; readonly coverage: CoverageEvent }
+  /** 2026-11-01: ChatSpace's socket state and subscriptions (ChatSpace only). */
+  | { readonly type: 'socket'; readonly socket: SocketStateEvent }
   | { readonly type: 'humanSend'; readonly fact: HumanSendFact }
   /** Chat Memory week 1: Fansly's page sent a message from this tab (PageSentFact); ChatSpace never says it. */
   | { readonly type: 'pageSent'; readonly fact: PageSentFact }

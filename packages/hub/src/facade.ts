@@ -1121,7 +1121,16 @@ export class ChatExtensionHub implements HubFacade {
     if (!hasCapability(entry.bootstrap.capabilities, 'chatspace-tab-state-v1')) {
       throw new FacadeCheckError('capabilityMissing', 'clientChatspaceTabState', connection.epoch, 'chatspace-tab-state-v1');
     }
-    return (await this.ctx.client('clientChatspaceTabState', request, {}, connection)) as ServerTabStateResult;
+    // A hub before `chatspace-tab-state-v2` refuses the socket's state and the accounts' `subscribed` (its body is strict).
+    const body: ServerTabStateRequest = hasCapability(entry.bootstrap.capabilities, 'chatspace-tab-state-v2')
+      ? request
+      : {
+          instanceId: request.instanceId,
+          extensionVersion: request.extensionVersion,
+          route: request.route,
+          accounts: request.accounts.map(({ subscribed: _subscribed, ...account }) => account),
+        };
+    return (await this.ctx.client('clientChatspaceTabState', body, {}, connection)) as ServerTabStateResult;
   }
 
   /** What a chatter did in «Онлайн». Never repeated here: a lost answer is the person's to act on again. */

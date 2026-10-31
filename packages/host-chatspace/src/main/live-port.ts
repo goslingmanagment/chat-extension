@@ -40,6 +40,8 @@ export function createLivePort(win: Window & typeof globalThis, tap: Tap, host: 
     fault: host.fault,
     // A fan's OnlyMonster notes changed: never coalesced, so another fan's word cannot hide the open fan's.
     notes: (acc, fan) => host.post(EVT_FAN_NOTES, { acc, fan }),
+    // 2026-11-01: the socket's own state and ChatSpace's subscriptions, never coalesced (the always-on tab's report).
+    socket: (state) => host.post('socket', { ...state, subscribed: [...state.subscribed] }),
   });
 
   return {

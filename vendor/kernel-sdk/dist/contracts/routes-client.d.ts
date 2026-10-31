@@ -94,7 +94,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration", "onlineProbe", "ofFeed", "ofPoll"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1", "onlyfans-poll-v1", "chatspace-tab-state-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1", "onlyfans-poll-v1", "chatspace-tab-state-v1", "chatspace-tab-state-v2"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -2031,6 +2031,17 @@ export declare const clientChatspaceTabStateBodySchema: z.ZodObject<{
         pageLabel: z.ZodNullable<z.ZodString>;
         covered: z.ZodBoolean;
         since: z.ZodString;
+        subscribed: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+    socket: z.ZodOptional<z.ZodObject<{
+        state: z.ZodEnum<{
+            open: "open";
+            closed: "closed";
+            connecting: "connecting";
+        }>;
+        since: z.ZodString;
+        authed: z.ZodBoolean;
+        observable: z.ZodBoolean;
     }, z.core.$strict>>;
 }, z.core.$strict>;
 export declare const clientChatspaceTabStateResponseSchema: z.ZodObject<{
@@ -4815,6 +4826,17 @@ export declare const clientRouteSchemas: {
                 pageLabel: z.ZodNullable<z.ZodString>;
                 covered: z.ZodBoolean;
                 since: z.ZodString;
+                subscribed: z.ZodOptional<z.ZodBoolean>;
+            }, z.core.$strict>>;
+            socket: z.ZodOptional<z.ZodObject<{
+                state: z.ZodEnum<{
+                    open: "open";
+                    closed: "closed";
+                    connecting: "connecting";
+                }>;
+                since: z.ZodString;
+                authed: z.ZodBoolean;
+                observable: z.ZodBoolean;
             }, z.core.$strict>>;
         }, z.core.$strict>;
         readonly response: {

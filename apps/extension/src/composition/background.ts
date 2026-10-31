@@ -850,6 +850,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
           routeName: tab.routeName,
           accounts: tab.accounts.flatMap((key) => chatspaceIdOf(key) ?? []),
           coverage: tab.coverage,
+          socket: tab.socket,
         })),
     pageOf: (hostAccountId) => pageLabelOfAccount(`chatspace:${hostAccountId}`),
     log: coreLog,

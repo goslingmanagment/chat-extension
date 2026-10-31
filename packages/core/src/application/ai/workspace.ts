@@ -387,10 +387,12 @@ export class AiWorkspace {
             break;
           // The fuse of decision X25 is the tab's to report (the background logs it); it turns nothing off. Who sent a
           // message the page sent (Chat Memory week 1) is the tab's host facts' to report: nothing here. Nor the OnlyFans
-          // feed (hub #953): the tab passes it to the background's uploader.
+          // feed (hub #953): the tab passes it to the background's uploader. Nor ChatSpace's socket state (2026-11-01):
+          // only the always-on tab's report reads it.
           case 'sendFuse':
           case 'pageSent':
           case 'onlyfansFeed':
+          case 'socket':
             break;
         }
       }),

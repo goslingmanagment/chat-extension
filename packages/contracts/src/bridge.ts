@@ -202,7 +202,7 @@ export const BRIDGE_WRITE_REQUESTS = ['insertGuarded', 'navigate', 'previewSendC
  * carries the OnlyFans feed, what the page received with the messages' texts, which the hub's archive is fed with now
  * that OnlyFansAPI is gone.
  */
-export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged', 'ofFeed'] as const;
+export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged', 'ofFeed', 'socket'] as const;
 export type FromMainType = (typeof FROM_MAIN_TYPES)[number];
 
 /**
@@ -212,7 +212,7 @@ export type FromMainType = (typeof FROM_MAIN_TYPES)[number];
  * notes changed: coalesced, another fan's would hide the open fan's. Nor (2026-11-01) the OnlyFans feed: each event is
  * its own records.
  */
-export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged', 'ofFeed'] as const satisfies readonly FromMainType[];
+export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged', 'ofFeed', 'socket'] as const satisfies readonly FromMainType[];
 
 // ── Probe ──────────────────────────────────────────────────────────────────
 
