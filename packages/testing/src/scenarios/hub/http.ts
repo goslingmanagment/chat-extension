@@ -132,6 +132,8 @@ export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readon
   onlineProbe: { onlyfans: { capabilities: ['online-v1'] } },
   // hub #953: the OnlyFans feed from ChatSpace, OnlyFans only.
   ofFeed: { onlyfans: { capabilities: ['onlyfans-feed-v1'] } },
+  // hub #955: the feed's light reads of ChatSpace, lent to one tab, OnlyFans only.
+  ofPoll: { onlyfans: { capabilities: ['onlyfans-feed-v1', 'onlyfans-poll-v1'] } },
 };
 
 /**
@@ -200,7 +202,7 @@ export const BOOTSTRAP_ALL_OFF: Bootstrap = {
  * and (hub #953) the OnlyFans feed: the specs written before it count what the tab tells the hub; the feed's own
  * switch it on.
  */
-export const PILOT_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated', 'onlineProbe', 'ofFeed'];
+export const PILOT_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated', 'onlineProbe', 'ofFeed', 'ofPoll'];
 /** The pilot's switches of the OnlyFans pages: every flag OnlyFans has but X8's two. */
 export const PILOT_FLAGS_ON: readonly ClientFeatureFlag[] = CLIENT_FEATURE_FLAG_NAMES.filter((flag) => HUB_FEATURE_REQUIREMENTS[flag].onlyfans !== undefined && !PILOT_FLAGS_OFF.includes(flag));
 const pilotFlags = Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, PILOT_FLAGS_ON.includes(flag)]));

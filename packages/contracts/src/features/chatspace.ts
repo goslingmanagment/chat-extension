@@ -23,7 +23,7 @@ import type { Requirement } from './types';
 export const CHATSPACE_FEATURE_FLAGS = [
   'insertion', 'freshText', 'newcomers', 'spenders', 'stats', 'preview', 'previewSend',
   'previewSendMarkAiGenerated', 'fanPanel', 'navigation', 'wsTap', 'sound', 'coach',
-  'recap', 'review', 'splitAll', 'voice', 'notes', 'notesFill', 'onlineProbe', 'ofFeed',
+  'recap', 'review', 'splitAll', 'voice', 'notes', 'notesFill', 'onlineProbe', 'ofFeed', 'ofPoll',
 ] as const satisfies readonly ClientFeatureFlag[];
 export type ChatSpaceFeatureFlag = (typeof CHATSPACE_FEATURE_FLAGS)[number];
 
@@ -107,6 +107,10 @@ const FEATURES = {
   // answers of its own reads) passed on to the hub, which has no OnlyFansAPI any more. Heard by the tap (`wsTap`), the
   // owner's `ofFeed` per page; the hub must take it (`onlyfans-feed-v1`). No request of ours is ever made for it.
   'onlyfans-feed': { kind: 'service', base: { flags: ['wsTap', 'ofFeed'], hostCapabilities: [], clientNeeds: ['onlyfans-feed-v1'] }, actions: {}, surfaces: [], source: 'page' },
+  // 2026-11-01 (the owner: «к ChatSpace я разрешаю запросы»; hub #955): the feed's light reads of ChatSpace — the page's
+  // new subscribers and its sales ledger, ChatSpace's own requests, the first page every 10 minutes, lent by the hub to
+  // one tab of the team. The page's `ofPoll` is its off switch; what is read goes through the feed.
+  'onlyfans-poll': { kind: 'service', base: { flags: ['wsTap', 'ofFeed', 'ofPoll'], hostCapabilities: [], clientNeeds: ['onlyfans-feed-v1', 'onlyfans-poll-v1'] }, actions: {}, surfaces: [], source: 'page' },
 } as const;
 
 export const CHATSPACE_FEATURES: SiteFeatures<typeof FEATURES, ChatSpaceFeatureFlag, HostCapability, ChatSpaceSurface> = FEATURES;

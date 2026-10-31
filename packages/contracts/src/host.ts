@@ -751,6 +751,32 @@ export type OnlineProbeRead =
   | { readonly ok: false; readonly reason: OnlineProbeFailure | 'unavailable'; readonly status: number | null };
 
 /**
+ * 2026-11-01 (the owner's `ofPoll`, hub #955): MAIN's answer to `feedPoll` — one page of a list ChatSpace itself reads
+ * with the page's own session: its notifications of new subscribers or its sales ledger. The page's records go to the
+ * hub through the OnlyFans feed's observer (MAIN feed.ts); here only what the poll needs to go on: the page's item ids
+ * (newest first), whether there is more and the next page's cursor.
+ */
+export const FeedPollAnswerSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    refs: z.array(z.string().check(z.regex(/^[A-Za-z0-9_-]{1,64}$/))).check(z.maxLength(50)),
+    hasMore: z.boolean(),
+    next: z.nullable(z.string().check(z.regex(/^[A-Za-z0-9_-]{1,64}$/))),
+  }),
+  z.strictObject({ ok: z.literal(false), failure: z.enum(ONLINE_PROBE_FAILURES), status: z.nullable(z.int().check(z.gte(100), z.lte(599))) }),
+]);
+export type FeedPollAnswer = z.infer<typeof FeedPollAnswerSchema>;
+/** What HostPort.feedPoll.read resolves with; it never rejects. `unavailable` — no bridge, or no answer from MAIN. */
+export type FeedPollRead =
+  | { readonly ok: true; readonly refs: readonly string[]; readonly hasMore: boolean; readonly next: string | null }
+  | { readonly ok: false; readonly reason: OnlineProbeFailure | 'unavailable'; readonly status: number | null };
+
+/** 2026-11-01 (hub #955): the feed's light reads of ChatSpace (ChatSpace's port only). One page a call, never repeated. */
+export interface FeedPollPort {
+  read(hostAccountId: string, list: 'subscribers' | 'ledger', cursor: string | null): Promise<FeedPollRead>;
+}
+
+/**
  * 2026-10-31: who ChatSpace itself says is online, for «Онлайн» on OnlyFans (HostPort.onlinePresence). Reads only, and
  * never a chat's history.
  */

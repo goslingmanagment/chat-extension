@@ -669,6 +669,12 @@ export function createMainRuntime(context: MainContext): MainRuntime {
         if (!onScreen()) return { ok: false, failure: 'hidden', status: null };
         return om.onlineProbe(acc, payload['fans'] as string[], onScreen);
       }
+      case 'feedPoll': {
+        // 2026-11-01 (the owner's `ofPoll`): one page of a list ChatSpace itself reads, for an account the page has; the
+        // records go to the hub through the OnlyFans feed's observer of the page's fetch (feed.ts).
+        if (!reader.accounts().some((account) => account.hostAccountId === acc)) return { ok: false, failure: 'account', status: null };
+        return om.feedPoll(acc, payload['list'] as 'subscribers' | 'ledger', (payload['cursor'] as string | undefined) ?? null);
+      }
       case 'chatReadState':
         // The chat list, and the history's newest messages only when the live list says ours is the last with nothing
         // unread: nothing new is marked read, so the chat need not be the open one. What the page already knows may

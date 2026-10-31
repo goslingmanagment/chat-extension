@@ -40,7 +40,7 @@ import { HiFanAvatarUrlSchema } from './hi-start-proof';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
 import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
-import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema } from './hub/onlyfans-feed';
+import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema, OnlyfansPollResultSchema } from './hub/onlyfans-feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
 import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
@@ -1010,6 +1010,16 @@ export const TAB_REQUESTS = {
       records: z.array(OnlyfansFeedRecordSchema).check(z.minLength(1), z.maxLength(ONLYFANS_FEED_MAX_RECORDS)),
     }),
     res: z.strictObject({ queued: z.boolean(), reason: z.optional(OpenTokenSchema) }),
+    from: TAB,
+  },
+  /**
+   * 2026-11-01 (hub #955): the page's poll of ChatSpace for the OnlyFans feed, asked by a ChatSpace tab for one of its
+   * accounts: lent to this tab now (`granted`), or when it may be; null — not ours to ask (the page, its `ofPoll`, the
+   * hub). Never repeated: the next ask is the tab's own, at its pace.
+   */
+  'feed.poll': {
+    req: z.strictObject({ hostAccountId: NativeIdSchema, creatorId: NativeIdSchema }),
+    res: z.nullable(OnlyfansPollResultSchema),
     from: TAB,
   },
   /** An incoming-message fact for the one sound arbiter of the extension (§9.8). */

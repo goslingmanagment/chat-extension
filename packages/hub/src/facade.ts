@@ -101,6 +101,8 @@ import {
   type OnlineProbeResult,
   type OnlyfansFeedRequest,
   type OnlyfansFeedResult,
+  type OnlyfansPollRequest,
+  type OnlyfansPollResult,
   type OnlineQuery,
   type FanQueueItemDone,
   type FanQueueItemDoneRequest,
@@ -1092,6 +1094,15 @@ export class ChatExtensionHub implements HubFacade {
    */
   async onlyfansFeed(request: OnlyfansFeedRequest): Promise<OnlyfansFeedResult> {
     return (await this.client('clientOnlyfansFeed', request, request.pageLabel)) as OnlyfansFeedResult;
+  }
+
+  /**
+   * hub #955: the page's poll of ChatSpace (new subscribers, the sales ledger), lent to one tab of the team at a time,
+   * the agency's always-on tab first. Refused here while the page's `ofPoll` is off; never repeated: a lost answer lends
+   * nothing, and the next ask is the tab's own, at its pace.
+   */
+  async onlyfansPoll(request: OnlyfansPollRequest): Promise<OnlyfansPollResult> {
+    return (await this.client('clientOnlyfansPoll', request, request.pageLabel)) as OnlyfansPollResult;
   }
 
   /** What a chatter did in «Онлайн». Never repeated here: a lost answer is the person's to act on again. */

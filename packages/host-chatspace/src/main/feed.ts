@@ -61,8 +61,10 @@ const READS: ReadonlyArray<readonly [RegExp, Read]> = [
   [/\/api\/v0\/accounts\/(\d+)\/chats$/, 'chats'],
   [/\/api\/v0\/accounts\/(\d+)\/platforms\/onlyfans\/fans$/, 'fans'],
   [/\/api\/v0\/accounts\/(\d+)\/platforms\/onlyfans\/transactions$/, 'ledger'],
+  // 2026-11-01 (hub #955): the new-subscriber notifications — ChatSpace's own «Подписки» tab, and the poll's read.
+  [/\/api\/v0\/accounts\/(\d+)\/notifications$/, 'subscribers'],
 ];
-type Read = 'history' | 'chats' | 'fans' | 'ledger';
+type Read = 'history' | 'chats' | 'fans' | 'ledger' | 'subscribers';
 const REF = /^[A-Za-z0-9_-]{1,64}$/;
 
 // ── Reading what ChatSpace received (the shapes: docs/research/onlymonster-chatspace) ──
@@ -205,6 +207,11 @@ export const recordsOfRead = (read: Read, fan: string | null, body: unknown, obs
       const sender = isPlain(meta['fromUser']) ? idOf(meta['fromUser']['id']) : null;
       const record = last !== null && sender !== null ? messageRecord(last, chat, 'chat_list', observedAt, sender === chat) : null;
       if (record !== null) out.push(record);
+    } else if (read === 'subscribers') {
+      const id = ref(item['id']);
+      const fan = idOf(item['platform_fan_id']);
+      const createdAt = iso(item['created_at']);
+      if (id !== null && fan !== null && createdAt !== null) out.push({ kind: 'subscriber', notificationRef: id, fanRef: fan, subType: text(item['sub_type'], 64) || null, createdAt, observedAt });
     } else {
       const id = ref(item['id']);
       const createdAt = iso(item['created_at']);
@@ -222,9 +229,12 @@ const readOf = (input: unknown, init: unknown): { readonly read: Read; readonly 
   const request = input as { url?: unknown; method?: unknown } | undefined;
   const method = (init as { method?: unknown } | undefined)?.method ?? request?.method ?? 'GET';
   if (typeof method !== 'string' || !/^get$/i.test(method)) return null;
-  const path = String(request?.url ?? input).split(/[?#]/)[0] as string;
+  const url = String(request?.url ?? input);
+  const path = url.split(/[?#]/)[0] as string;
   for (const [pattern, read] of READS) {
     const match = pattern.exec(path);
+    // The notifications are read only for the new subscribers: never another type, never `all`.
+    if (match && read === 'subscribers' && !/[?&]type=subscribed(?:&|#|$)/.test(url)) return null;
     if (match) return { read, acc: match[1] as string, fan: read === 'history' ? (match[2] as string) : null };
   }
   return null;

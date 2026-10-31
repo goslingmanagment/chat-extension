@@ -8,7 +8,7 @@
 //   client-onlyfans-feed-money.ts, simplified: no earlier writer here). The hub's writer gate is not modelled: the
 //   stand's pages take the feed's money.
 
-import { type OnlyfansFeedRecord, type OnlyfansFeedRequest, type OnlyfansFeedResult } from '@cg/contracts/hub';
+import { type OnlyfansFeedRecord, type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollResult } from '@cg/contracts/hub';
 
 import { iso } from './clock';
 
@@ -86,6 +86,9 @@ export class FakeOnlyfansFeed {
   private readonly journal: FakeFeedRecord[] = [];
   private readonly keys = new Set<string>();
   private readonly rows: FakeFeedTransaction[] = [];
+  /** When each page's poll may be lent again. */
+  private readonly polls = new Map<string, number>();
+  private asked = 0;
 
   report(userId: number, request: OnlyfansFeedRequest, now: number, archive: FeedArchive): OnlyfansFeedResult {
     let taken = 0;
@@ -130,6 +133,7 @@ export class FakeOnlyfansFeed {
         return this.sighting(pageLabel, 'ledger', `ledger:${record.transactionRef}`, record.transactionRef, record.fanRef, ledgerKind(record.description), mills(Math.abs(record.amountGross)), mills(Math.abs(record.amountNet)), record.createdAt);
       case 'fan':
       case 'chat':
+      case 'subscriber':
         return;
     }
   }
@@ -150,6 +154,34 @@ export class FakeOnlyfansFeed {
       return;
     }
     this.rows.push({ pageLabel, transactionId, source: own, fanRef, kind: type, grossMills, netMills, at, sightings: [sightingKey] });
+  }
+
+  /**
+   * As the hub's `clientOnlyfansPoll` (hub #955): the page's poll lent to one tab every ten minutes (the fake has no
+   * always-on tab), with the newest notification and ledger row the feed brought.
+   */
+  poll(pageLabel: string, now: number): OnlyfansPollResult {
+    this.asked += 1;
+    const due = this.polls.get(pageLabel) ?? 0;
+    const granted = now >= due;
+    if (granted) this.polls.set(pageLabel, now + 600_000);
+    const newest = (kind: 'subscriber' | 'ledger'): string | null => {
+      let best: { readonly ref: string; readonly at: number } | null = null;
+      for (const entry of this.journal) {
+        const record = entry.record;
+        if (entry.pageLabel !== pageLabel || record.kind !== kind) continue;
+        const ref = record.kind === 'subscriber' ? record.notificationRef : record.kind === 'ledger' ? record.transactionRef : '';
+        const at = Date.parse(record.createdAt);
+        if (best === null || at > best.at) best = { ref, at };
+      }
+      return best?.ref ?? null;
+    };
+    return { pageLabel, granted, holder: granted ? 'tab' : 'tab', nextAt: iso(this.polls.get(pageLabel) ?? now), cursors: { subscribers: newest('subscriber'), ledger: newest('ledger') }, maxPages: 5, serverNow: iso(now) };
+  }
+
+  /** Every lend of a page's poll, as asked. */
+  pollsAsked(): number {
+    return this.asked;
   }
 
   records(): readonly FakeFeedRecord[] {

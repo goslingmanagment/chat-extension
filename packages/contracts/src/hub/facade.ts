@@ -49,7 +49,7 @@ import { type FanNoteAttributions, type FanNoteAttributionsQuery, type NoteAttri
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
 import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
 import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineProbeRequest, type OnlineProbeResult, type OnlineQuery } from './online';
-import { type OnlyfansFeedRequest, type OnlyfansFeedResult } from './onlyfans-feed';
+import { type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollRequest, type OnlyfansPollResult } from './onlyfans-feed';
 import { type FanQueueItemDone, type FanQueueItemDoneRequest, type FanQueueRelease, type FanQueueReleaseRequest, type FanQueues, type FanQueuesQuery, type FanQueueTake, type FanQueueTakeRequest } from './fan-queues';
 import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type FanMarks, type FanMarksQuery } from './fan-marks';
@@ -229,6 +229,8 @@ export interface HubFacade {
   onlineProbe(request: OnlineProbeRequest): Promise<OnlineProbeResult>;
   /** What the page's ChatSpace already received, passed on (hub #953, the page's `ofFeed`); the hub dedups a repeat. */
   onlyfansFeed(request: OnlyfansFeedRequest): Promise<OnlyfansFeedResult>;
+  /** hub #955: the page's poll of ChatSpace lent to this tab, or when it may be (the page's `ofPoll`); never repeated here. */
+  onlyfansPoll(request: OnlyfansPollRequest): Promise<OnlyfansPollResult>;
   /** What a chatter did in «Онлайн» (a message sent, «Не предлагать», its undo); never repeated by itself. */
   onlineAttempt(request: OnlineAttemptRequest): Promise<OnlineAttemptResult>;
   /** «Очереди»: the caller's fan queues of the page; refused without `fan-queues-v1`. */

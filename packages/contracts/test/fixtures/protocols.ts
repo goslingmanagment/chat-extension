@@ -784,6 +784,13 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     },
     res: { valid: [{ queued: true }, { queued: false, reason: 'not_admitted' }], invalid: [{ queued: 'yes' }] },
   },
+  'feed.poll': {
+    req: { valid: [{ hostAccountId: IDS.acc, creatorId: '433999001' }], invalid: [{ hostAccountId: IDS.acc }, { hostAccountId: 'x', creatorId: '433999001' }] },
+    res: {
+      valid: [null, { pageLabel: 'lora-of', granted: true, holder: 'tab', nextAt: ISO, cursors: { subscribers: null, ledger: 'om1' }, maxPages: 5, serverNow: ISO }],
+      invalid: [{ granted: 'yes' }],
+    },
+  },
   'data.clear': {
     req: { valid: [{ confirmed: true }], invalid: [{ confirmed: false }, {}] },
     res: { valid: [{ cleared: true }, { cleared: false }], invalid: [{ cleared: 'yes' }] },
@@ -1180,6 +1187,16 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
         { ok: false, failure: 'http', status: 429 },
       ],
       invalid: [{ ok: true, online: [IDS.fan], at: ISO }, { ok: false, failure: 'offline', status: null }, { ok: true, online: ['kai_38'], timedOut: false, at: ISO }],
+    },
+  },
+  feedPoll: {
+    payload: {
+      valid: [{ acc: IDS.acc, list: 'subscribers' }, { acc: IDS.acc, list: 'ledger', cursor: 'a1B2_c3' }],
+      invalid: [{ acc: IDS.acc, list: 'all' }, { acc: IDS.acc }, { acc: IDS.acc, list: 'ledger', cursor: 'a b' }],
+    },
+    data: {
+      valid: [{ ok: true, refs: ['88001', '88000'], hasMore: true, next: '88000' }, { ok: true, refs: [], hasMore: false, next: null }, { ok: false, failure: 'http', status: 429 }],
+      invalid: [{ ok: true, refs: ['88001'], hasMore: 'yes', next: null }, { ok: false, failure: 'boom', status: null }],
     },
   },
 };

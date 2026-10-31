@@ -1240,6 +1240,8 @@ export class FakeHub {
         return read(s.data.online(need(page), request as OnlineQuery, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now, s.config.spendersTotal, s.config.onlineStand));
       case 'clientOnlinePresence':
         return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now, s.config.spendersTotal));
+      case 'clientOnlyfansPoll':
+        return read(s.data.onlyfansPoll(need(page), now));
       case 'clientOnlyfansFeed':
         return read(s.data.onlyfansFeed(need(page), need(principal).user.userId, request as OnlyfansFeedRequest, now));
       case 'clientOnlineProbe':

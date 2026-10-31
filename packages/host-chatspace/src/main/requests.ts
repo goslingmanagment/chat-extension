@@ -27,6 +27,8 @@ import {
 } from './protocol';
 
 const isChat = shape({ host: is('chatspace'), hostAccountId: isId, platformFanId: isId });
+/** A cursor of a poll's list as ChatSpace's API gives it (hub CLIENT_ONLYFANS_FEED_REF_PATTERN). */
+const isPollRef = (value: unknown): boolean => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
 
 /** HostIdentity (contracts HostIdentitySchema). */
 export interface Identity {
@@ -271,4 +273,6 @@ export const PAYLOAD: Record<string, Check> = {
   // 2026-10-31: «Онлайн» on OnlyFans — who ChatSpace's own poll found online (the page's memory), and the page's probe.
   onlineSeen: shape({ acc: isId }),
   onlineProbe: shape({ acc: isId, fans: isProbeFans }),
+  // 2026-11-01 (the owner's `ofPoll`, hub #955): one page of ChatSpace's own new-subscriber notifications or its ledger.
+  feedPoll: shape({ acc: isId, list: is('subscribers', 'ledger'), 'cursor?': isPollRef }),
 };

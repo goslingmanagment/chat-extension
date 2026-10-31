@@ -23,6 +23,7 @@ import { createChatSpaceOnlineSource } from '@cg/core/application/hosts/chatspac
 import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
+import { startChatSpaceFeedPoll } from '@cg/core/application/hosts/chatspace/feed-poll';
 
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 
@@ -61,6 +62,18 @@ export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | 
  * says itself where its button and panel stand. A chunk that did not load is asked again on the next chat.
  */
 export function startChatSpaceSurfaces(env: SiteAppEnv<ChatSpaceHostPort>): () => void {
+  // hub #955: the OnlyFans feed's light reads of ChatSpace, for the accounts of this tab whose page lends this tab its
+  // poll (the background asks the hub; a page without `ofPoll` answers nothing).
+  const stopPoll = startChatSpaceFeedPoll({
+    port: env.host.feedPoll,
+    accounts: () => env.host.current().accounts,
+    lend: (hostAccountId, creatorId) => env.rpc.request('feed.poll', { hostAccountId, creatorId }).then((answer) => (answer.ok ? answer.payload : null), () => null),
+    clock: { now: () => Date.now() },
+    random: Math.random,
+    setTimer: (ms, fn) => env.win.setTimeout(fn, ms),
+    clearTimer: (handle) => env.win.clearTimeout(handle as number),
+  });
+  env.life.addEventListener('abort', stopPoll, { once: true });
   let notes: Promise<(() => void) | null> | null = null;
   const sync = (): void => {
     if (env.life.aborted || notes !== null || env.host.current().route.chat === null) return;
