@@ -56,6 +56,31 @@ export const WS_DATA_UPDATED = 'account_data_updated';
 export const WS_USER_NOTES = 'user-notes';
 /** The event that tells the isolated side a fan's notes changed (contracts FROM_MAIN.fanNotesChanged). */
 export const EVT_FAN_NOTES = 'fanNotesChanged';
+/**
+ * 2026-11-01 (hub #953): the OnlyFans feed — the socket's frames the tap passes on besides a new message: a deletion
+ * (`{account, message_id}`), a fan's purchase (`{account, fan_id, content_type, content_id, price_gross}`) and tip
+ * (`{account, fan_id, tip_id, amount_gross}`), as ChatSpace's own listeners read them (0.258.1).
+ */
+export const WS_MESSAGE_DELETED = 'account_message_deleted';
+export const WS_PPV_PURCHASED = 'account_fan_ppv_purchased';
+export const WS_TIP_RECEIVED = 'account_fan_tip_received';
+/** The event that carries the feed's records of one account (contracts FROM_MAIN.ofFeed). */
+export const EVT_FEED = 'ofFeed';
+/** contracts ONLYFANS_FEED_MAX_RECORDS, ONLYFANS_FEED_TEXT_MAX, ONLYFANS_FEED_MEDIA_MAX, ONLYFANS_FEED_MONEY_MAX. */
+export const FEED_MAX_RECORDS = 200;
+export const FEED_TEXT_MAX = 20_000;
+export const FEED_MEDIA_MAX = 60;
+export const FEED_MONEY_MAX = 100_000;
+/** Bytes of records one `ofFeed` event carries: well inside the frame (FRAME_DATA_BUDGET). */
+export const FEED_EVENT_BYTES = 150_000;
+/** How long records gather before they leave MAIN. */
+export const FEED_FLUSH_MS = 1500;
+/** Records that wait for the isolated side's word, or for their account's creator. */
+export const FEED_BUFFER_RECORDS = 2000;
+/** An account whose creator is unknown this long is not an OnlyFans account of the page: its records go. */
+export const FEED_HOLD_MS = 60_000;
+/** Characters of a read's answer that are parsed; a longer one is not taken. */
+export const FEED_MAX_BODY = 1_048_576;
 /** The path of ChatSpace's own API under its origin; our one read of it (X54) takes the origin from the page's requests. */
 export const API_PATH = '/api/v0/';
 /** The request that names that origin: the page's own read of its accounts, the first it makes (X54). */

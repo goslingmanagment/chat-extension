@@ -88,6 +88,11 @@ export const HUB_ROUTES = {
   clientOnlinePresence: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
   /** The page's probe of who of its known spenders is online, lent to one tab of the team at a time (OnlyFans; hub #952). */
   clientOnlineProbe: { method: 'POST', routeClass: 'page', since: 'sdk', flag: 'onlineProbe', capabilities: ['online-v1'], narrowToken: true },
+  /**
+   * 2026-11-01 (hub #953): what the page's ChatSpace already received, passed on — the hub's OnlyFans feed once
+   * OnlyFansAPI is gone. Behind the page's `ofFeed`; a report the hub may not have heard is said again (the hub dedups).
+   */
+  clientOnlyfansFeed: { method: 'POST', routeClass: 'page', since: 'sdk', flag: 'ofFeed', capabilities: ['onlyfans-feed-v1'], narrowToken: true },
   /** A message sent from «Онлайн», «Не предлагать» and its undo: journaled, shared by the team. */
   clientOnlineAttempt: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
   /** «Очереди»: the caller's fan queues of a page — progress today, the goal, who answered a message from a queue. No owner switch. */

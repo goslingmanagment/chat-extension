@@ -141,6 +141,11 @@ export interface ChatSpaceLiveConfig {
    * every human send of the composer, so that its `humanSend` names the message. Absent — off.
    */
   readonly attribution?: boolean;
+  /**
+   * 2026-11-01 (hub #953): the owner's `ofFeed` on at least one granted page, and the hub takes the OnlyFans feed —
+   * MAIN passes on what the page received (`onlyfansFeed` events). Absent — off.
+   */
+  readonly onlyfansFeed?: boolean;
   /** What the background said of the X8 fuse (decision X25): it holds nothing any more; kept for the wiring. */
   readonly fuse?: SendFuseState | null;
 }
@@ -594,6 +599,9 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
         }
         return;
       }
+      // 2026-11-01 (hub #953): the OnlyFans feed, records of what the page received — the one event with messages' texts.
+      case 'ofFeed':
+        return emit({ type: 'onlyfansFeed', feed: { hostAccountId: event.payload.acc, creatorId: event.payload.creator, records: event.payload.records } });
       // Facts of the tap and the receipt observer: never coalesced, never with a message's text.
       case 'incoming': {
         const { acc, fan, msgId, ...rest } = event.payload;
@@ -954,7 +962,9 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       live = config;
       refreshReceipt();
       // MAIN's latch follows the flag at once (§6.7.11); `wsTap: false` switches the tap off for this document.
-      tap = bridge ? await bridge.request('flags', { wsTap: config.wsTap, previewSend: config.previewSend, attribution: config.attribution === true }).then((flags) => flags.wsTap, () => false) : false;
+      tap = bridge
+        ? await bridge.request('flags', { wsTap: config.wsTap, previewSend: config.previewSend, attribution: config.attribution === true, ofFeed: config.onlyfansFeed === true }).then((flags) => flags.wsTap, () => false)
+        : false;
       tapKnown = true;
       recompute();
       return report;

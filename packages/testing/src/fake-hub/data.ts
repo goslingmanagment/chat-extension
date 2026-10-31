@@ -28,6 +28,8 @@ import {
   type FeedQuery,
   type HubErrorCode,
   type IngestBatch,
+  type OnlyfansFeedRequest,
+  type OnlyfansFeedResult,
   type IngestResult,
   type QueuePage,
   type QueueQuery,
@@ -86,6 +88,7 @@ import { classifyPair, type PairState, type ServedRef, type StoreState } from '.
 import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
 import { FanQueuesModel, type FanQueuesSet } from './fan-queues';
+import { FakeOnlyfansFeed, type FakeFeedRecord, type FakeFeedTransaction, type FeedArchiveMessage } from './onlyfans-feed';
 import { ONLINE_RULES, ONLINE_SEEN_SOURCES, OnlineModel, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
 import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
 import { type CoachDepthKnob, type FakeFanQueueDone, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type FakeOnlineProbe, type SpenderSeed } from './types';
@@ -312,6 +315,8 @@ export class DataModel {
   private winBackAttempts = 0;
   /** «Онлайн»: a scenario's lists, the Fansly tabs' presence reports, what the chatters did in the window. */
   private readonly onlineModel = new OnlineModel();
+  /** hub #953: the OnlyFans feed the tabs reported (onlyfans-feed.ts). */
+  private readonly feedModel = new FakeOnlyfansFeed();
   /** «Очереди»: a scenario's queues of a page, their portions and what the chatters reported of each fan. */
   private readonly queuesModel = new FanQueuesModel();
   private queueMessageId = 8_800_000_000;
@@ -717,6 +722,68 @@ export class DataModel {
     });
     archive.revision += 1;
     return id;
+  }
+
+  /**
+   * As the hub's `clientOnlyfansFeed` (hub #953): every record journaled with its reporter; a message lands in the
+   * fan's archive — the preview's feed and the AI's transcript — in its place by time, a deletion tombstones it there,
+   * and money reaches the page's transactions once.
+   */
+  onlyfansFeed(page: FakePage, userId: number, request: OnlyfansFeedRequest, now: number): Read<OnlyfansFeedResult> {
+    return ok(
+      this.feedModel.report(userId, request, now, {
+        message: (_label, message) => this.feedArchiveMessage(page, message),
+        deleted: (_label, messageId) => this.feedArchiveDeleted(page, messageId),
+      }),
+    );
+  }
+
+  /** hub #953: every record the tabs reported, in order, with who reported it and what the fake hub did with it. */
+  onlyfansFeedRecords(): readonly FakeFeedRecord[] {
+    return this.feedModel.records();
+  }
+
+  /** hub #953: the transactions the feed wrote, with the sightings each one counts. */
+  onlyfansFeedTransactions(): readonly FakeFeedTransaction[] {
+    return this.feedModel.transactions();
+  }
+
+  private feedArchiveMessage(page: FakePage, message: FeedArchiveMessage): void {
+    const archive = this.archive(page, message.fanRef);
+    const item = {
+      messageId: message.messageId,
+      at: message.at,
+      sender: message.sender,
+      text: message.text,
+      automatic: message.automatic,
+      deleted: false,
+      tipMills: message.tipMills,
+      priceMills: message.priceMills,
+      attachmentLabels: [],
+    };
+    const at = archive.messages.findIndex((existing) => existing.messageId === message.messageId);
+    if (at >= 0) {
+      const existing = archive.messages[at] as ArchiveMessage;
+      archive.messages[at] = { ...existing, ...item, deleted: existing.deleted };
+    } else {
+      this.archiveOrder += 1;
+      const time = Date.parse(message.at);
+      const place = archive.messages.findIndex((existing) => existing.at === null || Date.parse(existing.at) <= time);
+      const entry: ArchiveMessage = { ...item, order: this.archiveOrder };
+      if (place < 0) archive.messages.push(entry);
+      else archive.messages.splice(place, 0, entry);
+    }
+    archive.revision += 1;
+  }
+
+  private feedArchiveDeleted(page: FakePage, messageId: string): void {
+    for (const [key, archive] of this.archives) {
+      if (!key.startsWith(`${page.pageLabel}\u0000`)) continue;
+      const at = archive.messages.findIndex((existing) => existing.messageId === messageId);
+      if (at < 0) continue;
+      archive.messages[at] = { ...(archive.messages[at] as ArchiveMessage), deleted: true };
+      archive.revision += 1;
+    }
   }
 
   /** The archive is rebuilt (the hub's `archive_generation` moves): every feed cursor of the fan becomes `cursor_invalid`. */

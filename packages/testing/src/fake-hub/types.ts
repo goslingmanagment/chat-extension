@@ -4,6 +4,7 @@
 // Everything here is JSON-serialisable: the loopback control API carries it.
 
 import type { ClientFeatureFlag, HubAiFeature, HubErrorBody, HubFrame, HubRouteKey, OnlineAttemptRequest } from '@cg/contracts';
+import type { FakeFeedRecord, FakeFeedTransaction } from './onlyfans-feed';
 
 import type { HttpExchange, HttpScenario, SseScenario, SseStep } from '../scenarios/hub/types';
 import type { FakeVoiceOutcome, VoiceNoteSnapshot } from './voice';
@@ -343,6 +344,17 @@ export interface FakeClientContextRecord {
   readonly clientContext: unknown;
 }
 
+/** What an AI request read of the hub's archive (its transcript's newest messages), as the fake's reader served it. */
+export interface FakeAiReadRecord {
+  readonly feature: string;
+  readonly pageLabel: string;
+  /** The conversation the transcript was read from (on OnlyFans the fan). */
+  readonly ref: string;
+  readonly at: string;
+  /** The served window's newest message ids, newest first (at most 10). */
+  readonly refs: readonly string[];
+}
+
 export interface FakeHubStatus {
   readonly origin: string;
   readonly clock: { readonly now: number; readonly manual: boolean };
@@ -367,10 +379,14 @@ export interface FakeHubStatus {
   readonly voiceNotes: readonly VoiceNoteSnapshot[];
   /** «Онлайн»: what the chatters did in the window, the tabs' presence reports and the probes lent, in order (ids and times). */
   readonly online: { readonly attempts: readonly FakeOnlineAttempt[]; readonly presence: readonly FakeOnlinePresenceReport[]; readonly probes: readonly FakeOnlineProbe[] };
+  /** hub #953: the OnlyFans feed's records as reported (with who and what the fake did) and the transactions it wrote. */
+  readonly onlyfansFeed: { readonly records: readonly FakeFeedRecord[]; readonly transactions: readonly FakeFeedTransaction[] };
   /** «Очереди»: every fan's outcome the client reported, in order (ids and closed words only). */
   readonly fanQueues: { readonly reports: readonly FakeFanQueueDone[] };
   /** Telegram: the chats the AI requests carried (`clientContext`), in order. */
   readonly clientContexts: readonly FakeClientContextRecord[];
+  /** hub #953's check: what each AI request read of the archive — a message the feed brought is in its context. */
+  readonly aiReads: readonly FakeAiReadRecord[];
 }
 
 // ── Journal ────────────────────────────────────────────────────────────────

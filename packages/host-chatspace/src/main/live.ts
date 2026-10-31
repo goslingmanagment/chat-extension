@@ -123,7 +123,8 @@ export interface TapSink {
   /**
    * A message frame: a fan's message seen for the first time (the counters are already updated), or an outgoing one as
    * it came — with its text (`content`, as the frame has it), which goes to the receipt observer only: the X8 fuse
-   * compares it with what a followed send queued (decision X25). It never leaves MAIN.
+   * compares it with what a followed send queued (decision X25). It never leaves MAIN this way: the OnlyFans feed
+   * (feed.ts, hub #953) carries messages with their texts on its own.
    */
   readonly fact: (fact: Fact, content?: unknown) => void;
   /** An account's coverage changed (contracts FROM_MAIN.coverage). */
@@ -138,10 +139,33 @@ export interface TapSink {
   readonly notes?: (acc: string, fan: string) => void;
 }
 
+/** 2026-11-01 (hub #953): what the OnlyFans feed (feed.ts) needs of the page, lent by the runtime once the live port is attached. */
+export interface FeedHost {
+  /** The OnlyFans creator of an OnlyFans account the page has loaded; null — not one, or not loaded yet. */
+  readonly creator: (acc: string) => string | null;
+  /** An event that is never coalesced or dropped. */
+  readonly post: (t: string, payload: Plain) => void;
+}
+
+export interface Feed {
+  /** A record of an account, built here or by the tap. */
+  readonly push: (acc: string, record: Plain) => void;
+  /** The owner's `ofFeed` on some granted page: on — records leave; off — none is kept. */
+  readonly latch: (on: boolean) => void;
+  readonly on: () => boolean;
+  /** The isolated side has not said yet: records wait (bounded). */
+  readonly pending: () => boolean;
+  readonly connect: (host: FeedHost) => void;
+  /** Takes the observer off the page's `fetch` if it is still there, and drops what is kept. */
+  readonly off: () => void;
+}
+
 /** The tap as the send port and the receipt observer see it (ws-tap.ts). */
 export interface Tap {
   /** The tap script's guard (guard.ts): its failures go to the bridge's count. */
   readonly guard: Guard;
+  /** 2026-11-01 (hub #953): the OnlyFans feed — what the socket and the page's own reads bring, passed on (feed.ts). */
+  readonly feed: Feed;
   /** A failure of ours caught by hand. */
   readonly fail: (site: string) => void;
   /** False once switched off. */

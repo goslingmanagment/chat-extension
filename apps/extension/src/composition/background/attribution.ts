@@ -55,6 +55,23 @@ export function noteAttributionTarget(host: HostKind, pageId: number, bootstrap:
   return { ok: true, pageLabel: page.pageLabel, source };
 }
 
+/**
+ * The OnlyFans feed (hub #953, `clientOnlyfansFeed`): the page an account's records are reported for — somebody is
+ * signed in, the account is bound to a page this bootstrap grants, and that page admits ChatSpace's `onlyfans-feed`
+ * (the page's own `wsTap` and `ofFeed`, and the hub takes it: `onlyfans-feed-v1`).
+ */
+export function onlyfansFeedTarget(
+  pageId: number | null,
+  bootstrap: Bootstrap | null,
+  features: (host: HostKind) => FeatureSlice | null,
+): { readonly ok: true; readonly pageLabel: string } | { readonly ok: false; readonly reason: 'signed_out' | 'unbound' | 'not_admitted' } {
+  if (bootstrap === null) return { ok: false, reason: 'signed_out' };
+  const page = pageId === null ? undefined : bootstrap.pages.find((candidate) => candidate.pageId === pageId);
+  if (page === undefined) return { ok: false, reason: 'unbound' };
+  if (admission(features('chatspace'), 'onlyfans-feed', null, onPage(bootstrap, page)).state !== 'on') return { ok: false, reason: 'not_admitted' };
+  return { ok: true, pageLabel: page.pageLabel };
+}
+
 /** At most `max` UTF-16 units, never half of a pair. */
 const cut = (text: string, max: number): string => (text.length <= max ? text : text.slice(0, /[\uD800-\uDBFF]/.test(text.charAt(max - 1)) ? max - 1 : max));
 

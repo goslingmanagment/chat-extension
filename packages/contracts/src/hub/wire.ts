@@ -70,6 +70,9 @@ export type HubErrorBody = z.infer<typeof HubErrorBodySchema>;
  * 2026-10-31 (hub #952): `onlineProbe`, OnlyFans only — «Онлайн»'s one bounded probe of who of the page's known
  * spenders is online (`clientOnlineProbe`, one `fans-online` read of ChatSpace's own size every five minutes a page);
  * the owner's off switch for it.
+ *
+ * 2026-11-01 (hub #953): `ofFeed`, OnlyFans only — the OnlyFans feed from ChatSpace (`clientOnlyfansFeed`): what the
+ * page's ChatSpace already received, passed on to the hub; the owner's off switch for it.
  */
 export const CLIENT_FEATURE_FLAG_NAMES = [
   'insertion',
@@ -95,6 +98,7 @@ export const CLIENT_FEATURE_FLAG_NAMES = [
   'vault',
   'registration',
   'onlineProbe',
+  'ofFeed',
 ] as const;
 export type ClientFeatureFlag = (typeof CLIENT_FEATURE_FLAG_NAMES)[number];
 
@@ -260,6 +264,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'fan-custom-name-v1',
   /** The person's own daily AI limit: `clientAiLimit`, `quota.personal` in the meta frame, the 429 reason. */
   'ai-limit-v1',
+  /**
+   * 2026-11-01 (hub #953): the hub takes the OnlyFans feed from ChatSpace (`clientOnlyfansFeed`): messages, deletions,
+   * purchases, tips, fans, chats and the sales ledger the page already received. A hub without it is never asked.
+   */
+  'onlyfans-feed-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

@@ -130,6 +130,8 @@ export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readon
   registration: { fansly: NOTHING },
   // hub #952: «Онлайн»'s probe of who of the page's spenders is online, OnlyFans only.
   onlineProbe: { onlyfans: { capabilities: ['online-v1'] } },
+  // hub #953: the OnlyFans feed from ChatSpace, OnlyFans only.
+  ofFeed: { onlyfans: { capabilities: ['onlyfans-feed-v1'] } },
 };
 
 /**
@@ -192,11 +194,13 @@ export const BOOTSTRAP_ALL_OFF: Bootstrap = {
 };
 
 /**
- * Pilot flags: everything but X8 send and its AI mark (previewSend waits for its gates, §6.7.13), and «Онлайн»'s probe
+ * Pilot flags: everything but X8 send and its AI mark (previewSend waits for its gates, §6.7.13), «Онлайн»'s probe
  * of OnlyMonster (`onlineProbe`, hub #952): the owner's switch, off unless he sets it, as on the hub — the suites that
- * account for every request of the tab keep it silent, and suite-online-probe turns it on to hold its pace and bounds.
+ * account for every request of the tab keep it silent, and suite-online-probe turns it on to hold its pace and bounds —
+ * and (hub #953) the OnlyFans feed: the specs written before it count what the tab tells the hub; the feed's own
+ * switch it on.
  */
-export const PILOT_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated', 'onlineProbe'];
+export const PILOT_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated', 'onlineProbe', 'ofFeed'];
 /** The pilot's switches of the OnlyFans pages: every flag OnlyFans has but X8's two. */
 export const PILOT_FLAGS_ON: readonly ClientFeatureFlag[] = CLIENT_FEATURE_FLAG_NAMES.filter((flag) => HUB_FEATURE_REQUIREMENTS[flag].onlyfans !== undefined && !PILOT_FLAGS_OFF.includes(flag));
 const pilotFlags = Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, PILOT_FLAGS_ON.includes(flag)]));

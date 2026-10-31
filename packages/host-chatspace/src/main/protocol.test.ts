@@ -4,13 +4,14 @@
 import { BRIDGE_UNDROPPABLE_EVENTS, BRIDGE_WRITE_FAILURES, BRIDGE_WRITE_REQUESTS } from '@cg/contracts/bridge';
 import { BRIDGE_REQUEST_FIXTURES } from '@cg/contracts/fixtures';
 import { OM_NOTE_COLOR_PATTERN, OM_NOTE_ID_PATTERN } from '@cg/contracts/host';
+import { ONLYFANS_FEED_MAX_RECORDS, ONLYFANS_FEED_MEDIA_MAX, ONLYFANS_FEED_MONEY_MAX, ONLYFANS_FEED_TEXT_MAX } from '@cg/contracts/hub';
 import { FAN_NOTES_LIMITS, ONLINE_SOURCE_LIMITS } from '@cg/contracts/limits';
 import { WRITE_REQUESTS as BOOT_WRITES } from '@cg/host-kit/main/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { UNDROPPABLE_EVENTS, WRITE_FAILURES, WRITE_REQUESTS } from '../isolated/wire';
 import * as CONTRACT from '../isolated/host-contract';
-import { EVT_FAN_NOTES, FAN_NOTE_COLOR, FAN_NOTE_ID, FAN_NOTE_TEXT_MAX, FAN_NOTE_TITLE_MAX, FAN_NOTES_MAX, ONLINE_PROBE_MAX, ONLINE_PROBE_REQUEST_MS, ONLINE_SEEN_MAX, ONLINE_SEEN_SCAN_MAX, ONLINE_SEEN_WINDOW_MS, WS_DATA_UPDATED, WS_USER_NOTES } from './protocol';
+import { EVT_FAN_NOTES, EVT_FEED, FEED_MAX_RECORDS, FEED_MEDIA_MAX, FEED_MONEY_MAX, FEED_TEXT_MAX, FAN_NOTE_COLOR, FAN_NOTE_ID, FAN_NOTE_TEXT_MAX, FAN_NOTE_TITLE_MAX, FAN_NOTES_MAX, ONLINE_PROBE_MAX, ONLINE_PROBE_REQUEST_MS, ONLINE_SEEN_MAX, ONLINE_SEEN_SCAN_MAX, ONLINE_SEEN_WINDOW_MS, WS_DATA_UPDATED, WS_USER_NOTES } from './protocol';
 import { PAYLOAD } from './requests';
 
 describe('[EX-008] MAIN request checks', () => {
@@ -46,6 +47,11 @@ describe('[EX-008] MAIN request checks', () => {
       for (const payload of valid) expect(PAYLOAD[t]?.(payload), `${t} ${JSON.stringify(payload)}`).toBe(true);
       for (const payload of invalid) expect(PAYLOAD[t]?.(payload), `${t} ${JSON.stringify(payload)}`).toBe(false);
     }
+  });
+
+  it('2026-11-01: the copies of the OnlyFans feed’s bounds and its event are the contracts’', () => {
+    expect([FEED_MAX_RECORDS, FEED_TEXT_MAX, FEED_MEDIA_MAX, FEED_MONEY_MAX]).toEqual([ONLYFANS_FEED_MAX_RECORDS, ONLYFANS_FEED_TEXT_MAX, ONLYFANS_FEED_MEDIA_MAX, ONLYFANS_FEED_MONEY_MAX]);
+    expect(UNDROPPABLE_EVENTS).toContain(EVT_FEED);
   });
 
   it('2026-10-31: the copies of «Онлайн»’s bounds on OnlyFans are the contracts’', () => {

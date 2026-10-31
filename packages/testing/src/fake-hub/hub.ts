@@ -60,6 +60,7 @@ import {
   type FanQueueTakeRequest,
   type OnlineAttemptRequest,
   type OnlinePresenceRequest,
+  type OnlyfansFeedRequest,
   type OnlineQuery,
   type OnlineTemplate,
   type FanCardQuery,
@@ -101,6 +102,7 @@ import {
   type FakeHubJournalEntry,
   type FakeHubJournalPage,
   type FakeHubServedBy,
+  type FakeAiReadRecord,
   type FakeClientContextRecord,
   type FakeHubStatus,
   type FakeOnlineAttempt,
@@ -219,6 +221,7 @@ interface State {
   generationSeq: number;
   /** What the client-context lane's requests (Telegram) gave the model, in order: the chat the tab read. */
   readonly clientContexts: FakeClientContextRecord[];
+  readonly aiReads: FakeAiReadRecord[];
 }
 
 /** The part of a zod schema the self-check uses (testing does not depend on zod itself). */
@@ -335,6 +338,7 @@ export class FakeHub {
       openStreams: 0,
       generationSeq: 0,
       clientContexts: [],
+      aiReads: [],
     };
   }
 
@@ -545,8 +549,10 @@ export class FakeHub {
       ingested: s.data.ingestedEvents().length,
       voiceNotes: s.voice.snapshot(now),
       online: { attempts: s.data.onlineAttempts(), presence: s.data.onlinePresenceReports(), probes: s.data.onlineProbes() },
+      onlyfansFeed: { records: s.data.onlyfansFeedRecords().map((entry) => ({ ...entry })), transactions: s.data.onlyfansFeedTransactions() },
       fanQueues: { reports: s.data.fanQueueReports() },
       clientContexts: s.clientContexts.map((record) => ({ ...record })),
+      aiReads: s.aiReads.map((record) => ({ ...record })),
     };
   }
 
@@ -1234,6 +1240,8 @@ export class FakeHub {
         return read(s.data.online(need(page), request as OnlineQuery, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now, s.config.spendersTotal, s.config.onlineStand));
       case 'clientOnlinePresence':
         return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now, s.config.spendersTotal));
+      case 'clientOnlyfansFeed':
+        return read(s.data.onlyfansFeed(need(page), need(principal).user.userId, request as OnlyfansFeedRequest, now));
       case 'clientOnlineProbe':
         return read(s.data.onlineProbe(need(page), need(principal).user.userId, now, s.config.spendersTotal));
       case 'clientFanQueues':
@@ -1302,6 +1310,7 @@ export class FakeHub {
     if (clientLane) s.clientContexts.push({ feature, pageLabel: page.pageLabel, fanRef: body.fanRef ?? null, conversationRef: body.conversationRef, at: iso(this.clock.now()), clientContext: body.clientContext });
     const window = transcriptWindow(request, s.config.limits.deepMax);
     const served = s.data.served(page, transcript, window.limit);
+    s.aiReads.push({ feature, pageLabel: page.pageLabel, ref: transcript, at: iso(this.clock.now()), refs: served.window.slice(0, 10).map((item) => item.messageRef) });
     // Hi has no message limit (2026-10-21): neither its count nor its start proof refuses it.
     if (feature === 'ping') {
       // The hub's minimum counts the transcript it reads: the archive the reader serves and, merged by id under

@@ -84,15 +84,16 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * `voice` (the voice script and the voice-note routes, `voice-notes-v1`,
  * HF-4б), `notes` and `notesFill` (the fan's notes and their fill; on
  * OnlyFans since 2026-10-28) exist on both. `previewSend`,
- * `previewSendMarkAiGenerated`, `navigation`, `wsTap`, `stats` and
+ * `previewSendMarkAiGenerated`, `navigation`, `wsTap`, `stats`,
  * `onlineProbe` (the page's one bounded probe of who is online,
- * `clientOnlineProbe`) exist on OnlyFans only; every other flag on both. A
+ * `clientOnlineProbe`) and `ofFeed` (the OnlyFans feed from ChatSpace,
+ * `clientOnlyfansFeed`) exist on OnlyFans only; every other flag on both. A
  * Fansly page is switched on by its own row of the owner's switches alone,
  * never by the `"*"` row, so the top-level `flags` (the `"*"` row) say nothing
  * about a Fansly page.
  */
-export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration", "onlineProbe"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1"];
+export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration", "onlineProbe", "ofFeed"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -1466,6 +1467,375 @@ export declare const clientSendAttributionsResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
+/** Records in one report. */
+export declare const CLIENT_ONLYFANS_FEED_MAX_RECORDS = 200;
+/** A message's text, as OnlyFans gave it (HTML), at most this long; a longer one is not sent. */
+export declare const CLIENT_ONLYFANS_FEED_TEXT_MAX = 20000;
+/** Media items one message names. */
+export declare const CLIENT_ONLYFANS_FEED_MEDIA_MAX = 60;
+/** The largest single amount a record carries, in dollars. */
+export declare const CLIENT_ONLYFANS_FEED_MONEY_MAX_DOLLARS = 100000;
+/** How far ahead of the hub's clock an `observedAt` may be, and how old: outside it a record is journaled only. */
+export declare const CLIENT_ONLYFANS_FEED_MAX_AHEAD_MS: number;
+export declare const CLIENT_ONLYFANS_FEED_MAX_AGE_DAYS = 30;
+/** Where the page got a message (open on the wire). */
+export declare const CLIENT_ONLYFANS_FEED_VIAS: readonly ["socket", "history", "chat_list"];
+/** The OnlyMonster account a report names: `onlymonster:<id>`. */
+export declare const CLIENT_ONLYFANS_FEED_HOST_ACCOUNT_PATTERN: RegExp;
+/** OnlyMonster's id of a ledger row, and the socket's id of a tip. */
+export declare const CLIENT_ONLYFANS_FEED_REF_PATTERN: RegExp;
+/** A fan's own OnlyFans facts, as the page received them (the fan read, or the socket's sender). Null — not given. */
+export declare const clientOnlyfansFeedFanFactsSchema: z.ZodObject<{
+    username: z.ZodNullable<z.ZodString>;
+    name: z.ZodNullable<z.ZodString>;
+    displayName: z.ZodNullable<z.ZodString>;
+    subscribedOn: z.ZodNullable<z.ZodBoolean>;
+    subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+    subscribeAt: z.ZodNullable<z.ZodString>;
+    expiredAt: z.ZodNullable<z.ZodString>;
+    renewedAt: z.ZodNullable<z.ZodString>;
+    subscriptionStatus: z.ZodNullable<z.ZodString>;
+    subscribePrice: z.ZodNullable<z.ZodNumber>;
+    regularPrice: z.ZodNullable<z.ZodNumber>;
+    spend: z.ZodNullable<z.ZodObject<{
+        tips: z.ZodNullable<z.ZodNumber>;
+        subscriptions: z.ZodNullable<z.ZodNumber>;
+        messages: z.ZodNullable<z.ZodNumber>;
+        posts: z.ZodNullable<z.ZodNumber>;
+        streams: z.ZodNullable<z.ZodNumber>;
+        total: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedMessageSchema: z.ZodObject<{
+    kind: z.ZodLiteral<"message">;
+    messageRef: z.ZodString;
+    fanRef: z.ZodString;
+    fromFan: z.ZodBoolean;
+    sentAt: z.ZodString;
+    observedAt: z.ZodString;
+    via: z.ZodString;
+    textHtml: z.ZodString;
+    price: z.ZodNullable<z.ZodNumber>;
+    isFree: z.ZodNullable<z.ZodBoolean>;
+    isOpened: z.ZodNullable<z.ZodBoolean>;
+    isNew: z.ZodNullable<z.ZodBoolean>;
+    isTip: z.ZodBoolean;
+    tipText: z.ZodNullable<z.ZodString>;
+    mediaCount: z.ZodNullable<z.ZodNumber>;
+    media: z.ZodArray<z.ZodObject<{
+        ref: z.ZodString;
+        type: z.ZodString;
+        canView: z.ZodNullable<z.ZodBoolean>;
+        duration: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strict>>;
+    automatic: z.ZodNullable<z.ZodBoolean>;
+    changedAt: z.ZodNullable<z.ZodString>;
+    fan: z.ZodNullable<z.ZodObject<{
+        username: z.ZodNullable<z.ZodString>;
+        name: z.ZodNullable<z.ZodString>;
+        displayName: z.ZodNullable<z.ZodString>;
+        subscribedOn: z.ZodNullable<z.ZodBoolean>;
+        subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+        subscribeAt: z.ZodNullable<z.ZodString>;
+        expiredAt: z.ZodNullable<z.ZodString>;
+        renewedAt: z.ZodNullable<z.ZodString>;
+        subscriptionStatus: z.ZodNullable<z.ZodString>;
+        subscribePrice: z.ZodNullable<z.ZodNumber>;
+        regularPrice: z.ZodNullable<z.ZodNumber>;
+        spend: z.ZodNullable<z.ZodObject<{
+            tips: z.ZodNullable<z.ZodNumber>;
+            subscriptions: z.ZodNullable<z.ZodNumber>;
+            messages: z.ZodNullable<z.ZodNumber>;
+            posts: z.ZodNullable<z.ZodNumber>;
+            streams: z.ZodNullable<z.ZodNumber>;
+            total: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>>;
+    }, z.core.$strict>>;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedDeletedSchema: z.ZodObject<{
+    kind: z.ZodLiteral<"deleted">;
+    messageRef: z.ZodString;
+    observedAt: z.ZodString;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedPpvSchema: z.ZodObject<{
+    kind: z.ZodLiteral<"ppv">;
+    fanRef: z.ZodString;
+    contentType: z.ZodString;
+    contentRef: z.ZodString;
+    priceGross: z.ZodNumber;
+    observedAt: z.ZodString;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedTipSchema: z.ZodObject<{
+    kind: z.ZodLiteral<"tip">;
+    fanRef: z.ZodString;
+    tipRef: z.ZodString;
+    amountGross: z.ZodNumber;
+    observedAt: z.ZodString;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedFanSchema: z.ZodObject<{
+    username: z.ZodNullable<z.ZodString>;
+    name: z.ZodNullable<z.ZodString>;
+    displayName: z.ZodNullable<z.ZodString>;
+    subscribedOn: z.ZodNullable<z.ZodBoolean>;
+    subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+    subscribeAt: z.ZodNullable<z.ZodString>;
+    expiredAt: z.ZodNullable<z.ZodString>;
+    renewedAt: z.ZodNullable<z.ZodString>;
+    subscriptionStatus: z.ZodNullable<z.ZodString>;
+    subscribePrice: z.ZodNullable<z.ZodNumber>;
+    regularPrice: z.ZodNullable<z.ZodNumber>;
+    spend: z.ZodNullable<z.ZodObject<{
+        tips: z.ZodNullable<z.ZodNumber>;
+        subscriptions: z.ZodNullable<z.ZodNumber>;
+        messages: z.ZodNullable<z.ZodNumber>;
+        posts: z.ZodNullable<z.ZodNumber>;
+        streams: z.ZodNullable<z.ZodNumber>;
+        total: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strict>>;
+    kind: z.ZodLiteral<"fan">;
+    fanRef: z.ZodString;
+    observedAt: z.ZodString;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedChatSchema: z.ZodObject<{
+    kind: z.ZodLiteral<"chat">;
+    fanRef: z.ZodString;
+    unreadCount: z.ZodNullable<z.ZodNumber>;
+    lastMessageRef: z.ZodNullable<z.ZodString>;
+    observedAt: z.ZodString;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedLedgerSchema: z.ZodObject<{
+    kind: z.ZodLiteral<"ledger">;
+    transactionRef: z.ZodString;
+    fanRef: z.ZodNullable<z.ZodString>;
+    createdAt: z.ZodString;
+    amountGross: z.ZodNumber;
+    amountNet: z.ZodNumber;
+    description: z.ZodString;
+    status: z.ZodNullable<z.ZodString>;
+    observedAt: z.ZodString;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedRecordSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
+    kind: z.ZodLiteral<"message">;
+    messageRef: z.ZodString;
+    fanRef: z.ZodString;
+    fromFan: z.ZodBoolean;
+    sentAt: z.ZodString;
+    observedAt: z.ZodString;
+    via: z.ZodString;
+    textHtml: z.ZodString;
+    price: z.ZodNullable<z.ZodNumber>;
+    isFree: z.ZodNullable<z.ZodBoolean>;
+    isOpened: z.ZodNullable<z.ZodBoolean>;
+    isNew: z.ZodNullable<z.ZodBoolean>;
+    isTip: z.ZodBoolean;
+    tipText: z.ZodNullable<z.ZodString>;
+    mediaCount: z.ZodNullable<z.ZodNumber>;
+    media: z.ZodArray<z.ZodObject<{
+        ref: z.ZodString;
+        type: z.ZodString;
+        canView: z.ZodNullable<z.ZodBoolean>;
+        duration: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strict>>;
+    automatic: z.ZodNullable<z.ZodBoolean>;
+    changedAt: z.ZodNullable<z.ZodString>;
+    fan: z.ZodNullable<z.ZodObject<{
+        username: z.ZodNullable<z.ZodString>;
+        name: z.ZodNullable<z.ZodString>;
+        displayName: z.ZodNullable<z.ZodString>;
+        subscribedOn: z.ZodNullable<z.ZodBoolean>;
+        subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+        subscribeAt: z.ZodNullable<z.ZodString>;
+        expiredAt: z.ZodNullable<z.ZodString>;
+        renewedAt: z.ZodNullable<z.ZodString>;
+        subscriptionStatus: z.ZodNullable<z.ZodString>;
+        subscribePrice: z.ZodNullable<z.ZodNumber>;
+        regularPrice: z.ZodNullable<z.ZodNumber>;
+        spend: z.ZodNullable<z.ZodObject<{
+            tips: z.ZodNullable<z.ZodNumber>;
+            subscriptions: z.ZodNullable<z.ZodNumber>;
+            messages: z.ZodNullable<z.ZodNumber>;
+            posts: z.ZodNullable<z.ZodNumber>;
+            streams: z.ZodNullable<z.ZodNumber>;
+            total: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>>;
+    }, z.core.$strict>>;
+}, z.core.$strict>, z.ZodObject<{
+    kind: z.ZodLiteral<"deleted">;
+    messageRef: z.ZodString;
+    observedAt: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    kind: z.ZodLiteral<"ppv">;
+    fanRef: z.ZodString;
+    contentType: z.ZodString;
+    contentRef: z.ZodString;
+    priceGross: z.ZodNumber;
+    observedAt: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    kind: z.ZodLiteral<"tip">;
+    fanRef: z.ZodString;
+    tipRef: z.ZodString;
+    amountGross: z.ZodNumber;
+    observedAt: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    username: z.ZodNullable<z.ZodString>;
+    name: z.ZodNullable<z.ZodString>;
+    displayName: z.ZodNullable<z.ZodString>;
+    subscribedOn: z.ZodNullable<z.ZodBoolean>;
+    subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+    subscribeAt: z.ZodNullable<z.ZodString>;
+    expiredAt: z.ZodNullable<z.ZodString>;
+    renewedAt: z.ZodNullable<z.ZodString>;
+    subscriptionStatus: z.ZodNullable<z.ZodString>;
+    subscribePrice: z.ZodNullable<z.ZodNumber>;
+    regularPrice: z.ZodNullable<z.ZodNumber>;
+    spend: z.ZodNullable<z.ZodObject<{
+        tips: z.ZodNullable<z.ZodNumber>;
+        subscriptions: z.ZodNullable<z.ZodNumber>;
+        messages: z.ZodNullable<z.ZodNumber>;
+        posts: z.ZodNullable<z.ZodNumber>;
+        streams: z.ZodNullable<z.ZodNumber>;
+        total: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strict>>;
+    kind: z.ZodLiteral<"fan">;
+    fanRef: z.ZodString;
+    observedAt: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    kind: z.ZodLiteral<"chat">;
+    fanRef: z.ZodString;
+    unreadCount: z.ZodNullable<z.ZodNumber>;
+    lastMessageRef: z.ZodNullable<z.ZodString>;
+    observedAt: z.ZodString;
+}, z.core.$strict>, z.ZodObject<{
+    kind: z.ZodLiteral<"ledger">;
+    transactionRef: z.ZodString;
+    fanRef: z.ZodNullable<z.ZodString>;
+    createdAt: z.ZodString;
+    amountGross: z.ZodNumber;
+    amountNet: z.ZodNumber;
+    description: z.ZodString;
+    status: z.ZodNullable<z.ZodString>;
+    observedAt: z.ZodString;
+}, z.core.$strict>], "kind">;
+export declare const clientOnlyfansFeedBodySchema: z.ZodObject<{
+    hostAccountRef: z.ZodString;
+    creatorRef: z.ZodString;
+    records: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+        kind: z.ZodLiteral<"message">;
+        messageRef: z.ZodString;
+        fanRef: z.ZodString;
+        fromFan: z.ZodBoolean;
+        sentAt: z.ZodString;
+        observedAt: z.ZodString;
+        via: z.ZodString;
+        textHtml: z.ZodString;
+        price: z.ZodNullable<z.ZodNumber>;
+        isFree: z.ZodNullable<z.ZodBoolean>;
+        isOpened: z.ZodNullable<z.ZodBoolean>;
+        isNew: z.ZodNullable<z.ZodBoolean>;
+        isTip: z.ZodBoolean;
+        tipText: z.ZodNullable<z.ZodString>;
+        mediaCount: z.ZodNullable<z.ZodNumber>;
+        media: z.ZodArray<z.ZodObject<{
+            ref: z.ZodString;
+            type: z.ZodString;
+            canView: z.ZodNullable<z.ZodBoolean>;
+            duration: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>>;
+        automatic: z.ZodNullable<z.ZodBoolean>;
+        changedAt: z.ZodNullable<z.ZodString>;
+        fan: z.ZodNullable<z.ZodObject<{
+            username: z.ZodNullable<z.ZodString>;
+            name: z.ZodNullable<z.ZodString>;
+            displayName: z.ZodNullable<z.ZodString>;
+            subscribedOn: z.ZodNullable<z.ZodBoolean>;
+            subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+            subscribeAt: z.ZodNullable<z.ZodString>;
+            expiredAt: z.ZodNullable<z.ZodString>;
+            renewedAt: z.ZodNullable<z.ZodString>;
+            subscriptionStatus: z.ZodNullable<z.ZodString>;
+            subscribePrice: z.ZodNullable<z.ZodNumber>;
+            regularPrice: z.ZodNullable<z.ZodNumber>;
+            spend: z.ZodNullable<z.ZodObject<{
+                tips: z.ZodNullable<z.ZodNumber>;
+                subscriptions: z.ZodNullable<z.ZodNumber>;
+                messages: z.ZodNullable<z.ZodNumber>;
+                posts: z.ZodNullable<z.ZodNumber>;
+                streams: z.ZodNullable<z.ZodNumber>;
+                total: z.ZodNullable<z.ZodNumber>;
+            }, z.core.$strict>>;
+        }, z.core.$strict>>;
+    }, z.core.$strict>, z.ZodObject<{
+        kind: z.ZodLiteral<"deleted">;
+        messageRef: z.ZodString;
+        observedAt: z.ZodString;
+    }, z.core.$strict>, z.ZodObject<{
+        kind: z.ZodLiteral<"ppv">;
+        fanRef: z.ZodString;
+        contentType: z.ZodString;
+        contentRef: z.ZodString;
+        priceGross: z.ZodNumber;
+        observedAt: z.ZodString;
+    }, z.core.$strict>, z.ZodObject<{
+        kind: z.ZodLiteral<"tip">;
+        fanRef: z.ZodString;
+        tipRef: z.ZodString;
+        amountGross: z.ZodNumber;
+        observedAt: z.ZodString;
+    }, z.core.$strict>, z.ZodObject<{
+        username: z.ZodNullable<z.ZodString>;
+        name: z.ZodNullable<z.ZodString>;
+        displayName: z.ZodNullable<z.ZodString>;
+        subscribedOn: z.ZodNullable<z.ZodBoolean>;
+        subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+        subscribeAt: z.ZodNullable<z.ZodString>;
+        expiredAt: z.ZodNullable<z.ZodString>;
+        renewedAt: z.ZodNullable<z.ZodString>;
+        subscriptionStatus: z.ZodNullable<z.ZodString>;
+        subscribePrice: z.ZodNullable<z.ZodNumber>;
+        regularPrice: z.ZodNullable<z.ZodNumber>;
+        spend: z.ZodNullable<z.ZodObject<{
+            tips: z.ZodNullable<z.ZodNumber>;
+            subscriptions: z.ZodNullable<z.ZodNumber>;
+            messages: z.ZodNullable<z.ZodNumber>;
+            posts: z.ZodNullable<z.ZodNumber>;
+            streams: z.ZodNullable<z.ZodNumber>;
+            total: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strict>>;
+        kind: z.ZodLiteral<"fan">;
+        fanRef: z.ZodString;
+        observedAt: z.ZodString;
+    }, z.core.$strict>, z.ZodObject<{
+        kind: z.ZodLiteral<"chat">;
+        fanRef: z.ZodString;
+        unreadCount: z.ZodNullable<z.ZodNumber>;
+        lastMessageRef: z.ZodNullable<z.ZodString>;
+        observedAt: z.ZodString;
+    }, z.core.$strict>, z.ZodObject<{
+        kind: z.ZodLiteral<"ledger">;
+        transactionRef: z.ZodString;
+        fanRef: z.ZodNullable<z.ZodString>;
+        createdAt: z.ZodString;
+        amountGross: z.ZodNumber;
+        amountNet: z.ZodNumber;
+        description: z.ZodString;
+        status: z.ZodNullable<z.ZodString>;
+        observedAt: z.ZodString;
+    }, z.core.$strict>], "kind">>;
+}, z.core.$strict>;
+export declare const clientOnlyfansFeedResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    taken: z.ZodNumber;
+    duplicates: z.ZodNumber;
+    held: z.ZodNumber;
+    outOfRange: z.ZodNumber;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export type ClientOnlyfansFeedFanFacts = z.infer<typeof clientOnlyfansFeedFanFactsSchema>;
+export type ClientOnlyfansFeedRecord = z.infer<typeof clientOnlyfansFeedRecordSchema>;
+export type ClientOnlyfansFeedMessage = z.infer<typeof clientOnlyfansFeedMessageSchema>;
+export type ClientOnlyfansFeedLedger = z.infer<typeof clientOnlyfansFeedLedgerSchema>;
+export type ClientOnlyfansFeedBody = z.infer<typeof clientOnlyfansFeedBodySchema>;
+export type ClientOnlyfansFeedResponse = z.infer<typeof clientOnlyfansFeedResponseSchema>;
 /** The clients that write notes and report them; open on the wire, a platform admits its own. */
 export declare const CLIENT_NOTE_ATTRIBUTION_SOURCES: readonly ["fansly-extension", "chatspace-extension"];
 /** What was written: a regular note (Fansly contentType 12000, the questionnaire included) or the fan's custom name (12002). */
@@ -3873,6 +4243,169 @@ export declare const clientRouteSchemas: {
                     platformMessageId: z.ZodString;
                     outcome: z.ZodString;
                 }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientOnlyfansFeed: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Pass on what an OnlyFans page's ChatSpace already received: messages, deletions, purchases, tips, fans, chats, the sales ledger";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            hostAccountRef: z.ZodString;
+            creatorRef: z.ZodString;
+            records: z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
+                kind: z.ZodLiteral<"message">;
+                messageRef: z.ZodString;
+                fanRef: z.ZodString;
+                fromFan: z.ZodBoolean;
+                sentAt: z.ZodString;
+                observedAt: z.ZodString;
+                via: z.ZodString;
+                textHtml: z.ZodString;
+                price: z.ZodNullable<z.ZodNumber>;
+                isFree: z.ZodNullable<z.ZodBoolean>;
+                isOpened: z.ZodNullable<z.ZodBoolean>;
+                isNew: z.ZodNullable<z.ZodBoolean>;
+                isTip: z.ZodBoolean;
+                tipText: z.ZodNullable<z.ZodString>;
+                mediaCount: z.ZodNullable<z.ZodNumber>;
+                media: z.ZodArray<z.ZodObject<{
+                    ref: z.ZodString;
+                    type: z.ZodString;
+                    canView: z.ZodNullable<z.ZodBoolean>;
+                    duration: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strict>>;
+                automatic: z.ZodNullable<z.ZodBoolean>;
+                changedAt: z.ZodNullable<z.ZodString>;
+                fan: z.ZodNullable<z.ZodObject<{
+                    username: z.ZodNullable<z.ZodString>;
+                    name: z.ZodNullable<z.ZodString>;
+                    displayName: z.ZodNullable<z.ZodString>;
+                    subscribedOn: z.ZodNullable<z.ZodBoolean>;
+                    subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+                    subscribeAt: z.ZodNullable<z.ZodString>;
+                    expiredAt: z.ZodNullable<z.ZodString>;
+                    renewedAt: z.ZodNullable<z.ZodString>;
+                    subscriptionStatus: z.ZodNullable<z.ZodString>;
+                    subscribePrice: z.ZodNullable<z.ZodNumber>;
+                    regularPrice: z.ZodNullable<z.ZodNumber>;
+                    spend: z.ZodNullable<z.ZodObject<{
+                        tips: z.ZodNullable<z.ZodNumber>;
+                        subscriptions: z.ZodNullable<z.ZodNumber>;
+                        messages: z.ZodNullable<z.ZodNumber>;
+                        posts: z.ZodNullable<z.ZodNumber>;
+                        streams: z.ZodNullable<z.ZodNumber>;
+                        total: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strict>>;
+                }, z.core.$strict>>;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"deleted">;
+                messageRef: z.ZodString;
+                observedAt: z.ZodString;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"ppv">;
+                fanRef: z.ZodString;
+                contentType: z.ZodString;
+                contentRef: z.ZodString;
+                priceGross: z.ZodNumber;
+                observedAt: z.ZodString;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"tip">;
+                fanRef: z.ZodString;
+                tipRef: z.ZodString;
+                amountGross: z.ZodNumber;
+                observedAt: z.ZodString;
+            }, z.core.$strict>, z.ZodObject<{
+                username: z.ZodNullable<z.ZodString>;
+                name: z.ZodNullable<z.ZodString>;
+                displayName: z.ZodNullable<z.ZodString>;
+                subscribedOn: z.ZodNullable<z.ZodBoolean>;
+                subscribedOnExpiredNow: z.ZodNullable<z.ZodBoolean>;
+                subscribeAt: z.ZodNullable<z.ZodString>;
+                expiredAt: z.ZodNullable<z.ZodString>;
+                renewedAt: z.ZodNullable<z.ZodString>;
+                subscriptionStatus: z.ZodNullable<z.ZodString>;
+                subscribePrice: z.ZodNullable<z.ZodNumber>;
+                regularPrice: z.ZodNullable<z.ZodNumber>;
+                spend: z.ZodNullable<z.ZodObject<{
+                    tips: z.ZodNullable<z.ZodNumber>;
+                    subscriptions: z.ZodNullable<z.ZodNumber>;
+                    messages: z.ZodNullable<z.ZodNumber>;
+                    posts: z.ZodNullable<z.ZodNumber>;
+                    streams: z.ZodNullable<z.ZodNumber>;
+                    total: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strict>>;
+                kind: z.ZodLiteral<"fan">;
+                fanRef: z.ZodString;
+                observedAt: z.ZodString;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"chat">;
+                fanRef: z.ZodString;
+                unreadCount: z.ZodNullable<z.ZodNumber>;
+                lastMessageRef: z.ZodNullable<z.ZodString>;
+                observedAt: z.ZodString;
+            }, z.core.$strict>, z.ZodObject<{
+                kind: z.ZodLiteral<"ledger">;
+                transactionRef: z.ZodString;
+                fanRef: z.ZodNullable<z.ZodString>;
+                createdAt: z.ZodString;
+                amountGross: z.ZodNumber;
+                amountNet: z.ZodNumber;
+                description: z.ZodString;
+                status: z.ZodNullable<z.ZodString>;
+                observedAt: z.ZodString;
+            }, z.core.$strict>], "kind">>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                taken: z.ZodNumber;
+                duplicates: z.ZodNumber;
+                held: z.ZodNumber;
+                outOfRange: z.ZodNumber;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{

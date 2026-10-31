@@ -123,6 +123,7 @@ export * from './send-driver';
 export * from './native-send';
 export * from './owed-report';
 export * from './send-attribution';
+export * from './onlyfans-feed';
 export * from './note-attribution';
 
 export { createSettingsExtOwner, type SettingsExtOwner } from './settings-owner';

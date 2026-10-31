@@ -20,7 +20,7 @@ const PROFILE = { adapterVersion: '0.3.0', modules: { notificationEntry: 'a', co
 function bootstrap(over: { off?: readonly string[]; notServed?: readonly string[]; star?: Record<string, boolean>; capabilities?: readonly string[]; profiles?: unknown[]; navSec?: number; pages?: number } = {}): Bootstrap {
   // `notServed` — the hub does not serve what the feature needs: the page's own feature says `hub_not_ready` (the hub's rule).
   const features = Object.fromEntries(
-    ['wsTap', 'previewSend', 'previewSendMarkAiGenerated'].map((flag) => [
+    ['wsTap', 'previewSend', 'previewSendMarkAiGenerated', 'ofFeed'].map((flag) => [
       flag,
       (over.off ?? []).includes(flag) ? { available: false, reason: 'flag_off' } : (over.notServed ?? []).includes(flag) ? { available: false, reason: 'hub_not_ready' } : { available: true },
     ]),
@@ -135,12 +135,12 @@ const humanSend = (
 
 describe('the bootstrap → part B of the ChatSpace host port (the application’s half of the ChatSpace adapter)', () => {
   it('nobody signed in: the tap, X8 and the AI mark are off, no receipt profile', () => {
-    expect(liveConfigOf(null)).toEqual({ wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [], attribution: false });
+    expect(liveConfigOf(null)).toEqual({ wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [], attribution: false, onlyfansFeed: false });
   });
 
   it('[X8-01] each part is on while its switch is usable on at least one granted page — the page\'s own feature, never the top-level flags; the receipt profiles of `limits` go as they are', () => {
     // The pilot switched on page by page: every top-level flag false, and the adapter is on.
-    expect(liveConfigOf(bootstrap())).toEqual({ wsTap: true, previewSend: true, markAiGenerated: true, receiptProfiles: [PROFILE], attribution: false });
+    expect(liveConfigOf(bootstrap())).toEqual({ wsTap: true, previewSend: true, markAiGenerated: true, receiptProfiles: [PROFILE], attribution: false, onlyfansFeed: false });
     // A switch the page's own row has off is off, whatever the owner's `"*"` row says.
     expect(liveConfigOf(bootstrap({ off: ['previewSend'], star: { previewSend: true } })).previewSend).toBe(false);
     expect(liveConfigOf(bootstrap({ off: ['wsTap', 'previewSendMarkAiGenerated'], star: { wsTap: true, previewSendMarkAiGenerated: true }, profiles: [] }))).toMatchObject({ wsTap: false, markAiGenerated: false, receiptProfiles: [] });
@@ -158,6 +158,10 @@ describe('the bootstrap → part B of the ChatSpace host port (the application�
     expect(liveConfigOf(bootstrap({ capabilities: ['send-attribution-v1'], off: ['wsTap'] })).attribution).toBe(false);
     // A hub that does not record it is never told, and MAIN follows only drafts of ours, as before.
     expect(liveConfigOf(bootstrap({ capabilities: ['preview-send-custody-v1'] })).attribution).toBe(false);
+    // hub #953: the OnlyFans feed, heard by the tap, while some page has `ofFeed` and the hub takes it.
+    expect(liveConfigOf(bootstrap({ capabilities: ['onlyfans-feed-v1'] })).onlyfansFeed).toBe(true);
+    expect(liveConfigOf(bootstrap({ capabilities: ['onlyfans-feed-v1'], off: ['ofFeed'] })).onlyfansFeed).toBe(false);
+    expect(liveConfigOf(bootstrap({ capabilities: ['onlyfans-feed-v1'], off: ['wsTap'] })).onlyfansFeed).toBe(false);
   });
 });
 

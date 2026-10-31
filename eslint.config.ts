@@ -127,6 +127,13 @@ const RECEIPT_FILE = 'packages/host-chatspace/src/main/receipt.ts';
  */
 const OM_API_FILE = 'packages/host-chatspace/src/main/om-api.ts';
 /**
+ * 2026-11-01 (hub #953): the OnlyFans feed's observer is the other MAIN file that touches the page's `fetch` property:
+ * while the owner's `ofFeed` is on it stands in front of the page's fetch, passes every call through and reads a copy of
+ * the answers of four reads ChatSpace makes itself. It never makes a request of its own: the global `fetch` stays
+ * banned there too.
+ */
+const FEED_FILE = 'packages/host-chatspace/src/main/feed.ts';
+/**
  * The one request of Fansly's isolated world: a GET of a fan's photo on Fansly's CDN as the page (`win.fetch`, only an
  * address on `cdn*.fansly.com`) for an AI start, by the click. The global `fetch` stays banned there too.
  */
@@ -308,7 +315,7 @@ export default defineConfig(
     },
   },
   {
-    files: [RECEIPT_FILE, OM_API_FILE],
+    files: [RECEIPT_FILE, OM_API_FILE, FEED_FILE],
     rules: {
       'no-restricted-properties': ['error', ...BANNED_GLOBAL_PROPERTIES, ...hostNetworkProperties(['fetch'])],
     },

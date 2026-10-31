@@ -32839,8 +32839,8 @@ declare const baseRouteSchemas: {
                     exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
                 }, z.core.$strict>>;
                 order: z.ZodOptional<z.ZodEnum<{
-                    seen: "seen";
                     spend: "spend";
+                    seen: "seen";
                     followed_new: "followed_new";
                     followed_old: "followed_old";
                     fan_message: "fan_message";
@@ -33001,8 +33001,8 @@ declare const baseRouteSchemas: {
                     exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
                 }, z.core.$strict>>;
                 order: z.ZodOptional<z.ZodEnum<{
-                    seen: "seen";
                     spend: "spend";
+                    seen: "seen";
                     followed_new: "followed_new";
                     followed_old: "followed_old";
                     fan_message: "fan_message";
@@ -33600,8 +33600,8 @@ declare const baseRouteSchemas: {
                     exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
                 }, z.core.$strict>>;
                 order: z.ZodOptional<z.ZodEnum<{
-                    seen: "seen";
                     spend: "spend";
+                    seen: "seen";
                     followed_new: "followed_new";
                     followed_old: "followed_old";
                     fan_message: "fan_message";
