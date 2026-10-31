@@ -82,7 +82,7 @@ export interface LiveHost {
    * The OnlyFans accounts ChatSpace asked its socket to subscribe (`subscribedAccountIds`, of the accounts the port
    * serves: other platforms share the socket); null — not observable.
    */
-  readonly members: () => { has(acc: string): boolean } | null;
+  readonly members: () => { has(acc: string): boolean; readonly ids?: readonly string[] } | null;
   /** The open chat's draft and the digest of its text, when acc/fan is the open chat with an observed editor; else null. */
   readonly draft: (acc: string, fan: string) => { readonly draft: SentDraft; readonly digest: string } | null;
   /** The live port's anchor changed: the contract is judged again. */
@@ -132,11 +132,22 @@ export interface TapSink {
   /** The `wsFrames` anchor changed. */
   readonly changed: () => void;
   /** LiveHost.members. */
-  readonly members: () => { has(acc: string): boolean } | null;
+  readonly members: () => { has(acc: string): boolean; readonly ids?: readonly string[] } | null;
   /** A guarded failure of the tap script (LiveHost.fault). */
   readonly fault: (site: string) => void;
   /** 2026-10-28: OnlyMonster's socket said the notes of this fan of a subscribed account changed (contracts FROM_MAIN.fanNotesChanged). */
   readonly notes?: (acc: string, fan: string) => void;
+  /** 2026-11-01: ChatSpace's socket state and subscriptions changed (contracts FROM_MAIN.socket). */
+  readonly socket?: (state: SocketState) => void;
+}
+
+/** contracts FROM_MAIN.socket. */
+export interface SocketState {
+  readonly state: 'connecting' | 'open' | 'closed';
+  readonly since: number;
+  readonly authed: boolean;
+  readonly subscribed: readonly string[];
+  readonly observable: boolean;
 }
 
 /** 2026-11-01 (hub #953): what the OnlyFans feed (feed.ts) needs of the page, lent by the runtime once the live port is attached. */

@@ -12,7 +12,7 @@
 // on the whole of ChatSpace) — and never before either (EX-011).
 
 import { CONTRACTS_VERSION } from '@cg/contracts';
-import type { HostPort } from '@cg/contracts/host';
+import type { HostPort, SocketStateEvent } from '@cg/contracts/host';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { HostAccount } from '@cg/contracts/ids';
 import { TabRegisterResponseSchema } from '@cg/contracts/tab-protocol';
@@ -190,6 +190,8 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
    * the always-on tab's report to the hub reads it (core/services/server-tab.ts).
    */
   const coverage = new Map<string, { readonly covered: boolean; readonly since: number }>();
+  /** 2026-11-01: ChatSpace's socket as the tap last said it (the `socket` event); null — not said yet. */
+  let socketState: SocketStateEvent | null = null;
   /** The open chat's fan as the site's memory already names it; null — no chat, no name, or the port cannot say. */
   const fanLabelOf = (port: HostPort): string | null => {
     try {
@@ -239,6 +241,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
             lastInputAt,
             routeName: snapshot.route.name,
             coverage: [...coverage].slice(0, 50).map(([hostAccountId, state]) => ({ hostAccountId, ...state })),
+            socket: socketState,
             ...(include ? { accounts: [...accounts] } : {}),
           })
           .then((answer) => {
@@ -286,7 +289,10 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   void host.host.then((port) => {
     if (life.aborted) return;
     const off = port.subscribe((event) => {
-      if (event.type === 'coverage') {
+      if (event.type === 'socket') {
+        socketState = event.socket;
+        reportPresence();
+      } else if (event.type === 'coverage') {
         const covered = event.coverage.state === 'ok';
         if (coverage.get(event.coverage.hostAccountId)?.covered === covered) return;
         coverage.set(event.coverage.hostAccountId, { covered, since: Date.now() });

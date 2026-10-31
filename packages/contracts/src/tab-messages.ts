@@ -10,7 +10,7 @@ import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
 
 import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
-import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema, ROUTE_NAMES, SendAttributionFactSchema } from './host';
+import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema, ROUTE_NAMES, SendAttributionFactSchema, SocketStateEventSchema } from './host';
 import { ChatKeySchema, ChatRefSchema, GreetFromSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, type HostKind } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
@@ -443,6 +443,8 @@ export const TAB_REQUESTS = {
       coverage: z.optional(
         z.array(z.strictObject({ hostAccountId: NativeIdSchema, covered: z.boolean(), since: EpochMsSchema })).check(z.maxLength(50)),
       ),
+      /** 2026-11-01: ChatSpace's socket as the tap last said it (state, since, its subscriptions); null — not said yet. */
+      socket: z.optional(z.nullable(SocketStateEventSchema)),
     }),
     res: Ack,
     from: TAB,

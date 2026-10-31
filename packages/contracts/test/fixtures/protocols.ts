@@ -1212,6 +1212,10 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
     invalid: [{ ...accFan, msgId: IDS.msg1, fromFan: true, automatic: false, tip: true, sentAt: null, socketEpoch: 2, fanSequence: 9, text: 'hi' }],
   },
   coverage: { valid: [{ acc: IDS.acc, state: 'unknown', reason: 'socket-closed' }], invalid: [{ acc: IDS.acc, state: 'ok' }] },
+  socket: {
+    valid: [{ state: 'open', since: 1_700_000_000_000, authed: true, subscribed: [IDS.acc], observable: true }, { state: 'closed', since: 0, authed: false, subscribed: [], observable: false }],
+    invalid: [{ state: 'gone', since: 0, authed: false, subscribed: [], observable: false }, { state: 'open', since: 1, authed: true, subscribed: [IDS.acc] }],
+  },
   humanSend: {
     valid: [
       { ...accFan, pendingId: uuid(7), platformMessageId: null, textDigest: DIGEST, draft: humanDraft },

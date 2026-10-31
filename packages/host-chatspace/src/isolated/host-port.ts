@@ -616,6 +616,9 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       }
       case 'coverage':
         return emit({ type: 'coverage', coverage: { hostAccountId: event.payload.acc, state: event.payload.state, reason: event.payload.reason } });
+      // 2026-11-01: ChatSpace's socket state and subscriptions (the always-on tab's report reads them).
+      case 'socket':
+        return emit({ type: 'socket', socket: { ...event.payload, subscribed: [...event.payload.subscribed] } });
       case 'humanSend': {
         const { acc, fan, ...rest } = event.payload;
         return emit({ type: 'humanSend', fact: { chat: { host: 'chatspace', hostAccountId: acc, platformFanId: fan }, ...rest } });

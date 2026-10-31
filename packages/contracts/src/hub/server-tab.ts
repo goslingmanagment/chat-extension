@@ -41,9 +41,23 @@ export const ServerTabStateRequestSchema = z.strictObject({
         covered: z.boolean(),
         /** Since when `covered` holds (this browser's clock). */
         since: IsoTimestampSchema,
+        /** 2026-11-01 (`chatspace-tab-state-v2`): ChatSpace has subscribed it on its socket (its own subscription set). */
+        subscribed: z.optional(z.boolean()),
       }),
     )
     .check(z.maxLength(SERVER_TAB_LIMITS.maxAccounts)),
+  /**
+   * 2026-11-01 (`chatspace-tab-state-v2`): ChatSpace's socket itself, no traffic needed: connecting, open or closed and
+   * since when, authenticated or not; `observable` false — its subscription set could not be read. Absent — no tab said.
+   */
+  socket: z.optional(
+    z.strictObject({
+      state: z.enum(['connecting', 'open', 'closed']),
+      since: IsoTimestampSchema,
+      authed: z.boolean(),
+      observable: z.boolean(),
+    }),
+  ),
 });
 export type ServerTabStateRequest = z.infer<typeof ServerTabStateRequestSchema>;
 

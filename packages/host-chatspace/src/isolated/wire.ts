@@ -14,7 +14,7 @@ import type { CgCode } from '@cg/contracts/errors';
 /** contracts BRIDGE_WRITE_REQUESTS. */
 export const WRITE_REQUESTS: readonly ToMainType[] = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile', 'createFanNote', 'updateFanNote', 'deleteFanNote'];
 /** contracts BRIDGE_UNDROPPABLE_EVENTS: never coalesced or dropped. */
-export const UNDROPPABLE_EVENTS: readonly string[] = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged', 'ofFeed'];
+export const UNDROPPABLE_EVENTS: readonly string[] = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged', 'ofFeed', 'socket'];
 /** contracts BRIDGE_WRITE_FAILURES: the fixed outcome of a write that may have run (timeout, lost answer, `internal`). */
 export const WRITE_FAILURES = {
   insertGuarded: { state: 'uncertain', code: 'CG-INSERT-UNCERTAIN' },

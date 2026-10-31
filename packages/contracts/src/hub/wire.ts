@@ -276,6 +276,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'onlyfans-poll-v1',
   /** 2026-11-01: the always-on ChatSpace tab's report (`clientChatspaceTabState`); only that tab sends it. */
   'chatspace-tab-state-v1',
+  /** 2026-11-01: the report takes `socket` (the socket's own state) and each account's `subscribed`. */
+  'chatspace-tab-state-v2',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

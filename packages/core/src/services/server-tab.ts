@@ -25,7 +25,17 @@ export interface ServerTabSeen {
   readonly accounts: readonly string[];
   /** The socket's coverage of each account the tap reported, and since when (this browser's clock). */
   readonly coverage: readonly { readonly hostAccountId: string; readonly covered: boolean; readonly since: number }[];
+  /** ChatSpace's socket as the tap last said it; null — not said yet. */
+  readonly socket: {
+    readonly state: 'connecting' | 'open' | 'closed';
+    readonly since: number;
+    readonly authed: boolean;
+    readonly subscribed: readonly string[];
+    readonly observable: boolean;
+  } | null;
 }
+
+const SOCKET_ORDER = ['open', 'connecting', 'closed'] as const;
 
 const ROUTE_ORDER: readonly ServerTabRoute[] = ['chat', 'list', 'overview', 'other'];
 
@@ -44,8 +54,12 @@ export function serverTabReportOf(
   tabs: readonly ServerTabSeen[],
   pageOf: (hostAccountId: string) => string | null,
   now: number,
-): Pick<ServerTabStateRequest, 'route' | 'accounts'> {
+): Pick<ServerTabStateRequest, 'route' | 'accounts' | 'socket'> {
   if (tabs.length === 0) return { route: 'none', accounts: [] };
+  // The best socket of the tabs (an open one says the feed can flow), and the accounts any of them has subscribed.
+  const sockets = tabs.flatMap((tab) => (tab.socket === null ? [] : [tab.socket]));
+  const socket = sockets.sort((a, b) => SOCKET_ORDER.indexOf(a.state) - SOCKET_ORDER.indexOf(b.state))[0] ?? null;
+  const subscribed = new Set(sockets.filter((one) => one.observable).flatMap((one) => one.subscribed));
   const routes = new Set(tabs.map(routeOf));
   const route = ROUTE_ORDER.find((candidate) => routes.has(candidate)) ?? 'other';
   const accounts = new Map<string, { covered: boolean; since: number }>();
@@ -58,8 +72,12 @@ export function serverTabReportOf(
     }
   }
   for (const tab of tabs) for (const id of tab.accounts) if (!accounts.has(id)) accounts.set(id, { covered: false, since: now });
+  for (const id of subscribed) if (!accounts.has(id)) accounts.set(id, { covered: false, since: now });
   return {
     route,
+    ...(socket === null
+      ? {}
+      : { socket: { state: socket.state, since: new Date(Math.min(socket.since, now)).toISOString(), authed: socket.authed, observable: socket.observable } }),
     accounts: [...accounts.entries()]
       .filter(([id]) => /^[0-9]{1,30}$/.test(id))
       .slice(0, SERVER_TAB_LIMITS.maxAccounts)
@@ -68,6 +86,7 @@ export function serverTabReportOf(
         pageLabel: pageOf(hostAccountId),
         covered: state.covered,
         since: new Date(Math.min(state.since, now)).toISOString(),
+        ...(socket === null || !socket.observable ? {} : { subscribed: subscribed.has(hostAccountId) }),
       })),
   };
 }

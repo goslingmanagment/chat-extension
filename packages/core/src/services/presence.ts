@@ -46,6 +46,17 @@ export interface TabPresenceReport {
   readonly routeName?: 'chat' | 'accounts-overview' | 'other' | undefined;
   /** 2026-11-01: ChatSpace's socket coverage of each account the tap reported; absent — an older tab, or none yet. */
   readonly coverage?: readonly { readonly hostAccountId: string; readonly covered: boolean; readonly since: number }[] | undefined;
+  /** 2026-11-01: ChatSpace's socket as the tap last said it; null — not said yet; absent — an older tab. */
+  readonly socket?: TabSocketState | null | undefined;
+}
+
+/** ChatSpace's socket as a tab reported it (contracts SocketStateEvent). */
+export interface TabSocketState {
+  readonly state: 'connecting' | 'open' | 'closed';
+  readonly since: number;
+  readonly authed: boolean;
+  readonly subscribed: readonly string[];
+  readonly observable: boolean;
 }
 
 export interface TabPresence {
@@ -73,6 +84,8 @@ export interface TabPresence {
   readonly routeName: 'chat' | 'accounts-overview' | 'other' | null;
   /** 2026-11-01: ChatSpace's socket coverage per account as the tab last said it (the always-on tab's report). */
   readonly coverage: readonly { readonly hostAccountId: string; readonly covered: boolean; readonly since: number }[];
+  /** 2026-11-01: ChatSpace's socket as the tab last said it; null — never said. */
+  readonly socket: TabSocketState | null;
   readonly updatedAt: number;
 }
 
@@ -227,6 +240,7 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         lastInputAt: Math.max(report.lastInputAt ?? -1, previous?.lastInputAt ?? -1) < 0 ? null : Math.max(report.lastInputAt ?? -1, previous?.lastInputAt ?? -1),
         routeName: report.routeName ?? previous?.routeName ?? null,
         coverage: report.coverage ?? previous?.coverage ?? [],
+        socket: report.socket ?? previous?.socket ?? null,
         updatedAt: now,
       });
       notify();

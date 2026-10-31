@@ -57,7 +57,7 @@ import { idOf, isPlain } from '@cg/host-kit/main/check';
 import { guardWith } from '@cg/host-kit/main/guard';
 import { createFeed, messageRecord, socketRecord } from './feed';
 import { createLivePort } from './live-port';
-import { type Checkpoint, type LiveHost, type Tap, type TapSink, type WsTapHandle } from './live';
+import { type Checkpoint, type LiveHost, type SocketState, type Tap, type TapSink, type WsTapHandle } from './live';
 import { iso } from './page';
 import { WS_TAP_KEY } from '@cg/host-kit/main/protocol';
 import {
@@ -129,6 +129,13 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   let frames = 0;
   let spent = 0;
   let slowest = 0;
+  /**
+   * 2026-11-01: the socket's own state and since when, with ChatSpace's subscriptions, for the always-on tab's report:
+   * whether it is up needs no traffic. Said on a change only.
+   */
+  let socketState: SocketState['state'] = 'closed';
+  let socketSince = clock();
+  let socketSaid = '';
   // Counted by the bridge, once the live port is attached.
   const fail = (site: string): void => sink?.fault(site);
   const guard = guardWith(fail);
@@ -136,6 +143,22 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   const feed = createFeed(win, { guard, fail });
 
   const armed = (state: Account | undefined): boolean => on && authed && socket?.readyState === SOCKET_OPEN && !left.some(delivers) && !!state && state.subscribed && state.framed;
+  const socketReport = (): void => {
+    const members = sink?.members() ?? null;
+    const subscribed = members?.ids ? members.ids.slice(0, 50) : [];
+    const observable = members?.ids !== undefined;
+    const said = `${socketState}|${socketSince}|${authed}|${observable}|${subscribed.join(',')}`;
+    if (said === socketSaid || !sink?.socket) return;
+    socketSaid = said;
+    sink.socket({ state: socketState, since: socketSince, authed, subscribed, observable });
+  };
+  const socketNow = (state: SocketState['state']): void => {
+    if (state !== socketState) {
+      socketState = state;
+      socketSince = clock();
+    }
+    socketReport();
+  };
   const report = (acc: string, state: Account, reason: string): void => {
     const ok = armed(state);
     if (ok === state.ok) return;
@@ -167,6 +190,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       else report(acc, state, 'sync');
     }
     observable = members !== null;
+    socketReport();
   };
   /** A sleep (or a stalled tab) between two ticks: frames may have been missed. */
   const tick = (): void => {
@@ -268,6 +292,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       authed = true;
       for (const [acc, state] of accounts) report(acc, state, WS_AUTHENTICATED);
       sink?.changed();
+      socketReport();
     } else {
       const acc = ACCOUNT_OF.exec(data)?.[1];
       if (acc) touch(acc);
@@ -291,10 +316,13 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     authed = false;
     lose('closed');
     sink?.changed();
+    socketNow('closed');
   });
+  const onOpen = guard('open', () => socketNow('open'));
   const release = (): void => {
     socket?.removeEventListener('message', onMessage);
     socket?.removeEventListener('close', onClose);
+    socket?.removeEventListener('open', onOpen);
   };
   /** ChatSpace creates a new socket on every (re)connect: a new socket epoch. */
   const adopt = (next: WebSocket): void => {
@@ -307,8 +335,10 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     authed = false;
     next.addEventListener('message', onMessage);
     next.addEventListener('close', onClose);
+    next.addEventListener('open', onOpen);
     lose('reconnect');
     sink?.changed();
+    socketNow(next.readyState === SOCKET_OPEN ? 'open' : 'connecting');
   };
 
   const Tapped = new Proxy(Native, {
