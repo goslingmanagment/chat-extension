@@ -16,6 +16,7 @@
 
 import { type FanBadges, type FbuddyState } from '../fan-badges';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
+import { type Msg } from './i18n';
 import { type TargetHandle } from './selectors';
 import { type DataStamp, type VmView } from './view';
 import { type OutreachMediaVM, type OutreachSendVM, type OutreachWarningVM } from './outreach';
@@ -244,11 +245,18 @@ export interface OnlineWindowVM {
   readonly persona: string | null;
   /** When the list was read: «данные на 19:12». */
   readonly stamp: DataStamp;
-    /**
+  /**
    * Where «who is online» comes from on this page: `hub` — the hub's own presence (OnlyFansAPI), `tab` — the site's page
-   * itself, read by the tab once a minute and reported to the hub.
+   * itself, read by the tab and reported to the hub.
    */
   readonly seenBy: 'hub' | 'tab';
+  /** 2026-10-31: the site's own words for that source (ChatSpace's: its online poll and the page's probe); absent — `seenBy`'s. */
+  readonly seenWords?: Msg;
+  /**
+   * 2026-10-31: the page's probe failed lately in this tab — ChatSpace answered with an error (`error`) or said its own
+   * read timed out (`timeout`) — and when this tab asks again; null — it did not.
+   */
+  readonly probe: { readonly kind: 'error' | 'timeout'; readonly retryAt: IsoTimestamp } | null;
   readonly minutes: OnlinePeriod;
   /** «Зашли за»'s choices with how many fans each holds now. */
   readonly periods: readonly { readonly minutes: OnlinePeriod; readonly count: number }[];

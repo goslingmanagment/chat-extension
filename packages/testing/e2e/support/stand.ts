@@ -195,6 +195,10 @@ export const standServer = {
   failReleaseForms: async (fail: boolean): Promise<void> => {
     await control('/__stand/state', { body: { failReleaseForms: fail } });
   },
+  /** 2026-10-31: the presence endpoint (`fans-online`) answers 503 from now on, or answers again. */
+  failFansOnline: async (fail: boolean): Promise<void> => {
+    await control('/__stand/state', { body: { failFansOnline: fail } });
+  },
   /** 2026-10-28: a fan's OnlyMonster notes as the API keeps them (`{id, title, note, color, …}`, oldest first). */
   notes: async (accountId: string, fanId: string): Promise<Array<Record<string, unknown>>> =>
     ((await control(`/__stand/notes?accountId=${accountId}&fanId=${fanId}`)) as { items: Array<Record<string, unknown>> }).items,

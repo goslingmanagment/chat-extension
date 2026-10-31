@@ -393,6 +393,15 @@ export class BoardsBackground {
       const { pageId: _pageId, ...attempt } = request;
       return this.read('clientOnlineAttempt', { ...attempt, pageLabel });
     },
+    // hub #952: an OnlyFans tab's report of whom ChatSpace found online, and the page's probe — one call each.
+    'online.presence': ({ pageId, seen }) => {
+      const pageLabel = this.pageLabel(pageId);
+      return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientOnlinePresence', { pageLabel, seen });
+    },
+    'online.probe': ({ pageId }) => {
+      const pageLabel = this.pageLabel(pageId);
+      return pageLabel === null ? Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' })) : this.read('clientOnlineProbe', { pageLabel });
+    },
     'feed.read': ({ pageId, fanRef, cursor, limit, summaryWindow, conversationRef }) => {
       const pageLabel = this.pageLabel(pageId);
       if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));

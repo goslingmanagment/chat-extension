@@ -23,6 +23,8 @@ import {
   InsertReceiptSchema,
   OmFanNoteInputSchema,
   OmNoteIdSchema,
+  OnlineProbeAnswerSchema,
+  OnlineSeenAnswerSchema,
   OpenChatAnswerSchema,
   OpenChatPageSchema,
   InsertWireSchema,
@@ -35,7 +37,7 @@ import {
   thenInsertFits,
 } from './host';
 import { DraftProvenanceSchema, HostAccountSchema, HostIdentitySchema, PartRefSchema } from './ids';
-import { ATTACH_LIMITS, BRIDGE_LIMITS, CHAT_READ_LIMITS, OPEN_CHAT_LIMITS, SEND_LIMITS } from './limits';
+import { ATTACH_LIMITS, BRIDGE_LIMITS, CHAT_READ_LIMITS, ONLINE_SOURCE_LIMITS, OPEN_CHAT_LIMITS, SEND_LIMITS } from './limits';
 import { MediaAnswerSchema, MediaRequestSchema } from './media';
 import { SendMediaSchema } from './send-media';
 import { CountSchema, DigestSchema, DurationMsSchema, EpochMsSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, UuidSchema, boundedText, displayText } from './primitives';
@@ -280,6 +282,23 @@ export const TO_MAIN = {
   updateFanNote: { payload: z.strictObject({ ...AccFan, noteId: OmNoteIdSchema, note: OmFanNoteInputSchema }), data: FanNoteWriteAnswerSchema, write: true, timeout: 'network' },
   /** Note `noteId` deleted (OnlyMonster keeps no copy), on a person's click. */
   deleteFanNote: { payload: z.strictObject({ ...AccFan, noteId: OmNoteIdSchema }), data: FanNoteRemoveAnswerSchema, write: true, timeout: 'network' },
+  /**
+   * 2026-10-31 (hub #952): who of the account's fans ChatSpace's own online poll found online lately, from the page's
+   * memory (its chats store); no request is made. Its deadline is ONLINE_SOURCE_LIMITS.seenBridgeMs.
+   */
+  onlineSeen: { payload: z.strictObject({ acc: NativeIdSchema }), data: OnlineSeenAnswerSchema, write: false, timeout: 'call' },
+  /**
+   * 2026-10-31 (hub #952, the owner's `onlineProbe`): one `fans-online` read about these fans with the page's own
+   * session, as ChatSpace's own poll asks — only while the page is on screen (asked again right before the request),
+   * never a chat's history, never repeated. A failed request is an answer (`ok: false`), not a bridge error. Its
+   * deadline is ONLINE_SOURCE_LIMITS.probeBridgeMs.
+   */
+  onlineProbe: {
+    payload: z.strictObject({ acc: NativeIdSchema, fans: z.array(NativeIdSchema).check(z.minLength(1), z.maxLength(ONLINE_SOURCE_LIMITS.probeMax)) }),
+    data: OnlineProbeAnswerSchema,
+    write: false,
+    timeout: 'network',
+  },
 } as const satisfies Record<ToMainType, { readonly payload: z.ZodMiniType; readonly data: z.ZodMiniType; readonly write: boolean; readonly timeout: 'call' | 'navInsert' | 'network' | 'attach' }>;
 
 export type ToMainPayload<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['payload']>;
@@ -385,6 +404,8 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('createFanNote'),
   requestFrame('updateFanNote'),
   requestFrame('deleteFanNote'),
+  requestFrame('onlineSeen'),
+  requestFrame('onlineProbe'),
 ]);
 export type BridgeRequest = z.infer<typeof BridgeRequestSchema>;
 

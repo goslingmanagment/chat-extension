@@ -21,6 +21,9 @@ import {
   FRAME_DATA_BUDGET,
   LIVE_TEXT_MAX_CHARS,
   MAX_ACCOUNTS,
+  ONLINE_SEEN_MAX,
+  ONLINE_SEEN_SCAN_MAX,
+  ONLINE_SEEN_WINDOW_MS,
   ROUTE_CHAT,
   ROUTE_OVERVIEW,
   STORE_CACHE,
@@ -288,6 +291,32 @@ export function createReader(doc: Document, pinia: PagePinia | null) {
       }
       const last = row?.['lastMessage'];
       return isPlain(last) && last['isOutgoing'] === false;
+    },
+    /**
+     * 2026-10-31 («Онлайн» on OnlyFans, hub #952): the fans of `acc` ChatSpace's own online poll last found online within
+     * ONLINE_SEEN_WINDOW_MS of `now`, the newest first, at most ONLINE_SEEN_MAX. Its chats store keeps, per fan, the
+     * poll's answer (`isFanOnline`, asked without the fan's `lastSeen`, so a fan the poll never asked about is never
+     * online here) and when it asked for this account (`getFanOnlineFetchedAt`). The fans looked at are the ones the page
+     * holds for the account — its fans map and its chat lists, the open chat's fan among them —, at most
+     * ONLINE_SEEN_SCAN_MAX. Nothing is requested, nothing written.
+     */
+    onlineSeen(acc: string, now: number): Plain[] {
+      const fans = new Set<string>();
+      const add = (fan: string | null): void => {
+        if (fan !== null && fans.size < ONLINE_SEEN_SCAN_MAX) fans.add(fan);
+      };
+      for (const fan of Object.keys(record(KEY_FANS, acc) ?? {})) add(idOf(fan));
+      for (const item of list(call(STORE_CACHE, 'getEntries', { key: [KEY_CHAT_LIST, acc] }))) {
+        for (const chat of rows(isPlain(item) ? (item as Entry).state?.value?.data : null)) add(isPlain(chat) ? idOf(chat['id']) : null);
+      }
+      const seen: { readonly fanRef: string; readonly at: number }[] = [];
+      for (const fan of fans) {
+        const at = call(STORE_CHATS, 'getFanOnlineFetchedAt', acc, fan);
+        if (typeof at !== 'number' || !Number.isFinite(at) || now - at > ONLINE_SEEN_WINDOW_MS) continue;
+        if (call(STORE_CHATS, 'isFanOnline', fan, null) === true) seen.push({ fanRef: fan, at: Math.min(at, now) });
+      }
+      seen.sort((a, b) => b.at - a.at);
+      return seen.slice(0, ONLINE_SEEN_MAX).map((fan) => ({ fanRef: fan.fanRef, at: new Date(fan.at).toISOString() }));
     },
     /** The list the person looks at: the observed `["chatList", acc, …]` entry, newest; nothing is loaded for it. */
     chatList(acc: string, limit: number) {

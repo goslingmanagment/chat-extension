@@ -38,6 +38,7 @@ import type { SendFuseState } from '@cg/contracts/send';
 import type { FanPanelVM, FocusPlace, I18n, HostUiProfile, MountDeps } from '@cg/contracts/vm';
 import type { KeyOwnership } from '@cg/core/application/hotkeys';
 import type { DecisionWatch } from '@cg/core/application/journal';
+import type { OnlineSiteSource } from '@cg/core/application/online/source';
 import type { DispatcherCommandId, HotkeyClient, RouteKind, SiteKeyRules } from '@cg/core/domain/hotkeys';
 import type { TabPayloadValidator, TabRpcClient } from '@cg/platform';
 import type { KitFailure } from '@cg/ui/kit';
@@ -264,10 +265,12 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    */
   ai(lazy: <T>(entry: LazyEntryName) => Promise<T>, rpc: TabRpcClient): AiHostPolicy | Promise<AiHostPolicy>;
   /**
-   * 1.65.0, «Онлайн»: the site reads who of the creator's followers was active and tells the hub (Fansly's background,
-   * at most once a minute per creator) before the hub's list is read. Absent — the hub knows by itself (OnlyFansAPI).
+   * 1.65.0, «Онлайн»: the site's own word of who is online, told to the hub before its list is read — Fansly's
+   * followers active lately (its background's read, at most once a minute per creator); 2026-10-31, ChatSpace's own
+   * (its online poll, from the page's memory, and the page's probe where the owner's `onlineProbe` is on). Made once
+   * with the application. Absent — the hub knows by itself.
    */
-  readonly onlineSeen?: (rpc: TabRpcClient, pageId: number, hostAccountId: string) => Promise<void>;
+  readonly online?: (env: { readonly rpc: TabRpcClient; readonly host: P; readonly win: Window; readonly clock: { now(): number } }) => OnlineSiteSource;
   /**
    * The site's own surfaces, started once with the application (R20 P13b: Fansly's vault panel and its entry): they
    * mount into our layers, load their chunks of the site's build and stop with the answer. Absent — none (ChatSpace).

@@ -54,9 +54,10 @@ export const HUB_ROUTE_PATHS = {
   clientWinBack: '/api/v1/client/pages/:pageLabel/win-back',
   clientWinBackAttempt: '/api/v1/client/pages/:pageLabel/win-back/attempts',
   clientHandoff: '/api/v1/client/pages/:pageLabel/handoff',
-  // «Онлайн» (hub #879): the list, a Fansly tab's presence report, what a chatter did in the window.
+  // «Онлайн» (hub #879): the list, a tab's presence report, the page's probe (hub #952), what a chatter did in the window.
   clientOnline: '/api/v1/client/pages/:pageLabel/online',
   clientOnlinePresence: '/api/v1/client/pages/:pageLabel/online/presence',
+  clientOnlineProbe: '/api/v1/client/pages/:pageLabel/online/probe',
   clientOnlineAttempt: '/api/v1/client/pages/:pageLabel/online/attempts',
   // «Очереди» (hub fan queues): the caller's queues, a portion, a fan's outcome, the portion given back.
   clientFanQueues: '/api/v1/client/pages/:pageLabel/fan-queues',

@@ -266,6 +266,30 @@ export const CHAT_READ_LIMITS = { usernameMax: 100, bridgeMs: 22 * SECOND, fresh
 export const FAN_NOTES_LIMITS = { titleMax: 200, textMax: 20_000, listMax: 100, bridgeMs: 12 * SECOND } as const;
 
 /**
+ * 2026-10-31 (hub #952): «Онлайн» on OnlyFans, from ChatSpace itself (HostPort.onlinePresence) — OnlyFansAPI's feed of
+ * who is online stops. The page's own memory: `seenMax` — fans one read names at most (the hub's presence report);
+ * `seenWindowMs` — an online state ChatSpace's poll found longer ago is not told any more (the window's longest
+ * «Зашли за»); `seenScanMax` — fans of the page's memory looked at, at most; `seenBridgeMs` — that read's deadline (no
+ * request). The page's probe (the owner's `onlineProbe`, one tab of the team at a time): `probeMax` — fans one
+ * `fans-online` read asks about (ChatSpace's own batch); `probeEveryMs` — a tab asks for the probe at most this often
+ * (ChatSpace's own cycle); `probeRequestMs` — MAIN aborts its request after this (ChatSpace's own client waits 40 s);
+ * `probeBridgeMs` — the isolated side's deadline; `backoffMs` — after a probe ChatSpace answered with an error or
+ * `timed_out`, the tab asks again only this much later, doubling up to `backoffMaxMs`.
+ */
+export const ONLINE_SOURCE_LIMITS = {
+  seenMax: 200,
+  seenWindowMs: 120 * MINUTE,
+  seenScanMax: 5000,
+  seenBridgeMs: 3 * SECOND,
+  probeMax: 400,
+  probeEveryMs: 5 * MINUTE,
+  probeRequestMs: 30 * SECOND,
+  probeBridgeMs: 33 * SECOND,
+  backoffMs: 10 * MINUTE,
+  backoffMaxMs: 40 * MINUTE,
+} as const;
+
+/**
  * 1.27.0 (X54): the PPV state of the open chat a draft start carries (`StartOp.livePpv`, hub `livePpvContext`).
  * `readMessages` — how many of the chat's newest messages the start reads from the host's API for it; `waitMs` — how
  * long the Generate click waits for that read beside the tail before it starts without it (the read goes on and fills

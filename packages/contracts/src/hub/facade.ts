@@ -48,7 +48,7 @@ import { type SendAttributionsRequest, type SendAttributionsResult } from './att
 import { type FanNoteAttributions, type FanNoteAttributionsQuery, type NoteAttributionsRequest, type NoteAttributionsResult } from './note-attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
 import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
-import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineQuery } from './online';
+import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineProbeRequest, type OnlineProbeResult, type OnlineQuery } from './online';
 import { type FanQueueItemDone, type FanQueueItemDoneRequest, type FanQueueRelease, type FanQueueReleaseRequest, type FanQueues, type FanQueuesQuery, type FanQueueTake, type FanQueueTakeRequest } from './fan-queues';
 import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type FanMarks, type FanMarksQuery } from './fan-marks';
@@ -222,8 +222,10 @@ export interface HubFacade {
   handoff(query: HandoffQuery): Promise<Handoff>;
   /** «Онлайн»: the page's fans seen online within `minutes`, why to write now and with what; refused without `online-v1`. */
   online(query: OnlineQuery): Promise<OnlineList>;
-  /** A Fansly tab's report of the followers it saw active (Fansly pages only, the hub says); never repeated by itself. */
+  /** A tab's report of the fans it saw online (Fansly's followers, ChatSpace's online fans); never repeated by itself. */
   onlinePresence(request: OnlinePresenceRequest): Promise<OnlinePresenceResult>;
+  /** The page's probe lent to this tab, or when it may be (OnlyFans, the owner's `onlineProbe`); never repeated here. */
+  onlineProbe(request: OnlineProbeRequest): Promise<OnlineProbeResult>;
   /** What a chatter did in «Онлайн» (a message sent, «Не предлагать», its undo); never repeated by itself. */
   onlineAttempt(request: OnlineAttemptRequest): Promise<OnlineAttemptResult>;
   /** «Очереди»: the caller's fan queues of the page; refused without `fan-queues-v1`. */

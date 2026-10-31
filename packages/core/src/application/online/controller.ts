@@ -1,9 +1,12 @@
 // «Онлайн» (2026-10-26, the owner's demo became the window; view `online`): the page's fans who came online, why to
 // write to each now, and a fast pass through them. Who is online and why is the hub's
-// (`clientOnline`, `online-v1`): OnlyFansAPI's presence on OnlyFans; on Fansly the creator's followers the tab saw
-// active (`fansly.online.seen`, at most once a minute per creator, the background's), reported to the hub first.
-// ChatSpace's own dot says «в сети» where it shows one; OnlyFansAPI's word is «зашёл N мин назад» (its «offline» comes
-// ~30 minutes late). The list is read when the window opens and every minute while it is open and the tab is on screen.
+// (`clientOnline`, `online-v1`): on Fansly the creator's followers the tab saw active (`fansly.online.seen`, at most
+// once a minute per creator, the background's); on OnlyFans (2026-10-31, hub #952: OnlyFansAPI's feed stops) whom
+// ChatSpace itself found online — its own poll's word from the page's memory and, where the owner's `onlineProbe` is
+// on, the page's probe of its spenders (the site's source, source.ts) —, reported to the hub first. ChatSpace's own dot
+// says «в сети» where it shows one; OnlyFansAPI's word, while it lasts, is «зашёл N мин назад» (its «offline» comes ~30
+// minutes late). A probe ChatSpace did not answer is said on the window's line, with when it is asked again. The list is
+// read when the window opens and every minute while it is open and the tab is on screen.
 //
 // Each fan gets one text: Reply, Hi or Ping written by the AI through the fan's card (the preview from `online`), or a
 // text of the team's guide word for word — A where they talked before, B where the fan never wrote — with the fan's
@@ -59,6 +62,7 @@ import { fanHandle, parseFanHandle } from '../boards/handles';
 import { boardOpenRefusal, issueCause, type ChatNavigator } from '../boards/navigate';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
 import { type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
+import { type OnlineSiteSource } from './source';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
 import { dataView, errorOf, failureView, loadingView, localError, msg, stamp } from '../boards/views';
 
@@ -138,6 +142,11 @@ export interface OnlineControllerDeps {
   readonly visible?: () => boolean;
   /** The fan whose chat is open on the page: the person is with them already, the pass does not go there by itself. */
   readonly openChat?: () => string | null;
+  /**
+   * The site's own word of who is online, told to the hub before each read where the site sends nothing itself
+   * (ChatSpace, 2026-10-31), and how the page's probe went; absent — the hub knows by itself.
+   */
+  readonly source?: OnlineSiteSource;
 }
 
 export interface OnlineController extends SurfaceController<'online'> {
@@ -776,13 +785,20 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     };
   }
 
+  /** The page's probe failed lately in this tab: ChatSpace did not answer, and when it is asked again. */
+  function probeOf(ctx: PageContextState): OnlineWindowVM['probe'] {
+    const pageId = ctx.binding?.pageId ?? null;
+    const trouble = pageId === null ? null : (deps.source?.probe?.trouble(pageId) ?? null);
+    return trouble === null ? null : { kind: trouble.kind, retryAt: iso(trouble.retryAt) as IsoTimestamp };
+  }
+
   function viewOf(ctx: PageContextState): VmView {
     if (ctx.phase === 'loading') return loadingView(null);
     if (ctx.phase === 'blocked') return failureView(ctx.blocker ?? { code: 'CG-UNKNOWN' }, i18n, RETRY);
     if (!pageFlag(ctx, 'preview')) return failureView(flagFailure(ctx, 'preview'), i18n, RETRY);
     if (ctx.bootstrap?.capabilities.includes(ONLINE_CAPABILITY) !== true) return { s: 'forbidden', error: localError('CG-FEATURE-DISABLED', i18n), remedy: null };
     if (list === null) return listError !== null ? failureView(listError, i18n, RETRY) : loadingView(null);
-    if (list.items.length === 0) return { s: 'empty', why: msg(own !== null ? 'online.empty.fansly' : 'online.empty.onlyfans') };
+    if (list.items.length === 0) return { s: 'empty', why: msg(deps.source?.words?.empty ?? (own !== null ? 'online.empty.fansly' : 'online.empty.onlyfans')) };
     return listError !== null ? dataView([{ kind: 'source-failed', source: 'online', code: listError.code }]) : dataView([]);
   }
 
@@ -822,7 +838,9 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       creator: ctx.account?.username ?? null,
       persona: ctx.persona?.label ?? null,
       stamp: stamp(iso(loadedAt), list === null ? 'unknown' : 'complete'),
-      seenBy: own !== null ? 'tab' : 'hub',
+      seenBy: own !== null || deps.source !== undefined ? 'tab' : 'hub',
+      ...(deps.source?.words === undefined ? {} : { seenWords: msg(deps.source.words.line) }),
+      probe: probeOf(ctx),
       minutes,
       periods: ONLINE_PERIODS.map((period) => ({ minutes: period, count: list === null ? 0 : list.items.filter((item) => inPeriod(item, period, live)).length })),
       tab,
@@ -926,12 +944,14 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     const atEpoch = epoch;
     loading = true;
     changed(true);
-    // Fansly: who of the creator's followers was active, told to the hub first (the background asks the site at most
-    // once a minute per creator; a failure leaves the hub's own last word). A slow site never holds the list: what it
-    // tells after ONLINE_SEEN_WAIT_MS goes into the next read.
-    if (own !== null) {
-      const seen = own.seen(binding.pageId, binding.platformAccountId).catch(() => undefined);
-      await Promise.race([seen, new Promise<void>((resolve) => void clock.setTimer(ONLINE_SEEN_WAIT_MS, resolve))]);
+    // The site's word of who is online, told to the hub first — Fansly's followers active lately (the background asks
+    // the site at most once a minute per creator), ChatSpace's own (the page's memory; its probe never holds this) —; a
+    // failure leaves the hub's own last word. A slow site never holds the list: what it tells after
+    // ONLINE_SEEN_WAIT_MS goes into the next read.
+    const teller = own ?? deps.source ?? null;
+    if (teller !== null) {
+      const told = teller.seen(binding.pageId, binding.platformAccountId).catch(() => undefined);
+      await Promise.race([told, new Promise<void>((resolve) => void clock.setTimer(ONLINE_SEEN_WAIT_MS, resolve))]);
     }
     if (disposed || run !== reads || atEpoch !== epoch) return;
     const answer = await rpc.request('online.list', { pageId: binding.pageId, minutes: ONLINE_READ_MINUTES }).catch(() => null);
@@ -1497,6 +1517,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (state.online !== previous.online || state.preview.online !== previous.preview.online) changed();
   });
   const offLive = deps.live?.subscribe(() => changed(true)) ?? null;
+  const offProbe = deps.source?.probe?.subscribe(() => changed(true)) ?? null;
   const offLanguage = i18n.subscribe(() => changed(true));
 
   return {
@@ -1519,6 +1540,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       offContext();
       offSurfaces();
       offLive?.();
+      offProbe?.();
       offLanguage();
       for (const timer of [pollTimer, settleTimer, advanceTimer, searchTimer, paceTimer, manualTimer]) if (timer !== null) clock.clearTimer(timer);
       directoryListeners.clear();

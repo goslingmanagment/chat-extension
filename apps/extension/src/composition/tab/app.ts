@@ -380,6 +380,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
 
   /** What stands over the page without being a window: the folded «Рассылка»'s chip (tab/surfaces.ts). */
   const pins = createPinState();
+  // «Онлайн»: the site's own word of who is online, one per tab — the bar's count and the window share it.
+  const online = site.online?.({ rpc, host, win, clock });
   const world: TabWorld = {
     win,
     rpc: controllerRpc(rpc, tokens, (type, payload) => {
@@ -409,7 +411,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     drafts: env.drafts,
     files: { save: (file) => saveFile({ fileName: file.name, mime: file.mime, body: file.bytes }) },
     pins,
-    ...(site.onlineSeen === undefined ? {} : { onlineSeen: (pageId: number, account: string) => site.onlineSeen?.(rpc, pageId, account) ?? Promise.resolve() }),
+    ...(online === undefined ? {} : { online }),
   };
 
   // ── stage one: the dock's controller, keys and navigation, the shell ───────

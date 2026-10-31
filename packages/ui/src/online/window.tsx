@@ -59,8 +59,25 @@ function Line({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null {
     <div class="cg-nw__line cg-ow__line">
       <span>{parts.flatMap((part, index) => (index === 0 ? [part] : [' · ', part]))}</span>
       <span class="cg-num">
-        {i18n.t(vm.seenBy === 'tab' ? 'online.line.sourceTab' : 'online.line.sourceHub')}
+        {vm.seenWords === undefined ? i18n.t(vm.seenBy === 'tab' ? 'online.line.sourceTab' : 'online.line.sourceHub') : i18n.t(vm.seenWords.key, vm.seenWords.params)}
         {vm.stamp.asOf === null ? null : ` · ${i18n.t('common.dataAsOf', { time: { time: vm.stamp.asOf } })}`}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 2026-10-31: the page's probe failed lately in this tab — ChatSpace did not answer, or ran out of its own time — and
+ * when the tab asks again (it backs off, never hammers).
+ */
+function ProbeLine({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null {
+  const i18n = useI18n();
+  if (vm.probe === null || vm.view.s === 'loading' || vm.view.s === 'error' || vm.view.s === 'forbidden') return null;
+  return (
+    <div class="cg-nw__line ol-probe" role="status" data-cg-online-probe={vm.probe.kind}>
+      <span>
+        <Icon name="clock" size={12} />
+        {i18n.t(vm.probe.kind === 'timeout' ? 'online.line.probeTimeout' : 'online.line.probeError', { time: { time: vm.probe.retryAt } })}
       </span>
     </div>
   );
@@ -337,6 +354,7 @@ export function OnlineWindow(): JSX.Element {
         <Button label={i18n.t('online.refresh')} icon="refresh" iconOnly variant="quiet" class="cg-nw__refresh" onClick={() => void dispatch({ type: 'SetOnline', refresh: true })} />
       </div>
       <Line vm={vm} />
+      <ProbeLine vm={vm} />
       {vm.view.s === 'offline' ? <ViewState view={vm.view} /> : null}
       <div class="cg-nw__main">
         <aside class="cg-nw__side" aria-label={i18n.t('online.listLabel')} data-cg-online={vm.view.s}>

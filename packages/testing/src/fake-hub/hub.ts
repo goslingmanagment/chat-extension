@@ -544,7 +544,7 @@ export class FakeHub {
       claims: s.claims.snapshot(now),
       ingested: s.data.ingestedEvents().length,
       voiceNotes: s.voice.snapshot(now),
-      online: { attempts: s.data.onlineAttempts(), presence: s.data.onlinePresenceReports() },
+      online: { attempts: s.data.onlineAttempts(), presence: s.data.onlinePresenceReports(), probes: s.data.onlineProbes() },
       fanQueues: { reports: s.data.fanQueueReports() },
       clientContexts: s.clientContexts.map((record) => ({ ...record })),
     };
@@ -1231,9 +1231,11 @@ export class FakeHub {
       case 'clientInConversation':
         return read(s.data.inConversation(need(page), need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now));
       case 'clientOnline':
-        return read(s.data.online(need(page), request as OnlineQuery, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now, s.config.spendersTotal));
+        return read(s.data.online(need(page), request as OnlineQuery, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now, s.config.spendersTotal, s.config.onlineStand));
       case 'clientOnlinePresence':
-        return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now));
+        return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now, s.config.spendersTotal));
+      case 'clientOnlineProbe':
+        return read(s.data.onlineProbe(need(page), need(principal).user.userId, now, s.config.spendersTotal));
       case 'clientFanQueues':
         return read(s.data.fanQueues(need(page), need(principal).user.userId, now));
       case 'clientFanQueueTake':

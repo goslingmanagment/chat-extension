@@ -127,6 +127,16 @@ export const FAN_NOTE_TEXT_MAX = 20_000;
 export const FAN_NOTES_MAX = 100;
 export const FAN_NOTE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 export const FAN_NOTE_COLOR = /^(?:#[0-9A-Fa-f]{3,8}|[A-Za-z]{1,20})$/;
+/**
+ * contracts ONLINE_SOURCE_LIMITS (2026-10-31): «Онлайн» on OnlyFans read from ChatSpace — the fans its own poll found
+ * online (at most this many, at most this old, out of at most this many of its memory), and the page's probe: fans one
+ * `fans-online` read asks about, and when MAIN gives up on its answer.
+ */
+export const ONLINE_SEEN_MAX = 200;
+export const ONLINE_SEEN_WINDOW_MS = 7_200_000;
+export const ONLINE_SEEN_SCAN_MAX = 5000;
+export const ONLINE_PROBE_MAX = 400;
+export const ONLINE_PROBE_REQUEST_MS = 30_000;
 
 /** CG codes MAIN answers with (contracts CG_CODES). */
 export const CG_CHAT_CHANGED = 'CG-INSERT-CHAT-CHANGED';

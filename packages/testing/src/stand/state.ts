@@ -35,6 +35,8 @@ export class StandState {
   withholdAuth = false;
   /** While true, the release forms of vault media (X53) answer 503: the picker's co-creator tags cannot be read. */
   failReleaseForms = false;
+  /** The presence endpoint (`fans-online`) answers 503 (2026-10-31: «Онлайн»'s probe when ChatSpace fails it). */
+  failFansOnline = false;
   /** What the socket sends on its own (summaries, typing). */
   traffic: SocketTraffic = DEFAULT_SOCKET_TRAFFIC;
   /** Fans the presence endpoint (`fans-online`) answers as online, by `${accountId}:${fanId}`; nobody on start. */
@@ -66,6 +68,7 @@ export class StandState {
     this.holdFans(false);
     this.withholdAuth = false;
     this.failReleaseForms = false;
+    this.failFansOnline = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.onlineFans.clear();
     // A fan the world starts with as seen a moment ago (the showcase's) is online to the presence poll too.

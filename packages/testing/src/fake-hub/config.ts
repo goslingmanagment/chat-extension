@@ -146,6 +146,8 @@ export interface FakeHubConfig {
   readonly voiceDay: VoiceDay;
   /** 2026-10-27: a long conversation for Coach's depth and Coach's ```more note (types.ts `coachDepth`); null — none. */
   readonly coachDepth: CoachDepthKnob | null;
+  /** «Онлайн»: the stand's own presence of a page (types.ts `onlineStand`); off — only what the tabs reported. */
+  readonly onlineStand: boolean;
 }
 
 /** The owner's `"*"` row over every switch in the contracts (the hub's own top-level names). */
@@ -177,6 +179,7 @@ const BASE = {
   voiceLaneOff: [],
   voiceDay: DEFAULT_VOICE_DAY,
   coachDepth: null,
+  onlineStand: true,
 } as const;
 
 export function presetConfig(name: BootstrapPresetName): FakeHubConfig {
@@ -291,6 +294,7 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.voiceLaneOff === undefined ? {} : { voiceLaneOff: [...patch.voiceLaneOff] }),
     ...(patch.voiceDay === undefined ? {} : { voiceDay: { ...config.voiceDay, ...patch.voiceDay, spentToday: { ...config.voiceDay.spentToday, ...patch.voiceDay.spentToday } } }),
     ...(patch.coachDepth === undefined ? {} : { coachDepth: patch.coachDepth === null ? null : { ...patch.coachDepth } }),
+    ...(patch.onlineStand === undefined ? {} : { onlineStand: patch.onlineStand }),
   };
   const owner = ['master', 'flags', 'pageFlags', 'capabilities', 'minVersion', 'bindingsByHost', 'limits'].some((key) => key in patch);
   return owner ? { ...next, configRevision: config.configRevision + 1 } : next;

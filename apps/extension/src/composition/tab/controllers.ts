@@ -26,6 +26,7 @@ import type { AppRouter } from '@cg/core/application';
 import type { GreetHereState, GreetedChat } from '@cg/core/application/newcomers';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
 import { toastKindOf } from '@cg/core/domain/errors';
+import type { OnlineSiteSource } from '@cg/core/application/online/source';
 import type { Logger } from '@cg/core/domain/logging';
 
 import type * as AiChunk from '../../../lazy/entries/ai';
@@ -89,8 +90,11 @@ export interface TabWorld {
   readonly files: AiChunk.FileSaver;
   /** What stands over the page without being a window: «Рассылка» folded into its chip. Absent — nothing. */
   readonly pins?: PinState;
-  /** 1.65.0: the site reads who of the creator's followers is active and tells the hub (Fansly); absent — the hub knows. */
-  readonly onlineSeen?: (pageId: number, hostAccountId: string) => Promise<void>;
+  /**
+   * 1.65.0: the site's own word of who is online, told to the hub before its list is read (Fansly's followers; since
+   * 2026-10-31 ChatSpace's own); absent — the hub knows by itself.
+   */
+  readonly online?: OnlineSiteSource;
 }
 
 const done = (type: UiAction['type'], outcome: Extract<ActionReceipt, { ok: true }>['outcome'] = 'done'): ActionReceipt => ({ ok: true, type, outcome });
@@ -121,7 +125,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
       return { pageId: ready.target.binding.pageId, account: ready.target.binding.platformAccountId };
     },
     async read(page: { readonly pageId: number; readonly account: string }, minutes: number) {
-      await world.onlineSeen?.(page.pageId, page.account).catch(() => undefined);
+      await world.online?.seen(page.pageId, page.account).catch(() => undefined);
       const answer = await world.rpc.request('online.list', { pageId: page.pageId, minutes });
       return answer.ok ? answer.payload : null;
     },
@@ -490,6 +494,7 @@ export async function startBoards(
     live: { online: () => new Set(palette.online().map((fan) => fan.fanRef)), subscribe: (listener) => palette.subscribe(listener) },
     visible: () => win.document.visibilityState === 'visible',
     openChat: () => boardsHost.current().route.chat?.platformFanId ?? null,
+    ...(world.online === undefined ? {} : { source: world.online }),
   });
   // «Очереди»: the person's fan queues of the page (the hub's), a portion at a time; the chunk says how each site sends.
   const queues = chunk.createQueuesController({

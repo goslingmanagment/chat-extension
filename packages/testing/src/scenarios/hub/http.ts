@@ -128,6 +128,8 @@ export const HUB_FEATURE_REQUIREMENTS: Readonly<Record<ClientFeatureFlag, Readon
   notes: { onlyfans: NOTHING, fansly: NOTHING },
   vault: { fansly: NOTHING },
   registration: { fansly: NOTHING },
+  // hub #952: «Онлайн»'s probe of who of the page's spenders is online, OnlyFans only.
+  onlineProbe: { onlyfans: { capabilities: ['online-v1'] } },
 };
 
 /**

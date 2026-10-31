@@ -40,9 +40,9 @@ describe('tab/pages ↔ background protocol (§5.4)', () => {
     expect(C.parseTabPayload('evt', 'tab.command', { command: { kind: 'chat', host: 'chatspace', hostAccountId: '1001', platformFanId: '2002' } })).toEqual({ ok: false });
   });
 
-  it('[EX-015] X8 and the hub’s «Новые» are ChatSpace’s: a fansly.com tab is refused them, a page is not affected', () => {
+  it('[EX-015] X8, the hub’s «Новые» and «Онлайн»’s word from ChatSpace are ChatSpace’s: a fansly.com tab is refused them, a page is not affected', () => {
     const hosted = C.TAB_REQUEST_TYPES.filter((type) => (C.TAB_REQUESTS[type] as C.TabRequestSpec).hosts !== undefined);
-    expect(hosted.sort()).toEqual(['newcomers.claim', 'newcomers.list', 'send.begin', 'send.fuse', 'send.fuseState', 'send.list', 'send.report', 'send.status']);
+    expect(hosted.sort()).toEqual(['newcomers.claim', 'newcomers.list', 'online.presence', 'online.probe', 'send.begin', 'send.fuse', 'send.fuseState', 'send.list', 'send.report', 'send.status']);
     for (const type of hosted) {
       expect((C.TAB_REQUESTS[type] as C.TabRequestSpec).hosts, type).toEqual(['chatspace']);
       expect(C.mayRequest(type, 'tab', null, 'chatspace'), type).toBe(true);

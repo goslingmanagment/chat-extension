@@ -445,6 +445,30 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     },
     res: { valid: [{ attemptId: 5 }], invalid: [{}, { attemptId: '5' }] },
   },
+  // hub #952: an OnlyFans tab's report of whom ChatSpace found online, and the page's probe.
+  'online.presence': {
+    req: {
+      valid: [{ pageId: 13, seen: [{ fanRef: '74001001', lastSeenAt: '2026-10-31T19:40:00.000Z' }] }],
+      invalid: [
+        { pageId: 13, seen: [] },
+        { pageId: 13, seen: [{ fanRef: '74001001', lastSeenAt: 'now' }] },
+        { pageId: 13, seen: [{ fanRef: 'kai_38', lastSeenAt: '2026-10-31T19:40:00.000Z' }] },
+        { pageId: 13, seen: Array.from({ length: 201 }, (_, index) => ({ fanRef: String(74001001 + index), lastSeenAt: '2026-10-31T19:40:00.000Z' })) },
+        { pageId: 13, pageLabel: 'model-one', seen: [{ fanRef: '74001001', lastSeenAt: '2026-10-31T19:40:00.000Z' }] },
+      ],
+    },
+    res: { valid: [{ recorded: 1, skipped: 0, serverNow: '2026-10-31T19:40:01.000Z' }], invalid: [{ recorded: '1', skipped: 0, serverNow: '2026-10-31T19:40:01.000Z' }, {}] },
+  },
+  'online.probe': {
+    req: { valid: [{ pageId: 13 }], invalid: [{ pageId: 0 }, { pageId: 13, fanRefs: ['74001001'] }] },
+    res: {
+      valid: [
+        { granted: true, fanRefs: ['74001001', '74001002'], nextAt: '2026-10-31T19:45:00.000Z', serverNow: '2026-10-31T19:40:00.000Z' },
+        { granted: false, fanRefs: [], nextAt: '2026-10-31T19:45:00.000Z', serverNow: '2026-10-31T19:41:00.000Z' },
+      ],
+      invalid: [{ granted: 'yes', fanRefs: [], nextAt: '2026-10-31T19:45:00.000Z', serverNow: '2026-10-31T19:40:00.000Z' }, { granted: true, fanRefs: [] }],
+    },
+  },
   'queues.list': {
     req: { valid: [{ pageId: 13 }], invalid: [{ pageId: 0 }, { pageId: 13, pageLabel: 'model-two-fansly' }] },
     res: {
@@ -1114,6 +1138,30 @@ export const BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainType]: BridgeReques
   deleteFanNote: {
     payload: { valid: [{ ...accFan, noteId: '8801' }], invalid: [{ ...accFan }, { ...accFan, noteId: '8801?force=1' }, { ...accFan, noteId: '8801', note: omNoteInput }] },
     data: { valid: [{ ok: true }, { ok: false, failure: 'unknown', status: null }, { ok: false, failure: 'http', status: 404 }], invalid: [{ ok: true, note: null }, { ok: 'yes' }] },
+  },
+  // 2026-10-31 (hub #952): who ChatSpace's own poll found online, from the page's memory; and the page's probe.
+  onlineSeen: {
+    payload: { valid: [{ acc: IDS.acc }], invalid: [{}, { acc: IDS.acc, fan: IDS.fan }] },
+    data: {
+      valid: [{ ok: true, fans: [{ fanRef: IDS.fan, at: ISO }] }, { ok: true, fans: [] }],
+      invalid: [{ ok: true, fans: [{ fanRef: IDS.fan }] }, { ok: false, failure: 'http', status: 500 }, { ok: true, fans: Array.from({ length: 201 }, () => ({ fanRef: IDS.fan, at: ISO })) }],
+    },
+  },
+  onlineProbe: {
+    payload: {
+      valid: [{ acc: IDS.acc, fans: [IDS.fan] }, { acc: IDS.acc, fans: Array.from({ length: 400 }, (_, index) => String(70_000_000 + index)) }],
+      invalid: [{ acc: IDS.acc, fans: [] }, { acc: IDS.acc, fans: Array.from({ length: 401 }, (_, index) => String(70_000_000 + index)) }, { acc: IDS.acc }],
+    },
+    data: {
+      valid: [
+        { ok: true, online: [IDS.fan], timedOut: false, at: ISO },
+        { ok: true, online: [], timedOut: true, at: ISO },
+        { ok: false, failure: 'hidden', status: null },
+        { ok: false, failure: 'account', status: null },
+        { ok: false, failure: 'http', status: 429 },
+      ],
+      invalid: [{ ok: true, online: [IDS.fan], at: ISO }, { ok: false, failure: 'offline', status: null }, { ok: true, online: ['kai_38'], timedOut: false, at: ISO }],
+    },
   },
 };
 

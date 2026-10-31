@@ -1690,6 +1690,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('queue.winback.pick', data['queue.winback.pick']);
   rpc.handle('queue.handoff', data['queue.handoff']);
   rpc.handle('online.list', data['online.list']);
+  rpc.handle('online.presence', data['online.presence']);
+  rpc.handle('online.probe', data['online.probe']);
   rpc.handle('online.attempt', data['online.attempt']);
   // «Очереди»: the person's queues, a portion, each fan's outcome, the portion given back.
   rpc.handle('queues.list', data['queues.list']);

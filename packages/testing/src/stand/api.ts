@@ -276,6 +276,10 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
   // The chat list's presence poll (fixture ui/fans-online.ts): which of the asked fans are online now.
   if (method === 'POST' && rest === 'platforms/onlyfans/fans-online') {
     const body = await readJson(request);
+    if (state.failFansOnline) {
+      sendJson(response, 503, errorBody(503));
+      return log(503, { accountId });
+    }
     const asked = typeof body === 'object' && body !== null && Array.isArray((body as Record<string, unknown>)['fan_ids']) ? ((body as Record<string, unknown>)['fan_ids'] as unknown[]) : [];
     const online = asked.filter((fanId) => (typeof fanId === 'number' || typeof fanId === 'string') && state.isOnline(accountId, String(fanId)));
     sendJson(response, 200, { online, timed_out: false });

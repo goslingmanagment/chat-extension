@@ -36,7 +36,7 @@ import {
   type HostKind,
   type Platform,
 } from './ids';
-import { BRIDGE_LIMITS, DRAFT_MEDIA_LIMITS, FAN_NOTES_LIMITS, LIVE_IMAGE_LIMITS, LIVE_TEXT_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
+import { BRIDGE_LIMITS, DRAFT_MEDIA_LIMITS, FAN_NOTES_LIMITS, LIVE_IMAGE_LIMITS, LIVE_TEXT_LIMITS, ONLINE_SOURCE_LIMITS, OPEN_CHAT_LIMITS, STORAGE_LIMITS } from './limits';
 import {
   CountSchema,
   DigestSchema,
@@ -709,6 +709,60 @@ export type ChatReadAnswer = z.infer<typeof ChatReadAnswerSchema>;
 /** What HostPort.chatReadState resolves with; it never rejects. `unavailable` — no bridge, or no answer from MAIN. */
 export type ChatReadRead = { readonly ok: true; readonly last: ChatReadState | null; readonly raced?: true } | { readonly ok: false; readonly reason: (typeof OPEN_CHAT_FAILURES)[number] | 'unavailable' };
 
+// ── «Онлайн» on OnlyFans, from ChatSpace (2026-10-31, hub #952) ──────────────
+
+/** A fan ChatSpace found online, and when it asked (its own poll's moment for this fan and account). */
+export const OnlineSeenFanSchema = z.strictObject({ fanRef: NativeIdSchema, at: IsoTimestampSchema });
+export type OnlineSeenFan = z.infer<typeof OnlineSeenFanSchema>;
+
+/**
+ * MAIN's answer to `onlineSeen`: the fans of the account ChatSpace's own online poll (the chats on its screen, the open
+ * chat) last found online within ONLINE_SOURCE_LIMITS.seenWindowMs, the newest first. Read from the page's memory: no
+ * request is made.
+ */
+export const OnlineSeenAnswerSchema = z.strictObject({ ok: z.literal(true), fans: z.array(OnlineSeenFanSchema).check(z.maxLength(ONLINE_SOURCE_LIMITS.seenMax)) });
+export type OnlineSeenAnswer = z.infer<typeof OnlineSeenAnswerSchema>;
+
+/**
+ * Why a probe brought no answer: OpenChatAnswer's failures, and `hidden` — the page was not on screen right before the
+ * request (ChatSpace polls only while visible), `account` — the account is not one the page has: nothing was asked.
+ */
+export const ONLINE_PROBE_FAILURES = [...OPEN_CHAT_FAILURES, 'hidden', 'account'] as const;
+export type OnlineProbeFailure = (typeof ONLINE_PROBE_FAILURES)[number];
+
+/**
+ * MAIN's answer to `onlineProbe`: one `POST …/platforms/onlyfans/fans-online` with the page's own session — which of
+ * the fans asked about OnlyMonster says are online (`online`, only fans asked about), and when the answer came.
+ * `timedOut` — OnlyMonster said its own read timed out: the answer is partial, and ChatSpace itself drops such an
+ * answer for OnlyFans; so do we.
+ */
+export const OnlineProbeAnswerSchema = z.union([
+  z.strictObject({ ok: z.literal(true), online: z.array(NativeIdSchema).check(z.maxLength(ONLINE_SOURCE_LIMITS.probeMax)), timedOut: z.boolean(), at: IsoTimestampSchema }),
+  z.strictObject({ ok: z.literal(false), failure: z.enum(ONLINE_PROBE_FAILURES), status: z.nullable(z.int().check(z.gte(100), z.lte(599))) }),
+]);
+export type OnlineProbeAnswer = z.infer<typeof OnlineProbeAnswerSchema>;
+
+/** What HostPort.onlinePresence.seen resolves with; it never rejects. `unavailable` — no bridge, or no answer from MAIN. */
+export type OnlineSeenRead = { readonly ok: true; readonly fans: readonly OnlineSeenFan[] } | { readonly ok: false; readonly reason: 'unavailable' };
+/** What HostPort.onlinePresence.probe resolves with; it never rejects. */
+export type OnlineProbeRead =
+  | { readonly ok: true; readonly online: readonly string[]; readonly timedOut: boolean; readonly at: IsoTimestamp }
+  | { readonly ok: false; readonly reason: OnlineProbeFailure | 'unavailable'; readonly status: number | null };
+
+/**
+ * 2026-10-31: who ChatSpace itself says is online, for «Онлайн» on OnlyFans (HostPort.onlinePresence). Reads only, and
+ * never a chat's history.
+ */
+export interface OnlinePresencePort {
+  /** The fans of the account ChatSpace's own poll found online lately, the newest first; nothing is requested. */
+  seen(hostAccountId: string): Promise<OnlineSeenRead>;
+  /**
+   * One `fans-online` read about these fans (1…ONLINE_SOURCE_LIMITS.probeMax) with the page's own session — only while
+   * the page is on screen, asked again right before the request. Never repeated.
+   */
+  probe(hostAccountId: string, fanRefs: readonly string[]): Promise<OnlineProbeRead>;
+}
+
 // ── OnlyMonster's fan notes (2026-10-28) ─────────────────────────────────────
 
 /**
@@ -1251,6 +1305,11 @@ export interface HostPort {
    * owner's exception to X54); absent — a host without them (Fansly keeps its notes through the background).
    */
   readonly fanNotes?: FanNotesPort;
+  /**
+   * 2026-10-31: who ChatSpace itself says is online — its own poll's word from the page's memory, and the page's probe
+   * («Онлайн» on OnlyFans, hub #952); absent — a host without it (Fansly's background reads its followers itself).
+   */
+  readonly onlinePresence?: OnlinePresencePort;
   /**
    * 1.15.0 (R20 §7.7): the generation snapshot (FS-TAIL-6), only on a host whose tab observes its chats itself
    * (Fansly); absent on ChatSpace, whose fresh text is `readVisibleTail` and whose freshness is `checkpoint`.

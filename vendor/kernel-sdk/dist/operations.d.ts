@@ -843,6 +843,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/online/presence";
     };
+    readonly clientOnlineProbe: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/online/probe";
+    };
     readonly clientSendAttributions: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/send-attributions";

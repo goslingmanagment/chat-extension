@@ -1,6 +1,7 @@
 // «Онлайн» as the fake hub serves it (hub #879: services/client-online.ts, client-online-rules.ts): the page's fans
 // seen online within `minutes`, each with why to write now and with what (the hub's own rules, ported below), the team
-// guide's texts, a Fansly tab's presence reports and what the chatters did in the window. Nothing here sends anything.
+// guide's texts, the tabs' presence reports, the page's probe lent to one tab at a time (hub #952) and what the chatters
+// did in the window. Nothing here sends anything.
 //
 // Where the fans come from:
 // - a scenario's list of the page (`online`: items with the facts they name, the rest filled in; `seenAgoMs` keeps an
@@ -9,7 +10,10 @@
 //   the board says of them (a subscriber since yesterday, one whose subscription ends without renewal, a short chat);
 // - a Fansly page: whom the tabs reported (`clientOnlinePresence`) — the fake takes every reported follower as the
 //   page's (the stand's followers are its creator's), refreshes a listed fan's moment and, without a scenario's list,
-//   adds a follower the board does not have (the hub knows no chat of his: «никогда не писал»).
+//   adds a follower the board does not have (the hub knows no chat of his: «никогда не писал»);
+// - an OnlyFans page (hub #952): whom ChatSpace found online, as its tabs reported it — kept only for a fan the page
+//   has, as the hub keeps it; the stand's own presence of an OnlyFans page (OnlyFansAPI's) is gone with `onlineStand`
+//   off, and only the tabs' word is left.
 //
 // What the chatters did is reflected as the hub reflects it, in its order: «Не предлагать» sets the fan aside with who
 // marked him and its undo clears it (the latest of the two wins); another chatter «в разговоре» with him (the fake's
@@ -25,12 +29,13 @@ import {
   type OnlineList,
   type OnlinePresenceRequest,
   type OnlinePresenceResult,
+  type OnlineProbeResult,
   type OnlineTemplate,
 } from '@cg/contracts';
 
 import { iso } from './clock';
 import { type FakePage } from './config';
-import { type FakeOnlineAttempt, type FakeOnlinePresenceReport } from './types';
+import { type FakeOnlineAttempt, type FakeOnlinePresenceReport, type FakeOnlineProbe } from './types';
 
 /** An answer of the model or the hub's refusal (data.ts `Read`, structurally). */
 type Read<T> = { readonly ok: true; readonly body: T } | { readonly ok: false; readonly refusal: { readonly error: string; readonly reason?: string } };
@@ -74,10 +79,18 @@ export const ONLINE_RULES = {
   maxItems: 200,
   /** A presence moment this far ahead of the hub's clock is a skew; beyond it, a wrong one (not kept). */
   presenceSkewMs: 60_000,
+  /** The page's probe (hub #952): lent at most this often, for the whole team, naming at most this many spenders. */
+  probeEveryMs: 300_000,
+  probeMax: 400,
 } as const;
 
 /** Where a fan's moment came from (hub shared/fans.ts). */
-export const ONLINE_SEEN_SOURCES = { ofapi: 'ofapi_last_seen', fanslyFollowers: 'fansly_followers_last_seen', fanslyExtension: 'fansly_extension_last_seen' } as const;
+export const ONLINE_SEEN_SOURCES = {
+  ofapi: 'ofapi_last_seen',
+  fanslyFollowers: 'fansly_followers_last_seen',
+  fanslyExtension: 'fansly_extension_last_seen',
+  chatspace: 'chatspace_online',
+} as const;
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -268,6 +281,9 @@ export class OnlineModel {
   private readonly presence = new Map<string, Map<string, number>>();
   private readonly reports: FakeOnlinePresenceReport[] = [];
   private readonly attempts: FakeOnlineAttempt[] = [];
+  /** When each page's probe may be lent next (hub #952), and every lend, in order. */
+  private readonly probeNextAt = new Map<string, number>();
+  private readonly probes: FakeOnlineProbe[] = [];
 
   /** A scenario's list of a page; `null` — back to the stand's fans (items) or the guide (templates); absent — as it was. */
   set(pageLabel: string, set: { readonly items?: readonly OnlineSeed[] | null; readonly templates?: readonly OnlineTemplate[] | null }): void {
@@ -307,7 +323,8 @@ export class OnlineModel {
       .map(({ facts, fixed }) => {
         // A tab's report moves the fan's moment forward (never back).
         const at = reported?.get(facts.fanRef);
-        const seen: OnlineFacts = at !== undefined && (facts.seenAt === null || at > facts.seenAt) ? { ...facts, seenAt: at, seenSource: ONLINE_SEEN_SOURCES.fanslyExtension } : facts;
+        const source = page.platform === 'fansly' ? ONLINE_SEEN_SOURCES.fanslyExtension : ONLINE_SEEN_SOURCES.chatspace;
+        const seen: OnlineFacts = at !== undefined && (facts.seenAt === null || at > facts.seenAt) ? { ...facts, seenAt: at, seenSource: source } : facts;
         return { item: this.decide(page, seen, fixed, world.others.get(facts.fanRef) ?? null, now), facts: seen };
       })
       .filter(({ facts }) => facts.onlineSince !== null || (facts.seenAt !== null && facts.seenAt >= since))
@@ -374,16 +391,18 @@ export class OnlineModel {
   }
 
   /**
-   * As the hub's `clientOnlinePresence`: a Fansly page's alone (an OnlyFans page's is OnlyFansAPI's: 409
-   * `platform_unsupported`). Each fan once, his newest moment; a moment more than a minute ahead is not kept, one
-   * within it is now. Every reported follower is the page's here (module comment).
+   * As the hub's `clientOnlinePresence`: a Fansly page's followers, and (hub #952) an OnlyFans page's fans ChatSpace
+   * found online; another platform 409 `platform_unsupported`. Each fan once, his newest moment; a moment more than a
+   * minute ahead is not kept, one within it is now. Every reported Fansly follower is the page's here (module comment);
+   * an OnlyFans fan is kept only when the page has him (`known`), as the hub keeps only fans linked to the page.
    */
-  report(page: FakePage, userId: number, request: OnlinePresenceRequest, now: number): Read<OnlinePresenceResult> {
-    if (page.platform !== 'fansly') return { ok: false, refusal: { error: 'client_feature_disabled', reason: 'platform_unsupported' } };
+  report(page: FakePage, userId: number, request: OnlinePresenceRequest, now: number, known: (fanRef: string) => boolean): Read<OnlinePresenceResult> {
+    if (page.platform !== 'fansly' && page.platform !== 'onlyfans') return { ok: false, refusal: { error: 'client_feature_disabled', reason: 'platform_unsupported' } };
     const latest = new Map<string, number>();
     for (const entry of request.seen) {
       const at = Date.parse(entry.lastSeenAt);
       if (Number.isNaN(at) || at > now + ONLINE_RULES.presenceSkewMs) continue;
+      if (page.platform === 'onlyfans' && !known(entry.fanRef)) continue;
       latest.set(entry.fanRef, Math.max(latest.get(entry.fanRef) ?? -Infinity, Math.min(at, now)));
     }
     const kept = this.presence.get(page.pageLabel) ?? new Map<string, number>();
@@ -391,6 +410,26 @@ export class OnlineModel {
     this.presence.set(page.pageLabel, kept);
     this.reports.push({ pageLabel: page.pageLabel, userId, seen: [...latest].map(([fanRef, at]) => ({ fanRef, lastSeenAt: iso(at) })), at: now });
     return ok({ recorded: latest.size, skipped: request.seen.length - latest.size, serverNow: iso(now) });
+  }
+
+  /**
+   * As the hub's `clientOnlineProbe` (hub #952; the route's flag `onlineProbe` is checked before): the page's probe lent
+   * to the first caller after its last lend plus ONLINE_RULES.probeEveryMs, with the page's spenders to ask about
+   * (`spenders`, the most paid first); everyone else meanwhile is told when.
+   */
+  probe(page: FakePage, userId: number, spenders: () => readonly string[], now: number): Read<OnlineProbeResult> {
+    const due = this.probeNextAt.get(page.pageLabel) ?? -Infinity;
+    if (now < due) return ok({ granted: false, fanRefs: [], nextAt: iso(due), serverNow: iso(now) });
+    const nextAt = now + ONLINE_RULES.probeEveryMs;
+    this.probeNextAt.set(page.pageLabel, nextAt);
+    const fanRefs = spenders().slice(0, ONLINE_RULES.probeMax);
+    this.probes.push({ pageLabel: page.pageLabel, userId, fanRefs: fanRefs.length, at: now });
+    return ok({ granted: true, fanRefs: [...fanRefs], nextAt: iso(nextAt), serverNow: iso(now) });
+  }
+
+  /** Every lend of a page's probe, in order (tests and the status read them). */
+  probeRows(): readonly FakeOnlineProbe[] {
+    return [...this.probes];
   }
 
   /** As the hub's `clientOnlineAttempt`: a fan of the page (else 409 `not_listed`), journaled under the caller. */

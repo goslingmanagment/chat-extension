@@ -1,8 +1,10 @@
 // «Онлайн» (hub #879, `online-v1`): the page's fans seen online recently, why to write to each now and with what
-// (`clientOnline`); the Fansly fans a tab saw active, kept as their presence (`clientOnlinePresence`, Fansly pages only:
-// OnlyFansAPI reports an OnlyFans page's own); and what a chatter did in the window — a message sent, «Не предлагать» and
-// its undo — journaled and shared by the team (`clientOnlineAttempt`). The hub sends nothing to a fan: the chatter does,
-// one click per fan.
+// (`clientOnline`); the fans a tab saw online, kept as their presence (`clientOnlinePresence`: on Fansly the creator's
+// followers active lately, on OnlyFans — hub #952, since OnlyFansAPI's feed stops — the fans ChatSpace's own online
+// poll found online); the page's one bounded probe of who of its known spenders is online, lent to one tab of the team at
+// a time (`clientOnlineProbe`, OnlyFans, the owner's `onlineProbe`); and what a chatter did in the window — a message
+// sent, «Не предлагать» and its undo — journaled and shared by the team (`clientOnlineAttempt`). The hub sends nothing
+// to a fan: the chatter does, one click per fan.
 //
 // The requests mirror the hub's strict ones; the answers are open like every hub answer: a reason, an act or an aside
 // this client does not know reads as the most neutral one (`none`, no act, not set aside).
@@ -27,8 +29,14 @@ export type OnlineAttemptAction = (typeof ONLINE_ATTEMPT_ACTIONS)[number];
 /** What wrote a message that went. */
 export const ONLINE_SENT_ACTS = ['reply', 'hi', 'ping', 'template'] as const;
 export type OnlineSentAct = (typeof ONLINE_SENT_ACTS)[number];
-/** Fansly fans one presence report names at most (a `followersnew` page is 100). */
+/** Fans one presence report names at most (a Fansly `followersnew` page is 100). */
 export const ONLINE_PRESENCE_MAX = 200;
+/** Fans one probe names at most (hub CLIENT_ONLINE_PROBE_MAX): one `fans-online` read of ChatSpace's own size. */
+export const ONLINE_PROBE_MAX = 400;
+/** The hub lends a page's probe this often at most, for the whole team (hub CLIENT_ONLINE_PROBE_EVERY_SECONDS): ChatSpace's own pace. */
+export const ONLINE_PROBE_EVERY_MS = 300_000;
+/** Where a fan's moment came from (hub shared/fans.ts): ChatSpace found the fan online (an OnlyFans tab's report). */
+export const ONLINE_SEEN_CHATSPACE = 'chatspace_online';
 
 const Time = z.string();
 
@@ -93,12 +101,29 @@ export type OnlineList = z.infer<typeof OnlineListSchema>;
 
 export const OnlinePresenceRequestSchema = z.strictObject({
   pageLabel: PageLabelSchema,
-  /** Fansly fans the tab saw active (`followersnew?lastSeenAfter=` in the chatter's own session) and when. */
+  /**
+   * Fans the tab saw online and when: on Fansly the creator's followers active lately (`followersnew?lastSeenAfter=`
+   * in the chatter's own session), on OnlyFans the fans ChatSpace's own online poll found online (when it asked).
+   */
   seen: z.array(z.strictObject({ fanRef: NativeIdSchema, lastSeenAt: z.iso.datetime({ offset: true }) })).check(z.minLength(1), z.maxLength(ONLINE_PRESENCE_MAX)),
 });
 export type OnlinePresenceRequest = z.infer<typeof OnlinePresenceRequestSchema>;
 export const OnlinePresenceResultSchema = z.object({ recorded: z.number(), skipped: z.number(), serverNow: Time });
 export type OnlinePresenceResult = z.infer<typeof OnlinePresenceResultSchema>;
+
+/** The page's probe asked for (hub `clientOnlineProbe`): the body is empty. */
+export const OnlineProbeRequestSchema = z.strictObject({ pageLabel: PageLabelSchema });
+export type OnlineProbeRequest = z.infer<typeof OnlineProbeRequestSchema>;
+export const OnlineProbeResultSchema = z.object({
+  /** This caller holds the page's probe now: ask about `fanRefs` once, report who is online. Else another tab does. */
+  granted: z.boolean(),
+  /** The page's known spenders to ask about, the most paid first; empty unless granted. */
+  fanRefs: z.array(z.string()),
+  /** When the page's next probe may be lent. */
+  nextAt: Time,
+  serverNow: Time,
+});
+export type OnlineProbeResult = z.infer<typeof OnlineProbeResultSchema>;
 
 export const OnlineAttemptRequestSchema = z.strictObject({
   pageLabel: PageLabelSchema,

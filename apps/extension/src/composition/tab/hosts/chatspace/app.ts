@@ -19,6 +19,7 @@ import { CHATSPACE_CONTRACT } from '@cg/contracts/host';
 import { hasCapability, type Bootstrap } from '@cg/contracts/hub';
 import type { SendFuseState } from '@cg/contracts/send';
 import { CHATSPACE_AI } from '@cg/core/application/hosts/chatspace/ai';
+import { createChatSpaceOnlineSource } from '@cg/core/application/hosts/chatspace/online';
 import { flagOnSomePage } from '@cg/core/domain/ops';
 import type { ChatSpaceHostPort, ChatSpaceLiveConfig } from '@cg/host-chatspace/isolated';
 import { CHATSPACE_UI } from '@cg/host-chatspace/isolated/profile';
@@ -92,4 +93,16 @@ export const CHATSPACE_APP: HostAppAdapter<ChatSpaceHostPort, ChatSpaceLiveConfi
   // only what it lacks (decision X47).
   fanPanelBesideHost: true,
   start: (env) => startChatSpaceSurfaces(env),
+  // «Онлайн» (2026-10-31, hub #952): OnlyFansAPI's feed stops, so ChatSpace's own word of who is online goes to the hub —
+  // its online poll from the page's memory and, where the owner's `onlineProbe` is on, the page's probe.
+  online: ({ rpc, host, win, clock }) =>
+    createChatSpaceOnlineSource({
+      port: host.onlinePresence,
+      accounts: () => host.current().accounts,
+      report: (pageId, seen) => rpc.request('online.presence', { pageId, seen: [...seen] }).then((answer) => answer.ok, () => false),
+      lend: (pageId) => rpc.request('online.probe', { pageId }).then((answer) => (answer.ok ? answer.payload : null), () => null),
+      clock,
+      random: Math.random,
+      visible: () => win.document.visibilityState === 'visible',
+    }),
 };
