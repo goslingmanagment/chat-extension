@@ -97,8 +97,8 @@ async function fansly(s: See): Promise<void> {
   await s.wait(800);
   await s.shot('hi-into-chat', { file: 'greet-toast-hi-into-chat', clip: box(0, 0, 1440, 900) });
 
-  // The reminder in a tab of another model names the fan's model above him. The stand's Fansly runs one creator, so
-  // the toast is the kit gallery's (the same component, Fansly's palette): Matt, Sofia Lane's follower.
+  // The reminder in a tab of another page wears that page's label on an ear (2026-10-31). The stand's Fansly runs one
+  // creator, so the toast is the kit gallery's (the same component, Fansly's palette): Matt, Sofia Lane's follower.
   await s.browser.url(`${standOrigin()}/kit-gallery/?host=fansly&theme=light&lang=ru&section=toasts`);
   const host = await s.browser.$('[data-host="gallery"]');
   await host.waitForExist({ timeout: 15_000 });
@@ -106,12 +106,12 @@ async function fansly(s: See): Promise<void> {
   // The gallery's other toasts out of the frame: this one alone, where the column starts.
   const toasts = (await host.shadow$$('.cg-toast').getElements()) as unknown as HTMLElement[];
   await s.browser.execute((...nodes: HTMLElement[]) => {
-    for (const node of nodes) if (!node.innerText.includes('Sofia Lane')) node.style.display = 'none';
+    for (const node of nodes) if (node.getAttribute('data-cg-toast') !== 'g3') node.style.display = 'none';
   }, ...toasts);
   const ours = (await host.shadow$$('.cg-toast--greet').getElements()) as unknown as HTMLElement[];
   const rectOf = (): Promise<Box | null> =>
     s.browser.execute((...nodes: HTMLElement[]) => {
-      const node = nodes.find((each) => each.innerText.includes('Sofia Lane'));
+      const node = nodes.find((each) => each.getAttribute('data-cg-toast') === 'g3');
       if (node === undefined) return null;
       const { x, y, width, height } = node.getBoundingClientRect();
       return { x, y, width, height };
@@ -130,7 +130,7 @@ async function fansly(s: See): Promise<void> {
   const toast = found as Box | null;
   if (toast === null) throw new Error('no reminder of another model in the gallery');
   await restPointer(s);
-  await s.shot('other-model', { file: 'greet-reminder-team-other-model', clip: box(toast.x - 12, toast.y - 12, toast.width + 24, toast.height + 24) });
+  await s.shot('other-model', { file: 'greet-reminder-team-other-model', clip: box(toast.x - 12, toast.y - 36, toast.width + 24, toast.height + 48) });
 }
 
 scenario('launch-greet', (s) => (s.site === 'fansly' ? fansly(s) : chatspace(s)), {

@@ -246,6 +246,10 @@ const PATHS = {
       <path d="M2.8 10.6v1.6c0 .7.5 1.2 1.2 1.2h8c.7 0 1.2-.5 1.2-1.2v-1.6" />
     </>
   ),
+  /** Out of here: a reminder's «Hi» that brings another page's tab forward (2026-10-31). */
+  away: <path d="M6.5 4h5.5v5.5M12 4l-7.5 7.5" />,
+  /** Back where it came from: «Назад в lora-1». */
+  back: <path d="M12.5 8H4M7.5 4.5L4 8l3.5 3.5" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

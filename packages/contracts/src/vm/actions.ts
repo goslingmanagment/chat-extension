@@ -530,6 +530,11 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('DismissToast', { toastId: HandleSchema }),
   /** Hover or focus inside a toast holds its timer (ui-design §4.22). */
   act('HoldToast', { toastId: HandleSchema, hold: z.boolean() }),
+  /**
+   * 1.69.0 (Grisha, 2026-10-31): «Назад в lora-1» of the card a reminder's «Hi» brought into this tab from a tab of another
+   * page: that tab to the front again (`fansly.greet.back`), nothing in it touched; the card goes.
+   */
+  act('GreetBack', { toastId: HandleSchema }),
 
   // ── navigation and settings ──
   act('Navigate', { to: NavigationTargetSchema }),

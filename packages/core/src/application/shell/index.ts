@@ -21,6 +21,17 @@
 // chat with the text in its field, which closes the toast) — and the person
 // stays in their chat; «Отправлено» closes it a moment later.
 //
+// 2026-10-31 (Grisha: «иногда hi в уведомлении переключает на вторую вкладку
+// … есть какой то индикатор что это произойдет? … я теряюсь»): a reminder about
+// a fan of another page (Fansly shows it in every tab on screen) wears that
+// page's hub label on an ear on top, and its «Hi» says where it goes — «Hi в
+// lora-2», «Переключу на вкладку lora-2». The tab that click brings forward
+// shows the same card in the same corner (`arrive`): «Вы во вкладке lora-2»,
+// how its Hi goes there — «Пишу приветствие…», «Hi в поле: проверьте и
+// отправьте», «Отправлено» — and «Назад в lora-1», which brings the tab the
+// click came from forward again. It goes with «Назад», ×, a while after the
+// fan got a message from this chat, or once the person opens another chat.
+//
 // A toast the UI or a controller raises by itself (a key's reason, a render
 // failure) goes through ToastPort and is the overlay host's own queue; the
 // two queues are drawn together by the toasts surface. The rules are the
@@ -32,9 +43,9 @@
 
 import { type CgCode, type SettingsRoute } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { type ChatRef } from '@cg/contracts/ids';
+import { type ChatRef, type GreetFrom } from '@cg/contracts/ids';
 import { type BackgroundToast, type TabEventPayload } from '@cg/contracts/tab-messages';
-import { type ActionButtonVM, type ActionReceipt, type GreetCardVM, type I18n, type Msg, type MountSurfaceKind, type ToastVM, type ToastsVM, type UiAction, type UiActionType, type ViewSelector } from '@cg/contracts/vm';
+import { type ActionButtonVM, type ActionReceipt, type GreetArrivedState, type GreetCardVM, type I18n, type Msg, type MountSurfaceKind, type ToastVM, type ToastsVM, type UiAction, type UiActionType, type ViewSelector } from '@cg/contracts/vm';
 
 import { formatAiMoney } from '../../domain/ai-limit';
 import { TOAST_TIMING, errorView, settingsRouteOf, toastKey, toastLifetimeMs, viewOfCode } from '../../domain/errors';
@@ -67,6 +78,29 @@ export interface ShellTab {
   copyText?(text: string): Promise<boolean>;
   /** 2026-10-21 «Скачать лог»: the log files of the last 24 hours, saved by the tab; false — they were not. Absent — this tab cannot. */
   downloadLog?(): Promise<boolean>;
+  /** 2026-10-31: «Назад в lora-1» — the tab a handed-over «Hi» came from, to the front; false — it is not there. Absent — none. */
+  greetBack?(from: GreetFrom): Promise<boolean>;
+}
+
+/**
+ * 2026-10-31: how the dock's «Hi» a reminder started goes in this tab (the old way into the fan's chat): `writing` — it
+ * writes; `inserted` — the greeting is in the field; `greeted` — somebody greeted the fan, nothing was put in; `idle` —
+ * it stopped, or it is the person's now. `name` — the fan's name as the list or the dock knows it.
+ */
+export interface GreetRun {
+  readonly s: 'writing' | 'inserted' | 'greeted' | 'idle';
+  readonly name: string | null;
+}
+
+/** 2026-10-31: a reminder's «Hi» pressed in a tab of another page and handed here (`greet.start` with `from`). */
+export interface GreetArrival {
+  readonly pageId: number;
+  readonly fanRef: string;
+  /** The hub's label of this tab's page. */
+  readonly pageLabel: string;
+  readonly from: GreetFrom;
+  /** The fan as the reminder pressed in that tab showed them; absent — not known there. */
+  readonly fan?: { readonly label: string | null; readonly username: string | null; readonly avatarUrl: string | null; readonly since: string | null };
 }
 
 export interface ShellPorts {
@@ -74,6 +108,8 @@ export interface ShellPorts {
   readonly rpc: { onEvent(type: 'toast', listener: (payload: TabEventPayload<'toast'>) => void): () => void };
   readonly i18n: I18n;
   readonly clock: ShellClock;
+  /** The id of a toast the tab makes itself (2026-10-31: the card of a handed-over «Hi» with no reminder of its own here). */
+  readonly uuid?: () => string;
   readonly tab: ShellTab;
   /**
    * A chat as the navigation controller names it (`Navigate` → `kind: 'chat'`), with the toast's conversation when it is
@@ -88,6 +124,15 @@ export interface ShellPorts {
     state(handle: string): GreetHereState | null;
     subscribe(listener: () => void): () => void;
   };
+  /**
+   * 2026-10-31: what the card of a handed-over «Hi» follows — the dock's Hi of the fan (by the fan's handle), the fan of
+   * the chat on screen, and a message the page sent (`sentTo`, the fan; null — another change). Absent — no such card.
+   */
+  readonly arrival?: {
+    run(handle: string): GreetRun | null;
+    fanOnScreen(): string | null;
+    subscribe(listener: (sentTo: string | null) => void): () => void;
+  };
 }
 
 export interface ShellController {
@@ -95,6 +140,8 @@ export interface ShellController {
   getSnapshot(selector: ViewSelector): ToastsVM;
   subscribe(selector: ViewSelector, listener: (view: ToastsVM) => void): () => void;
   dispatch(action: UiAction): Promise<ActionReceipt> | null;
+  /** 2026-10-31: a reminder's «Hi» from a tab of another page goes on here: its card says so (before the Hi is dispatched). */
+  arrive(arrival: GreetArrival): void;
   /** Toasts on screen now (diagnostics, tests). */
   count(): number;
   dispose(): void;
@@ -107,6 +154,8 @@ interface Entry {
   /** Lifetime left when the hold began. */
   left: number;
   timer: unknown;
+  /** 2026-10-31: the card of a handed-over «Hi»; `seen` — the fan's chat was on screen, `sent` — the fan got a message from it. */
+  arrived?: { readonly page: string; readonly from: GreetFrom; seen: boolean; sent: boolean };
 }
 
 /** A held toast that is let go lives at least this long: the pointer only passed over it. */
@@ -115,6 +164,8 @@ const HELD_MIN_LEFT_MS = 1000;
 export const GREET_SENT_SHOWN_MS = 4000;
 /** «Его уже поприветствовали» stays a little longer: there is something to read. */
 export const GREET_GREETED_SHOWN_MS = 8000;
+/** The card of a handed-over «Hi» keeps «Назад в lora-1» this long after the fan got a message from this chat (2026-10-31). */
+export const GREET_ARRIVED_SENT_SHOWN_MS = 15_000;
 
 /** The registry's title of a shared code; a site's own code has none here. */
 const titleOf = (code: string | null): Msg | null => (code !== null && Object.hasOwn(CG_REGISTRY, code) ? { key: CG_REGISTRY[code as keyof typeof CG_REGISTRY].title } : null);
@@ -160,16 +211,44 @@ export function createShellController(ports: ShellPorts): ShellController {
     }
   }
 
+  /** The card of a handed-over «Hi»: where the person is, how the Hi goes here, «Назад в {from}». */
+  function arrivedView(entry: Entry, greet: NonNullable<BackgroundToast['greet']>, arrived: NonNullable<Entry['arrived']>): ToastVM {
+    const { toast } = entry;
+    const run = ports.arrival?.run(fanHandle('newcomers', greet.pageId, greet.fanRef)) ?? null;
+    const s: GreetArrivedState | null = arrived.sent ? 'sent' : run === null || run.s === 'idle' ? null : run.s;
+    const back: ActionButtonVM = { label: { key: 'toast.greetBack', params: { page: arrived.from.pageLabel } }, action: { type: 'GreetBack', toastId: toast.toastId }, enabled: true, reason: null, hotkey: null };
+    return {
+      id: toast.toastId,
+      kind: toast.kind,
+      code: null,
+      title: i18n.t('toast.greetArrived', { page: arrived.page }),
+      body: null,
+      actions: tab.greetBack === undefined ? [] : [back],
+      copyCode: false,
+      expiresAt: entry.expiresAt,
+      greet: {
+        name: toast.fanLabel ?? run?.name ?? i18n.t('newcomers.col.fan'),
+        handle: greet.username ?? null,
+        avatarUrl: greet.avatarUrl ?? null,
+        since: greet.since ?? null,
+        arrived: { page: arrived.page, from: arrived.from.pageLabel, s },
+      },
+    };
+  }
+
   function viewOf(entry: Entry): ToastVM {
     const { toast } = entry;
     const error = toast.error === undefined ? null : errorView(toast.error, translatorOf(i18n));
     const code = toast.code ?? toast.error?.code ?? null;
     const fan = toast.fanLabel;
     const actions: ActionButtonVM[] = [];
+    if (toast.greet !== undefined && entry.arrived !== undefined) return arrivedView(entry, toast.greet, entry.arrived);
     if (toast.greet !== undefined) {
       const target = greetNewcomer(toast.greet.pageId, toast.greet.fanRef);
       const name = fan ?? i18n.t('newcomers.col.fan');
-      const here = ports.greetHere?.state(target.targetHandle) ?? null;
+      // 2026-10-31: a fan of another page (the toast in a tab of another page): its Hi brings that page's tab forward.
+      const away = toast.greet.pageLabel ?? null;
+      const here = away === null ? (ports.greetHere?.state(target.targetHandle) ?? null) : null;
       // 1.61.0 (the owner: «с авой»): the fan as a card — picture, name, «@handle · 11 мин назад»; «Позже» closes it.
       // 2026-10-29: the last of the three reminders is red; what «Hi» wrote stands in it.
       const greet = {
@@ -177,12 +256,13 @@ export function createShellController(ports: ShellPorts): ShellController {
         handle: toast.greet.username ?? null,
         avatarUrl: toast.greet.avatarUrl ?? null,
         since: toast.greet.since ?? null,
-        page: toast.greet.page ?? null,
+        ...(away === null ? {} : { away }),
         ...(toast.greet.urgent === true ? { urgent: true } : {}),
         ...(here === null ? {} : { card: cardOf(here) }),
       };
       const later = button('toast.later', { type: 'DismissToast', toastId: toast.toastId });
-      const hi = button('dock.action.hi', ports.greetHere === undefined ? target : { ...target, here: true });
+      const hi: ActionButtonVM =
+        away !== null ? { ...button('toast.greetHiAt', target), label: { key: 'toast.greetHiAt', params: { page: away } } } : button('dock.action.hi', ports.greetHere === undefined ? target : { ...target, here: true });
       return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: here === null ? [hi, later] : cardActions(target, here), copyCode: false, expiresAt: entry.expiresAt, greet };
     }
     // `ai-limit-v1`: «почти закончился» / «свой лимит кончился, дальше котёл» / «кончился» with the money; it stays until closed.
@@ -248,6 +328,8 @@ export function createShellController(ports: ShellPorts): ShellController {
   function show(toast: BackgroundToast): void {
     const key = toastKey(toast.code ?? null, toast.scope);
     const same = (entry: Entry): boolean => toastKey(entry.toast.code ?? null, entry.toast.scope) === key;
+    // The fan's next reminder while the card of their handed-over «Hi» is up: that card says it already.
+    if (toast.greet !== undefined && entries.some((entry) => entry.arrived !== undefined && same(entry))) return;
     for (const entry of entries.filter(same)) stop(entry);
     const entry: Entry = { toast, expiresAt: null, left: 0, timer: null };
     const kept = [entry, ...entries.filter((item) => !same(item))];
@@ -269,14 +351,66 @@ export function createShellController(ports: ShellPorts): ShellController {
       // «Отправлено» and «уже поприветствовали» say their word, then the toast goes.
       for (const entry of entries) {
         const greet = entry.toast.greet;
-        if (greet === undefined || entry.timer !== null) continue;
+        if (greet === undefined || entry.timer !== null || entry.arrived !== undefined) continue;
         const s = ports.greetHere?.state(fanHandle('newcomers', greet.pageId, greet.fanRef))?.s;
         if (s === 'sent') arm(entry, GREET_SENT_SHOWN_MS);
         else if (s === 'greeted') arm(entry, GREET_GREETED_SHOWN_MS);
       }
       changed();
     }) ?? (() => undefined),
+    ports.arrival?.subscribe((sentTo) => arrivals(sentTo)) ?? (() => undefined),
   ];
+
+  /**
+   * The cards of handed-over «Hi»s follow the fan's chat: on screen once — `seen`; another chat after that — the card goes;
+   * a message the page sent to the fan — `sent`, and the card goes a while later; somebody greeted the fan — the same.
+   */
+  function arrivals(sentTo: string | null): void {
+    const onScreen = ports.arrival?.fanOnScreen() ?? null;
+    for (const entry of [...entries]) {
+      const greet = entry.toast.greet;
+      const arrived = entry.arrived;
+      if (greet === undefined || arrived === undefined) continue;
+      if (onScreen === greet.fanRef) arrived.seen = true;
+      else if (arrived.seen) {
+        remove(entry.toast.toastId);
+        continue;
+      }
+      if (sentTo === greet.fanRef && arrived.seen) arrived.sent = true;
+      if (entry.timer !== null) continue;
+      if (arrived.sent) arm(entry, GREET_ARRIVED_SENT_SHOWN_MS);
+      else if (ports.arrival?.run(fanHandle('newcomers', greet.pageId, greet.fanRef))?.s === 'greeted') arm(entry, GREET_GREETED_SHOWN_MS);
+    }
+    changed();
+  }
+
+  function arrive(arrival: GreetArrival): void {
+    const handle = fanHandle('newcomers', arrival.pageId, arrival.fanRef);
+    const arrived = { page: arrival.pageLabel, from: arrival.from, seen: false, sent: false };
+    // The fan's own reminder in this tab becomes the card; with none here, a card of its own.
+    const own = entries.find((entry) => entry.toast.greet !== undefined && fanHandle('newcomers', entry.toast.greet.pageId, entry.toast.greet.fanRef) === handle);
+    if (own !== undefined) {
+      stop(own);
+      own.expiresAt = null;
+      own.arrived = arrived;
+      entries = [own, ...entries.filter((entry) => entry !== own)];
+      changed();
+      return;
+    }
+    const fan = arrival.fan;
+    const toast: BackgroundToast = {
+      toastId: ports.uuid?.() ?? `greet-${arrival.fanRef}`,
+      kind: 'info',
+      scope: `greet.${arrival.fanRef}`,
+      fanLabel: fan?.label ?? null,
+      greet: { pageId: arrival.pageId, fanRef: arrival.fanRef, ...(fan === undefined ? {} : { username: fan.username, avatarUrl: fan.avatarUrl, ...(fan.since === null ? {} : { since: fan.since }) }) },
+    };
+    const entry: Entry = { toast, expiresAt: null, left: 0, timer: null, arrived };
+    const kept = [entry, ...entries];
+    for (const extra of kept.slice(TOAST_TIMING.maxVisible)) stop(extra);
+    entries = kept.slice(0, TOAST_TIMING.maxVisible);
+    changed();
+  }
 
   return {
     kinds: ['toasts'],
@@ -312,8 +446,20 @@ export function createShellController(ports: ShellPorts): ShellController {
       // 2026-10-29: `here` — the greeting is written into the toast, which stays.
       if (action.type === 'GreetNewcomer') {
         if (action.here === true) return null;
-        for (const entry of entries.filter((item) => item.toast.greet !== undefined && fanHandle('newcomers', item.toast.greet.pageId, item.toast.greet.fanRef) === action.targetHandle)) remove(entry.toast.toastId);
+        // The card of a handed-over «Hi» stays: it follows that very Hi.
+        for (const entry of entries.filter((item) => item.arrived === undefined && item.toast.greet !== undefined && fanHandle('newcomers', item.toast.greet.pageId, item.toast.greet.fanRef) === action.targetHandle)) remove(entry.toast.toastId);
         return null;
+      }
+      // «Назад в lora-1»: the tab the Hi came from, to the front; the card goes (the tab says when that tab is not there).
+      if (action.type === 'GreetBack') {
+        const entry = entries.find((item) => item.toast.toastId === action.toastId);
+        const from = entry?.arrived?.from;
+        if (entry === undefined || from === undefined || tab.greetBack === undefined) return null;
+        remove(entry.toast.toastId);
+        return tab.greetBack(from).then(
+          (focused) => done(action.type, focused ? 'opened' : 'noop'),
+          () => done(action.type, 'noop'),
+        );
       }
       // «Открыть чат» of a written greeting: the boards open the fan's chat with it; its toast goes.
       if (action.type === 'OpenAndInsertPart' || action.type === 'InsertNewcomerGreeting' || action.type === 'OpenChatToVerify') {
@@ -368,6 +514,7 @@ export function createShellController(ports: ShellPorts): ShellController {
       // Everything else belongs to a surface's own controller.
       return null;
     },
+    arrive,
     count: () => entries.length,
     dispose() {
       for (const off of offs.splice(0)) off();

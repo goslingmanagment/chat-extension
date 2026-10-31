@@ -170,7 +170,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   let registrations = 0;
   rpc.onState((state, tabSessionId) => {
     if (state === 'ready') registrations += 1;
-    probe?.set('rpc', { state, registered: tabSessionId !== null, registrations });
+    probe?.set('rpc', { state, registered: tabSessionId !== null, registrations, tabSessionId });
     // The extension was reloaded or updated under the tab: this instance is done (UP-009).
     if (state === 'reloaded' || !isExtensionContextAlive(env.api)) probe?.set('runtime', 'reloaded');
     // A new tab session: the background knows nothing of this tab yet — its chat, its focus, its accounts.
@@ -349,23 +349,26 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   });
   life.addEventListener('abort', offCommand);
   // 2026-10-25: a greeting reminder's «Hi» pressed in a tab of another model, handed to this tab by the background.
-  const offGreet = rpc.onEvent('greet.start', (raw) => {
+  const startGreet = (raw: unknown): void => {
     if (life.aborted) return;
     ensureApp().then(
       (ready) => {
         if (life.aborted) return;
         const checked = registry?.('evt', 'greet.start', raw) ?? { ok: false as const };
         if (!checked.ok) return;
-        const { pageId, fanRef } = checked.payload as typeof raw;
-        ready.greet(pageId, fanRef);
+        ready.greet(checked.payload as Parameters<TabApp['greet']>[0]);
       },
       (error: unknown) => {
         app = null;
         if (!life.aborted) probe?.set('appError', String(error));
       },
     );
-  });
+  };
+  const offGreet = rpc.onEvent('greet.start', startGreet);
   life.addEventListener('abort', offGreet);
+  // The stand's own hand-over of a Hi (test builds on the stand only, probe.ts GREET_START_ATTRIBUTE).
+  const offStandGreet = probe?.onGreetStart(startGreet) ?? (() => undefined);
+  life.addEventListener('abort', offStandGreet);
   // The dock's place — or a place of the site's own where no composer is (R20 P13b): the application comes for it.
   const onMounts = (): void => {
     if (host.mounts.points().dock.kind !== 'none' || host.wantsApp?.current() === true) wake();

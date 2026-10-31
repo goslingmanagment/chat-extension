@@ -9,6 +9,7 @@ import {
   type CoachTurnVM,
   type CoachVM,
   type FanPanelVM,
+  type GreetArrivedState,
   type HubSaveVM,
   type Msg,
   type PaletteItemVM,
@@ -403,14 +404,41 @@ export function toasts(view: VmView, list: readonly ToastVM[]): ToastsVM {
 
 /**
  * A greeting reminder (1.61.0): the fan as a card — picture, name, «@handle · N мин назад» — with «Hi» and «Позже».
- * 1.62.0: `page` — the toast stands in a tab of another model: «Ждёт приветствия · {модель}».
+ * 1.69.0: `away` — the toast stands in a tab of another page: its label on the ear, «Hi в {page}» and the line under it.
  */
-export const greetToast = (ctx: ScenarioCtx, id: string, fan: { readonly name: string; readonly handle: string | null; readonly avatarUrl: string | null; readonly minutesAgo: number; readonly page?: string }): ToastVM =>
+export const greetToast = (
+  ctx: ScenarioCtx,
+  id: string,
+  fan: { readonly name: string; readonly handle: string | null; readonly avatarUrl: string | null; readonly minutesAgo: number; readonly away?: string; readonly urgent?: true },
+): ToastVM =>
   toast(ctx, id, 'info', {
     title: ctx.lang === 'ru' ? `Ждёт приветствия · ${fan.name}` : `Waiting for a greeting · ${fan.name}`,
-    actions: [button('dock.action.hi', { type: 'GreetNewcomer', targetHandle: 'newcomers:11:910000000000000001' }), button('toast.later', { type: 'DismissToast', toastId: id })],
+    actions: [
+      button(fan.away === undefined ? 'dock.action.hi' : { key: 'toast.greetHiAt', params: { page: fan.away } }, { type: 'GreetNewcomer', targetHandle: 'newcomers:11:910000000000000001' }),
+      button('toast.later', { type: 'DismissToast', toastId: id }),
+    ],
     expiresAt: null,
-    greet: { name: fan.name, handle: fan.handle, avatarUrl: fan.avatarUrl, since: new Date(ctx.now - fan.minutesAgo * 60_000).toISOString(), ...(fan.page === undefined ? {} : { page: fan.page }) },
+    greet: {
+      name: fan.name,
+      handle: fan.handle,
+      avatarUrl: fan.avatarUrl,
+      since: new Date(ctx.now - fan.minutesAgo * 60_000).toISOString(),
+      ...(fan.away === undefined ? {} : { away: fan.away }),
+      ...(fan.urgent === undefined ? {} : { urgent: true }),
+    },
+  });
+
+/** 1.69.0: the card a reminder's «Hi» pressed in another page's tab brought into this one: where, how its Hi goes, «Назад». */
+export const arrivedToast = (
+  ctx: ScenarioCtx,
+  id: string,
+  fan: { readonly name: string; readonly avatarUrl: string | null; readonly page: string; readonly from: string; readonly s: GreetArrivedState | null },
+): ToastVM =>
+  toast(ctx, id, 'info', {
+    title: ctx.lang === 'ru' ? `Вы во вкладке ${fan.page}` : `You are in the ${fan.page} tab`,
+    actions: [button({ key: 'toast.greetBack', params: { page: fan.from } }, { type: 'GreetBack', toastId: id })],
+    expiresAt: null,
+    greet: { name: fan.name, handle: null, avatarUrl: fan.avatarUrl, since: null, arrived: { page: fan.page, from: fan.from, s: fan.s } },
   });
 
 export const aiReadyToast = (ctx: ScenarioCtx, fanName: string, chatHandle: string): ToastVM =>

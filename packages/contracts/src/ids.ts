@@ -258,6 +258,14 @@ export const HumanCauseSchema = z.strictObject({
 });
 export type HumanCause = z.infer<typeof HumanCauseSchema>;
 
+/**
+ * 1.69.0 (Grisha, 2026-10-31): the tab a greeting reminder's «Hi» was pressed in, when the click went on in a tab of
+ * another page (`greet.start`): its document, its page and that page's hub label. The card the click brings says where
+ * the person is now, and its «Назад в lora-1» brings that tab forward again (`fansly.greet.back`).
+ */
+export const GreetFromSchema = z.strictObject({ tabSessionId: UuidSchema, pageId: HubIntIdSchema, pageLabel: displayText(64) });
+export type GreetFrom = z.infer<typeof GreetFromSchema>;
+
 /** One part of one result: `variant` for Hi (PART_LIMITS), `index` for Split parts. */
 export const PartRefSchema = z.strictObject({
   variant: z.optional(z.int().check(z.gte(0), z.lte(PART_LIMITS.maxVariants - 1))),

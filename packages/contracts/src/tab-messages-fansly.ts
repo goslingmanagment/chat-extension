@@ -43,7 +43,7 @@ import { FanslyOpViewSchema, FanslyStartOpSchema } from './ops-fansly';
 import { AdmissionSchema, CoverageWindowSchema, GreetingDraftGenerationSchema, LivePpvAttachmentItemSchema, OpStateSchema } from './ops';
 import { HiFanAccountSchema, HiFanAvatarUrlSchema, StartProofV1Schema } from './hi-start-proof';
 import { SEND_ATTRIBUTION_COMPOSED_WITH } from './hub/attribution';
-import { ChatKeySchema, HumanCauseSchema } from './ids';
+import { ChatKeySchema, GreetFromSchema, HumanCauseSchema } from './ids';
 import { ChatReadStateSchema, FanslyPhotoRefSchema, LiveTextMessageSchema } from './host';
 import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STORAGE_LIMITS } from './limits';
 import { type HostKind } from './hosts';
@@ -567,6 +567,17 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.greet.handover': {
     req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema, cause: HumanCauseSchema }),
     res: z.strictObject({ delivered: z.boolean() }),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * 1.69.0 (Grisha, 2026-10-31: «иногда hi в уведомлении переключает на вторую вкладку … я теряюсь»): «Назад в lora-1»
+   * of the card a reminder's «Hi» brought into this tab from a tab of another page: that tab to the front again — the
+   * same document, else a tab of its page —, nothing in it touched. `focused: false` — no such tab now.
+   */
+  'fansly.greet.back': {
+    req: z.strictObject({ from: GreetFromSchema }),
+    res: z.strictObject({ focused: z.boolean() }),
     from: TAB,
     hosts: FANSLY,
   },
