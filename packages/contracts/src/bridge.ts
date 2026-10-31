@@ -184,6 +184,7 @@ export const TO_MAIN_TYPES = [
   'deleteFanNote',
   'onlineSeen',
   'onlineProbe',
+  'feedPoll',
 ] as const;
 export type ToMainType = (typeof TO_MAIN_TYPES)[number];
 

@@ -40,7 +40,7 @@ import { FanNoteAttributionsQuerySchema, FanNoteAttributionsSchema, NoteAttribut
 import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
 import { HandoffQuerySchema, HandoffSchema, WinBackAttemptRequestSchema, WinBackAttemptResultSchema, WinBackListSchema, WinBackQuerySchema } from './queue';
 import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineProbeRequestSchema, OnlineProbeResultSchema, OnlineQuerySchema } from './online';
-import { OnlyfansFeedRequestSchema, OnlyfansFeedResultSchema } from './onlyfans-feed';
+import { OnlyfansFeedRequestSchema, OnlyfansFeedResultSchema, OnlyfansPollRequestSchema, OnlyfansPollResultSchema } from './onlyfans-feed';
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema } from './fan-marks';
 import { FanQueueItemDoneRequestSchema, FanQueueItemDoneSchema, FanQueueReleaseRequestSchema, FanQueueReleaseSchema, FanQueuesQuerySchema, FanQueuesSchema, FanQueueTakeRequestSchema, FanQueueTakeSchema } from './fan-queues';
@@ -96,6 +96,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientOnlinePresence: { request: OnlinePresenceRequestSchema, response: OnlinePresenceResultSchema },
   clientOnlineProbe: { request: OnlineProbeRequestSchema, response: OnlineProbeResultSchema },
   clientOnlyfansFeed: { request: OnlyfansFeedRequestSchema, response: OnlyfansFeedResultSchema },
+  clientOnlyfansPoll: { request: OnlyfansPollRequestSchema, response: OnlyfansPollResultSchema },
   clientOnlineAttempt: { request: OnlineAttemptRequestSchema, response: OnlineAttemptResultSchema },
   clientFanQueues: { request: FanQueuesQuerySchema, response: FanQueuesSchema },
   clientFanQueueTake: { request: FanQueueTakeRequestSchema, response: FanQueueTakeSchema },

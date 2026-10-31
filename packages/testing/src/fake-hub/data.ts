@@ -30,6 +30,7 @@ import {
   type IngestBatch,
   type OnlyfansFeedRequest,
   type OnlyfansFeedResult,
+  type OnlyfansPollResult,
   type IngestResult,
   type QueuePage,
   type QueueQuery,
@@ -736,6 +737,11 @@ export class DataModel {
         deleted: (_label, messageId) => this.feedArchiveDeleted(page, messageId),
       }),
     );
+  }
+
+  /** As the hub's `clientOnlyfansPoll` (hub #955): the page's poll lent to one tab every ten minutes. */
+  onlyfansPoll(page: FakePage, now: number): Read<OnlyfansPollResult> {
+    return ok(this.feedModel.poll(page.pageLabel, now));
   }
 
   /** hub #953: every record the tabs reported, in order, with who reported it and what the fake hub did with it. */

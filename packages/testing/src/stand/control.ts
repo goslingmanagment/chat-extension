@@ -287,6 +287,19 @@ export async function handleControl(context: ControlContext, request: IncomingMe
     ok({ traffic: state.traffic });
     return;
   }
+  // 2026-11-01 (hub #955): a new subscriber's notification, or a row of the sales ledger, newest first.
+  if ((path === '/__stand/notification' || path === '/__stand/ledger') && method === 'POST') {
+    const accountId = asString(body['accountId']);
+    const item = asRecord(body['item']);
+    if (accountId === null || item === null) {
+      ok({ error: 'accountId and item' }, 400);
+      return;
+    }
+    const lists = path === '/__stand/notification' ? state.subscribers : state.ledger;
+    lists.set(accountId, [item, ...(lists.get(accountId) ?? [])]);
+    ok({ count: lists.get(accountId)?.length ?? 0 });
+    return;
+  }
   if (path === '/__stand/ws/auth' && method === 'POST') {
     state.withholdAuth = body['withhold'] === true;
     ok({ withholdAuth: state.withholdAuth });

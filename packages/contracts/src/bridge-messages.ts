@@ -10,7 +10,7 @@
 import * as z from 'zod/mini';
 
 import { BRIDGE_PROTOCOL_VERSION, BridgeRequestIdSchema, BridgeResponseSchema, MainProbeSchema, type FromMainType, type ToMainType } from './bridge';
-import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema } from './hub/onlyfans-feed';
+import { ONLYFANS_FEED_MAX_RECORDS, ONLYFANS_POLL_LISTS, OnlyfansFeedRecordSchema } from './hub/onlyfans-feed';
 import {
   ATTACH_REFUSALS,
   AnchorIdSchema,
@@ -25,6 +25,7 @@ import {
   OmFanNoteInputSchema,
   OmNoteIdSchema,
   OnlineProbeAnswerSchema,
+  FeedPollAnswerSchema,
   OnlineSeenAnswerSchema,
   OpenChatAnswerSchema,
   OpenChatPageSchema,
@@ -298,6 +299,18 @@ export const TO_MAIN = {
   onlineProbe: {
     payload: z.strictObject({ acc: NativeIdSchema, fans: z.array(NativeIdSchema).check(z.minLength(1), z.maxLength(ONLINE_SOURCE_LIMITS.probeMax)) }),
     data: OnlineProbeAnswerSchema,
+    write: false,
+    timeout: 'network',
+  },
+  /**
+   * 2026-11-01 (the owner's `ofPoll`, hub #955): one page of a list ChatSpace itself reads — its notifications of new
+   * subscribers (`…/notifications?limit=20&type=subscribed`) or its sales ledger (`…/platforms/onlyfans/transactions`)
+   * — with the page's own session, as its own client asks. A read, never repeated; what it brings goes to the hub through
+   * the OnlyFans feed. A failed request is an answer (`ok: false`), not a bridge error.
+   */
+  feedPoll: {
+    payload: z.strictObject({ acc: NativeIdSchema, list: z.enum(ONLYFANS_POLL_LISTS), cursor: z.optional(z.string().check(z.regex(/^[A-Za-z0-9_-]{1,64}$/))) }),
+    data: FeedPollAnswerSchema,
     write: false,
     timeout: 'network',
   },

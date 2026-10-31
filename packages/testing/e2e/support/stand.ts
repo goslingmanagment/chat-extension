@@ -195,6 +195,14 @@ export const standServer = {
   failReleaseForms: async (fail: boolean): Promise<void> => {
     await control('/__stand/state', { body: { failReleaseForms: fail } });
   },
+  /** 2026-11-01 (hub #955): a new subscriber's notification of the account (`type=subscribed`), newest first. */
+  notification: async (accountId: string, item: Record<string, unknown>): Promise<void> => {
+    await control('/__stand/notification', { body: { accountId, item } });
+  },
+  /** 2026-11-01 (hub #955): a row of the account's sales ledger, newest first. */
+  ledgerRow: async (accountId: string, item: Record<string, unknown>): Promise<void> => {
+    await control('/__stand/ledger', { body: { accountId, item } });
+  },
   /** 2026-10-31: the presence endpoint (`fans-online`) answers 503 from now on, or answers again. */
   failFansOnline: async (fail: boolean): Promise<void> => {
     await control('/__stand/state', { body: { failFansOnline: fail } });

@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "0fc3f9572c3b771f606e680690fb2b755d4c5992544f87a22a8a04048446055c",
-    "sourceCommit": "ba344bf0dabfc355fa93247923105d882aabd911",
-    "note": "Vendored on 2026-10-31 from hub main ba344bf0 (#953) with scripts/vendor-sdk.mjs: the OnlyFans feed from ChatSpace — clientOnlyfansFeed takes what the page already received (messages, deletions, purchases, tips, fans, chats, the sales ledger), behind the owner's ofFeed and onlyfans-feed-v1. Re-vendor with the same script and update this pin together."
+    "contractHash": "fa0a0635109fd94fa3824ecbbed197aae353348fc716f0cb5ee5abbe08bc467f",
+    "sourceCommit": "38039be46e8ce853e5337122c822b5519580e4a1",
+    "note": "Vendored on 2026-11-01 from hub main 38039be4 (#955, deployed) with scripts/vendor-sdk.mjs: the page's poll of ChatSpace for the OnlyFans feed — clientOnlyfansPoll lends it to one tab of the team behind the owner's ofPoll, and the feed takes subscriber records. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

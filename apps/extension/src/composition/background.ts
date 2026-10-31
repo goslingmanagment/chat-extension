@@ -1682,6 +1682,16 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok(outcome === 'signed-out' ? { queued: false, reason: 'signed_out' } : { queued: true });
   });
 
+  // hub #955: the page's poll of ChatSpace, asked by a ChatSpace tab for one of its accounts; null — not ours to ask.
+  rpc.handle('feed.poll', async ({ hostAccountId, creatorId }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    if (hostOfTab(sender.tabSessionId) !== 'chatspace') return ok(null);
+    await tabAccounts.known(sender.tabSessionId);
+    const target = onlyfansFeedTarget(boundPageOf('chatspace', hostAccountId), hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf, 'onlyfans-poll');
+    if (!target.ok) return ok(null);
+    return ok(await hub().onlyfansPoll({ pageLabel: target.pageLabel, hostAccountRef: `onlymonster:${hostAccountId}`, creatorRef: creatorId }).catch(() => null));
+  });
+
   // a site's own requests: its module answers them (X8 and the greeting leases of «Новые» — bg/chatspace)
   for (const [host, types] of Object.entries(HOST_REQUESTS) as Array<[HostKind, readonly HostRequestType[]]>) {
     for (const type of types) rpc.handle(type, (payload, sender) => hostModules.request(host, { type, payload, sender } as VerifiedTabMessage) as Promise<RpcResult<never>>);

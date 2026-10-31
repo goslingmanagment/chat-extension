@@ -58,17 +58,19 @@ export function noteAttributionTarget(host: HostKind, pageId: number, bootstrap:
 /**
  * The OnlyFans feed (hub #953, `clientOnlyfansFeed`): the page an account's records are reported for — somebody is
  * signed in, the account is bound to a page this bootstrap grants, and that page admits ChatSpace's `onlyfans-feed`
- * (the page's own `wsTap` and `ofFeed`, and the hub takes it: `onlyfans-feed-v1`).
+ * (the page's own `wsTap` and `ofFeed`, and the hub takes it: `onlyfans-feed-v1`); for the page's poll of ChatSpace
+ * (hub #955) `onlyfans-poll`, which needs its `ofPoll` too.
  */
 export function onlyfansFeedTarget(
   pageId: number | null,
   bootstrap: Bootstrap | null,
   features: (host: HostKind) => FeatureSlice | null,
+  feature: 'onlyfans-feed' | 'onlyfans-poll' = 'onlyfans-feed',
 ): { readonly ok: true; readonly pageLabel: string } | { readonly ok: false; readonly reason: 'signed_out' | 'unbound' | 'not_admitted' } {
   if (bootstrap === null) return { ok: false, reason: 'signed_out' };
   const page = pageId === null ? undefined : bootstrap.pages.find((candidate) => candidate.pageId === pageId);
   if (page === undefined) return { ok: false, reason: 'unbound' };
-  if (admission(features('chatspace'), 'onlyfans-feed', null, onPage(bootstrap, page)).state !== 'on') return { ok: false, reason: 'not_admitted' };
+  if (admission(features('chatspace'), feature, null, onPage(bootstrap, page)).state !== 'on') return { ok: false, reason: 'not_admitted' };
   return { ok: true, pageLabel: page.pageLabel };
 }
 

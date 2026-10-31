@@ -299,6 +299,23 @@ export const onlineOf = (body: unknown, asked: ReadonlySet<string>, at: string):
 /** A note as ChatSpace's own editor sends it (`{title?, note, color}`): no title when it has none. */
 const noteBody = (note: FanNoteInput): Plain => ({ ...(note.title === '' ? {} : { title: note.title }), note: note.text, color: note.color });
 
+const POLL_REF = /^[A-Za-z0-9_-]{1,64}$/;
+/** A page of a poll's list as MAIN answers it (contracts FeedPollAnswer): its ids, newest first, and how to go on. */
+const pollPageOf = (body: unknown, list: 'subscribers' | 'ledger'): Plain => {
+  if (typeof body !== 'object' || body === null || !Array.isArray((body as Plain)['items'])) return fail('invalid');
+  const page = body as Plain;
+  const refs = ((page['items'] as unknown[]) ?? [])
+    .map((item) => (typeof item === 'object' && item !== null ? (item as Plain)['id'] : null))
+    .map((id) => (typeof id === 'number' && Number.isSafeInteger(id) ? String(id) : id))
+    .filter((id): id is string => typeof id === 'string' && POLL_REF.test(id))
+    .slice(0, 50);
+  // The notifications' next page starts after the last item (ChatSpace's own cursor); the ledger names its own.
+  const named = page['next_cursor'];
+  const next = list === 'ledger' ? (typeof named === 'string' && POLL_REF.test(named) ? named : null) : (refs.at(-1) ?? null);
+  const hasMore = list === 'ledger' ? next !== null : page['has_more'] === true && next !== null;
+  return { ok: true, refs, hasMore, next: hasMore ? next : null };
+};
+
 type Timer = (callback: () => void, ms: number) => unknown;
 /** A refusal shaped as contracts OpenChatAnswer's failure: `{ok: false, failure, status}`. */
 type Failed = Plain & { readonly ok: false };
@@ -465,6 +482,19 @@ export function createOmApi(win: Window, setTimer: Timer) {
       const sent = await omRequest(`accounts/${acc}/platforms/onlyfans/fans-online`, { method: 'POST', json: { fan_ids: fans.map(Number) }, deadlineMs: ONLINE_PROBE_REQUEST_MS }, onScreen);
       if (typeof sent === 'string') return fail('hidden');
       return sent.ok ? onlineOf(sent.body, new Set(fans), new Date().toISOString()) : sent;
+    },
+    /**
+     * 2026-11-01 (the owner's `ofPoll`, hub #955): one page of a list ChatSpace itself reads, as its own client asks it —
+     * the new-subscriber notifications (`…/notifications?limit=20&type=subscribed`, its «Подписки» tab) or the sales
+     * ledger (`…/platforms/onlyfans/transactions?limit=20`, its sales tab), `cursor` for the next page. A read, never
+     * repeated. The answer's records reach the hub through the OnlyFans feed's observer of the page's fetch (feed.ts),
+     * which this request goes through like the page's own; here only the page's ids and how to go on.
+     */
+    async feedPoll(acc: string, list: 'subscribers' | 'ledger', cursor: string | null): Promise<Plain> {
+      const path = list === 'subscribers' ? `accounts/${acc}/notifications?limit=20&type=subscribed` : `accounts/${acc}/platforms/onlyfans/transactions?limit=20`;
+      const sent = await omRequest(`${path}${cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`}`, { method: 'GET' });
+      if (typeof sent === 'string' || !sent.ok) return typeof sent === 'string' ? fail('invalid') : sent;
+      return pollPageOf(sent.body, list);
     },
   };
 }

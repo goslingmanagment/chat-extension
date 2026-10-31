@@ -72,7 +72,9 @@ export type HubErrorBody = z.infer<typeof HubErrorBodySchema>;
  * the owner's off switch for it.
  *
  * 2026-11-01 (hub #953): `ofFeed`, OnlyFans only — the OnlyFans feed from ChatSpace (`clientOnlyfansFeed`): what the
- * page's ChatSpace already received, passed on to the hub; the owner's off switch for it.
+ * page's ChatSpace already received, passed on to the hub; the owner's off switch for it. `ofPoll`, OnlyFans only —
+ * the feed's light reads of ChatSpace (`clientOnlyfansPoll`, hub #955): the new subscribers and the sales ledger,
+ * ChatSpace's own requests at its own pace, lent to one tab of the team; the owner's off switch for them.
  */
 export const CLIENT_FEATURE_FLAG_NAMES = [
   'insertion',
@@ -99,6 +101,7 @@ export const CLIENT_FEATURE_FLAG_NAMES = [
   'registration',
   'onlineProbe',
   'ofFeed',
+  'ofPoll',
 ] as const;
 export type ClientFeatureFlag = (typeof CLIENT_FEATURE_FLAG_NAMES)[number];
 
@@ -269,6 +272,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * purchases, tips, fans, chats and the sales ledger the page already received. A hub without it is never asked.
    */
   'onlyfans-feed-v1',
+  /** 2026-11-01 (hub #955): the page's poll of ChatSpace lent to one tab (`clientOnlyfansPoll`); the feed takes `subscriber`. */
+  'onlyfans-poll-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

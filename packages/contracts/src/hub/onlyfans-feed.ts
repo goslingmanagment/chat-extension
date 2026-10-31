@@ -122,6 +122,16 @@ export const OnlyfansFeedRecordSchema = z.discriminatedUnion('kind', [
     lastMessageRef: z.nullable(NativeIdSchema),
     observedAt: Timestamp,
   }),
+  /** hub #955: a new subscriber, as ChatSpace's notifications list (`type=subscribed`) shows OnlyFans' notification. */
+  z.strictObject({
+    kind: z.literal('subscriber'),
+    notificationRef: Ref,
+    fanRef: NativeIdSchema,
+    /** `new_subscriber`, `new_subscriber_trial`, `returning_subscriber`; null — not given. */
+    subType: z.nullable(Token),
+    createdAt: Timestamp,
+    observedAt: Timestamp,
+  }),
   z.strictObject({
     kind: z.literal('ledger'),
     transactionRef: Ref,
@@ -155,6 +165,32 @@ export const OnlyfansFeedResultSchema = z.object({
 });
 export type OnlyfansFeedResult = z.infer<typeof OnlyfansFeedResultSchema>;
 
+/** hub #955: how often a page's poll is lent, for the whole team (hub CLIENT_ONLYFANS_POLL_EVERY_SECONDS). */
+export const ONLYFANS_POLL_EVERY_MS = 600_000;
+/** The lists a poll reads: ChatSpace's notifications of new subscribers, its sales ledger. */
+export const ONLYFANS_POLL_LISTS = ['subscribers', 'ledger'] as const;
+export type OnlyfansPollList = (typeof ONLYFANS_POLL_LISTS)[number];
+
+export const OnlyfansPollRequestSchema = z.strictObject({
+  pageLabel: PageLabelSchema,
+  hostAccountRef: z.string().check(z.regex(ONLYFANS_FEED_HOST_ACCOUNT_PATTERN)),
+  creatorRef: NativeIdSchema,
+});
+export type OnlyfansPollRequest = z.infer<typeof OnlyfansPollRequestSchema>;
+
+export const OnlyfansPollResultSchema = z.object({
+  pageLabel: z.string(),
+  /** This caller holds the page's poll now: read each list once, back to its cursor. */
+  granted: z.boolean(),
+  holder: z.nullable(z.string()),
+  nextAt: z.string(),
+  /** The newest of each list the hub holds: a poll reads back to it and no further. */
+  cursors: z.object({ subscribers: z.nullable(z.string()), ledger: z.nullable(z.string()) }),
+  maxPages: z.number(),
+  serverNow: z.string(),
+});
+export type OnlyfansPollResult = z.infer<typeof OnlyfansPollResultSchema>;
+
 /** OnlyFans' id of what a record is about: the uploader's dedup key, with the record's content beside it. Pure. */
 export function onlyfansFeedRecordKey(record: OnlyfansFeedRecord): string {
   switch (record.kind) {
@@ -172,5 +208,7 @@ export function onlyfansFeedRecordKey(record: OnlyfansFeedRecord): string {
       return `chat:${record.fanRef}`;
     case 'ledger':
       return `tx:${record.transactionRef}`;
+    case 'subscriber':
+      return `sub:${record.notificationRef}`;
   }
 }

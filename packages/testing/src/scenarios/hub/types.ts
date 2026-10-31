@@ -58,6 +58,7 @@ export const HUB_ROUTE_PATHS = {
   clientOnline: '/api/v1/client/pages/:pageLabel/online',
   clientOnlinePresence: '/api/v1/client/pages/:pageLabel/online/presence',
   clientOnlyfansFeed: '/api/v1/client/pages/:pageLabel/onlyfans-feed',
+  clientOnlyfansPoll: '/api/v1/client/pages/:pageLabel/onlyfans-feed/poll',
   clientOnlineProbe: '/api/v1/client/pages/:pageLabel/online/probe',
   clientOnlineAttempt: '/api/v1/client/pages/:pageLabel/online/attempts',
   // «Очереди» (hub fan queues): the caller's queues, a portion, a fan's outcome, the portion given back.

@@ -48,6 +48,12 @@ export class StandState {
   readonly racingHistory = new Set<string>();
   /** How long a history load past OnlyMonster's cache (`force=true`, our own read of the open chat) takes; 0 — at once. */
   forcedHistoryDelayMs = 0;
+  /**
+   * 2026-11-01 (hub #955): the account's notifications of new subscribers (`…/notifications?type=subscribed`) and its
+   * sales ledger (`…/platforms/onlyfans/transactions`), newest first, by account; empty on start, the tests add them.
+   */
+  readonly subscribers = new Map<string, Record<string, unknown>[]>();
+  readonly ledger = new Map<string, Record<string, unknown>[]>();
   /** 2026-10-28: OnlyMonster's fan notes by `${accountId}:${fanId}`, oldest first (notes.ts). */
   notes: Map<string, StandNote[]> = seedNotes();
   private noteSeq = STAND_NOTE_FIRST_ID;
@@ -71,6 +77,8 @@ export class StandState {
     this.failFansOnline = false;
     this.traffic = DEFAULT_SOCKET_TRAFFIC;
     this.onlineFans.clear();
+    this.subscribers.clear();
+    this.ledger.clear();
     // A fan the world starts with as seen a moment ago (the showcase's) is online to the presence poll too.
     for (const chat of this.dataset.chats.values()) if (chat.fan.lastSeen !== null) this.onlineFans.add(chatKey(chat.accountId, chat.fan.id));
     this.racingHistory.clear();

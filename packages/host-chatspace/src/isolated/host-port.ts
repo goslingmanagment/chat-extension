@@ -95,6 +95,8 @@ import type {
   NavigationReceipt,
   OmFanNoteInput,
   OnlinePresencePort,
+  FeedPollPort,
+  FeedPollRead,
   OnlineProbeRead,
   OnlineSeenRead,
   OpenChatPage,
@@ -207,6 +209,8 @@ export interface ChatSpaceHostPort extends HostPort {
   readonly fanNotes: FanNotesPort;
   /** 2026-10-31: who ChatSpace itself says is online («Онлайн» on OnlyFans); ChatSpace's port always has it. */
   readonly onlinePresence: OnlinePresencePort;
+  /** 2026-11-01 (hub #955): the OnlyFans feed's light reads of ChatSpace (the poll); ChatSpace's port always has it. */
+  readonly feedPoll: FeedPollPort;
   /**
    * 2026-10-28: slots of ours in the conversation header's actions row, right before ChatSpace's search button
    * (header-slot.ts): whether the row is there, its changes, and a closed root at an order of ours.
@@ -227,6 +231,8 @@ const refusedAttach = (reason: AttachRefusal): AttachReceipt => ({ state: 'refus
 const firstOf = (page: OpenChatPage, limit: number): OpenChatPage =>
   page.items.length <= limit ? page : { ...page, items: page.items.slice(0, limit), hasMore: true, cursor: page.items[limit - 1]?.platformMessageId ?? null };
 /** How long a cached chat list counts as fresh before a read asks MAIN again (no timer). */
+/** 2026-11-01: how long one page of a poll's list may take (OnlyMonster answers it like its own reads). */
+const FEED_POLL_BRIDGE_MS = 15_000;
 const LIST_FRESH_MS = 1000;
 /** Fans of other chats kept for decoration. */
 const FAN_CACHE = 200;
@@ -893,6 +899,21 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
     },
   };
 
+  /**
+   * 2026-11-01 (the owner's `ofPoll`, hub #955): one page of a list ChatSpace itself reads — its new-subscriber
+   * notifications or its sales ledger — with the page's own session; what it brings goes to the hub through the feed.
+   * Resolves, never rejects: a lost answer is `unavailable`, and nothing is asked again here.
+   */
+  const feedPoll: FeedPollPort = {
+    async read(hostAccountId, list, cursor) {
+      if (!bridge || disposed) return { ok: false, reason: 'unavailable', status: null };
+      return bridge.request('feedPoll', { acc: hostAccountId, list, ...(cursor === null ? {} : { cursor }) }, FEED_POLL_BRIDGE_MS).then(
+        (answer): FeedPollRead => (answer.ok ? { ok: true, refs: answer.refs, hasMore: answer.hasMore, next: answer.next } : { ok: false, reason: answer.failure, status: answer.status }),
+        (): FeedPollRead => ({ ok: false, reason: 'unavailable', status: null }),
+      );
+    },
+  };
+
   const fanNotes: FanNotesPort = {
     async list(chat) {
       const refused = notesRefusal(chat);
@@ -1072,6 +1093,7 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
 
     fanNotes,
     onlinePresence,
+    feedPoll,
     header: { available: header.available, onChange: header.onChange, mount: header.mount },
 
     media: {

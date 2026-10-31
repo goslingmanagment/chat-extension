@@ -169,6 +169,7 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientOnline: { params: PAGE, query: true, integers: ['minutes'] },
   clientOnlinePresence: { params: PAGE, body: 'merge' },
   clientOnlyfansFeed: { params: PAGE, body: 'merge' },
+  clientOnlyfansPoll: { params: PAGE, body: 'merge' },
   clientOnlineProbe: { params: PAGE, body: 'merge' },
   clientOnlineAttempt: { params: PAGE, body: 'merge' },
   clientFanQueues: { params: PAGE },

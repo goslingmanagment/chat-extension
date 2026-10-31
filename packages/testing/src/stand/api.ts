@@ -273,6 +273,21 @@ export async function handleApi(context: ApiContext, request: IncomingMessage, r
     return log(200, { accountId });
   }
 
+  // 2026-11-01 (hub #955): the new-subscriber notifications and the sales ledger, 20 a page, as OnlyMonster pages them —
+  // the notifications by the last item's id (`cursor`), the ledger by its own `next_cursor`.
+  if (method === 'GET' && (rest === 'notifications' || rest === 'platforms/onlyfans/transactions') && route.startsWith('v0/')) {
+    const ledger = rest !== 'notifications';
+    const all = (ledger ? state.ledger : state.subscribers).get(accountId) ?? [];
+    const items = ledger || url.searchParams.get('type') === 'subscribed' ? all : [];
+    const cursor = url.searchParams.get('cursor');
+    const from = cursor === null ? 0 : items.findIndex((item) => String(item['id']) === cursor) + 1;
+    const limit = Math.min(Number(url.searchParams.get('limit') ?? 20), 20);
+    const page = items.slice(from, from + limit);
+    const more = from + limit < items.length;
+    sendJson(response, 200, ledger ? { items: page, next_cursor: more ? String(page.at(-1)?.['id'] ?? '') : null } : { items: page, has_more: more });
+    return log(200, { accountId, detail: { list: ledger ? 'ledger' : 'subscribers', items: page.length } });
+  }
+
   // The chat list's presence poll (fixture ui/fans-online.ts): which of the asked fans are online now.
   if (method === 'POST' && rest === 'platforms/onlyfans/fans-online') {
     const body = await readJson(request);
