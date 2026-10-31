@@ -13,8 +13,7 @@ import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type HostCapability } from '@cg/contracts/host';
 import { type ActionButtonVM, type PopupAlertVM, type PopupVerdictVM, type PopupVM, type ReasonVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
-import { aiLimitVm } from '../../domain/ai-limit';
-import { formatMicroUsd } from '../../domain/debug';
+import { aiLimitVm, aiSpentWithoutLimit } from '../../domain/ai-limit';
 import { errorTone } from '../../domain/errors';
 import { hotkeyOf } from './hotkeys';
 import { QUOTA_LOW, accountKeyOf, boundPageOf, boundPageTagOf, button, codeError, currentAccountOf, errorOf, msg, openChatOf, personaOfPage, sessionUnknownError, valueOf, type PagesModel } from './model';
@@ -155,7 +154,6 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
   // PU-008 «имя фана или id»: the name a tab already knows (1.20.0, X47); the id stays one click away.
   const fanLabel = chat === null ? undefined : model.fanLabels.get(chatKeyOf(chat));
   const quota = bound === null ? null : (model.quotas.get(bound.binding.pageId) ?? null);
-  const debug = model.effective?.debug.enabled === true;
   const platform = ports.catalog?.platform ?? model.env.hotkeyPlatform;
   // Spenders, «Новые» and the cheatsheet open inside ChatSpace: without a connected tab there is nowhere to open them.
   // A tab left from the build before the update is there but not connected: its reason is the reload, not «open ChatSpace».
@@ -167,6 +165,8 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
         : { id: 'host-degraded', code: 'CG-HOST-NOT-READY', text: msg('popup.needsChatSpace') }
       : null;
   const surface = (name: 'spenders' | 'newcomers' | 'cheatsheet'): UiAction => ({ type: 'Navigate', to: { kind: 'surface', surface: name, open: true } });
+  // `ai-limit-v1`: the snapshot the background holds (the hub's answer, a generation's meta), until 00:00 МСК.
+  const aiLimit = session === null || model.aiLimit === undefined || model.aiLimit === null || model.now >= Date.parse(model.aiLimit.resetsAt) ? null : model.aiLimit;
   const sites = statusSites(model).map((site) => ({ host: site.kind, label: siteLabel(model, site.kind), state: hostPill(model, site.kind), waitingReload: valueOf(model.diagnostics)?.siteAccess?.find((entry) => entry.host === site.kind)?.waitingReload ?? (site.kind === model.env.sites[0]?.kind ? staleTabsOf(model) : 0) }));
   const personaVm: PopupVM['persona'] =
     bound === null || pageName === null || persona === null
@@ -194,11 +194,10 @@ export function popupView(model: PagesModel, ports: Pick<PagePorts, 'catalog'>):
             copyIds: { ...(chat.conversationRef === undefined ? {} : { conversationRef: chat.conversationRef }), fanId: chat.platformFanId, hostAccountId: chat.hostAccountId, creatorId: current?.account.hostAccountId === chat.hostAccountId ? (current.account.platformAccountId ?? null) : null },
           },
     quota: bound === null ? null : { remaining: quota?.remainingRequestsToday ?? null, resetsAt: quota?.resetsAt ?? null, low: quota !== null && quota.remainingRequestsToday !== null && quota.remainingRequestsToday <= QUOTA_LOW },
-    // `ai-limit-v1` (the owner, 2026-10-31): the person sees their own daily AI limit and what they spent of it.
-    aiLimit: valueOf(model.session) === null ? null : aiLimitVm(model.aiLimit !== undefined && model.aiLimit !== null && model.now < Date.parse(model.aiLimit.resetsAt) ? model.aiLimit : null),
-    // Money of AI only in debug (Б4, PU-016); the hub's own number for this person and page.
-    // A known zero of money is not drawn (ui-design §1 п. 6): the line appears with the first cent of the day.
-    aiTodayLine: debug && model.aiTodayMicroUsd !== null && model.aiTodayMicroUsd > 0 ? model.t.text('popup.aiCostToday', { money: formatMicroUsd(model.aiTodayMicroUsd) }) : null,
+    // `ai-limit-v1` (the owner, 2026-10-31): the person sees their own daily AI limit and what they spent of it;
+    // one without a limit sees what AI cost them today.
+    aiLimit: aiLimitVm(aiLimit),
+    aiTodayNoLimit: aiSpentWithoutLimit(aiLimit),
     newcomersCount: model.newcomers,
     buttons: [
       button('popup.btn.spenders', surface('spenders'), { reason: noTab, hotkey: hotkeyOf('spenders', platform, ports.catalog) }),

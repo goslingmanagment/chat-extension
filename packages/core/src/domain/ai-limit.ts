@@ -38,9 +38,15 @@ export function aiLimitVm(limit: AiLimitSnapshot | null): AiLimitVM | null {
   return {
     spent: formatAiMoney(limit.todayMicroUsd),
     limit: formatAiMoney(limit.dailyLimitMicroUsd),
+    left: formatAiMoney(limit.dailyLimitMicroUsd - limit.todayMicroUsd),
     share,
     level,
     pool: poolLeft > 0 ? formatAiMoney(poolLeft) : null,
     resetsAt: limit.resetsAt,
   };
+}
+
+/** «$0.26»: what AI cost a person without an own limit today; null — they have one, or nothing is known. */
+export function aiSpentWithoutLimit(limit: AiLimitSnapshot | null): string | null {
+  return limit === null || limit.dailyLimitMicroUsd !== null ? null : formatAiMoney(limit.todayMicroUsd);
 }

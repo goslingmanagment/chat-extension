@@ -25,7 +25,6 @@
 
 import { type CgCode, type CgErrorWire, type SettingsSection } from '@cg/contracts/errors';
 import { type HostKind } from '@cg/contracts/hosts';
-import { AI_USAGE_LIMITS } from '@cg/contracts/hub';
 import { type Locale } from '@cg/contracts/i18n/keys';
 import { type SessionIdentity } from '@cg/contracts/ids';
 import { LOG_LIMITS } from '@cg/contracts/limits';
@@ -206,7 +205,6 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
   let addressWrite: Promise<WriteOutcome> | null = null;
   let newcomers: number | null = null;
   let reloadingHost = false;
-  let aiTodayMicroUsd: number | null = null;
   let fanLabels: ReadonlyMap<string, string> = new Map();
   let fanUsernames: ReadonlyMap<string, string> = new Map();
   let localSpend: PagesModel['localSpend'] = null;
@@ -357,7 +355,6 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       systemScheme: ports.systemScheme.value,
       newcomers,
       reloadingHost,
-      aiTodayMicroUsd,
       fanLabels,
       fanUsernames,
       localSpend,
@@ -477,7 +474,6 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       quotas = new Map();
       aiLimit = null;
       newcomers = null;
-      aiTodayMicroUsd = null;
       fanLabels = new Map();
       fanUsernames = new Map();
       if (next !== null) sessionEnd = null;
@@ -601,11 +597,22 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       const answer = await ask('quota.get', { pageId });
       if (answer.ok) read.set(pageId, answer.payload.quota);
     });
-    // `ai-limit-v1`: the person's own daily AI limit (all pages); `quota.personalChanged` keeps it current.
-    const limit = await ask('quota.personal', {});
     if (disposed || generation !== sessionGeneration || run !== bindingsRun) return;
     quotas = read;
-    if (limit.ok && limit.payload.limit !== null) aiLimit = limit.payload.limit;
+    emit();
+  }
+
+  /**
+   * `ai-limit-v1`: the person's own daily AI limit and today's spend (all pages) — the background's snapshot, asked
+   * first thing and on its own, so the popup's «ИИ сегодня» does not wait for the bindings; `quota.personalChanged`
+   * keeps it current.
+   */
+  async function loadAiLimit(): Promise<void> {
+    if (valueOf(session) === null) return;
+    const generation = sessionGeneration;
+    const answer = await ask('quota.personal', {});
+    if (disposed || generation !== sessionGeneration || !answer.ok || answer.payload.limit === null) return;
+    aiLimit = answer.payload.limit;
     emit();
   }
 
@@ -667,7 +674,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     emit();
   }
 
-  /** The popup's own extras for the page of the open chat: new subscribers, and in debug today's own AI spend. */
+  /** The popup's own extras for the page of the open chat: its new subscribers. */
   async function loadPopupExtras(): Promise<void> {
     if (env.page !== 'popup') return;
     const generation = sessionGeneration;
@@ -675,22 +682,15 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
     const bound = current === null ? null : boundPageOf(model(), current.account);
     if (current === null || bound === null) return;
     const pageId = bound.binding.pageId;
-    const debug = effectiveSettings()?.debug.enabled === true;
-    const date = new Intl.DateTimeFormat('en-CA', { timeZone: AI_USAGE_LIMITS.defaultTimeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(clock.now()));
     // «Новые» of the page the open chat's account is bound to: the feature of the site's manifest decides — the
     // page's own switch — and only a site whose «Новые» are the hub's list has one to count here.
     const slice = env.features(current.account.host);
     const read = valueOf(bootstrap);
     const page = read?.pages.find((candidate) => candidate.pageId === pageId);
     const listed = slice?.['newcomers']?.source === 'hub' && admission(slice, 'newcomers', null, onPage(read, page)).state === 'on';
-    const [audience, usage] = await Promise.all([
-      listed ? ask('newcomers.list', { pageId, windowHours: POPUP_NEWCOMERS_WINDOW_HOURS, cursor: null }) : Promise.resolve(null),
-      debug ? ask('usage.get', { pageId, date, days: 1 }) : Promise.resolve(null),
-    ]);
+    const audience = listed ? await ask('newcomers.list', { pageId, windowHours: POPUP_NEWCOMERS_WINDOW_HOURS, cursor: null }) : null;
     if (disposed || generation !== sessionGeneration) return;
     newcomers = audience !== null && audience.ok ? audience.payload.items.length : null;
-    const day = usage !== null && usage.ok ? (usage.payload.report?.days.at(-1) ?? null) : null;
-    aiTodayMicroUsd = day === null ? null : day.totals.costMicroUsd;
     emit();
   }
 
@@ -730,6 +730,7 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
       loadSiteAccounts(),
       env.page === 'options' ? loadOps() : Promise.resolve(),
       checkAccess(),
+      signedIn && env.page === 'popup' ? loadAiLimit() : Promise.resolve(),
       signedIn
         ? loadBootstrap(force).then(() => {
             if (force && bootstrap.s === 'ok') check = { ...check, latencyMs: Math.max(0, clock.now() - askedAt) };

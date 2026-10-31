@@ -140,8 +140,6 @@ export interface PagesModel {
   readonly newcomers: number | null;
   /** Popup (X61): «Перезагрузить вкладку» is running — the background reloads the old build's tabs, the popup waits for them. */
   readonly reloadingHost: boolean;
-  /** Popup, debug only: today's own AI spend from the hub, micro-USD. */
-  readonly aiTodayMicroUsd: number | null;
   /**
    * 1.20.0 (decision X47): the fans' names the tabs already told the background (`fans.labels`), by chat key — the
    * popup and «Идут сейчас» name the fan by them; empty — none known (the id stands in).

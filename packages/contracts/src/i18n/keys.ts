@@ -325,9 +325,9 @@ export const UI_TEXT_KEYS = [
   'popup.pill.chatspace', 'popup.pill.chatspace.connected', 'popup.pill.chatspace.partial', 'popup.pill.chatspace.copyOnly',
   'popup.pill.chatspace.closed', 'popup.pill.hub', 'popup.pill.hub.online', 'popup.pill.hub.offline', 'popup.persona', 'popup.personaFor',
   'popup.personaNone', 'popup.notConnected', 'popup.account', 'popup.signOut', 'popup.dialog', 'popup.dialogAccount', 'popup.copiedId', 'popup.copyChatId',
-  'popup.quota', 'popup.quotaLeft', 'popup.quotaReset', 'popup.quotaHubDown', 'popup.aiCostToday', 'popup.btn.spenders', 'popup.btn.newcomers',
+  'popup.quota', 'popup.quotaLeft', 'popup.quotaReset', 'popup.quotaHubDown', 'popup.btn.spenders', 'popup.btn.newcomers',
   // The person's own daily AI limit (`ai-limit-v1`): the dock's chip, the popup's line, the 80 % and 100 % toasts.
-  'dock.aiLimit.label', 'dock.aiLimit.tooltip', 'dock.aiLimit.tooltipPool', 'dock.aiLimit.pool', 'dock.aiLimit.poolTooltip', 'dock.aiLimit.out', 'popup.aiLimit', 'popup.aiLimitValue', 'popup.aiLimitReset', 'popup.aiLimitResetPool', 'popup.aiLimitPool', 'popup.aiLimitOut', 'toast.aiLimitLow.title', 'toast.aiLimitLow.body', 'toast.aiLimitLow.bodyPool', 'toast.aiLimitPool.title', 'toast.aiLimitPool.body', 'toast.aiLimitOut.title', 'toast.aiLimitOut.body',
+  'dock.aiLimit.label', 'dock.aiLimit.tooltip', 'dock.aiLimit.tooltipPool', 'dock.aiLimit.pool', 'dock.aiLimit.poolTooltip', 'dock.aiLimit.out', 'popup.aiLimit', 'popup.aiLimitValue', 'popup.aiLimitLeft', 'popup.aiLimitResets', 'popup.aiLimitOwnSpent', 'popup.aiLimitPoolLeft', 'popup.aiLimitOff', 'popup.aiLimitTooltip', 'popup.aiNoLimit', 'popup.aiNoLimitTooltip', 'toast.aiLimitLow.title', 'toast.aiLimitLow.body', 'toast.aiLimitLow.bodyPool', 'toast.aiLimitPool.title', 'toast.aiLimitPool.body', 'toast.aiLimitOut.title', 'toast.aiLimitOut.body',
   'popup.btn.keys', 'popup.btn.settings', 'popup.whatsNew', 'popup.history', 'popup.refreshStatus', 'popup.version',
   'signIn.title', 'signIn.login', 'signIn.password', 'signIn.submit', 'signIn.pending',
   'settings.label',

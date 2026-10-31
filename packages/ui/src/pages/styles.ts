@@ -19,7 +19,7 @@ const BRAND_CSS = `
   --pg-paper: #f7f3ea; --pg-shade: #e7dfcf; --pg-line: #d9d0be; --pg-line-2: #cfc6b4; --pg-hair: #e9e2d4;
   --pg-ink: #1c1b17; --pg-ink-2: #3a372f; --pg-ink-3: #5a564c; --pg-ink-4: #8d8778;
   --pg-card: #fffdf8; --pg-pond: #8db8d4; --pg-on-pond: #1c1b17; --pg-down: #f4c845; --pg-on-down: #1c1b17;
-  --pg-focus: #d0501a; --pg-danger: #b53a17;
+  --pg-focus: #d0501a; --pg-danger: #b53a17; --pg-warn: #8a6100;
   --pg-btn: #1c1b17; --pg-btn-ink: #f7f3ea; --pg-btn-hover: #000;
   --pg-display: 'Literata', Georgia, 'Times New Roman', serif;
   --pg-text: 'Golos Text', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -28,7 +28,7 @@ const BRAND_CSS = `
   --pg-paper: #1c1b17; --pg-shade: #2d2b25; --pg-line: #3d3a33; --pg-line-2: #4a463d; --pg-hair: #312e28;
   --pg-ink: #f7f3ea; --pg-ink-2: #ded7c8; --pg-ink-3: #b0a998; --pg-ink-4: #7f796c;
   --pg-card: #24221d; --pg-pond: #2b4d63; --pg-on-pond: #f7f3ea; --pg-down: #f4c845; --pg-on-down: #1c1b17;
-  --pg-focus: #f4c845; --pg-danger: #f07b58;
+  --pg-focus: #f4c845; --pg-danger: #f07b58; --pg-warn: #f4c845;
   --pg-btn: #f7f3ea; --pg-btn-ink: #1c1b17; --pg-btn-hover: #fff;
 }
 :root, :root[data-scheme] {
@@ -212,15 +212,17 @@ ${/* The facts: one paper-white card, a line each — the word on the left, the 
 .pg-popup__fact dd > small { flex-basis: 100%; min-width: 0; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pg-popup__fact dd > .cg-btn--quiet { height: 20px; margin: -2px -6px -2px 0; font-size: 13px; color: var(--cg-ink-muted); }
 .pg-popup__fact dd > small.pg-popup__by { flex-basis: auto; }
-${/* The person's own daily AI limit (the owner, 2026-10-31): the money, a thin bar under it; amber from 80 %, red when spent. */ ''}
-.pg-popup__fact dd > b.pg-popup__ailimit.is-low, .pg-popup__fact dd > b.pg-popup__ailimit.is-pool { color: var(--cg-amber-ink, #96691c); }
-.pg-popup__fact dd > b.pg-popup__ailimit.is-out { color: var(--cg-danger); }
-.pg-popup__fact dd > small.pg-popup__ailimit-note { flex-basis: 100%; white-space: normal; }
-.pg-popup__ailimit-bar { display: block; flex-basis: 100%; height: 4px; margin: 5px 0 1px; border-radius: 999px; background: var(--pg-line-2); overflow: hidden; }
-.pg-popup__ailimit-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--cg-good-ink, #3a7d44); }
-.pg-popup__ailimit-bar.is-low > span, .pg-popup__ailimit-bar.is-pool > span { background: var(--cg-amber-ink, #96691c); }
-.pg-popup__ailimit-bar.is-out > span { background: var(--cg-danger); }
-.pg-popup__fact--note { display: block; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); text-align: right; }
+${/* The person's own daily AI limit (the owner, 2026-10-31): the money on the line, a bar across the card under it and
+     one line of what is left and the pool; the gosling's yellow from 80 % and in the pool, red when AI is off. */ ''}
+.pg-popup__fact--ai .pg-popup__ailimit-meter { grid-column: 1 / -1; display: grid; gap: 6px; padding: 7px 0 1px; }
+.pg-popup__ailimit-bar { display: block; height: 6px; border-radius: 999px; background: var(--pg-shade); overflow: hidden; }
+.pg-popup__ailimit-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--pg-ink-2); transition: width 0.3s ease; }
+.pg-popup__ailimit-line { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; line-height: 17px; color: var(--cg-ink-muted); }
+.pg-popup__ailimit-line > span { white-space: nowrap; }
+.pg-popup__fact--ai.is-low .pg-popup__ailimit-bar > span, .pg-popup__fact--ai.is-pool .pg-popup__ailimit-bar > span { background: var(--pg-down); }
+.pg-popup__fact--ai.is-low dd > b.pg-popup__ailimit, .pg-popup__fact--ai.is-pool dd > b.pg-popup__ailimit, .pg-popup__fact--ai.is-pool .pg-popup__ailimit-line { color: var(--pg-warn); }
+.pg-popup__fact--ai.is-out .pg-popup__ailimit-bar > span { background: var(--cg-danger); }
+.pg-popup__fact--ai.is-out dd > b.pg-popup__ailimit, .pg-popup__fact--ai.is-out .pg-popup__ailimit-line { color: var(--cg-danger); }
 .pg-popup__nil { color: var(--cg-ink-muted); }
 .pg-popup__handle { font-weight: 400; color: var(--cg-ink-muted); }
 .pg-popup__copy { font: inherit; color: inherit; border-radius: 4px; }

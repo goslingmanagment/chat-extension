@@ -4,16 +4,44 @@
 // `personal_daily_limit`. A display snapshot for the dock, the popup and the
 // alerts; the hub stays the judge and refuses by itself.
 
-import { type AiLimitReport, type AiLimitSnapshot, type MetaFrame } from '@cg/contracts';
+import { AiLimitSnapshotSchema, type AiLimitReport, type AiLimitSnapshot, type MetaFrame } from '@cg/contracts';
 import { nextMskMidnight } from '@cg/core/domain';
+import { type HubKeyValueStore } from './ports';
+
+/** `storage.session` key of the last snapshot: an event page woken by the popup answers at once, not after the hub. */
+export const AI_LIMIT_SESSION_KEY = 'cache.aiLimit';
 
 type LimitFields = Pick<AiLimitSnapshot, 'dailyLimitMicroUsd' | 'todayMicroUsd' | 'remainingMicroUsd' | 'poolMicroUsd' | 'poolRemainingMicroUsd' | 'resetsAt'>;
 
 export class AiLimitTracker {
   private snapshot: AiLimitSnapshot | null = null;
   private readonly listeners = new Set<(limit: AiLimitSnapshot) => void>();
+  /** Bumped by `clear`: a read of storage.session started before it is not this sign-in's. */
+  private epoch = 0;
+  private restoring: Promise<void> | null = null;
 
-  constructor(private readonly now: () => number) {}
+  constructor(
+    private readonly now: () => number,
+    private readonly session: HubKeyValueStore | null = null,
+  ) {}
+
+  /**
+   * After an idle unload of the event page: the snapshot the previous background kept in storage.session, unless
+   * this one already knows one or its Moscow day is over. Read once; never fails.
+   */
+  restore(): Promise<void> {
+    this.restoring ??= this.readSession();
+    return this.restoring;
+  }
+
+  private async readSession(): Promise<void> {
+    if (this.session === null || this.snapshot !== null) return;
+    const epoch = this.epoch;
+    const read = await this.session.get([AI_LIMIT_SESSION_KEY]).catch(() => null);
+    if (read === null || !read.ok || epoch !== this.epoch || this.snapshot !== null) return;
+    const parsed = AiLimitSnapshotSchema.safeParse(read.value[AI_LIMIT_SESSION_KEY]);
+    if (parsed.success && this.now() < Date.parse(parsed.data.resetsAt)) this.snapshot = parsed.data;
+  }
 
   onChange(listener: (limit: AiLimitSnapshot) => void): () => void {
     this.listeners.add(listener);
@@ -86,13 +114,18 @@ export class AiLimitTracker {
     return true;
   }
 
+  /** Sign-in transitions and «Очистить локальные данные»: nothing of the previous person survives, here or stored. */
   clear(): void {
     this.snapshot = null;
+    this.epoch += 1;
+    if (this.session !== null) void this.session.remove([AI_LIMIT_SESSION_KEY]).catch(() => undefined);
   }
 
   private set(fields: LimitFields): void {
     const limit: AiLimitSnapshot = { ...fields, observedAt: new Date(this.now()).toISOString() };
     this.snapshot = limit;
+    this.epoch += 1;
+    if (this.session !== null) void this.session.set({ [AI_LIMIT_SESSION_KEY]: limit }).catch(() => undefined);
     for (const listener of [...this.listeners]) listener(limit);
   }
 }

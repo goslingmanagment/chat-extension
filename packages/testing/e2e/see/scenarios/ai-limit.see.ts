@@ -36,6 +36,11 @@ scenario(
     await s.done();
     await s.wait(4500);
     await s.shot('dock-out');
+    await s.toPages();
+    await openPopup();
+    await waitForPopup((state) => state.view === 'ready', 'the popup of a signed-in person');
+    await s.shot('popup-out');
+    await s.toChat();
     // «Ещё раз»: the hub refuses, the own limit and the pool are spent; the card counts down to 00:00 МСК.
     await s.press(/^Ещё раз/, 'dock', 'button');
     await s.wait(1500);

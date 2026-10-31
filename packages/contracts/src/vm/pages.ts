@@ -95,8 +95,8 @@ export interface PopupVM {
   readonly quota: { readonly remaining: number | null; readonly resetsAt: IsoTimestamp | null; readonly low: boolean } | null;
   /** «ИИ сегодня $1.20 из $3.50» with a bar: the person's own daily limit; absent or null — none or not known. */
   readonly aiLimit?: AiLimitVM | null;
-  /** «AI сегодня $» — debug only, «только этот браузер» until H-15 (§9.3). */
-  readonly aiTodayLine: string | null;
+  /** «ИИ сегодня $0.26 · без лимита»: what AI cost a person without an own limit today (all pages); null — they have one, or it is not known. */
+  readonly aiTodayNoLimit: string | null;
   readonly newcomersCount: number | null;
   /** Spenders, «Новые», «Клавиши ?», «Настройки». */
   readonly buttons: readonly ActionButtonVM[];
