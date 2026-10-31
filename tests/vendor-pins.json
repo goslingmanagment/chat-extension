@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "a8112b538cc7d171f37094c813a32efb5d61ec75caf6778519cd30e198fde1b7",
-    "sourceCommit": "d5d3a19957df0a13021818d5e270f98bfa33f84c",
-    "note": "Vendored on 2026-11-01 from hub main d5d3a199 (#961, deployed; on top of #959) with scripts/vendor-sdk.mjs: clientOnlyfansPoll takes the holder's report of its pass (`passed`), and «Новые» of a page fed by ChatSpace vouch for their list by it. Re-vendor with the same script and update this pin together."
+    "contractHash": "64679926553fb28016b7c81e2b06452896634ae4fa9104c836c7b7fe9f81c7aa",
+    "sourceCommit": "a5da2fe12635505d053c4e86ca198629509fa639",
+    "note": "Vendored on 2026-11-01 from hub main a5da2fe1 (#970, deployed) with scripts/vendor-sdk.mjs: the always-on ChatSpace tab's report takes the socket's own state and each account's `subscribed` (chatspace-tab-state-v2). Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",
