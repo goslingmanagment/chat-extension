@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import { type ActionReceipt, type OutreachWindowVM, type SettingsV1 } from '@cg/contracts';
 import { Surfaces, fanHandle, type PageContextPort, type PageContextState, type TabRpc } from '@cg/core/application/boards';
-import { OUTREACH_PACE_MS, createOutreachController, type OutreachAnswer, type OutreachBoardPort, type OutreachRequest } from '@cg/core/application/outreach';
+import { OUTREACH_PACE_MS, OUTREACH_SAVE_MS, createOutreachController, type OutreachAnswer, type OutreachBoardPort, type OutreachRequest, type OutreachStorePort } from '@cg/core/application/outreach';
+import { readOutreachStore } from '@cg/core/domain/outreach';
 import { createI18n } from '@cg/core/domain/i18n';
 import { BOOTSTRAP_PILOT_PAGES } from '@cg/testing/hub';
 
@@ -58,8 +59,21 @@ function boardOf(): BoardIndex {
   } as unknown as BoardIndex;
 }
 
-function world(answer: (request: OutreachRequest) => OutreachAnswer = () => ({ ok: true, messageId: '700000000000000099' })) {
-  const clock = new FakeClock(NOW_MS);
+/** storage.local's `outreach.saved` as every tab of the browser shares it. */
+function memoryStore(): OutreachStorePort & { peek(): unknown } {
+  let value: unknown;
+  return {
+    load: () => Promise.resolve(value === undefined ? undefined : structuredClone(value)),
+    save(next) {
+      value = structuredClone(next);
+      return Promise.resolve();
+    },
+    peek: () => value,
+  };
+}
+
+function world(answer: (request: OutreachRequest) => OutreachAnswer | Promise<OutreachAnswer> = () => ({ ok: true, messageId: '700000000000000099' }), store?: OutreachStorePort, start = NOW_MS) {
+  const clock = new FakeClock(start);
   const sent: OutreachRequest[] = [];
   const rpc = {
     request: (type: string) => Promise.resolve(type === 'token.issue' ? { ok: true, payload: { actionToken: TOKEN, expiresAt: NOW_MS + 10_000 } } : { ok: false, error: { code: 'CG-UNKNOWN' } }),
@@ -90,6 +104,7 @@ function world(answer: (request: OutreachRequest) => OutreachAnswer = () => ({ o
     context,
     surfaces: new Surfaces(),
     board,
+    ...(store === undefined ? {} : { store }),
     own: {
       copied: () => Promise.resolve({ items: [{ contentType: 2, contentId: BUNDLE }, { contentType: 2, contentId: PREVIEW }, { contentType: 1, contentId: MEDIA }], checked: true }),
       send(request) {
@@ -180,5 +195,80 @@ describe('[host:fansly] «Рассылка»: who gets what, by whose click', ()
     expect((await w.send(WHALE)).ok).toBe(false);
     expect((await w.send(TOP)).ok).toBe(false);
     expect(w.sent.map((request) => request.fanRef)).toEqual([WHALE, TOP]);
+  });
+});
+
+describe('[host:fansly] «Рассылки» kept on this computer (2026-11-01)', () => {
+  it('a reload brings the outreach back as it was: what went stays, a send on its way is unknown and never goes again, a version waits', async () => {
+    const store = memoryStore();
+    // Daniel's send never answers: the tab goes while it is on its way.
+    const tab = world((request) => (request.fanRef === TOP ? new Promise<OutreachAnswer>(() => undefined) : { ok: true, messageId: '700000000000000099' }), store);
+    await tab.written();
+    expect(await tab.send(WHALE)).toMatchObject({ ok: true });
+    await tab.clock.advance(OUTREACH_PACE_MS);
+    void tab.act({ type: 'SendOutreach', targetHandle: fanHandle('outreach', WORLD.pages.fansly.pageId, TOP) });
+    await settle(12);
+    expect(tab.row(TOP)?.state).toBe('sending');
+    await tab.clock.advance(OUTREACH_SAVE_MS);
+    await settle(12);
+    tab.outreach.dispose();
+    await settle(12);
+    expect(tab.sent.map((request) => request.fanRef)).toEqual([WHALE, TOP]);
+
+    // The page loads again: a new window of the same page.
+    const again = world(() => ({ ok: true, messageId: '700000000000000098' }), store, NOW_MS + 5_000);
+    await settle(12);
+    expect(again.vm().text).toBe('the sunset set is up');
+    expect(again.row(WHALE)).toMatchObject({ state: 'sent', version: 'welcome home ✈️ the second part is ready' });
+    expect(again.row(TOP)?.state).toBe('uncertain');
+    expect(again.row(LOST)).toMatchObject({ state: 'ready', version: 'missed you around here 🥺' });
+    expect(again.vm().saved).toMatchObject([{ current: true, total: 3, sent: 1, text: 'the sunset set is up' }]);
+    // What went, or may have, never goes again; the version that waited goes by its click, once.
+    expect((await again.send(WHALE)).ok).toBe(false);
+    expect((await again.send(TOP)).ok).toBe(false);
+    expect(again.sent).toEqual([]);
+  });
+
+  it('a version another tab of the outreach sent is not sent again from this one', async () => {
+    const store = memoryStore();
+    const first = world(undefined, store);
+    await first.written();
+    await first.clock.advance(OUTREACH_SAVE_MS);
+    await settle(12);
+    // The second tab opens the same outreach before the first one sends anything.
+    const second = world(undefined, store, NOW_MS + 1_000);
+    await settle(12);
+    expect(second.row(WHALE)?.state).toBe('ready');
+    expect(await first.send(WHALE)).toMatchObject({ ok: true });
+    await first.clock.advance(OUTREACH_SAVE_MS);
+    await settle(12);
+    expect(await second.send(WHALE)).toMatchObject({ ok: false, code: 'CG-SEND-BUSY' });
+    expect(second.row(WHALE)?.state).toBe('sent');
+    expect(second.sent).toEqual([]);
+    // What the second tab writes afterwards never undoes the first one's send.
+    await second.act({ type: 'SetOutreach', text: 'the sunset set is up!' });
+    await second.clock.advance(OUTREACH_SAVE_MS);
+    await settle(12);
+    const kept = readOutreachStore(store.peek(), NOW_MS + 2_000).outreaches[0];
+    expect(kept?.fans.find((fan) => fan.fanRef === WHALE)?.send?.state).toBe('sent');
+  });
+
+  it('«Новая рассылка» keeps the old outreach in the list, and a click on it brings it back', async () => {
+    const store = memoryStore();
+    const tab = world(undefined, store);
+    await tab.written();
+    expect(await tab.send(WHALE)).toMatchObject({ ok: true });
+    await tab.act({ type: 'SetOutreach', fresh: true });
+    await tab.clock.advance(OUTREACH_SAVE_MS);
+    await settle(12);
+    const saved = tab.vm().saved;
+    expect(saved.map((item) => [item.current, item.total, item.sent])).toEqual([
+      [true, 0, 0],
+      [false, 3, 1],
+    ]);
+    expect(await tab.act({ type: 'SetOutreach', resume: saved[1]?.id ?? '' })).toMatchObject({ ok: true });
+    expect(tab.row(WHALE)?.state).toBe('sent');
+    expect(tab.row(TOP)?.state).toBe('ready');
+    expect(tab.vm().saved.find((item) => item.current)).toMatchObject({ total: 3, sent: 1 });
   });
 });

@@ -338,6 +338,29 @@ export interface OutreachWindowVM {
    * and each item picked or not; null — the site has no such list.
    */
   readonly posts: OutreachPostsVM | null;
+  /** 1.71.0: the page's outreaches kept on this computer, newest first («Рассылки» in the head); the window's own among them. */
+  readonly saved: readonly OutreachSavedVM[];
+}
+
+/**
+ * 1.71.0 (Dmitriy, 2026-11-01: «локально хранить состояние всех рассылок, чтобы можно было к любой вернуться с того же
+ * момента»): an outreach of the page kept on this computer, as the list in the window's head shows it.
+ */
+export interface OutreachSavedVM {
+  readonly id: string;
+  /** The window's outreach now. */
+  readonly current: boolean;
+  /** The common text, as it was; '' — none yet. */
+  readonly text: string;
+  readonly startedAt: IsoTimestamp;
+  readonly updatedAt: IsoTimestamp;
+  /** Fans the outreach is for (0 — its versions are not written yet). */
+  readonly total: number;
+  readonly sent: number;
+  readonly replied: number;
+  readonly boughtMills: MoneyMills | null;
+  /** It goes with media. */
+  readonly media: boolean;
 }
 
 /** An item of the page's «Copied …» list: 2 — «Copied Bundle», 1 — «Copied Media». */

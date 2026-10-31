@@ -56,6 +56,12 @@ export interface DraftStore {
   onChanged(listener: (value: unknown) => void): () => void;
 }
 
+/** 2026-11-01: `outreach.saved` of storage.local — «Рассылки» kept on this computer (core's OutreachStorePort). */
+export interface OutreachSavedStore {
+  load(): Promise<unknown>;
+  save(value: unknown): Promise<void>;
+}
+
 /** What every family gets from the application. */
 export interface TabWorld {
   readonly registrationOf?: (fanId: string, i18n: I18n) => FanPanelVM['registration'];
@@ -87,6 +93,8 @@ export interface TabWorld {
   readonly gate: GestureGate;
   readonly logger: Logger;
   readonly drafts: DraftStore | null;
+  /** «Рассылки» kept on this computer; null — an outreach lives until the tab reloads. */
+  readonly outreachSaved?: OutreachSavedStore | null;
   /** 1.47.0: «Скачать MP3» of a voice take — a Blob saved inside our own closed root. */
   readonly files: AiChunk.FileSaver;
   /** What stands over the page without being a window: «Рассылка» folded into its chip. Absent — nothing. */
@@ -491,7 +499,7 @@ export async function startBoards(
     draftOf: (pageId, fanRef) => late.preview?.draftOf('newcomers', pageId, fanRef) ?? null,
   });
   // «Рассылка»: its own window over the Spenders board's fans; each site sends its versions its own way (the chunk says how).
-  const outreach = chunk.createOutreachController({ rpc, host: boardsHost, i18n, clock, context, surfaces, board: spenders.outreachBoard });
+  const outreach = chunk.createOutreachController({ rpc, host: boardsHost, i18n, clock, context, surfaces, board: spenders.outreachBoard, ids: world.ids, ...(world.outreachSaved === undefined || world.outreachSaved === null ? {} : { store: world.outreachSaved }) });
   const rowOf = (pageId: number, fanRef: string) => spenders.row(pageId, fanRef);
   const rowsChanged = (listener: () => void): (() => void) => spenders.directory.subscribe(listener);
   const palette = chunk.createPaletteDirectory({ host: boardsHost, context, rowOf, rowsChanged });

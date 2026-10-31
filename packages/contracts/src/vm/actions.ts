@@ -414,7 +414,8 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * back; the common text; a tier or a condition of «Кому» (`amount` — «Потратил больше» in dollars as typed); a fan
    * ticked or not (`tick`, or every fan of the list with `tickAll`); the list's tab; the pane on the right while no fan
    * is chosen; `fresh` — «Новая рассылка»: the
-   * versions and the marks go; `refresh` — the board and what came of the sends are read again.
+   * versions and the marks go; `refresh` — the board and what came of the sends are read again; `resume` (1.71.0) — an
+   * outreach kept on this computer («Рассылки» in the head) becomes the window's again, as it was left.
    */
   act('SetOutreach', {
     open: z.optional(z.boolean()),
@@ -431,6 +432,7 @@ export const UiActionSchema = z.discriminatedUnion('type', [
     sheet: z.optional(z.boolean()),
     post: z.optional(z.strictObject({ contentType: z.union([z.literal(1), z.literal(2)]), contentId: z.string().check(z.regex(/^[1-9][0-9]{0,23}$/)), picked: z.boolean() })),
     fresh: z.optional(z.literal(true)),
+    resume: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
   }),
   /**
    * The row's or the card's «Отправить» of one fan's version: the version, with the offer's media or the fan's own — one

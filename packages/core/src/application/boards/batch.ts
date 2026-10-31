@@ -108,6 +108,11 @@ export interface Batch {
   /** These fans forget the batch — their tick, their result as the batch heard it (one generating goes on). */
   drop(handles: readonly string[]): boolean;
   /**
+   * 2026-11-01, «Рассылки» kept on this computer: these fans have their written result again, as it was kept — nothing is
+   * generated; a fan generating now keeps their generation.
+   */
+  restore(entries: readonly { readonly handle: string; readonly text: string }[]): void;
+  /**
    * «Отправить всем»: the ready greetings go one by one, BATCH_LIMITS.sendGapMs apart and never faster than the hub's
    * minute, each by its row's own send. A refusal or an unknown outcome is never sent again: the fan stays for the
    * person. False — nothing to send, or a run is going.
@@ -420,6 +425,14 @@ export function createBatch(deps: BatchDeps): Batch {
       }
       if (moved) deps.changed();
       return moved;
+    },
+    restore(entries) {
+      for (const { handle, text } of entries) {
+        if (items.get(handle)?.state === 'generating') continue;
+        picks.delete(handle);
+        items.set(handle, { state: 'ready', text, code: null });
+      }
+      if (entries.length > 0) deps.changed();
     },
     row,
     vm(reason) {

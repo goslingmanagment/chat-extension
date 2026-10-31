@@ -35,6 +35,7 @@ import { createShellController, greetNewcomer } from '@cg/core/application/shell
 import { toastKindOf, viewOfCode } from '@cg/core/domain/errors';
 import { createLiveI18n, resolveLocale, translatorOf } from '@cg/core/domain/i18n/live';
 import { createLogForwarder, createLogger, installErrorCapture, logEvent, logHostContract } from '@cg/core/domain/logging';
+import { OUTREACH_CHIP_BACK_MS, foldedRecently } from '@cg/core/domain/outreach/saved';
 import type { DispatcherCommandId } from '@cg/core/domain/hotkeys';
 import type { TabRpcClient } from '@cg/platform';
 
@@ -52,7 +53,7 @@ import type * as HealthChunk from '../../../lazy/entries/tab-health';
 import { createActionTokens, createGestureGate, onScreen, type TabActionTokens } from './action-gate';
 import type { HostAppAdapter, HostDiagnostic, HostMounts, HostThemeSource, SiteAppEnv, TokenRedeemer } from './adapter';
 import { adopt, boardReceiptToast, chatOnScreen, closesPalette, controllerRpc, createTabClient, handoverToast, heldSilently, paletteReceiptToast } from './client';
-import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
+import { dockChatBridge, startAi, startAnalysis, startBoards, startNavigation, type DraftStore, type OutreachSavedStore, type TabBoards, type TabClock, type TabWorld } from './controllers';
 import { createContractLog } from './contract-log';
 import { contractFactsOf, forwardHostFacts, knownBootstrap } from './host-facts';
 import type { TabKeys } from './keys';
@@ -88,6 +89,8 @@ export interface TabAppEnv<P extends HostPort = HostPort> {
   readonly takeDiagnostics: (listener: (diagnostic: HostDiagnostic) => void) => HostDiagnostic[];
   /** `newcomers.drafts` of storage.local; null — drafts live until the tab reloads. */
   readonly drafts: DraftStore | null;
+  /** `outreach.saved` of storage.local («Рассылки»); absent or null — an outreach lives until the tab reloads. */
+  readonly outreachSaved?: OutreachSavedStore | null;
   /** Test builds only. */
   readonly probe: TabProbe | null;
 }
@@ -414,6 +417,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     gate,
     logger,
     drafts: env.drafts,
+    outreachSaved: env.outreachSaved ?? null,
     files: { save: (file) => saveFile({ fileName: file.name, mime: file.mime, body: file.bytes }) },
     pins,
     ...(online === undefined ? {} : { online }),
@@ -806,6 +810,17 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       void loadCatalog(language).then(() => i18n.setLanguage(language));
     }),
   );
+
+  // «Рассылки» (2026-11-01): an outreach open or folded when the page last went comes back as its chip — the boards start
+  // for it now, not at the first board the person opens (one read of the key; nothing else is asked).
+  if (env.outreachSaved !== undefined && env.outreachSaved !== null) {
+    void env.outreachSaved.load().then(
+      (raw) => {
+        if (!disposed && foldedRecently(raw, Date.now(), OUTREACH_CHIP_BACK_MS)) void ensureBoards().catch(() => undefined);
+      },
+      () => undefined,
+    );
+  }
 
   // ── stage two: Recap, Coach (and its Review) — then the keys ───────────────
   stageTwo = Promise.all([env.lazy<typeof AnalysisChunk>('ai-analysis'), env.lazy<typeof CoachChunk>('ai-coach')])

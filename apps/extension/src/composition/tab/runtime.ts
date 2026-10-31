@@ -127,6 +127,21 @@ export function draftStoreOf(api: BrowserApi = defaultBrowser(), win: Pick<Windo
   };
 }
 
+/** `outreach.saved` (core's OUTREACH_STORE_KEY), spelled out for the early bundle as the drafts' key is. */
+export const OUTREACH_SAVED_KEY = 'outreach.saved';
+
+/**
+ * «Рассылки» kept on this computer (2026-11-01): one key of storage.local every tab shares; the outreach controller
+ * merges what it writes with what is stored. As with the drafts, no storage listener in the page's process: a tab reads
+ * the key again when its window opens and before a send.
+ */
+export function outreachSavedOf(api: BrowserApi = defaultBrowser()): { load(): Promise<unknown>; save(value: unknown): Promise<void> } {
+  return {
+    load: async () => (await api.storage.local.get(OUTREACH_SAVED_KEY))[OUTREACH_SAVED_KEY],
+    save: (value) => api.storage.local.set({ [OUTREACH_SAVED_KEY]: value }),
+  };
+}
+
 const isAck = (value: unknown): value is { recorded: boolean } =>
   typeof value === 'object' && value !== null && Object.keys(value).length === 1 && typeof (value as { recorded?: unknown }).recorded === 'boolean';
 
@@ -324,6 +339,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         keys: env.keys,
         lazy: env.lazy,
         drafts: draftStoreOf(env.api, win),
+        outreachSaved: outreachSavedOf(env.api),
         ownOrigin: extensionUrl('').replace(/\/$/, ''),
         extensionVersion: extensionVersionOf(env.api),
         contractsVersion: CONTRACTS_VERSION,
