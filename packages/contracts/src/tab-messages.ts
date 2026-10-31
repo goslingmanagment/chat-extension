@@ -172,9 +172,12 @@ export const BackgroundToastSchema = z.strictObject({
    */
   aiLimit: z.optional(
     z.strictObject({
-      level: z.enum(['low', 'out']),
+      /** `pool`: the own limit is spent, the AI now takes from the team's shared pool. */
+      level: z.enum(['low', 'pool', 'out']),
       todayMicroUsd: CountSchema,
       dailyLimitMicroUsd: CountSchema,
+      /** What is left of the shared pool; absent when there is none. */
+      poolRemainingMicroUsd: z.optional(CountSchema),
     }),
   ),
 });
@@ -201,8 +204,12 @@ export const AiLimitSnapshotSchema = z.strictObject({
   /** Null: the owner set no limit for this person. */
   dailyLimitMicroUsd: z.nullable(CountSchema),
   todayMicroUsd: CountSchema,
-  /** Null without a limit. */
+  /** What is left of the own limit; null without a limit. */
   remainingMicroUsd: z.nullable(CountSchema),
+  /** Today's shared pool of the team (yesterday's unspent limits); null — no limit, or a hub without the pool. */
+  poolMicroUsd: z.nullable(CountSchema),
+  /** What is left of the pool, everyone together: spent past the own limit. */
+  poolRemainingMicroUsd: z.nullable(CountSchema),
   /** 00:00 МСК of the next day: the limit starts over. */
   resetsAt: IsoTimestampSchema,
   observedAt: IsoTimestampSchema,

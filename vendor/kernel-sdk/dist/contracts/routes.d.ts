@@ -3701,6 +3701,8 @@ export declare const aiPersonalLimitSchema: z.ZodObject<{
     dailyLimitMicroUsd: z.ZodNumber;
     todayMicroUsd: z.ZodNumber;
     remainingMicroUsd: z.ZodNumber;
+    poolMicroUsd: z.ZodNumber;
+    poolRemainingMicroUsd: z.ZodNumber;
     resetsAt: z.ZodString;
 }, z.core.$strip>;
 export declare const aiGatewayQuotaSchema: z.ZodObject<{
@@ -3711,12 +3713,14 @@ export declare const aiGatewayQuotaSchema: z.ZodObject<{
         dailyLimitMicroUsd: z.ZodNumber;
         todayMicroUsd: z.ZodNumber;
         remainingMicroUsd: z.ZodNumber;
+        poolMicroUsd: z.ZodNumber;
+        poolRemainingMicroUsd: z.ZodNumber;
         resetsAt: z.ZodString;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
 /**
- * 429 `quota_denied` of an AI generation. At the caller's personal daily limit
- * it carries `reason: "personal_daily_limit"` and `retryAfterMs` until 00:00
+ * 429 `quota_denied` of an AI generation. When the caller's personal daily limit
+ * and the shared pool are both spent it carries `reason: "personal_daily_limit"` and `retryAfterMs` until 00:00
  * Moscow time (also sent as `Retry-After`); the common caps send neither.
  */
 export declare const aiQuotaDeniedResponseSchema: z.ZodObject<{
@@ -3781,6 +3785,8 @@ export declare const aiGatewayStreamFrameSchema: z.ZodDiscriminatedUnion<[z.ZodO
             dailyLimitMicroUsd: z.ZodNumber;
             todayMicroUsd: z.ZodNumber;
             remainingMicroUsd: z.ZodNumber;
+            poolMicroUsd: z.ZodNumber;
+            poolRemainingMicroUsd: z.ZodNumber;
             resetsAt: z.ZodString;
         }, z.core.$strip>>>;
     }, z.core.$strip>;
@@ -3918,6 +3924,8 @@ export declare const aiFeatureStreamFrameSchema: z.ZodUnion<readonly [z.ZodDiscr
             dailyLimitMicroUsd: z.ZodNumber;
             todayMicroUsd: z.ZodNumber;
             remainingMicroUsd: z.ZodNumber;
+            poolMicroUsd: z.ZodNumber;
+            poolRemainingMicroUsd: z.ZodNumber;
             resetsAt: z.ZodString;
         }, z.core.$strip>>>;
     }, z.core.$strip>;
@@ -9859,6 +9867,7 @@ export declare const notificationsIncidentItemSchema: z.ZodObject<{
         fansly_sync_engine: "fansly_sync_engine";
         publishing_stopped: "publishing_stopped";
         publication_not_published: "publication_not_published";
+        ofapi_platform_notice: "ofapi_platform_notice";
     }>;
     pageLabel: z.ZodNullable<z.ZodString>;
     platform: z.ZodNullable<z.ZodEnum<{
@@ -9919,6 +9928,7 @@ export declare const notificationsIncidentsQuerySchema: z.ZodObject<{
         fansly_sync_engine: "fansly_sync_engine";
         publishing_stopped: "publishing_stopped";
         publication_not_published: "publication_not_published";
+        ofapi_platform_notice: "ofapi_platform_notice";
     }>>;
     pageLabel: z.ZodOptional<z.ZodString>;
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -9954,6 +9964,7 @@ export declare const notificationsIncidentsResponseSchema: z.ZodObject<{
             fansly_sync_engine: "fansly_sync_engine";
             publishing_stopped: "publishing_stopped";
             publication_not_published: "publication_not_published";
+            ofapi_platform_notice: "ofapi_platform_notice";
         }>;
         pageLabel: z.ZodNullable<z.ZodString>;
         platform: z.ZodNullable<z.ZodEnum<{
@@ -17454,6 +17465,7 @@ declare const baseRouteSchemas: {
                 fansly_sync_engine: "fansly_sync_engine";
                 publishing_stopped: "publishing_stopped";
                 publication_not_published: "publication_not_published";
+                ofapi_platform_notice: "ofapi_platform_notice";
             }>>;
             pageLabel: z.ZodOptional<z.ZodString>;
             limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -17490,6 +17502,7 @@ declare const baseRouteSchemas: {
                         fansly_sync_engine: "fansly_sync_engine";
                         publishing_stopped: "publishing_stopped";
                         publication_not_published: "publication_not_published";
+                        ofapi_platform_notice: "ofapi_platform_notice";
                     }>;
                     pageLabel: z.ZodNullable<z.ZodString>;
                     platform: z.ZodNullable<z.ZodEnum<{
@@ -20499,18 +20512,26 @@ declare const baseRouteSchemas: {
             readonly kind: "owner-session";
         };
         readonly tags: readonly ["admin"];
-        readonly summary: "Personal daily AI limits: each person's limit and AI spend in the current Moscow day";
+        readonly summary: "Personal daily AI limits: each person's limit, AI spend today and yesterday, and today's shared pool";
         readonly response: {
             readonly 200: z.ZodObject<{
                 generatedAt: z.ZodString;
                 day: z.ZodString;
                 resetsAt: z.ZodString;
+                pool: z.ZodObject<{
+                    microUsd: z.ZodNumber;
+                    usedMicroUsd: z.ZodNumber;
+                    remainingMicroUsd: z.ZodNumber;
+                }, z.core.$strip>;
                 chatters: z.ZodArray<z.ZodObject<{
                     userId: z.ZodNumber;
                     username: z.ZodString;
                     role: z.ZodString;
                     dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
                     todayMicroUsd: z.ZodNumber;
+                    yesterdayMicroUsd: z.ZodNumber;
+                    intoPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
+                    fromPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
                     blocked: z.ZodBoolean;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -20547,12 +20568,20 @@ declare const baseRouteSchemas: {
                 generatedAt: z.ZodString;
                 day: z.ZodString;
                 resetsAt: z.ZodString;
+                pool: z.ZodObject<{
+                    microUsd: z.ZodNumber;
+                    usedMicroUsd: z.ZodNumber;
+                    remainingMicroUsd: z.ZodNumber;
+                }, z.core.$strip>;
                 chatters: z.ZodArray<z.ZodObject<{
                     userId: z.ZodNumber;
                     username: z.ZodString;
                     role: z.ZodString;
                     dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
                     todayMicroUsd: z.ZodNumber;
+                    yesterdayMicroUsd: z.ZodNumber;
+                    intoPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
+                    fromPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
                     blocked: z.ZodBoolean;
                 }, z.core.$strip>>;
             }, z.core.$strip>;

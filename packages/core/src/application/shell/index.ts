@@ -185,16 +185,17 @@ export function createShellController(ports: ShellPorts): ShellController {
       const hi = button('dock.action.hi', ports.greetHere === undefined ? target : { ...target, here: true });
       return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: here === null ? [hi, later] : cardActions(target, here), copyCode: false, expiresAt: entry.expiresAt, greet };
     }
-    // `ai-limit-v1`: «ИИ на сегодня почти закончился» / «исчерпан» with the money; it stays until closed.
+    // `ai-limit-v1`: «почти закончился» / «свой лимит кончился, дальше котёл» / «кончился» with the money; it stays until closed.
     if (toast.aiLimit !== undefined) {
-      const money = { spent: formatAiMoney(toast.aiLimit.todayMicroUsd), limit: formatAiMoney(toast.aiLimit.dailyLimitMicroUsd) };
-      const out = toast.aiLimit.level === 'out';
+      const poolLeft = toast.aiLimit.poolRemainingMicroUsd ?? 0;
+      const money = { spent: formatAiMoney(toast.aiLimit.todayMicroUsd), limit: formatAiMoney(toast.aiLimit.dailyLimitMicroUsd), pool: formatAiMoney(poolLeft) };
+      const level = toast.aiLimit.level;
       return {
         id: toast.toastId,
         kind: toast.kind,
         code: null,
-        title: i18n.t(out ? 'toast.aiLimitOut.title' : 'toast.aiLimitLow.title'),
-        body: i18n.t(out ? 'toast.aiLimitOut.body' : 'toast.aiLimitLow.body', money),
+        title: i18n.t(level === 'out' ? 'toast.aiLimitOut.title' : level === 'pool' ? 'toast.aiLimitPool.title' : 'toast.aiLimitLow.title'),
+        body: i18n.t(level === 'out' ? 'toast.aiLimitOut.body' : level === 'pool' ? 'toast.aiLimitPool.body' : poolLeft > 0 ? 'toast.aiLimitLow.bodyPool' : 'toast.aiLimitLow.body', money),
         actions: [button('common.close', { type: 'DismissToast', toastId: toast.toastId })],
         copyCode: false,
         expiresAt: entry.expiresAt,

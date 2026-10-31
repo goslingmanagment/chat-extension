@@ -568,18 +568,29 @@ export declare const adminAiChatterLimitSchema: z.ZodObject<{
     role: z.ZodString;
     dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
     todayMicroUsd: z.ZodNumber;
+    yesterdayMicroUsd: z.ZodNumber;
+    intoPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
+    fromPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
     blocked: z.ZodBoolean;
 }, z.core.$strip>;
 export declare const adminAiChatterLimitsResponseSchema: z.ZodObject<{
     generatedAt: z.ZodString;
     day: z.ZodString;
     resetsAt: z.ZodString;
+    pool: z.ZodObject<{
+        microUsd: z.ZodNumber;
+        usedMicroUsd: z.ZodNumber;
+        remainingMicroUsd: z.ZodNumber;
+    }, z.core.$strip>;
     chatters: z.ZodArray<z.ZodObject<{
         userId: z.ZodNumber;
         username: z.ZodString;
         role: z.ZodString;
         dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
         todayMicroUsd: z.ZodNumber;
+        yesterdayMicroUsd: z.ZodNumber;
+        intoPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
+        fromPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
         blocked: z.ZodBoolean;
     }, z.core.$strip>>;
 }, z.core.$strip>;
@@ -1063,18 +1074,26 @@ export declare const aiSpendRouteSchemas: {
             readonly kind: "owner-session";
         };
         readonly tags: readonly ["admin"];
-        readonly summary: "Personal daily AI limits: each person's limit and AI spend in the current Moscow day";
+        readonly summary: "Personal daily AI limits: each person's limit, AI spend today and yesterday, and today's shared pool";
         readonly response: {
             readonly 200: z.ZodObject<{
                 generatedAt: z.ZodString;
                 day: z.ZodString;
                 resetsAt: z.ZodString;
+                pool: z.ZodObject<{
+                    microUsd: z.ZodNumber;
+                    usedMicroUsd: z.ZodNumber;
+                    remainingMicroUsd: z.ZodNumber;
+                }, z.core.$strip>;
                 chatters: z.ZodArray<z.ZodObject<{
                     userId: z.ZodNumber;
                     username: z.ZodString;
                     role: z.ZodString;
                     dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
                     todayMicroUsd: z.ZodNumber;
+                    yesterdayMicroUsd: z.ZodNumber;
+                    intoPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
+                    fromPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
                     blocked: z.ZodBoolean;
                 }, z.core.$strip>>;
             }, z.core.$strip>;
@@ -1111,12 +1130,20 @@ export declare const aiSpendRouteSchemas: {
                 generatedAt: z.ZodString;
                 day: z.ZodString;
                 resetsAt: z.ZodString;
+                pool: z.ZodObject<{
+                    microUsd: z.ZodNumber;
+                    usedMicroUsd: z.ZodNumber;
+                    remainingMicroUsd: z.ZodNumber;
+                }, z.core.$strip>;
                 chatters: z.ZodArray<z.ZodObject<{
                     userId: z.ZodNumber;
                     username: z.ZodString;
                     role: z.ZodString;
                     dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
                     todayMicroUsd: z.ZodNumber;
+                    yesterdayMicroUsd: z.ZodNumber;
+                    intoPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
+                    fromPoolMicroUsd: z.ZodNullable<z.ZodNumber>;
                     blocked: z.ZodBoolean;
                 }, z.core.$strip>>;
             }, z.core.$strip>;

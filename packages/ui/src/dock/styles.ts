@@ -118,8 +118,8 @@ ${/* The person's own daily AI limit (the owner, 2026-10-31): money over a thin 
 .cg-ailimit__t { font-family: var(--cg-mono); font-size: var(--cg-text-2xs); line-height: 12px; font-weight: 600; color: var(--cg-ink-2); white-space: nowrap; }
 .cg-ailimit__bar { display: block; width: 100%; min-width: 64px; height: 3px; border-radius: var(--cg-r-pill); background: var(--cg-rule-3); overflow: hidden; }
 .cg-ailimit__bar > span { display: block; height: 100%; border-radius: inherit; background: var(--cg-good-ink); }
-.cg-ailimit.is-low .cg-ailimit__t { color: var(--cg-amber-ink); }
-.cg-ailimit.is-low .cg-ailimit__bar > span { background: var(--cg-amber-ink); }
+.cg-ailimit.is-low .cg-ailimit__t, .cg-ailimit.is-pool .cg-ailimit__t { color: var(--cg-amber-ink); }
+.cg-ailimit.is-low .cg-ailimit__bar > span, .cg-ailimit.is-pool .cg-ailimit__bar > span { background: var(--cg-amber-ink); }
 .cg-ailimit.is-out .cg-ailimit__t { color: var(--cg-danger); }
 .cg-ailimit.is-out .cg-ailimit__bar > span { background: var(--cg-danger); }
 .cg-hint {

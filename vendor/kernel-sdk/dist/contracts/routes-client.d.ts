@@ -561,6 +561,8 @@ export declare const clientAiLimitResponseSchema: z.ZodObject<{
     dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
     todayMicroUsd: z.ZodNumber;
     remainingMicroUsd: z.ZodNullable<z.ZodNumber>;
+    poolMicroUsd: z.ZodNullable<z.ZodNumber>;
+    poolRemainingMicroUsd: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
 /** v1 serves one window length; another one is a new value of `windowDays`. */
 export declare const CLIENT_SPENDER_STATS_WINDOW_DAYS = 30;
@@ -3316,6 +3318,8 @@ export declare const clientRouteSchemas: {
                 dailyLimitMicroUsd: z.ZodNullable<z.ZodNumber>;
                 todayMicroUsd: z.ZodNumber;
                 remainingMicroUsd: z.ZodNullable<z.ZodNumber>;
+                poolMicroUsd: z.ZodNullable<z.ZodNumber>;
+                poolRemainingMicroUsd: z.ZodNullable<z.ZodNumber>;
             }, z.core.$strip>;
             readonly 401: z.ZodObject<{
                 error: z.ZodString;

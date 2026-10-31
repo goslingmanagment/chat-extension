@@ -7,10 +7,12 @@ import { createAiLimitAlerts } from './ai-limit-alerts';
 const DAY1 = '2026-10-31T21:00:00.000Z';
 const DAY2 = '2026-11-01T21:00:00.000Z';
 
-const snap = (todayMicroUsd: number, resetsAt = DAY1): AiLimitSnapshot => ({
+const snap = (todayMicroUsd: number, resetsAt = DAY1, poolRemainingMicroUsd: number | null = null): AiLimitSnapshot => ({
   dailyLimitMicroUsd: 3_500_000,
   todayMicroUsd,
   remainingMicroUsd: Math.max(3_500_000 - todayMicroUsd, 0),
+  poolMicroUsd: poolRemainingMicroUsd === null ? null : 2_000_000,
+  poolRemainingMicroUsd,
   resetsAt,
   observedAt: '2026-10-31T12:00:00.000Z',
 });
@@ -48,6 +50,25 @@ describe('the personal AI limit alerts: at 80 % and when spent, once a Moscow da
     alerts.note(snap(2_900_000));
     alerts.note(snap(2_900_000, DAY2));
     expect(levels(toasts)).toEqual(['out', 'low']);
+  });
+
+  it('past the own limit with money in the shared pool says «pool», then «out» once the pool is spent', () => {
+    const { alerts, toasts } = setup();
+    alerts.note(snap(2_900_000, DAY1, 2_000_000));
+    alerts.note(snap(3_600_000, DAY1, 1_900_000));
+    alerts.note(snap(4_000_000, DAY1, 1_500_000));
+    alerts.note(snap(5_600_000, DAY1, 0));
+    expect(levels(toasts)).toEqual(['low', 'pool', 'out']);
+    expect(toasts[1]?.aiLimit?.poolRemainingMicroUsd).toBe(1_900_000);
+  });
+
+  it('marks of 3.13.x (no «pool») still hold: «low» is not said again, «pool» is', async () => {
+    const first = setup();
+    first.kept.set('ai.limit.alerts', { resetsAt: DAY1, low: true, out: false });
+    await first.alerts.restore();
+    first.alerts.note(snap(3_000_000, DAY1, 2_000_000));
+    first.alerts.note(snap(3_600_000, DAY1, 1_900_000));
+    expect(levels(first.toasts)).toEqual(['pool']);
   });
 
   it('with no tab open nothing is marked: the alert comes when a tab is there', () => {

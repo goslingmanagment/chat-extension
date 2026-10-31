@@ -1194,6 +1194,7 @@ export class FakeHub {
             dailyLimitMicroUsd: limit?.dailyLimitMicroUsd ?? null,
             todayMicroUsd: limit?.todayMicroUsd ?? 0,
             remainingMicroUsd: limit === null ? null : Math.max(limit.dailyLimitMicroUsd - limit.todayMicroUsd, 0),
+            ...(limit === null || limit.poolMicroUsd === undefined ? {} : { poolMicroUsd: limit.poolMicroUsd, poolRemainingMicroUsd: poolLeft(limit) }),
           },
         };
       }
@@ -1307,9 +1308,9 @@ export class FakeHub {
       // An active fan refuses no Ping on either platform (the owner, 2026-10-22; hub `gate_ping_active` gone).
     }
     if (feature === 'fan-notes-fill' && served.window.length === 0) return refusal('gate_min_messages');
-    // `ai-limit-v1`: the person's own daily limit is spent — before the common quota, as the hub checks it.
+    // `ai-limit-v1`: the person's own daily limit and the shared pool are spent — before the common quota, as the hub checks it.
     const personalLimit = s.config.personalAiLimit;
-    if (personalLimit !== null && personalLimit.todayMicroUsd >= personalLimit.dailyLimitMicroUsd) {
+    if (personalLimit !== null && personalLimit.todayMicroUsd >= personalLimit.dailyLimitMicroUsd && poolLeft(personalLimit) <= 0) {
       this.recordUsage(request, principal, 'quota-denied');
       return refusal('quota_denied', 'personal_daily_limit');
     }
@@ -1535,11 +1536,19 @@ function nextMskMidnight(now: number): number {
 }
 
 /** `quota.personal` of a meta frame: the person's own limit before this call. */
-function personalOf(limit: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number }, now: number) {
+type FakePersonalLimit = { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly poolMicroUsd?: number };
+
+/** What is left of the shared pool: only this person draws from it here, past their own limit. */
+function poolLeft(limit: FakePersonalLimit): number {
+  return limit.poolMicroUsd === undefined ? 0 : Math.max(limit.poolMicroUsd - Math.max(limit.todayMicroUsd - limit.dailyLimitMicroUsd, 0), 0);
+}
+
+function personalOf(limit: FakePersonalLimit, now: number) {
   return {
     dailyLimitMicroUsd: limit.dailyLimitMicroUsd,
     todayMicroUsd: limit.todayMicroUsd,
     remainingMicroUsd: Math.max(limit.dailyLimitMicroUsd - limit.todayMicroUsd, 0),
+    ...(limit.poolMicroUsd === undefined ? {} : { poolMicroUsd: limit.poolMicroUsd, poolRemainingMicroUsd: poolLeft(limit) }),
     resetsAt: new Date(nextMskMidnight(now)).toISOString(),
   };
 }
