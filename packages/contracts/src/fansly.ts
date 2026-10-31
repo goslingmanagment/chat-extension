@@ -308,4 +308,9 @@ export interface FanslyPagePort {
    * application says it, the list stays Fansly's own; `off` takes every mark away.
    */
   setInboxMark(mark: FanslyInboxMark): void;
+  /**
+   * 2026-10-31: the hub's label of the page this tab works under, in front of the tab's title («lora-2 · Fansly») — one
+   * model's pages in several tabs are told apart in the browser's strip; null — Fansly's own title again.
+   */
+  setTabLabel(label: string | null): void;
 }

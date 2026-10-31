@@ -20,7 +20,7 @@
 //   the deep window asks the background for the person's depth (R20 P8c).
 // - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`; the floating launcher's clicks (X46) — «Онлайн», Spenders
 //   and «Новые» from every page, as the popup opens them; the mark of a chat waiting for a reply in Fansly's own list of
-//   chats (2026-10-29), as the settings page holds it.
+//   chats (2026-10-29), as the settings page holds it; the page's hub label in front of the tab's title (2026-10-31).
 
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
@@ -72,6 +72,40 @@ export function startFanslyInboxMark(env: Pick<SiteAppEnv<FanslyPort>, 'rpc' | '
   const port = env.rpc as unknown as { request(type: string, payload: unknown, options?: { readonly timeoutMs?: number }): Promise<{ readonly ok: boolean; readonly payload?: unknown }> };
   void port.request('fansly.inbox.mark', {}, { timeoutMs: INBOX_MARK_TIMEOUT_MS }).then((answer) => answer.ok && take(answer.payload), () => undefined);
   return off;
+}
+
+/**
+ * The page's hub label in front of the tab's title (2026-10-31; Grisha: «иногда hi в уведомлении переключает на вторую
+ * вкладку … я теряюсь»): «lora-2 · Fansly», asked once per account the tab works under — the page bound to it and granted
+ * to the person; none — Fansly's own title.
+ */
+export function startFanslyTabLabel(env: Pick<SiteAppEnv<FanslyPort>, 'rpc' | 'host' | 'life'>): () => void {
+  let asked: string | null = null;
+  const sync = (): void => {
+    const { accounts, identity } = env.host.current();
+    const account = accounts.find((entry) => entry.hostAccountId === identity?.hostAccountId) ?? null;
+    const key = account?.hostAccountId ?? null;
+    if (env.life.aborted || key === asked) return;
+    asked = key;
+    if (account === null) {
+      env.host.fansly.setTabLabel(null);
+      return;
+    }
+    void env.rpc.request('binding.resolve', { account }).then(
+      (answer) => {
+        if (!env.life.aborted && asked === key) env.host.fansly.setTabLabel(answer.ok ? answer.payload.binding.pageLabel : null);
+      },
+      () => undefined,
+    );
+  };
+  const off = env.host.subscribe((event) => {
+    if (event.type === 'accounts' || event.type === 'route') sync();
+  });
+  sync();
+  return () => {
+    off();
+    env.host.fansly.setTabLabel(null);
+  };
 }
 
 /** The vault's page (host-fansly isolated/vault `isVaultPath`: its module is the vault's chunk, not this one). */
@@ -131,7 +165,9 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   // The buttons wear the scheme of our surfaces, so they stay the dock's chips under «Тема» (2026-10-20).
   const offScheme = env.host.launcher.follow(env.deps.scheme);
   const offInboxMark = startFanslyInboxMark(env);
+  const offTabLabel = startFanslyTabLabel(env);
   return () => {
+    offTabLabel();
     offInboxMark();
     offOps();
     offLauncher();
@@ -163,6 +199,12 @@ export function fanslyApp(): HostAppAdapter<FanslyPort, null> {
         await port.request('fansly.online.seen', { pageId, hostAccountId }, { timeoutMs: 30_000 }).catch(() => undefined);
       },
     }),
+    // 2026-10-31: «Назад в lora-1» — the background brings the tab the handed-over Hi came from forward again.
+    greetBack: async (rpc, from) => {
+      const port = rpc as unknown as { request(type: string, payload: unknown): Promise<{ readonly ok: boolean; readonly payload?: unknown }> };
+      const answer = await port.request('fansly.greet.back', { from }).catch(() => null);
+      return answer !== null && answer.ok && (answer.payload as { readonly focused?: unknown } | undefined)?.focused === true;
+    },
     start: (env) => startFanslySurfaces(env),
     registrationOf: (fanId, i18n) => {
       const at = fanslyRegistrationDate(fanId);

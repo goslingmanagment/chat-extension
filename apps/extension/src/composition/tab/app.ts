@@ -23,11 +23,11 @@
 import type { CgCode, CgErrorView, I18nKey } from '@cg/contracts/errors';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import type { HostContractReport, HostContractShape, HostPort, NavigationReceipt } from '@cg/contracts/host';
-import { chatKeyOf, type ChatRef } from '@cg/contracts/ids';
+import { chatKeyOf, type ChatRef, type GreetFrom } from '@cg/contracts/ids';
 import { DEFAULT_LOCALE, type Locale } from '@cg/contracts/i18n/keys';
 import { LOG_LIMITS } from '@cg/contracts/limits';
 import type { UiLocale, UiTextSize, UiTheme } from '@cg/contracts/settings';
-import type { PageCommand } from '@cg/contracts/tab-messages';
+import type { PageCommand, TabEventPayload } from '@cg/contracts/tab-messages';
 import type { TabHealthReport } from '@cg/contracts/telemetry';
 import { PREVIEW_SOURCES, type ActionReceipt, type ColorScheme, type MountDeps, type MountSurfaceKind, type SurfaceGeometry, type UiAction } from '@cg/contracts/vm';
 import { createAppRouter } from '@cg/core/application';
@@ -99,8 +99,11 @@ export interface TabApp {
   readonly tokens: TabActionTokens;
   /** A click on the popup or the options page that acts in this tab (`tab.command`): a window of ours, or an account. */
   command(command: PageCommand): void;
-  /** 2026-10-25: «Hi» of a greeting reminder pressed in a tab of another model, handed here (`greet.start`). */
-  greet(pageId: number, fanRef: string): void;
+  /**
+   * 2026-10-25: «Hi» of a greeting reminder pressed in a tab of another model, handed here (`greet.start`); 2026-10-31 —
+   * with this tab's page label and the tab it came from, for the card that says so.
+   */
+  greet(start: TabEventPayload<'greet.start'>): void;
   dispose(): void;
 }
 
@@ -336,6 +339,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   let boardsReady: TabBoards | null = null;
   /** 2026-10-29: the reminders' toasts follow what their «Hi» wrote; the boards tell once they started. */
   const greetHereListeners = new Set<() => void>();
+  /** 2026-10-31: the card of a handed-over «Hi» follows how it goes here; the boards tell once they started. */
+  const greetRunListeners = new Set<(sentTo: string | null) => void>();
   const needsBoards = (action: UiAction): boolean =>
     action.type === 'OpenPreview' ||
     action.type === 'GreetNewcomer' ||
@@ -507,6 +512,25 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
         };
       },
     },
+    uuid: () => win.crypto.randomUUID(),
+    // 2026-10-31: the card of a «Hi» handed over from another page's tab follows that Hi, the chat on screen and what
+    // the page sends to the fan.
+    arrival: {
+      run: (handle) => boardsReady?.greetRun(handle) ?? null,
+      fanOnScreen: () => host.current().route.chat?.platformFanId ?? null,
+      subscribe(listener) {
+        greetRunListeners.add(listener);
+        const offHost = host.subscribe((event) => {
+          if (event.type === 'route') listener(null);
+          else if (event.type === 'pageSent') listener(event.fact.chat.platformFanId);
+          else if (event.type === 'humanSend' && event.fact.platformMessageId !== null) listener(event.fact.chat.platformFanId);
+        });
+        return () => {
+          greetRunListeners.delete(listener);
+          offHost();
+        };
+      },
+    },
     tab: {
       reload: () => win.location.reload(),
       reloadSurface: (surface) => surfaces?.reload(surface) ?? false,
@@ -516,6 +540,16 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
       openPrompt: (token) => rpc.request('debug.open', { token }).then((answer) => answer.ok && answer.payload.opened),
       copyText: (text) => clipboard.writeText(text).then((result) => result.ok),
       downloadLog: () => downloadLog(),
+      // «Назад в lora-1» (2026-10-31): the site brings that tab forward; one that is gone is said here.
+      ...(site.greetBack === undefined
+        ? {}
+        : {
+            greetBack: (from: GreetFrom) =>
+              (site.greetBack?.(rpc, from) ?? Promise.resolve(false)).then((focused) => {
+                if (!focused) toasts.show({ kind: 'warning', code: null, scope: 'greet.back', title: { key: 'toast.greetBackGone', params: { page: from.pageLabel } }, body: null });
+                return focused;
+              }),
+          }),
     },
   });
   offs.push(router.register(adopt(shell)), () => shell.dispose());
@@ -865,6 +899,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
             ready.onGreetHere(() => {
               for (const listener of [...greetHereListeners]) listener();
             }),
+            ready.onGreetRun(() => {
+              for (const listener of [...greetRunListeners]) listener(null);
+            }),
           );
           return ready;
         }),
@@ -1084,9 +1121,12 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
    * a tab of another model. That tab spent its click's `navigate` token with the background, which brought this tab
    * forward and hands the click here: it runs as that click — the grants the toast's own click would open.
    */
-  const greet = (pageId: number, fanRef: string): void => {
+  const greet = ({ pageId, fanRef, pageLabel, from, fan }: TabEventPayload<'greet.start'>): void => {
     if (disposed) return;
     const action = greetNewcomer(pageId, fanRef);
+    // 2026-10-31 (Grisha: «иногда hi … переключает на вторую вкладку … я теряюсь»): the card in the corner where the
+    // person's eye already is — «Вы во вкладке lora-2», how this Hi goes, «Назад в lora-1».
+    if (pageLabel !== undefined && from !== undefined) shell.arrive({ pageId, fanRef, pageLabel, from, ...(fan === undefined ? {} : { fan }) });
     tokens.vouched(true);
     const dispatched = journal === null ? client.dispatch(action) : journal.asCommand(() => client.dispatch(action));
     void dispatched.then(

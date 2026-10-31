@@ -307,6 +307,14 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     req: { valid: [{ pageId: 11, fanRef: F.fan, cause }], invalid: [{ pageId: 11, fanRef: F.fan }, { pageId: '11', fanRef: F.fan, cause }, { pageId: 11, fanRef: F.fan, cause: { kind: 'timer', actionToken: cause.actionToken } }] },
     res: { valid: [{ delivered: true }, { delivered: false }], invalid: [{ delivered: 'yes' }, {}] },
   },
+  // 1.69.0: «Назад в lora-1» of the card a handed-over Hi brought: the tab it came from, to the front.
+  'fansly.greet.back': {
+    req: {
+      valid: [{ from: { tabSessionId: uuid(302), pageId: 11, pageLabel: 'lora-1' } }],
+      invalid: [{}, { from: { tabSessionId: 'tab', pageId: 11, pageLabel: 'lora-1' } }, { from: { tabSessionId: uuid(302), pageId: 11 } }],
+    },
+    res: { valid: [{ focused: true }, { focused: false }], invalid: [{ focused: 'yes' }, {}] },
+  },
   // 1.68.0: the toast's Hi proves its one fan alone; `create` — the click's own get-or-create of the fan's chat.
   'fansly.greet.solo': {
     req: {

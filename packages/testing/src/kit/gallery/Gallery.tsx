@@ -48,7 +48,7 @@ import {
   useT,
 } from '@cg/ui/kit';
 
-import { aiReadyToast, button, cgError, greetToast, hotkey, part, phase, reason, toast, uuid, views, type ScenarioCtx } from '../../scenarios/app-client';
+import { aiReadyToast, arrivedToast, button, cgError, greetToast, hotkey, part, phase, reason, toast, uuid, views, type ScenarioCtx } from '../../scenarios/app-client';
 import { showcaseAvatarUrl } from '../../showcase-avatar';
 
 const OP = uuid(101);
@@ -284,9 +284,14 @@ function toastsOf(ctx: ScenarioCtx): ToastVM[] {
     // A greeting reminder: with the fan's picture (a drawn stand-in, nobody's photo), and with none — the initial.
     greetToast(ctx, 'g1', { name: 'Anya', handle: 'anya_k', avatarUrl: GALLERY_AVATAR, minutesAgo: 11 }),
     greetToast(ctx, 'g2', { name: 'Theodore Whitfield', handle: null, avatarUrl: null, minutesAgo: 14 }),
-    // 1.62.0: the same reminder in a tab of another model — the accent line names the fan's model. The showcase world's
-    // fan and model (src/showcase.ts): Matt, who followed Sofia Lane in `pnpm see launch-greet`, with his picture there.
-    greetToast(ctx, 'g3', { name: 'Matt Riley', handle: 'matt84', avatarUrl: showcaseAvatarUrl('930000000000000781'), minutesAgo: 11, page: 'Sofia Lane' }),
+    // 1.69.0: the same reminder in a tab of another page — that page's label on the ear, «Hi в sofia-2». The showcase
+    // world's fan (src/showcase.ts): Matt, who followed Sofia Lane in `pnpm see launch-greet`, with his picture there.
+    greetToast(ctx, 'g3', { name: 'Matt Riley', handle: 'matt84', avatarUrl: showcaseAvatarUrl('930000000000000781'), minutesAgo: 11, away: 'sofia-2' }),
+    // …its third reminder, red; and the card its Hi brings into the tab of sofia-2, as its Hi goes there.
+    greetToast(ctx, 'g4', { name: 'Matt Riley', handle: 'matt84', avatarUrl: showcaseAvatarUrl('930000000000000781'), minutesAgo: 15, away: 'sofia-2', urgent: true }),
+    arrivedToast(ctx, 'a1', { name: 'Matt Riley', avatarUrl: showcaseAvatarUrl('930000000000000781'), page: 'sofia-2', from: 'sofia-1', s: 'writing' }),
+    arrivedToast(ctx, 'a2', { name: 'Matt Riley', avatarUrl: showcaseAvatarUrl('930000000000000781'), page: 'sofia-2', from: 'sofia-1', s: 'inserted' }),
+    arrivedToast(ctx, 'a3', { name: 'Matt Riley', avatarUrl: showcaseAvatarUrl('930000000000000781'), page: 'sofia-2', from: 'sofia-1', s: 'sent' }),
     toast(ctx, 'i', 'info', { title: ctx.lang === 'ru' ? 'Split включён: ответ придёт частями' : 'Split is on: the answer comes in parts' }),
   ];
 }

@@ -11,7 +11,7 @@ import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
 import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
 import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema, SendAttributionFactSchema } from './host';
-import { ChatKeySchema, ChatRefSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, type HostKind } from './ids';
+import { ChatKeySchema, ChatRefSchema, GreetFromSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, type HostKind } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
 import { GenerationDebugSchema, AdmissionSchema, OpStateSchema, OpViewSchema, PhaseSchema, StartOpSchema } from './ops';
@@ -163,6 +163,11 @@ export const BackgroundToastSchema = z.strictObject({
        * «Hi» goes to a tab of that model (`greet.start`).
        */
       page: z.optional(displayText(256)),
+      /**
+       * 1.69.0 (Grisha, 2026-10-31: «иногда hi в уведомлении переключает на вторую вкладку … я теряюсь»): with `page`, the
+       * hub's label of that page (`lora-2`): the toast names the page by it, since titles repeat (three pages «Lora Vie»).
+       */
+      pageLabel: z.optional(displayText(64)),
       /** 1.67.0 (the owner, 2026-10-29: «третий красный через 15»): the last of the fan's three reminders — red. */
       urgent: z.optional(z.literal(true)),
     }),
@@ -1131,8 +1136,28 @@ export const TAB_EVENTS = {
    * 1.62.0: «Hi» of a greeting reminder's toast pressed in a tab of another model (the owner, 2026-10-25: «может
    * приходит только в одно окно активное?»). The background redeemed that tab's token of the click, brought a tab of
    * the fan's model to the front and hands the click to it: the tab runs `GreetNewcomer` of this fan as that click.
+   * 1.69.0: `pageLabel` — the hub's label of this tab's page; `from` — the tab the click came from, which the card the
+   * click brings here leads back to («Вы во вкладке lora-2», «Назад в lora-1»); `fan` — the fan as the reminder showed
+   * them, so the card is the same card.
    */
-  'greet.start': { payload: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema }), to: TAB },
+  'greet.start': {
+    payload: z.strictObject({
+      pageId: HubIntIdSchema,
+      fanRef: NativeIdSchema,
+      pageLabel: z.optional(displayText(64)),
+      from: z.optional(GreetFromSchema),
+      /** 1.69.0: the fan as the reminder showed them (name, @handle, picture, the follow's moment). */
+      fan: z.optional(
+        z.strictObject({
+          label: z.nullable(displayText(256)),
+          username: z.nullable(displayText(64)),
+          avatarUrl: z.nullable(HiFanAvatarUrlSchema),
+          since: z.nullable(IsoTimestampSchema),
+        }),
+      ),
+    }),
+    to: TAB,
+  },
 } as const satisfies Record<string, TabEventSpec>;
 
 export type TabEventType = keyof typeof TAB_EVENTS;

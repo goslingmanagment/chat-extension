@@ -405,7 +405,10 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       }
       // 2026-10-25: «Hi» of a greeting reminder's toast pressed in a tab of another model.
       case 'fansly.greet.handover':
-        return ok(await handoverGreet(kit, payload as FanslyTabRequestPayload<'fansly.greet.handover'>, tab));
+        return ok(await handoverGreet(kit, reminder, payload as FanslyTabRequestPayload<'fansly.greet.handover'>, tab));
+      // 2026-10-31: «Назад в lora-1» of the card that Hi brought into this tab.
+      case 'fansly.greet.back':
+        return ok(await backFromGreet(kit, (payload as FanslyTabRequestPayload<'fansly.greet.back'>).from));
       // 2026-10-29: «Hi» inside a greeting reminder's toast — its one fan proved alone, no window.
       case 'fansly.greet.solo':
         return newcomers === null ? unreachable('no newcomers') : ok(await greetSolo(kit, newcomers, reminder, payload as FanslyTabRequestPayload<'fansly.greet.solo'>, tab));
@@ -557,7 +560,7 @@ function startGreetReminder(kit: BackgroundKit, newcomers: FanslyNewcomers): Fan
       const elsewhere = registered
         .filter((tab) => tab.visible === true && tab.tabSessionId !== best.tabSessionId && tab.accounts.length > 0)
         .map((tab) => ({ tabSessionId: tab.tabSessionId, foreign: !tab.accounts.some((account) => ids.includes(account)) }));
-      return { tabSessionId: best.tabSessionId, pageId: page.pageId, page: page.title || page.pageLabel, elsewhere };
+      return { tabSessionId: best.tabSessionId, pageId: page.pageId, page: page.title || page.pageLabel, pageLabel: page.pageLabel, elsewhere };
     },
     sameAccount: (creator, accountId) => idsOf(creator).includes(accountId),
     toast: (tab, toast) => kit.router.events.emit(tab, 'toast', { toast }),
@@ -571,20 +574,48 @@ function startGreetReminder(kit: BackgroundKit, newcomers: FanslyNewcomers): Fan
 /**
  * «Hi» of a greeting reminder's toast pressed in a tab of another model (2026-10-25): the click's own `navigate` token is
  * spent first — nothing is handed over that no click of that tab stands behind —, then a tab of the fan's model comes to
- * the front and gets the click (`greet.start`): it greets there as the toast's Hi does in its own tab.
+ * the front and gets the click (`greet.start`): it greets there as the toast's Hi does in its own tab. 2026-10-31 (Grisha:
+ * «иногда hi в уведомлении переключает на вторую вкладку … я теряюсь»): with the page's label and the tab the click came
+ * from, so the card it brings says where the person is now and leads back.
  */
-async function handoverGreet(kit: BackgroundKit, request: FanslyTabRequestPayload<'fansly.greet.handover'>, tab: string): Promise<{ readonly delivered: boolean }> {
+async function handoverGreet(kit: BackgroundKit, reminder: FanslyGreetReminder | null, request: FanslyTabRequestPayload<'fansly.greet.handover'>, tab: string): Promise<{ readonly delivered: boolean }> {
   if (kit.siteActive?.() === false || kit.siteTabs === undefined) return { delivered: false };
-  const page = kit.hub.bootstrap()?.pages.find((entry) => entry.pageId === request.pageId && entry.platform === 'fansly') ?? null;
+  const bootstrap = kit.hub.bootstrap();
+  const page = bootstrap?.pages.find((entry) => entry.pageId === request.pageId && entry.platform === 'fansly') ?? null;
   if (page === null || page.platformAccountId === null) return { delivered: false };
   if (!kit.tokens.redeem({ tabSessionId: tab, kind: 'navigate', surface: 'newcomers', actionToken: request.cause.actionToken })) return { delivered: false };
-  const ids = [page.platformAccountId, ...(kit.networkSession?.aliases(page.platformAccountId) ?? [])];
-  const best = creatorTab(kit.siteTabs.registered(), ids);
+  const registered = kit.siteTabs.registered();
+  const ids = creatorIds(kit, page.platformAccountId);
+  const best = creatorTab(registered, ids);
   if (best === null || best.tabSessionId === tab || !(await kit.siteTabs.focus(best.tabId))) return { delivered: false };
-  kit.router.events.emit(best.tabSessionId, 'greet.start', { pageId: page.pageId, fanRef: request.fanRef });
-  kit.log.service({ level: 'info', scope: 'bg.fansly.greet', msg: 'greeting handed over to the model tab', fields: { pageId: page.pageId } });
+  // The page of the tab the click came from: the creator its last report named.
+  const creator = registered.find((entry) => entry.tabSessionId === tab)?.accounts[0];
+  const origin = creator === undefined ? undefined : bootstrap?.pages.find((entry) => entry.platform === 'fansly' && entry.platformAccountId !== null && creatorIds(kit, entry.platformAccountId).includes(creator));
+  const from = origin === undefined ? {} : { from: { tabSessionId: tab, pageId: origin.pageId, pageLabel: origin.pageLabel } };
+  // The fan as the reminder the person pressed showed them: the card that Hi brings is the same card.
+  const shown = reminder?.shown(ids, request.fanRef) ?? null;
+  const fan = shown === null ? {} : { fan: shown };
+  kit.router.events.emit(best.tabSessionId, 'greet.start', { pageId: page.pageId, fanRef: request.fanRef, pageLabel: page.pageLabel, ...from, ...fan });
+  kit.log.service({ level: 'info', scope: 'bg.fansly.greet', msg: 'greeting handed over to the model tab', fields: { pageId: page.pageId, from: origin?.pageId ?? null } });
   return { delivered: true };
 }
+
+/**
+ * «Назад в lora-1» of the card a handed-over «Hi» brought into a tab (2026-10-31): the tab the click came from to the front
+ * again — that document, else a tab of its page (the person reloaded it) —, by the person's click; nothing is sent to it.
+ */
+async function backFromGreet(kit: BackgroundKit, from: FanslyTabRequestPayload<'fansly.greet.back'>['from']): Promise<{ readonly focused: boolean }> {
+  if (kit.siteTabs === undefined) return { focused: false };
+  const registered = kit.siteTabs.registered();
+  const same = registered.find((entry) => entry.tabSessionId === from.tabSessionId);
+  if (same !== undefined && (await kit.siteTabs.focus(same.tabId))) return { focused: true };
+  const page = kit.hub.bootstrap()?.pages.find((entry) => entry.pageId === from.pageId && entry.platform === 'fansly') ?? null;
+  const best = page === null || page.platformAccountId === null ? null : creatorTab(registered, creatorIds(kit, page.platformAccountId));
+  return { focused: best !== null && (await kit.siteTabs.focus(best.tabId)) };
+}
+
+/** A creator's ids: the one the hub binds and the aliases its sessions proved. */
+const creatorIds = (kit: BackgroundKit, creator: string): readonly string[] => [creator, ...(kit.networkSession?.aliases(creator) ?? [])];
 
 /**
  * «Hi» inside a greeting reminder (2026-10-29; core services/hosts/fansly/newcomers.ts `solo`): the toast's one fan proved

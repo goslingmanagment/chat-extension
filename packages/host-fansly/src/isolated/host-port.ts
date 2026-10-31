@@ -47,7 +47,8 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 //   (2026-10-29, inbox-marks.ts): MAIN's `fx.lastWord` of each chat, drawn
 //   on the rows of the list the page shows as the application says
 //   (`fansly.setInboxMark`); a new `fx.state` starts the words over, as MAIN
-//   says them all again after it.
+//   says them all again after it. 2026-10-31: the page's hub label in front of
+//   the tab's title (tab-label.ts, `fansly.setTabLabel`).
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
@@ -78,6 +79,7 @@ import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
 import { createHeaderSlots, type HeaderSlots } from './header-slot';
 import { createInboxMarks } from './inbox-marks';
+import { createTabLabel } from './tab-label';
 import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
 import { createFanslyLauncher, type FanslyLauncher } from './launcher';
@@ -209,6 +211,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const header = createHeaderSlots(doc, mounts.registry);
   const wholeName = createWholeName(FANSLY_SELECTORS.headerName);
   const inboxMarks = createInboxMarks(doc);
+  const tabLabel = createTabLabel(doc);
   /** Fansly's list of chats, live: read on every sync, it costs no walk of the document. */
   const inboxes = doc.getElementsByClassName(FANSLY_SELECTORS.inbox);
   const clock = options.now ?? (() => Date.now());
@@ -772,6 +775,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     setInboxMark: (mark) => {
       if (!disposed) inboxMarks.setMark(mark);
     },
+    setTabLabel: (label) => {
+      if (!disposed) tabLabel.set(label);
+    },
   };
 
   const dispose = (): void => {
@@ -792,6 +798,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     header.dispose();
     wholeName.dispose();
     inboxMarks.dispose();
+    tabLabel.dispose();
     theme.dispose();
     options.coexistence?.dispose();
     eventListeners.clear();

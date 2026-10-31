@@ -16,11 +16,16 @@
 // 2026-10-29 (the owner chose «Hi прямо в напоминании»): what «Hi» wrote stands in the card — «Пишу приветствие…», then the
 // greeting as an AI draft (dashed, serif) with «Отправить» filled, «Ещё вариант» and «Открыть чат»; a line under it says
 // «Отправляю…», «Отправлено», why it did not go, or that somebody greeted the fan already.
+// 2026-10-31 (Grisha: «иногда hi в уведомлении переключает на вторую вкладку … есть какой то индикатор … я теряюсь»): a
+// reminder about a fan of another page wears that page's hub label on an ear over its top left corner (the shape of a
+// browser tab: «из другой вкладки»), and its «Hi» says where it goes, «Hi в lora-2 ↗», with «Переключу на вкладку lora-2»
+// under the buttons. The tab that Hi brings forward shows the same card in the same corner, where the eye already is:
+// «Вы во вкладке lora-2», how the Hi goes there, and «Назад в lora-1». No colour of its own: the shape and the words say it.
 
 import { type JSX } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 
-import { type GreetCardVM, type ToastVM } from '@cg/contracts/vm';
+import { type GreetArrivedState, type GreetCardVM, type ToastVM } from '@cg/contracts/vm';
 
 import { useDispatch, useI18n, useKit, useView } from '../context';
 import { LAYERS } from '../layers';
@@ -111,6 +116,33 @@ function GreetCard({ card }: { readonly card: GreetCardVM }): JSX.Element {
   );
 }
 
+/** How a «Hi» handed over from another page's tab goes here: the line under the fan's name; null — nothing to say. */
+function ArrivedLine({ s }: { readonly s: GreetArrivedState | null }): JSX.Element | null {
+  const i18n = useI18n();
+  switch (s) {
+    case null:
+      return null;
+    case 'writing':
+      return (
+        <div class="cg-toast__state" data-cg-greet="writing">
+          <Spinner />
+          {i18n.t('toast.greetWriting')}
+        </div>
+      );
+    case 'inserted':
+      return <div class="cg-toast__state">{i18n.t('toast.greetInField')}</div>;
+    case 'sent':
+      return (
+        <div class="cg-toast__state is-sent">
+          <Icon name="check" size={14} />
+          {i18n.t('toast.greetSent')}
+        </div>
+      );
+    case 'greeted':
+      return <div class="cg-toast__state">{i18n.t('toast.greetGreetedHere')}</div>;
+  }
+}
+
 export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Element {
   const i18n = useI18n();
   const { root } = useKit();
@@ -130,10 +162,14 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
   const counting = toast.retryAt !== undefined && remaining > 0;
   const copyCode = toast.copyCode ? toast.code : null;
   const greet = toast.greet ?? null;
+  // A fan of another page: the ear names the page, «Hi» leads there. The card that Hi brings wears the same ear.
+  const away = greet?.away ?? null;
+  const arrived = greet?.arrived ?? null;
+  const ear = away ?? arrived?.page ?? null;
   return (
     <div
       ref={box}
-      class={`cg-toast cg-toast--${toast.kind}${greet === null ? '' : ' cg-toast--greet'}${greet?.urgent === true ? ' cg-toast--urgent' : ''}${greet?.card === undefined ? '' : ' has-card'}`}
+      class={`cg-toast cg-toast--${toast.kind}${greet === null ? '' : ' cg-toast--greet'}${greet?.urgent === true && arrived === null ? ' cg-toast--urgent' : ''}${greet?.card === undefined ? '' : ' has-card'}${ear === null ? '' : ' cg-toast--away'}`}
       data-cg-toast={toast.id}
       {...(toast.kind === 'error' ? { role: 'alert' } : {})}
       onMouseEnter={() => update({ hovered: true })}
@@ -149,6 +185,11 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
         }
       }}
     >
+      {ear === null ? null : (
+        <div class="cg-toast__ear" data-cg-greet-page={ear}>
+          {ear}
+        </div>
+      )}
       <span class="cg-gut">{greet === null ? <Mark kind={toast.kind} /> : <GreetAvatar name={greet.name} url={greet.avatarUrl} />}</span>
       {greet === null ? (
         <div class="cg-toast__main">
@@ -159,9 +200,11 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
         </div>
       ) : (
         <div class="cg-toast__main" title={toast.title}>
-          <div class="cg-toast__lead">{greet.page === undefined || greet.page === null ? i18n.t('toast.greetWaiting') : i18n.t('toast.greetWaitingAt', { page: greet.page })}</div>
+          <div class="cg-toast__lead">{arrived === null ? i18n.t('toast.greetWaiting') : toast.title}</div>
           <div class="cg-toast__name">{greet.name}</div>
-          {greet.handle === null && greet.since === null ? null : (
+          {arrived !== null ? (
+            <ArrivedLine s={arrived.s} />
+          ) : greet.handle === null && greet.since === null ? null : (
             <div class="cg-toast__sub">
               {greet.handle === null ? null : `@${greet.handle}`}
               {greet.handle !== null && greet.since !== null ? ' · ' : null}
@@ -179,17 +222,23 @@ export function ToastItem({ toast, onDismiss, onHold }: ToastItemProps): JSX.Ele
       {toast.actions.length > 0 || copyCode !== null || counting ? (
         <div class="cg-toast__acts">
           {toast.actions.map((vm, index) =>
-            // The filled one: «Hi», or «Отправить» of what it wrote.
+            // The filled one: «Hi» (to another page's tab with its arrow), or «Отправить» of what it wrote.
             greet !== null && (greet.card === undefined ? vm.action.type === 'GreetNewcomer' : vm.action.type === 'SendNewcomerGreeting' || vm.action.type === 'SendPart') ? (
-              <ActionButton key={index} vm={vm} class="cg-toast__hi" />
+              <ActionButton key={index} vm={vm} class="cg-toast__hi" {...(away === null ? {} : { trailing: <Icon name="away" size={14} /> })} />
             ) : (
-              <ActionButton key={index} vm={vm} variant={greet?.card !== undefined && opensChat(vm.action) ? 'quiet' : vm.action.type === 'Navigate' || greet !== null ? 'line' : 'plain'} />
+              <ActionButton
+                key={index}
+                vm={vm}
+                variant={greet?.card !== undefined && opensChat(vm.action) ? 'quiet' : vm.action.type === 'Navigate' || greet !== null ? 'line' : 'plain'}
+                {...(vm.action.type === 'GreetBack' ? { icon: 'back' as const } : {})}
+              />
             ),
           )}
           {counting ? <span class="cg-count cg-toast__count">{`${i18n.t('common.retry')} ${i18n.t('cg.retryIn', { n: Math.ceil(remaining / 1000) })}`}</span> : null}
           {copyCode === null ? null : <CopyCodeButton code={copyCode} />}
         </div>
       ) : null}
+      {away === null ? null : <div class="cg-toast__away">{i18n.t('toast.greetAway', { page: away })}</div>}
     </div>
   );
 }
@@ -271,4 +320,19 @@ export const TOAST_CSS = `
 .cg-toast--urgent .cg-toast__lead { color: var(--cg-danger); }
 .cg-toast--urgent .cg-btn.cg-toast__hi { background: var(--cg-danger); }
 .cg-toast--urgent .cg-btn.cg-toast__hi:hover { background: color-mix(in srgb, var(--cg-danger) 82%, #000); }
+${/* A fan of another page (2026-10-31): the ear over the top left corner, the card's corner square under it; it covers the
+   card's top line (and the red card's inner one) where they meet, so the two read as one shape. */ ''}
+.cg-toast--away { position: relative; margin-top: 23px; border-top-left-radius: 0; }
+.cg-toast__ear {
+  position: absolute; left: -1px; bottom: calc(100% - 1px); display: inline-flex; align-items: center; height: 24px; max-width: 70%;
+  padding: 0 12px; background: var(--cg-raised); border: 1px solid var(--cg-rule-float); border-bottom: 0;
+  border-radius: var(--cg-r-md) var(--cg-r-md) 0 0; box-shadow: 0 -4px 8px -6px rgb(38 36 32 / 0.18);
+  font-size: var(--cg-text-sm); line-height: 16px; font-weight: 600; color: var(--cg-ink-strong);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cg-toast--urgent .cg-toast__ear {
+  border-color: var(--cg-danger); color: var(--cg-danger); background: color-mix(in srgb, var(--cg-danger) 6%, var(--cg-raised));
+  box-shadow: inset 1px 1px 0 var(--cg-danger), inset -1px 0 0 var(--cg-danger);
+}
+.cg-toast__away { grid-column: 2 / 4; margin-top: 7px; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-muted); }
 `;

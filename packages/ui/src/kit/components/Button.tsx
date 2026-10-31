@@ -128,12 +128,15 @@ export function ActionButton({
   variant,
   size,
   icon,
+  trailing,
   class: extra,
 }: {
   readonly vm: ActionButtonVM;
   readonly variant?: ButtonVariant;
   readonly size?: 'md' | 'sm';
   readonly icon?: IconName;
+  /** After the text: a reminder's «Hi в lora-2 ↗» says it leads out of the tab. */
+  readonly trailing?: ComponentChildren;
   readonly class?: string;
 }): JSX.Element {
   const i18n = useI18n();
@@ -147,6 +150,7 @@ export function ActionButton({
       reason={vm.enabled ? null : vm.reason === null ? i18n.t('common.unknown') : i18n.text(vm.reason.text)}
       onClick={() => void dispatch(vm.action)}
       {...(icon === undefined ? {} : { icon })}
+      {...(trailing === undefined ? {} : { trailing })}
       {...(extra === undefined ? {} : { class: extra })}
     />
   );

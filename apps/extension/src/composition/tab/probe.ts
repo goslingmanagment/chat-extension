@@ -29,6 +29,14 @@ const HOLD_WRITE_MAX_MS = 2000;
  */
 export const PORT_DOWN_ATTRIBUTE = 'data-cg-spike-port';
 
+/**
+ * The stand page hands this tab a greeting reminder's «Hi» as the background's `greet.start` would — the JSON of its
+ * payload in `<html data-cg-spike-greet>`, taken once and removed (2026-10-31). The stand runs one creator, so no
+ * reminder there stands in a tab of another page and no background hands a Hi between tabs: this is the way to the
+ * card a handed-over Hi brings («Вы во вкладке …», «Назад в …») on the stand. The payload goes through the same check.
+ */
+export const GREET_START_ATTRIBUTE = 'data-cg-spike-greet';
+
 export interface TabProbe {
   set(key: string, value: unknown): void;
   /** composeTab's own synchronous time; the bundle-wide number follows a task later. */
@@ -40,6 +48,8 @@ export interface TabProbe {
   holdWrite(): Promise<void>;
   /** The tab's browser API with the stand's port switch in front of `runtime.connect` (PORT_DOWN_ATTRIBUTE). */
   api(real: BrowserApi): BrowserApi;
+  /** A `greet.start` the stand page hands over (GREET_START_ATTRIBUTE), unchecked. */
+  onGreetStart(listener: (payload: unknown) => void): () => void;
 }
 
 interface BundleMarks {
@@ -103,6 +113,22 @@ export function createTabProbe(win: Window): TabProbe {
         },
       });
       return new Proxy(real, { get: (target, property) => (property === 'runtime' ? runtime : (Reflect.get(target, property, target) as unknown)) });
+    },
+    onGreetStart(listener) {
+      const take = (): void => {
+        const raw = html.getAttribute(GREET_START_ATTRIBUTE);
+        if (raw === null) return;
+        html.removeAttribute(GREET_START_ATTRIBUTE);
+        try {
+          listener(JSON.parse(raw) as unknown);
+        } catch {
+          set('greetStart', 'unreadable');
+        }
+      };
+      const observer = new MutationObserver(take);
+      observer.observe(html, { attributes: true, attributeFilter: [GREET_START_ATTRIBUTE] });
+      take();
+      return () => observer.disconnect();
     },
     holdWrite() {
       writesReached += 1;

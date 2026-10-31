@@ -17,7 +17,8 @@
 // Where the toast stands (the owner, 2026-10-25: «может приходит только в одно окно активное? … у Никиты приходят не
 // всегда»): in the creator's tab the person looks at (else their last), and also in every other tab on screen — a
 // chatter on another model's tab sees it there, with the model's name, and its «Hi» brings the model's tab forward and
-// greets there (`fansly.greet.handover`).
+// greets there (`fansly.greet.handover`). 2026-10-31 (Grisha: «иногда hi в уведомлении переключает на вторую вкладку
+// … я теряюсь»): with the page's hub label too, since three pages of one model share her name.
 
 import { type SoundBatch } from '@cg/contracts/sound';
 import { type BackgroundToast } from '@cg/contracts/tab-messages';
@@ -61,6 +62,8 @@ export interface FanslyGreetReminderDeps {
     readonly tabSessionId: string;
     readonly pageId: number;
     readonly page?: string | null;
+    /** 2026-10-31: the hub's label of the page (`lora-2`): what a toast in another page's tab names it by. */
+    readonly pageLabel?: string | null;
     readonly elsewhere?: readonly { readonly tabSessionId: string; readonly foreign: boolean }[];
   } | null;
   /** The followed account is the creator (or an alias of theirs): a follow of another account is nobody's here. */
@@ -79,8 +82,24 @@ export interface FanslyGreetReminder {
   heard(batch: SoundBatch): void;
   /** 2026-10-29: when the fan followed the creator, as heard (the reminder's Hi keeps it); null — not heard within the hour. */
   followedAt(creator: string, fanRef: string): number | null;
+  /**
+   * 2026-10-31: the fan as the creator's last reminder about them showed them (any of the creator's ids), for the card
+   * the reminder's Hi brings into another tab; null — none shown since this background started.
+   */
+  shown(creators: readonly string[], fanRef: string): ShownFan | null;
   dispose(): void;
 }
+
+/** What a reminder showed of the fan (2026-10-31): the name, the @handle, the picture, the follow's moment. */
+export interface ShownFan {
+  readonly label: string | null;
+  readonly username: string | null;
+  readonly avatarUrl: string | null;
+  readonly since: string | null;
+}
+
+/** Fans whose reminders are remembered as shown (in memory: a Hi hands over right after its toast). */
+const SHOWN_KEPT = 50;
 
 function followOf(value: unknown): Follow | null {
   if (typeof value !== 'object' || value === null) return null;
@@ -96,6 +115,8 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
   const same = deps.sameAccount ?? ((creator: string, accountId: string) => creator === accountId);
   /** Oldest first. */
   let follows: Follow[] = [];
+  /** The last reminder shown of each fan, by `creator:fan`, oldest first. */
+  const shown = new Map<string, ShownFan>();
   let timer: TimerHandle | null = null;
   let running = false;
   let disposed = false;
@@ -176,11 +197,19 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
           const fanLabel = verdict.fanLabel === null ? null : verdict.fanLabel.slice(0, 256);
           const username = verdict.username?.slice(0, 64) ?? null;
           const greet = { pageId: target.pageId, fanRef: follow.f, username, avatarUrl: verdict.avatarUrl ?? null, since: new Date(follow.at).toISOString(), ...(greetRemindUrgent(step) ? { urgent: true as const } : {}) };
+          const key = `${creator}:${follow.f}`;
+          shown.delete(key);
+          shown.set(key, { label: fanLabel, username, avatarUrl: greet.avatarUrl, since: greet.since });
+          for (const old of shown.keys()) {
+            if (shown.size <= SHOWN_KEPT) break;
+            shown.delete(old);
+          }
           deps.toast(target.tabSessionId, { toastId: deps.uuid(), kind: 'info', scope: `greet.${follow.f}`, fanLabel, greet });
           const page = target.page?.trim().slice(0, 256) || null;
+          const pageLabel = target.pageLabel?.trim().slice(0, 64) || null;
           for (const other of target.elsewhere ?? []) {
             if (other.tabSessionId === target.tabSessionId) continue;
-            const named = other.foreign && page !== null ? { ...greet, page } : greet;
+            const named = other.foreign && page !== null ? { ...greet, page, ...(pageLabel === null ? {} : { pageLabel }) } : greet;
             deps.toast(other.tabSessionId, { toastId: deps.uuid(), kind: 'info', scope: `greet.${follow.f}`, fanLabel, greet: named });
           }
           reminded += 1;
@@ -239,6 +268,13 @@ export function createFanslyGreetReminder(deps: FanslyGreetReminderDeps): Fansly
       prune(now);
       persist();
       schedule();
+    },
+    shown(creators, fanRef) {
+      for (const creator of creators) {
+        const fan = shown.get(`${creator}:${fanRef}`);
+        if (fan !== undefined) return fan;
+      }
+      return null;
     },
     followedAt(creator, fanRef) {
       // The newest follow of the fan (oldest first here).

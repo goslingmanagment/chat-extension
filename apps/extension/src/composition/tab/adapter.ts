@@ -32,6 +32,7 @@ import type { Tone } from '@cg/contracts/features';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { HostContractShape, HostPort, HostTheme, MountPoints } from '@cg/contracts/host';
 import type { HostKind } from '@cg/contracts/hosts';
+import type { GreetFrom } from '@cg/contracts/ids';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { AiHostPolicy } from '@cg/contracts/ops';
 import type { SendFuseState } from '@cg/contracts/send';
@@ -271,6 +272,11 @@ export interface HostAppAdapter<P extends HostPort = HostPort, C = unknown> {
    * with the application. Absent — the hub knows by itself.
    */
   readonly online?: (env: { readonly rpc: TabRpcClient; readonly host: P; readonly win: Window; readonly clock: { now(): number } }) => OnlineSiteSource;
+  /**
+   * 2026-10-31: «Назад в lora-1» of the card a reminder's «Hi» from another page's tab brought here — the site brings that
+   * tab forward again (Fansly's background); false — it is not there. Absent — the site hands no Hi between tabs.
+   */
+  readonly greetBack?: (rpc: TabRpcClient, from: GreetFrom) => Promise<boolean>;
   /**
    * The site's own surfaces, started once with the application (R20 P13b: Fansly's vault panel and its entry): they
    * mount into our layers, load their chunks of the site's build and stop with the answer. Absent — none (ChatSpace).

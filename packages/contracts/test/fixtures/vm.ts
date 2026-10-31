@@ -114,6 +114,7 @@ export const UI_ACTION_SAMPLES: { readonly [T in C.UiActionType]: C.UiActionOf<T
   ChangeFanFact: { type: 'ChangeFanFact', factId: 7, action: 'correct', text: 'Lives in Montreal' },
   DismissToast: { type: 'DismissToast', toastId: 'toast-1' },
   HoldToast: { type: 'HoldToast', toastId: 'toast-1', hold: true },
+  GreetBack: { type: 'GreetBack', toastId: 'toast-1' },
   Navigate: { type: 'Navigate', to: { kind: 'chat', targetHandle: TARGET } },
   OpenSettings: { type: 'OpenSettings', route: { section: 'status', code: 'CG-HUB-UNAVAILABLE' } },
   SetPreference: { type: 'SetPreference', key: 'ui.resultStyle', value: 'sheet' },

@@ -24,6 +24,7 @@ import type { HostPort, NavigationReceipt } from '@cg/contracts/host';
 import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, TargetHandle, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
 import type { GreetHereState, GreetedChat } from '@cg/core/application/newcomers';
+import type { GreetRun } from '@cg/core/application/shell';
 import type { HotkeySink } from '@cg/core/application/hotkeys';
 import { toastKindOf } from '@cg/core/domain/errors';
 import type { OnlineSiteSource } from '@cg/core/application/online/source';
@@ -383,6 +384,10 @@ export interface TabBoards {
   greetHere(handle: TargetHandle): GreetHereState | null;
   /** A greeting `greetHere` tells of changed. */
   onGreetHere(listener: () => void): () => void;
+  /** 2026-10-31: how the old-way «Hi» of a reminder's fan goes in this tab (the card of a handed-over Hi reads it); null — not run here. */
+  greetRun(handle: TargetHandle): GreetRun | null;
+  /** A run `greetRun` tells of changed. */
+  onGreetRun(listener: () => void): () => void;
   dispose(): void;
 }
 
@@ -415,6 +420,15 @@ const PREVIEW_SOURCES: readonly PreviewSource[] = ['spenders', 'newcomers', 'pal
 export const GREET_CHAT_READY_MS = 15_000;
 /** …and its greeting is written within this long, or it stays in the dock for the person to put in. */
 const GREET_RESULT_WAIT_MS = OP_TIMEOUTS.hi.maxMs + 15_000;
+/** The old-way «Hi» runs a tab remembers for the cards of handed-over ones (2026-10-31). */
+const GREET_RUNS_KEPT = 20;
+
+/** An old-way «Hi» as it goes: how it ends, the fan's name and chat once known. */
+interface GreetRunNow {
+  s: GreetRun['s'];
+  name: string | null;
+  chat: ChatRef | null;
+}
 
 /**
  * Resolves once the boards know whose they are. They are made with the first
@@ -586,7 +600,32 @@ export async function startBoards(
    * greeting in the field: the toast says «Кто-то уже поприветствовал …», the chat is open already. A person who went
    * on to another chat meanwhile keeps the greeting in the dock of the fan's chat.
    */
+  /** 2026-10-31: the old-way «Hi» of each reminder's fan in this tab, as it goes — what the card of a handed-over Hi says. */
+  const runs = new Map<string, GreetRun>();
+  const runListeners = new Set<() => void>();
+  const ran = (handle: string, run: GreetRun): void => {
+    runs.delete(handle);
+    runs.set(handle, run);
+    for (const old of runs.keys()) {
+      if (runs.size <= GREET_RUNS_KEPT) break;
+      runs.delete(old);
+    }
+    for (const listener of [...runListeners]) listener();
+  };
+
   async function greet(handle: string): Promise<ActionReceipt> {
+    // How it ended, for the card: put in, somebody greeted the fan, or nothing to say (stopped, or the person's now).
+    const run: GreetRunNow = { s: 'idle', name: null, chat: null };
+    ran(handle, { s: 'writing', name: null });
+    try {
+      return await greetSteps(handle, run);
+    } finally {
+      // The dock knows the fan's name once Fansly drew the chat's header.
+      ran(handle, { s: run.s, name: run.name ?? (run.chat === null ? null : dock.fanName(run.chat)) });
+    }
+  }
+
+  async function greetSteps(handle: string, run: GreetRunNow): Promise<ActionReceipt> {
     const as = (receipt: ActionReceipt): ActionReceipt => ({ ...receipt, type: 'GreetNewcomer' });
     // Said by a toast of its own: the reminder's toast is gone with the click.
     const failed = (code: CgCode): ActionReceipt => {
@@ -601,6 +640,9 @@ export async function startBoards(
     const target = (await newcomers.greetChat?.(handle)) ?? null;
     // No way to the fan's chat now (Fansly could not find or make it): «Новые» open, the fan is there for the person.
     if (target === null) return as(await router.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } }));
+    run.name = target.name;
+    run.chat = target.chat;
+    ran(handle, { s: 'writing', name: run.name });
     surfaces.setList('newcomers', false);
     world.gate.afterGreet('Navigate');
     const opened = await navigator.open(target.chat, 'newcomers', ['newcomers'], target.conversationRef ?? undefined);
@@ -608,6 +650,7 @@ export async function startBoards(
     const dockHandle = await dock.readyFor(target.chat, GREET_CHAT_READY_MS);
     // The chat did not become the dock's in time (the person went on, the page is slow): the chat is open, Hi is theirs.
     if (dockHandle === null) return { ok: true, type: 'GreetNewcomer', outcome: 'opened' };
+    run.name ??= dock.fanName(target.chat);
     world.gate.afterGreet('Generate');
     const started = await router.dispatch({ type: 'Generate', targetHandle: dockHandle, feature: 'hi', options: { variants: 1 } });
     // A refused start is the dock's to show (its sheet says why); a Hi already running there is the person's own.
@@ -616,13 +659,22 @@ export async function startBoards(
     // Whether somebody wrote to the fan is asked while Hi writes: a «yes» stops it at once.
     const early = (newcomers.greetedNow?.(handle, target) ?? Promise.resolve(null)).catch(() => null);
     const first = await Promise.race([dock.ended(opId, GREET_RESULT_WAIT_MS), early.then((found) => found ?? new Promise<never>(() => undefined))]);
-    if (first !== null && typeof first === 'object') return greetedAlready(first, opId);
+    if (first !== null && typeof first === 'object') {
+      run.s = 'greeted';
+      return greetedAlready(first, opId);
+    }
     if (first !== 'done') return as(started);
     // Asked again once it is written: the page has loaded the chat by now (Fansly), a colleague may have just written.
     const greeted = (await early) ?? (await newcomers.greetedNow?.(handle, target).catch(() => null)) ?? null;
-    if (greeted !== null) return greetedAlready(greeted, opId);
+    if (greeted !== null) {
+      run.s = 'greeted';
+      return greetedAlready(greeted, opId);
+    }
     if (!chatOnScreen(host.current().route, target.chat) || world.gate.afterGreet('InsertPart') !== null) return as(started);
-    return as(await router.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 0 }));
+    const inserted = await router.dispatch({ type: 'InsertPart', operationId: opId, variant: 0, part: 0 });
+    // Б2 («в поле уже есть ваш текст») asks first: the greeting is not in the field until the person answers.
+    if (inserted.ok && inserted.outcome === 'done') run.s = 'inserted';
+    return as(inserted);
   }
 
   /**
@@ -702,6 +754,13 @@ export async function startBoards(
     inCard: (opId) => newcomers.inCard?.(opId) ?? false,
     greetHere: (handle) => newcomers.greetHereState?.(handle) ?? null,
     onGreetHere: (listener) => newcomers.onGreetHere?.(listener) ?? (() => undefined),
+    greetRun: (handle) => runs.get(handle) ?? null,
+    onGreetRun(listener) {
+      runListeners.add(listener);
+      return () => {
+        runListeners.delete(listener);
+      };
+    },
     dispose() {
       dock.bind(null);
       win.removeEventListener('online', onOnline);

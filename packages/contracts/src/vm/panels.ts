@@ -378,14 +378,32 @@ export interface ToastVM {
     readonly handle: string | null;
     readonly avatarUrl: string | null;
     readonly since: string | null;
-    /** 1.62.0: the fan's model, when the toast stands in a tab of another model: «Ждёт приветствия · {модель}». */
-    readonly page?: string | null;
+    /**
+     * 1.69.0 (Grisha, 2026-10-31: «иногда hi в уведомлении переключает на вторую вкладку … я теряюсь»): the hub's label
+     * of the fan's page when the toast stands in a tab of another page (1.62.0 named the model, and three pages are «Lora
+     * Vie»). The card wears it on an ear on top, and its «Hi» says where it goes: «Hi в lora-2», «Переключу на вкладку
+     * lora-2». Absent — the fan of this tab's page.
+     */
+    readonly away?: string | null;
+    /**
+     * 1.69.0: the card that «Hi» of a reminder in a tab of another page brought into this tab, in the same corner:
+     * «Вы во вкладке {page}», how that Hi goes here, and «Назад в {from}» (the actions).
+     */
+    readonly arrived?: { readonly page: string; readonly from: string; readonly s: GreetArrivedState | null };
     /** 1.67.0: the last of the fan's three reminders (fifteen minutes on) — the card is red. */
     readonly urgent?: boolean;
     /** 1.68.0: the greeting «Hi» wrote inside the toast (absent — not pressed yet). */
     readonly card?: GreetCardVM;
   };
 }
+
+/**
+ * 1.69.0: how the «Hi» a tab of another page handed over goes in this tab: `writing` — Hi writes the greeting in the fan's
+ * chat; `inserted` — it stands in the field for the person's own send; `sent` — a message went to the fan from here;
+ * `greeted` — somebody greeted the fan already, nothing was put in. Null in the card — nothing to say (the chat did not
+ * open, or the dock's Hi is the person's now).
+ */
+export type GreetArrivedState = 'writing' | 'inserted' | 'sent' | 'greeted';
 
 /**
  * 1.68.0 (the owner, 2026-10-29: «Hi прямо в напоминании»): the reminder's greeting, written while the person stays in
