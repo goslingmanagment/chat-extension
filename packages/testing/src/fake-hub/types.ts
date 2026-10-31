@@ -77,7 +77,7 @@ export interface FakeHubConfigPatch {
   readonly quotaRequestsToday?: number | null;
   /**
    * `ai-limit-v1`: the person's own daily AI limit (null = none): spent today and one generation's cost, micro-USD;
-   * `poolMicroUsd` — today's shared pool (absent: a hub before the pool). Only this person draws from it here.
+   * `poolMicroUsd` — today's shared pool (absent: an empty one). Only this person draws from it here.
    */
   readonly personalAiLimit?: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number; readonly poolMicroUsd?: number } | null;
   /** A finished generation becomes visible to H-5 this long after `done` (`generation_not_ready` before). */
