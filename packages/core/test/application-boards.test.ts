@@ -1439,6 +1439,76 @@ describe('X59 on ChatSpace: a batch draft of «Новые» is sent by its row�
     expect(h.host.calls.navigations).toEqual([]);
   });
 
+  describe('2026-10-29 review (M02 F3): a greeting whose outcome is unknown is never sent again by «Отправить всем»', () => {
+    async function unknown(): Promise<{ h: Harness; row: () => NewcomerRowVM | undefined }> {
+      const h = await harness({ config: X8, checkpointFan: '2010', answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+      await h.dispatch(open('newcomers'));
+      h.script(0, 'hi-greeting', 'Hi there!');
+      await h.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [newcomer('2010')], picked: true });
+      await h.dispatch({ type: 'GenerateBatch', list: 'newcomers' });
+      await h.advance(500);
+      const row = (): NewcomerRowVM | undefined => h.boards.newcomers.getSnapshot(NEWCOMERS).rows.find((entry) => entry.handle === newcomer('2010'));
+      expect(await h.dispatch({ type: 'SendBatch', list: 'newcomers' })).toMatchObject({ ok: true, outcome: 'started' });
+      await h.advance(10_000);
+      expect(h.clicks).toHaveLength(1);
+      expect(row()?.greeting).toMatchObject({ s: 'stopped', sent: 0 });
+      return { h, row };
+    }
+
+    it('«Очистить» → «Выбрать» leaves the fan out: nothing is generated or sent for them, the row still says «не подтвердилось»', async () => {
+      const { h, row } = await unknown();
+      expect(await h.dispatch({ type: 'ClearBatch', list: 'newcomers' })).toMatchObject({ ok: true, outcome: 'done' });
+      // Past the results' 30 minutes a Generate of the fan is a new greeting, not the old result reopened.
+      await h.advance(31 * 60_000);
+      expect(row()?.batch?.pickable).toBe(false);
+      expect(await h.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [newcomer('2010')], picked: true })).toMatchObject({ ok: true, outcome: 'noop' });
+      expect(await h.dispatch({ type: 'GenerateBatch', list: 'newcomers' })).toMatchObject({ ok: true, outcome: 'noop' });
+      await h.advance(500);
+      expect(await h.dispatch({ type: 'SendBatch', list: 'newcomers' })).toMatchObject({ ok: true, outcome: 'noop' });
+      await h.advance(10_000);
+      expect(count(h, 'op.start')).toBe(1);
+      expect(h.clicks).toHaveLength(1);
+      expect(row()?.greeting).toMatchObject({ s: 'stopped', sent: 0 });
+    });
+
+    it('a fan ticked before the outcome turned unknown is not written again by «Сгенерировать для N»', async () => {
+      const h = await harness({ config: X8, checkpointFan: '2010', answers: { commit: [{ state: 'uncertain', code: 'CG-SEND-UNCERTAIN' }] } });
+      await h.dispatch(open('newcomers'));
+      h.script(0, 'hi-greeting', 'Hi there!');
+      await h.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [newcomer('2010')], picked: true });
+      await h.dispatch({ type: 'GenerateBatch', list: 'newcomers' });
+      await h.advance(500);
+      // Ticked again for another version while its ready greeting is still to go.
+      expect(await h.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [newcomer('2010')], picked: true })).toMatchObject({ ok: true, outcome: 'done' });
+      await h.dispatch({ type: 'SendBatch', list: 'newcomers' });
+      await h.advance(31 * 60_000);
+      const row = (): NewcomerRowVM | undefined => h.boards.newcomers.getSnapshot(NEWCOMERS).rows.find((entry) => entry.handle === newcomer('2010'));
+      expect(row()?.greeting).toMatchObject({ s: 'stopped', sent: 0 });
+      expect(await h.dispatch({ type: 'GenerateBatch', list: 'newcomers' })).toMatchObject({ ok: true, outcome: 'started' });
+      await h.advance(500);
+      expect(count(h, 'op.start')).toBe(1);
+      expect(row()?.batch).toMatchObject({ state: 'failed', failure: { code: 'CG-SEND-UNCERTAIN' } });
+      expect(h.clicks).toHaveLength(1);
+    });
+
+    it('a new greeting the person wrote on the card waits for their own click on the fan; the run never sends it', async () => {
+      const { h, row } = await unknown();
+      // The person's own «Ещё раз» on the fan's card: an unknown outcome holds nothing there (2026-10-20 audit, row 2).
+      await h.dispatch({ type: 'OpenPreview', targetHandle: newcomer('2010') });
+      h.script(1, 'hi-greeting', 'Hey, welcome!');
+      expect(await h.dispatch({ type: 'Regenerate', operationId: uuid(0x100) })).toMatchObject({ ok: true, opId: uuid(0x101) });
+      await h.advance(SEND_PACE_MS);
+      expect(row()).toMatchObject({ greeting: { s: 'stopped', sent: 0 }, batch: { state: 'ready', text: 'Hey, welcome!' }, send: { can: true } });
+      expect(h.boards.preview.batchSendState(newcomer('2010'))).toBe('no');
+      expect(await h.dispatch({ type: 'SendBatch', list: 'newcomers' })).toMatchObject({ ok: true, outcome: 'noop' });
+      await h.advance(10_000);
+      expect(h.clicks).toHaveLength(1);
+      // The row's own «Отправить» is the person's decision about this fan: it goes.
+      expect(await h.dispatch({ type: 'SendNewcomerGreeting', targetHandle: newcomer('2010') })).toMatchObject({ ok: true });
+      expect(h.clicks).toHaveLength(2);
+    });
+  });
+
   it('one click sends the greeting’s next part by the card’s own send, the card never opened; nothing more while it goes', async () => {
     const h = await harness({ config: X8, checkpointFan: '2010' });
     await h.dispatch(open('newcomers'));
