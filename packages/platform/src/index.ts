@@ -111,6 +111,7 @@ export {
   type ToneWave,
 } from './audio';
 export { writeClipboardText, type ClipboardNavigator, type ClipboardResult } from './clipboard';
+export { readServerTab } from './managed';
 export { clientOsOf, extensionVersionOf, majorVersionOf, readClientEnv, type ClientEnv, type ClientOs } from './env';
 export { downloadFile, safeFileName, DOWNLOAD_URL_TTL_MS, type DownloadDeps, type DownloadFile } from './download';
 export { createPermissionBundle } from './permissions';

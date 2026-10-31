@@ -10,7 +10,7 @@ import { SiteAccessRequestSchema, SiteAccessStateSchema } from './site-access';
 
 import { CgCodeSchema, CgErrorWireSchema, SettingsRouteSchema } from './errors';
 import { FeatureIdSchema, SurfaceSchema } from './features';
-import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema, SendAttributionFactSchema } from './host';
+import { HostContractReportSchema, IncomingFactSchema, InsertReceiptSchema, ROUTE_NAMES, SendAttributionFactSchema } from './host';
 import { ChatKeySchema, ChatRefSchema, GreetFromSchema, HostAccountSchema, HostKindSchema, HubBindingSchema, HumanCauseSchema, PartRefSchema, RoleSchema, SessionIdentitySchema, TargetSchema, type HostKind } from './ids';
 import { DEBUG_LIMITS, LOG_LIMITS, PART_LIMITS, SIGN_IN_LIMITS, STORAGE_LIMITS } from './limits';
 import { LogRecordFromUiSchema, LogRecordSchema } from './logs';
@@ -434,6 +434,15 @@ export const TAB_REQUESTS = {
        * null — not since the tab opened. Never what: the beat of the hub's shift reads only the time.
        */
       lastInputAt: z.optional(z.nullable(EpochMsSchema)),
+      /** 2026-11-01: the route's name as the site names it (ChatSpace's Accounts Overview, a chat route, another). */
+      routeName: z.optional(z.enum(ROUTE_NAMES)),
+      /**
+       * 2026-11-01: ChatSpace's socket coverage of each account the tap reported (the `coverage` event): covered now or
+       * not, and since when (this browser's clock). The always-on tab's report to the hub reads it; nothing else.
+       */
+      coverage: z.optional(
+        z.array(z.strictObject({ hostAccountId: NativeIdSchema, covered: z.boolean(), since: EpochMsSchema })).check(z.maxLength(50)),
+      ),
     }),
     res: Ack,
     from: TAB,

@@ -185,6 +185,11 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   let withAccounts = true;
   let sentLabel: string | null = null;
   let sentUsername: string | null = null;
+  /**
+   * 2026-11-01: ChatSpace's socket coverage of each account as the tap said it (the `coverage` event) and since when;
+   * the always-on tab's report to the hub reads it (core/services/server-tab.ts).
+   */
+  const coverage = new Map<string, { readonly covered: boolean; readonly since: number }>();
   /** The open chat's fan as the site's memory already names it; null — no chat, no name, or the port cannot say. */
   const fanLabelOf = (port: HostPort): string | null => {
     try {
@@ -232,6 +237,8 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
             fanLabel: sentLabel,
             fanUsername: sentUsername,
             lastInputAt,
+            routeName: snapshot.route.name,
+            coverage: [...coverage].slice(0, 50).map(([hostAccountId, state]) => ({ hostAccountId, ...state })),
             ...(include ? { accounts: [...accounts] } : {}),
           })
           .then((answer) => {
@@ -279,7 +286,12 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   void host.host.then((port) => {
     if (life.aborted) return;
     const off = port.subscribe((event) => {
-      if (event.type === 'route' || event.type === 'accounts') reportPresence();
+      if (event.type === 'coverage') {
+        const covered = event.coverage.state === 'ok';
+        if (coverage.get(event.coverage.hostAccountId)?.covered === covered) return;
+        coverage.set(event.coverage.hostAccountId, { covered, since: Date.now() });
+        reportPresence();
+      } else if (event.type === 'route' || event.type === 'accounts') reportPresence();
       // ChatSpace learned the open chat's fan after the route: its name goes too (once it changes).
       else if (event.type === 'chatCache' && (fanLabelOf(port) !== sentLabel || (sentLabel !== null && fanUsernameOf(port) !== sentUsername))) reportPresence();
     });

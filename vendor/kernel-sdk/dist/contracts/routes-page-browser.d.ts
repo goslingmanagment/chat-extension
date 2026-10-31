@@ -2390,4 +2390,48 @@ export declare const pageBrowserRouteSchemas: {
             readonly 502: z.ZodUnknown;
         };
     };
+    readonly chatspaceBrowserScreenOpen: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The always-on ChatSpace tab's screen (apps/chatspace-browser): a redirect to its KasmVNC web client, scaled to the window";
+        readonly response: {
+            readonly 302: z.ZodUnknown;
+            readonly 401: z.ZodUnknown;
+            readonly 403: z.ZodUnknown;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly chatspaceBrowserScreen: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The always-on ChatSpace tab's screen (KasmVNC web client and its WebSocket), passed through with its screen password";
+        readonly params: z.ZodObject<{
+            "*": z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodUnknown;
+            readonly 400: z.ZodUnknown;
+            readonly 401: z.ZodUnknown;
+            readonly 403: z.ZodUnknown;
+            readonly 404: z.ZodUnknown;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 502: z.ZodUnknown;
+        };
+    };
 };

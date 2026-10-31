@@ -46,6 +46,8 @@ export const HUB_ROUTE_PATHS = {
   clientNoteAttributions: '/api/v1/client/pages/:pageLabel/note-attributions',
   clientFanNoteAttributions: '/api/v1/client/pages/:pageLabel/fans/:fanRef/note-attributions',
   clientActivity: '/api/v1/client/activity',
+  // The always-on ChatSpace tab's report (hub #959).
+  clientChatspaceTabState: '/api/v1/client/chatspace/tab-state',
   clientInConversation: '/api/v1/client/pages/:pageLabel/in-conversation',
   clientFanCard: '/api/v1/client/pages/:pageLabel/fans/:fanRef/card',
   clientFanLinkDecide: '/api/v1/client/pages/:pageLabel/fans/:fanRef/links',

@@ -50,6 +50,7 @@ import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQ
 import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
 import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineProbeRequest, type OnlineProbeResult, type OnlineQuery } from './online';
 import { type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollRequest, type OnlyfansPollResult } from './onlyfans-feed';
+import { type ServerTabStateRequest, type ServerTabStateResult } from './server-tab';
 import { type FanQueueItemDone, type FanQueueItemDoneRequest, type FanQueueRelease, type FanQueueReleaseRequest, type FanQueues, type FanQueuesQuery, type FanQueueTake, type FanQueueTakeRequest } from './fan-queues';
 import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type FanMarks, type FanMarksQuery } from './fan-marks';
@@ -231,6 +232,11 @@ export interface HubFacade {
   onlyfansFeed(request: OnlyfansFeedRequest): Promise<OnlyfansFeedResult>;
   /** hub #955: the page's poll of ChatSpace lent to this tab, or when it may be (the page's `ofPoll`); never repeated here. */
   onlyfansPoll(request: OnlyfansPollRequest): Promise<OnlyfansPollResult>;
+  /**
+   * The always-on ChatSpace tab's report (hub `chatspace-tab-state-v1`): its view and the socket's coverage of each
+   * account. Refused here without the capability; never repeated: a lost report is just lost.
+   */
+  serverTabState(request: ServerTabStateRequest): Promise<ServerTabStateResult>;
   /** What a chatter did in «Онлайн» (a message sent, «Не предлагать», its undo); never repeated by itself. */
   onlineAttempt(request: OnlineAttemptRequest): Promise<OnlineAttemptResult>;
   /** «Очереди»: the caller's fan queues of the page; refused without `fan-queues-v1`. */

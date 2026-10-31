@@ -735,6 +735,14 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/ofapi/commands/:commandId/cancel";
     };
+    readonly chatspaceBrowserScreen: {
+        readonly method: "GET";
+        readonly path: "/api/v1/chatspace-browser/screen/*";
+    };
+    readonly chatspaceBrowserScreenOpen: {
+        readonly method: "GET";
+        readonly path: "/api/v1/chatspace-browser/screen";
+    };
     readonly clientActivity: {
         readonly method: "POST";
         readonly path: "/api/v1/client/activity";
@@ -754,6 +762,10 @@ export declare const kernelOperations: {
     readonly clientBootstrap: {
         readonly method: "GET";
         readonly path: "/api/v1/client/bootstrap";
+    };
+    readonly clientChatspaceTabState: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/chatspace/tab-state";
     };
     readonly clientConversationFeed: {
         readonly method: "GET";

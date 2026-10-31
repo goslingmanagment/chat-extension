@@ -95,6 +95,8 @@ export const HUB_ROUTES = {
   clientOnlyfansFeed: { method: 'POST', routeClass: 'page', since: 'sdk', flag: 'ofFeed', capabilities: ['onlyfans-feed-v1'], narrowToken: true },
   /** 2026-11-01 (hub #955): the page's poll of ChatSpace (new subscribers, the sales ledger), lent to one tab of the team. */
   clientOnlyfansPoll: { method: 'POST', routeClass: 'page', since: 'sdk', flag: 'ofPoll', capabilities: ['onlyfans-poll-v1'], narrowToken: true },
+  /** The always-on ChatSpace tab's report: its view, the socket's coverage of each account. Kept for the server's user alone. */
+  clientChatspaceTabState: { method: 'POST', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['chatspace-tab-state-v1'], narrowToken: true },
   /** A message sent from «Онлайн», «Не предлагать» and its undo: journaled, shared by the team. */
   clientOnlineAttempt: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
   /** «Очереди»: the caller's fan queues of a page — progress today, the goal, who answered a message from a queue. No owner switch. */

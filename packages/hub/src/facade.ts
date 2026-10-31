@@ -103,6 +103,9 @@ import {
   type OnlyfansFeedResult,
   type OnlyfansPollRequest,
   type OnlyfansPollResult,
+  ServerTabStateRequestSchema,
+  type ServerTabStateRequest,
+  type ServerTabStateResult,
   type OnlineQuery,
   type FanQueueItemDone,
   type FanQueueItemDoneRequest,
@@ -1103,6 +1106,22 @@ export class ChatExtensionHub implements HubFacade {
    */
   async onlyfansPoll(request: OnlyfansPollRequest): Promise<OnlyfansPollResult> {
     return (await this.client('clientOnlyfansPoll', request, request.pageLabel)) as OnlyfansPollResult;
+  }
+
+  /**
+   * The always-on ChatSpace tab's report (hub `chatspace-tab-state-v1`): no page in the path, so no page grant here (the
+   * hub keeps only its server user's). Refused without the capability; never repeated: a lost report is just lost.
+   */
+  async serverTabState(request: ServerTabStateRequest): Promise<ServerTabStateResult> {
+    const connection = this.ctx.connection('clientChatspaceTabState');
+    await this.ready;
+    if (!this.ctx.isCurrent(connection)) throw this.ctx.failure('clientChatspaceTabState', transportFailure('aborted'), connection);
+    if (!ServerTabStateRequestSchema.safeParse(request).success) throw this.ctx.failure('clientChatspaceTabState', transportFailure('contract'), connection);
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    if (!hasCapability(entry.bootstrap.capabilities, 'chatspace-tab-state-v1')) {
+      throw new FacadeCheckError('capabilityMissing', 'clientChatspaceTabState', connection.epoch, 'chatspace-tab-state-v1');
+    }
+    return (await this.ctx.client('clientChatspaceTabState', request, {}, connection)) as ServerTabStateResult;
   }
 
   /** What a chatter did in «Онлайн». Never repeated here: a lost answer is the person's to act on again. */

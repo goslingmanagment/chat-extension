@@ -1216,6 +1216,10 @@ export class FakeHub {
         const who = need(principal).user.userId;
         return read(s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now));
       }
+      // The always-on ChatSpace tab's report (hub #959): taken and kept nowhere — the stand has no server user.
+      case 'clientChatspaceTabState':
+        need(principal);
+        return { kind: 'json', status: 200, body: { recorded: false, serverNow: new Date(now).toISOString() } };
       case 'clientFanCard':
         return { kind: 'json', status: 200, body: s.data.fanCard(need(page), (request as FanCardQuery).fanRef, now) };
       case 'clientFanMarks':

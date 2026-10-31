@@ -9868,6 +9868,7 @@ export declare const notificationsIncidentItemSchema: z.ZodObject<{
         publishing_stopped: "publishing_stopped";
         publication_not_published: "publication_not_published";
         ofapi_platform_notice: "ofapi_platform_notice";
+        chatspace_tab: "chatspace_tab";
     }>;
     pageLabel: z.ZodNullable<z.ZodString>;
     platform: z.ZodNullable<z.ZodEnum<{
@@ -9929,6 +9930,7 @@ export declare const notificationsIncidentsQuerySchema: z.ZodObject<{
         publishing_stopped: "publishing_stopped";
         publication_not_published: "publication_not_published";
         ofapi_platform_notice: "ofapi_platform_notice";
+        chatspace_tab: "chatspace_tab";
     }>>;
     pageLabel: z.ZodOptional<z.ZodString>;
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -9965,6 +9967,7 @@ export declare const notificationsIncidentsResponseSchema: z.ZodObject<{
             publishing_stopped: "publishing_stopped";
             publication_not_published: "publication_not_published";
             ofapi_platform_notice: "ofapi_platform_notice";
+            chatspace_tab: "chatspace_tab";
         }>;
         pageLabel: z.ZodNullable<z.ZodString>;
         platform: z.ZodNullable<z.ZodEnum<{
@@ -17466,6 +17469,7 @@ declare const baseRouteSchemas: {
                 publishing_stopped: "publishing_stopped";
                 publication_not_published: "publication_not_published";
                 ofapi_platform_notice: "ofapi_platform_notice";
+                chatspace_tab: "chatspace_tab";
             }>>;
             pageLabel: z.ZodOptional<z.ZodString>;
             limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -17503,6 +17507,7 @@ declare const baseRouteSchemas: {
                         publishing_stopped: "publishing_stopped";
                         publication_not_published: "publication_not_published";
                         ofapi_platform_notice: "ofapi_platform_notice";
+                        chatspace_tab: "chatspace_tab";
                     }>;
                     pageLabel: z.ZodNullable<z.ZodString>;
                     platform: z.ZodNullable<z.ZodEnum<{
@@ -40069,6 +40074,50 @@ declare const baseRouteSchemas: {
             readonly 401: z.ZodUnknown;
             readonly 403: z.ZodUnknown;
             readonly 404: z.ZodUnknown;
+            readonly 502: z.ZodUnknown;
+        };
+    };
+    readonly chatspaceBrowserScreenOpen: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The always-on ChatSpace tab's screen (apps/chatspace-browser): a redirect to its KasmVNC web client, scaled to the window";
+        readonly response: {
+            readonly 302: z.ZodUnknown;
+            readonly 401: z.ZodUnknown;
+            readonly 403: z.ZodUnknown;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly chatspaceBrowserScreen: {
+        readonly auth: {
+            readonly kind: "owner-session";
+        };
+        readonly tags: readonly ["admin"];
+        readonly summary: "The always-on ChatSpace tab's screen (KasmVNC web client and its WebSocket), passed through with its screen password";
+        readonly params: z.ZodObject<{
+            "*": z.ZodString;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 200: z.ZodUnknown;
+            readonly 400: z.ZodUnknown;
+            readonly 401: z.ZodUnknown;
+            readonly 403: z.ZodUnknown;
+            readonly 404: z.ZodUnknown;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
             readonly 502: z.ZodUnknown;
         };
     };

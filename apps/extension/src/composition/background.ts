@@ -52,6 +52,7 @@ import { chatKeyOf, type ChatKey } from '@cg/contracts/ids';
 import { hostAccountKeyOf } from '@cg/contracts/settings';
 import {
   ACTIVITY_LIMITS,
+  SERVER_TAB_LIMITS,
   CONTRACTS_VERSION,
   FAN_LABELS_MAX,
   HUB_CLIENT_CHECK_CODES,
@@ -93,6 +94,8 @@ import {
   NoteAttributionReporter,
   noteWriteOrigin,
   ActivityBeat,
+  ServerTabReport,
+  type ServerTabSeen,
   beatTabsOf,
   type BeatTab,
   TalkingMarksService,
@@ -137,6 +140,7 @@ import {
   createTabFocus,
   defaultBrowser,
   readClientEnv,
+  readServerTab,
   syncDynamicMainScript,
   type AudioPlayer,
   type BrowserApi,
@@ -823,6 +827,33 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     tabs: () => beatTabsOf(presence.tabs(), pageLabelOfAccount, beatLastPage),
     log: coreLog,
   });
+  // The agency's always-on ChatSpace tab (hub apps/chatspace-browser): its Firefox policy says `serverTab`; there alone
+  // the background reports the tabs' view and the socket's coverage of each account to the hub once a minute, on an
+  // alarm of its own that runs with or without a ChatSpace tab (core/services/server-tab.ts).
+  const serverTab = readServerTab(api);
+  const chatspaceIdOf = (key: string | null): string | null => (key !== null && key.startsWith('chatspace:') ? key.slice('chatspace:'.length) : null);
+  const serverTabReport = new ServerTabReport({
+    clock: CLOCK,
+    hub: () => hubInstance,
+    // Signed in is enough here: the facade checks `chatspace-tab-state-v1` against a fresh bootstrap when the event page
+    // has just woken with none cached.
+    enabled: async () => (await serverTab) && (hubInstance?.session() ?? null) !== null,
+    instanceId: () => instanceId,
+    version: () => env.extensionVersion,
+    tabs: () =>
+      presence
+        .tabs()
+        .filter((tab) => tab.accounts.some((key) => key.startsWith('chatspace:')) || chatspaceIdOf(tab.routeAccount) !== null || tab.coverage.length > 0)
+        .map((tab): ServerTabSeen => ({
+          chatOpen: tab.chat !== null,
+          routeAccount: chatspaceIdOf(tab.routeAccount),
+          routeName: tab.routeName,
+          accounts: tab.accounts.flatMap((key) => chatspaceIdOf(key) ?? []),
+          coverage: tab.coverage,
+        })),
+    pageOf: (hostAccountId) => pageLabelOfAccount(`chatspace:${hostAccountId}`),
+    log: coreLog,
+  });
   // «В разговоре» (core/services/talking.ts): the hub's answer for every page an open tab shows, others only, to the tabs.
   const talkingPages = (): TalkingPage[] => {
     const pages = new Map<string, { readonly pageId: number; readonly accounts: Map<string, { host: string; hostAccountId: string }> }>();
@@ -1254,7 +1285,17 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     armed = false;
     for (const alarm of Object.values(ALARMS)) void alarms.clear(alarm.name);
   }
+  // The always-on tab's report: its own alarm, never disarmed with the others (no ChatSpace tab is a report too).
+  const SERVER_TAB_ALARM = { name: 'cg.server.tab', periodMs: SERVER_TAB_LIMITS.reportMs };
+  void serverTab.then(async (isServer) => {
+    if (!isServer) return;
+    if ((await alarms.next(SERVER_TAB_ALARM.name)) === null) await alarms.set(SERVER_TAB_ALARM.name, { delayMs: SERVER_TAB_ALARM.periodMs, periodMs: SERVER_TAB_ALARM.periodMs });
+  });
   alarms.onAlarm((name) => {
+    if (name === SERVER_TAB_ALARM.name) {
+      void barrier.ready.then(() => serverTabReport.report());
+      return;
+    }
     void barrier.ready.then(async () => {
       // With no ChatSpace tab left (they re-register within a second of a wake) the page may sleep for good.
       if (rpc.tabs().length === 0) await new Promise<void>((done) => TIMERS.set(done, 2000));
