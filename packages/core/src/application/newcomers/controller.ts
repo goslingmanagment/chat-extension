@@ -207,13 +207,23 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
   /** 1.32.0: the batch of Hi; nothing is sent by it. */
   let batchPort: BatchPreviewPort | null = null;
   let offBatch: (() => void) | null = null;
+  /**
+   * A greeting of the fan whose outcome is unknown («не подтвердилось»): it may have reached the fan, so a batch never
+   * writes or sends the fan another (as on Fansly). Only the person's own click on the fan's card or row goes on.
+   */
+  const unknownOutcome = (fanRef: string): boolean => statusOf(fanRef).s === 'stopped';
   const batch = createBatch({
     clock,
-    start: (handle) => (batchPort === null || own(handle) === null ? Promise.resolve({ s: 'failed', code: 'CG-CONTEXT-CHANGED' }) : batchPort.batchStart('newcomers', handle, 'hi')),
-    // A fan nobody greeted, holds or is sending to — as Hi of the card would start.
+    start: (handle) => {
+      const fanRef = own(handle);
+      if (batchPort === null || fanRef === null) return Promise.resolve({ s: 'failed', code: 'CG-CONTEXT-CHANGED' });
+      if (unknownOutcome(fanRef)) return Promise.resolve({ s: 'failed', code: 'CG-SEND-UNCERTAIN' });
+      return batchPort.batchStart('newcomers', handle, 'hi');
+    },
+    // A fan nobody greeted, holds or is sending to — as Hi of the card would start — and with no unknown outcome.
     pickable: (handle) => {
       const fanRef = own(handle);
-      return fanRef !== null && hiBlock(statusOf(fanRef)) === null;
+      return fanRef !== null && hiBlock(statusOf(fanRef)) === null && !unknownOutcome(fanRef);
     },
     live: (handle) => batchPort?.batchLive(handle) ?? null,
     // «Отправить всем» (the owner, 2026-10-27): each ready greeting by its row's own send, never faster than the hub's minute.

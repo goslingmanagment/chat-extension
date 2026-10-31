@@ -2124,6 +2124,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   }
 
   /**
+   * A part to the fan whose outcome is unknown, of this result or of any other made for the fan (a greeting written
+   * again after it): «Отправить всем» never sends the fan anything over it; the card's and the row's own click may.
+   */
+  const unknownSend = (track: OpTrack): boolean => fanSends(track.pageId, track.fanRef, track.opId).uncertain !== null;
+
+  /**
    * «Отправить всем» of «Новые»: the greeting's next part would go now by its row's click; it waits (the pause, the
    * hub's minute, an earlier part on its way); every part went or is on its way; or it cannot go by a plain click (a
    * warning, a refusal, an unknown outcome — never passed or sent again by the run).
@@ -2133,13 +2139,14 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const track = tracks.get(currentOp.get(handle) ?? '');
     if (track === undefined || track.source !== 'newcomers' || track.hidden || track.mirror.done?.state !== 'done') return 'no';
     const parts = partsOfResult(track.mirror.done.result, 0) ?? [];
+    const unknown = unknownSend(track);
     let going = false;
     for (let index = 0; index < parts.length; index += 1) {
       const rows = rowsOf(track, 0, index);
       const send = rows.send;
       if (send === undefined) return 'no';
       if (send.s === 'sent') continue;
-      if (newcomerGreeted(track)) return 'no';
+      if (newcomerGreeted(track) || unknown) return 'no';
       if (send.s === 'queued' || send.s === 'sending' || send.s === 'accepted') {
         going = true;
         continue;
@@ -2156,6 +2163,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     const type = 'SendNewcomerGreeting';
     const next = rowPart(handle);
     if (next === null) return Promise.resolve(refused(type, localError('CG-SEND-PART', i18n)));
+    if (unknownSend(next.track)) return Promise.resolve(refused(type, localError('CG-SEND-UNCERTAIN', i18n)));
     return deps.previewSend === false ? Promise.resolve(refused(type, localError('CG-FEATURE-DISABLED', i18n))) : sendPart(type, next.track, 0, next.index);
   }
 
