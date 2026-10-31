@@ -27,6 +27,11 @@ read("user_list_users", "user-lists/:list/users", "profile_notifications", "list
 read("user_list_pinned_users", "user-lists/:list/users/pinned", "profile_notifications", "list", "offset", { limit: "int:1:100", offset: "int:0:1000000" });
 read("profile_visitors", "statistics/reach/profile-visitors", "visitors", "object", "none", { ...dates, type: "enum:total|users|guests", filter: "enum:chart" }, { required: ["start_date", "end_date"], granularity: "window" });
 read("me", "me", "profile_notifications", "object", "none", {}, { defaultCollect: true });
+// The page's "OnlyFans" tab: what the platform itself tells the page (media
+// taken down, consent withdrawn, rule reminders). One page, no walk, and
+// before the expired-fans walk, which spends the rest of the daily run's
+// calls: Hub raises an incident for each new one (ofapi-platform-notices.ts).
+read("notifications_platform", "notifications", "profile_notifications", "list", "none", { limit: "int:1:50", type: "enum:onlyfans", skip_users: "enum:all|none" }, { defaultCollect: true, fixedQuery: { type: "onlyfans" } });
 for (const kind of ["blocked", "restricted"])
     read(`users_${kind}`, `users/${kind}`, "profile_notifications", "list", "offset", { ...page, query: text });
 read("fans_expired", "fans/expired", "profile_notifications", "list", "offset", {
@@ -236,14 +241,26 @@ export function resolveOfapiCatalogPath(path, raw, scopeAccountId) {
     const accountId = global ? scopeAccountId : segments.shift();
     if (!accountId || !/^acct_[A-Za-z0-9]+$/.test(accountId))
         return null;
-    // Literal paths win over ids (archive/highlights/overview/labels).
-    for (const def of [...OFAPI_READ_CATALOG].sort((a, b) => Number(a.detail) - Number(b.detail))) {
+    // Literal paths win over ids (archive/highlights/overview/labels); a read
+    // with fixed query values wins over the general read of the same path.
+    for (const def of [...OFAPI_READ_CATALOG].sort((a, b) => Number(a.detail) - Number(b.detail) || Number(!a.fixedQuery) - Number(!b.fixedQuery))) {
         if ((def.scope === "smart_link") !== global)
             continue;
         const pieces = def.path.split("/");
         if (pieces.length !== segments.length ||
             !pieces.every((v, i) => v === ":id" ? (def.idKind === "ulid" ? /^[0-9A-HJKMNP-TV-Z]{26}$/ : /^\d+$/).test(segments[i]) : v === ":list" ? isOfapiUserListRef(segments[i]) : v === segments[i]))
             continue;
+        if (def.fixedQuery) {
+            if (!Object.entries(def.fixedQuery).every(([name, value]) => String(raw[name] ?? "") === value))
+                continue;
+            // Anything else the request carries belongs to the general read.
+            try {
+                validateOfapiReadQuery(def, raw);
+            }
+            catch {
+                continue;
+            }
+        }
         const query = validateOfapiReadQuery(def, raw);
         if (global && !def.detail && query.account_ids !== accountId)
             throw new Error("Smart Link inventory must match the frozen page account scope");

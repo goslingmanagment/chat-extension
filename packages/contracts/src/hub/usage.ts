@@ -97,7 +97,15 @@ export const AiPersonalLimitSchema = z.object({
   dailyLimitMicroUsd: CountSchema,
   /** Spent today over all pages (in the meta frame: before this call). */
   todayMicroUsd: CountSchema,
+  /** What is left of the person's own limit. */
   remainingMicroUsd: CountSchema,
+  /**
+   * Today's shared pool (the hub since 2026-10-31): yesterday's unspent limits of everyone with a limit. Past their
+   * own limit a person spends from it; the hub refuses only when both are spent. Absent — an older hub, no pool.
+   */
+  poolMicroUsd: z.optional(CountSchema),
+  /** What is left of the pool, everyone together. */
+  poolRemainingMicroUsd: z.optional(CountSchema),
   resetsAt: IsoTimestampSchema,
 });
 export type AiPersonalLimit = z.infer<typeof AiPersonalLimitSchema>;
@@ -110,5 +118,8 @@ export const AiLimitReportSchema = z.object({
   dailyLimitMicroUsd: z.nullable(CountSchema),
   todayMicroUsd: CountSchema,
   remainingMicroUsd: z.nullable(CountSchema),
+  /** The shared pool as in `AiPersonalLimitSchema`; null without a limit, absent on an older hub. */
+  poolMicroUsd: z.optional(z.nullable(CountSchema)),
+  poolRemainingMicroUsd: z.optional(z.nullable(CountSchema)),
 });
 export type AiLimitReport = z.infer<typeof AiLimitReportSchema>;

@@ -258,7 +258,15 @@ function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
             <span class={`pg-popup__ailimit-bar is-${vm.aiLimit.level}`} aria-hidden="true">
               <span style={{ width: `${Math.round(vm.aiLimit.share * 100)}%` }} />
             </span>
-            <small class="pg-popup__by">{i18n.t(vm.aiLimit.level === 'out' ? 'popup.aiLimitOut' : 'popup.aiLimitReset')}</small>
+            <small class="pg-popup__by pg-popup__ailimit-note">
+              {vm.aiLimit.level === 'out'
+                ? i18n.t('popup.aiLimitOut')
+                : vm.aiLimit.level === 'pool'
+                  ? i18n.t('popup.aiLimitPool', { pool: vm.aiLimit.pool ?? '$0.00' })
+                  : vm.aiLimit.pool === null
+                    ? i18n.t('popup.aiLimitReset')
+                    : i18n.t('popup.aiLimitResetPool', { pool: vm.aiLimit.pool })}
+            </small>
           </dd>
         </div>
       )}

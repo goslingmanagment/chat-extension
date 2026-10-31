@@ -16,6 +16,11 @@ export interface OfapiReadDefinition {
     idKind?: "numeric" | "ulid";
     reservedCredits?: number;
     collectionOnly?: boolean;
+    /** Query values that are part of the read's identity, not a choice: the
+     * planner always sends them, and a path matches this read only when the
+     * request carries every one of them. Another read of the same path without
+     * them stays the general read. */
+    fixedQuery?: Record<string, string>;
 }
 /** A closed GET catalog. No arbitrary vendor path or persistent following sort is accepted. */
 export declare const OFAPI_READ_CATALOG: readonly OfapiReadDefinition[];

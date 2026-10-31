@@ -1,8 +1,9 @@
 // `ai-limit-v1`: the alerts of the person's own daily AI limit (the owner's;
 // Moscow day, all pages). A toast in every open tab when the spend reaches 80 %
-// of it («low») and when it is spent («out»), once a Moscow day each — the
-// day's marks live in storage.local, so a restarted browser does not say it
-// again. The hub refuses by itself at the limit; this only warns ahead.
+// of it («low»), when it is spent and the AI takes from the team's shared pool
+// («pool»), and when the pool is spent too («out»), once a Moscow day each —
+// the day's marks live in storage.local, so a restarted browser does not say it
+// again. The hub refuses by itself; this only warns ahead.
 
 import { type AiLimitSnapshot } from '@cg/contracts';
 
@@ -33,13 +34,22 @@ interface Marks {
   /** The Moscow day the marks are of: its `resetsAt`. */
   readonly resetsAt: string;
   readonly low: boolean;
+  /** Absent in the marks of 3.13.x (before the pool): false. */
+  readonly pool: boolean;
   readonly out: boolean;
 }
 
+const RANK = { low: 1, pool: 2, out: 3 } as const;
+
 function marksOf(value: unknown): Marks | null {
   if (typeof value !== 'object' || value === null) return null;
-  const { resetsAt, low, out } = value as Record<string, unknown>;
-  return typeof resetsAt === 'string' && typeof low === 'boolean' && typeof out === 'boolean' ? { resetsAt, low, out } : null;
+  const { resetsAt, low, pool, out } = value as Record<string, unknown>;
+  return typeof resetsAt === 'string' && typeof low === 'boolean' && typeof out === 'boolean' ? { resetsAt, low, pool: pool === true, out } : null;
+}
+
+/** The highest level already said today (0 — none). */
+function said(marks: Marks): number {
+  return marks.out ? RANK.out : marks.pool ? RANK.pool : marks.low ? RANK.low : 0;
 }
 
 export function createAiLimitAlerts(deps: AiLimitAlertDeps): AiLimitAlerts {
@@ -63,22 +73,27 @@ export function createAiLimitAlerts(deps: AiLimitAlertDeps): AiLimitAlerts {
     note(limit) {
       const level = aiLimitLevel(limit);
       if (level === null || level === 'ok' || limit.dailyLimitMicroUsd === null) return;
-      const today: Marks = marks !== null && marks.resetsAt === limit.resetsAt ? marks : { resetsAt: limit.resetsAt, low: false, out: false };
-      // «out» covers «low»: a spend that jumps past both says only the last.
-      if (level === 'out' ? today.out : today.low || today.out) return;
+      const today: Marks = marks !== null && marks.resetsAt === limit.resetsAt ? marks : { resetsAt: limit.resetsAt, low: false, pool: false, out: false };
+      // A higher level covers the lower ones: a spend that jumps past several says only the last.
+      if (said(today) >= RANK[level]) return;
       // Read at the browser's start, before any tab is back: said when a tab asks for the limit.
       if (deps.hasTabs?.() === false) return;
       deps.events.emit(null, 'toast', {
         toast: {
           toastId: deps.ids.uuid(),
           kind: level === 'out' ? 'error' : 'warning',
-          // The «out» toast takes the place of a «low» one still on screen.
+          // A later toast takes the place of an earlier one still on screen.
           scope: 'ai.limit',
           fanLabel: null,
-          aiLimit: { level, todayMicroUsd: limit.todayMicroUsd, dailyLimitMicroUsd: limit.dailyLimitMicroUsd },
+          aiLimit: {
+            level,
+            todayMicroUsd: limit.todayMicroUsd,
+            dailyLimitMicroUsd: limit.dailyLimitMicroUsd,
+            ...(limit.poolRemainingMicroUsd === null ? {} : { poolRemainingMicroUsd: limit.poolRemainingMicroUsd }),
+          },
         },
       });
-      marks = { ...today, low: true, out: today.out || level === 'out' };
+      marks = { resetsAt: today.resetsAt, low: true, pool: today.pool || RANK[level] >= RANK.pool, out: today.out || level === 'out' };
       persist();
       log.write({ level: 'info', scope: 'bg.aiLimit', msg: 'limit alert shown', fields: { level, todayMicroUsd: limit.todayMicroUsd, dailyLimitMicroUsd: limit.dailyLimitMicroUsd } });
     },

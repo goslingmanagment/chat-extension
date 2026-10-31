@@ -98,14 +98,17 @@ export interface ChipVM extends DockActionVM {
 
 /**
  * The person's own daily AI limit (the owner's; Moscow day, all pages) for the dock and the popup: money already
- * written («$1.20»), the spent share (0…1) and the level — `low` from 80 %, `out` when it is spent (every AI button
- * then answers CG-AI-LIMIT until `resetsAt`, 00:00 МСК).
+ * written («$1.20»), the spent share (0…1) and the level — `low` from 80 %, `pool` when the own limit is spent and the
+ * AI takes from the team's shared pool (`share` is then the pool's spent share), `out` when both are spent (every AI
+ * button then answers CG-AI-LIMIT until `resetsAt`, 00:00 МСК).
  */
 export interface AiLimitVM {
   readonly spent: string;
   readonly limit: string;
   readonly share: number;
-  readonly level: 'ok' | 'low' | 'out';
+  readonly level: 'ok' | 'low' | 'pool' | 'out';
+  /** What is left of the shared pool («$5.39»); null — no pool or it is empty. */
+  readonly pool: string | null;
   readonly resetsAt: IsoTimestamp;
 }
 

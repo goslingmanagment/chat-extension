@@ -93,7 +93,8 @@ function Quota({ count, text }: { readonly count: number; readonly text: string 
 
 /**
  * `ai-limit-v1`: the person's own daily AI limit — «ИИ $1.20 / $3.50» over a thin bar on the bar's right, amber from
- * 80 %, red when it is spent («ИИ до 00:00»). Its hint says it in words whatever the hints setting is.
+ * 80 %, «ИИ котёл $5.39» in amber while it takes from the team's shared pool, red when both are spent («ИИ до 00:00»).
+ * Its hint says it in words whatever the hints setting is.
  */
 function AiLimit({ vm, text, tooltip }: { readonly vm: AiLimitVM; readonly text: string; readonly tooltip: string }): JSX.Element {
   const tip = useTooltip(tooltip);
@@ -108,6 +109,20 @@ function AiLimit({ vm, text, tooltip }: { readonly vm: AiLimitVM; readonly text:
       {tip.description}
     </>
   );
+}
+
+type Translate = ReturnType<typeof useI18n>['t'];
+
+function aiLimitText(vm: AiLimitVM, t: Translate): string {
+  if (vm.level === 'out') return t('dock.aiLimit.out');
+  if (vm.level === 'pool') return t('dock.aiLimit.pool', { pool: vm.pool ?? '$0.00' });
+  return t('dock.aiLimit.label', { spent: vm.spent, limit: vm.limit });
+}
+
+function aiLimitTooltip(vm: AiLimitVM, t: Translate): string {
+  if (vm.level === 'out') return t('cg.aiLimit.body');
+  if (vm.level === 'pool') return t('dock.aiLimit.poolTooltip', { limit: vm.limit, pool: vm.pool ?? '$0.00' });
+  return vm.pool === null ? t('dock.aiLimit.tooltip', { spent: vm.spent, limit: vm.limit }) : t('dock.aiLimit.tooltipPool', { spent: vm.spent, limit: vm.limit, pool: vm.pool });
 }
 
 /** A quiet word of the right block with its own hint (the persona, the palette key). */
@@ -427,8 +442,8 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
         {vm.aiLimit === undefined || vm.aiLimit === null ? null : (
           <AiLimit
             vm={vm.aiLimit}
-            text={vm.aiLimit.level === 'out' ? t('dock.aiLimit.out') : t('dock.aiLimit.label', { spent: vm.aiLimit.spent, limit: vm.aiLimit.limit })}
-            tooltip={vm.aiLimit.level === 'out' ? t('cg.aiLimit.body') : t('dock.aiLimit.tooltip', { spent: vm.aiLimit.spent, limit: vm.aiLimit.limit })}
+            text={aiLimitText(vm.aiLimit, t)}
+            tooltip={aiLimitTooltip(vm.aiLimit, t)}
           />
         )}
         {vm.paletteHotkey === null ? null : <Word class="cg-hint" text={hotkeyText(vm.paletteHotkey)?.display ?? ''} tooltip={hints ? t('dock.paletteHint.tooltip') : null} />}

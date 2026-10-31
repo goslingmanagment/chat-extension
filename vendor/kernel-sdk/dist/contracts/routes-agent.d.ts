@@ -101,6 +101,11 @@ export declare const agentPlaneNameEnum: z.ZodEnum<{
     page_payout_methods: "page_payout_methods";
     fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
     fansly_creator_stats_windows: "fansly_creator_stats_windows";
+    revenue_month_totals: "revenue_month_totals";
+    page_promo_links: "page_promo_links";
+    fansly_tracking_link_days: "fansly_tracking_link_days";
+    fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+    fansly_page_settings_versions: "fansly_page_settings_versions";
     page_fans: "page_fans";
     page_fan_aliases: "page_fan_aliases";
     fan_username_aliases: "fan_username_aliases";
@@ -156,6 +161,12 @@ export declare const agentPlaneNameEnum: z.ZodEnum<{
     page_link_stat_snapshots: "page_link_stat_snapshots";
     traffic_link_bindings: "traffic_link_bindings";
     traffic_channel_contractors: "traffic_channel_contractors";
+    fansly_page_profile_versions: "fansly_page_profile_versions";
+    fansly_page_profile_daily: "fansly_page_profile_daily";
+    page_broadcasts: "page_broadcasts";
+    page_automated_messages: "page_automated_messages";
+    page_polls: "page_polls";
+    page_poll_options: "page_poll_options";
 }>;
 export declare const agentClaimFieldEnum: z.ZodEnum<{
     username: "username";
@@ -200,6 +211,10 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     payoutMethod: "payoutMethod";
     creatorStatsRevenue: "creatorStatsRevenue";
     creatorStatsWindow: "creatorStatsWindow";
+    revenueMonth: "revenueMonth";
+    promoLink: "promoLink";
+    trackingLinkDay: "trackingLinkDay";
+    pendingBalance: "pendingBalance";
     membershipState: "membershipState";
     pageAlias: "pageAlias";
     subscriptionState: "subscriptionState";
@@ -278,6 +293,12 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     linkStatSnapshot: "linkStatSnapshot";
     trafficLinkBinding: "trafficLinkBinding";
     trafficChannelContractor: "trafficChannelContractor";
+    pageProfileVersion: "pageProfileVersion";
+    pageProfileDay: "pageProfileDay";
+    pageSetting: "pageSetting";
+    massMessage: "massMessage";
+    automatedMessage: "automatedMessage";
+    pollOption: "pollOption";
 }>;
 export declare const agentDatasetEnum: z.ZodEnum<{
     notifications: "notifications";
@@ -473,6 +494,11 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         page_payout_methods: "page_payout_methods";
         fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
         fansly_creator_stats_windows: "fansly_creator_stats_windows";
+        revenue_month_totals: "revenue_month_totals";
+        page_promo_links: "page_promo_links";
+        fansly_tracking_link_days: "fansly_tracking_link_days";
+        fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+        fansly_page_settings_versions: "fansly_page_settings_versions";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
         fan_username_aliases: "fan_username_aliases";
@@ -528,6 +554,12 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         page_link_stat_snapshots: "page_link_stat_snapshots";
         traffic_link_bindings: "traffic_link_bindings";
         traffic_channel_contractors: "traffic_channel_contractors";
+        fansly_page_profile_versions: "fansly_page_profile_versions";
+        fansly_page_profile_daily: "fansly_page_profile_daily";
+        page_broadcasts: "page_broadcasts";
+        page_automated_messages: "page_automated_messages";
+        page_polls: "page_polls";
+        page_poll_options: "page_poll_options";
     }>;
     state: z.ZodLiteral<"read">;
     captureFloor: z.ZodObject<{
@@ -560,6 +592,11 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         page_payout_methods: "page_payout_methods";
         fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
         fansly_creator_stats_windows: "fansly_creator_stats_windows";
+        revenue_month_totals: "revenue_month_totals";
+        page_promo_links: "page_promo_links";
+        fansly_tracking_link_days: "fansly_tracking_link_days";
+        fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+        fansly_page_settings_versions: "fansly_page_settings_versions";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
         fan_username_aliases: "fan_username_aliases";
@@ -615,6 +652,12 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         page_link_stat_snapshots: "page_link_stat_snapshots";
         traffic_link_bindings: "traffic_link_bindings";
         traffic_channel_contractors: "traffic_channel_contractors";
+        fansly_page_profile_versions: "fansly_page_profile_versions";
+        fansly_page_profile_daily: "fansly_page_profile_daily";
+        page_broadcasts: "page_broadcasts";
+        page_automated_messages: "page_automated_messages";
+        page_polls: "page_polls";
+        page_poll_options: "page_poll_options";
     }>;
     state: z.ZodEnum<{
         not_applicable: "not_applicable";
@@ -742,6 +785,11 @@ export declare const agentGapSchema: z.ZodObject<{
         page_payout_methods: "page_payout_methods";
         fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
         fansly_creator_stats_windows: "fansly_creator_stats_windows";
+        revenue_month_totals: "revenue_month_totals";
+        page_promo_links: "page_promo_links";
+        fansly_tracking_link_days: "fansly_tracking_link_days";
+        fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+        fansly_page_settings_versions: "fansly_page_settings_versions";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
         fan_username_aliases: "fan_username_aliases";
@@ -797,6 +845,12 @@ export declare const agentGapSchema: z.ZodObject<{
         page_link_stat_snapshots: "page_link_stat_snapshots";
         traffic_link_bindings: "traffic_link_bindings";
         traffic_channel_contractors: "traffic_channel_contractors";
+        fansly_page_profile_versions: "fansly_page_profile_versions";
+        fansly_page_profile_daily: "fansly_page_profile_daily";
+        page_broadcasts: "page_broadcasts";
+        page_automated_messages: "page_automated_messages";
+        page_polls: "page_polls";
+        page_poll_options: "page_poll_options";
     }>;
     remedy: z.ZodUnion<readonly [z.ZodObject<{
         kind: z.ZodLiteral<"none">;
@@ -884,6 +938,11 @@ export declare const agentSourceErrorSchema: z.ZodObject<{
         page_payout_methods: "page_payout_methods";
         fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
         fansly_creator_stats_windows: "fansly_creator_stats_windows";
+        revenue_month_totals: "revenue_month_totals";
+        page_promo_links: "page_promo_links";
+        fansly_tracking_link_days: "fansly_tracking_link_days";
+        fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+        fansly_page_settings_versions: "fansly_page_settings_versions";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
         fan_username_aliases: "fan_username_aliases";
@@ -939,6 +998,12 @@ export declare const agentSourceErrorSchema: z.ZodObject<{
         page_link_stat_snapshots: "page_link_stat_snapshots";
         traffic_link_bindings: "traffic_link_bindings";
         traffic_channel_contractors: "traffic_channel_contractors";
+        fansly_page_profile_versions: "fansly_page_profile_versions";
+        fansly_page_profile_daily: "fansly_page_profile_daily";
+        page_broadcasts: "page_broadcasts";
+        page_automated_messages: "page_automated_messages";
+        page_polls: "page_polls";
+        page_poll_options: "page_poll_options";
     }>, z.ZodEnum<{
         ofapi_certified_history: "ofapi_certified_history";
         ofapi_message_coverage: "ofapi_message_coverage";
@@ -1121,6 +1186,10 @@ export declare const agentClaimSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -1199,6 +1268,12 @@ export declare const agentClaimSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }>>;
     targets: z.ZodLiteral<"all_in_scope">;
 }, z.core.$strict>;
@@ -1251,6 +1326,10 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -1329,6 +1408,12 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }>>>, unknown>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
 }, z.core.$strip>;
@@ -1356,6 +1441,11 @@ export declare const agentCaptureSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -1411,6 +1501,12 @@ export declare const agentCaptureSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>;
         state: z.ZodLiteral<"read">;
         captureFloor: z.ZodObject<{
@@ -1443,6 +1539,11 @@ export declare const agentCaptureSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -1498,6 +1599,12 @@ export declare const agentCaptureSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>;
         state: z.ZodEnum<{
             not_applicable: "not_applicable";
@@ -1554,6 +1661,11 @@ export declare const agentCaptureSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -1609,6 +1721,12 @@ export declare const agentCaptureSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>;
         remedy: z.ZodUnion<readonly [z.ZodObject<{
             kind: z.ZodLiteral<"none">;
@@ -1696,6 +1814,11 @@ export declare const agentCaptureSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -1751,6 +1874,12 @@ export declare const agentCaptureSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>, z.ZodEnum<{
             ofapi_certified_history: "ofapi_certified_history";
             ofapi_message_coverage: "ofapi_message_coverage";
@@ -1812,6 +1941,10 @@ export declare const agentCaptureSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -1890,6 +2023,12 @@ export declare const agentCaptureSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -2610,6 +2749,11 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -2665,6 +2809,12 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>;
         enabled: z.ZodBoolean;
         textSearchIndexed: z.ZodBoolean;
@@ -2847,6 +2997,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -2925,6 +3079,12 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }>>;
     delivery: z.ZodObject<{
         returned: z.ZodNumber;
@@ -2969,6 +3129,11 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -3024,6 +3189,12 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -3056,6 +3227,11 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -3111,6 +3287,12 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -3167,6 +3349,11 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -3222,6 +3409,12 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -3309,6 +3502,11 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -3364,6 +3562,12 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -3425,6 +3629,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -3503,6 +3711,12 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -3669,6 +3883,10 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -3747,6 +3965,12 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -3833,6 +4057,10 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -3911,6 +4139,12 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -4096,6 +4330,10 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 payoutMethod: "payoutMethod";
                 creatorStatsRevenue: "creatorStatsRevenue";
                 creatorStatsWindow: "creatorStatsWindow";
+                revenueMonth: "revenueMonth";
+                promoLink: "promoLink";
+                trackingLinkDay: "trackingLinkDay";
+                pendingBalance: "pendingBalance";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
                 subscriptionState: "subscriptionState";
@@ -4174,6 +4412,12 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
+                pageProfileVersion: "pageProfileVersion";
+                pageProfileDay: "pageProfileDay";
+                pageSetting: "pageSetting";
+                massMessage: "massMessage";
+                automatedMessage: "automatedMessage";
+                pollOption: "pollOption";
             }> & z.core.$partial, z.ZodObject<{
                 state: z.ZodEnum<{
                     unknown: "unknown";
@@ -4315,6 +4559,11 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -4370,6 +4619,12 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -4402,6 +4657,11 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -4457,6 +4717,12 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -4513,6 +4779,11 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -4568,6 +4839,12 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -4655,6 +4932,11 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -4710,6 +4992,12 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -4771,6 +5059,10 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -4849,6 +5141,12 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -4987,6 +5285,10 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -5065,6 +5367,12 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }>>>, unknown>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
 }, z.core.$strict>;
@@ -5231,6 +5539,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -5309,6 +5621,12 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -5537,6 +5855,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 payoutMethod: "payoutMethod";
                 creatorStatsRevenue: "creatorStatsRevenue";
                 creatorStatsWindow: "creatorStatsWindow";
+                revenueMonth: "revenueMonth";
+                promoLink: "promoLink";
+                trackingLinkDay: "trackingLinkDay";
+                pendingBalance: "pendingBalance";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
                 subscriptionState: "subscriptionState";
@@ -5615,6 +5937,12 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
+                pageProfileVersion: "pageProfileVersion";
+                pageProfileDay: "pageProfileDay";
+                pageSetting: "pageSetting";
+                massMessage: "massMessage";
+                automatedMessage: "automatedMessage";
+                pollOption: "pollOption";
             }> & z.core.$partial, z.ZodObject<{
                 state: z.ZodEnum<{
                     unknown: "unknown";
@@ -5770,6 +6098,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -5848,6 +6180,12 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -5986,6 +6324,11 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -6041,6 +6384,12 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -6073,6 +6422,11 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -6128,6 +6482,12 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -6184,6 +6544,11 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -6239,6 +6604,12 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -6326,6 +6697,11 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -6381,6 +6757,12 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -6442,6 +6824,10 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -6520,6 +6906,12 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -6683,6 +7075,10 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -6761,6 +7157,12 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }>>>, unknown>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
@@ -6900,6 +7302,10 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -6978,6 +7384,12 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -7214,6 +7626,10 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -7292,6 +7708,12 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -7444,6 +7866,11 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -7499,6 +7926,12 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -7531,6 +7964,11 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -7586,6 +8024,12 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -7642,6 +8086,11 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -7697,6 +8146,12 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -7784,6 +8239,11 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -7839,6 +8299,12 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -7900,6 +8366,10 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -7978,6 +8448,12 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -8121,6 +8597,10 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -8199,6 +8679,12 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }>>>, unknown>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     platform: z.ZodOptional<z.ZodEnum<{
@@ -8348,6 +8834,10 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -8426,6 +8916,12 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -8677,6 +9173,10 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -8755,6 +9255,12 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -8953,6 +9459,11 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -9008,6 +9519,12 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -9040,6 +9557,11 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -9095,6 +9617,12 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -9151,6 +9679,11 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -9206,6 +9739,12 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -9293,6 +9832,11 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -9348,6 +9892,12 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -9409,6 +9959,10 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -9487,6 +10041,12 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -9628,6 +10188,10 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -9706,6 +10270,12 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }>>>, unknown>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
@@ -9823,6 +10393,11 @@ export declare const agentMessageSchema: z.ZodObject<{
         page_payout_methods: "page_payout_methods";
         fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
         fansly_creator_stats_windows: "fansly_creator_stats_windows";
+        revenue_month_totals: "revenue_month_totals";
+        page_promo_links: "page_promo_links";
+        fansly_tracking_link_days: "fansly_tracking_link_days";
+        fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+        fansly_page_settings_versions: "fansly_page_settings_versions";
         page_fans: "page_fans";
         page_fan_aliases: "page_fan_aliases";
         fan_username_aliases: "fan_username_aliases";
@@ -9878,6 +10453,12 @@ export declare const agentMessageSchema: z.ZodObject<{
         page_link_stat_snapshots: "page_link_stat_snapshots";
         traffic_link_bindings: "traffic_link_bindings";
         traffic_channel_contractors: "traffic_channel_contractors";
+        fansly_page_profile_versions: "fansly_page_profile_versions";
+        fansly_page_profile_daily: "fansly_page_profile_daily";
+        page_broadcasts: "page_broadcasts";
+        page_automated_messages: "page_automated_messages";
+        page_polls: "page_polls";
+        page_poll_options: "page_poll_options";
     }>;
     fieldStates: z.ZodRecord<z.ZodEnum<{
         username: "username";
@@ -9922,6 +10503,10 @@ export declare const agentMessageSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -10000,6 +10585,12 @@ export declare const agentMessageSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -10206,6 +10797,11 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -10261,6 +10857,12 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>;
         fieldStates: z.ZodRecord<z.ZodEnum<{
             username: "username";
@@ -10305,6 +10907,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -10383,6 +10989,12 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -10535,6 +11147,11 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -10590,6 +11207,12 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -10622,6 +11245,11 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -10677,6 +11305,12 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -10733,6 +11367,11 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -10788,6 +11427,12 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -10875,6 +11520,11 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -10930,6 +11580,12 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -10991,6 +11647,10 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -11069,6 +11729,12 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -11283,6 +11949,11 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -11338,6 +12009,12 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -11370,6 +12047,11 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -11425,6 +12107,12 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -11481,6 +12169,11 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -11536,6 +12229,12 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -11623,6 +12322,11 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -11678,6 +12382,12 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -11739,6 +12449,10 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -11817,6 +12531,12 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -11986,6 +12706,10 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -12064,6 +12788,12 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -12144,6 +12874,10 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -12222,6 +12956,12 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -12399,6 +13139,10 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -12477,6 +13221,12 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -12629,6 +13379,11 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -12684,6 +13439,12 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -12716,6 +13477,11 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -12771,6 +13537,12 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -12827,6 +13599,11 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -12882,6 +13659,12 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -12969,6 +13752,11 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -13024,6 +13812,12 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -13085,6 +13879,10 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -13163,6 +13961,12 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -13300,6 +14104,10 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -13378,6 +14186,12 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }>>>, unknown>;
     claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
     from: z.ZodOptional<z.ZodString>;
@@ -13432,6 +14246,11 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -13487,6 +14306,12 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>;
         state: z.ZodLiteral<"read">;
         captureFloor: z.ZodObject<{
@@ -13519,6 +14344,11 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -13574,6 +14404,12 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>;
         state: z.ZodEnum<{
             not_applicable: "not_applicable";
@@ -13630,6 +14466,11 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             page_payout_methods: "page_payout_methods";
             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+            revenue_month_totals: "revenue_month_totals";
+            page_promo_links: "page_promo_links";
+            fansly_tracking_link_days: "fansly_tracking_link_days";
+            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+            fansly_page_settings_versions: "fansly_page_settings_versions";
             page_fans: "page_fans";
             page_fan_aliases: "page_fan_aliases";
             fan_username_aliases: "fan_username_aliases";
@@ -13685,6 +14526,12 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             page_link_stat_snapshots: "page_link_stat_snapshots";
             traffic_link_bindings: "traffic_link_bindings";
             traffic_channel_contractors: "traffic_channel_contractors";
+            fansly_page_profile_versions: "fansly_page_profile_versions";
+            fansly_page_profile_daily: "fansly_page_profile_daily";
+            page_broadcasts: "page_broadcasts";
+            page_automated_messages: "page_automated_messages";
+            page_polls: "page_polls";
+            page_poll_options: "page_poll_options";
         }>;
         remedy: z.ZodUnion<readonly [z.ZodObject<{
             kind: z.ZodLiteral<"none">;
@@ -13792,6 +14639,10 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -13870,6 +14721,12 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -13997,6 +14854,11 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -14052,6 +14914,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -14084,6 +14952,11 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -14139,6 +15012,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -14195,6 +15074,11 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -14250,6 +15134,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -14357,6 +15247,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -14435,6 +15329,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -14572,6 +15472,11 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -14627,6 +15532,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -14659,6 +15570,11 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -14714,6 +15630,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -14770,6 +15692,11 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -14825,6 +15752,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -14912,6 +15845,11 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -14967,6 +15905,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -15028,6 +15972,10 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -15106,6 +16054,12 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -15336,6 +16290,11 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -15391,6 +16350,12 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -15423,6 +16388,11 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -15478,6 +16448,12 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -15534,6 +16510,11 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -15589,6 +16570,12 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -15676,6 +16663,11 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -15731,6 +16723,12 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -15792,6 +16790,10 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -15870,6 +16872,12 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -16046,6 +17054,11 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -16101,6 +17114,12 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -16133,6 +17152,11 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -16188,6 +17212,12 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -16244,6 +17274,11 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -16299,6 +17334,12 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -16386,6 +17427,11 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -16441,6 +17487,12 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -16502,6 +17554,10 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -16580,6 +17636,12 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -16839,6 +17901,10 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -16917,6 +17983,12 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -17044,6 +18116,10 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         payoutMethod: "payoutMethod";
         creatorStatsRevenue: "creatorStatsRevenue";
         creatorStatsWindow: "creatorStatsWindow";
+        revenueMonth: "revenueMonth";
+        promoLink: "promoLink";
+        trackingLinkDay: "trackingLinkDay";
+        pendingBalance: "pendingBalance";
         membershipState: "membershipState";
         pageAlias: "pageAlias";
         subscriptionState: "subscriptionState";
@@ -17122,6 +18198,12 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         linkStatSnapshot: "linkStatSnapshot";
         trafficLinkBinding: "trafficLinkBinding";
         trafficChannelContractor: "trafficChannelContractor";
+        pageProfileVersion: "pageProfileVersion";
+        pageProfileDay: "pageProfileDay";
+        pageSetting: "pageSetting";
+        massMessage: "massMessage";
+        automatedMessage: "automatedMessage";
+        pollOption: "pollOption";
     }> & z.core.$partial, z.ZodObject<{
         state: z.ZodEnum<{
             unknown: "unknown";
@@ -17445,6 +18527,10 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -17523,6 +18609,12 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -17686,6 +18778,11 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -17741,6 +18838,12 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -17773,6 +18876,11 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -17828,6 +18936,12 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -17884,6 +18998,11 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -17939,6 +19058,12 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -18026,6 +19151,11 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -18081,6 +19211,12 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -18142,6 +19278,10 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -18220,6 +19360,12 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -18411,6 +19557,10 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -18489,6 +19639,12 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -18729,6 +19885,11 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -18784,6 +19945,12 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -18816,6 +19983,11 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -18871,6 +20043,12 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -18927,6 +20105,11 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -18982,6 +20165,12 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -19069,6 +20258,11 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -19124,6 +20318,12 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -19185,6 +20385,10 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -19263,6 +20467,12 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -19494,6 +20704,11 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -19549,6 +20764,12 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -19581,6 +20802,11 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -19636,6 +20862,12 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -19692,6 +20924,11 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -19747,6 +20984,12 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -19834,6 +21077,11 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -19889,6 +21137,12 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -19950,6 +21204,10 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -20028,6 +21286,12 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -20280,6 +21544,11 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -20335,6 +21604,12 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -20367,6 +21642,11 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -20422,6 +21702,12 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -20478,6 +21764,11 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -20533,6 +21824,12 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -20620,6 +21917,11 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -20675,6 +21977,12 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -20736,6 +22044,10 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -20814,6 +22126,12 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -21067,6 +22385,11 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -21122,6 +22445,12 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -21154,6 +22483,11 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -21209,6 +22543,12 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -21265,6 +22605,11 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -21320,6 +22665,12 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -21407,6 +22758,11 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -21462,6 +22818,12 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -21523,6 +22885,10 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -21601,6 +22967,12 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -21853,6 +23225,10 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -21931,6 +23307,12 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }>>;
         targets: z.ZodLiteral<"all_in_scope">;
     }, z.core.$strict>>;
@@ -22313,6 +23695,11 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -22368,6 +23755,12 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -22400,6 +23793,11 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -22455,6 +23853,12 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -22511,6 +23915,11 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -22566,6 +23975,12 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -22653,6 +24068,11 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -22708,6 +24128,12 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -22769,6 +24195,10 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -22847,6 +24277,12 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -23151,6 +24587,11 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -23206,6 +24647,12 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -23238,6 +24685,11 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -23293,6 +24745,12 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -23349,6 +24807,11 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -23404,6 +24867,12 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -23491,6 +24960,11 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -23546,6 +25020,12 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -23607,6 +25087,10 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -23685,6 +25169,12 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -23916,6 +25406,11 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -23971,6 +25466,12 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -24003,6 +25504,11 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -24058,6 +25564,12 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -24114,6 +25626,11 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -24169,6 +25686,12 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -24256,6 +25779,11 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -24311,6 +25839,12 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -24372,6 +25906,10 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -24450,6 +25988,12 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -24682,6 +26226,11 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -24737,6 +26286,12 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -24769,6 +26324,11 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -24824,6 +26384,12 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -24880,6 +26446,11 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -24935,6 +26506,12 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -25022,6 +26599,11 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -25077,6 +26659,12 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -25138,6 +26726,10 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -25216,6 +26808,12 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -26190,6 +27788,11 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -26245,6 +27848,12 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -26277,6 +27886,11 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -26332,6 +27946,12 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -26388,6 +28008,11 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -26443,6 +28068,12 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -26530,6 +28161,11 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -26585,6 +28221,12 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -26646,6 +28288,10 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -26724,6 +28370,12 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -26982,6 +28634,11 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -27037,6 +28694,12 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -27069,6 +28732,11 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -27124,6 +28792,12 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -27180,6 +28854,11 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -27235,6 +28914,12 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -27322,6 +29007,11 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -27377,6 +29067,12 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -27438,6 +29134,10 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -27516,6 +29216,12 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -27761,6 +29467,11 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -27816,6 +29527,12 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodLiteral<"read">;
             captureFloor: z.ZodObject<{
@@ -27848,6 +29565,11 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -27903,6 +29625,12 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             state: z.ZodEnum<{
                 not_applicable: "not_applicable";
@@ -27959,6 +29687,11 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -28014,6 +29747,12 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>;
             remedy: z.ZodUnion<readonly [z.ZodObject<{
                 kind: z.ZodLiteral<"none">;
@@ -28101,6 +29840,11 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 page_payout_methods: "page_payout_methods";
                 fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                 fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                revenue_month_totals: "revenue_month_totals";
+                page_promo_links: "page_promo_links";
+                fansly_tracking_link_days: "fansly_tracking_link_days";
+                fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                fansly_page_settings_versions: "fansly_page_settings_versions";
                 page_fans: "page_fans";
                 page_fan_aliases: "page_fan_aliases";
                 fan_username_aliases: "fan_username_aliases";
@@ -28156,6 +29900,12 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 page_link_stat_snapshots: "page_link_stat_snapshots";
                 traffic_link_bindings: "traffic_link_bindings";
                 traffic_channel_contractors: "traffic_channel_contractors";
+                fansly_page_profile_versions: "fansly_page_profile_versions";
+                fansly_page_profile_daily: "fansly_page_profile_daily";
+                page_broadcasts: "page_broadcasts";
+                page_automated_messages: "page_automated_messages";
+                page_polls: "page_polls";
+                page_poll_options: "page_poll_options";
             }>, z.ZodEnum<{
                 ofapi_certified_history: "ofapi_certified_history";
                 ofapi_message_coverage: "ofapi_message_coverage";
@@ -28217,6 +29967,10 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
             payoutMethod: "payoutMethod";
             creatorStatsRevenue: "creatorStatsRevenue";
             creatorStatsWindow: "creatorStatsWindow";
+            revenueMonth: "revenueMonth";
+            promoLink: "promoLink";
+            trackingLinkDay: "trackingLinkDay";
+            pendingBalance: "pendingBalance";
             membershipState: "membershipState";
             pageAlias: "pageAlias";
             subscriptionState: "subscriptionState";
@@ -28295,6 +30049,12 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
             linkStatSnapshot: "linkStatSnapshot";
             trafficLinkBinding: "trafficLinkBinding";
             trafficChannelContractor: "trafficChannelContractor";
+            pageProfileVersion: "pageProfileVersion";
+            pageProfileDay: "pageProfileDay";
+            pageSetting: "pageSetting";
+            massMessage: "massMessage";
+            automatedMessage: "automatedMessage";
+            pollOption: "pollOption";
         }> & z.core.$partial, z.ZodObject<{
             state: z.ZodEnum<{
                 unknown: "unknown";
@@ -28564,6 +30324,11 @@ export declare const agentRouteSchemas: {
                         page_payout_methods: "page_payout_methods";
                         fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                         fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                        revenue_month_totals: "revenue_month_totals";
+                        page_promo_links: "page_promo_links";
+                        fansly_tracking_link_days: "fansly_tracking_link_days";
+                        fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                        fansly_page_settings_versions: "fansly_page_settings_versions";
                         page_fans: "page_fans";
                         page_fan_aliases: "page_fan_aliases";
                         fan_username_aliases: "fan_username_aliases";
@@ -28619,6 +30384,12 @@ export declare const agentRouteSchemas: {
                         page_link_stat_snapshots: "page_link_stat_snapshots";
                         traffic_link_bindings: "traffic_link_bindings";
                         traffic_channel_contractors: "traffic_channel_contractors";
+                        fansly_page_profile_versions: "fansly_page_profile_versions";
+                        fansly_page_profile_daily: "fansly_page_profile_daily";
+                        page_broadcasts: "page_broadcasts";
+                        page_automated_messages: "page_automated_messages";
+                        page_polls: "page_polls";
+                        page_poll_options: "page_poll_options";
                     }>;
                     enabled: z.ZodBoolean;
                     textSearchIndexed: z.ZodBoolean;
@@ -28801,6 +30572,10 @@ export declare const agentRouteSchemas: {
                     payoutMethod: "payoutMethod";
                     creatorStatsRevenue: "creatorStatsRevenue";
                     creatorStatsWindow: "creatorStatsWindow";
+                    revenueMonth: "revenueMonth";
+                    promoLink: "promoLink";
+                    trackingLinkDay: "trackingLinkDay";
+                    pendingBalance: "pendingBalance";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
                     subscriptionState: "subscriptionState";
@@ -28879,6 +30654,12 @@ export declare const agentRouteSchemas: {
                     linkStatSnapshot: "linkStatSnapshot";
                     trafficLinkBinding: "trafficLinkBinding";
                     trafficChannelContractor: "trafficChannelContractor";
+                    pageProfileVersion: "pageProfileVersion";
+                    pageProfileDay: "pageProfileDay";
+                    pageSetting: "pageSetting";
+                    massMessage: "massMessage";
+                    automatedMessage: "automatedMessage";
+                    pollOption: "pollOption";
                 }>>;
                 delivery: z.ZodObject<{
                     returned: z.ZodNumber;
@@ -28923,6 +30704,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -28978,6 +30764,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -29010,6 +30802,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -29065,6 +30862,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -29121,6 +30924,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -29176,6 +30984,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -29263,6 +31077,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -29318,6 +31137,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -29379,6 +31204,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -29457,6 +31286,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -29649,6 +31484,10 @@ export declare const agentRouteSchemas: {
                     payoutMethod: "payoutMethod";
                     creatorStatsRevenue: "creatorStatsRevenue";
                     creatorStatsWindow: "creatorStatsWindow";
+                    revenueMonth: "revenueMonth";
+                    promoLink: "promoLink";
+                    trackingLinkDay: "trackingLinkDay";
+                    pendingBalance: "pendingBalance";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
                     subscriptionState: "subscriptionState";
@@ -29727,6 +31566,12 @@ export declare const agentRouteSchemas: {
                     linkStatSnapshot: "linkStatSnapshot";
                     trafficLinkBinding: "trafficLinkBinding";
                     trafficChannelContractor: "trafficChannelContractor";
+                    pageProfileVersion: "pageProfileVersion";
+                    pageProfileDay: "pageProfileDay";
+                    pageSetting: "pageSetting";
+                    massMessage: "massMessage";
+                    automatedMessage: "automatedMessage";
+                    pollOption: "pollOption";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -29821,6 +31666,10 @@ export declare const agentRouteSchemas: {
                             payoutMethod: "payoutMethod";
                             creatorStatsRevenue: "creatorStatsRevenue";
                             creatorStatsWindow: "creatorStatsWindow";
+                            revenueMonth: "revenueMonth";
+                            promoLink: "promoLink";
+                            trackingLinkDay: "trackingLinkDay";
+                            pendingBalance: "pendingBalance";
                             membershipState: "membershipState";
                             pageAlias: "pageAlias";
                             subscriptionState: "subscriptionState";
@@ -29899,6 +31748,12 @@ export declare const agentRouteSchemas: {
                             linkStatSnapshot: "linkStatSnapshot";
                             trafficLinkBinding: "trafficLinkBinding";
                             trafficChannelContractor: "trafficChannelContractor";
+                            pageProfileVersion: "pageProfileVersion";
+                            pageProfileDay: "pageProfileDay";
+                            pageSetting: "pageSetting";
+                            massMessage: "massMessage";
+                            automatedMessage: "automatedMessage";
+                            pollOption: "pollOption";
                         }> & z.core.$partial, z.ZodObject<{
                             state: z.ZodEnum<{
                                 unknown: "unknown";
@@ -30040,6 +31895,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -30095,6 +31955,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -30127,6 +31993,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -30182,6 +32053,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -30238,6 +32115,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -30293,6 +32175,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -30380,6 +32268,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -30435,6 +32328,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -30496,6 +32395,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -30574,6 +32477,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -30763,6 +32672,10 @@ export declare const agentRouteSchemas: {
                 payoutMethod: "payoutMethod";
                 creatorStatsRevenue: "creatorStatsRevenue";
                 creatorStatsWindow: "creatorStatsWindow";
+                revenueMonth: "revenueMonth";
+                promoLink: "promoLink";
+                trackingLinkDay: "trackingLinkDay";
+                pendingBalance: "pendingBalance";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
                 subscriptionState: "subscriptionState";
@@ -30841,6 +32754,12 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
+                pageProfileVersion: "pageProfileVersion";
+                pageProfileDay: "pageProfileDay";
+                pageSetting: "pageSetting";
+                massMessage: "massMessage";
+                automatedMessage: "automatedMessage";
+                pollOption: "pollOption";
             }>>>, unknown>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
         }, z.core.$strict>;
@@ -31008,6 +32927,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -31086,6 +33009,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -31314,6 +33243,10 @@ export declare const agentRouteSchemas: {
                             payoutMethod: "payoutMethod";
                             creatorStatsRevenue: "creatorStatsRevenue";
                             creatorStatsWindow: "creatorStatsWindow";
+                            revenueMonth: "revenueMonth";
+                            promoLink: "promoLink";
+                            trackingLinkDay: "trackingLinkDay";
+                            pendingBalance: "pendingBalance";
                             membershipState: "membershipState";
                             pageAlias: "pageAlias";
                             subscriptionState: "subscriptionState";
@@ -31392,6 +33325,12 @@ export declare const agentRouteSchemas: {
                             linkStatSnapshot: "linkStatSnapshot";
                             trafficLinkBinding: "trafficLinkBinding";
                             trafficChannelContractor: "trafficChannelContractor";
+                            pageProfileVersion: "pageProfileVersion";
+                            pageProfileDay: "pageProfileDay";
+                            pageSetting: "pageSetting";
+                            massMessage: "massMessage";
+                            automatedMessage: "automatedMessage";
+                            pollOption: "pollOption";
                         }> & z.core.$partial, z.ZodObject<{
                             state: z.ZodEnum<{
                                 unknown: "unknown";
@@ -31547,6 +33486,10 @@ export declare const agentRouteSchemas: {
                     payoutMethod: "payoutMethod";
                     creatorStatsRevenue: "creatorStatsRevenue";
                     creatorStatsWindow: "creatorStatsWindow";
+                    revenueMonth: "revenueMonth";
+                    promoLink: "promoLink";
+                    trackingLinkDay: "trackingLinkDay";
+                    pendingBalance: "pendingBalance";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
                     subscriptionState: "subscriptionState";
@@ -31625,6 +33568,12 @@ export declare const agentRouteSchemas: {
                     linkStatSnapshot: "linkStatSnapshot";
                     trafficLinkBinding: "trafficLinkBinding";
                     trafficChannelContractor: "trafficChannelContractor";
+                    pageProfileVersion: "pageProfileVersion";
+                    pageProfileDay: "pageProfileDay";
+                    pageSetting: "pageSetting";
+                    massMessage: "massMessage";
+                    automatedMessage: "automatedMessage";
+                    pollOption: "pollOption";
                 }> & z.core.$partial, z.ZodObject<{
                     state: z.ZodEnum<{
                         unknown: "unknown";
@@ -31763,6 +33712,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -31818,6 +33772,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -31850,6 +33810,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -31905,6 +33870,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -31961,6 +33932,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -32016,6 +33992,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -32103,6 +34085,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -32158,6 +34145,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -32219,6 +34212,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -32297,6 +34294,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -32485,6 +34488,10 @@ export declare const agentRouteSchemas: {
                 payoutMethod: "payoutMethod";
                 creatorStatsRevenue: "creatorStatsRevenue";
                 creatorStatsWindow: "creatorStatsWindow";
+                revenueMonth: "revenueMonth";
+                promoLink: "promoLink";
+                trackingLinkDay: "trackingLinkDay";
+                pendingBalance: "pendingBalance";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
                 subscriptionState: "subscriptionState";
@@ -32563,6 +34570,12 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
+                pageProfileVersion: "pageProfileVersion";
+                pageProfileDay: "pageProfileDay";
+                pageSetting: "pageSetting";
+                massMessage: "massMessage";
+                automatedMessage: "automatedMessage";
+                pollOption: "pollOption";
             }>>>, unknown>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
@@ -32724,6 +34737,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -32802,6 +34819,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -32954,6 +34977,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -33009,6 +35037,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -33041,6 +35075,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -33096,6 +35135,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -33152,6 +35197,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -33207,6 +35257,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -33294,6 +35350,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -33349,6 +35410,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -33410,6 +35477,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -33488,6 +35559,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -33668,6 +35745,10 @@ export declare const agentRouteSchemas: {
                 payoutMethod: "payoutMethod";
                 creatorStatsRevenue: "creatorStatsRevenue";
                 creatorStatsWindow: "creatorStatsWindow";
+                revenueMonth: "revenueMonth";
+                promoLink: "promoLink";
+                trackingLinkDay: "trackingLinkDay";
+                pendingBalance: "pendingBalance";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
                 subscriptionState: "subscriptionState";
@@ -33746,6 +35827,12 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
+                pageProfileVersion: "pageProfileVersion";
+                pageProfileDay: "pageProfileDay";
+                pageSetting: "pageSetting";
+                massMessage: "massMessage";
+                automatedMessage: "automatedMessage";
+                pollOption: "pollOption";
             }>>>, unknown>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             platform: z.ZodOptional<z.ZodEnum<{
@@ -33890,6 +35977,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -33968,6 +36059,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -34166,6 +36263,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -34221,6 +36323,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -34253,6 +36361,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -34308,6 +36421,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -34364,6 +36483,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -34419,6 +36543,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -34506,6 +36636,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -34561,6 +36696,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -34622,6 +36763,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -34700,6 +36845,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -34885,6 +37036,10 @@ export declare const agentRouteSchemas: {
                 payoutMethod: "payoutMethod";
                 creatorStatsRevenue: "creatorStatsRevenue";
                 creatorStatsWindow: "creatorStatsWindow";
+                revenueMonth: "revenueMonth";
+                promoLink: "promoLink";
+                trackingLinkDay: "trackingLinkDay";
+                pendingBalance: "pendingBalance";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
                 subscriptionState: "subscriptionState";
@@ -34963,6 +37118,12 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
+                pageProfileVersion: "pageProfileVersion";
+                pageProfileDay: "pageProfileDay";
+                pageSetting: "pageSetting";
+                massMessage: "massMessage";
+                automatedMessage: "automatedMessage";
+                pollOption: "pollOption";
             }>>>, unknown>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
@@ -35100,6 +37261,11 @@ export declare const agentRouteSchemas: {
                         page_payout_methods: "page_payout_methods";
                         fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                         fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                        revenue_month_totals: "revenue_month_totals";
+                        page_promo_links: "page_promo_links";
+                        fansly_tracking_link_days: "fansly_tracking_link_days";
+                        fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                        fansly_page_settings_versions: "fansly_page_settings_versions";
                         page_fans: "page_fans";
                         page_fan_aliases: "page_fan_aliases";
                         fan_username_aliases: "fan_username_aliases";
@@ -35155,6 +37321,12 @@ export declare const agentRouteSchemas: {
                         page_link_stat_snapshots: "page_link_stat_snapshots";
                         traffic_link_bindings: "traffic_link_bindings";
                         traffic_channel_contractors: "traffic_channel_contractors";
+                        fansly_page_profile_versions: "fansly_page_profile_versions";
+                        fansly_page_profile_daily: "fansly_page_profile_daily";
+                        page_broadcasts: "page_broadcasts";
+                        page_automated_messages: "page_automated_messages";
+                        page_polls: "page_polls";
+                        page_poll_options: "page_poll_options";
                     }>;
                     fieldStates: z.ZodRecord<z.ZodEnum<{
                         username: "username";
@@ -35199,6 +37371,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -35277,6 +37453,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -35429,6 +37611,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -35484,6 +37671,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -35516,6 +37709,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -35571,6 +37769,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -35627,6 +37831,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -35682,6 +37891,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -35769,6 +37984,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -35824,6 +38044,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -35885,6 +38111,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -35963,6 +38193,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -36185,6 +38421,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -36240,6 +38481,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -36272,6 +38519,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -36327,6 +38579,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -36383,6 +38641,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -36438,6 +38701,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -36525,6 +38794,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -36580,6 +38854,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -36641,6 +38921,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -36719,6 +39003,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -36938,6 +39228,10 @@ export declare const agentRouteSchemas: {
                     payoutMethod: "payoutMethod";
                     creatorStatsRevenue: "creatorStatsRevenue";
                     creatorStatsWindow: "creatorStatsWindow";
+                    revenueMonth: "revenueMonth";
+                    promoLink: "promoLink";
+                    trackingLinkDay: "trackingLinkDay";
+                    pendingBalance: "pendingBalance";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
                     subscriptionState: "subscriptionState";
@@ -37016,6 +39310,12 @@ export declare const agentRouteSchemas: {
                     linkStatSnapshot: "linkStatSnapshot";
                     trafficLinkBinding: "trafficLinkBinding";
                     trafficChannelContractor: "trafficChannelContractor";
+                    pageProfileVersion: "pageProfileVersion";
+                    pageProfileDay: "pageProfileDay";
+                    pageSetting: "pageSetting";
+                    massMessage: "massMessage";
+                    automatedMessage: "automatedMessage";
+                    pollOption: "pollOption";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -37102,6 +39402,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -37180,6 +39484,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -37332,6 +39642,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -37387,6 +39702,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -37419,6 +39740,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -37474,6 +39800,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -37530,6 +39862,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -37585,6 +39922,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -37672,6 +40015,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -37727,6 +40075,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -37788,6 +40142,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -37866,6 +40224,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -38046,6 +40410,10 @@ export declare const agentRouteSchemas: {
                 payoutMethod: "payoutMethod";
                 creatorStatsRevenue: "creatorStatsRevenue";
                 creatorStatsWindow: "creatorStatsWindow";
+                revenueMonth: "revenueMonth";
+                promoLink: "promoLink";
+                trackingLinkDay: "trackingLinkDay";
+                pendingBalance: "pendingBalance";
                 membershipState: "membershipState";
                 pageAlias: "pageAlias";
                 subscriptionState: "subscriptionState";
@@ -38124,6 +40492,12 @@ export declare const agentRouteSchemas: {
                 linkStatSnapshot: "linkStatSnapshot";
                 trafficLinkBinding: "trafficLinkBinding";
                 trafficChannelContractor: "trafficChannelContractor";
+                pageProfileVersion: "pageProfileVersion";
+                pageProfileDay: "pageProfileDay";
+                pageSetting: "pageSetting";
+                massMessage: "massMessage";
+                automatedMessage: "automatedMessage";
+                pollOption: "pollOption";
             }>>>, unknown>;
             claimTargets: z.ZodOptional<z.ZodLiteral<"all_in_scope">>;
             from: z.ZodOptional<z.ZodString>;
@@ -38182,6 +40556,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -38237,6 +40616,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -38269,6 +40654,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -38324,6 +40714,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -38380,6 +40776,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -38435,6 +40836,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -38542,6 +40949,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -38620,6 +41031,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -38757,6 +41174,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -38812,6 +41234,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -38844,6 +41272,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -38899,6 +41332,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -38955,6 +41394,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -39010,6 +41454,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -39097,6 +41547,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -39152,6 +41607,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -39213,6 +41674,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -39291,6 +41756,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -39534,6 +42005,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -39589,6 +42065,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -39621,6 +42103,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -39676,6 +42163,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -39732,6 +42225,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -39787,6 +42285,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -39874,6 +42378,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -39929,6 +42438,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -39990,6 +42505,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -40068,6 +42587,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -40282,6 +42807,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -40337,6 +42867,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -40369,6 +42905,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -40424,6 +42965,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -40480,6 +43027,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -40535,6 +43087,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -40622,6 +43180,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -40677,6 +43240,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -40738,6 +43307,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -40816,6 +43389,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -41110,6 +43689,10 @@ export declare const agentRouteSchemas: {
                     payoutMethod: "payoutMethod";
                     creatorStatsRevenue: "creatorStatsRevenue";
                     creatorStatsWindow: "creatorStatsWindow";
+                    revenueMonth: "revenueMonth";
+                    promoLink: "promoLink";
+                    trackingLinkDay: "trackingLinkDay";
+                    pendingBalance: "pendingBalance";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
                     subscriptionState: "subscriptionState";
@@ -41188,6 +43771,12 @@ export declare const agentRouteSchemas: {
                     linkStatSnapshot: "linkStatSnapshot";
                     trafficLinkBinding: "trafficLinkBinding";
                     trafficChannelContractor: "trafficChannelContractor";
+                    pageProfileVersion: "pageProfileVersion";
+                    pageProfileDay: "pageProfileDay";
+                    pageSetting: "pageSetting";
+                    massMessage: "massMessage";
+                    automatedMessage: "automatedMessage";
+                    pollOption: "pollOption";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -41402,6 +43991,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -41480,6 +44073,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -41643,6 +44242,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -41698,6 +44302,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -41730,6 +44340,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -41785,6 +44400,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -41841,6 +44462,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -41896,6 +44522,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -41983,6 +44615,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -42038,6 +44675,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -42099,6 +44742,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -42177,6 +44824,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -42378,6 +45031,10 @@ export declare const agentRouteSchemas: {
                     payoutMethod: "payoutMethod";
                     creatorStatsRevenue: "creatorStatsRevenue";
                     creatorStatsWindow: "creatorStatsWindow";
+                    revenueMonth: "revenueMonth";
+                    promoLink: "promoLink";
+                    trackingLinkDay: "trackingLinkDay";
+                    pendingBalance: "pendingBalance";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
                     subscriptionState: "subscriptionState";
@@ -42456,6 +45113,12 @@ export declare const agentRouteSchemas: {
                     linkStatSnapshot: "linkStatSnapshot";
                     trafficLinkBinding: "trafficLinkBinding";
                     trafficChannelContractor: "trafficChannelContractor";
+                    pageProfileVersion: "pageProfileVersion";
+                    pageProfileDay: "pageProfileDay";
+                    pageSetting: "pageSetting";
+                    massMessage: "massMessage";
+                    automatedMessage: "automatedMessage";
+                    pollOption: "pollOption";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -42603,6 +45266,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -42658,6 +45326,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -42690,6 +45364,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -42745,6 +45424,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -42801,6 +45486,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -42856,6 +45546,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -42943,6 +45639,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -42998,6 +45699,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -43059,6 +45766,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -43137,6 +45848,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -43429,6 +46146,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -43484,6 +46206,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -43516,6 +46244,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -43571,6 +46304,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -43627,6 +46366,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -43682,6 +46426,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -43769,6 +46519,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -43824,6 +46579,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -43885,6 +46646,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -43963,6 +46728,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -44269,6 +47040,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -44324,6 +47100,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -44356,6 +47138,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -44411,6 +47198,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -44467,6 +47260,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -44522,6 +47320,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -44609,6 +47413,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -44664,6 +47473,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -44725,6 +47540,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -44803,6 +47622,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -45105,6 +47930,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -45160,6 +47990,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -45192,6 +48028,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -45247,6 +48088,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -45303,6 +48150,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -45358,6 +48210,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -45445,6 +48303,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -45500,6 +48363,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -45561,6 +48430,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -45639,6 +48512,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -45824,6 +48703,10 @@ export declare const agentRouteSchemas: {
                     payoutMethod: "payoutMethod";
                     creatorStatsRevenue: "creatorStatsRevenue";
                     creatorStatsWindow: "creatorStatsWindow";
+                    revenueMonth: "revenueMonth";
+                    promoLink: "promoLink";
+                    trackingLinkDay: "trackingLinkDay";
+                    pendingBalance: "pendingBalance";
                     membershipState: "membershipState";
                     pageAlias: "pageAlias";
                     subscriptionState: "subscriptionState";
@@ -45902,6 +48785,12 @@ export declare const agentRouteSchemas: {
                     linkStatSnapshot: "linkStatSnapshot";
                     trafficLinkBinding: "trafficLinkBinding";
                     trafficChannelContractor: "trafficChannelContractor";
+                    pageProfileVersion: "pageProfileVersion";
+                    pageProfileDay: "pageProfileDay";
+                    pageSetting: "pageSetting";
+                    massMessage: "massMessage";
+                    automatedMessage: "automatedMessage";
+                    pollOption: "pollOption";
                 }>>;
                 targets: z.ZodLiteral<"all_in_scope">;
             }, z.core.$strict>>;
@@ -46128,6 +49017,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -46183,6 +49077,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -46215,6 +49115,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -46270,6 +49175,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -46326,6 +49237,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -46381,6 +49297,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -46468,6 +49390,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -46523,6 +49450,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -46584,6 +49517,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -46662,6 +49599,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -47027,6 +49970,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -47082,6 +50030,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -47114,6 +50068,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -47169,6 +50128,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -47225,6 +50190,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -47280,6 +50250,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -47367,6 +50343,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -47422,6 +50403,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -47483,6 +50470,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -47561,6 +50552,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -47845,6 +50842,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -47900,6 +50902,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -47932,6 +50940,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -47987,6 +51000,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -48043,6 +51062,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -48098,6 +51122,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -48185,6 +51215,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -48240,6 +51275,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -48301,6 +51342,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -48379,6 +51424,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -48662,6 +51713,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -48717,6 +51773,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -48749,6 +51811,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -48804,6 +51871,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -48860,6 +51933,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -48915,6 +51993,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -49002,6 +52086,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -49057,6 +52146,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -49118,6 +52213,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -49196,6 +52295,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -49644,6 +52749,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -49699,6 +52809,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -49731,6 +52847,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -49786,6 +52907,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -49842,6 +52969,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -49897,6 +53029,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -49984,6 +53122,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -50039,6 +53182,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -50100,6 +53249,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -50178,6 +53331,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -50481,6 +53640,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -50536,6 +53700,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -50568,6 +53738,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -50623,6 +53798,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -50679,6 +53860,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -50734,6 +53920,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -50821,6 +54013,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -50876,6 +54073,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -50937,6 +54140,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -51015,6 +54222,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";
@@ -51272,6 +54485,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -51327,6 +54545,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodLiteral<"read">;
                         captureFloor: z.ZodObject<{
@@ -51359,6 +54583,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -51414,6 +54643,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         state: z.ZodEnum<{
                             not_applicable: "not_applicable";
@@ -51470,6 +54705,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -51525,6 +54765,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>;
                         remedy: z.ZodUnion<readonly [z.ZodObject<{
                             kind: z.ZodLiteral<"none">;
@@ -51612,6 +54858,11 @@ export declare const agentRouteSchemas: {
                             page_payout_methods: "page_payout_methods";
                             fansly_creator_stats_revenue: "fansly_creator_stats_revenue";
                             fansly_creator_stats_windows: "fansly_creator_stats_windows";
+                            revenue_month_totals: "revenue_month_totals";
+                            page_promo_links: "page_promo_links";
+                            fansly_tracking_link_days: "fansly_tracking_link_days";
+                            fansly_tracking_link_revenue_days: "fansly_tracking_link_revenue_days";
+                            fansly_page_settings_versions: "fansly_page_settings_versions";
                             page_fans: "page_fans";
                             page_fan_aliases: "page_fan_aliases";
                             fan_username_aliases: "fan_username_aliases";
@@ -51667,6 +54918,12 @@ export declare const agentRouteSchemas: {
                             page_link_stat_snapshots: "page_link_stat_snapshots";
                             traffic_link_bindings: "traffic_link_bindings";
                             traffic_channel_contractors: "traffic_channel_contractors";
+                            fansly_page_profile_versions: "fansly_page_profile_versions";
+                            fansly_page_profile_daily: "fansly_page_profile_daily";
+                            page_broadcasts: "page_broadcasts";
+                            page_automated_messages: "page_automated_messages";
+                            page_polls: "page_polls";
+                            page_poll_options: "page_poll_options";
                         }>, z.ZodEnum<{
                             ofapi_certified_history: "ofapi_certified_history";
                             ofapi_message_coverage: "ofapi_message_coverage";
@@ -51728,6 +54985,10 @@ export declare const agentRouteSchemas: {
                         payoutMethod: "payoutMethod";
                         creatorStatsRevenue: "creatorStatsRevenue";
                         creatorStatsWindow: "creatorStatsWindow";
+                        revenueMonth: "revenueMonth";
+                        promoLink: "promoLink";
+                        trackingLinkDay: "trackingLinkDay";
+                        pendingBalance: "pendingBalance";
                         membershipState: "membershipState";
                         pageAlias: "pageAlias";
                         subscriptionState: "subscriptionState";
@@ -51806,6 +55067,12 @@ export declare const agentRouteSchemas: {
                         linkStatSnapshot: "linkStatSnapshot";
                         trafficLinkBinding: "trafficLinkBinding";
                         trafficChannelContractor: "trafficChannelContractor";
+                        pageProfileVersion: "pageProfileVersion";
+                        pageProfileDay: "pageProfileDay";
+                        pageSetting: "pageSetting";
+                        massMessage: "massMessage";
+                        automatedMessage: "automatedMessage";
+                        pollOption: "pollOption";
                     }> & z.core.$partial, z.ZodObject<{
                         state: z.ZodEnum<{
                             unknown: "unknown";

@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "9924dfc61e3a2682041fe18f877d96dd3b33073238fad28be55728721769f030",
-    "sourceCommit": "eee249845253fc5d213ca7c062dffa20423dc56d",
-    "note": "Vendored on 2026-10-31 from hub main eee24984 (#942, after #937) with scripts/vendor-sdk.mjs; the contract is the one prod serves (9924dfc6, deployed eee249845): clientAiLimit (capability ai-limit-v1), quota.personal in the AI meta frame, the 429 reason personal_daily_limit with retryAfterMs, for the personal daily AI limit (#459). Re-vendor with the same script and update this pin together."
+    "contractHash": "83f3fd187aa2a07c1dd22ad4cd2355d0850ebc5f163aee3c7686a1ea2f65fac3",
+    "sourceCommit": "b9a378f80ab5aef008cebf3e2fe46276053cea92",
+    "note": "Vendored on 2026-10-31 from hub main b9a378f8 (#950, deployed) with scripts/vendor-sdk.mjs; the contract is the one prod serves: the shared pool of yesterday's unspent personal AI limits — poolMicroUsd / poolRemainingMicroUsd in clientAiLimit and in quota.personal of the AI meta frame. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

@@ -130,7 +130,7 @@ export interface FakeHubConfig {
    * today and what one generation costs. Null — no limit (the hub's default). At the limit 429 `quota_denied` with
    * reason `personal_daily_limit`.
    */
-  readonly personalAiLimit: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number } | null;
+  readonly personalAiLimit: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number; readonly poolMicroUsd?: number } | null;
   readonly generationVisibleAfterMs: number;
   readonly spendersTotal: number;
   readonly aiChunkDelayMs: number;

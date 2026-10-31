@@ -1,5 +1,5 @@
 // `ai-limit-v1`: the person's own daily AI limit (the owner's; Moscow day, all
-// pages) as the hub last reported it — its `clientAiLimit`, a generation's
+// pages) and the team's shared pool past it as the hub last reported them — its `clientAiLimit`, a generation's
 // `meta` (`quota.personal`, the spend before that call) or a 429 with reason
 // `personal_daily_limit`. A display snapshot for the dock, the popup and the
 // alerts; the hub stays the judge and refuses by itself.
@@ -7,7 +7,7 @@
 import { type AiLimitReport, type AiLimitSnapshot, type MetaFrame } from '@cg/contracts';
 import { nextMskMidnight } from '@cg/core/domain';
 
-type LimitFields = Pick<AiLimitSnapshot, 'dailyLimitMicroUsd' | 'todayMicroUsd' | 'remainingMicroUsd' | 'resetsAt'>;
+type LimitFields = Pick<AiLimitSnapshot, 'dailyLimitMicroUsd' | 'todayMicroUsd' | 'remainingMicroUsd' | 'poolMicroUsd' | 'poolRemainingMicroUsd' | 'resetsAt'>;
 
 export class AiLimitTracker {
   private snapshot: AiLimitSnapshot | null = null;
@@ -36,6 +36,8 @@ export class AiLimitTracker {
       dailyLimitMicroUsd: report.dailyLimitMicroUsd,
       todayMicroUsd: report.todayMicroUsd,
       remainingMicroUsd: report.remainingMicroUsd,
+      poolMicroUsd: report.poolMicroUsd ?? null,
+      poolRemainingMicroUsd: report.poolRemainingMicroUsd ?? null,
       resetsAt: report.resetsAt,
     });
   }
@@ -45,25 +47,42 @@ export class AiLimitTracker {
     const personal = meta.quota.personal;
     if (personal === undefined) return;
     if (personal === null) {
-      this.set({ dailyLimitMicroUsd: null, todayMicroUsd: this.get()?.todayMicroUsd ?? 0, remainingMicroUsd: null, resetsAt: new Date(nextMskMidnight(this.now())).toISOString() });
+      this.set({
+        dailyLimitMicroUsd: null,
+        todayMicroUsd: this.get()?.todayMicroUsd ?? 0,
+        remainingMicroUsd: null,
+        poolMicroUsd: null,
+        poolRemainingMicroUsd: null,
+        resetsAt: new Date(nextMskMidnight(this.now())).toISOString(),
+      });
       return;
     }
     // The meta's spend is the hub's before this call; a newer answer of the same day may already know more.
     const known = this.get();
-    const today = known !== null && known.resetsAt === personal.resetsAt ? Math.max(known.todayMicroUsd, personal.todayMicroUsd) : personal.todayMicroUsd;
+    const sameDay = known !== null && known.resetsAt === personal.resetsAt;
+    const today = sameDay ? Math.max(known.todayMicroUsd, personal.todayMicroUsd) : personal.todayMicroUsd;
+    // A frame without the pool (a hub before it) keeps what the last answer of the day said of the pool.
+    const poolLeft = personal.poolRemainingMicroUsd ?? (sameDay ? known.poolRemainingMicroUsd : null);
     this.set({
       dailyLimitMicroUsd: personal.dailyLimitMicroUsd,
       todayMicroUsd: today,
       remainingMicroUsd: Math.max(personal.dailyLimitMicroUsd - today, 0),
+      poolMicroUsd: personal.poolMicroUsd ?? (sameDay ? known.poolMicroUsd : null),
+      poolRemainingMicroUsd: sameDay && poolLeft !== null && known.poolRemainingMicroUsd !== null ? Math.min(poolLeft, known.poolRemainingMicroUsd) : poolLeft,
       resetsAt: personal.resetsAt,
     });
   }
 
-  /** 429 `personal_daily_limit`: nothing left until 00:00 МСК. False — no limit known yet (ask the hub). */
+  /** 429 `personal_daily_limit`: the own limit and the pool are spent until 00:00 МСК. False — no limit known yet (ask the hub). */
   denied(): boolean {
     const known = this.get();
     if (known === null || known.dailyLimitMicroUsd === null) return false;
-    this.set({ ...known, todayMicroUsd: Math.max(known.todayMicroUsd, known.dailyLimitMicroUsd), remainingMicroUsd: 0 });
+    this.set({
+      ...known,
+      todayMicroUsd: Math.max(known.todayMicroUsd, known.dailyLimitMicroUsd),
+      remainingMicroUsd: 0,
+      poolRemainingMicroUsd: known.poolRemainingMicroUsd === null ? null : 0,
+    });
     return true;
   }
 

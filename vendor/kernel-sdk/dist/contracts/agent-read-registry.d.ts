@@ -185,6 +185,18 @@ export declare const AGENT_CLAIM_CLASSES: {
             readonly creatorStatsWindow: {
                 readonly required: readonly ["fansly_creator_stats_windows"];
             };
+            readonly revenueMonth: {
+                readonly required: readonly ["revenue_month_totals"];
+            };
+            readonly promoLink: {
+                readonly required: readonly ["page_promo_links"];
+            };
+            readonly trackingLinkDay: {
+                readonly required: readonly ["fansly_tracking_link_days", "fansly_tracking_link_revenue_days"];
+            };
+            readonly pendingBalance: {
+                readonly required: readonly ["fansly_page_settings_versions"];
+            };
         };
     };
     readonly identity: {
@@ -455,6 +467,24 @@ export declare const AGENT_CLAIM_CLASSES: {
             };
             readonly trafficChannelContractor: {
                 readonly required: readonly ["traffic_channel_contractors"];
+            };
+            readonly pageProfileVersion: {
+                readonly required: readonly ["fansly_page_profile_versions"];
+            };
+            readonly pageProfileDay: {
+                readonly required: readonly ["fansly_page_profile_daily"];
+            };
+            readonly pageSetting: {
+                readonly required: readonly ["fansly_page_settings_versions"];
+            };
+            readonly massMessage: {
+                readonly required: readonly ["page_broadcasts"];
+            };
+            readonly automatedMessage: {
+                readonly required: readonly ["page_automated_messages"];
+            };
+            readonly pollOption: {
+                readonly required: readonly ["page_polls", "page_poll_options"];
             };
         };
     };
