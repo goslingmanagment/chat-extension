@@ -60,6 +60,12 @@ import { DEFAULT_SETTINGS } from '../../src/index';
 
 /** 1.21.0 (X48): who sent a message, as the tab tells the background. */
 const attributionFact = { chat, platformMessageId: IDS.msg2, observedAt: '2026-10-17T12:00:00.000Z', priced: false, media: false };
+/** hub #953: an OnlyFans feed message as MAIN builds it, and a tip of the socket. */
+const feedMessage = {
+  kind: 'message', messageRef: '9001', fanRef: IDS.fan, fromFan: true, sentAt: '2026-11-01T10:00:00.000Z', observedAt: '2026-11-01T10:00:01.000Z', via: 'socket',
+  textHtml: '<p>hey</p>', price: null, isFree: true, isOpened: null, isNew: true, isTip: false, tipText: null, mediaCount: 0, media: [], automatic: false, changedAt: null, fan: null,
+} as const;
+const feedTip = { kind: 'tip', fanRef: IDS.fan, tipRef: '77', amountGross: 5, observedAt: '2026-11-01T10:00:01.000Z' } as const;
 import { HUB_SAMPLES as H } from './hub';
 import { VOICE_ALLOWANCE_FIXTURES, VOICE_SCRIPT_START_FIXTURES, fanslyVoiceSession, voiceAudio, voiceScriptStart, voiceSession } from './voice';
 import { cause, target as ofTarget } from './samples';
@@ -765,6 +771,19 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     },
     res: { valid: [{ queued: true }, { queued: false, reason: 'not_admitted' }], invalid: [{ queued: 'yes' }, { reason: 'not_admitted' }] },
   },
+  'feed.report': {
+    req: {
+      valid: [{ hostAccountId: IDS.acc, creatorId: '433999001', records: [feedMessage] }, { hostAccountId: IDS.acc, creatorId: '433999001', records: [feedTip, { kind: 'deleted', messageRef: '9001', observedAt: '2026-11-01T10:00:00.000Z' }] }],
+      // Records the hub's schema takes, never an empty report, never a record without its ids.
+      invalid: [
+        { hostAccountId: IDS.acc, creatorId: '433999001', records: [] },
+        { hostAccountId: IDS.acc, creatorId: '433999001', records: [{ ...feedMessage, messageRef: null }] },
+        { hostAccountId: IDS.acc, creatorId: '433999001', records: [{ ...feedTip, amountGross: -1 }] },
+        { hostAccountId: IDS.acc, records: [feedTip] },
+      ],
+    },
+    res: { valid: [{ queued: true }, { queued: false, reason: 'not_admitted' }], invalid: [{ queued: 'yes' }] },
+  },
   'data.clear': {
     req: { valid: [{ confirmed: true }], invalid: [{ confirmed: false }, {}] },
     res: { valid: [{ cleared: true }, { cleared: false }], invalid: [{ cleared: 'yes' }] },
@@ -1207,6 +1226,10 @@ export const BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainType]: Verdicts } =
   },
   // 2026-10-28: the fan whose OnlyMonster notes changed; never the notes themselves.
   fanNotesChanged: { valid: [accFan], invalid: [{ acc: IDS.acc }, { ...accFan, text: 'Имя: Анна' }, { ...accFan, fan: 2002 }] },
+  ofFeed: {
+    valid: [{ acc: IDS.acc, creator: '433999001', records: [feedMessage, feedTip] }],
+    invalid: [{ acc: IDS.acc, creator: '433999001', records: [] }, { acc: IDS.acc, records: [feedTip] }, { acc: IDS.acc, creator: '433999001', records: [{ ...feedMessage, textHtml: 'x'.repeat(20_001) }] }],
+  },
 };
 
 /** Valid contract samples other packages can reuse. */

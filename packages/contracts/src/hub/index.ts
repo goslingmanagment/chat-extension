@@ -20,6 +20,7 @@ export * from './fan-card';
 export * from './fan-marks';
 export * from './queue';
 export * from './online';
+export * from './onlyfans-feed';
 export * from './fan-queues';
 export * from './routes';
 export * from './registry';

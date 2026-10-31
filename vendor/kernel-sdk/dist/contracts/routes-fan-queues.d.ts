@@ -67,8 +67,8 @@ export declare const fanQueueRouteSchemas: {
                     exclude: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strict>>;
                 order: import("zod").ZodOptional<import("zod").ZodEnum<{
-                    seen: "seen";
                     spend: "spend";
+                    seen: "seen";
                     followed_new: "followed_new";
                     followed_old: "followed_old";
                     fan_message: "fan_message";
@@ -229,8 +229,8 @@ export declare const fanQueueRouteSchemas: {
                     exclude: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strict>>;
                 order: import("zod").ZodOptional<import("zod").ZodEnum<{
-                    seen: "seen";
                     spend: "spend";
+                    seen: "seen";
                     followed_new: "followed_new";
                     followed_old: "followed_old";
                     fan_message: "fan_message";
@@ -828,8 +828,8 @@ export declare const fanQueueRouteSchemas: {
                     exclude: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strict>>;
                 order: import("zod").ZodOptional<import("zod").ZodEnum<{
-                    seen: "seen";
                     spend: "spend";
+                    seen: "seen";
                     followed_new: "followed_new";
                     followed_old: "followed_old";
                     fan_message: "fan_message";

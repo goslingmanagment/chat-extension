@@ -22,11 +22,15 @@ export function createLivePort(win: Window & typeof globalThis, tap: Tap, host: 
   let sendOn = false;
   /** The local latch of the hub's `send-attribution-v1` (decision X48): who sent each message is recorded. */
   let attributeOn = false;
+  // The OnlyFans feed (hub #953) leaves MAIN through the bridge's never-coalesced events, for an OnlyFans account the
+  // page has loaded: its creator names the page the background reports it for.
+  tap.feed.connect({ creator: (acc) => host.account(acc)?.platformAccountId ?? null, post: host.post });
   const receipts = createReceipts(win, host, tap, () => attributeOn && tap.on());
   const port = createSendPort(host, tap, receipts, () => sendOn && tap.on());
   tap.connect({
     fact(fact, content) {
-      // Metadata only: the text of a message goes nowhere but to the receipt observer's comparison (the X8 fuse).
+      // Metadata only: here the text of a message goes nowhere but to the receipt observer's comparison (the X8 fuse);
+      // the OnlyFans feed takes it on its own way (feed.ts, `ofFeed` events).
       host.post('incoming', { ...fact });
       receipts.echo(fact, content);
     },
@@ -44,7 +48,10 @@ export function createLivePort(win: Window & typeof globalThis, tap: Tap, host: 
         sendOn = payload['previewSend'] === true;
         attributeOn = payload['attribution'] === true;
         if (!payload['wsTap']) switchOff();
-        return { wsTap: tap.on(), previewSend: sendOn && tap.on(), attribution: attributeOn && tap.on() };
+        // An older isolated side does not name the feed: it stays off, and its answer names none.
+        tap.feed.latch(payload['ofFeed'] === true && tap.on());
+        const feed = payload['ofFeed'] === undefined ? {} : { ofFeed: tap.feed.on() };
+        return { wsTap: tap.on(), previewSend: sendOn && tap.on(), attribution: attributeOn && tap.on(), ...feed };
       }
       if (t === 'checkpoint') return tap.on() ? { ...tap.checkpoint(payload['acc'] as string, payload['fan'] as string), documentEpoch: host.epoch() } : ERR_DISABLED;
       const req = payload['req'] as SendRequest;

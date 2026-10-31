@@ -52,9 +52,16 @@
 //   to the background with the tab's ChatSpace build — said again until the
 //   background acknowledges it, as a human send is.
 //
-// Facts only: ids, digests, booleans. Never a message text.
+// - the OnlyFans feed (hub #953): what the page received for an OnlyFans account
+//   — its socket's frames, the answers of its own reads — goes to the
+//   background's one uploader as it comes (`feed.report`), said again only when
+//   the port was lost under the request; the background reports it for the
+//   account's page where `ofFeed` is on.
+//
+// Facts only: ids, digests, booleans — never a message text, but the OnlyFans
+// feed's, which feeds the hub's archive now that OnlyFansAPI is gone.
 
-import type { HostContractReport, HostContractShape, HostPort, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent, SendAttributionFact } from '@cg/contracts/host';
+import type { HostContractReport, HostContractShape, HostPort, InsertIntent, InsertReceipt, NavigateOptions, NavigationIntent, OnlyfansFeedBatch, SendAttributionFact } from '@cg/contracts/host';
 import type { Bootstrap } from '@cg/contracts/hub';
 import type { PartRef } from '@cg/contracts/ids';
 import type { SendFuseFact, SendFuseState } from '@cg/contracts/send';
@@ -76,6 +83,8 @@ const FUSE_REPORTS_KEPT = 8;
 const ATTRIBUTIONS_KEPT = 64;
 /** Messages whose `humanSend` was heard, remembered for a later `pageSent` of the same message; the oldest go. */
 const HUMAN_SENDS_KEPT = 256;
+/** OnlyFans feed batches that wait for the port (hub #953); the oldest go — the hub has the next sighting anyway. */
+const FEED_BATCHES_KEPT = 32;
 
 type SentReport = { readonly opId: string; readonly part: PartRef; readonly pendingId: string; readonly platformMessageId: string; readonly edited: boolean };
 
@@ -159,6 +168,8 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
   const fuseWaiting: { readonly fact: SendFuseFact; readonly build: string | null; readonly tries: number }[] = [];
   /** Who-sent facts the background has not acknowledged (decision X48). */
   const attributionsWaiting: { readonly fact: SendAttributionFact; readonly tries: number }[] = [];
+  /** OnlyFans feed batches the background has not acknowledged (hub #953). */
+  const feedWaiting: { readonly batch: OnlyfansFeedBatch; readonly tries: number }[] = [];
   const now = deps.now ?? Date.now;
   /** Messages a `humanSend` reported (Chat Memory week 1): their `pageSent` is said already. */
   const humanSent = new Set<string>();
@@ -221,11 +232,24 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
   function flushAttributions(): void {
     for (const { fact, tries } of attributionsWaiting.splice(0)) reportAttribution(fact, tries);
   }
+  /** The OnlyFans feed (hub #953): what the page received, to the background's one uploader. Said again only when nobody answered. */
+  const reportFeed = (batch: OnlyfansFeedBatch, tries = 1): void => {
+    void rpc.request('feed.report', { hostAccountId: batch.hostAccountId, creatorId: batch.creatorId, records: [...batch.records] }).then((answer) => {
+      if (answer.ok || answer.error.code !== 'CG-RUNTIME-UNREACHABLE' || tries >= SENT_REPORT_TRIES) return;
+      feedWaiting.push({ batch, tries: tries + 1 });
+      if (feedWaiting.length > FEED_BATCHES_KEPT) feedWaiting.shift();
+      if (rpc.state() === 'ready') flushFeed();
+    });
+  };
+  function flushFeed(): void {
+    for (const { batch, tries } of feedWaiting.splice(0)) reportFeed(batch, tries);
+  }
   const offState = rpc.onState((state) => {
     if (state !== 'ready') return;
     flush();
     flushFuse();
     flushAttributions();
+    flushFeed();
     // A new port may be a new event page: the fuse is read again.
     readFuse();
   });
@@ -234,6 +258,7 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
 
   const off = host.subscribe((event) => {
     if (event.type === 'sendFuse') return reportFuse(event.fuse, host.probe().build);
+    if (event.type === 'onlyfansFeed') return reportFeed(event.feed);
     if (event.type === 'incoming') {
       // A tab without a port has nobody to tell; the arbiter judges freshness by the fact's own time.
       if (rpc.state() === 'ready') void rpc.request('sound.event', { fact: event.fact });
@@ -296,6 +321,7 @@ export function forwardHostFacts<P extends HostPort, C>(deps: {
       waiting.length = 0;
       fuseWaiting.length = 0;
       attributionsWaiting.length = 0;
+      feedWaiting.length = 0;
       receiptsSent.clear();
       humanSent.clear();
     },

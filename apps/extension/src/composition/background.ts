@@ -88,6 +88,7 @@ import {
   ActionTokens,
   NativeSendRegistrar,
   OpScheduler,
+  OnlyfansFeedUploader,
   SendAttributionReporter,
   NoteAttributionReporter,
   noteWriteOrigin,
@@ -148,7 +149,7 @@ import {
 
 import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS, type PerHost, type RuntimeHostKind } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
-import { ComposedWithMemory, attributionTarget, noteAttributionTarget, notesAuthorsOf } from './background/attribution';
+import { ComposedWithMemory, attributionTarget, noteAttributionTarget, notesAuthorsOf, onlyfansFeedTarget } from './background/attribution';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { type BackgroundKit, type HostRequestType, type KitSender, type NoteAttributionPort, type SiteTabsPort, type VerifiedTabMessage } from './background/host-module';
@@ -757,6 +758,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     hub: { sendAttributions: (request) => hub().sendAttributions(request) },
     owner: () => ownerOf(hubInstance?.session() ?? null),
     store: throwingStoreOf(local),
+    log: coreLog,
+  });
+  // The OnlyFans feed (hub #953): what every ChatSpace tab's page received — its socket's frames, the answers of its
+  // own reads — through one uploader for the browser, to the hub that has no OnlyFansAPI any more (memory only; the hub
+  // dedups, and the next sighting of the same thing carries what was lost).
+  const onlyfansFeed = new OnlyfansFeedUploader({
+    clock: CLOCK,
+    hub: { onlyfansFeed: (request) => hub().onlyfansFeed(request) },
+    owner: () => ownerOf(hubInstance?.session() ?? null),
     log: coreLog,
   });
   // Who wrote each Fansly note: every write of «Заметки» Fansly confirmed goes to the hub under the person signed in,
@@ -1658,6 +1668,18 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         ...(fact.receipt === true ? { receipt: true as const } : {}),
       }),
     );
+  });
+
+  // The OnlyFans feed (hub #953): a ChatSpace tab's records of one account, for the page that account is bound to while
+  // it admits `onlyfans-feed`. The answer does not wait for the hub.
+  rpc.handle('feed.report', async ({ hostAccountId, creatorId, records }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    if (hostOfTab(sender.tabSessionId) !== 'chatspace') return ok({ queued: false, reason: 'site' });
+    await tabAccounts.known(sender.tabSessionId);
+    const target = onlyfansFeedTarget(boundPageOf('chatspace', hostAccountId), hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
+    if (!target.ok) return ok({ queued: false, reason: target.reason });
+    const outcome = onlyfansFeed.report({ pageLabel: target.pageLabel, hostAccountRef: `onlymonster:${hostAccountId}`, creatorRef: creatorId, records });
+    return ok(outcome === 'signed-out' ? { queued: false, reason: 'signed_out' } : { queued: true });
   });
 
   // a site's own requests: its module answers them (X8 and the greeting leases of «Новые» — bg/chatspace)

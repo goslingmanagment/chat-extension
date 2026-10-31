@@ -40,6 +40,7 @@ import { HiFanAvatarUrlSchema } from './hi-start-proof';
 import { PersonaCatalogSchema } from './hub/ai';
 import { BootstrapSchema } from './hub/bootstrap';
 import { FEED_LIMITS, FeedPageSchema } from './hub/feed';
+import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema } from './hub/onlyfans-feed';
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
 import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
@@ -993,6 +994,21 @@ export const TAB_REQUESTS = {
    */
   'attribution.report': {
     req: z.strictObject({ fact: SendAttributionFactSchema }),
+    res: z.strictObject({ queued: z.boolean(), reason: z.optional(OpenTokenSchema) }),
+    from: TAB,
+  },
+  /**
+   * 2026-11-01 (hub #953): the OnlyFans feed — records of what the page received for one account (its socket's frames,
+   * the answers of its own reads), with the account's creator. `queued` — the background will report them to the hub
+   * for the account's page; false with the reason they are not ours to report (the page, its switch, the hub). The one
+   * tab message that carries messages' texts: the hub's archive is fed with them.
+   */
+  'feed.report': {
+    req: z.strictObject({
+      hostAccountId: NativeIdSchema,
+      creatorId: NativeIdSchema,
+      records: z.array(OnlyfansFeedRecordSchema).check(z.minLength(1), z.maxLength(ONLYFANS_FEED_MAX_RECORDS)),
+    }),
     res: z.strictObject({ queued: z.boolean(), reason: z.optional(OpenTokenSchema) }),
     from: TAB,
   },

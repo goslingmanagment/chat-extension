@@ -847,6 +847,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/online/probe";
     };
+    readonly clientOnlyfansFeed: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/onlyfans-feed";
+    };
     readonly clientSendAttributions: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/send-attributions";

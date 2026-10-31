@@ -99,6 +99,8 @@ import {
   type OnlinePresenceResult,
   type OnlineProbeRequest,
   type OnlineProbeResult,
+  type OnlyfansFeedRequest,
+  type OnlyfansFeedResult,
   type OnlineQuery,
   type FanQueueItemDone,
   type FanQueueItemDoneRequest,
@@ -1081,6 +1083,15 @@ export class ChatExtensionHub implements HubFacade {
    */
   async onlineProbe(request: OnlineProbeRequest): Promise<OnlineProbeResult> {
     return (await this.client('clientOnlineProbe', request, request.pageLabel)) as OnlineProbeResult;
+  }
+
+  /**
+   * The OnlyFans feed (hub #953): what the page's ChatSpace already received, passed on. Refused here while the page's
+   * `ofFeed` is off or the hub does not list `onlyfans-feed-v1`. A report the hub answered is never said again; the
+   * uploader (core services/onlyfans-feed.ts) says one again only when its answer was lost — the hub dedups it.
+   */
+  async onlyfansFeed(request: OnlyfansFeedRequest): Promise<OnlyfansFeedResult> {
+    return (await this.client('clientOnlyfansFeed', request, request.pageLabel)) as OnlyfansFeedResult;
   }
 
   /** What a chatter did in «Онлайн». Never repeated here: a lost answer is the person's to act on again. */

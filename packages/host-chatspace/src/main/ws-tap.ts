@@ -14,10 +14,17 @@
 //   changed, said on to the isolated side for an account of this port — are
 //   parsed, any other frame only says which account it is for. Counters of
 //   fan messages per (account, fan), without duplicates by id, are updated before anything is
-//   forwarded; the text of a fan's message never leaves this file. An
+//   forwarded. The fact a message frame makes (`incoming`) carries no text; an
 //   outgoing message is forwarded as it comes (a redelivery is not told
-//   apart), its text only to the receipt observer, for the X8 fuse's
-//   comparison (decision X25): it never leaves MAIN.
+//   apart), its text to the receipt observer, for the X8 fuse's comparison
+//   (decision X25).
+// - 2026-11-01 (hub #953): the OnlyFans feed (feed.ts). The hub has no
+//   OnlyFansAPI any more, so while the owner's `ofFeed` is on every message
+//   frame goes into the feed whole — its text too, as OnlyFansAPI gave it to
+//   the hub — and so do the deletion, purchase and tip frames
+//   (`account_message_deleted`, `account_fan_ppv_purchased`,
+//   `account_fan_tip_received`), for an account of this port only. They leave
+//   MAIN as `ofFeed` events; nothing is ever asked of the page for them.
 // - A message frame of an account that is not in the set the runtime gives
 //   (the OnlyFans accounts ChatSpace subscribed; it subscribes other
 //   platforms on the same socket) is not ours: not counted, not forwarded,
@@ -48,11 +55,24 @@
 
 import { idOf, isPlain } from '@cg/host-kit/main/check';
 import { guardWith } from '@cg/host-kit/main/guard';
+import { createFeed, messageRecord, socketRecord } from './feed';
 import { createLivePort } from './live-port';
 import { type Checkpoint, type LiveHost, type Tap, type TapSink, type WsTapHandle } from './live';
 import { iso } from './page';
 import { WS_TAP_KEY } from '@cg/host-kit/main/protocol';
-import { CG_SEND_FRESHNESS, CG_SEND_STALE, KNOWN_FAN_MESSAGES, WS_AUTHENTICATED, WS_DATA_UPDATED, WS_NEW_MESSAGE, WS_PATH, WS_USER_NOTES } from './protocol';
+import {
+  CG_SEND_FRESHNESS,
+  CG_SEND_STALE,
+  KNOWN_FAN_MESSAGES,
+  WS_AUTHENTICATED,
+  WS_DATA_UPDATED,
+  WS_MESSAGE_DELETED,
+  WS_NEW_MESSAGE,
+  WS_PATH,
+  WS_PPV_PURCHASED,
+  WS_TIP_RECEIVED,
+  WS_USER_NOTES,
+} from './protocol';
 
 export { type WsTapHandle } from './live';
 
@@ -112,6 +132,8 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   // Counted by the bridge, once the live port is attached.
   const fail = (site: string): void => sink?.fault(site);
   const guard = guardWith(fail);
+  /** The OnlyFans feed (feed.ts): what this socket and the page's own reads bring, passed on to the hub. */
+  const feed = createFeed(win, { guard, fail });
 
   const armed = (state: Account | undefined): boolean => on && authed && socket?.readyState === SOCKET_OPEN && !left.some(delivers) && !!state && state.subscribed && state.framed;
   const report = (acc: string, state: Account, reason: string): void => {
@@ -202,6 +224,9 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     }
     const meta = isPlain(body['platformMetadata']) ? body['platformMetadata'] : {};
     const fact = { acc, fan, msgId: id, fromFan, automatic: meta['isFromQueue'] === true, tip: meta['isTip'] === true, sentAt: iso(body['sentAt']), socketEpoch: epoch, fanSequence: chat?.seq ?? 0 };
+    // The feed takes the message whole — its text too — and the hub dedups a redelivery by its id.
+    const record = feed.on() || feed.pending() ? messageRecord(body, fan, 'socket', new Date(clock()).toISOString()) : null;
+    if (record !== null) feed.push(acc, record);
     if (fromFan) sink?.fact(fact);
     else sink?.fact(fact, body['content']);
   };
@@ -224,6 +249,14 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
     const fan = idOf(frame['id']);
     if (acc && fan && !(observable && !account(acc).subscribed)) sink?.notes?.(acc, fan);
   };
+  /** A deletion, a fan's purchase or tip (feed.ts `socketRecord`): for an account of this port only. */
+  const money = (frame: unknown): void => {
+    if (!isPlain(frame)) return;
+    const acc = idOf(isPlain(frame['account']) ? frame['account']['account_id'] : null);
+    if (!acc || (observable && !account(acc).subscribed)) return;
+    const record = socketRecord(frame, new Date(clock()).toISOString());
+    if (record !== null) feed.push(acc, record);
+  };
   const read = (data: unknown): void => {
     if (typeof data !== 'string') return;
     if (data.includes(WS_NEW_MESSAGE)) {
@@ -239,6 +272,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       const acc = ACCOUNT_OF.exec(data)?.[1];
       if (acc) touch(acc);
       if (data.includes(WS_USER_NOTES) && data.includes(WS_DATA_UPDATED)) notes(parse(data));
+      else if ((feed.on() || feed.pending()) && (data.includes(WS_MESSAGE_DELETED) || data.includes(WS_PPV_PURCHASED) || data.includes(WS_TIP_RECEIVED))) money(parse(data));
     }
   };
   // Both listen on one socket at a time: `adopt` takes them off the previous one. A failure of ours stays in them: the frame is the page's.
@@ -315,6 +349,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
   return {
     guard,
     fail,
+    feed,
     constructed: () => constructed,
     on: () => on,
     anchor: () => (bad ? 'shape' : on && authed ? 'ok' : 'missing'),
@@ -336,6 +371,7 @@ export function createTap(win: Window & typeof globalThis): Tap & { readonly con
       on = false;
       win.clearInterval(timer);
       release();
+      feed.off();
       if (win.WebSocket === Tapped) win.WebSocket = Native;
       lose('off');
       sink?.changed();

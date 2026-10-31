@@ -97,8 +97,8 @@ export declare const fanQueueRuleSchema: z.ZodObject<{
         exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
     }, z.core.$strict>>;
     order: z.ZodOptional<z.ZodEnum<{
-        seen: "seen";
         spend: "spend";
+        seen: "seen";
         followed_new: "followed_new";
         followed_old: "followed_old";
         fan_message: "fan_message";
@@ -205,8 +205,8 @@ export declare const agentFanQueuePreviewBodySchema: z.ZodObject<{
             exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
         }, z.core.$strict>>;
         order: z.ZodOptional<z.ZodEnum<{
-            seen: "seen";
             spend: "spend";
+            seen: "seen";
             followed_new: "followed_new";
             followed_old: "followed_old";
             fan_message: "fan_message";
@@ -313,8 +313,8 @@ export declare const agentFanQueueCreateBodySchema: z.ZodObject<{
             exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
         }, z.core.$strict>>;
         order: z.ZodOptional<z.ZodEnum<{
-            seen: "seen";
             spend: "spend";
+            seen: "seen";
             followed_new: "followed_new";
             followed_old: "followed_old";
             fan_message: "fan_message";
@@ -460,8 +460,8 @@ export declare const agentFanQueueAppendBodySchema: z.ZodObject<{
             exclude: z.ZodOptional<z.ZodArray<z.ZodString>>;
         }, z.core.$strict>>;
         order: z.ZodOptional<z.ZodEnum<{
-            seen: "seen";
             spend: "spend";
+            seen: "seen";
             followed_new: "followed_new";
             followed_old: "followed_old";
             fan_message: "fan_message";

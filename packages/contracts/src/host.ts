@@ -51,6 +51,7 @@ import {
   type IsoTimestamp,
   type NativeId,
 } from './primitives';
+import { type OnlyfansFeedRecord } from './hub/onlyfans-feed';
 import { type MediaPort } from './media';
 import { type FreshnessCheckpoint, type PreviewSendPort, type SendFuseFact } from './send';
 import { RECEIPT_MATCH_KINDS } from './send-rules';
@@ -1143,6 +1144,14 @@ export interface HostSnapshot {
   readonly theme: HostTheme;
 }
 
+/** The OnlyFans feed's records of one host account (hub #953), as the host adapter hands them on. */
+export interface OnlyfansFeedBatch {
+  readonly hostAccountId: string;
+  /** The OnlyFans creator of that account. */
+  readonly creatorId: string;
+  readonly records: readonly OnlyfansFeedRecord[];
+}
+
 export type HostEvent =
   | { readonly type: 'route'; readonly route: RouteState }
   | { readonly type: 'composer'; readonly composer: ComposerState | null }
@@ -1158,6 +1167,11 @@ export type HostEvent =
    * this document; the tab tells the background, which keeps the fuse for the browser.
    */
   | { readonly type: 'sendFuse'; readonly fuse: SendFuseFact }
+  /**
+   * 2026-11-01 (hub #953): the OnlyFans feed — what the page received for one OnlyFans account of the host (its
+   * socket's frames, the answers of its own reads), with the account's creator; the tab passes it to the background.
+   */
+  | { readonly type: 'onlyfansFeed'; readonly feed: OnlyfansFeedBatch }
   | { readonly type: 'reloadNeeded' }
   /** The page's own state the dock warns about changed (`HostPort.notice`): the views read it again. */
   | { readonly type: 'notice' };

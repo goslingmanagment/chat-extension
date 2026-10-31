@@ -251,7 +251,7 @@ export const PAYLOAD: Record<string, Check> = {
   checkpoint: shape(accFan),
   previewSendPreflight: isSend,
   previewSendCommit: isSend,
-  flags: shape({ wsTap: is(true, false), previewSend: is(true, false), 'attribution?': is(true, false) }),
+  flags: shape({ wsTap: is(true, false), previewSend: is(true, false), 'attribution?': is(true, false), 'ofFeed?': is(true, false) }),
   openChatMessages: shape({ ...accFan, limit: int(1, OPEN_CHAT_PAGE_MAX), 'cursor?': isId }),
   cachedChatMessages: shape({ ...accFan, limit: int(1, OPEN_CHAT_PAGE_MAX) }),
   chatReadState: shape({ ...accFan, username: (value) => typeof value === 'string' && value.length > 0 && value.length <= CHAT_READ_USERNAME_MAX }),

@@ -196,17 +196,22 @@ export type ToMainType = (typeof TO_MAIN_TYPES)[number];
  */
 export const BRIDGE_WRITE_REQUESTS = ['insertGuarded', 'navigate', 'previewSendCommit', 'attachFile', 'createFanNote', 'updateFanNote', 'deleteFanNote'] as const satisfies readonly ToMainType[];
 
-/** Events MAIN → isolated (§5.3 `FromMain`), never with message text. */
-export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged'] as const;
+/**
+ * Events MAIN → isolated (§5.3 `FromMain`), never with message text — but one: since 2026-11-01 (hub #953) `ofFeed`
+ * carries the OnlyFans feed, what the page received with the messages' texts, which the hub's archive is fed with now
+ * that OnlyFansAPI is gone.
+ */
+export const FROM_MAIN_TYPES = ['route', 'accounts', 'composer', 'chatCache', 'contract', 'incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged', 'ofFeed'] as const;
 export type FromMainType = (typeof FROM_MAIN_TYPES)[number];
 
 /**
  * Freshness and receipt events are never dropped or coalesced; their counters are updated before any thinning. Nor is
  * a fault report (one per site and doubling, decision X22): coalesced, a site's report would hide another's. Nor the
  * X8 fuse (1.11.0, decision X25): one lost would leave the preview send on. Nor (2026-10-28) the word that a fan's
- * notes changed: coalesced, another fan's would hide the open fan's.
+ * notes changed: coalesced, another fan's would hide the open fan's. Nor (2026-11-01) the OnlyFans feed: each event is
+ * its own records.
  */
-export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged'] as const satisfies readonly FromMainType[];
+export const BRIDGE_UNDROPPABLE_EVENTS = ['incoming', 'coverage', 'humanSend', 'previewSendState', 'previewSendFuse', 'fault', 'fanNotesChanged', 'ofFeed'] as const satisfies readonly FromMainType[];
 
 // ── Probe ──────────────────────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@
 import * as z from 'zod/mini';
 
 import { BRIDGE_PROTOCOL_VERSION, BridgeRequestIdSchema, BridgeResponseSchema, MainProbeSchema, type FromMainType, type ToMainType } from './bridge';
+import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema } from './hub/onlyfans-feed';
 import {
   ATTACH_REFUSALS,
   AnchorIdSchema,
@@ -218,11 +219,12 @@ export const TO_MAIN = {
   /**
    * The owner's switches MAIN keeps a latch of. 1.21.0 (X48): `attribution` — the hub records who sent each message
    * (`send-attribution-v1`): MAIN follows the receipt of every human send of the composer, not only of a draft of
-   * ours. Absent — off.
+   * ours. Absent — off. 2026-11-01 (hub #953): `ofFeed` — the OnlyFans feed: MAIN passes on what the page received
+   * (`ofFeed` events). Absent — off.
    */
   flags: {
-    payload: z.strictObject({ wsTap: z.boolean(), previewSend: z.boolean(), attribution: z.optional(z.boolean()) }),
-    data: z.strictObject({ wsTap: z.boolean(), previewSend: z.boolean(), attribution: z.optional(z.boolean()) }),
+    payload: z.strictObject({ wsTap: z.boolean(), previewSend: z.boolean(), attribution: z.optional(z.boolean()), ofFeed: z.optional(z.boolean()) }),
+    data: z.strictObject({ wsTap: z.boolean(), previewSend: z.boolean(), attribution: z.optional(z.boolean()), ofFeed: z.optional(z.boolean()) }),
     write: false,
     timeout: 'call',
   },
@@ -306,7 +308,7 @@ export type ToMainData<T extends ToMainType> = z.infer<(typeof TO_MAIN)[T]['data
 /** §5.3 `ToMain`: a request type with its payload. */
 export type ToMain = { [T in ToMainType]: { readonly t: T; readonly payload: ToMainPayload<T> } }[ToMainType];
 
-/** Events MAIN → isolated, without any message text (§5.3). */
+/** Events MAIN → isolated (§5.3): without any message text but the OnlyFans feed's (`ofFeed`, hub #953). */
 export const FROM_MAIN = {
   route: z.strictObject({ route: RouteStateSchema, hostLoginEpoch: z.nullable(EpochTokenSchema) }),
   /** The accounts store changed; the isolated side asks `listAccounts`. */
@@ -338,6 +340,16 @@ export const FROM_MAIN = {
     draft: SentDraftSchema,
     /** 1.21.0 (X48): a price and media, as the queue action named them; marks only. */
     cargo: z.optional(SendCargoSchema),
+  }),
+  /**
+   * 2026-11-01 (hub #953): the OnlyFans feed — records of what the page received for one OnlyFans account (its socket's
+   * frames, the answers of its own reads), with the account's creator. The one event that carries message text: the
+   * hub's archive is fed with it, as OnlyFansAPI fed it. Never coalesced.
+   */
+  ofFeed: z.strictObject({
+    acc: NativeIdSchema,
+    creator: NativeIdSchema,
+    records: z.array(OnlyfansFeedRecordSchema).check(z.minLength(1), z.maxLength(ONLYFANS_FEED_MAX_RECORDS)),
   }),
   previewSendState: z.strictObject({ view: SendAttemptViewSchema }),
   /**

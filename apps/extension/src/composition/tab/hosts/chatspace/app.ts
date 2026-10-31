@@ -30,7 +30,7 @@ import type * as NotesChunk from '../../../../../lazy/chatspace/notes';
 import { CHATSPACE_FEATURE_SLICE } from '../../../features/chatspace';
 import type { HostAppAdapter, SiteAppEnv } from '../../adapter';
 
-const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [], attribution: false };
+const LIVE_OFF: ChatSpaceLiveConfig = { wsTap: false, previewSend: false, markAiGenerated: false, receiptProfiles: [], attribution: false, onlyfansFeed: false };
 
 /** Part B of the port as the bootstrap sets it, with the browser's X8 fuse (null — not read yet). */
 export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | null = null): ChatSpaceLiveConfig {
@@ -48,6 +48,9 @@ export function liveConfigOf(bootstrap: Bootstrap | null, fuse: SendFuseState | 
     // receipt pairs with the tap's echo, so it needs the tap; the background reports a send of a page where the
     // feature `send-attribution` is on (its page's own `wsTap`).
     attribution: wsTap && hasCapability(bootstrap.capabilities, 'send-attribution-v1'),
+    // 2026-11-01 (hub #953): the OnlyFans feed, heard by the tap, on while some granted page has `ofFeed` and the hub
+    // takes it; the background reports an account's records only for its page's own `ofFeed` (feature `onlyfans-feed`).
+    onlyfansFeed: wsTap && flagOnSomePage(bootstrap, 'ofFeed') && hasCapability(bootstrap.capabilities, 'onlyfans-feed-v1'),
     // A fuse that never tripped and was never reset tells the port nothing: the configuration stays as it was.
     ...(fuse === null || (fuse.fuse === null && fuse.resetAt === null) ? {} : { fuse }),
   };

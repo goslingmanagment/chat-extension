@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "9595f353a38e9b05512a49f63cb98caa4cc0e6780a0f277ccb381f8ab65b7a59",
-    "sourceCommit": "120e94a4e8291fc657432c2fbf4c45d2cf4f6082",
-    "note": "Vendored on 2026-10-31 from hub main 120e94a4 (#952) with scripts/vendor-sdk.mjs: «Онлайн» on OnlyFans from ChatSpace — clientOnlinePresence takes an OnlyFans page's report, clientOnlineProbe lends the page's probe to one tab (the owner's onlineProbe). Re-vendor with the same script and update this pin together."
+    "contractHash": "0fc3f9572c3b771f606e680690fb2b755d4c5992544f87a22a8a04048446055c",
+    "sourceCommit": "ba344bf0dabfc355fa93247923105d882aabd911",
+    "note": "Vendored on 2026-10-31 from hub main ba344bf0 (#953) with scripts/vendor-sdk.mjs: the OnlyFans feed from ChatSpace — clientOnlyfansFeed takes what the page already received (messages, deletions, purchases, tips, fans, chats, the sales ledger), behind the owner's ofFeed and onlyfans-feed-v1. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",
