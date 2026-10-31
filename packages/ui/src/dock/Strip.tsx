@@ -92,11 +92,11 @@ function Quota({ count, text }: { readonly count: number; readonly text: string 
 }
 
 /**
- * `ai-limit-v1`: the person's own daily AI limit — «ИИ $1.20 / $3.50» over a thin bar on the bar's right, amber from
- * 80 %, «ИИ котёл $5.39» in amber while it takes from the team's shared pool, red when both are spent («ИИ до 00:00»).
- * On a narrower composer it is short — «ИИ $1.20», «ИИ котёл», «ИИ выкл»: the bar's fill is the share, the rest is in
- * the hint (2026-10-31: in full words the bar ran out of a ~690 px Fansly composer). Its hint says it in words
- * whatever the hints setting is.
+ * `ai-limit-v1`: the person's own daily AI limit — «$1.20 / $3.50» over a thin bar on the bar's right, amber from
+ * 80 %, «котёл $5.39» in amber while it takes from the team's shared pool, red when both are spent («до 00:00»).
+ * No «ИИ» before it (the owner, 2026-10-31: no extra words, the hint tells the rest). On a narrower composer it is
+ * short — «$1.20», «котёл»: the bar's fill is the share (in full it ran out of a ~690 px Fansly composer). Its hint
+ * says it in words whatever the hints setting is.
  */
 function AiLimit({ vm, text, short, tooltip }: { readonly vm: AiLimitVM; readonly text: string; readonly short: string; readonly tooltip: string }): JSX.Element {
   const tip = useTooltip(tooltip);
@@ -125,9 +125,9 @@ function aiLimitText(vm: AiLimitVM, t: Translate): string {
 }
 
 function aiLimitShort(vm: AiLimitVM, t: Translate): string {
-  if (vm.level === 'out') return t('dock.aiLimit.outShort');
+  if (vm.level === 'out') return t('dock.aiLimit.out');
   if (vm.level === 'pool') return t('dock.aiLimit.poolShort');
-  return t('dock.aiLimit.short', { spent: vm.spent });
+  return vm.spent;
 }
 
 function aiLimitTooltip(vm: AiLimitVM, t: Translate): string {

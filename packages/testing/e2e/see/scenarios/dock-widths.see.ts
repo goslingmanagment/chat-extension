@@ -2,7 +2,7 @@
 // by the bar's own width (and «scrolls» where its row runs past it), then Reply's hint at the second width, then
 // «Размер текста: Обычный» — the bar is the same at either text size (2026-10-22: px rules, the old 13 px buttons).
 // Fansly's composer is 600–940 px wide, ChatSpace's ~540–1020 px. The person has an AI limit, as most chatters do
-// (2026-10-31): the bar carries «ИИ $2.66 / $4.50», and folds by its own steps (`AI_*_BELOW` in ui/src/dock/styles.ts).
+// (2026-10-31): the bar carries «$2.66 / $4.50», and folds by its own steps (`AI_*_BELOW` in ui/src/dock/styles.ts).
 
 import { scenario } from '../kit';
 

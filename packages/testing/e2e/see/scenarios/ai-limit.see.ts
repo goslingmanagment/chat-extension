@@ -1,7 +1,7 @@
 // The person's own daily AI limit (`ai-limit-v1`, the owner's; Moscow day, all pages) and the team's shared pool past
-// it: the dock's «ИИ $2.90 / $3.50» in amber with the 80 % toast that names the pool, the popup's line, then Reply
-// past the own limit — «ИИ котёл $0.40» with the «свой лимит кончился» toast, «Ещё раз» spends the pool — the red
-// «ИИ до 00:00», the «кончился» toast and the CG-AI-LIMIT card counting down to 00:00 МСК.
+// it: the dock's «$2.90 / $3.50» in amber with the 80 % toast that names the pool, the popup's line, then Reply
+// past the own limit — «котёл $0.40» with the «свой лимит кончился» toast, «Ещё раз» spends the pool — the red
+// «до 00:00», the «кончился» toast and the CG-AI-LIMIT card counting down to 00:00 МСК.
 
 import { openPopup, waitForPopup } from '../../support/pages';
 import { scenario } from '../kit';

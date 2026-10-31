@@ -39,9 +39,9 @@
 //           and the chips closer still (a 320 px column, §6.5)
 //
 // A bar with the person's AI limit (2026-10-31) takes the same steps
-// earlier, measured with «ИИ $2.66 / $4.50» (~117 px of the row): tight
-// < 765, the limit short («ИИ $2.66») < 712, Recap and Coach icons < 663,
-// no seams < 620, the five icons in «Ещё» < 584; nothing scrolls above
+// earlier, measured with «$2.66 / $4.50» (~98 px of the row): tight
+// < 748, the limit short («$2.66») < 695, Recap and Coach icons < 664,
+// no seams < 621, the five icons in «Ещё» < 585; nothing scrolls above
 // ~450.
 //
 // No goose in the bar (decision X31): its cell is the room that keeps every
@@ -74,14 +74,15 @@ export const SEAMS_BELOW = 552;
 export const MORE_BELOW = 420;
 /**
  * The same steps for a bar that carries the person's AI limit (`has-ailimit`: 6 of 8 chatters on 2026-10-31), measured
- * with it on both stands: «ИИ $2.66 / $4.50» takes ~117 px of the row, so every step comes earlier, and below
- * `AI_SHORT_BELOW` the limit itself is short («ИИ $2.66», ~66 px) before Recap and Coach give up their words.
+ * with it on both stands: «$2.66 / $4.50» takes ~98 px of the row, so every step comes earlier, and below
+ * `AI_SHORT_BELOW` the limit itself is short («$2.66»; at most ~67 px, the red «до 00:00») before Recap and Coach
+ * give up their words.
  */
-export const AI_TIGHT_BELOW = 765;
-export const AI_SHORT_BELOW = 712;
-export const AI_ICONS_BELOW = 663;
-export const AI_SEAMS_BELOW = 620;
-export const AI_MORE_BELOW = 584;
+export const AI_TIGHT_BELOW = 748;
+export const AI_SHORT_BELOW = 695;
+export const AI_ICONS_BELOW = 664;
+export const AI_SEAMS_BELOW = 621;
+export const AI_MORE_BELOW = 585;
 
 /** A step of the bar, laid down twice: at its own width for every bar, and at the wider one for a bar with the AI limit. */
 function barStep(below: number, withLimit: number, rules: (strip: string) => string): string {
@@ -303,7 +304,7 @@ ${barStep(
   ${strip} .cg-tones__track { gap: 2px; }
 `,
 )}
-${/* The AI limit short: «ИИ $2.66» over its bar, the limit in the bar's fill and in the hint. */ ''}
+${/* The AI limit short: «$2.66» over its bar, the limit in the bar's fill and in the hint. */ ''}
 @container cg (max-width: ${AI_SHORT_BELOW - 1}px) {
   .cg-ailimit__long { display: none; }
   .cg-ailimit__short { display: inline; }
