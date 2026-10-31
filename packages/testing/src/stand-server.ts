@@ -229,6 +229,11 @@ const OUR_READ_PATH = /^\/api\/v0\/accounts\/\d+\/chats\/\d+\/messages$/;
 /** 2026-10-28: the paths of a fan's OnlyMonster notes, which our extension reads and writes for the open chat's fan. */
 const OUR_NOTES_PATH = /^\/api\/v0\/accounts\/\d+\/fans\/\d+\/notes(?:\/[A-Za-z0-9_-]+)?$/;
 const OUR_NOTES_METHODS = ['GET', 'POST', 'PUT', 'DELETE'];
+/**
+ * 2026-10-31 (hub #952, the owner's `onlineProbe`): the page's probe of who is online, our one `POST` to the presence
+ * endpoint ChatSpace's own poll asks; whether it kept its pace and its bounds, suite-online-probe checks.
+ */
+const OUR_PROBE_PATH = /^\/api\/v0\/accounts\/\d+\/platforms\/onlyfans\/fans-online$/;
 
 function classify(request: IncomingMessage, response: ServerResponse, nativeIds: NativeIds): Classified {
   if (request.headers[CONTROL_REQUEST_HEADER] !== undefined) return { origin: 'control' };
@@ -240,12 +245,15 @@ function classify(request: IncomingMessage, response: ServerResponse, nativeIds:
   const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
   const ourRead = OUR_READ_PATH.test(path);
   const ourNotes = OUR_NOTES_PATH.test(path);
+  const ourProbe = OUR_PROBE_PATH.test(path);
   if (request.method === 'OPTIONS') {
     // A CORS preflight carries no custom header, only their names.
     const asked = (headerText(request.headers['access-control-request-headers']) ?? '').toLowerCase().split(',').map((name) => name.trim());
     const method = headerText(request.headers['access-control-request-method']) ?? '';
-    return { origin: asked.includes(NATIVE_REQUEST_HEADER) ? 'native' : (ourRead && method === 'GET') || (ourNotes && OUR_NOTES_METHODS.includes(method)) ? 'ours' : 'foreign' };
+    return { origin: asked.includes(NATIVE_REQUEST_HEADER) ? 'native' : (ourRead && method === 'GET') || (ourNotes && OUR_NOTES_METHODS.includes(method)) || (ourProbe && method === 'POST') ? 'ours' : 'foreign' };
   }
+  // 2026-10-31: the page's probe with the page's bearer (the page's own poll names itself natively above).
+  if (ourProbe && request.method === 'POST' && request.headers.authorization !== undefined) return { origin: 'ours' };
   // X54: our read of a chat's messages with the page's bearer; whether it was the open chat's, the tests check.
   if (ourRead && request.method === 'GET' && request.headers.authorization !== undefined) return { origin: 'ours' };
   // 2026-10-28: our read or write of a fan's notes with the page's bearer; whether it was the open chat's fan, the tests check.
