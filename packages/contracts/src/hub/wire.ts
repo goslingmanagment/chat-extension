@@ -274,6 +274,8 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'onlyfans-feed-v1',
   /** 2026-11-01 (hub #955): the page's poll of ChatSpace lent to one tab (`clientOnlyfansPoll`); the feed takes `subscriber`. */
   'onlyfans-poll-v1',
+  /** 2026-11-01: the always-on ChatSpace tab's report (`clientChatspaceTabState`); only that tab sends it. */
+  'chatspace-tab-state-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

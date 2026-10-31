@@ -41,6 +41,7 @@ import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuer
 import { HandoffQuerySchema, HandoffSchema, WinBackAttemptRequestSchema, WinBackAttemptResultSchema, WinBackListSchema, WinBackQuerySchema } from './queue';
 import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineProbeRequestSchema, OnlineProbeResultSchema, OnlineQuerySchema } from './online';
 import { OnlyfansFeedRequestSchema, OnlyfansFeedResultSchema, OnlyfansPollRequestSchema, OnlyfansPollResultSchema } from './onlyfans-feed';
+import { ServerTabStateRequestSchema, ServerTabStateResultSchema } from './server-tab';
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema } from './fan-marks';
 import { FanQueueItemDoneRequestSchema, FanQueueItemDoneSchema, FanQueueReleaseRequestSchema, FanQueueReleaseSchema, FanQueuesQuerySchema, FanQueuesSchema, FanQueueTakeRequestSchema, FanQueueTakeSchema } from './fan-queues';
@@ -97,6 +98,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientOnlineProbe: { request: OnlineProbeRequestSchema, response: OnlineProbeResultSchema },
   clientOnlyfansFeed: { request: OnlyfansFeedRequestSchema, response: OnlyfansFeedResultSchema },
   clientOnlyfansPoll: { request: OnlyfansPollRequestSchema, response: OnlyfansPollResultSchema },
+  clientChatspaceTabState: { request: ServerTabStateRequestSchema, response: ServerTabStateResultSchema },
   clientOnlineAttempt: { request: OnlineAttemptRequestSchema, response: OnlineAttemptResultSchema },
   clientFanQueues: { request: FanQueuesQuerySchema, response: FanQueuesSchema },
   clientFanQueueTake: { request: FanQueueTakeRequestSchema, response: FanQueueTakeSchema },

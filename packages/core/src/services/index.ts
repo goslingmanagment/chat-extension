@@ -107,6 +107,7 @@ export {
 } from './presence';
 export { createConsentState, type ConsentDeps, type ConsentState, type ConsentStatus } from './consent';
 export { ActivityBeat, beatPagesOf, beatTabsOf, type ActivityBeatDeps, type BeatTab, type BeatTabSeen } from './activity-beat';
+export { ServerTabReport, serverTabReportOf, type ServerTabReportDeps, type ServerTabSeen } from './server-tab';
 export { createAiLimitAlerts, type AiLimitAlertDeps, type AiLimitAlerts } from './ai-limit-alerts';
 export { TalkingMarksService, talkingMarksOf, type TalkingDeps, type TalkingPage } from './talking';
 

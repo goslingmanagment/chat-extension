@@ -22,6 +22,9 @@ export const SDK_EXCLUDED_OPERATIONS = [
     // The same of a new page's browser, by its profile (PR 16).
     "pageBrowserProfileLoginScreenshot",
     "pageBrowserProfileScreen",
+    // The always-on ChatSpace tab's screen: a redirect and a KasmVNC passthrough.
+    "chatspaceBrowserScreenOpen",
+    "chatspaceBrowserScreen",
 ];
 export class KernelApiError extends Error {
     category;

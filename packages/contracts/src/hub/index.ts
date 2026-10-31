@@ -21,6 +21,7 @@ export * from './fan-marks';
 export * from './queue';
 export * from './online';
 export * from './onlyfans-feed';
+export * from './server-tab';
 export * from './fan-queues';
 export * from './routes';
 export * from './registry';

@@ -104,6 +104,8 @@ export interface StorageAreaApi {
 export interface StorageApi {
   readonly local: StorageAreaApi;
   readonly session: StorageAreaApi;
+  /** What the browser's enterprise policy says to this extension (Firefox `3rdparty.Extensions`); read only. */
+  readonly managed?: Pick<StorageAreaApi, 'get'>;
   readonly onChanged: EventApi<(changes: Record<string, StorageChangeApi>, areaName: string) => void>;
 }
 

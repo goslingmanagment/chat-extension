@@ -42,6 +42,10 @@ export interface TabPresenceReport {
   readonly fanUsername?: string | null | undefined;
   /** Chat Memory week 1: the person's last key, click or scroll in the tab; null or absent — none since it opened. */
   readonly lastInputAt?: number | null | undefined;
+  /** 2026-11-01: the route's name as the site names it; absent — an older tab. */
+  readonly routeName?: 'chat' | 'accounts-overview' | 'other' | undefined;
+  /** 2026-11-01: ChatSpace's socket coverage of each account the tap reported; absent — an older tab, or none yet. */
+  readonly coverage?: readonly { readonly hostAccountId: string; readonly covered: boolean; readonly since: number }[] | undefined;
 }
 
 export interface TabPresence {
@@ -65,6 +69,10 @@ export interface TabPresence {
   readonly fanUsername: string | null;
   /** Chat Memory week 1: the person's last input in the tab (the tab's clock, this browser's); null — none since it opened. */
   readonly lastInputAt: number | null;
+  /** 2026-11-01: the route's name as the tab last said it; null — the tab did not say. */
+  readonly routeName: 'chat' | 'accounts-overview' | 'other' | null;
+  /** 2026-11-01: ChatSpace's socket coverage per account as the tab last said it (the always-on tab's report). */
+  readonly coverage: readonly { readonly hostAccountId: string; readonly covered: boolean; readonly since: number }[];
   readonly updatedAt: number;
 }
 
@@ -217,6 +225,8 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         fanUsername: report.chat !== null && typeof report.fanUsername === 'string' && report.fanUsername.trim().replace(/^@/, '') !== '' ? report.fanUsername.trim().replace(/^@/, '') : null,
         // A report without it (an older tab) keeps what the tab said before: input never goes back in time.
         lastInputAt: Math.max(report.lastInputAt ?? -1, previous?.lastInputAt ?? -1) < 0 ? null : Math.max(report.lastInputAt ?? -1, previous?.lastInputAt ?? -1),
+        routeName: report.routeName ?? previous?.routeName ?? null,
+        coverage: report.coverage ?? previous?.coverage ?? [],
         updatedAt: now,
       });
       notify();
