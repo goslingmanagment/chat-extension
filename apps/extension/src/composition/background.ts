@@ -1403,8 +1403,26 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // ── the hub's events (wired when the hub exists) ───────────────────────────
   /** Who the things of a person in storage belong to now (set when the hub layer has read its sign-in). */
   let lastOwner: string | null = null;
+  /**
+   * The agency's always-on tab (its policy's `serverTab`): its toolbar popup never draws on the server's screen
+   * (KasmVNC), so signed out it opens the sign-in page as a tab of its own, and once signed in it brings ChatSpace's
+   * tab back to the front. Nothing of ChatSpace is touched: only which tab of the window is shown.
+   */
+  async function serverSignInPage(signedIn: boolean): Promise<void> {
+    if (!(await serverTab)) return;
+    if (!signedIn) {
+      await extensionPages.open('options', 'account');
+      return;
+    }
+    const chatspace = rpc.tabs().find((tab) => tab.request.host === 'chatspace');
+    if (chatspace !== undefined) await createTabFocus(api).focus(chatspace.tabId);
+  }
+  void barrier.ready.then(async () => {
+    if ((hubInstance?.session() ?? null) === null) await serverSignInPage(false);
+  });
   function wireHub(instance: ChatExtensionHub): void {
     instance.onSessionChange((change) => {
+      void serverSignInPage(change.session !== null);
       activity.sessionChanged();
       beatLastPage.clear();
       rpc.emit('session.changed', { session: change.session, reason: change.reason });
