@@ -18,6 +18,8 @@ export interface OutreachConditions {
   readonly active: { readonly on: boolean };
   readonly notBought: { readonly on: boolean };
   readonly noWaiting: { readonly on: boolean };
+  /** 1.70.0: «Без удалённых аккаунтов». */
+  readonly noGone: { readonly on: boolean };
 }
 
 export const DEFAULT_CONDITIONS: OutreachConditions = {
@@ -26,6 +28,9 @@ export const DEFAULT_CONDITIONS: OutreachConditions = {
   // The owner's default (2026-10-25): a fan who bought the video is not offered it again.
   notBought: { on: true },
   noWaiting: { on: false },
+  // A fan whose account the site no longer finds takes no message (a send to one ends «Не подтвердилось»): left out
+  // unless the person says otherwise (Dmitriy, 2026-11-01: «удалённый аккаунт не пометился, должен был»).
+  noGone: { on: true },
 };
 
 /** «Писал или покупал за 7 дней». */
@@ -39,6 +44,8 @@ export interface AudienceFan {
   readonly fanWroteAt: IsoTimestamp | null;
   /** The fan wrote last. */
   readonly waiting: boolean;
+  /** The site no longer finds the fan's account (deleted, or the page blocked); absent — it does. */
+  readonly gone?: boolean;
 }
 
 /** A tier: a shelf of the board with its fans in the board's order. */
@@ -97,6 +104,7 @@ export function poolOf(input: Pick<AudienceInput, 'fans' | 'tiers' | 'source'>):
 export function reasonsOf(fan: AudienceFan, input: Pick<AudienceInput, 'conditions' | 'bought' | 'recent' | 'now'>): OutreachAsideVM[] {
   const { conditions } = input;
   const reasons: OutreachAsideVM[] = [];
+  if (conditions.noGone.on && fan.gone === true) reasons.push({ kind: 'gone' });
   if (conditions.notBought.on && input.bought !== null && input.bought.has(fan.fanRef)) reasons.push({ kind: 'bought', at: input.bought.get(fan.fanRef) ?? null });
   if (conditions.noWaiting.on && fan.waiting) reasons.push({ kind: 'waiting', since: fan.fanWroteAt });
   if (conditions.spent.on && (fan.lifetime ?? 0) <= conditions.spent.minMills) reasons.push({ kind: 'spent', lifetime: fan.lifetime, min: conditions.spent.minMills });
@@ -137,10 +145,13 @@ export function audienceOf(input: AudienceInput): Audience {
   return { pool, members, ticked: members.filter((fanRef) => !input.unticked.has(fanRef)), aside };
 }
 
-/** How many conditions narrow the list now: «Whale, Top и Prime · 1 условие». `notBought` counts only while it can act. */
-export function activeConditions(conditions: OutreachConditions, paid: boolean): number {
-  const ids: readonly OutreachCondition[] = ['spent', 'active', 'notBought', 'noWaiting'];
-  return ids.filter((id) => conditions[id].on && (id !== 'notBought' || paid)).length;
+/**
+ * How many conditions narrow the list now: «Whale, Top и Prime · 1 условие». `notBought` counts only while it can act,
+ * `noGone` only while the chosen fans have a gone account.
+ */
+export function activeConditions(conditions: OutreachConditions, paid: boolean, gone = false): number {
+  const ids: readonly OutreachCondition[] = ['spent', 'active', 'notBought', 'noWaiting', 'noGone'];
+  return ids.filter((id) => conditions[id].on && (id !== 'notBought' || paid) && (id !== 'noGone' || gone)).length;
 }
 
 /** «1,000», «$1 000», «1000.50» → mills; null — not an amount. */

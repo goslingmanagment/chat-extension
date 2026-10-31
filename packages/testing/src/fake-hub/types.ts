@@ -154,6 +154,8 @@ export interface SpenderSeed {
   readonly awaiting?: boolean;
   /** The newest message's text, the row's «Последнее сообщение» (default: a stock line by the row's rank). */
   readonly preview?: string;
+  /** 1.70.0: the page's account lookup missed the fan this long ago (`accountLookupMissAt`: deleted, or the page blocked). */
+  readonly lookupMissAgoSec?: number;
 }
 
 export type FakeHubCommand =

@@ -163,6 +163,12 @@ export const SpenderListItemSchema = z.object({
     }),
   ),
   retentionStatus: z.enum(SPENDER_RETENTION_STATUSES),
+  /**
+   * 1.70.0: the latest account lookup of the fan through this page (Fansly: `/account?ids=`, the DM partner probe) did not
+   * return them — they deleted the account or blocked the page —, the time of that answer; null — it returned them, or
+   * never asked, or the list spans several pages. Absent from a hub before it.
+   */
+  accountLookupMissAt: z.optional(z.nullable(IsoTimestampSchema)),
 });
 export type SpenderListItem = z.infer<typeof SpenderListItemSchema>;
 

@@ -474,6 +474,7 @@ export class DataModel {
         messageCoverageStatus: 'complete',
         messageBackfillComplete: true,
       },
+      ...(seed.lookupMissAgoSec === undefined ? {} : { accountLookupMissAt: iso(now - seed.lookupMissAgoSec * 1000) }),
     };
   }
 
