@@ -1540,8 +1540,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     }),
   );
   rpc.handle('quota.get', ({ pageId }) => ok({ quota: hub().quotaOf(pageId) ?? scheduler.quota(pageId) }));
-  rpc.handle('quota.personal', () => {
-    const known = hub().aiLimitOf();
+  rpc.handle('quota.personal', async () => {
+    // A popup that woke the event page gets the snapshot the previous one kept, not a wait for the hub.
+    const known = await hub().aiLimitKnown();
     // Not known yet (a fresh event page, a new day): asked now, `quota.personalChanged` brings the answer.
     if (known === null) void hub().refreshAiLimit().catch(() => null);
     // A tab came: an alert the limit already called for while no tab was open is said now (once a day still).

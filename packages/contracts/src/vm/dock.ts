@@ -105,6 +105,8 @@ export interface ChipVM extends DockActionVM {
 export interface AiLimitVM {
   readonly spent: string;
   readonly limit: string;
+  /** What is left of the own limit today («$0.60»; «$0.00» past it). */
+  readonly left: string;
   readonly share: number;
   readonly level: 'ok' | 'low' | 'pool' | 'out';
   /** What is left of the shared pool («$5.39»); null — no pool or it is empty. */

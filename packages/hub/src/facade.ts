@@ -155,7 +155,7 @@ export interface HubFacadeOptions {
   readonly env: HubEnvironment;
   /** `storage.local`: `auth.token`, `auth.meta`, `cache.bootstrap`, `cache.catalog`. */
   readonly local: HubKeyValueStore;
-  /** `storage.session`: the shared Spenders board cache; null = memory only. */
+  /** `storage.session`: the shared Spenders board cache and the last AI limit; null = memory only. */
   readonly session?: HubKeyValueStore | null;
   readonly fetch: FetchLike;
   readonly clock?: HubClock;
@@ -308,7 +308,7 @@ export class ChatExtensionHub implements HubFacade {
     this.bootstrapService = new BootstrapService({ ctx: this.ctx, local: options.local, compatPageAccounts: options.compatPageAccounts ?? {}, compatPlatforms: options.compatPlatforms ?? [] });
     this.catalogService = new CatalogService(this.ctx, options.local);
     this.quota = new QuotaTracker(() => clock.now());
-    this.aiLimitTracker = new AiLimitTracker(() => clock.now());
+    this.aiLimitTracker = new AiLimitTracker(() => clock.now(), options.session ?? null);
     this.echo = new PromptEchoStore(clock, uuid);
     this.board = new SpendersBoardService(
       this.ctx,
@@ -742,6 +742,14 @@ export class ChatExtensionHub implements HubFacade {
 
   /** The person's own daily AI limit as last seen; null — not known yet, or its day is over. */
   aiLimitOf(): AiLimitSnapshot | null {
+    return this.aiLimitTracker.get();
+  }
+
+  /** As `aiLimitOf`, and after an idle unload what the previous background kept in storage.session. */
+  async aiLimitKnown(): Promise<AiLimitSnapshot | null> {
+    await this.ready;
+    if (this.custody.current() === null) return null;
+    await this.aiLimitTracker.restore();
     return this.aiLimitTracker.get();
   }
 

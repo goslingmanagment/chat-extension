@@ -35,7 +35,9 @@ export function popup(ctx: ScenarioCtx, view: VmView, patch: Partial<PopupVM> = 
         ? { fanName: FANS.hubert.name, fanUsername: FANS.hubert.username, hostAccountLabel: `OnlyMonster ${HOST_ACCOUNT_ID}`, copyIds: { hostAccountId: HOST_ACCOUNT_ID, creatorId: CREATOR_ID } }
         : null,
     quota: signedIn ? { remaining: view.s === 'offline' ? null : 12, resetsAt: iso(ctx.now + 17 * 60 * MIN), low: true } : null,
-    aiTodayLine: ctx.debug ? '$0.42 · только этот браузер' : null,
+    // The own daily AI limit; the debug variant shows a person without one.
+    aiLimit: signedIn && !ctx.debug ? { spent: '$2.90', limit: '$3.50', left: '$0.60', share: 2.9 / 3.5, level: 'low', pool: '$6.26', resetsAt: iso(ctx.now + 5 * 60 * MIN) } : null,
+    aiTodayNoLimit: signedIn && ctx.debug ? '$0.26' : null,
     newcomersCount: signedIn ? 3 : null,
     buttons: [
       button('popup.btn.spenders', { type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: true } }, { hotkey: hotkey(ctx, 'spenders') }),

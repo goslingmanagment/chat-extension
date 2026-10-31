@@ -13,7 +13,7 @@ import { type JSX } from 'preact';
 import { useState } from 'preact/hooks';
 
 import { type CgCode, type CgErrorTone } from '@cg/contracts/errors';
-import { type PopupVerdictVM, type PopupVM } from '@cg/contracts/vm';
+import { type AiLimitVM, type PopupVerdictVM, type PopupVM } from '@cg/contracts/vm';
 
 import { Button, Dot, ErrorCard, Kbd, hotkeyText, useDispatch, useI18n, useKit, useTooltip, useView } from '../kit';
 import { ChatGooseLogo, LostArt, TrioArt } from './brand/art';
@@ -249,24 +249,13 @@ function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
           </dd>
         </div>
       )}
-      {vm.aiLimit === undefined || vm.aiLimit === null ? null : (
-        <div class="pg-popup__fact" data-pg-fact="ai-limit">
+      {vm.aiLimit === undefined || vm.aiLimit === null ? null : <AiLimitFact limit={vm.aiLimit} />}
+      {vm.aiTodayNoLimit === null ? null : (
+        <div class="pg-popup__fact" data-pg-fact="ai-today" title={i18n.t('popup.aiNoLimitTooltip')}>
           <dt>{i18n.t('popup.aiLimit')}</dt>
           <dd>
-            {/* The person's own daily AI limit (the owner, 2026-10-31): the money, a thin bar, when it starts over. */}
-            <b class={`pg-popup__ailimit is-${vm.aiLimit.level}`}>{i18n.t('popup.aiLimitValue', { spent: vm.aiLimit.spent, limit: vm.aiLimit.limit })}</b>
-            <span class={`pg-popup__ailimit-bar is-${vm.aiLimit.level}`} aria-hidden="true">
-              <span style={{ width: `${Math.round(vm.aiLimit.share * 100)}%` }} />
-            </span>
-            <small class="pg-popup__by pg-popup__ailimit-note">
-              {vm.aiLimit.level === 'out'
-                ? i18n.t('popup.aiLimitOut')
-                : vm.aiLimit.level === 'pool'
-                  ? i18n.t('popup.aiLimitPool', { pool: vm.aiLimit.pool ?? '$0.00' })
-                  : vm.aiLimit.pool === null
-                    ? i18n.t('popup.aiLimitReset')
-                    : i18n.t('popup.aiLimitResetPool', { pool: vm.aiLimit.pool })}
-            </small>
+            <b>{vm.aiTodayNoLimit}</b>
+            <small class="pg-popup__by">{i18n.t('popup.aiNoLimit')}</small>
           </dd>
         </div>
       )}
@@ -295,8 +284,39 @@ function Facts({ vm }: { readonly vm: PopupVM }): JSX.Element {
           </dd>
         </div>
       )}
-      {vm.aiTodayLine === null ? null : <div class="pg-popup__fact pg-popup__fact--note">{vm.aiTodayLine}</div>}
     </dl>
+  );
+}
+
+/**
+ * The person's own daily AI limit (the owner, 2026-10-31): «$2.90 из $3.50», a bar across the card, and under it
+ * what is left and the team pool — or that the own limit is spent and AI takes from the pool, or that AI is off.
+ */
+function AiLimitFact({ limit }: { readonly limit: AiLimitVM }): JSX.Element {
+  const i18n = useI18n();
+  const [left, right] =
+    limit.level === 'out'
+      ? [i18n.t('popup.aiLimitOff'), null]
+      : limit.level === 'pool'
+        ? [i18n.t('popup.aiLimitOwnSpent'), i18n.t('popup.aiLimitPoolLeft', { pool: limit.pool ?? '$0.00' })]
+        : [i18n.t('popup.aiLimitLeft', { left: limit.left }), limit.pool === null ? i18n.t('popup.aiLimitResets') : i18n.t('popup.aiLimitPoolLeft', { pool: limit.pool })];
+  return (
+    <div class={`pg-popup__fact pg-popup__fact--ai is-${limit.level}`} data-pg-fact="ai-limit" title={i18n.t('popup.aiLimitTooltip')}>
+      <dt>{i18n.t('popup.aiLimit')}</dt>
+      <dd>
+        <b class="pg-popup__ailimit">{i18n.t('popup.aiLimitValue', { spent: limit.spent, limit: limit.limit })}</b>
+      </dd>
+      <div class="pg-popup__ailimit-meter">
+        <span class="pg-popup__ailimit-bar" aria-hidden="true">
+          {/* Past the own limit the day's limit is all spent: a full bar; what is left of the pool is said under it. */}
+          <span style={{ width: `${limit.level === 'pool' || limit.level === 'out' ? 100 : Math.round(limit.share * 100)}%` }} />
+        </span>
+        <small class="pg-popup__ailimit-line">
+          <span>{left}</span>
+          {right === null ? null : <span>{right}</span>}
+        </small>
+      </div>
+    </div>
   );
 }
 
