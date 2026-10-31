@@ -1194,7 +1194,9 @@ export class FakeHub {
             dailyLimitMicroUsd: limit?.dailyLimitMicroUsd ?? null,
             todayMicroUsd: limit?.todayMicroUsd ?? 0,
             remainingMicroUsd: limit === null ? null : Math.max(limit.dailyLimitMicroUsd - limit.todayMicroUsd, 0),
-            ...(limit === null || limit.poolMicroUsd === undefined ? {} : { poolMicroUsd: limit.poolMicroUsd, poolRemainingMicroUsd: poolLeft(limit) }),
+            // The hub sends the pool with every limit (an empty one is 0) and null without a limit.
+            poolMicroUsd: limit === null ? null : (limit.poolMicroUsd ?? 0),
+            poolRemainingMicroUsd: limit === null ? null : poolLeft(limit),
           },
         };
       }
@@ -1548,7 +1550,8 @@ function personalOf(limit: FakePersonalLimit, now: number) {
     dailyLimitMicroUsd: limit.dailyLimitMicroUsd,
     todayMicroUsd: limit.todayMicroUsd,
     remainingMicroUsd: Math.max(limit.dailyLimitMicroUsd - limit.todayMicroUsd, 0),
-    ...(limit.poolMicroUsd === undefined ? {} : { poolMicroUsd: limit.poolMicroUsd, poolRemainingMicroUsd: poolLeft(limit) }),
+    poolMicroUsd: limit.poolMicroUsd ?? 0,
+    poolRemainingMicroUsd: poolLeft(limit),
     resetsAt: new Date(nextMskMidnight(now)).toISOString(),
   };
 }
