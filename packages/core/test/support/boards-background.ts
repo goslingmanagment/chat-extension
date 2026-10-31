@@ -29,6 +29,7 @@ import {
   type SendBegin,
   type SessionIdentity,
   type SettingsV1,
+  type SpenderDetail,
   type SpenderListItem,
   type SpendersBoard,
   type SpendersPage,
@@ -408,10 +409,14 @@ export class BoardsBackground {
       if (answer.status >= 200 && answer.status <= 299) return ok({ dossier: answer.body as Dossier });
       return fail(this.wireOf('pageFanProfile', answer, null, true));
     },
-    'fan.card': ({ pageId, fanRef, period }) => {
+    'fan.card': async ({ pageId, fanRef, period }) => {
       const pageLabel = this.pageLabel(pageId);
-      if (pageLabel === null) return Promise.resolve(fail({ code: 'CG-BINDING-NOT-GRANTED' }));
-      return this.read('spenderDetail', { platform: 'onlyfans', platformUserId: fanRef, scope: 'page', pageLabel, period }, true);
+      if (pageLabel === null) return fail({ code: 'CG-BINDING-NOT-GRANTED' });
+      // The facade's `spenderDetail`: a fan the hub does not know is «no money to show» (null), not an error.
+      const answer = await this.options.call('spenderDetail', { platform: 'onlyfans', platformUserId: fanRef, scope: 'page', pageLabel, period });
+      if (answer.status === 404) return ok(null);
+      if (answer.status >= 200 && answer.status <= 299) return ok(answer.body as SpenderDetail);
+      return fail(this.wireOf('spenderDetail', answer, null, true));
     },
     // Chat Memory week 2: the fan's card, «Да / Нет», a fact changed — as the background's hub-data routes.
     'fan.memory': ({ pageId, fanRef }) => {

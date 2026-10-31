@@ -156,7 +156,8 @@ export interface HubFacade {
   /** H-5: an idempotent server-side link write, never a new generation. */
   profileFromGeneration(request: ProfileFromGenerationRequest): Promise<ProfileSaveOutcome>;
   spenders(query: SpendersQuery): Promise<SpendersPage>;
-  spenderDetail(query: SpenderDetailQuery): Promise<SpenderDetail>;
+  /** null: the hub knows no such fan on the page. */
+  spenderDetail(query: SpenderDetailQuery): Promise<SpenderDetail | null>;
   spenderBatch(query: SpenderBatchQuery): Promise<SpenderBatch>;
   autoLists(pageLabel: string): Promise<AutoLists>;
   /** H-8b. */
