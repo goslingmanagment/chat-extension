@@ -16,7 +16,7 @@ import type { HostPort } from '@cg/contracts/host';
 import type { HostKind } from '@cg/contracts/hosts';
 import type { HostAccount } from '@cg/contracts/ids';
 import { TabRegisterResponseSchema } from '@cg/contracts/tab-protocol';
-import { createTabRpcClient, defaultBrowser, extensionUrl, extensionVersionOf, isExtensionContextAlive, type BrowserApi, type TabPayloadValidator } from '@cg/platform';
+import { createTabRpcClient, defaultBrowser, extensionUrl, extensionVersionOf, isExtensionContextAlive, readServerTab, type BrowserApi, type TabPayloadValidator } from '@cg/platform';
 
 import type { LazyEntryName } from '../../../lazy/entries/names';
 import type * as TabProtocolChunk from '../../../lazy/entries/tab-protocol';
@@ -390,6 +390,10 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
   // The host's own signal goes with the host (its route watcher is disposed with the port); `wake` checks `life`.
   host.wantsApp?.onChange(onMounts);
   onMounts();
+  // The agency's always-on ChatSpace tab (its Firefox policy's `serverTab`; hub apps/chatspace-browser) sits on
+  // ChatSpace's Accounts Overview, where no composer ever comes: its application — the OnlyFans feed's forwarding and the
+  // page's poll with it — starts at once. A chatter's Firefox has no policy for us: nothing changes there.
+  if (env.kind === 'chatspace') void readServerTab(api ?? defaultBrowser()).then((server) => server && wake());
 
   return {
     // A token is spent by the application that issued it; without it nothing is written.
