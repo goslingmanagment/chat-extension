@@ -908,13 +908,19 @@ export class ChatExtensionHub implements HubFacade {
     return (await this.coalesced('spenders', query, () => this.ctx.sdk('spenders', { query }, { facts: { pageLabel: query.pageLabel } }))) as SpendersPage;
   }
 
-  async spenderDetail(query: SpenderDetailQuery): Promise<SpenderDetail> {
+  async spenderDetail(query: SpenderDetailQuery): Promise<SpenderDetail | null> {
     await this.ready;
     await this.guard('spenderDetail', query.pageLabel, query);
     const { platform, platformUserId, ...rest } = query;
-    return (await this.coalesced('spenderDetail', query, () =>
-      this.ctx.sdk('spenderDetail', { params: { platform, platformUserId }, query: rest }, { facts: { pageLabel: query.pageLabel, fanLookup: true } }),
-    )) as SpenderDetail;
+    try {
+      return (await this.coalesced('spenderDetail', query, () =>
+        this.ctx.sdk('spenderDetail', { params: { platform, platformUserId }, query: rest }, { facts: { pageLabel: query.pageLabel, fanLookup: true } }),
+      )) as SpenderDetail;
+    } catch (error) {
+      // A fan the hub does not know (one who came after its sources of the page stopped): nothing to say of their money, and no failure.
+      if (error instanceof FacadeCallError && error.resolution?.disposition === 'empty') return null;
+      throw error;
+    }
   }
 
   async spenderBatch(query: SpenderBatchQuery): Promise<SpenderBatch> {

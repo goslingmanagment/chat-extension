@@ -669,8 +669,11 @@ export const TAB_REQUESTS = {
     res: FeedPageSchema,
     from: TAB,
   },
-  /** The fan panel's money (D-29): `period` '30d' gives the window and the lifetime in one read. */
-  'fan.card': { req: z.strictObject({ ...PageFan, period: SpendersPeriodSchema }), res: SpenderDetailSchema, from: TAB },
+  /**
+   * The fan panel's money (D-29): `period` '30d' gives the window and the lifetime in one read. null — the hub knows no
+   * such fan on the page (one who came after its sources stopped): no money to show, and no failure.
+   */
+  'fan.card': { req: z.strictObject({ ...PageFan, period: SpendersPeriodSchema }), res: z.nullable(SpenderDetailSchema), from: TAB },
   /** The fan panel's dossier (D-29: `pageConversationProfile` / `pageFanProfile`); null — the hub knows no profile. */
   'fan.dossier': { req: z.strictObject(PageFan), res: z.strictObject({ dossier: z.nullable(DossierSchema) }), from: TAB },
   /** Chat Memory week 2: the fan's card across pages («Память» of the fan panel). */

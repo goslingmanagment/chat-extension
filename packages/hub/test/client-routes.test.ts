@@ -287,6 +287,16 @@ describe('R20 F6b: the reads by conversation (architecture §11.1, hub HF-10)', 
   });
 });
 
+describe('the fan panel\'s money (`spenderDetail`)', () => {
+  it('a fan the hub does not know (404) is no money to show, not a failure; any other refusal stays one', async () => {
+    const query = { platform: 'onlyfans', platformUserId: WORLD.otherFan, scope: 'page', pageLabel: PAGE, period: 'lifetime' } as const;
+    h.hub.on('spenderDetail', () => hubError(404, 'not_found'));
+    await expect(h.facade.spenderDetail(query)).resolves.toBeNull();
+    h.hub.on('spenderDetail', () => hubError(503, 'service_unavailable'));
+    expect(isHubCallError(await h.facade.spenderDetail({ ...query, period: '30d' }).catch((reason: unknown) => reason))).toBe(true);
+  });
+});
+
 describe('«Онлайн» (hub #879, `online-v1`): the list, a Fansly tab\'s report, a chatter\'s action', () => {
   const FANSLY_PAGE = WORLD.pages.fansly.pageLabel;
   const FAN = '920000000000000031';
