@@ -191,8 +191,12 @@ export const BOOTSTRAP_ALL_OFF: Bootstrap = {
   capabilities: [],
 };
 
-/** Pilot flags: everything but X8 send and its AI mark (previewSend waits for its gates, §6.7.13). */
-export const PILOT_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated'];
+/**
+ * Pilot flags: everything but X8 send and its AI mark (previewSend waits for its gates, §6.7.13), and «Онлайн»'s probe
+ * of OnlyMonster (`onlineProbe`, hub #952): the owner's switch, off unless he sets it, as on the hub — the suites that
+ * account for every request of the tab keep it silent, and suite-online-probe turns it on to hold its pace and bounds.
+ */
+export const PILOT_FLAGS_OFF: readonly ClientFeatureFlag[] = ['previewSend', 'previewSendMarkAiGenerated', 'onlineProbe'];
 /** The pilot's switches of the OnlyFans pages: every flag OnlyFans has but X8's two. */
 export const PILOT_FLAGS_ON: readonly ClientFeatureFlag[] = CLIENT_FEATURE_FLAG_NAMES.filter((flag) => HUB_FEATURE_REQUIREMENTS[flag].onlyfans !== undefined && !PILOT_FLAGS_OFF.includes(flag));
 const pilotFlags = Object.fromEntries(CLIENT_FEATURE_FLAG_NAMES.map((flag) => [flag, PILOT_FLAGS_ON.includes(flag)]));
