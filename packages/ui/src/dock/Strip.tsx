@@ -92,16 +92,21 @@ function Quota({ count, text }: { readonly count: number; readonly text: string 
 }
 
 /**
- * `ai-limit-v1`: the person's own daily AI limit — «ИИ $1.20 / $3.50» over a thin bar on the bar's right, amber from
- * 80 %, «ИИ котёл $5.39» in amber while it takes from the team's shared pool, red when both are spent («ИИ до 00:00»).
- * Its hint says it in words whatever the hints setting is.
+ * `ai-limit-v1`: the person's own daily AI limit — «$1.20 / $3.50» over a thin bar on the bar's right, amber from
+ * 80 %, «котёл $5.39» in amber while it takes from the team's shared pool, red when both are spent («до 00:00»).
+ * No «ИИ» before it (the owner, 2026-10-31: no extra words, the hint tells the rest). On a narrower composer it is
+ * short — «$1.20», «котёл»: the bar's fill is the share (in full it ran out of a ~690 px Fansly composer). Its hint
+ * says it in words whatever the hints setting is.
  */
-function AiLimit({ vm, text, tooltip }: { readonly vm: AiLimitVM; readonly text: string; readonly tooltip: string }): JSX.Element {
+function AiLimit({ vm, text, short, tooltip }: { readonly vm: AiLimitVM; readonly text: string; readonly short: string; readonly tooltip: string }): JSX.Element {
   const tip = useTooltip(tooltip);
   return (
     <>
       <span class={`cg-ailimit is-${vm.level}`} role="img" aria-label={tooltip} {...tip.props}>
-        <span class="cg-ailimit__t cg-num">{text}</span>
+        <span class="cg-ailimit__t cg-num">
+          <span class="cg-ailimit__long">{text}</span>
+          <span class="cg-ailimit__short">{short}</span>
+        </span>
         <span class="cg-ailimit__bar" aria-hidden="true">
           <span style={{ width: `${Math.round(vm.share * 100)}%` }} />
         </span>
@@ -117,6 +122,12 @@ function aiLimitText(vm: AiLimitVM, t: Translate): string {
   if (vm.level === 'out') return t('dock.aiLimit.out');
   if (vm.level === 'pool') return t('dock.aiLimit.pool', { pool: vm.pool ?? '$0.00' });
   return t('dock.aiLimit.label', { spent: vm.spent, limit: vm.limit });
+}
+
+function aiLimitShort(vm: AiLimitVM, t: Translate): string {
+  if (vm.level === 'out') return t('dock.aiLimit.out');
+  if (vm.level === 'pool') return t('dock.aiLimit.poolShort');
+  return vm.spent;
 }
 
 function aiLimitTooltip(vm: AiLimitVM, t: Translate): string {
@@ -329,6 +340,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
 
   // ── the quota: a count at the goose's corner, its words in the hint ──
   const quota = quotaSlot(vm);
+  const aiLimit = vm.aiLimit ?? null;
   const remaining = vm.quota?.remaining ?? 0;
   const resets = vm.quota?.resetsAt ?? null;
   // «Обновится в 03:00 по Москве» names its zone, so that time is Moscow's wherever the chatter sits.
@@ -358,7 +370,7 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
   return (
     <div
       ref={bar}
-      class={vm.statusWords ? 'cg-strip has-status' : 'cg-strip'}
+      class={`cg-strip${vm.statusWords ? ' has-status' : ''}${aiLimit === null ? '' : ' has-ailimit'}`}
       role="toolbar"
       aria-label={t('dock.label')}
       aria-orientation="horizontal"
@@ -439,12 +451,8 @@ export function Strip({ vm, onRefused }: StripProps): JSX.Element {
           </span>
         ) : null}
         {windows.length === 0 ? null : <span class={DOCK_GROUP_SLOT[WINDOWS]}>{windows.map(chipButton)}</span>}
-        {vm.aiLimit === undefined || vm.aiLimit === null ? null : (
-          <AiLimit
-            vm={vm.aiLimit}
-            text={aiLimitText(vm.aiLimit, t)}
-            tooltip={aiLimitTooltip(vm.aiLimit, t)}
-          />
+        {aiLimit === null ? null : (
+          <AiLimit vm={aiLimit} text={aiLimitText(aiLimit, t)} short={aiLimitShort(aiLimit, t)} tooltip={aiLimitTooltip(aiLimit, t)} />
         )}
         {vm.paletteHotkey === null ? null : <Word class="cg-hint" text={hotkeyText(vm.paletteHotkey)?.display ?? ''} tooltip={hints ? t('dock.paletteHint.tooltip') : null} />}
       </div>

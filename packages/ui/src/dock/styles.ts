@@ -38,6 +38,12 @@
 //           line; «Ещё» is ⋯ and holds Voice too,
 //           and the chips closer still (a 320 px column, §6.5)
 //
+// A bar with the person's AI limit (2026-10-31) takes the same steps
+// earlier, measured with «$2.66 / $4.50» (~98 px of the row): tight
+// < 748, the limit short («$2.66») < 695, Recap and Coach icons < 664,
+// no seams < 621, the five icons in «Ещё» < 585; nothing scrolls above
+// ~450.
+//
 // No goose in the bar (decision X31): its cell is the room that keeps every
 // chip on a ~540 px composer, as on a 1512 px window with ChatSpace's side
 // panel open.
@@ -66,6 +72,23 @@ export const TIGHT_BELOW = 648;
 export const ICONS_BELOW = 596;
 export const SEAMS_BELOW = 552;
 export const MORE_BELOW = 420;
+/**
+ * The same steps for a bar that carries the person's AI limit (`has-ailimit`: 6 of 8 chatters on 2026-10-31), measured
+ * with it on both stands: «$2.66 / $4.50» takes ~98 px of the row, so every step comes earlier, and below
+ * `AI_SHORT_BELOW` the limit itself is short («$2.66»; at most ~67 px, the red «до 00:00») before Recap and Coach
+ * give up their words.
+ */
+export const AI_TIGHT_BELOW = 748;
+export const AI_SHORT_BELOW = 695;
+export const AI_ICONS_BELOW = 664;
+export const AI_SEAMS_BELOW = 621;
+export const AI_MORE_BELOW = 585;
+
+/** A step of the bar, laid down twice: at its own width for every bar, and at the wider one for a bar with the AI limit. */
+function barStep(below: number, withLimit: number, rules: (strip: string) => string): string {
+  return `@container cg (max-width: ${below - 1}px) {${rules('.cg-strip')}}
+@container cg (max-width: ${withLimit - 1}px) {${rules('.cg-strip:where(.has-ailimit)')}}`;
+}
 
 export const DOCK_CSS = `
 ${/* The bar is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. In the dock the gutter is the number cell of a draft card. */ ''}
@@ -118,6 +141,7 @@ ${/* The person's own daily AI limit (the owner, 2026-10-31): money over a thin 
 .cg-ailimit__t { font-family: var(--cg-mono); font-size: var(--cg-text-2xs); line-height: 12px; font-weight: 600; color: var(--cg-ink-2); white-space: nowrap; }
 .cg-ailimit__bar { display: block; width: 100%; min-width: 64px; height: 3px; border-radius: var(--cg-r-pill); background: var(--cg-rule-3); overflow: hidden; }
 .cg-ailimit__bar > span { display: block; height: 100%; border-radius: inherit; background: var(--cg-good-ink); }
+.cg-ailimit__short { display: none; }
 .cg-ailimit.is-low .cg-ailimit__t, .cg-ailimit.is-pool .cg-ailimit__t { color: var(--cg-amber-ink); }
 .cg-ailimit.is-low .cg-ailimit__bar > span, .cg-ailimit.is-pool .cg-ailimit__bar > span { background: var(--cg-amber-ink); }
 .cg-ailimit.is-out .cg-ailimit__t { color: var(--cg-danger); }
@@ -266,38 +290,56 @@ ${/* ── narrow composer (ui-design §3.3): px of the dock's own width, whate
   ${/* While the chat loads the status in the windows' place is its spinner alone. */ ''}
   .cg-status-word .cg-short { ${VISUALLY_HIDDEN} }
 }
-@container cg (max-width: ${TIGHT_BELOW - 1}px) {
-  .cg-strip__opts { padding-left: 4px; }
-  .cg-strip .cg-div { margin: 0 2px; }
+${barStep(
+  TIGHT_BELOW,
+  AI_TIGHT_BELOW,
+  (strip) => `
+  ${strip} .cg-strip__opts { padding-left: 4px; }
+  ${strip} .cg-div { margin: 0 2px; }
   ${/* The words' chips 6 px in (2026-10-23): every word, «Онлайн» on the bar, still fits a ~595 px composer; an icon's chip keeps its own width. */ ''}
-  .cg-strip .cg-act:not(.cg-opt) { padding: 0 6px; }
-  .cg-strip .cg-slot--voice .cg-act--ico, .cg-strip .cg-slot--boards .cg-act--ico { padding: 0; }
+  ${strip} .cg-act:not(.cg-opt) { padding: 0 6px; }
+  ${strip} .cg-slot--voice .cg-act--ico, ${strip} .cg-slot--boards .cg-act--ico { padding: 0; }
   ${/* 22 px cells 2 px apart: a tone stays a target of its own, 24 px from the next one (WCAG 2.5.8). */ ''}
-  .cg-tones .cg-opt { width: 22px; }
-  .cg-tones__track { gap: 2px; }
+  ${strip} .cg-tones .cg-opt { width: 22px; }
+  ${strip} .cg-tones__track { gap: 2px; }
+`,
+)}
+${/* The AI limit short: «$2.66» over its bar, the limit in the bar's fill and in the hint. */ ''}
+@container cg (max-width: ${AI_SHORT_BELOW - 1}px) {
+  .cg-ailimit__long { display: none; }
+  .cg-ailimit__short { display: inline; }
+  .cg-ailimit__bar { min-width: 0; }
 }
-@container cg (max-width: ${ICONS_BELOW - 1}px) {
+${barStep(
+  ICONS_BELOW,
+  AI_ICONS_BELOW,
+  (strip) => `
   ${/* Recap and Coach too: below here their words no longer fit the bar. */ ''}
-  .cg-strip .cg-slot--two .cg-act--ico { width: 30px; padding: 0; }
-  .cg-slot--two .cg-act--ico > .cg-ico { display: block; }
-  .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
-}
-@container cg (max-width: ${MORE_BELOW - 1}px) {
+  ${strip} .cg-slot--two .cg-act--ico { width: 30px; padding: 0; }
+  ${strip} .cg-slot--two .cg-act--ico > .cg-ico { display: block; }
+  ${strip} .cg-slot--two .cg-act--ico > .cg-act__t { ${VISUALLY_HIDDEN} }
+`,
+)}
+${barStep(
+  MORE_BELOW,
+  AI_MORE_BELOW,
+  (strip) => `
   ${/* The five icons go into «Ещё» at once: the windows alone would give back less than «Ещё» takes. Nothing scrolls then, and «Ещё» opens above the bar. */ ''}
-  .cg-strip { overflow: visible; }
-  .cg-slot--two, .cg-slot--boards { display: none; }
-  .cg-slot--more { display: inline-flex; }
+  ${strip} { overflow: visible; }
+  ${strip} .cg-slot--two, ${strip} .cg-slot--boards { display: none; }
+  ${strip} .cg-slot--more { display: inline-flex; }
   ${/* At the narrowest the status spinner takes «Ещё»'s place while the chat loads. */ ''}
-  .cg-strip.has-status .cg-slot--more { display: none; }
-}
+  ${strip}.has-status .cg-slot--more { display: none; }
+`,
+)}
 @container cg (max-width: 600px) {
   .cg-refresh .cg-btn__t { ${VISUALLY_HIDDEN} }
   .cg-op { grid-template-columns: calc(var(--cg-gutter) - 1px) minmax(0, 1fr) 44px auto; }
   .cg-op__feat { display: none; }
 }
-@container cg (max-width: ${SEAMS_BELOW - 1}px) {
-  .cg-strip .cg-div { display: none; }
-}
+${barStep(SEAMS_BELOW, AI_SEAMS_BELOW, (strip) => `
+  ${strip} .cg-div { display: none; }
+`)}
 @container cg (max-width: 420px) {
   .cg-head { gap: 6px; padding-left: 10px; }
   .cg-head__meta, .cg-head__recap { display: none; }

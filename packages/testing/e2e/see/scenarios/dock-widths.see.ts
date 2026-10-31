@@ -1,12 +1,13 @@
 // The dock's bar on narrower composers (the narrow rules of ui/src/dock/styles.ts): a picture per window width, named
 // by the bar's own width (and «scrolls» where its row runs past it), then Reply's hint at the second width, then
 // «Размер текста: Обычный» — the bar is the same at either text size (2026-10-22: px rules, the old 13 px buttons).
-// Fansly's composer is 600–940 px wide, ChatSpace's ~540–1020 px.
+// Fansly's composer is 600–940 px wide, ChatSpace's ~540–1020 px. The person has an AI limit, as most chatters do
+// (2026-10-31): the bar carries «$2.66 / $4.50», and folds by its own steps (`AI_*_BELOW` in ui/src/dock/styles.ts).
 
 import { scenario } from '../kit';
 
-/** Window widths, the widest first; on Fansly the bars are ~670, ~630, ~612 (a 1512 px Mac's chat), ~570, ~520, ~480 and ~460 px. */
-const WINDOWS = { fansly: [1130, 1065, 1035, 960, 880, 812, 782], chatspace: [1300, 1040, 960, 900] } as const;
+/** Window widths, the widest first; on Fansly the bars are ~773, ~723, ~687, ~670, ~630, ~612 (a 1512 px Mac's chat), ~570, ~520, ~480 and ~460 px. */
+const WINDOWS = { fansly: [1280, 1220, 1160, 1130, 1065, 1035, 960, 880, 812, 782], chatspace: [1300, 1140, 1040, 960, 900] } as const;
 /** «Обычный»: the mockup's window and Fansly's 1728 px one (a ~620 px composer). */
 const NORMAL_WINDOWS = [1440, 1040] as const;
 const HEIGHT = 900;
@@ -42,5 +43,11 @@ scenario(
     await s.ready();
     for (const width of NORMAL_WINDOWS) await shootAt(width, 'normal');
   },
-  { sites: ['fansly', 'chatspace'], viewport: { width: WINDOWS.fansly[0], height: HEIGHT } },
+  {
+    sites: ['fansly', 'chatspace'],
+    viewport: { width: WINDOWS.fansly[0], height: HEIGHT },
+    before: async (s) => {
+      await s.hub.command({ op: 'config', patch: { personalAiLimit: { dailyLimitMicroUsd: 4_500_000, todayMicroUsd: 2_660_000, perCallMicroUsd: 700_000 } } });
+    },
+  },
 );
