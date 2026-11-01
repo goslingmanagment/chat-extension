@@ -164,13 +164,34 @@ const isoOrNull = (at: number | null): string | null => (at === null ? null : is
 /** An OnlyFans id the platform gave for a name («u285080777»): no name. */
 const AUTO_NAME = /^u\d+$/i;
 
+/** Latin letters that hold their mark, and small capitals (hub `PLAIN_LETTERS`, shared/name-spelling.ts). */
+const PLAIN_LETTERS: Readonly<Record<string, string>> = {
+  ı: 'i', ł: 'l', Ł: 'L', ø: 'o', Ø: 'O', đ: 'd', Đ: 'D', ð: 'd', Ð: 'D',
+  þ: 'th', Þ: 'Th', ß: 'ss', ẞ: 'SS', æ: 'ae', Æ: 'Ae', œ: 'oe', Œ: 'Oe',
+  ħ: 'h', Ħ: 'H', ŧ: 't', Ŧ: 'T', ŋ: 'ng', Ŋ: 'Ng', ƒ: 'f',
+  ᴀ: 'a', ʙ: 'b', ᴄ: 'c', ᴅ: 'd', ᴇ: 'e', ꜰ: 'f', ɢ: 'g', ʜ: 'h', ɪ: 'i', ᴊ: 'j',
+  ᴋ: 'k', ʟ: 'l', ᴍ: 'm', ɴ: 'n', ᴏ: 'o', ᴘ: 'p', ʀ: 'r', ꜱ: 's', ᴛ: 't', ᴜ: 'u',
+  ᴠ: 'v', ᴡ: 'w', ʏ: 'y', ᴢ: 'z',
+};
+const PLAIN_LETTER = new RegExp(`[${Object.keys(PLAIN_LETTERS).join('')}]`, 'gu');
+
+/** A name typed plain (hub `plainLatinSpelling`): Çağlar → Caglar, 𝓜𝓲𝓴𝓮 → Mike; other scripts as they are. */
+function plainLatinSpelling(text: string): string {
+  return text
+    .normalize('NFKC')
+    .replace(PLAIN_LETTER, (letter) => PLAIN_LETTERS[letter] ?? letter)
+    .normalize('NFD')
+    .replace(/(\p{Script=Latin})\p{M}+/gu, '$1')
+    .normalize('NFC');
+}
+
 /**
  * The name a guide's text puts instead of «love» (hub `greetingNameOf`): the first word of letters of the display
- * name, else of the username, 2 to 20 letters, capitalised; null — «love» stays.
+ * name, else of the username, 2 to 20 letters, capitalised and typed plain; null — «love» stays.
  */
 export function greetingNameOf(displayName: string | null, username: string | null): string | null {
   for (const value of [displayName, username]) {
-    const text = value?.trim() ?? '';
+    const text = plainLatinSpelling(value?.trim() ?? '');
     if (text === '' || AUTO_NAME.test(text)) continue;
     const word = /\p{L}+/u.exec(text)?.[0] ?? null;
     if (word !== null && word.length >= 2 && word.length <= 20) return word.charAt(0).toUpperCase() + word.slice(1);
