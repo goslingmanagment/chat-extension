@@ -234,6 +234,26 @@ describe('[host:fansly] «Рассылки» on the hub: one send per fan, whoev
     expect(again.sent).toEqual([]);
   });
 
+  it('a reload while the hub does not answer never sends this computer\'s copy over a colleague\'s newer text; his text comes in once it answers', async () => {
+    const model = new OutreachModel();
+    const store = memoryStore();
+    const first = tab(model, ME, { store });
+    await first.written();
+    first.outreach.dispose();
+    await settle(16);
+    const id = idOf(model);
+    // Grisha rewrote the common text on his computer meanwhile.
+    model.save(PAGE, GRISHA, id, { text: 'the sunset set is up, part two' }, NOW_MS + 3_000);
+    const again = tab(model, ME, { store, start: NOW_MS + 5_000 });
+    again.hub.offline = true;
+    await again.later(70_000);
+    again.hub.offline = false;
+    await again.later(70_000);
+    const kept = model.get(PAGE, ME.id, id, again.clock.now());
+    expect(kept.ok && kept.body.text).toBe('the sunset set is up, part two');
+    expect(again.vm().text).toBe('the sunset set is up, part two');
+  });
+
   it("a colleague's outreach is in «Рассылки» with its author, and opens where it was left", async () => {
     const model = new OutreachModel();
     model.seed(PAGE, { id: '22222222-3333-4444-8555-666666666666', author: GRISHA, text: 'new set, the gym one', agoMin: 30, fans: [{ fanRef: WHALE, version: 'hey Jamie, the gym one is up', sent: { agoMin: 20 } }, { fanRef: TOP, version: 'Daniel, leg day pics are up' }] }, NOW_MS);

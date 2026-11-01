@@ -406,6 +406,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   let pending: OutreachStoreSaveBody | null = null;
   /** The last save the hub refused as it was: not sent again unchanged. */
   let refusedSave = '';
+  /** The hub's copy has not been read since the window took this computer's (a reload while it did not answer). */
+  let needPull = false;
   let pushTimer: number | null = null;
   let pushing: Promise<void> | null = null;
   /** The hub did not answer: since when; null — it did. */
@@ -1292,7 +1294,10 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     locked = saved.locked === null ? null : [...saved.locked];
     author = saved.author;
     synced = saved.synced;
-    base = null;
+    // What the window restored is what it changes from: a save sends only the person's changes since (and the save
+    // kept here first), never this computer's whole copy over the hub's newer one; the hub's copy comes in on the read.
+    base = saved.synced ? saved : null;
+    needPull = saved.synced;
     pending = pendingBody(saved.pending);
     refusedSave = '';
     inFlight = new Set();
@@ -1530,6 +1535,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       takeHub(answer.value);
     }
     await flushReports(page, outreachId, atEpoch);
+    // The hub answers again after a reload it did not answer: its copy comes in now, not only when the window opens.
+    if (needPull && hubOn() && currentId === outreachId) void Promise.resolve().then(() => pull());
   }
 
   /** Every send the hub is to be told of: its report, or the record of one made without a claim. */
@@ -1822,17 +1829,21 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (disposed || atEpoch !== epoch || currentId !== outreachId) return;
     if (!answer.ok) {
       if (answer.kind === 'off') hubOff = true;
-      else if (answer.kind === 'offline') offlineSince ??= clock.now();
-      else {
+      else if (answer.kind === 'offline') {
+        needPull = true;
+        wentOffline();
+      } else {
         // Not on the hub (gone after 90 days untouched): the next save makes it again.
         synced = false;
         base = null;
+        needPull = false;
         schedulePush(0);
       }
       changed(true);
       return;
     }
     cameBack();
+    needPull = false;
     if (base === null && !(locked ?? []).some((fanRef) => MOVING.includes(factsOf(fanRef).state))) {
       const remote = fromHub(answer.value, owner, clock.now(), { names: keptNames, folded: minimized || surfaces.current().outreach });
       if (remote !== null) {
@@ -1840,6 +1851,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         restoreFrom(remote);
         lastCard = card;
         base = remote;
+        needPull = false;
         inFlight = inFlightOf(answer.value, clock.now());
         changed();
         await flushReports(page, outreachId, atEpoch);
@@ -1991,6 +2003,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       if (answer.ok && remote !== null) {
         restoreFrom(remote);
         base = remote;
+        needPull = false;
         inFlight = inFlightOf(answer.value, clock.now());
         // A save this computer kept of it goes after.
         pending = pendingBody(local?.pending ?? null);
@@ -2721,6 +2734,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     author = null;
     synced = false;
     base = null;
+    needPull = false;
     pending = null;
     refusedSave = '';
     inFlight = new Set();
