@@ -24,7 +24,7 @@ import { OUTREACH_FIX_CAPABILITY, OUTREACH_STORE_CAPABILITY } from '@cg/contract
 import { type IsoTimestamp, type MoneyMills } from '@cg/contracts/primitives';
 import {
   OUTREACH_STORE_TOUCH_MS,
-  OutreachStoreSaveBodySchema,
+  OutreachStoreSaveDraftSchema,
   OutreachStoreSendBodySchema,
   type OutreachStoreFan,
   type OutreachStoreOutreach,
@@ -73,8 +73,10 @@ import {
   mediaWire,
   patchOf,
   reportOf,
-  sendRank,
+  furtherSend,
+  mergeSaves,
   textKey,
+  withLocalSends,
   mergeOutreachStores,
   outreachOwner,
   outreachesOf,
@@ -465,6 +467,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       editedBy.delete(fanRef);
       held.delete(fanRef);
       cardKnown.delete(fanRef);
+      adoptedCards.delete(fanRef);
       return batchPort.batchStart('outreach', handle, 'fix', { draft: text });
     },
     live: (handle) => batchPort?.batchLive(handle) ?? null,
@@ -1163,6 +1166,21 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
 
   /** ChatSpace: the version and the words a fan's card showed last (a card's result runs out in 30 minutes; the hub keeps it). */
   const cardKnown = new Map<string, { readonly fix: string; readonly edit: string | null }>();
+  /**
+   * ChatSpace: cards whose text the window put there from the hub (outreachAdopt): the text that goes (the words, else
+   * the version), and Fix's version and the words it stands for — such a card shows one text and cannot be edited.
+   */
+  const adoptedCards = new Map<string, { readonly fix: string; readonly edit: string | null; readonly shown: string }>();
+  /** ChatSpace: the outreach's vault media the hub keeps, until the preview takes them as the outreach's picks. */
+  let heldMedia: SavedMedia | null | undefined;
+  /** Sends whose claim at the hub is on its way: the window does not switch outreaches under them. */
+  const claiming = new Set<string>();
+
+  /** The preview takes the outreach's media the hub keeps (ChatSpace), once it can. */
+  function applyHeldMedia(): void {
+    if (own !== null || heldMedia === undefined || batchPort?.outreachRestoreMedia === undefined) return;
+    if (batchPort.outreachRestoreMedia(heldMedia)) heldMedia = undefined;
+  }
 
   /** The window's outreach as it is now, to keep (`pending` aside: the save holds it). */
   function snapshot(owner: string): SavedOutreach {
@@ -1200,7 +1218,15 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         edit = edits.get(fanRef) ?? null;
       } else {
         const card = batchPort?.outreachRow?.(handle) ?? null;
-        if (card !== null) cardKnown.set(fanRef, { fix: card.fix, edit: card.edited ? card.text : null });
+        if (card !== null) {
+          // A card the window filled from the hub shows one text: the version and the words it stands for are the hub's.
+          const adopted = adoptedCards.get(fanRef);
+          if (adopted !== undefined && !card.edited && card.fix === adopted.shown) cardKnown.set(fanRef, { fix: adopted.fix, edit: adopted.edit });
+          else {
+            if (adopted !== undefined) adoptedCards.delete(fanRef);
+            cardKnown.set(fanRef, { fix: card.fix, edit: card.edited ? card.text : null });
+          }
+        }
         const known = cardKnown.get(fanRef);
         const hold = held.get(fanRef);
         const claim = cardClaims.get(fanRef);
@@ -1212,8 +1238,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         else if (facts.state === 'sent' || facts.state === 'uncertain' || facts.state === 'accepted' || facts.state === 'sending') {
           send = { state: facts.state === 'sent' ? 'sent' : 'uncertain', code: null, clickedAt: timeOf(facts.clickedAt), at: timeOf(facts.sentAt), text: facts.version, media: mediaOfVm(facts.media), attemptId: null, claimed: false, reported: false, by: null, messageId: null };
         }
-        version = card?.fix ?? known?.fix ?? hold?.text ?? fix;
-        edit = card !== null ? (card.edited ? card.text : null) : (known?.edit ?? hold?.edit ?? null);
+        version = known?.fix ?? hold?.text ?? fix;
+        edit = known !== undefined ? known.edit : (hold?.edit ?? null);
       }
       const outcome = outcomes.get(fanRef);
       fans.push({
@@ -1243,7 +1269,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       unticked: [...unticked],
       items: own === null ? [] : items.map(({ contentType, contentId }) => ({ contentType, contentId })),
       picked: own === null ? [] : [...pickedItems],
-      media: own === null ? mediaOfVm(offerMedia()) : null,
+      // The hub's media not yet in the preview are the outreach's still: never saved over by an empty offer.
+      media: own === null ? (heldMedia !== undefined ? heldMedia : mediaOfVm(offerMedia())) : null,
       fans,
       folded: minimized || surfaces.current().outreach,
       author,
@@ -1259,7 +1286,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
    */
   function pendingOf(snap: SavedOutreach): SavedOutreach['pending'] {
     if (!synced) return null;
-    const body = base !== null ? patchOf(base, snap) : (pending ?? patchOf(null, snap));
+    // The save the hub has not taken yet, with what changed since: kept until the hub takes it, through any reload.
+    const body = mergeSaves(pending, patchOf(base, snap));
     if (body === null) return null;
     const { createdAt: _createdAt, ...rest } = body;
     return rest;
@@ -1268,7 +1296,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   /** A save kept on this computer, as the hub's route takes it; null — none, or not one. */
   const pendingBody = (raw: SavedOutreach['pending']): OutreachStoreSaveBody | null => {
     if (raw === null) return null;
-    const parsed = OutreachStoreSaveBodySchema.safeParse(raw);
+    // All its fans: it goes to the hub in requests of 50.
+    const parsed = OutreachStoreSaveDraftSchema.safeParse(raw);
     return parsed.success ? parsed.data : null;
   };
 
@@ -1280,6 +1309,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     cardSent.clear();
     cardClaims.clear();
     cardKnown.clear();
+    adoptedCards.clear();
     held.clear();
     hubDown.clear();
     currentId = saved.id;
@@ -1341,6 +1371,11 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     audienceCache = null;
     lastSaved = '';
     if (held.size > 0) scheduleAdopt();
+    // ChatSpace: the outreach's vault media go back into the preview as its picks — last: the preview answers at once.
+    if (own === null) {
+      heldMedia = saved.media;
+      applyHeldMedia();
+    }
   }
 
   /** The owner's current outreach comes back after the first read, unless the window holds one of its own already. */
@@ -1601,7 +1636,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const send = fanFromHub(fan, clock.now())?.send ?? null;
     if (send === null) return;
     const local = snapshotSend(fanRef);
-    if (sendRank(send) > sendRank(local) || (local !== null && local.attemptId === send.attemptId && send.state !== local.state && local.state !== 'failed')) adoptSend(fanRef, send);
+    if (send !== local && furtherSend(local, send) === send) adoptSend(fanRef, send);
   }
 
   /** The fan's send as the window would keep it now. */
@@ -1643,6 +1678,9 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         }
         pickedItems.clear();
         for (const key of next.picked) pickedItems.add(key);
+      } else {
+        heldMedia = next.media;
+        applyHeldMedia();
       }
       audienceCache = null;
     }
@@ -1671,6 +1709,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         editedBy.delete(fanRef);
         held.delete(fanRef);
         cardKnown.delete(fanRef);
+        adoptedCards.delete(fanRef);
         bases.delete(fanRef);
         versionAts.delete(fanRef);
       }
@@ -1716,6 +1755,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       versionAts.delete(fanRef);
       held.delete(fanRef);
       cardKnown.delete(fanRef);
+      adoptedCards.delete(fanRef);
       return;
     }
     bases.set(fanRef, version.basis ?? 'unknown');
@@ -1740,8 +1780,13 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       return;
     }
     const hold = held.get(fanRef);
+    const adopted = adoptedCards.get(fanRef);
     if (hold !== undefined) held.set(fanRef, { ...hold, edit: edit.text });
-    else batchPort?.outreachEdit?.(handleOf(fanRef), edit.text);
+    else if (adopted !== undefined) {
+      // A card the window filled shows one text: it is filled again with the colleague's words.
+      held.set(fanRef, { text: adopted.fix, basis: bases.get(fanRef) ?? null, at: versionAts.get(fanRef) ?? null, edit: edit.text, tried: 0 });
+      scheduleAdopt();
+    } else batchPort?.outreachEdit?.(handleOf(fanRef), edit.text);
     const known = cardKnown.get(fanRef);
     if (known !== undefined) cardKnown.set(fanRef, { ...known, edit: edit.text });
   }
@@ -1795,12 +1840,14 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
           continue;
         }
         const handle = handleOf(fanRef);
-        const ok = await port.outreachAdopt(handle, version.text).catch(() => false);
+        // The card shows the text that goes: the person's words when there are some, else Fix's version.
+        const shown = version.edit ?? version.text;
+        const ok = await port.outreachAdopt(handle, shown).catch(() => false);
         if (disposed || atEpoch !== epoch || held.get(fanRef) !== version) continue;
         if (!ok) continue;
         held.delete(fanRef);
+        adoptedCards.set(fanRef, { fix: version.text, edit: version.edit, shown: shown.trim() });
         batch.restore([{ handle, text: version.text }]);
-        if (version.edit !== null) port.outreachEdit?.(handle, version.edit);
         moved = true;
       }
     } finally {
@@ -1848,7 +1895,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       const remote = fromHub(answer.value, owner, clock.now(), { names: keptNames, folded: minimized || surfaces.current().outreach });
       if (remote !== null) {
         const card = lastCard;
-        restoreFrom(remote);
+        // What this window sent and the hub has not heard of stands (and is told), never sendable again.
+        restoreFrom(withLocalSends(remote, snapshot(owner)));
         lastCard = card;
         base = remote;
         needPull = false;
@@ -1981,6 +2029,13 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     return { kind: outcome === 'busy' ? 'busy' : 'taken', fan: answer.value.fan };
   }
 
+  /** A claim the window let go before the site was asked (it moved to another outreach): the hub hears it failed. */
+  function reportLost(outreachId: string, fanRef: string, attemptId: string): void {
+    const page = pageId();
+    if (hub === null || page === null) return;
+    void hub.send(page, outreachId, { action: 'failed', fanRef, attemptId, code: 'CG-CONTEXT-CHANGED' });
+  }
+
   /** The hub refused the claim: who sent (or sends) the fan stands in the window; nothing goes. */
   function claimRefused(type: UiAction['type'], fanRef: string, claim: { readonly kind: string; readonly fan?: OutreachStoreFan }): ActionReceipt {
     if (claim.fan !== undefined) takeFan(fanRef, claim.fan);
@@ -1994,8 +2049,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const owner = ownerOf();
     if ((store === null && !hubOn()) || owner === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
     if (id === currentId) return done(type, 'noop');
-    // A version being written or a send on its way belongs to the outreach it started in.
-    if ((locked ?? []).some((fanRef) => MOVING.includes(factsOf(fanRef).state))) return refused(type, localError('CG-SEND-BUSY', i18n));
+    // A version being written or a send on its way (its claim too) belongs to the outreach it started in.
+    if ((locked ?? []).some((fanRef) => MOVING.includes(factsOf(fanRef).state)) || claiming.size > 0) return refused(type, localError('CG-SEND-BUSY', i18n));
     await flush();
     // What the window's outreach has not saved at the hub goes there first.
     if (pending !== null || (pushTimer !== null && hubOn())) await push();
@@ -2009,7 +2064,9 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       if (disposed || atEpoch !== epoch) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
       const remote = answer.ok ? fromHub(answer.value, owner, clock.now(), { names: keptNames }) : null;
       if (answer.ok && remote !== null) {
-        restoreFrom(remote);
+        // A send this computer made of it that the hub has not heard of (it went while the hub did not answer) stands,
+        // and is told to the hub: the fan is never sendable again from here.
+        restoreFrom(withLocalSends(remote, local ?? null));
         base = remote;
         needPull = false;
         inFlight = inFlightOf(answer.value, clock.now());
@@ -2338,9 +2395,17 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       // The hub claims the fan first: one send per fan of the outreach, from any tab, computer or colleague.
       const attemptId = uuid();
       const atEpoch = epoch;
-      const claim = await claimSend(fanRef, attemptId, version, mediaWire(mediaOfVm(facts.media)));
-      if (disposed || atEpoch !== epoch) {
-        if (claim.kind === 'ok') cardSent.set(fanRef, { state: 'failed', code: 'CG-CONTEXT-CHANGED', clickedAt: clock.now(), at: clock.now(), text: version, media: mediaOfVm(facts.media), attemptId, claimed: true, reported: false, by: null, messageId: null });
+      const outreachId = currentId;
+      claiming.add(fanRef);
+      let claim: Awaited<ReturnType<typeof claimSend>>;
+      try {
+        claim = await claimSend(fanRef, attemptId, version, mediaWire(mediaOfVm(facts.media)));
+      } finally {
+        claiming.delete(fanRef);
+      }
+      if (disposed || atEpoch !== epoch || currentId !== outreachId) {
+        // Claimed, then the window moved on: nothing went, and the hub hears so.
+        if (claim.kind === 'ok' && outreachId !== null) reportLost(outreachId, fanRef, attemptId);
         return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
       }
       if (claim.kind === 'taken' || claim.kind === 'busy') return claimRefused(type, fanRef, claim);
@@ -2437,14 +2502,14 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (!cause.ok) return end('failed', cause.code);
     if (sent.attemptId !== null) {
       // The hub claims the fan: one send per fan of the outreach, from any tab, computer or colleague.
+      const outreachId = currentId;
       const claim = await claimSend(fanRef, sent.attemptId, body, mediaWire(mediaOfVm(offerMedia())));
-      if (!mine()) {
+      if (!mine() || currentId !== outreachId) {
         // Claimed, then the window moved on: nothing went, the hub hears so.
-        if (claim.kind === 'ok') {
-          sent.claimed = true;
-          sent.state = 'failed';
-          sent.code = 'CG-CONTEXT-CHANGED';
-          sent.at = clock.now();
+        if (claim.kind === 'ok' && outreachId !== null) reportLost(outreachId, fanRef, sent.attemptId);
+        if (mine()) {
+          owned.delete(fanRef);
+          sentTexts.delete(fanRef);
         }
         return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
       }
@@ -2521,6 +2586,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     for (const fanRef of unsent) {
       held.delete(fanRef);
       cardKnown.delete(fanRef);
+      adoptedCards.delete(fanRef);
       hubDown.delete(fanRef);
       editedBy.delete(fanRef);
     }
@@ -2540,7 +2606,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   /** «Новая рассылка»: the window starts over — the text, the media and the conditions stay for the next one. */
   function fresh(type: UiAction['type']): ActionReceipt {
     // A send on its way belongs to the outreach it started in.
-    if ((locked ?? []).some((fanRef) => { const state = factsOf(fanRef).state; return state === 'sending' || state === 'accepted'; }) || cardClaims.size > 0) return refused(type, localError('CG-SEND-BUSY', i18n));
+    if ((locked ?? []).some((fanRef) => { const state = factsOf(fanRef).state; return state === 'sending' || state === 'accepted'; }) || cardClaims.size > 0 || claiming.size > 0) return refused(type, localError('CG-SEND-BUSY', i18n));
     // The outreach it held is kept as it is (its snapshot is taken now), and stays in «Рассылки»; what the hub has not
     // taken of it goes there now (a save kept on this computer goes later, with the list).
     if (saveTimer !== null) clock.clearTimer(saveTimer);
@@ -2748,6 +2814,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     inFlight = new Set();
     held.clear();
     cardKnown.clear();
+    adoptedCards.clear();
     cardClaims.clear();
     cardSent.clear();
     hubDown.clear();
@@ -2762,6 +2829,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     pollTimer = null;
     adoptTimer = null;
     forgetHubCopy();
+    heldMedia = undefined;
     team = null;
     teamAt = 0;
     touches = new Map();
@@ -2856,7 +2924,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         askStates();
         changed();
       });
-      // Versions the hub keeps that no card shows yet go into their cards now.
+      // Versions the hub keeps that no card shows yet go into their cards now; its media into the outreach's picks.
+      applyHeldMedia();
       scheduleAdopt();
       changed();
     },

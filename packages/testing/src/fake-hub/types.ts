@@ -471,9 +471,13 @@ export interface OutreachSeed {
   readonly author: OutreachPerson;
   readonly text: string;
   readonly agoMin: number;
+  /** ChatSpace: the offer's vault media as the colleague's window saved them. */
+  readonly media?: { readonly items: readonly { readonly id: string; readonly type: string; readonly duration: number; readonly free: boolean }[]; readonly priceCents: number };
   readonly fans: readonly {
     readonly fanRef: string;
     readonly version: string;
+    /** The colleague's own words for the version. */
+    readonly edit?: string;
     readonly sent?: { readonly agoMin: number; readonly by?: OutreachPerson; readonly replied?: string; readonly boughtMills?: number };
   }[];
 }

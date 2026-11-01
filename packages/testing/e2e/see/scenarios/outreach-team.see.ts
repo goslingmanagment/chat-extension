@@ -95,9 +95,11 @@ scenario(
           author: GRISHA,
           text: 'new set, the gym one. 8 minutes, all yours',
           agoMin: 50,
+          // ChatSpace: the offer carries a paid video of the stand's vault and a free photo, $12.
+          ...(site === 'fansly' ? {} : { media: { items: [{ id: '660000006', type: 'video', duration: 35, free: false }, { id: '660000001', type: 'photo', duration: 0, free: true }], priceCents: 1200 } }),
           fans: [
             { fanRef: fans.whale, version: 'hey you, the gym set is up 😈 8 minutes and it gets intense', sent: { agoMin: 40, replied: 'omg sending now' } },
-            { fanRef: fans.birch, version: 'missed you 🥺 made something at the gym, want to see?' },
+            { fanRef: fans.birch, version: 'missed you 🥺 made something at the gym, want to see?', edit: 'missed you 🥺 made something at the gym just for you, want to see?' },
           ],
         },
       });

@@ -317,9 +317,9 @@ export class OutreachModel {
         version: fan.version,
         basis: null,
         versionAt: at,
-        edit: null,
-        editedBy: null,
-        editedAt: null,
+        edit: fan.edit ?? null,
+        editedBy: fan.edit === undefined ? null : seed.author,
+        editedAt: fan.edit === undefined ? null : at,
         send: sent === undefined || sentAt === null ? null : { state: 'sent', attemptId: `00000000-0000-4000-8000-${String(fans.size).padStart(12, '0')}`, by: sent.by ?? seed.author, clickedAt: sentAt, ticketUntil: null, sentAt, code: null, text: fan.version, media: null, platformMessageId: null },
         outcome:
           sent === undefined || sentAt === null
@@ -335,9 +335,9 @@ export class OutreachModel {
       updatedAt: at,
       updatedBy: seed.author,
       text: seed.text,
-      withMedia: false,
-      // As a colleague's window saves it: the fans he picked, the default conditions.
-      settings: { v: 1, textRevision: 0, textChangedAt: null, source: { kind: 'picked', fans: seed.fans.map((fan) => fan.fanRef) }, amountTyped: '1,000', unticked: [], items: [], picked: [], media: null },
+      withMedia: seed.media !== undefined,
+      // As a colleague's window saves it: the fans he picked, the default conditions, the offer's vault media.
+      settings: { v: 1, textRevision: 0, textChangedAt: null, source: { kind: 'picked', fans: seed.fans.map((fan) => fan.fanRef) }, amountTyped: '1,000', unticked: [], items: [], picked: [], media: seed.media === undefined ? null : { items: seed.media.items, posts: 0, priceCents: seed.media.priceCents } },
       order: seed.fans.map((fan) => fan.fanRef),
       fans,
     });

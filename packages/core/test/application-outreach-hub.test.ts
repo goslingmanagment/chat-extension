@@ -82,7 +82,7 @@ function hubOf(model: OutreachModel, me: { readonly id: number; readonly name: s
   return port as OutreachHub & { offline: boolean };
 }
 
-function tab(model: OutreachModel, me: { readonly id: number; readonly name: string }, options: { readonly store?: OutreachStorePort; readonly start?: number; readonly answer?: (request: OutreachRequest) => OutreachAnswer } = {}) {
+function tab(model: OutreachModel, me: { readonly id: number; readonly name: string }, options: { readonly store?: OutreachStorePort; readonly start?: number; readonly answer?: (request: OutreachRequest) => OutreachAnswer | Promise<OutreachAnswer> } = {}) {
   const clock = new FakeClock(options.start ?? NOW_MS);
   const sent: OutreachRequest[] = [];
   const rpc = {
@@ -120,7 +120,7 @@ function tab(model: OutreachModel, me: { readonly id: number; readonly name: str
       copied: () => Promise.resolve({ items: [], checked: true }),
       send(request) {
         sent.push(request);
-        return Promise.resolve(options.answer?.(request) ?? { ok: true, messageId: '700000000000000099' });
+        return Promise.resolve(options.answer?.(request) ?? { ok: true as const, messageId: '700000000000000099' });
       },
     },
   });
@@ -252,6 +252,76 @@ describe('[host:fansly] «Рассылки» on the hub: one send per fan, whoev
     const kept = model.get(PAGE, ME.id, id, again.clock.now());
     expect(kept.ok && kept.body.text).toBe('the sunset set is up, part two');
     expect(again.vm().text).toBe('the sunset set is up, part two');
+  });
+
+  it('a send made while the hub did not answer stands after another outreach and a way back: never sent twice, and the hub hears of it', async () => {
+    const model = new OutreachModel();
+    const me = tab(model, ME);
+    await me.written();
+    const id = idOf(model);
+    me.hub.offline = true;
+    expect(await me.send(WHALE)).toMatchObject({ ok: false, code: 'CG-HUB-UNAVAILABLE' });
+    await me.clock.advance(OUTREACH_PACE_MS);
+    expect(await me.send(WHALE, true)).toMatchObject({ ok: true });
+    expect(await me.act({ type: 'SetOutreach', fresh: true })).toMatchObject({ ok: true });
+    await me.clock.advance(OUTREACH_SAVE_MS);
+    await settle(16);
+    me.hub.offline = false;
+    expect(await me.act({ type: 'SetOutreach', resume: id })).toMatchObject({ ok: true });
+    expect(me.row(WHALE)?.state).toBe('sent');
+    await me.clock.advance(OUTREACH_PACE_MS);
+    expect((await me.send(WHALE)).ok).toBe(false);
+    expect(me.sent.map((request) => request.fanRef)).toEqual([WHALE]);
+    await me.later();
+    const kept = model.get(PAGE, ME.id, id, me.clock.now());
+    expect(kept.ok && kept.body.fans.find((fan) => fan.fanRef === WHALE)?.send?.state).toBe('sent');
+  });
+
+  it('a change made while the hub does not answer survives reloads until the hub takes it', async () => {
+    const model = new OutreachModel();
+    const store = memoryStore();
+    const first = tab(model, ME, { store });
+    await first.written();
+    const id = idOf(model);
+    first.hub.offline = true;
+    await first.act({ type: 'SetOutreach', text: 'the sunset set is up, with a bonus' });
+    await first.later();
+    first.outreach.dispose();
+    await settle(16);
+    // Two reloads while the hub still does not answer.
+    for (const at of [NOW_MS + 10_000, NOW_MS + 20_000]) {
+      const again = tab(model, ME, { store, start: at });
+      again.hub.offline = true;
+      await again.later();
+      expect(again.vm().text).toBe('the sunset set is up, with a bonus');
+      again.outreach.dispose();
+      await settle(16);
+    }
+    const last = tab(model, ME, { store, start: NOW_MS + 30_000 });
+    await last.later(70_000);
+    const kept = model.get(PAGE, ME.id, id, last.clock.now());
+    expect(kept.ok && kept.body.text).toBe('the sunset set is up, with a bonus');
+    expect(last.vm().text).toBe('the sunset set is up, with a bonus');
+  });
+
+  it('a send the site refused after the window kept it as on its way can go again (the refusal is proven)', async () => {
+    const model = new OutreachModel();
+    const store = memoryStore();
+    let refuse: ((answer: OutreachAnswer) => void) | null = null;
+    const me = tab(model, ME, { store, answer: () => new Promise<OutreachAnswer>((resolve) => (refuse = resolve)) });
+    await me.written();
+    void me.act({ type: 'SendOutreach', targetHandle: fanHandle('outreach', WORLD.pages.fansly.pageId, WHALE) });
+    await settle(16);
+    expect(me.row(WHALE)?.state).toBe('sending');
+    // The window keeps the outreach while the send is on its way: it reads «may have gone» there.
+    await me.later();
+    (refuse as ((answer: OutreachAnswer) => void) | null)?.({ ok: false, code: 'CG-SEND-REJECTED' });
+    await settle(16);
+    await me.later();
+    expect(me.row(WHALE)).toMatchObject({ state: 'failed', send: { kind: 'retry' } });
+    const id = idOf(model);
+    const kept = model.get(PAGE, ME.id, id, me.clock.now());
+    expect(kept.ok && kept.body.fans.find((fan) => fan.fanRef === WHALE)?.send?.state).toBe('failed');
   });
 
   it("a colleague's outreach is in «Рассылки» with its author, and opens where it was left", async () => {

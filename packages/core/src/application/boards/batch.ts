@@ -531,6 +531,11 @@ export interface BatchPreviewPort {
    * the fan yet, a send of the fan is on its way).
    */
   outreachAdopt?(handle: string, text: string): Promise<boolean>;
+  /**
+   * 1.72.0: the outreach's media of the vault as the hub keeps them (an outreach opened here: a colleague's, another
+   * computer's, before a reload) become the outreach's picks again; null — none. False — the cards send no media here.
+   */
+  outreachRestoreMedia?(media: { readonly items: readonly { readonly id: string; readonly type: OutreachMediaVM['items'][number]['type']; readonly duration: number; readonly free: boolean }[]; readonly priceCents: number } | null): boolean;
   /** What these fans got of these media, as the site's vault says (bought, sent unbought, free); null — the site cannot tell. */
   outreachStates?(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
   /** «Онлайн»: a text of the team's guide becomes the fan's open card's result, for its own send (X8); false — not now. */

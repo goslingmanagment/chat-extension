@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_CONDITIONS } from './audience';
 import { textKey, type SavedFan, type SavedOutreach, type SavedSend } from './saved';
-import { adoptPlan, fromHub, patchOf, reportOf, settingsOf, splitSave } from './sync';
+import { furtherSend } from './saved';
+import { adoptPlan, fromHub, mergeSaves, patchOf, reportOf, settingsOf, splitSave, withLocalSends } from './sync';
 
 const NOW = Date.parse('2026-11-01T12:00:00.000Z');
 
@@ -97,6 +98,19 @@ describe('«Рассылки» on the hub: the save and the take', () => {
     const went = outreach({ fans: [fan('11', { send: send({ reported: false }) }), fan('12')] });
     const unsure = outreach({ fans: [fan('11', { send: send({ state: 'uncertain' }) }), fan('12')] });
     expect(adoptPlan(base, went, unsure).fans.find((one) => one.fanRef === '11')?.send).toBeUndefined();
+  });
+
+  it('keeps the save the hub has not taken with what changed since, and a send this computer made that the hub has not heard of', () => {
+    expect(mergeSaves({ text: 'a', fans: [{ fanRef: '11', version: 'v1', basis: 'b1', edit: 'e' }] }, { fans: [{ fanRef: '11', version: 'v2', basis: 'b2' }, { fanRef: '12', edit: null }] })).toEqual({
+      text: 'a',
+      fans: [{ fanRef: '11', version: 'v2', basis: 'b2', edit: 'e' }, { fanRef: '12', edit: null }],
+    });
+    const remote = outreach({ fans: [fan('11'), fan('12')] });
+    const local = outreach({ fans: [fan('11', { send: send({ claimed: false, reported: false }) }), fan('12')] });
+    expect(withLocalSends(remote, local).fans.find((one) => one.fanRef === '11')?.send?.state).toBe('sent');
+    // Of one attempt, a proven refusal settles «may have gone»; of two, one that went outranks a refusal.
+    expect(furtherSend(send({ state: 'uncertain', reported: false }), send({ state: 'failed', reported: false }))?.state).toBe('failed');
+    expect(furtherSend(send({ state: 'failed' }), send({ state: 'uncertain', attemptId: '1b9b1b54-6f7e-4a52-9a0c-3b2f7d1e5a10' }))?.state).toBe('uncertain');
   });
 
   it('tells the hub how a claimed send ended, records one made without a claim, and nothing of a refused one never claimed', () => {

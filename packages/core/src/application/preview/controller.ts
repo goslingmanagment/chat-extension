@@ -76,7 +76,7 @@ import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pag
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
 import { boardOpenRefusal, issueCause, type BoardSwitch, type ChatNavigator } from '../boards/navigate';
-import { noteBatchOp, type BatchOutcome, type BatchSendState, type OutreachCardRow } from '../boards/batch';
+import { noteBatchOp, type BatchOutcome, type BatchPreviewPort, type BatchSendState, type OutreachCardRow } from '../boards/batch';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
@@ -372,6 +372,8 @@ export interface PreviewController extends SurfaceController<'preview'> {
   outreachEdit(handle: TargetHandle, text: string | null): boolean;
   /** 1.72.0: «Рассылка»'s version the hub keeps goes into the fan's card as its result (outreachAdopt below). */
   outreachAdopt(handle: TargetHandle, text: string): Promise<boolean>;
+  /** 1.72.0: the outreach's vault media as the hub keeps them become its picks again (BatchPreviewPort). */
+  outreachRestoreMedia(media: Parameters<NonNullable<BatchPreviewPort['outreachRestoreMedia']>>[0]): boolean;
   /** What these fans got of these media, as the vault says; null — no vault here. */
   outreachStates(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
   /** «Онлайн»: a text of the team's guide becomes the open card's result, for its «Отправить →»; false — not now. */
@@ -2761,8 +2763,10 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const track: OpTrack = { ...trackOf(view, state, { checkpoint }), manual: { textFingerprint } };
       tracks.set(view.opId, track);
       currentOp.set(handle, view.opId);
-      // The window's row follows this card as it follows a version its batch wrote (its send, the fan's newer message).
+      // The window's row follows this card as it follows a version its batch wrote (its send, the fan's newer message),
+      // and the fan takes the outreach's media now, so their release forms are read before the click (settleBatch).
       batched.set(handle, '');
+      adoptOutreach(chat);
       pruneTracks();
       changedFor(handle);
       void refreshPreflight(track);
@@ -3213,6 +3217,18 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       return editPart(onlineLike(track.source) ? 'EditOnline' : 'EditOutreach', track, 0, 0, text).ok;
     },
     outreachAdopt,
+    outreachRestoreMedia(saved) {
+      const chat = outreachChat();
+      if (!outreachOn || deps.sender === null || chat === null) return false;
+      // The vault's links expire: the picks come back without their pictures; the price as the person typed it.
+      const next: Attachment =
+        saved === null || saved.items.length === 0
+          ? EMPTY_ATTACHMENT
+          : { picks: saved.items.map((item) => ({ id: item.id, type: item.type, duration: item.duration, thumb: null, free: item.free })), price: saved.priceCents > 0 ? (saved.priceCents / 100).toFixed(2) : '' };
+      media.adopt(chat, next, media.current(chat));
+      syncOutreach();
+      return true;
+    },
     onlineText,
     clearDraft,
     async outreachStates(fans, ids) {

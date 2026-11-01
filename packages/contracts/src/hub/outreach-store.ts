@@ -161,6 +161,12 @@ export const OutreachStoreSaveBodySchema = z.strictObject({
 });
 export type OutreachStoreSaveBody = z.infer<typeof OutreachStoreSaveBodySchema>;
 
+/** A save this client keeps until the hub takes it (all its fans; sent in requests of OUTREACH_STORE_SAVE_FANS_MAX). */
+export const OutreachStoreSaveDraftSchema = z.strictObject({
+  ...OutreachStoreSaveBodySchema.shape,
+  fans: z.optional(z.array(OutreachStoreFanChangeSchema).check(z.maxLength(OUTREACH_STORE_FANS_MAX))),
+});
+
 export const OutreachStoreSaveRequestSchema = z.strictObject({
   pageLabel: PageLabelSchema,
   outreachId: Uuid,

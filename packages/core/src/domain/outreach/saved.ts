@@ -317,10 +317,25 @@ export const sendRank = (send: SavedSend | null): number => (send === null ? 0 :
 /** A send that went or may have: never sent again. */
 const went = (send: SavedSend | null): boolean => send !== null && send.state !== 'failed';
 
+/**
+ * Of two sends of one fan, the one that got further. Of one attempt: its end over «may have» — a send that went, or a
+ * refusal the site proved (a send kept while on its way reads «may have» until its end comes); of two attempts: one
+ * that went (or may have) over a refusal, over none; of two alike, the one the hub has. On a tie, `a` stands.
+ */
+export function furtherSend(a: SavedSend | null, b: SavedSend | null): SavedSend | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  if (a.attemptId !== null && a.attemptId === b.attemptId) {
+    const step = (send: SavedSend): number => (send.state === 'sent' ? 6 : send.state === 'failed' ? 4 : 2) + (send.reported ? 1 : 0);
+    return step(b) > step(a) ? b : a;
+  }
+  return sendRank(b) > sendRank(a) ? b : a;
+}
+
 /** One fan as two tabs saved them: the newer outreach's word, except that what went is never undone. */
 function mergeFan(newer: SavedFan, older: SavedFan | undefined): SavedFan {
   if (older === undefined) return newer;
-  const send = sendRank(older.send) > sendRank(newer.send) ? older.send : newer.send;
+  const send = furtherSend(newer.send, older.send);
   const outcome = newer.outcome ?? older.outcome;
   return send === newer.send && outcome === newer.outcome ? newer : { ...newer, send, outcome };
 }

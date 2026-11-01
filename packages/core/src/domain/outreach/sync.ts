@@ -17,7 +17,7 @@ import {
   type OutreachStoreSend,
 } from '@cg/contracts/hub';
 
-import { readSavedOutreach, sendRank, textKey, type SavedFan, type SavedMedia, type SavedOutcome, type SavedOutreach, type SavedSend } from './saved';
+import { furtherSend, readSavedOutreach, textKey, type SavedFan, type SavedMedia, type SavedOutcome, type SavedOutreach, type SavedSend } from './saved';
 
 /** A hub's outcome is the hub's to read again: the window does not check it itself. */
 export const HUB_OUTCOME_CHECKS = 99;
@@ -191,6 +191,39 @@ export function patchOf(base: SavedOutreach | null, local: SavedOutreach): Outre
   return Object.keys(body).length === 0 ? null : body;
 }
 
+/** Two saves the hub has not taken, the later over the earlier: its fields win, each fan's change field by field. */
+export function mergeSaves(older: OutreachStoreSaveBody | null, newer: OutreachStoreSaveBody | null): OutreachStoreSaveBody | null {
+  if (older === null) return newer;
+  if (newer === null) return older;
+  const fans = new Map<string, NonNullable<OutreachStoreSaveBody['fans']>[number]>();
+  for (const change of older.fans ?? []) fans.set(change.fanRef, change);
+  for (const change of newer.fans ?? []) fans.set(change.fanRef, { ...fans.get(change.fanRef), ...change });
+  const { fans: _older, ...olderHead } = older;
+  const { fans: _newer, ...newerHead } = newer;
+  const head = { ...olderHead, ...newerHead };
+  return fans.size === 0 ? head : { ...head, fans: [...fans.values()] };
+}
+
+/**
+ * The hub's copy with what this computer holds of the sends that got further (one made while the hub did not answer,
+ * one whose end the hub has not heard): such a send stands, and the hub is told of it, before anything is sent again.
+ */
+export function withLocalSends(remote: SavedOutreach, local: SavedOutreach | null): SavedOutreach {
+  if (local === null) return remote;
+  const fans = new Map(remote.fans.map((fan) => [fan.fanRef, fan] as const));
+  const order = [...(remote.locked ?? [])];
+  let moved = false;
+  for (const fan of local.fans) {
+    if (fan.send === null) continue;
+    const there = fans.get(fan.fanRef);
+    if (furtherSend(there?.send ?? null, fan.send) !== fan.send || fan.send === (there?.send ?? null)) continue;
+    fans.set(fan.fanRef, there === undefined ? fan : { ...there, send: fan.send });
+    if (!order.includes(fan.fanRef)) order.push(fan.fanRef);
+    moved = true;
+  }
+  return moved ? { ...remote, fans: [...fans.values()], locked: order.length === 0 ? null : order } : remote;
+}
+
 /** A save in requests the hub takes: the outreach's fields with the first, at most OUTREACH_STORE_SAVE_FANS_MAX fans each. */
 export function splitSave(body: OutreachStoreSaveBody): OutreachStoreSaveBody[] {
   const fans = body.fans ?? [];
@@ -258,7 +291,7 @@ export function adoptPlan(base: SavedOutreach | null, local: SavedOutreach, remo
     const was = baseFans.get(fan.fanRef);
     const joins = joining.has(fan.fanRef);
     const adopt: { -readonly [K in keyof AdoptFan]: AdoptFan[K] } = { fanRef: fan.fanRef };
-    if (fan.send !== null && sendRank(fan.send) > sendRank(mine?.send ?? null)) adopt.send = fan.send;
+    if (fan.send !== null && fan.send !== (mine?.send ?? null) && furtherSend(mine?.send ?? null, fan.send) === fan.send) adopt.send = fan.send;
     const versionMoved = (fan.version ?? null) !== (was?.version ?? null) || (fan.basis ?? null) !== (was?.basis ?? null);
     if ((joins && fan.version !== null) || (base !== null && (mine?.version ?? null) === (was?.version ?? null) && versionMoved)) {
       adopt.version = { text: fan.version, basis: fan.basis, at: fan.versionAt };
