@@ -19,6 +19,7 @@ import {
 
 import { iso } from './clock';
 import { type FakePage } from './config';
+import { type OutreachPerson as Person, type OutreachSeed, type OutreachTouchSeed } from './types';
 
 type Read<T> = { readonly ok: true; readonly body: T } | { readonly ok: false; readonly refusal: { readonly error: string; readonly reason?: string } };
 
@@ -26,11 +27,6 @@ const TICKET_MS = 120_000;
 const TOUCH_MS = 72 * 3_600_000;
 const KEEP_MS = 90 * 86_400_000;
 const RECORD_MAX_MS = 30 * 86_400_000;
-
-interface Person {
-  readonly id: number;
-  readonly name: string;
-}
 
 interface Send {
   state: 'sending' | 'sent' | 'uncertain' | 'failed';
@@ -69,27 +65,6 @@ interface Outreach {
   settings: Record<string, unknown>;
   order: string[];
   readonly fans: Map<string, Fan>;
-}
-
-/** A colleague's outreach a scenario seeds: its fans with their versions and sends (sent minutes ago). */
-export interface OutreachSeed {
-  readonly id: string;
-  readonly author: Person;
-  readonly text: string;
-  readonly agoMin: number;
-  readonly fans: readonly {
-    readonly fanRef: string;
-    readonly version: string;
-    readonly sent?: { readonly agoMin: number; readonly by?: Person; readonly replied?: string; readonly boughtMills?: number };
-  }[];
-}
-
-/** A fan a fan queue or «Онлайн» wrote to (a scenario's). */
-export interface OutreachTouchSeed {
-  readonly fanRef: string;
-  readonly kind: 'queue' | 'online';
-  readonly agoMin: number;
-  readonly by: Person | null;
 }
 
 const state = (send: Send, now: number): Send['state'] => (send.state === 'sending' && send.ticketUntil !== null && send.ticketUntil <= now ? 'uncertain' : send.state);

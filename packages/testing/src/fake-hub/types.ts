@@ -3,7 +3,6 @@
 // in-process and over the loopback control endpoint) and the request journal.
 // Everything here is JSON-serialisable: the loopback control API carries it.
 
-import { type OutreachSeed, type OutreachTouchSeed } from './outreach';
 import type { ClientFeatureFlag, HubAiFeature, HubErrorBody, HubFrame, HubRouteKey, OnlineAttemptRequest } from '@cg/contracts';
 import type { FakeFeedRecord, FakeFeedTransaction } from './onlyfans-feed';
 
@@ -456,4 +455,33 @@ export interface FakeHubJournalPage {
   readonly entries: readonly FakeHubJournalEntry[];
   /** Pass as `since` to read only what came after. */
   readonly next: number;
+}
+
+// ── «Рассылки» on the fake hub (outreach.ts) ──
+
+/** A person of the page's team as the fake hub names them. */
+export interface OutreachPerson {
+  readonly id: number;
+  readonly name: string;
+}
+
+/** A colleague's outreach a scenario seeds: its fans with their versions and sends (sent minutes ago). */
+export interface OutreachSeed {
+  readonly id: string;
+  readonly author: OutreachPerson;
+  readonly text: string;
+  readonly agoMin: number;
+  readonly fans: readonly {
+    readonly fanRef: string;
+    readonly version: string;
+    readonly sent?: { readonly agoMin: number; readonly by?: OutreachPerson; readonly replied?: string; readonly boughtMills?: number };
+  }[];
+}
+
+/** A fan a fan queue or «Онлайн» wrote to (a scenario's). */
+export interface OutreachTouchSeed {
+  readonly fanRef: string;
+  readonly kind: 'queue' | 'online';
+  readonly agoMin: number;
+  readonly by: OutreachPerson | null;
 }
