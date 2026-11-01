@@ -54,6 +54,16 @@ export interface SavedSend {
   /** The version as it went; null — not known (the card's own send). */
   readonly text: string | null;
   readonly media: SavedMedia | null;
+  /** The hub's claim of this send (outreach/sync.ts); null — made where no hub kept outreaches. */
+  readonly attemptId: string | null;
+  /** The hub held the claim before the platform was asked; false — it went without one (the hub did not answer). */
+  readonly claimed: boolean;
+  /** The hub has this send as it stands here; false — it is to be told (a report, or `record` of one never claimed). */
+  readonly reported: boolean;
+  /** A colleague's send (their login); null — this browser's person. */
+  readonly by: string | null;
+  /** The site's id of the message that went (Fansly says it); null — not known. */
+  readonly messageId: string | null;
 }
 
 /** What came of a send, as far as read. */
@@ -72,10 +82,14 @@ export interface SavedFan {
   readonly name: string | null;
   /** Fix's version; null — none written (or it was not kept). */
   readonly version: string | null;
-  /** The common text's revision the version was written from. */
-  readonly revision: number;
+  /** The common text the version was written from (`textKey`); null — none. A version whose basis is not the text's is stale. */
+  readonly basis: string | null;
+  /** When the version was written (its fan's message after it makes it stale too); null — not known. */
+  readonly versionAt: number | null;
   /** The person's own words for the version; null — Fix's stand. */
   readonly edit: string | null;
+  /** A colleague's words (their login); null — this browser's person, or none. */
+  readonly editedBy: string | null;
   readonly send: SavedSend | null;
   readonly outcome: SavedOutcome | null;
 }
@@ -110,6 +124,12 @@ export interface SavedOutreach {
   readonly fans: readonly SavedFan[];
   /** The window was open or folded into its chip when last kept: after a reload its chip stands again. */
   readonly folded: boolean;
+  /** A colleague's outreach (their login), opened here from the hub; null — this browser's person made it. */
+  readonly author: string | null;
+  /** The hub knows this outreach (a save of it was taken); false — made where the hub kept none, or not taken yet. */
+  readonly synced: boolean;
+  /** The save the hub has not taken yet (outreach/sync.ts): sent again before anything else of the outreach. */
+  readonly pending: Readonly<Record<string, unknown>> | null;
 }
 
 export interface OutreachStore {
@@ -123,6 +143,26 @@ export interface OutreachStore {
 export const EMPTY_OUTREACH_STORE: OutreachStore = { v: OUTREACH_STORE_VERSION, outreaches: [], current: {} };
 
 export const outreachOwner = (hubOrigin: string, userId: number, pageId: number): string => `${hubOrigin}|${userId}|${pageId}`;
+
+/**
+ * The name of a common text a version was written from (FNV-1a, 64 bits, hex): the same text, the same name, on every
+ * computer — a version written from another text is stale. Not a secret, only a short name.
+ */
+export function textKey(value: string): string {
+  let hi = 0xcbf29ce4;
+  let lo = 0x84222325;
+  for (let at = 0; at < value.length; at += 1) {
+    lo = (lo ^ value.charCodeAt(at)) >>> 0;
+    // × 0x100000001b3 over two 32-bit halves.
+    const loMul = lo * 0x1b3;
+    const carry = Math.floor(loMul / 0x100000000);
+    const nextLo = loMul >>> 0;
+    const nextHi = (Math.imul(hi, 0x1b3) + Math.imul(lo, 0x100) + carry) >>> 0;
+    lo = nextLo;
+    hi = nextHi;
+  }
+  return `${hi.toString(16).padStart(8, '0')}${lo.toString(16).padStart(8, '0')}`;
+}
 
 // ── reading what is stored: whatever shape it has, never thrown on ──
 
@@ -150,7 +190,20 @@ function sendOf(value: unknown): SavedSend | null {
   if (!isRec(value)) return null;
   const state = value['state'];
   if (state !== 'sent' && state !== 'uncertain' && state !== 'failed') return null;
-  return { state, code: typeof value['code'] === 'string' ? value['code'].slice(0, 64) : null, clickedAt: timeOrNull(value['clickedAt']), at: timeOrNull(value['at']), text: text(value['text']), media: mediaOf(value['media']) };
+  return {
+    state,
+    code: typeof value['code'] === 'string' ? value['code'].slice(0, 64) : null,
+    clickedAt: timeOrNull(value['clickedAt']),
+    at: timeOrNull(value['at']),
+    text: text(value['text']),
+    media: mediaOf(value['media']),
+    attemptId: isId(value['attemptId']) ? value['attemptId'] : null,
+    claimed: value['claimed'] === true,
+    // Kept by 3.15.0 (no such field): never told to a hub yet.
+    reported: value['reported'] === true,
+    by: typeof value['by'] === 'string' ? value['by'].slice(0, 64) : null,
+    messageId: typeof value['messageId'] === 'string' && /^\d{1,30}$/.test(value['messageId']) ? value['messageId'] : null,
+  };
 }
 
 function outcomeOf(value: unknown): SavedOutcome | null {
@@ -160,14 +213,25 @@ function outcomeOf(value: unknown): SavedOutcome | null {
   return { sentAt: value['sentAt'], mills: isCount(value['mills']) ? value['mills'] : null, paidIds: ids(value['paidIds'], 40), bought, replied, checks: value['checks'] };
 }
 
-function fanOf(value: unknown): SavedFan | null {
+/** The text the outreach holds and its revision: a version 3.15.0 kept names its text by that revision. */
+interface TextNow {
+  readonly text: string;
+  readonly revision: number;
+}
+
+function fanOf(value: unknown, now: TextNow): SavedFan | null {
   if (!isRec(value) || !isId(value['fanRef'])) return null;
+  const version = text(value['version']);
+  let basis: string | null = typeof value['basis'] === 'string' && value['basis'].length > 0 && value['basis'].length <= ID_MAX ? value['basis'] : null;
+  if (basis === null && version !== null) basis = isCount(value['revision']) && value['revision'] === now.revision ? textKey(now.text) : 'stale';
   return {
     fanRef: value['fanRef'],
     name: typeof value['name'] === 'string' ? value['name'].slice(0, 200) : null,
-    version: text(value['version']),
-    revision: isCount(value['revision']) ? value['revision'] : 0,
+    version,
+    basis,
+    versionAt: timeOrNull(value['versionAt']),
     edit: text(value['edit']),
+    editedBy: typeof value['editedBy'] === 'string' ? value['editedBy'].slice(0, 64) : null,
     send: sendOf(value['send']),
     outcome: outcomeOf(value['outcome']),
   };
@@ -181,7 +245,7 @@ function conditionsOf(value: unknown): OutreachConditions {
   };
   const spent = value['spent'];
   const minMills = isRec(spent) && isCount(spent['minMills']) ? spent['minMills'] : DEFAULT_CONDITIONS.spent.minMills;
-  return { spent: { on: on('spent'), minMills }, active: { on: on('active') }, notBought: { on: on('notBought') }, noWaiting: { on: on('noWaiting') }, noGone: { on: on('noGone') } };
+  return { spent: { on: on('spent'), minMills }, active: { on: on('active') }, notBought: { on: on('notBought') }, noWaiting: { on: on('noWaiting') }, noGone: { on: on('noGone') }, noTouched: { on: on('noTouched') } };
 }
 
 function sourceOf(value: unknown): SavedSource | null {
@@ -191,11 +255,15 @@ function sourceOf(value: unknown): SavedSource | null {
   return null;
 }
 
+/** One stored outreach as this build reads it; null — not one. */
+export const readSavedOutreach = (value: unknown): SavedOutreach | null => outreachOf(value);
+
 function outreachOf(value: unknown): SavedOutreach | null {
   if (!isRec(value) || !isId(value['id']) || typeof value['owner'] !== 'string' || value['owner'].length > 512 || !isTime(value['createdAt']) || !isTime(value['updatedAt'])) return null;
   const seen = new Set<string>();
+  const textNow: TextNow = { text: text(value['text']) ?? '', revision: isCount(value['textRevision']) ? value['textRevision'] : 0 };
   const fans = (Array.isArray(value['fans']) ? value['fans'] : []).flatMap((item) => {
-    const fan = fanOf(item);
+    const fan = fanOf(item, textNow);
     if (fan === null || seen.has(fan.fanRef)) return [];
     seen.add(fan.fanRef);
     return [fan];
@@ -221,6 +289,9 @@ function outreachOf(value: unknown): SavedOutreach | null {
     media: mediaOf(value['media']),
     fans: fans.slice(0, FANS_MAX),
     folded: value['folded'] === true,
+    author: typeof value['author'] === 'string' ? value['author'].slice(0, 64) : null,
+    synced: value['synced'] === true,
+    pending: isRec(value['pending']) ? value['pending'] : null,
   };
 }
 
@@ -238,13 +309,33 @@ export function readOutreachStore(raw: unknown, now: number): OutreachStore {
 
 // ── merging and fitting ──
 
-/** How far a fan's send got: a send that went, or may have, outranks one refused, which outranks none. */
-const sendRank = (send: SavedSend | null): number => (send === null ? 0 : send.state === 'failed' ? 1 : 2);
+/**
+ * How far a fan's send got: one that went outranks one that may have, which outranks one refused, which outranks none;
+ * of two alike the one the hub has.
+ */
+export const sendRank = (send: SavedSend | null): number => (send === null ? 0 : (send.state === 'failed' ? 2 : send.state === 'uncertain' ? 4 : 6) + (send.reported ? 1 : 0));
+/** A send that went or may have: never sent again. */
+const went = (send: SavedSend | null): boolean => send !== null && send.state !== 'failed';
+
+/**
+ * Of two sends of one fan, the one that got further. Of one attempt: its end over «may have» — a send that went, or a
+ * refusal the site proved (a send kept while on its way reads «may have» until its end comes); of two attempts: one
+ * that went (or may have) over a refusal, over none; of two alike, the one the hub has. On a tie, `a` stands.
+ */
+export function furtherSend(a: SavedSend | null, b: SavedSend | null): SavedSend | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  if (a.attemptId !== null && a.attemptId === b.attemptId) {
+    const step = (send: SavedSend): number => (send.state === 'sent' ? 6 : send.state === 'failed' ? 4 : 2) + (send.reported ? 1 : 0);
+    return step(b) > step(a) ? b : a;
+  }
+  return sendRank(b) > sendRank(a) ? b : a;
+}
 
 /** One fan as two tabs saved them: the newer outreach's word, except that what went is never undone. */
 function mergeFan(newer: SavedFan, older: SavedFan | undefined): SavedFan {
   if (older === undefined) return newer;
-  const send = sendRank(older.send) > sendRank(newer.send) ? older.send : newer.send;
+  const send = furtherSend(newer.send, older.send);
   const outcome = newer.outcome ?? older.outcome;
   return send === newer.send && outcome === newer.outcome ? newer : { ...newer, send, outcome };
 }
@@ -254,9 +345,10 @@ function mergeOutreach(a: SavedOutreach, b: SavedOutreach): SavedOutreach {
   const olderFans = new Map(older.fans.map((fan) => [fan.fanRef, fan] as const));
   const fans = newer.fans.map((fan) => mergeFan(fan, olderFans.get(fan.fanRef)));
   // A fan the older copy sent to that the newer copy never had (a fan written for one by one in another tab) stays.
-  for (const fan of older.fans) if (sendRank(fan.send) === 2 && !newer.fans.some((item) => item.fanRef === fan.fanRef)) fans.push(fan);
-  const locked = newer.locked === null ? older.locked : [...newer.locked, ...(older.locked ?? []).filter((fanRef) => !newer.locked?.includes(fanRef) && sendRank(olderFans.get(fanRef)?.send ?? null) === 2)];
-  return { ...newer, fans, locked };
+  for (const fan of older.fans) if (went(fan.send) && !newer.fans.some((item) => item.fanRef === fan.fanRef)) fans.push(fan);
+  const locked = newer.locked === null ? older.locked : [...newer.locked, ...(older.locked ?? []).filter((fanRef) => !newer.locked?.includes(fanRef) && went(olderFans.get(fanRef)?.send ?? null))];
+  // The hub took a save of it in either tab: it knows the outreach.
+  return { ...newer, fans, locked, synced: newer.synced || older.synced };
 }
 
 /** The tab's store over the stored one: outreach by outreach, fan by fan; the tab's own `current` wins for its owner. */
@@ -274,6 +366,7 @@ export function mergeOutreachStores(stored: OutreachStore, mine: OutreachStore, 
 function outreachBytes(outreach: SavedOutreach): number {
   let bytes = 400 + utf8Bytes(outreach.text) + utf8Bytes(outreach.owner);
   for (const fan of outreach.fans) bytes += 160 + utf8Bytes(fan.version ?? '') + utf8Bytes(fan.edit ?? '') + utf8Bytes(fan.send?.text ?? '') + utf8Bytes(fan.outcome?.replied?.text ?? '') + utf8Bytes(fan.name ?? '');
+  if (outreach.pending !== null) bytes += JSON.stringify(outreach.pending).length;
   return bytes + 40 * ((outreach.locked?.length ?? 0) + outreach.unticked.length + outreach.items.length);
 }
 

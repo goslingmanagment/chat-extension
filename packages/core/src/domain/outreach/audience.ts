@@ -10,7 +10,7 @@
 //   покупал за 7 дней» decides by the archive's «фан писал» alone until the 7-day board is read.
 
 import { type IsoTimestamp, type MoneyMills } from '@cg/contracts/primitives';
-import { type OutreachAsideVM, type OutreachCondition } from '@cg/contracts/vm';
+import { type OutreachAsideVM, type OutreachCondition, type OutreachTouchWhat } from '@cg/contracts/vm';
 
 /** What a condition of «Кому» holds: on or off, and «Потратил больше» its amount in mills. */
 export interface OutreachConditions {
@@ -20,6 +20,8 @@ export interface OutreachConditions {
   readonly noWaiting: { readonly on: boolean };
   /** 1.70.0: «Без удалённых аккаунтов». */
   readonly noGone: { readonly on: boolean };
+  /** 1.72.0: «Без тех, кому писали за 3 дня» (an outreach, a fan queue or «Онлайн», any of the team). */
+  readonly noTouched: { readonly on: boolean };
 }
 
 export const DEFAULT_CONDITIONS: OutreachConditions = {
@@ -31,7 +33,18 @@ export const DEFAULT_CONDITIONS: OutreachConditions = {
   // A fan whose account the site no longer finds takes no message (a send to one ends «Не подтвердилось»): left out
   // unless the person says otherwise (Dmitriy, 2026-11-01: «удалённый аккаунт не пометился, должен был»).
   noGone: { on: true },
+  // A fan another outreach, a fan queue or «Онлайн» wrote to within 3 days gets no outreach unless the person says
+  // otherwise (the owner, 2026-11-01: «пауза 3 дня»; it works both ways — those windows wait for an outreach's send).
+  noTouched: { on: true },
 };
+
+/** A fan written to in the last 3 days, as «Кому» says it. */
+export interface AudienceTouch {
+  readonly at: IsoTimestamp;
+  readonly what: OutreachTouchWhat;
+  /** A colleague's login; null — the person. */
+  readonly by: string | null;
+}
 
 /** «Писал или покупал за 7 дней». */
 export const ACTIVE_DAYS = 7;
@@ -69,6 +82,8 @@ export interface AudienceInput {
   readonly bought: ReadonlyMap<string, IsoTimestamp | null> | null;
   /** Fans who spent something in the last 7 days (the 7-day board); null — not read. */
   readonly recent: ReadonlySet<string> | null;
+  /** 1.72.0: fans written to in the last 3 days by another outreach, a fan queue or «Онлайн»; null — not known. */
+  readonly touched?: ReadonlyMap<string, AudienceTouch> | null;
   /** Fans unticked by the person. */
   readonly unticked: ReadonlySet<string>;
   /** The fans of the outreach once its versions are written (in their order); null — not written yet. */
@@ -101,10 +116,12 @@ export function poolOf(input: Pick<AudienceInput, 'fans' | 'tiers' | 'source'>):
 }
 
 /** Why the conditions leave this fan out; empty — they do not. */
-export function reasonsOf(fan: AudienceFan, input: Pick<AudienceInput, 'conditions' | 'bought' | 'recent' | 'now'>): OutreachAsideVM[] {
+export function reasonsOf(fan: AudienceFan, input: Pick<AudienceInput, 'conditions' | 'bought' | 'recent' | 'now' | 'touched'>): OutreachAsideVM[] {
   const { conditions } = input;
   const reasons: OutreachAsideVM[] = [];
   if (conditions.noGone.on && fan.gone === true) reasons.push({ kind: 'gone' });
+  const touch = input.touched?.get(fan.fanRef);
+  if (conditions.noTouched.on && touch !== undefined) reasons.push({ kind: 'touched', at: touch.at, what: touch.what, by: touch.by });
   if (conditions.notBought.on && input.bought !== null && input.bought.has(fan.fanRef)) reasons.push({ kind: 'bought', at: input.bought.get(fan.fanRef) ?? null });
   if (conditions.noWaiting.on && fan.waiting) reasons.push({ kind: 'waiting', since: fan.fanWroteAt });
   if (conditions.spent.on && (fan.lifetime ?? 0) <= conditions.spent.minMills) reasons.push({ kind: 'spent', lifetime: fan.lifetime, min: conditions.spent.minMills });
@@ -147,11 +164,11 @@ export function audienceOf(input: AudienceInput): Audience {
 
 /**
  * How many conditions narrow the list now: «Whale, Top и Prime · 1 условие». `notBought` counts only while it can act,
- * `noGone` only while the chosen fans have a gone account.
+ * `noGone` only while the chosen fans have a gone account, `noTouched` only while they have one written to in 3 days.
  */
-export function activeConditions(conditions: OutreachConditions, paid: boolean, gone = false): number {
-  const ids: readonly OutreachCondition[] = ['spent', 'active', 'notBought', 'noWaiting', 'noGone'];
-  return ids.filter((id) => conditions[id].on && (id !== 'notBought' || paid) && (id !== 'noGone' || gone)).length;
+export function activeConditions(conditions: OutreachConditions, paid: boolean, gone = false, touched = false): number {
+  const ids: readonly OutreachCondition[] = ['spent', 'active', 'notBought', 'noWaiting', 'noGone', 'noTouched'];
+  return ids.filter((id) => conditions[id].on && (id !== 'notBought' || paid) && (id !== 'noGone' || gone) && (id !== 'noTouched' || touched)).length;
 }
 
 /** «1,000», «$1 000», «1000.50» → mills; null — not an amount. */

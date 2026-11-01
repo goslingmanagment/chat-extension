@@ -98,5 +98,14 @@ export function asideText(i18n: I18n, reason: OutreachAsideVM, media: OutreachMe
       return i18n.t('outreach.aside.manual');
     case 'gone':
       return i18n.t('outreach.aside.gone');
+    case 'touched':
+      return touchedText(i18n, reason);
   }
+}
+
+/** «Писали рассылкой 2 ч назад · grisha»: a touch of the last 3 days (an outreach, a fan queue, «Онлайн»). */
+export function touchedText(i18n: I18n, touch: { readonly at: string; readonly what: 'outreach' | 'queue' | 'online'; readonly by: string | null }): string {
+  const what = i18n.t(touch.what === 'queue' ? 'outreach.touch.queue' : touch.what === 'online' ? 'outreach.touch.online' : 'outreach.touch.outreach');
+  const age = i18n.formatAge(touch.at);
+  return touch.by === null ? i18n.t('outreach.touched', { what, age }) : i18n.t('outreach.touchedBy', { what, age, name: touch.by });
 }

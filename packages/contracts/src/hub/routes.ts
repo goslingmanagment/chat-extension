@@ -107,6 +107,14 @@ export const HUB_ROUTES = {
   clientFanQueueItemDone: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-queues-v1'], narrowToken: true },
   /** The window closed: the caller's untouched portion goes back to the queue. */
   clientFanQueueRelease: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-queues-v1'], narrowToken: true },
+  /** 2026-11-01: «Рассылки» of a page kept by the hub, the team's: the list, one outreach, a save, a fan's send, the 72-hour touches. No owner switch. */
+  clientOutreaches: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['outreach-store-v1'], narrowToken: true },
+  clientOutreach: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['outreach-store-v1'], narrowToken: true },
+  /** Create or change: the last save wins a field; a fan whose send was claimed keeps its version. */
+  clientOutreachSave: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['outreach-store-v1'], narrowToken: true },
+  /** A fan's send claimed before the platform is asked, then reported; journaled, one call each, never repeated by itself. */
+  clientOutreachSend: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['outreach-store-v1'], narrowToken: true },
+  clientOutreachTouches: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['outreach-store-v1'], narrowToken: true },
   clientHandoff: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['handoff-v1'], narrowToken: true },
   /** Chat Memory week 4: a custom written into the fan's card, and its paid / delivered / cancel / edit. No owner switch. */
   clientFanCustomCreate: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-customs-v1'], narrowToken: true },

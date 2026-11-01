@@ -68,6 +68,12 @@ export const HUB_ROUTE_PATHS = {
   clientFanQueueTake: '/api/v1/client/pages/:pageLabel/fan-queues/:queueId/take',
   clientFanQueueItemDone: '/api/v1/client/pages/:pageLabel/fan-queues/items/:itemId/done',
   clientFanQueueRelease: '/api/v1/client/pages/:pageLabel/fan-queues/:queueId/release',
+  // 1.72.0: «Рассылки» kept by the hub (the team's): the list, one, a save, a fan's send, the 3-day touches.
+  clientOutreaches: '/api/v1/client/pages/:pageLabel/outreaches',
+  clientOutreach: '/api/v1/client/pages/:pageLabel/outreaches/:outreachId',
+  clientOutreachSave: '/api/v1/client/pages/:pageLabel/outreaches/:outreachId',
+  clientOutreachSend: '/api/v1/client/pages/:pageLabel/outreaches/:outreachId/sends',
+  clientOutreachTouches: '/api/v1/client/pages/:pageLabel/outreach-touches',
   clientFanCustomCreate: '/api/v1/client/pages/:pageLabel/fans/:fanRef/customs',
   clientFanCustomChange: '/api/v1/client/pages/:pageLabel/fans/:fanRef/customs/:customId',
   // 1.47.0: the voice-notes lane (`:id` is the note's integer id).

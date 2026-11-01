@@ -32788,6 +32788,500 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly clientOutreaches: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: string;
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                outreaches: z.ZodArray<z.ZodObject<{
+                    outreachId: z.ZodString;
+                    author: z.ZodObject<{
+                        name: z.ZodString;
+                        isMe: z.ZodBoolean;
+                    }, z.core.$strip>;
+                    createdAt: z.ZodString;
+                    updatedAt: z.ZodString;
+                    updatedBy: z.ZodObject<{
+                        name: z.ZodString;
+                        isMe: z.ZodBoolean;
+                    }, z.core.$strip>;
+                    text: z.ZodString;
+                    withMedia: z.ZodBoolean;
+                    fans: z.ZodNumber;
+                    written: z.ZodNumber;
+                    sent: z.ZodNumber;
+                    uncertain: z.ZodNumber;
+                    sending: z.ZodNumber;
+                    failed: z.ZodNumber;
+                    replied: z.ZodNumber;
+                    bought: z.ZodNumber;
+                    boughtMills: z.ZodNumber;
+                    lastSentAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientOutreach: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: string;
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            outreachId: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                outreachId: z.ZodString;
+                author: z.ZodObject<{
+                    name: z.ZodString;
+                    isMe: z.ZodBoolean;
+                }, z.core.$strip>;
+                createdAt: z.ZodString;
+                updatedAt: z.ZodString;
+                updatedBy: z.ZodObject<{
+                    name: z.ZodString;
+                    isMe: z.ZodBoolean;
+                }, z.core.$strip>;
+                text: z.ZodString;
+                withMedia: z.ZodBoolean;
+                settings: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+                order: z.ZodArray<z.ZodString>;
+                fans: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    version: z.ZodNullable<z.ZodString>;
+                    basis: z.ZodNullable<z.ZodString>;
+                    versionAt: z.ZodNullable<z.ZodString>;
+                    edit: z.ZodNullable<z.ZodString>;
+                    editedBy: z.ZodNullable<z.ZodObject<{
+                        name: z.ZodString;
+                        isMe: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                    editedAt: z.ZodNullable<z.ZodString>;
+                    send: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        attemptId: z.ZodString;
+                        by: z.ZodObject<{
+                            name: z.ZodString;
+                            isMe: z.ZodBoolean;
+                        }, z.core.$strip>;
+                        clickedAt: z.ZodString;
+                        ticketUntil: z.ZodNullable<z.ZodString>;
+                        sentAt: z.ZodNullable<z.ZodString>;
+                        code: z.ZodNullable<z.ZodString>;
+                        text: z.ZodNullable<z.ZodString>;
+                        media: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                        platformMessageId: z.ZodNullable<z.ZodString>;
+                        resolvedBy: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    outcome: z.ZodNullable<z.ZodObject<{
+                        replied: z.ZodNullable<z.ZodObject<{
+                            at: z.ZodString;
+                            text: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        bought: z.ZodNullable<z.ZodObject<{
+                            mills: z.ZodNumber;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientOutreachSave: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: string;
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            outreachId: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodObject<{
+            text: z.ZodOptional<z.ZodString>;
+            withMedia: z.ZodOptional<z.ZodBoolean>;
+            settings: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            order: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            fans: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                fanRef: z.ZodString;
+                version: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                basis: z.ZodOptional<z.ZodString>;
+                generationRef: z.ZodOptional<z.ZodString>;
+                edit: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            }, z.core.$strict>>>;
+            createdAt: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                outreachId: z.ZodString;
+                author: z.ZodObject<{
+                    name: z.ZodString;
+                    isMe: z.ZodBoolean;
+                }, z.core.$strip>;
+                createdAt: z.ZodString;
+                updatedAt: z.ZodString;
+                updatedBy: z.ZodObject<{
+                    name: z.ZodString;
+                    isMe: z.ZodBoolean;
+                }, z.core.$strip>;
+                text: z.ZodString;
+                withMedia: z.ZodBoolean;
+                settings: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+                order: z.ZodArray<z.ZodString>;
+                fans: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    version: z.ZodNullable<z.ZodString>;
+                    basis: z.ZodNullable<z.ZodString>;
+                    versionAt: z.ZodNullable<z.ZodString>;
+                    edit: z.ZodNullable<z.ZodString>;
+                    editedBy: z.ZodNullable<z.ZodObject<{
+                        name: z.ZodString;
+                        isMe: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                    editedAt: z.ZodNullable<z.ZodString>;
+                    send: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        attemptId: z.ZodString;
+                        by: z.ZodObject<{
+                            name: z.ZodString;
+                            isMe: z.ZodBoolean;
+                        }, z.core.$strip>;
+                        clickedAt: z.ZodString;
+                        ticketUntil: z.ZodNullable<z.ZodString>;
+                        sentAt: z.ZodNullable<z.ZodString>;
+                        code: z.ZodNullable<z.ZodString>;
+                        text: z.ZodNullable<z.ZodString>;
+                        media: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                        platformMessageId: z.ZodNullable<z.ZodString>;
+                        resolvedBy: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    outcome: z.ZodNullable<z.ZodObject<{
+                        replied: z.ZodNullable<z.ZodObject<{
+                            at: z.ZodString;
+                            text: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        bought: z.ZodNullable<z.ZodObject<{
+                            mills: z.ZodNumber;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+                kept: z.ZodArray<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientOutreachSend: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: string;
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            outreachId: z.ZodString;
+        }, z.core.$strip>;
+        readonly body: z.ZodDiscriminatedUnion<[z.ZodObject<{
+            action: z.ZodLiteral<"claim">;
+            fanRef: z.ZodString;
+            attemptId: z.ZodString;
+            text: z.ZodString;
+            media: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+        }, z.core.$strict>, z.ZodObject<{
+            action: z.ZodLiteral<"sent">;
+            fanRef: z.ZodString;
+            attemptId: z.ZodString;
+            platformMessageId: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>, z.ZodObject<{
+            action: z.ZodLiteral<"failed">;
+            fanRef: z.ZodString;
+            attemptId: z.ZodString;
+            code: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            action: z.ZodLiteral<"uncertain">;
+            fanRef: z.ZodString;
+            attemptId: z.ZodString;
+        }, z.core.$strict>, z.ZodObject<{
+            action: z.ZodLiteral<"record">;
+            fanRef: z.ZodString;
+            attemptId: z.ZodString;
+            state: z.ZodEnum<{
+                sent: "sent";
+                uncertain: "uncertain";
+            }>;
+            clickedAt: z.ZodString;
+            sentAt: z.ZodOptional<z.ZodString>;
+            text: z.ZodString;
+            media: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            platformMessageId: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>], "action">;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                outcome: z.ZodString;
+                fan: z.ZodObject<{
+                    fanRef: z.ZodString;
+                    version: z.ZodNullable<z.ZodString>;
+                    basis: z.ZodNullable<z.ZodString>;
+                    versionAt: z.ZodNullable<z.ZodString>;
+                    edit: z.ZodNullable<z.ZodString>;
+                    editedBy: z.ZodNullable<z.ZodObject<{
+                        name: z.ZodString;
+                        isMe: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                    editedAt: z.ZodNullable<z.ZodString>;
+                    send: z.ZodNullable<z.ZodObject<{
+                        state: z.ZodString;
+                        attemptId: z.ZodString;
+                        by: z.ZodObject<{
+                            name: z.ZodString;
+                            isMe: z.ZodBoolean;
+                        }, z.core.$strip>;
+                        clickedAt: z.ZodString;
+                        ticketUntil: z.ZodNullable<z.ZodString>;
+                        sentAt: z.ZodNullable<z.ZodString>;
+                        code: z.ZodNullable<z.ZodString>;
+                        text: z.ZodNullable<z.ZodString>;
+                        media: z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+                        platformMessageId: z.ZodNullable<z.ZodString>;
+                        resolvedBy: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    outcome: z.ZodNullable<z.ZodObject<{
+                        replied: z.ZodNullable<z.ZodObject<{
+                            at: z.ZodString;
+                            text: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        bought: z.ZodNullable<z.ZodObject<{
+                            mills: z.ZodNumber;
+                            at: z.ZodString;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientOutreachTouches: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                hours: z.ZodNumber;
+                fans: z.ZodArray<z.ZodObject<{
+                    fanRef: z.ZodString;
+                    at: z.ZodString;
+                    kind: z.ZodString;
+                    by: z.ZodNullable<z.ZodObject<{
+                        name: z.ZodString;
+                        isMe: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                    outreachId: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
     readonly agentFanQueuePreview: {
         readonly auth: {
             readonly kind: "agentKey";

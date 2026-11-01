@@ -76,7 +76,7 @@ import { type PageContextPort, type PageContextState, flagFailure, pageFlag, pag
 import { fanHandle, parseFanHandle, parsePartHandle } from '../boards/handles';
 import { flagReasonVm } from '../flag-reason';
 import { boardOpenRefusal, issueCause, type BoardSwitch, type ChatNavigator } from '../boards/navigate';
-import { noteBatchOp, type BatchOutcome, type BatchSendState, type OutreachCardRow } from '../boards/batch';
+import { noteBatchOp, type BatchOutcome, type BatchPreviewPort, type BatchSendState, type OutreachCardRow } from '../boards/batch';
 import { type BoardsClock, type BoardsNotifier, type ClipboardWriter, type DraftStorePort, type IdSource, type PreviewSendClick, type PreviewSender, type TabRpc } from '../boards/ports';
 import { type GreetingDesk, type PreviewDirectory, type PreviewTargetInfo, type Surfaces } from '../boards/shared';
 import { ViewCell, done, refused, type SurfaceController } from '../boards/surface';
@@ -370,6 +370,10 @@ export interface PreviewController extends SurfaceController<'preview'> {
   outreachSend(type: UiActionType, handle: TargetHandle, anyway: boolean): Promise<ActionReceipt>;
   /** The person's words for the fan's version (null — Fix's again); false — it cannot change now. */
   outreachEdit(handle: TargetHandle, text: string | null): boolean;
+  /** 1.72.0: «Рассылка»'s version the hub keeps goes into the fan's card as its result (outreachAdopt below). */
+  outreachAdopt(handle: TargetHandle, text: string): Promise<boolean>;
+  /** 1.72.0: the outreach's vault media as the hub keeps them become its picks again (BatchPreviewPort). */
+  outreachRestoreMedia(media: Parameters<NonNullable<BatchPreviewPort['outreachRestoreMedia']>>[0]): boolean;
   /** What these fans got of these media, as the vault says; null — no vault here. */
   outreachStates(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
   /** «Онлайн»: a text of the team's guide becomes the open card's result, for its «Отправить →»; false — not now. */
@@ -2061,6 +2065,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     return {
       opId: track.opId,
       text: edit?.text ?? first,
+      fix: first,
       edited: edit !== undefined,
       editable: rows.editable === true,
       send,
@@ -2299,7 +2304,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     }
     // The person's own text passes no freshness warning: it was written looking at the chat. A text of the team's guide
     // «Онлайн» put on the card when it opened was not: what the fan wrote since warns, as for an AI's text.
-    const accept = anyway || (track.manual !== null && !onlineLike(track.source));
+    // «Рассылка»'s version taken from the hub is Fix's text all the same: what the fan wrote since warns as for any result.
+    const accept = anyway || (track.manual !== null && !onlineLike(track.source) && track.source !== 'outreach');
     // Sent anyway, a result restored after a reload goes with a checkpoint taken now: the page's own document and chat.
     const checkpoint = track.checkpoint ?? (accept ? await host.checkpoint(track.target.chat).catch(() => null) : null);
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));
@@ -2698,6 +2704,78 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // MAIN's word on the send before the click (a newer message of the fan, the open chat), as for a generation's result.
     void refreshPreflight(track);
     return true;
+  }
+
+  /**
+   * 1.72.0 («Рассылки» on the hub, the page's team's): a version of «Рассылка» the hub keeps — written on another
+   * computer, by a colleague, before a reload, or a card's result that ran out of its time — becomes the fan's card's
+   * result again: a text with no generation behind it here, sent as the person's own words (a manual group, as
+   * «Онлайн»'s text). Nothing is written or sent; the card checks the fan's newer messages as for any result.
+   */
+  async function outreachAdopt(handle: TargetHandle, text: string): Promise<boolean> {
+    const sha256 = deps.sha256;
+    const body = text.trim();
+    if (sha256 === undefined || deps.sender === null || deps.previewSend === false || !outreachOn || body === '' || disposed) return false;
+    const shown = (): boolean => SOURCES.some((s) => surfaces.current().preview[s] === handle);
+    let state = targets.get(handle) ?? null;
+    let shadow: TargetState | null = null;
+    if (state === null) {
+      await deps.directories.outreach?.prepare?.(handle).catch(() => undefined);
+      if (disposed) return false;
+      state = targets.get(handle) ?? newTarget('outreach', handle);
+      if (state === null) return false;
+      if (!targets.has(handle)) {
+        targets.set(handle, state);
+        shadows.add(handle);
+        shadow = state;
+      }
+    }
+    try {
+      if (state.source !== 'outreach' || busyOf(state.pageId, state.fanRef)) return false;
+      const binding = context.current().binding;
+      if (binding === null) return false;
+      const conversationRef = conversationOfTarget(state.info, binding.platform);
+      if (conversationRef === null) return false;
+      const chat = { host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: state.fanRef };
+      const target: Target = { binding, chat, fanRef: state.fanRef, conversationRef };
+      const atEpoch = epoch;
+      let textFingerprint: string;
+      try {
+        textFingerprint = await sha256(body);
+      } catch {
+        return false;
+      }
+      const checkpoint = await host.checkpoint(chat).catch(() => null);
+      if (disposed || atEpoch !== epoch || targets.get(handle) !== state || busyOf(state.pageId, state.fanRef)) return false;
+      const now = clock.now();
+      const view: OpView = {
+        opId: ids.uuid(),
+        feature: 'fix',
+        surface: surfaceOf(state.source),
+        target,
+        state: 'done',
+        phase: { name: 'settled', since: now },
+        startedAt: now,
+        endedAt: now,
+        toneUsed: null,
+        generationRef: ids.uuid(),
+        result: { kind: 'parts', parts: [body], splitRequested: false },
+      };
+      const track: OpTrack = { ...trackOf(view, state, { checkpoint }), manual: { textFingerprint } };
+      tracks.set(view.opId, track);
+      currentOp.set(handle, view.opId);
+      // The window's row follows this card as it follows a version its batch wrote (its send, the fan's newer message),
+      // and the fan takes the outreach's media now, so their release forms are read before the click (settleBatch).
+      batched.set(handle, '');
+      adoptOutreach(chat);
+      pruneTracks();
+      changedFor(handle);
+      void refreshPreflight(track);
+      return true;
+    } finally {
+      if (shadow !== null && targets.get(handle) === shadow && !shown()) closeTarget(handle);
+      shadows.delete(handle);
+    }
   }
 
   /** «Править» / the editor of a part / «Вернуть текст AI» (audit 2026-10-20, row 1). Local only. */
@@ -3138,6 +3216,19 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const track = tracks.get(currentOp.get(handle) ?? '');
       if (track === undefined || !fromWindow(track.source)) return false;
       return editPart(onlineLike(track.source) ? 'EditOnline' : 'EditOutreach', track, 0, 0, text).ok;
+    },
+    outreachAdopt,
+    outreachRestoreMedia(saved) {
+      const chat = outreachChat();
+      if (!outreachOn || deps.sender === null || chat === null) return false;
+      // The vault's links expire: the picks come back without their pictures; the price as the person typed it.
+      const next: Attachment =
+        saved === null || saved.items.length === 0
+          ? EMPTY_ATTACHMENT
+          : { picks: saved.items.map((item) => ({ id: item.id, type: item.type, duration: item.duration, thumb: null, free: item.free })), price: saved.priceCents > 0 ? (saved.priceCents / 100).toFixed(2) : '' };
+      media.adopt(chat, next, media.current(chat));
+      syncOutreach();
+      return true;
     },
     onlineText,
     clearDraft,

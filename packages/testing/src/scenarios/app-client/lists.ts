@@ -395,6 +395,8 @@ export function outreach(ctx: ScenarioCtx, view: VmView, rows: readonly Outreach
     picker: null,
     posts: null,
     saved: [],
+    sync: 'hub',
+    author: null,
     ...patch,
   };
 }

@@ -69,6 +69,9 @@ function Line({ vm }: { readonly vm: OutreachWindowVM }): JSX.Element | null {
   const other = vm.aside.length - bought.length;
   if (other > 0) parts.push(i18n.plural('outreach.line.aside', other));
   if (vm.persona !== null) parts.push(i18n.t('outreach.line.persona', { persona: vm.persona }));
+  // 1.72.0: a colleague's outreach says whose; the hub not answering says where the outreach is kept meanwhile.
+  if (vm.author !== null) parts.push(i18n.t('outreach.line.author', { name: vm.author }));
+  if (vm.sync === 'offline') parts.push(<span key="offline" class="cg-ow__offline" data-cg-sync="offline">{i18n.t('outreach.line.offline')}</span>);
   return (
     <div class="cg-nw__line cg-ow__line">
       <span>

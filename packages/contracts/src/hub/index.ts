@@ -23,6 +23,7 @@ export * from './online';
 export * from './onlyfans-feed';
 export * from './server-tab';
 export * from './fan-queues';
+export * from './outreach-store';
 export * from './routes';
 export * from './registry';
 export * from './error-map';

@@ -232,6 +232,12 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    */
   'fan-queues-v1',
   /**
+   * 2026-11-01: «Рассылки» kept by the hub and shared by the page's team (`clientOutreaches`, `clientOutreach`,
+   * `clientOutreachSave`, `clientOutreachSend`, `clientOutreachTouches`). A hub without it is never asked: the window keeps
+   * its outreaches on this computer, as in 3.15.0.
+   */
+  'outreach-store-v1',
+  /**
    * Who wrote each Fansly note (`clientNoteAttributions`): every write of our notes panel Fansly confirmed — ids, the
    * action, where in the panel, the questionnaire labels; never a text. A hub without it is never told.
    */

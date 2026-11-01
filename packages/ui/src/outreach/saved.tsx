@@ -10,11 +10,14 @@ import { type OutreachSavedVM, type OutreachWindowVM } from '@cg/contracts/vm';
 
 import { Button, CheckGlyph, Icon, useDispatch, useI18n, useKit } from '../kit';
 
-/** «сегодня 01:20 · отправлено 12 из 20 · ответили 2 · купили на $50 · с медиа». */
+/** «grisha · сегодня 01:20 · отправлено 12 из 20 · могло уйти 1 · ответили 2 · купили на $50 · с медиа». */
 function metaOf(i18n: ReturnType<typeof useI18n>, item: OutreachSavedVM): string {
   const parts = [i18n.formatTime(item.startedAt, 'datetime')];
+  // A colleague's outreach says whose it is first (1.72.0: the page's team sees each other's).
+  if (item.author !== null) parts.unshift(item.author);
   if (item.total === 0) parts.push(i18n.t('outreach.saved.notWritten'));
   else parts.push(i18n.t('outreach.saved.sentOf', { sent: item.sent, total: item.total }));
+  if (item.uncertain > 0) parts.push(i18n.t('outreach.saved.uncertain', { n: item.uncertain }));
   if (item.replied > 0) parts.push(i18n.t('outreach.saved.replied', { n: item.replied }));
   if (item.boughtMills !== null && item.boughtMills > 0) parts.push(i18n.t('outreach.saved.bought', { money: i18n.formatMoneyMills(item.boughtMills) }));
   if (item.media) parts.push(i18n.t('outreach.saved.media'));
@@ -48,6 +51,8 @@ export function Saved({ vm }: { readonly vm: OutreachWindowVM }): JSX.Element | 
     button.current?.focus();
   };
   const current = vm.saved.find((item) => item.current) ?? null;
+  // Kept by the hub for the page's team (1.72.0), else on this computer.
+  const team = vm.sync !== 'local';
 
   return (
     <span
@@ -74,8 +79,8 @@ export function Saved({ vm }: { readonly vm: OutreachWindowVM }): JSX.Element | 
         onClick={() => setOpen((value) => !value)}
       />
       {open ? (
-        <div class="cg-ow__pop cg-ow__savedpop" role="dialog" aria-label={i18n.t('outreach.saved.head')}>
-          <div class="cg-ow__poph">{i18n.t('outreach.saved.head')}</div>
+        <div class="cg-ow__pop cg-ow__savedpop" role="dialog" aria-label={i18n.t(team ? 'outreach.saved.headTeam' : 'outreach.saved.head')}>
+          <div class="cg-ow__poph">{i18n.t(team ? 'outreach.saved.headTeam' : 'outreach.saved.head')}</div>
           {current === null ? null : (
             <div class="cg-ow__pi cg-ow__new">
               <button
@@ -111,7 +116,7 @@ export function Saved({ vm }: { readonly vm: OutreachWindowVM }): JSX.Element | 
               {item.current ? <i>{i18n.t('outreach.saved.now')}</i> : null}
             </div>
           ))}
-          <div class="cg-ow__popf">{i18n.t('outreach.saved.foot')}</div>
+          <div class="cg-ow__popf">{i18n.t(team ? 'outreach.saved.footTeam' : 'outreach.saved.foot')}</div>
         </div>
       ) : null}
     </span>

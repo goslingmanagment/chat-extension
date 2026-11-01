@@ -279,6 +279,15 @@ export type FakeHubCommand =
    * page of the hub has until someone asks Gengar. `userId` — the chatter the stand signs in as (WORLD.user by default).
    */
   | { readonly op: 'fanQueues'; readonly pageLabel: string; readonly set: 'stand' | null; readonly userId?: number }
+  /**
+   * 1.72.0: a colleague's outreach the hub keeps on the page (`clientOutreaches`): its fans' versions, some sent minutes
+   * ago (by the author unless `by` names another), with what came of them.
+   */
+  | { readonly op: 'outreachSeed'; readonly pageLabel: string; readonly outreach: OutreachSeed }
+  /** 1.72.0: fans a fan queue or «Онлайн» wrote to minutes ago (`clientOutreachTouches`). */
+  | { readonly op: 'outreachTouches'; readonly pageLabel: string; readonly touches: readonly OutreachTouchSeed[] }
+  /** 1.72.0: «the hub does not answer» for the outreach routes (503) until switched back. */
+  | { readonly op: 'outreachDown'; readonly down: boolean }
   /** Chat Memory week 2: the fan's card as the hub answers it (`clientFanCard`), until a decision or a fact change moves it. */
   | { readonly op: 'fanCard'; readonly pageLabel: string; readonly fanRef: string; readonly card: Record<string, unknown> }
   /** 2026-10-29: a note write recorded before the run (a colleague's), as `clientNoteAttributions` would have it; the
@@ -446,4 +455,37 @@ export interface FakeHubJournalPage {
   readonly entries: readonly FakeHubJournalEntry[];
   /** Pass as `since` to read only what came after. */
   readonly next: number;
+}
+
+// ── «Рассылки» on the fake hub (outreach.ts) ──
+
+/** A person of the page's team as the fake hub names them. */
+export interface OutreachPerson {
+  readonly id: number;
+  readonly name: string;
+}
+
+/** A colleague's outreach a scenario seeds: its fans with their versions and sends (sent minutes ago). */
+export interface OutreachSeed {
+  readonly id: string;
+  readonly author: OutreachPerson;
+  readonly text: string;
+  readonly agoMin: number;
+  /** ChatSpace: the offer's vault media as the colleague's window saved them. */
+  readonly media?: { readonly items: readonly { readonly id: string; readonly type: string; readonly duration: number; readonly free: boolean }[]; readonly priceCents: number };
+  readonly fans: readonly {
+    readonly fanRef: string;
+    readonly version: string;
+    /** The colleague's own words for the version. */
+    readonly edit?: string;
+    readonly sent?: { readonly agoMin: number; readonly by?: OutreachPerson; readonly replied?: string; readonly boughtMills?: number };
+  }[];
+}
+
+/** A fan a fan queue or «Онлайн» wrote to (a scenario's). */
+export interface OutreachTouchSeed {
+  readonly fanRef: string;
+  readonly kind: 'queue' | 'online';
+  readonly agoMin: number;
+  readonly by: OutreachPerson | null;
 }

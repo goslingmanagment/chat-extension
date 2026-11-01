@@ -98,6 +98,7 @@ function Status({ row, media }: { readonly row: OutreachRowVM; readonly media: O
         <span class="cg-nw__st is-2">
           <Spinner />
           {i18n.t('outreach.state.sending')}
+          {row.by === undefined ? null : ` · ${row.by}`}
         </span>
       );
     case 'accepted':
@@ -112,6 +113,7 @@ function Status({ row, media }: { readonly row: OutreachRowVM; readonly media: O
         <span class="cg-nw__st is-done">
           <Icon name="check" size={12} />
           {row.sentAt === null ? i18n.t('outreach.row.sentNow') : i18n.t('outreach.row.sent', { time: { time: row.sentAt } })}
+          {row.by === undefined ? null : ` · ${row.by}`}
           {after}
         </span>
       );
@@ -127,6 +129,7 @@ function Status({ row, media }: { readonly row: OutreachRowVM; readonly media: O
         <span class="cg-nw__st is-2" data-cg-uncertain="1">
           <Dot kind="ink" size={6} />
           {row.replied !== null ? i18n.t('outreach.row.uncertainShort') : i18n.t('outreach.row.uncertain')}
+          {row.by === undefined ? null : ` · ${row.by}`}
           {row.replied !== null ? after : null}
         </span>
       );

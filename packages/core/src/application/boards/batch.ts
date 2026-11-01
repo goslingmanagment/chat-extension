@@ -481,6 +481,8 @@ export interface OutreachCardRow {
   readonly opId: string;
   /** The text that goes: the person's edit, else Fix's. */
   readonly text: string;
+  /** 1.72.0: Fix's version itself (the person's edit aside). */
+  readonly fix: string;
   readonly edited: boolean;
   /** The person may change it now (it has not started to go). */
   readonly editable: boolean;
@@ -523,6 +525,17 @@ export interface BatchPreviewPort {
   outreachSend?(type: UiActionType, handle: string, anyway: boolean): Promise<ActionReceipt>;
   /** The person's words for the fan's version (null — Fix's again); false — the version cannot change now. */
   outreachEdit?(handle: string, text: string | null): boolean;
+  /**
+   * 1.72.0: a version the hub keeps (written on another computer, by a colleague, or before a reload) goes into the fan's
+   * card as its result, sent like the person's own words; false — the card cannot take it now (the board does not list
+   * the fan yet, a send of the fan is on its way).
+   */
+  outreachAdopt?(handle: string, text: string): Promise<boolean>;
+  /**
+   * 1.72.0: the outreach's media of the vault as the hub keeps them (an outreach opened here: a colleague's, another
+   * computer's, before a reload) become the outreach's picks again; null — none. False — the cards send no media here.
+   */
+  outreachRestoreMedia?(media: { readonly items: readonly { readonly id: string; readonly type: OutreachMediaVM['items'][number]['type']; readonly duration: number; readonly free: boolean }[]; readonly priceCents: number } | null): boolean;
   /** What these fans got of these media, as the site's vault says (bought, sent unbought, free); null — the site cannot tell. */
   outreachStates?(fans: readonly string[], ids: readonly string[]): Promise<ReadonlyMap<string, readonly MediaFanState[]> | null>;
   /** «Онлайн»: a text of the team's guide becomes the fan's open card's result, for its own send (X8); false — not now. */

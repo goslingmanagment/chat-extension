@@ -9,7 +9,7 @@ export { createNewcomersController } from '@cg/core/application/newcomers';
 export { createPaletteDirectory } from '@cg/core/application/preview';
 import type { HostPort } from '@cg/contracts/host';
 import { createOnlineController as createOnline, type OnlineControllerDeps } from '@cg/core/application/online';
-import { createOutreachController as create, type OutreachControllerDeps } from '@cg/core/application/outreach';
+import { createOutreachController as create, createOutreachHub, type OutreachControllerDeps } from '@cg/core/application/outreach';
 import { createQueuesController as createQueues, type QueuesControllerDeps } from '@cg/core/application/queues';
 import { createSpendersController as createSpenders, type SpendersControllerDeps } from '@cg/core/application/spenders';
 
@@ -18,9 +18,10 @@ export const createSpendersController = (deps: SpendersControllerDeps & { readon
 
 /**
  * «Рассылка» on ChatSpace: each fan's version goes by the fan's card's own send (X8) with the outreach's vault media
- * (X53) or the fan's own — the controller has no send of its own here.
+ * (X53) or the fan's own — the controller has no send of its own here. 1.72.0: the outreaches are the hub's, the page's
+ * team's (`outreach-store-v1`), asked through the background.
  */
-export const createOutreachController = (deps: OutreachControllerDeps & { readonly host: HostPort }) => create(deps);
+export const createOutreachController = (deps: OutreachControllerDeps & { readonly host: HostPort }) => create({ ...deps, hub: createOutreachHub(deps.rpc) });
 
 /**
  * «Онлайн» on ChatSpace: who is online is the hub's (OnlyFansAPI), ChatSpace's own dots say «в сети»; each fan's text

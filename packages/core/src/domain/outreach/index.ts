@@ -3,3 +3,4 @@
 
 export * from './audience';
 export * from './saved';
+export * from './sync';

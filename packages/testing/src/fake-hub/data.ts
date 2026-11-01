@@ -90,6 +90,7 @@ import { classifyPair, type PairState, type ServedRef, type StoreState } from '.
 import { iso } from './clock';
 import { pageRefOf, type FakePage } from './config';
 import { FanQueuesModel, type FanQueuesSet } from './fan-queues';
+import { OutreachModel } from './outreach';
 import { FakeOnlyfansFeed, type FakeFeedRecord, type FakeFeedTransaction, type FeedArchiveMessage } from './onlyfans-feed';
 import { ONLINE_RULES, ONLINE_SEEN_SOURCES, OnlineModel, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
 import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
@@ -321,6 +322,8 @@ export class DataModel {
   private readonly feedModel = new FakeOnlyfansFeed();
   /** «Очереди»: a scenario's queues of a page, their portions and what the chatters reported of each fan. */
   private readonly queuesModel = new FanQueuesModel();
+  /** «Рассылки» kept by the hub, the page's team's (`outreach-store-v1`). */
+  readonly outreach = new OutreachModel();
   private queueMessageId = 8_800_000_000;
   /** Chat Memory week 1: another chatter's message to a fan, set by a scenario (`talking`): «в разговоре» without a send. */
   private readonly talking: FakeTalking[] = [];

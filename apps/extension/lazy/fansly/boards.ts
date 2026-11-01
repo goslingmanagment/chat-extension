@@ -9,7 +9,7 @@ export { createPaletteDirectory } from '@cg/core/application/preview';
 
 import { createSpendersController as create, type SpendersControllerDeps } from '@cg/core/application/spenders';
 import { createOnlineController as createOnline, type OnlineControllerDeps } from '@cg/core/application/online';
-import { createOutreachController as createOutreach, type OutreachControllerDeps } from '@cg/core/application/outreach';
+import { createOutreachController as createOutreach, createOutreachHub, type OutreachControllerDeps } from '@cg/core/application/outreach';
 import { createQueuesController as createQueues, type QueuesControllerDeps } from '@cg/core/application/queues';
 import type { HostPort } from '@cg/contracts/host';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
@@ -59,7 +59,8 @@ export function createSpendersController(deps: SpendersControllerDeps & { readon
  * Fansly which of those ids are bundles, and they go as bundles. No answer — the list as stored, and the sheet says so.
  */
 export function createOutreachController(deps: OutreachControllerDeps & { readonly host: HostPort }) {
-  return createOutreach({ ...deps, own: {
+  // 1.72.0: the outreaches are the hub's, the page's team's (`outreach-store-v1`), asked through the background.
+  return createOutreach({ ...deps, hub: createOutreachHub(deps.rpc), own: {
     async copied(account) {
       const stored = readCopiedMedia(window);
       const media = stored.filter((item) => item.contentType === 1).map((item) => item.contentId);

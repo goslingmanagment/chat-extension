@@ -115,6 +115,15 @@ import {
   type FanQueuesQuery,
   type FanQueueTake,
   type FanQueueTakeRequest,
+  type OutreachStoreGetQuery,
+  type OutreachStoreList,
+  type OutreachStoreListQuery,
+  type OutreachStoreOutreach,
+  type OutreachStoreSaved,
+  type OutreachStoreSaveRequest,
+  type OutreachStoreSendAnswer,
+  type OutreachStoreSendRequest,
+  type OutreachStoreTouches,
   type FanFactChangeRequest,
   type FanFactChangeResult,
   type FanLinkDecideRequest,
@@ -1159,6 +1168,37 @@ export class ChatExtensionHub implements HubFacade {
   /** The caller's untouched portion given back (the window closed); a lost one expires by itself in 30 minutes. */
   async fanQueueRelease(request: FanQueueReleaseRequest): Promise<FanQueueRelease> {
     return (await this.client('clientFanQueueRelease', request, request.pageLabel)) as FanQueueRelease;
+  }
+
+  /**
+   * «Рассылки» kept by the hub (`outreach-store-v1`): the page's outreaches, whoever made them. Refused without the
+   * capability (the window keeps its outreaches on this computer then); no owner switch on the hub's side.
+   */
+  async outreaches(query: OutreachStoreListQuery): Promise<OutreachStoreList> {
+    return (await this.client('clientOutreaches', query, query.pageLabel)) as OutreachStoreList;
+  }
+
+  /** One outreach whole; the hub settles an uncertain send its archive proves while answering. */
+  async outreach(query: OutreachStoreGetQuery): Promise<OutreachStoreOutreach> {
+    return (await this.client('clientOutreach', query, query.pageLabel)) as OutreachStoreOutreach;
+  }
+
+  /** A save. Never repeated here: the tab keeps what did not reach the hub and sends it again with its next save. */
+  async outreachSave(request: OutreachStoreSaveRequest): Promise<OutreachStoreSaved> {
+    return (await this.client('clientOutreachSave', request, request.pageLabel)) as OutreachStoreSaved;
+  }
+
+  /**
+   * A fan's send. Never repeated here, least of all a claim: a lost answer to it leaves the claim to the hub's ticket
+   * (the send is then unknown and never claimed again); a lost report is the tab's to send again with the same attempt.
+   */
+  async outreachSend(request: OutreachStoreSendRequest): Promise<OutreachStoreSendAnswer> {
+    return (await this.client('clientOutreachSend', request, request.pageLabel)) as OutreachStoreSendAnswer;
+  }
+
+  /** The page's fans an outreach, a fan queue or «Онлайн» wrote to in the last 72 hours. */
+  async outreachTouches(query: OutreachStoreListQuery): Promise<OutreachStoreTouches> {
+    return (await this.client('clientOutreachTouches', query, query.pageLabel)) as OutreachStoreTouches;
   }
 
   /**

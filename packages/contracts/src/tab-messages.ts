@@ -47,6 +47,7 @@ import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeR
 import { HandoffSchema, WinBackAttemptResultSchema, WinBackListSchema } from './hub/queue';
 import { ONLINE_ATTEMPT_ACTIONS, ONLINE_PRESENCE_MAX, ONLINE_SENT_ACTS, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceResultSchema, OnlineProbeResultSchema } from './hub/online';
 import { FAN_QUEUE_PORTION_MAX, FAN_QUEUE_SENT_ACTS, FAN_QUEUE_SKIP_REASONS, FanQueueItemDoneSchema, FanQueueReleaseSchema, FanQueuesSchema, FanQueueTakeSchema } from './hub/fan-queues';
+import { OutreachStoreListSchema, OutreachStoreOutreachSchema, OutreachStoreSaveBodySchema, OutreachStoreSavedSchema, OutreachStoreSendAnswerSchema, OutreachStoreSendBodySchema, OutreachStoreTouchesSchema } from './hub/outreach-store';
 import { AI_USAGE_LIMITS, AiUsageReportSchema } from './hub/usage';
 import { BusinessDateSchema } from './hub/wire';
 import { QueuePageSchema, SpenderDetailSchema, SpendersBoardSchema, SpendersStatsSchema, StatsQuerySchema, type HubSpenderPeriod } from './hub/spenders';
@@ -692,6 +693,25 @@ export const TAB_REQUESTS = {
   },
   /** The window closed: the person's untouched portion goes back to the queue (hub `clientFanQueueRelease`). */
   'queues.release': { req: z.strictObject({ pageId: HubIntIdSchema, queueId: HubIntIdSchema }), res: FanQueueReleaseSchema, from: TAB },
+  /**
+   * 2026-11-01, «Рассылки» kept by the hub (`outreach-store-v1`), shared by the page's team: the page's outreaches, one of
+   * them whole, a save of the window's changes, a fan's send (claimed before the platform is asked, then reported), the
+   * fans written to in the last 72 hours. Each one call, never repeated by the background: the tab keeps what did not
+   * reach the hub (a save, a report — never a claim) and sends it again itself.
+   */
+  'outreach.list': { req: z.strictObject({ pageId: HubIntIdSchema }), res: OutreachStoreListSchema, from: TAB },
+  'outreach.get': { req: z.strictObject({ pageId: HubIntIdSchema, outreachId: z.string().check(z.minLength(1), z.maxLength(64)) }), res: OutreachStoreOutreachSchema, from: TAB },
+  'outreach.save': {
+    req: z.strictObject({ pageId: HubIntIdSchema, outreachId: z.string().check(z.minLength(1), z.maxLength(64)), body: OutreachStoreSaveBodySchema }),
+    res: OutreachStoreSavedSchema,
+    from: TAB,
+  },
+  'outreach.send': {
+    req: z.strictObject({ pageId: HubIntIdSchema, outreachId: z.string().check(z.minLength(1), z.maxLength(64)), body: OutreachStoreSendBodySchema }),
+    res: OutreachStoreSendAnswerSchema,
+    from: TAB,
+  },
+  'outreach.touches': { req: z.strictObject({ pageId: HubIntIdSchema }), res: OutreachStoreTouchesSchema, from: TAB },
   'feed.read': {
     req: z.strictObject({
       ...PageFanConversation,

@@ -52,6 +52,7 @@ import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, t
 import { type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollRequest, type OnlyfansPollResult } from './onlyfans-feed';
 import { type ServerTabStateRequest, type ServerTabStateResult } from './server-tab';
 import { type FanQueueItemDone, type FanQueueItemDoneRequest, type FanQueueRelease, type FanQueueReleaseRequest, type FanQueues, type FanQueuesQuery, type FanQueueTake, type FanQueueTakeRequest } from './fan-queues';
+import { type OutreachStoreGetQuery, type OutreachStoreList, type OutreachStoreListQuery, type OutreachStoreOutreach, type OutreachStoreSaved, type OutreachStoreSaveRequest, type OutreachStoreSendAnswer, type OutreachStoreSendRequest, type OutreachStoreTouches } from './outreach-store';
 import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type FanMarks, type FanMarksQuery } from './fan-marks';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
@@ -247,6 +248,16 @@ export interface HubFacade {
   fanQueueItemDone(request: FanQueueItemDoneRequest): Promise<FanQueueItemDone>;
   /** The caller's portion given back. */
   fanQueueRelease(request: FanQueueReleaseRequest): Promise<FanQueueRelease>;
+  /** 2026-11-01: the page's «Рассылки» kept by the hub (`outreach-store-v1`), whoever made them. */
+  outreaches(query: OutreachStoreListQuery): Promise<OutreachStoreList>;
+  /** One outreach whole. */
+  outreach(query: OutreachStoreGetQuery): Promise<OutreachStoreOutreach>;
+  /** Create or change an outreach; one call, never repeated by the facade (the tab's outbox repeats a save it still holds). */
+  outreachSave(request: OutreachStoreSaveRequest): Promise<OutreachStoreSaved>;
+  /** A fan's send claimed, reported or recorded: one call, never repeated by the facade. */
+  outreachSend(request: OutreachStoreSendRequest): Promise<OutreachStoreSendAnswer>;
+  /** The page's fans an outreach, a fan queue or «Онлайн» wrote to in the last 72 hours. */
+  outreachTouches(query: OutreachStoreListQuery): Promise<OutreachStoreTouches>;
   /**
    * 1.47.0: the paid voicing of a script (`voiceNoteCreate`): idempotent per `clientRequestId` at the hub, never
    * repeated by the facade — the caller wrote the take before it asked. Needs the page's `voice` and `voice-notes-v1`.
