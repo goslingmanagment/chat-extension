@@ -287,6 +287,8 @@ export type FakeHubCommand =
   | { readonly op: 'outreachSeed'; readonly pageLabel: string; readonly outreach: OutreachSeed }
   /** 1.72.0: fans a fan queue or «Онлайн» wrote to minutes ago (`clientOutreachTouches`). */
   | { readonly op: 'outreachTouches'; readonly pageLabel: string; readonly touches: readonly OutreachTouchSeed[] }
+  /** 1.72.0: «the hub does not answer» for the outreach routes (503) until switched back. */
+  | { readonly op: 'outreachDown'; readonly down: boolean }
   /** Chat Memory week 2: the fan's card as the hub answers it (`clientFanCard`), until a decision or a fact change moves it. */
   | { readonly op: 'fanCard'; readonly pageLabel: string; readonly fanRef: string; readonly card: Record<string, unknown> }
   /** 2026-10-29: a note write recorded before the run (a colleague's), as `clientNoteAttributions` would have it; the

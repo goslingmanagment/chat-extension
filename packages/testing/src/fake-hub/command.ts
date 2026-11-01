@@ -135,6 +135,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   fanQueues: { pageLabel: isString, set: oneOf('stand', null), userId: isNumber },
   outreachSeed: { pageLabel: isString, outreach: isObject },
   outreachTouches: { pageLabel: isString, touches: isArray },
+  outreachDown: { down: isBoolean },
   status: {},
 };
 
@@ -167,6 +168,7 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   fanQueues: ['pageLabel', 'set'],
   outreachSeed: ['pageLabel', 'outreach'],
   outreachTouches: ['pageLabel', 'touches'],
+  outreachDown: ['down'],
 };
 
 /** Keys of a config patch (FakeHubConfigPatch). */

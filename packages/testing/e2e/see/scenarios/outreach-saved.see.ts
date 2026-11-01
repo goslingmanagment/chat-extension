@@ -78,7 +78,7 @@ scenario(
     await typeIn(s, SECOND);
     await s.browser.pause(1_200);
     await s.press(/^Рассылки/, 'modal', '.cg-ow__savedb');
-    await s.see('modal', 'Рассылки на этом компьютере');
+    await s.see('modal', /Рассылки (страницы|на этом компьютере)/);
     await s.browser.pause(300);
     await shot(s, 'saved-list');
     await s.press(/DRAGON/, 'modal', '.cg-ow__savedpop .cg-ow__pi:not(.is-on):not(.cg-ow__new) .cg-ow__pib');

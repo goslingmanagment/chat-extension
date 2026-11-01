@@ -17,7 +17,7 @@ import {
   type OutreachStoreSend,
 } from '@cg/contracts/hub';
 
-import { readSavedOutreach, sendRank, type SavedFan, type SavedMedia, type SavedOutcome, type SavedOutreach, type SavedSend } from './saved';
+import { readSavedOutreach, sendRank, textKey, type SavedFan, type SavedMedia, type SavedOutcome, type SavedOutreach, type SavedSend } from './saved';
 
 /** A hub's outcome is the hub's to read again: the window does not check it itself. */
 export const HUB_OUTCOME_CHECKS = 99;
@@ -109,7 +109,8 @@ export function fromHub(hub: OutreachStoreOutreach, owner: string, now: number, 
       fanRef: fan.fanRef,
       name: keep.names?.get(fan.fanRef) ?? null,
       version: fan.version,
-      basis: fan.basis,
+      // A version the hub keeps with no name of its text (none of this client's): taken as written from the text it has.
+      basis: fan.basis ?? (fan.version === null ? null : textKey(hub.text)),
       versionAt: ms(fan.versionAt),
       edit: fan.edit,
       editedBy: fan.editedBy === null || fan.editedBy.isMe ? null : fan.editedBy.name,

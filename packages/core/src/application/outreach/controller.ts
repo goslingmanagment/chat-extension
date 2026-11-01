@@ -1034,12 +1034,14 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       const lifetime = index.byFan.get(fanRef)?.lifetime ?? null;
       return sum === null || lifetime === null ? null : sum + lifetime;
     }, 0);
+    // An outreach whose «Кому» is not known here is its fans (audience()).
+    const from: AudienceSource | null = source ?? (locked === null ? null : { kind: 'picked', fans: locked });
     const audienceVm = {
-      source: source?.kind ?? 'tiers',
-      picked: source?.kind === 'picked' ? source.fans.length : 0,
+      source: from?.kind ?? 'tiers',
+      picked: from?.kind === 'picked' ? from.fans.length : 0,
       tiers: index.shelves
         .filter((shelf) => shelf.id !== OUTSIDE_SHELF_ID && shelf.rows.length > 0)
-        .map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.rows.length, on: source?.kind === 'tiers' && source.on.has(shelf.id) })),
+        .map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.rows.length, on: from?.kind === 'tiers' && from.on.has(shelf.id) })),
       conditions: (['spent', 'active', 'notBought', 'noWaiting', 'noGone', 'noTouched'] as const)
         .filter((id) => (id !== 'notBought' || canTellBought(media)) && (id !== 'noGone' || goneOf(now.pool, index).length > 0) && (id !== 'noTouched' || touchedOf(now.pool).length > 0))
         .map((id): OutreachConditionVM => ({ id, on: conditions[id].on, ...(id === 'spent' ? { amount: amountTyped } : {}), note: conditionNote(id, now, index, ids) })),
@@ -1549,7 +1551,19 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (kept !== undefined && kept.attemptId === attemptId) keptSends.set(fanRef, { ...kept, reported: true });
   }
 
-  async function flushReports(page: number, outreachId: string, atEpoch: number): Promise<void> {
+  /** The reports go one run at a time (a save and a read both end in one): none is told twice. */
+  let reporting: Promise<void> | null = null;
+
+  function flushReports(page: number, outreachId: string, atEpoch: number): Promise<void> {
+    if (reporting !== null) return reporting;
+    const run = flushOnce(page, outreachId, atEpoch).finally(() => {
+      reporting = null;
+    });
+    reporting = run;
+    return run;
+  }
+
+  async function flushOnce(page: number, outreachId: string, atEpoch: number): Promise<void> {
     if (hub === null || !synced) return;
     for (const { fanRef, send } of unreported()) {
       const raw = reportOf(fanRef, send);
@@ -1725,10 +1739,15 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (known !== undefined) cardKnown.set(fanRef, { ...known, edit: edit.text });
   }
 
+  /** When the window last looked for a card's result that ran out of its time. */
+  let knownCheckedAt = 0;
+  /** A version waits to go into its card, or it is time to look for results that ran out. */
+  const adoptDue = (): boolean => [...held.values()].some((version) => clock.now() - version.tried >= ADOPT_RETRY_MS) || (cardKnown.size > 0 && clock.now() - knownCheckedAt >= ADOPT_RETRY_MS);
+
   /** ChatSpace: versions the hub keeps that no card shows go into their cards, one at a time. */
-  function scheduleAdopt(): void {
+  function scheduleAdopt(delay = 300): void {
     if (own !== null || adoptTimer !== null || disposed) return;
-    adoptTimer = clock.setTimer(300, () => {
+    adoptTimer = clock.setTimer(delay, () => {
       adoptTimer = null;
       void adoptHeld();
     });
@@ -1738,6 +1757,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const port = batchPort;
     if (own !== null || adopting || port === null || listIndex() === null) return;
     // A card's result that ran out of its time comes back from what the window knew of it.
+    knownCheckedAt = clock.now();
     for (const fanRef of locked ?? []) {
       if (held.has(fanRef)) continue;
       const known = cardKnown.get(fanRef);
@@ -1756,6 +1776,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     }
     adopting = true;
     const atEpoch = epoch;
+    let moved = false;
     try {
       for (const [fanRef, version] of [...held]) {
         if (disposed || atEpoch !== epoch) return;
@@ -1773,10 +1794,13 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         held.delete(fanRef);
         batch.restore([{ handle, text: version.text }]);
         if (version.edit !== null) port.outreachEdit?.(handle, version.edit);
+        moved = true;
       }
     } finally {
       adopting = false;
-      if (!disposed) changed();
+      // What could not go into its card yet is offered again later (the board may list the fan by then).
+      if (!disposed && held.size > 0) scheduleAdopt(ADOPT_RETRY_MS);
+      if (!disposed && moved) changed();
     }
   }
 
@@ -2085,7 +2109,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       followEnd();
       scheduleOutcomes();
       watchCards();
-      if (own === null && (held.size > 0 || cardKnown.size > 0)) scheduleAdopt();
+      if (own === null && adoptDue()) scheduleAdopt();
     }
     scheduleSave();
     schedulePush();
@@ -2513,6 +2537,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     keptNames.clear();
     forgetHubCopy();
     resetCampaign();
+    // «Кому» of an outreach made where the window kept none: the default tiers for the new one.
+    if (source === null) seedSource(false);
     surfaces.setPreview('outreach', null);
     changed();
     return done(type);

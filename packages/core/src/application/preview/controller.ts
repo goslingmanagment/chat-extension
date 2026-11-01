@@ -2761,6 +2761,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const track: OpTrack = { ...trackOf(view, state, { checkpoint }), manual: { textFingerprint } };
       tracks.set(view.opId, track);
       currentOp.set(handle, view.opId);
+      // The window's row follows this card as it follows a version its batch wrote (its send, the fan's newer message).
+      batched.set(handle, '');
       pruneTracks();
       changedFor(handle);
       void refreshPreflight(track);

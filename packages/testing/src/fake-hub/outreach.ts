@@ -95,9 +95,17 @@ export interface OutreachTouchSeed {
 const state = (send: Send, now: number): Send['state'] => (send.state === 'sending' && send.ticketUntil !== null && send.ticketUntil <= now ? 'uncertain' : send.state);
 const went = (send: Send | null, now: number): boolean => send !== null && state(send, now) !== 'failed';
 
+const DOWN = { ok: false, refusal: { error: 'service_unavailable' } } as const;
+
 export class OutreachModel {
   private readonly outreaches = new Map<string, Outreach>();
   private readonly touches = new Map<string, OutreachTouchSeed[]>();
+  /** A scenario's «the hub does not answer»: every outreach route answers 503. */
+  private down = false;
+
+  setDown(down: boolean): void {
+    this.down = down;
+  }
 
   private person(person: Person, userId: number): { readonly name: string; readonly isMe: boolean } {
     return { name: person.name, isMe: person.id === userId };
@@ -155,6 +163,7 @@ export class OutreachModel {
   }
 
   list(page: FakePage, userId: number, now: number): Read<OutreachStoreList> {
+    if (this.down) return DOWN;
     for (const [id, outreach] of this.outreaches) if (outreach.pageLabel === page.pageLabel && now - outreach.updatedAt > KEEP_MS) this.outreaches.delete(id);
     const outreaches: OutreachStoreSummary[] = [...this.outreaches.values()]
       .filter((outreach) => outreach.pageLabel === page.pageLabel)
@@ -189,11 +198,13 @@ export class OutreachModel {
   }
 
   get(page: FakePage, userId: number, id: string, now: number): Read<OutreachStoreOutreach> {
+    if (this.down) return DOWN;
     const outreach = this.of(page, id);
     return outreach === null ? { ok: false, refusal: { error: 'not_found' } } : { ok: true, body: this.wire(outreach, userId, now) };
   }
 
   save(page: FakePage, user: Person, id: string, body: OutreachStoreSaveBody, now: number): Read<OutreachStoreSaved> {
+    if (this.down) return DOWN;
     const other = this.outreaches.get(id);
     if (other !== undefined && other.pageLabel !== page.pageLabel) return { ok: false, refusal: { error: 'conflict', reason: 'outreach_not_found' } };
     const created = body.createdAt === undefined ? null : Date.parse(body.createdAt);
@@ -240,6 +251,7 @@ export class OutreachModel {
   }
 
   send(page: FakePage, user: Person, id: string, body: OutreachStoreSendBody, now: number): Read<OutreachStoreSendAnswer> {
+    if (this.down) return DOWN;
     const outreach = this.of(page, id);
     if (outreach === null) return { ok: false, refusal: { error: 'conflict', reason: 'outreach_not_found' } };
     const fan = outreach.fans.get(body.fanRef) ?? { version: null, basis: null, versionAt: null, edit: null, editedBy: null, editedAt: null, send: null, outcome: null };
@@ -298,6 +310,7 @@ export class OutreachModel {
   }
 
   touched(page: FakePage, userId: number, now: number): Read<OutreachStoreTouches> {
+    if (this.down) return DOWN;
     const latest = new Map<string, OutreachStoreTouches['fans'][number]>();
     const put = (touch: OutreachStoreTouches['fans'][number], at: number): void => {
       const was = latest.get(touch.fanRef);
@@ -348,7 +361,8 @@ export class OutreachModel {
       updatedBy: seed.author,
       text: seed.text,
       withMedia: false,
-      settings: {},
+      // As a colleague's window saves it: the fans he picked, the default conditions.
+      settings: { v: 1, textRevision: 0, textChangedAt: null, source: { kind: 'picked', fans: seed.fans.map((fan) => fan.fanRef) }, amountTyped: '1,000', unticked: [], items: [], picked: [], media: null },
       order: seed.fans.map((fan) => fan.fanRef),
       fans,
     });

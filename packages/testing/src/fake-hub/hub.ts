@@ -528,6 +528,9 @@ export class FakeHub {
       case 'outreachTouches':
         s.data.outreach.seedTouches(this.page(command.pageLabel), command.touches);
         return { ok: true };
+      case 'outreachDown':
+        s.data.outreach.setDown(command.down);
+        return { ok: true };
       case 'fanQueues': {
         const page = this.page(command.pageLabel);
         const userId = command.userId ?? WORLD.user.userId;

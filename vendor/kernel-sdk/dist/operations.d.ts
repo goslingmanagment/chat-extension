@@ -867,6 +867,26 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/onlyfans-feed/poll";
     };
+    readonly clientOutreach: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/outreaches/:outreachId";
+    };
+    readonly clientOutreachSave: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/outreaches/:outreachId";
+    };
+    readonly clientOutreachSend: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/outreaches/:outreachId/sends";
+    };
+    readonly clientOutreachTouches: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/outreach-touches";
+    };
+    readonly clientOutreaches: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/outreaches";
+    };
     readonly clientSendAttributions: {
         readonly method: "POST";
         readonly path: "/api/v1/client/pages/:pageLabel/send-attributions";

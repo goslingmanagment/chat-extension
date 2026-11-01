@@ -659,8 +659,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     return platform === undefined || CHAT_IS_FAN[platform] || ref === null ? {} : { conversationRef: ref };
   };
 
-  const infoOf = (fanRef: string, id: number): PreviewTargetInfo | null => {
-    const index = listIndex();
+  const infoOf = (fanRef: string, id: number, index: BoardIndex | null = listIndex()): PreviewTargetInfo | null => {
     const row = index?.byFan.get(fanRef);
     if (row !== undefined && index !== undefined && index !== null) {
       return {
@@ -971,7 +970,8 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     },
     info(fanRef) {
       const id = pageId();
-      const info = id === null ? null : infoOf(fanRef, id);
+      // The window's fans are the lifetime list's, whatever period the board shows now (a fan with nothing in it is one).
+      const info = id === null ? null : infoOf(fanRef, id, entryOf(LIST_PERIOD).index);
       if (info === null) return null;
       const { handle: _handle, source: _source, ...rest } = info;
       return rest;
