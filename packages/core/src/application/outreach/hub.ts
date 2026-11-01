@@ -18,7 +18,8 @@ import {
 import { splitSave } from '../../domain/outreach/sync';
 import { type TabRpc } from '../boards/ports';
 
-export type HubAnswer<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly kind: 'off' | 'offline' | 'refused'; readonly code: string };
+/** `status`: the hub's HTTP status of a refusal (404 — no such outreach of the page), when it answered one. */
+export type HubAnswer<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly kind: 'off' | 'offline' | 'refused'; readonly code: string; readonly status: number | null };
 
 /** The hub has no outreaches for this client or page: the window keeps them on this computer. */
 const OFF = new Set(['CG-HUB-CAPABILITY', 'CG-FEATURE-DISABLED', 'CG-BINDING-NOT-GRANTED', 'CG-BINDING-MISSING', 'CG-HUB-OUTDATED', 'CG-HUB-FORBIDDEN', 'CG-AUTH-REJECTED', 'CG-AUTH-REQUIRED']);
@@ -44,13 +45,13 @@ export interface OutreachHub {
 export function createOutreachHub(rpc: TabRpc): OutreachHub {
   const read = async <T>(ask: () => Promise<{ readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: CgErrorWire }>): Promise<HubAnswer<T>> => {
     const answer = await ask().catch((): { readonly ok: false; readonly error: CgErrorWire } => ({ ok: false, error: { code: 'CG-NETWORK' } }));
-    return answer.ok ? { ok: true, value: answer.payload } : { ok: false, kind: kindOf(answer.error), code: answer.error.code };
+    return answer.ok ? { ok: true, value: answer.payload } : { ok: false, kind: kindOf(answer.error), code: answer.error.code, status: answer.error.httpStatus ?? null };
   };
   return {
     list: (pageId) => read(() => rpc.request('outreach.list', { pageId })),
     get: (pageId, outreachId) => read(() => rpc.request('outreach.get', { pageId, outreachId })),
     async save(pageId, outreachId, body) {
-      let last: HubAnswer<OutreachStoreSaved> = { ok: false, kind: 'refused', code: 'CG-HUB-REQUEST' };
+      let last: HubAnswer<OutreachStoreSaved> = { ok: false, kind: 'refused', code: 'CG-HUB-REQUEST', status: null };
       for (const part of splitSave(body)) {
         last = await read(() => rpc.request('outreach.save', { pageId, outreachId, body: part }));
         if (!last.ok) return last;

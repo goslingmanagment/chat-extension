@@ -116,8 +116,11 @@ export type OutreachWarningVM =
   | { readonly kind: 'talking'; readonly names: readonly string[]; readonly at: IsoTimestamp }
   /** 1.72.0: another outreach, a fan queue or «Онлайн» wrote to the fan in the last 3 days (by whom: null — the person). */
   | { readonly kind: 'touched'; readonly at: IsoTimestamp; readonly what: OutreachTouchWhat; readonly by: string | null }
-  /** 1.72.0: the hub did not answer the send's claim: the team will not see this send at once, nor could it be checked. */
-  | { readonly kind: 'hub' };
+  /**
+   * 1.72.0: the hub did not answer the send's claim (`refused` — it answered, but did not take it): the team will not see
+   * this send at once, nor could it be checked.
+   */
+  | { readonly kind: 'hub'; readonly refused?: true };
 
 /** The row's and the card's «Отправить» of a version. */
 export interface OutreachSendVM {

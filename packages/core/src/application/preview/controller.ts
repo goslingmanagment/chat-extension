@@ -2304,7 +2304,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     }
     // The person's own text passes no freshness warning: it was written looking at the chat. A text of the team's guide
     // «Онлайн» put on the card when it opened was not: what the fan wrote since warns, as for an AI's text.
-    const accept = anyway || (track.manual !== null && !onlineLike(track.source));
+    // «Рассылка»'s version taken from the hub is Fix's text all the same: what the fan wrote since warns as for any result.
+    const accept = anyway || (track.manual !== null && !onlineLike(track.source) && track.source !== 'outreach');
     // Sent anyway, a result restored after a reload goes with a checkpoint taken now: the page's own document and chat.
     const checkpoint = track.checkpoint ?? (accept ? await host.checkpoint(track.target.chat).catch(() => null) : null);
     if (checkpoint === null) return refused(type, localError('CG-SEND-FRESHNESS', i18n));

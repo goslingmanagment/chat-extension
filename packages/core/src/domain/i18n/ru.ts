@@ -906,6 +906,7 @@ export const RU: I18nCatalog<'ru'> = {
   'outreach.touchedBy': 'Писали {what} {age} назад · {name}',
   'outreach.card.touchedTail': 'пауза 3 дня, отправьте, если это нужно',
   'outreach.card.hubWarn': 'Хаб не отвечает',
+  'outreach.card.hubRefused': 'Хаб не принял бронь',
   'outreach.card.hubTail': 'коллеги не увидят эту отправку сразу. Отправить можно всё равно',
   'outreach.card.editedBy': 'правка {name}',
   'outreach.card.sendingBy': 'отправляет {name}',

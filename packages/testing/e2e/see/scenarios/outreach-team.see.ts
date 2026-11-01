@@ -54,8 +54,11 @@ scenario(
     // The hub answers again: the click claims the fan there and the version goes.
     await s.hub.command({ op: 'outreachDown', down: false });
     await s.browser.pause(600);
-    await s.press(/Отправить/, 'modal', '.cg-ow__rsend');
-    await s.see('modal', /Отправлено 1[0-9:]+ ·|Отправлено [0-9]{1,2}:[0-9]{2}$/, 1_000).catch(() => undefined);
+    // ChatSpace: a version taken from the hub is checked as any other (the chat is not open: «Отправить всё равно»).
+    for (let click = 0; click < 3 && !(await s.text('modal', '.cg-ow__foot')).includes('Отправлено 2 из 2'); click += 1) {
+      await s.press(/Отправить/, 'modal', '.cg-ow__rsend');
+      await s.browser.pause(2_500);
+    }
     await s.browser.waitUntil(async () => (await s.text('modal', '.cg-ow__foot')).includes('Отправлено 2 из 2'), { timeout: 30_000, interval: 300, timeoutMsg: 'the second version did not go' });
     await s.browser.pause(800);
     await shot(s, 'sent-here');

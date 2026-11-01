@@ -182,9 +182,11 @@ export function patchOf(base: SavedOutreach | null, local: SavedOutreach): Outre
     if (fan.edit !== (was?.edit ?? null) && fan.editedBy === null) change.edit = fan.edit;
     if (Object.keys(change).length > 1) fans.push(change);
   }
-  // A fan the window let go («Очистить») whose version the hub still holds: let go there too.
+  // A fan the window let go («Очистить») whose version the hub still holds: let go there too. Only a fan the window
+  // held (in the order it saw): a colleague's fan it never showed is never let go from here.
+  const held = new Set(base?.locked ?? []);
   for (const [fanRef, was] of before) {
-    if (now.has(fanRef) || went(was.send)) continue;
+    if (now.has(fanRef) || went(was.send) || !held.has(fanRef)) continue;
     if (was.version !== null || was.edit !== null) fans.push({ fanRef, version: null, edit: null });
   }
   if (fans.length > 0) body.fans = fans;

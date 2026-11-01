@@ -67,19 +67,28 @@ function memoryStore(): OutreachStorePort {
   };
 }
 
-/** The hub as one person's tab reaches it: the shared model, and a switch for «the hub does not answer». */
-function hubOf(model: OutreachModel, me: { readonly id: number; readonly name: string }, clock: FakeClock): OutreachHub & { offline: boolean } {
-  const wrap = <T>(read: { readonly ok: true; readonly body: T } | { readonly ok: false; readonly refusal: unknown }) => (read.ok ? { ok: true as const, value: read.body } : { ok: false as const, kind: 'refused' as const, code: 'CG-HUB-REQUEST' });
-  const down = { ok: false as const, kind: 'offline' as const, code: 'CG-NETWORK' };
+/**
+ * The hub as one person's tab reaches it: the shared model; `offline` — no answer; `loseClaims` — a claim the hub takes
+ * whose answer never comes back; `staleGet` — a read that answers with the copy it saw before a later save.
+ */
+function hubOf(model: OutreachModel, me: { readonly id: number; readonly name: string }, clock: FakeClock): OutreachHub & { offline: boolean; loseClaims: boolean; staleGet: unknown } {
+  const wrap = <T>(read: { readonly ok: true; readonly body: T } | { readonly ok: false; readonly refusal: unknown }) => (read.ok ? { ok: true as const, value: read.body } : { ok: false as const, kind: 'refused' as const, code: 'CG-HUB-REQUEST', status: 409 });
+  const down = { ok: false as const, kind: 'offline' as const, code: 'CG-NETWORK', status: null };
   const port = {
     offline: false,
+    loseClaims: false,
+    staleGet: null as unknown,
     list: () => Promise.resolve(port.offline ? down : wrap(model.list(PAGE, me.id, clock.now()))),
-    get: (_page: number, id: string) => Promise.resolve(port.offline ? down : wrap(model.get(PAGE, me.id, id, clock.now()))),
+    get: (_page: number, id: string) => Promise.resolve(port.offline ? down : port.staleGet !== null ? { ok: true as const, value: port.staleGet } : wrap(model.get(PAGE, me.id, id, clock.now()))),
     save: (_page: number, id: string, body: Parameters<OutreachModel['save']>[3]) => Promise.resolve(port.offline ? down : wrap(model.save(PAGE, me, id, body, clock.now()))),
-    send: (_page: number, id: string, body: Parameters<OutreachModel['send']>[3]) => Promise.resolve(port.offline ? down : wrap(model.send(PAGE, me, id, body, clock.now()))),
+    send: (_page: number, id: string, body: Parameters<OutreachModel['send']>[3]) => {
+      if (port.offline) return Promise.resolve(down);
+      const answer = wrap(model.send(PAGE, me, id, body, clock.now()));
+      return Promise.resolve(port.loseClaims && body.action === 'claim' ? down : answer);
+    },
     touches: () => Promise.resolve(port.offline ? down : wrap(model.touched(PAGE, me.id, clock.now()))),
   };
-  return port as OutreachHub & { offline: boolean };
+  return port as unknown as OutreachHub & { offline: boolean; loseClaims: boolean; staleGet: unknown };
 }
 
 function tab(model: OutreachModel, me: { readonly id: number; readonly name: string }, options: { readonly store?: OutreachStorePort; readonly start?: number; readonly answer?: (request: OutreachRequest) => OutreachAnswer | Promise<OutreachAnswer> } = {}) {
@@ -322,6 +331,46 @@ describe('[host:fansly] «Рассылки» on the hub: one send per fan, whoev
     const id = idOf(model);
     const kept = model.get(PAGE, ME.id, id, me.clock.now());
     expect(kept.ok && kept.body.fans.find((fan) => fan.fanRef === WHALE)?.send?.state).toBe('failed');
+  });
+
+  it('a read that answers after a newer save never takes the window back: the text and the written versions stay', async () => {
+    const model = new OutreachModel();
+    const me = tab(model, ME);
+    await me.written();
+    const id = idOf(model);
+    const before = model.get(PAGE, ME.id, id, me.clock.now());
+    if (!before.ok) throw new Error('no outreach');
+    await me.act({ type: 'SetOutreach', text: 'the sunset set is up, with a bonus' });
+    await me.later();
+    // The 15-second read started before that save and answers after it.
+    me.hub.staleGet = { ...before.body, order: [] };
+    await me.clock.advance(15_000);
+    await settle(24);
+    me.hub.staleGet = null;
+    expect(me.vm().text).toBe('the sunset set is up, with a bonus');
+    expect(me.row(WHALE)).toMatchObject({ state: 'ready', version: 'welcome home ✈️ the second part is ready' });
+    await me.later();
+    const kept = model.get(PAGE, ME.id, id, me.clock.now());
+    expect(kept.ok && kept.body.text).toBe('the sunset set is up, with a bonus');
+  });
+
+  it('a claim whose answer was lost never leaves the fan stuck: the next click claims it again and the version goes once', async () => {
+    const model = new OutreachModel();
+    const me = tab(model, ME);
+    await me.written();
+    const id = idOf(model);
+    me.hub.loseClaims = true;
+    expect(await me.send(WHALE)).toMatchObject({ ok: false, code: 'CG-HUB-UNAVAILABLE' });
+    expect(me.sent).toEqual([]);
+    me.hub.loseClaims = false;
+    // Past the claim's ticket: the hub reads the lost claim «may have gone»; the window lets it go and claims anew.
+    await me.clock.advance(130_000);
+    await settle(16);
+    expect(await me.send(WHALE)).toMatchObject({ ok: true });
+    expect(me.sent.map((request) => request.fanRef)).toEqual([WHALE]);
+    await me.later();
+    const kept = model.get(PAGE, ME.id, id, me.clock.now());
+    expect(kept.ok && kept.body.fans.find((fan) => fan.fanRef === WHALE)?.send?.state).toBe('sent');
   });
 
   it("a colleague's outreach is in «Рассылки» with its author, and opens where it was left", async () => {

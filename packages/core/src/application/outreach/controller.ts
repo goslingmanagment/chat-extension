@@ -144,6 +144,8 @@ const OUTREACH_RETRY_MS = [5_000, 10_000, 20_000, 40_000, 60_000] as const;
 const ADOPT_RETRY_MS = 30_000;
 /** Outreaches of this computer the hub does not have yet, sent there at most per read of the list. */
 const UPLOADS_PER_READ = 3;
+/** …and only those no tab changed this long: one changed lately is another tab's to send. */
+const UPLOAD_QUIET_MS = 5 * 60_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 
@@ -250,7 +252,7 @@ interface OwnSend {
   readonly clickedAt: number;
   at: number | null;
   /** The hub's claim of it; null — no hub keeps outreaches here. */
-  readonly attemptId: string | null;
+  attemptId: string | null;
   /** The hub held the claim before the site was asked. */
   claimed: boolean;
   /** The hub has this send as it stands. */
@@ -427,8 +429,15 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   let touchedCache: { readonly of: unknown; readonly id: string | null; readonly at: number; readonly value: ReadonlyMap<string, AudienceTouch> } | null = null;
   /** Fans whose send of this outreach a colleague's claim holds right now (its ticket runs). */
   let inFlight: ReadonlySet<string> = new Set();
-  /** Fans whose claim the hub did not answer: their «Отправить всё равно» sends without one. */
-  const hubDown = new Set<string>();
+  /** Fans whose claim the hub did not answer (or refused): their «Отправить всё равно» sends without one. */
+  const hubDown = new Map<string, 'offline' | 'refused'>();
+  /**
+   * Fans whose claim got no answer: the hub may hold it all the same. The next click claims again with the same attempt
+   * (the hub answers `ok` to its own claim), and a send made without an answer goes under it.
+   */
+  const lostClaims = new Map<string, string>();
+  /** The hub's time of the copy the window saw last (`base`); null — `base` is this computer's. */
+  let baseHubAt: number | null = null;
   /** The cards' sends (ChatSpace) the window claimed, until the card says how they ended. */
   const cardClaims = new Map<string, { readonly attemptId: string; readonly claimed: boolean; readonly clickedAt: number; readonly text: string; readonly media: SavedMedia | null; settled: boolean; code: string | null }>();
   /** The cards' sends that ended here, with whether the hub has their end. */
@@ -677,7 +686,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       case 'available': {
         // The card warns of what it knows (the fan wrote, a colleague talks to him); the window of the hub's word and the
         // 3-day touches.
-        const warning = windowWarning(fanRef);
+        const warning = staleWarning(fanRef) ?? windowWarning(fanRef);
         return { ...base, ...none, state: 'ready', warning, send: { can: row.can, kind: warning === null ? 'send' : 'anyway', paused: row.paused, reason: null } };
       }
       case 'unverified':
@@ -704,9 +713,17 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
 
   /** What the window itself warns of before a send: the hub did not answer its claim, a touch of the last 3 days. */
   function windowWarning(fanRef: string): OutreachWarningVM | null {
-    if (hubDown.has(fanRef)) return { kind: 'hub' };
+    const down = hubDown.get(fanRef);
+    if (down !== undefined) return down === 'refused' ? { kind: 'hub', refused: true } : { kind: 'hub' };
     const touch = touchedMap().get(fanRef);
     return touch === undefined ? null : { kind: 'touched', at: touch.at, what: touch.what, by: touch.by };
+  }
+
+  /** The fan wrote after the version was written, as the board knows (a version from the hub too: its card cannot tell). */
+  function staleWarning(fanRef: string): OutreachWarningVM | null {
+    const wrote = timeOf(listIndex()?.byFan.get(fanRef)?.fanWroteAt ?? null);
+    const writtenAt = versionAts.get(fanRef);
+    return wrote !== null && writtenAt !== undefined && wrote > writtenAt ? { kind: 'stale', at: iso(wrote) } : null;
   }
 
   /** The site's own send (Fansly) warns as the cards do: a colleague talks to the fan, the fan wrote after the version. */
@@ -714,10 +731,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const id = pageId();
     const mark = id === null ? null : (deps.talking?.mark(`page:${String(id)}:${fanRef}`) ?? null);
     if (mark !== null) return { kind: 'talking', names: mark.names, at: mark.lastSentAt };
-    const wrote = timeOf(listIndex()?.byFan.get(fanRef)?.fanWroteAt ?? null);
-    const writtenAt = versionAts.get(fanRef);
-    if (wrote !== null && writtenAt !== undefined && wrote > writtenAt) return { kind: 'stale', at: iso(wrote) };
-    return windowWarning(fanRef);
+    return staleWarning(fanRef) ?? windowWarning(fanRef);
   }
 
   /** A colleague's send of the fan (their login); null — the person's, or none. */
@@ -1327,6 +1341,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     // What the window restored is what it changes from: a save sends only the person's changes since (and the save
     // kept here first), never this computer's whole copy over the hub's newer one; the hub's copy comes in on the read.
     base = saved.synced ? saved : null;
+    baseHubAt = null;
     needPull = saved.synced;
     pending = pendingBody(saved.pending);
     refusedSave = '';
@@ -1607,6 +1622,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
 
   async function flushOnce(page: number, outreachId: string, atEpoch: number): Promise<void> {
     if (hub === null || !synced) return;
+    let told = 0;
     for (const { fanRef, send } of unreported()) {
       const raw = reportOf(fanRef, send);
       const parsed = raw === null ? null : OutreachStoreSendBodySchema.safeParse(raw);
@@ -1625,10 +1641,12 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       }
       cameBack();
       markReported(fanRef, send.attemptId);
+      told += 1;
       // A record the hub did not take (a colleague's send came first): theirs stands here too.
       takeFan(fanRef, answer.value.fan);
     }
-    changed(true);
+    // Only a report that went moves the view (and the next save): nothing to tell is no reason to wake again.
+    if (told > 0) changed(true);
   }
 
   /** The hub's word on one fan (an answer to a send): its send, when it got further than the window's. */
@@ -1651,8 +1669,17 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (owner === null || value.outreachId !== currentId) return;
     const remote = fromHub(value, owner, clock.now(), { names: keptNames });
     if (remote === null) return;
-    applyPlan(adoptPlan(base, snapshot(owner), remote));
+    const plan = adoptPlan(base, snapshot(owner), remote);
+    if (baseHubAt !== null && remote.updatedAt < baseHubAt) {
+      // An older copy than the one the window saw (a read that answered after a newer save): only what never goes back
+      // comes in — sends and what came of them; the text, the order and the versions stay the newer copy's.
+      applyPlan({ text: null, audience: null, order: undefined, fans: plan.fans.flatMap((fan) => (fan.send === undefined && fan.outcome === undefined ? [] : [{ fanRef: fan.fanRef, ...(fan.send === undefined ? {} : { send: fan.send }), ...(fan.outcome === undefined ? {} : { outcome: fan.outcome }) }])), author: plan.author });
+      changed();
+      return;
+    }
+    applyPlan(plan);
     base = remote;
+    baseHubAt = remote.updatedAt;
     inFlight = inFlightOf(value, clock.now());
     author = remote.author;
     changed();
@@ -1721,6 +1748,10 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
 
   /** A send the hub knows (a colleague's, another tab's, the archive's word on an unknown one) stands in the window. */
   function adoptSend(fanRef: string, send: SavedSend): void {
+    // The window's own claim whose answer never came, the site never asked: not «may have gone» — the next click
+    // settles it at the hub (claims again, or lets it go and claims anew).
+    const lost = lostClaims.get(fanRef);
+    if (lost !== undefined && send.attemptId !== null && send.attemptId.toLowerCase() === lost.toLowerCase() && send.state !== 'sent') return;
     if (own !== null) {
       const mine = owned.get(fanRef);
       // The window's own send on its way is the window's to tell.
@@ -1899,6 +1930,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         restoreFrom(withLocalSends(remote, snapshot(owner)));
         lastCard = card;
         base = remote;
+        baseHubAt = remote.updatedAt;
         needPull = false;
         inFlight = inFlightOf(answer.value, clock.now());
         changed();
@@ -1941,7 +1973,11 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const owner = ownerOf();
     if (hub === null || owner === null || store === null) return;
     const known = new Set((team ?? []).map((item) => item.outreachId));
-    const waiting = outreachesOf(stored, owner).filter((outreach) => outreach.id !== currentId && UUID.test(outreach.id) && (!outreach.synced || outreach.pending !== null || outreach.fans.some((fan) => fan.send !== null && !fan.send.reported)));
+    // The store as the tabs left it now (another tab may have saved since this one read it); an outreach changed in
+    // the last minutes is another tab's work in hand: that tab sends it.
+    stored = mergeOutreachStores(readOutreachStore(await store.load().catch(() => undefined), clock.now()), stored, clock.now());
+    if (disposed || pageId() !== page) return;
+    const waiting = outreachesOf(stored, owner).filter((outreach) => outreach.id !== currentId && UUID.test(outreach.id) && clock.now() - outreach.updatedAt > UPLOAD_QUIET_MS && (!outreach.synced || outreach.pending !== null || outreach.fans.some((fan) => fan.send !== null && !fan.send.reported)));
     for (const outreach of waiting.slice(0, UPLOADS_PER_READ)) {
       if (disposed || pageId() !== page) return;
       const body = outreach.synced && known.has(outreach.id) ? pendingBody(outreach.pending) : patchOf(null, outreach);
@@ -1997,36 +2033,55 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
    * have, or is on its way from this outreach (`fan` says whose); `busy` — another outreach sends to the fan right now;
    * `offline` — the hub did not answer (the person may send anyway); `off` — the hub keeps no outreaches here.
    */
-  async function claimSend(fanRef: string, attemptId: string, body: string, media: Record<string, unknown> | null): Promise<{ readonly kind: 'ok' | 'taken' | 'busy' | 'offline' | 'off'; readonly fan?: OutreachStoreFan }> {
+  async function claimSend(fanRef: string, attemptId: string, body: string, media: Record<string, unknown> | null): Promise<{ readonly kind: 'ok' | 'taken' | 'busy' | 'offline' | 'refused' | 'off'; readonly attemptId: string; readonly fan?: OutreachStoreFan }> {
     const page = pageId();
-    if (hub === null || page === null || !hubOn()) return { kind: 'off' };
+    if (hub === null || page === null || !hubOn()) return { kind: 'off', attemptId };
     // The hub must have the outreach (and the window's last save) before a fan of it is claimed.
     if (!synced || pending !== null) await push();
-    if (!hubOn()) return { kind: 'off' };
+    if (!hubOn()) return { kind: 'off', attemptId };
     const outreachId = currentId;
-    if (!synced || outreachId === null) return { kind: 'offline' };
-    let answer = await hub.send(page, outreachId, { action: 'claim', fanRef, attemptId, text: body, media });
-    if (!answer.ok && answer.kind === 'refused' && currentId === outreachId) {
+    if (!synced || outreachId === null) return { kind: 'offline', attemptId };
+    const claim = (attempt: string) => hub.send(page, outreachId, { action: 'claim', fanRef, attemptId: attempt, text: body, media });
+    let attempt = attemptId;
+    let answer = await claim(attempt);
+    if (!answer.ok && answer.kind === 'refused' && answer.status === 404 && currentId === outreachId) {
       // The hub has no such outreach (gone after 90 days untouched): saved again whole, then claimed once more.
       synced = false;
       base = null;
+      baseHubAt = null;
       await push();
-      if (synced && currentId === outreachId) answer = await hub.send(page, outreachId, { action: 'claim', fanRef, attemptId, text: body, media });
+      if (synced && currentId === outreachId) answer = await claim(attempt);
+    }
+    if (answer.ok && answer.value.outcome !== 'ok' && answer.value.fan.send?.attemptId.toLowerCase() === attempt.toLowerCase() && answer.value.fan.send.state === 'uncertain') {
+      // The window's own claim whose answer was lost, past its ticket: the site was never asked. The hub hears it
+      // failed, and the fan is claimed anew.
+      await hub.send(page, outreachId, { action: 'failed', fanRef, attemptId: attempt, code: 'CG-HUB-UNAVAILABLE' });
+      lostClaims.delete(fanRef);
+      attempt = uuid();
+      if (currentId === outreachId) answer = await claim(attempt);
     }
     if (!answer.ok) {
       if (answer.kind === 'off') {
         hubOff = true;
-        return { kind: 'off' };
+        return { kind: 'off', attemptId: attempt };
       }
-      if (answer.kind === 'offline') offlineSince ??= clock.now();
-      // Not answered, or refused (a fan the hub does not know): the person may send anyway, the hub hears of it later.
-      return { kind: 'offline' };
+      // The hub may hold the claim all the same: the next click claims with this attempt again.
+      lostClaims.set(fanRef, attempt);
+      if (answer.kind === 'offline') {
+        offlineSince ??= clock.now();
+        return { kind: 'offline', attemptId: attempt };
+      }
+      // Answered, but not taken (a fan it does not know, a field it refuses): the person may send anyway.
+      return { kind: 'refused', attemptId: attempt };
     }
     cameBack();
     const outcome = answer.value.outcome;
-    if (outcome === 'ok') return { kind: 'ok', fan: answer.value.fan };
+    if (outcome === 'ok') {
+      lostClaims.delete(fanRef);
+      return { kind: 'ok', attemptId: attempt, fan: answer.value.fan };
+    }
     // `busy`, `taken`, `not_yours` and anything this build does not know: never sent from here.
-    return { kind: outcome === 'busy' ? 'busy' : 'taken', fan: answer.value.fan };
+    return { kind: outcome === 'busy' ? 'busy' : 'taken', attemptId: attempt, fan: answer.value.fan };
   }
 
   /** A claim the window let go before the site was asked (it moved to another outreach): the hub hears it failed. */
@@ -2039,7 +2094,11 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   /** The hub refused the claim: who sent (or sends) the fan stands in the window; nothing goes. */
   function claimRefused(type: UiAction['type'], fanRef: string, claim: { readonly kind: string; readonly fan?: OutreachStoreFan }): ActionReceipt {
     if (claim.fan !== undefined) takeFan(fanRef, claim.fan);
-    if (claim.kind === 'busy') inFlight = new Set([...inFlight, fanRef]);
+    if (claim.kind === 'busy') {
+      inFlight = new Set([...inFlight, fanRef]);
+      // Another outreach's send to the fan is on its way: the touches say so on the next look.
+      void refreshTeam(true);
+    }
     changed();
     return refused(type, localError('CG-SEND-BUSY', i18n));
   }
@@ -2068,6 +2127,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         // and is told to the hub: the fan is never sendable again from here.
         restoreFrom(withLocalSends(remote, local ?? null));
         base = remote;
+        baseHubAt = remote.updatedAt;
         needPull = false;
         inFlight = inFlightOf(answer.value, clock.now());
         // A save this computer kept of it goes after.
@@ -2385,6 +2445,10 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (facts.send === null || !facts.send.can) return refused(type, localError(facts.send?.paused === true ? 'CG-SEND-BUSY' : 'CG-SEND-PART', i18n));
     // A click on «Отправить всё равно» passes the warning it shows (a colleague talks to the fan, the hub did not answer).
     const passes = anyway || facts.send.kind === 'anyway';
+    // The card's own check of the fan's newer messages is passed only by a warning of that kind; the window's own (the
+    // hub, a touch of 3 days) leave it to the card.
+    const shown = facts.warning;
+    const cardPasses = passes && shown !== null && (shown.kind === 'stale' || shown.kind === 'talking' || shown.kind === 'archive');
     const handle = handleOf(fanRef);
     clicks.set(fanRef, clock.now());
     if (own !== null) return sendOwn(type, fanRef, facts, passes);
@@ -2393,34 +2457,35 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const version = (facts.version ?? '').trim();
     if (hubOn() && version !== '' && !cardClaims.has(fanRef)) {
       // The hub claims the fan first: one send per fan of the outreach, from any tab, computer or colleague.
-      const attemptId = uuid();
       const atEpoch = epoch;
       const outreachId = currentId;
       claiming.add(fanRef);
       let claim: Awaited<ReturnType<typeof claimSend>>;
       try {
-        claim = await claimSend(fanRef, attemptId, version, mediaWire(mediaOfVm(facts.media)));
+        claim = await claimSend(fanRef, lostClaims.get(fanRef) ?? uuid(), version, mediaWire(mediaOfVm(facts.media)));
       } finally {
         claiming.delete(fanRef);
       }
       if (disposed || atEpoch !== epoch || currentId !== outreachId) {
         // Claimed, then the window moved on: nothing went, and the hub hears so.
-        if (claim.kind === 'ok' && outreachId !== null) reportLost(outreachId, fanRef, attemptId);
+        if (claim.kind === 'ok' && outreachId !== null) reportLost(outreachId, fanRef, claim.attemptId);
         return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
       }
       if (claim.kind === 'taken' || claim.kind === 'busy') return claimRefused(type, fanRef, claim);
-      if (claim.kind === 'offline' && !(passes && hubDown.has(fanRef))) {
-        hubDown.add(fanRef);
+      if ((claim.kind === 'offline' || claim.kind === 'refused') && !(passes && hubDown.has(fanRef))) {
+        hubDown.set(fanRef, claim.kind);
         changed();
         return refused(type, localError('CG-HUB-UNAVAILABLE', i18n));
       }
       if (claim.kind !== 'off') {
-        cardClaims.set(fanRef, { attemptId, claimed: claim.kind === 'ok', clickedAt: clock.now(), text: version, media: mediaOfVm(facts.media), settled: false, code: null });
+        // A send without the hub's answer goes under the attempt it may hold: what the hub hears later is that one.
+        cardClaims.set(fanRef, { attemptId: claim.attemptId, claimed: claim.kind === 'ok', clickedAt: clock.now(), text: version, media: mediaOfVm(facts.media), settled: false, code: null });
+        lostClaims.delete(fanRef);
         cardSent.delete(fanRef);
         if (claim.kind === 'ok') hubDown.delete(fanRef);
       }
     }
-    const receipt = await port.outreachSend(type, handle, passes);
+    const receipt = await port.outreachSend(type, handle, cardPasses);
     const claim = cardClaims.get(fanRef);
     if (claim !== undefined) {
       claim.settled = true;
@@ -2468,7 +2533,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (body.length === 0) return refused(type, localError('CG-SEND-PART', i18n));
     const attachments = pickedPosts();
     const claiming = hubOn();
-    const sent: OwnSend = { state: 'sending', code: null, clickedAt: clock.now(), at: null, attemptId: claiming ? uuid() : null, claimed: false, reported: false, by: null, messageId: null };
+    const sent: OwnSend = { state: 'sending', code: null, clickedAt: clock.now(), at: null, attemptId: claiming ? (lostClaims.get(fanRef) ?? uuid()) : null, claimed: false, reported: false, by: null, messageId: null };
     owned.set(fanRef, sent);
     sentTexts.set(fanRef, { text: body, media: offerMedia() });
     pace();
@@ -2504,9 +2569,11 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       // The hub claims the fan: one send per fan of the outreach, from any tab, computer or colleague.
       const outreachId = currentId;
       const claim = await claimSend(fanRef, sent.attemptId, body, mediaWire(mediaOfVm(offerMedia())));
+      // The claim may have gone under a new attempt (the window's own lost one was let go): the send is that one.
+      sent.attemptId = claim.attemptId;
       if (!mine() || currentId !== outreachId) {
         // Claimed, then the window moved on: nothing went, the hub hears so.
-        if (claim.kind === 'ok' && outreachId !== null) reportLost(outreachId, fanRef, sent.attemptId);
+        if (claim.kind === 'ok' && outreachId !== null) reportLost(outreachId, fanRef, claim.attemptId);
         if (mine()) {
           owned.delete(fanRef);
           sentTexts.delete(fanRef);
@@ -2518,10 +2585,12 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         sentTexts.delete(fanRef);
         return claimRefused(type, fanRef, claim);
       }
-      if (claim.kind === 'offline' && !(passes && hubDown.has(fanRef))) {
-        hubDown.add(fanRef);
+      if ((claim.kind === 'offline' || claim.kind === 'refused') && !(passes && hubDown.has(fanRef))) {
+        hubDown.set(fanRef, claim.kind);
         return undo('CG-HUB-UNAVAILABLE');
       }
+      // The send goes under this attempt (a lost claim's too): what the hub hears later is this one.
+      lostClaims.delete(fanRef);
       if (claim.kind === 'ok') {
         sent.claimed = true;
         hubDown.delete(fanRef);
@@ -2808,6 +2877,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     author = null;
     synced = false;
     base = null;
+    baseHubAt = null;
+    lostClaims.clear();
     needPull = false;
     pending = null;
     refusedSave = '';

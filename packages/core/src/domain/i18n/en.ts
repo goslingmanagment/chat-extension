@@ -868,6 +868,7 @@ export const EN: I18nCatalog<'en'> = {
   'outreach.touchedBy': 'Written to {what} {age} ago · {name}',
   'outreach.card.touchedTail': 'a 3-day pause, send if it is needed',
   'outreach.card.hubWarn': 'The hub does not answer',
+  'outreach.card.hubRefused': 'The hub did not take the claim',
   'outreach.card.hubTail': 'colleagues will not see this send at once. You can still send it',
   'outreach.card.editedBy': 'edited by {name}',
   'outreach.card.sendingBy': '{name} is sending',

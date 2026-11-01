@@ -198,7 +198,7 @@ export const clientOutreachSaveBodySchema = z.strictObject({
     createdAt: isoTimestamp.optional(),
 });
 export const clientOutreachSaveResponseSchema = clientOutreachSchema.extend({
-    /** Fans whose change this save did not take: their send was claimed. */
+    /** Fans whose change this save did not take: their send was claimed, or Hub does not know them on the page. */
     kept: z.array(clientFanRefSchema),
 });
 export const clientOutreachSendBodySchema = z.discriminatedUnion("action", [

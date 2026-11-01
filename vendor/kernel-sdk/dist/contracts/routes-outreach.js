@@ -8,7 +8,7 @@ import { clientPageParamsSchema } from "./routes-client";
 // to in the last 3 days. Database only: nothing here asks a platform or sends
 // anything. Everyone granted the page reads and works every outreach of it.
 const clientErrors = {
-    // 409: not_granted | client_feature_disabled | outreach_not_found | fan_not_found
+    // 409: not_granted | client_feature_disabled | outreach_not_found | fan_not_found (a send's fan)
     400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema, 409: errorResponseSchema,
 };
 export const outreachRouteSchemas = {
@@ -39,7 +39,7 @@ export const outreachRouteSchemas = {
             + " field",
         description: "Database only. A fan's version and words stay as they are once the fan's send was claimed (`kept`). The"
             + " answer is the whole outreach after the save. 409 `outreach_not_found` for an id of another page's outreach;"
-            + " 409 `fan_not_found` for a fan Hub does not know on the page; 400 for `settings` over 32 KiB as JSON.",
+            + " a fan Hub does not know on the page is kept out of it (`kept`), the rest is taken; 400 for `settings` over 32 KiB as JSON.",
         params: clientOutreachParamsSchema,
         body: clientOutreachSaveBodySchema,
         response: { 200: clientOutreachSaveResponseSchema, ...clientErrors },

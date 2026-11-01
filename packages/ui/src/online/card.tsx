@@ -272,7 +272,7 @@ function Calm({ card, preview }: { readonly card: OnlineCardVM; readonly preview
         </span>
       ) : (
         <span>
-          <b>{i18n.t('outreach.card.hubWarn')}</b>: {i18n.t('outreach.card.hubTail')}
+          <b>{i18n.t(warning.refused === true ? 'outreach.card.hubRefused' : 'outreach.card.hubWarn')}</b>: {i18n.t('outreach.card.hubTail')}
         </span>
       )}
       <span class="cg-nw__grow" />
