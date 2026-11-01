@@ -48,7 +48,12 @@ export type OutreachConditionNoteVM =
   | { readonly kind: 'waiting'; readonly fans: OutreachNamesVM }
   | { readonly kind: 'none-waiting' }
   /** `noGone` (1.70.0): these fans' accounts are not found — deleted, or the page blocked. */
-  | { readonly kind: 'gone'; readonly fans: OutreachNamesVM };
+  | { readonly kind: 'gone'; readonly fans: OutreachNamesVM }
+  /** `noTouched` (1.72.0): these fans were written to in the last 3 days by an outreach, a fan queue or «Онлайн». */
+  | { readonly kind: 'touched'; readonly fans: OutreachNamesVM };
+
+/** 1.72.0: where a fan was written to in the last 3 days from: an outreach (another one), a fan queue, «Онлайн». */
+export type OutreachTouchWhat = 'outreach' | 'queue' | 'online';
 
 export interface OutreachConditionVM {
   readonly id: OutreachCondition;
@@ -87,7 +92,9 @@ export type OutreachAsideVM =
   /** Taken out by the person after the versions were written. */
   | { readonly kind: 'manual' }
   /** 1.70.0: the site no longer finds the fan's account (deleted, or the page blocked), and «Без удалённых аккаунтов» is on. */
-  | { readonly kind: 'gone' };
+  | { readonly kind: 'gone' }
+  /** 1.72.0: written to in the last 3 days (`what`, by whom: null — the person), and «Без тех, кому писали за 3 дня» is on. */
+  | { readonly kind: 'touched'; readonly at: IsoTimestamp; readonly what: OutreachTouchWhat; readonly by: string | null };
 
 /**
  * How a fan of the outreach stands: `idle` — no version (not ticked yet, or the versions are not written); `queued`,
@@ -106,7 +113,11 @@ export type OutreachWarningVM =
   /** The fan wrote after the version was written: it may not fit any more («Ещё раз» writes a new one). */
   | { readonly kind: 'stale'; readonly at: IsoTimestamp | null }
   /** Another chatter wrote to the fan in the last 15 minutes («в разговоре»). */
-  | { readonly kind: 'talking'; readonly names: readonly string[]; readonly at: IsoTimestamp };
+  | { readonly kind: 'talking'; readonly names: readonly string[]; readonly at: IsoTimestamp }
+  /** 1.72.0: another outreach, a fan queue or «Онлайн» wrote to the fan in the last 3 days (by whom: null — the person). */
+  | { readonly kind: 'touched'; readonly at: IsoTimestamp; readonly what: OutreachTouchWhat; readonly by: string | null }
+  /** 1.72.0: the hub did not answer the send's claim: the team will not see this send at once, nor could it be checked. */
+  | { readonly kind: 'hub' };
 
 /** The row's and the card's «Отправить» of a version. */
 export interface OutreachSendVM {
@@ -193,6 +204,10 @@ export interface OutreachRowVM {
   readonly replied: { readonly at: IsoTimestamp; readonly text: string | null } | null;
   /** «Не войдут»: why the fan is not in the outreach (the first reason leads). Absent — the fan is in. */
   readonly aside?: readonly OutreachAsideVM[];
+  /** 1.72.0: a colleague sent it (or is sending it): their login. Absent — the person, or nobody. */
+  readonly by?: string;
+  /** 1.72.0: a colleague's words for the version: their login. Absent — the person's own, or Fix's. */
+  readonly editedBy?: string;
 }
 
 /** The fan's version on the card: what goes, with what, and the way it goes. */
@@ -224,6 +239,10 @@ export interface OutreachCardVM {
   /** «Дальше: Daniel →» after a send: the next version that can go by a click (or is being written); null — none. */
   readonly next: { readonly handle: TargetHandle; readonly name: string } | null;
   readonly aside?: readonly OutreachAsideVM[];
+  /** 1.72.0: a colleague sent it (or is sending it): their login. */
+  readonly by?: string;
+  /** 1.72.0: a colleague's words for the version: their login. */
+  readonly editedBy?: string;
 }
 
 /** One line of the end's lists. */
@@ -338,8 +357,18 @@ export interface OutreachWindowVM {
    * and each item picked or not; null — the site has no such list.
    */
   readonly posts: OutreachPostsVM | null;
-  /** 1.71.0: the page's outreaches kept on this computer, newest first («Рассылки» in the head); the window's own among them. */
+  /**
+   * 1.71.0: the page's outreaches, newest first («Рассылки» in the head); the window's own among them. 1.72.0: kept by
+   * the hub for the page's team (the colleagues' with their author), else on this computer.
+   */
   readonly saved: readonly OutreachSavedVM[];
+  /**
+   * 1.72.0: where the window's outreach is kept: `hub` — the hub has it, the team sees it; `offline` — the hub did not
+   * answer, it is kept on this computer and goes to the hub when it answers; `local` — this hub keeps no outreaches.
+   */
+  readonly sync: 'hub' | 'offline' | 'local';
+  /** 1.72.0: a colleague's outreach (their login); null — the person's own. */
+  readonly author: string | null;
 }
 
 /**
@@ -361,6 +390,10 @@ export interface OutreachSavedVM {
   readonly boughtMills: MoneyMills | null;
   /** It goes with media. */
   readonly media: boolean;
+  /** 1.72.0: a colleague made it (their login); null — the person. */
+  readonly author: string | null;
+  /** 1.72.0: sends whose outcome is unknown. */
+  readonly uncertain: number;
 }
 
 /** An item of the page's «Copied …» list: 2 — «Copied Bundle», 1 — «Copied Media». */

@@ -57,6 +57,10 @@ import {
   type WinBackList,
   type FanQueueItemDoneRequest,
   type FanQueueReleaseRequest,
+  type OutreachStoreGetQuery,
+  type OutreachStoreSaveRequest,
+  type OutreachStoreSendBody,
+  type OutreachStoreSendRequest,
   type FanQueueTakeRequest,
   type OnlineAttemptRequest,
   type OnlinePresenceRequest,
@@ -517,6 +521,12 @@ export class FakeHub {
           ...(command.items === undefined ? {} : { items: command.items as unknown as readonly OnlineSeed[] | null }),
           ...(command.templates === undefined ? {} : { templates: command.templates as unknown as readonly OnlineTemplate[] | null }),
         });
+        return { ok: true };
+      case 'outreachSeed':
+        s.data.outreach.seed(this.page(command.pageLabel), command.outreach, this.clock.now());
+        return { ok: true };
+      case 'outreachTouches':
+        s.data.outreach.seedTouches(this.page(command.pageLabel), command.touches);
         return { ok: true };
       case 'fanQueues': {
         const page = this.page(command.pageLabel);
@@ -1259,6 +1269,22 @@ export class FakeHub {
         return read(s.data.fanQueueDone(need(page), need(principal).user.userId, request as FanQueueItemDoneRequest, now));
       case 'clientFanQueueRelease':
         return read(s.data.fanQueueRelease(need(page), need(principal).user.userId, request as FanQueueReleaseRequest, now));
+      case 'clientOutreaches':
+        return read(s.data.outreach.list(need(page), need(principal).user.userId, now));
+      case 'clientOutreach':
+        return read(s.data.outreach.get(need(page), need(principal).user.userId, (request as OutreachStoreGetQuery).outreachId, now));
+      case 'clientOutreachSave': {
+        const { pageLabel: _pageLabel, outreachId, ...body } = request as OutreachStoreSaveRequest;
+        const userId = need(principal).user.userId;
+        return read(s.data.outreach.save(need(page), { id: userId, name: s.auth.userById(userId)?.username ?? 'chatter' }, outreachId, body, now));
+      }
+      case 'clientOutreachSend': {
+        const { pageLabel: _pageLabel, outreachId, ...body } = request as OutreachStoreSendRequest;
+        const userId = need(principal).user.userId;
+        return read(s.data.outreach.send(need(page), { id: userId, name: s.auth.userById(userId)?.username ?? 'chatter' }, outreachId, body as OutreachStoreSendBody, now));
+      }
+      case 'clientOutreachTouches':
+        return read(s.data.outreach.touched(need(page), need(principal).user.userId, now));
       case 'clientOnlineAttempt':
         return read(s.data.onlineAttempt(need(page), need(principal).user.userId, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', request as OnlineAttemptRequest, now, s.config.spendersTotal));
       case 'voiceNoteCreate':

@@ -62,6 +62,11 @@ type DataRequest =
   | 'queues.take'
   | 'queues.done'
   | 'queues.release'
+  | 'outreach.list'
+  | 'outreach.get'
+  | 'outreach.save'
+  | 'outreach.send'
+  | 'outreach.touches'
   | 'newcomers.list'
   | 'usage.get';
 
@@ -177,6 +182,13 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
         return deps.hub().fanQueueItemDone({ ...done, pageLabel: page.pageLabel });
       }),
     'queues.release': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().fanQueueRelease({ pageLabel: page.pageLabel, queueId: request.queueId })),
+    // «Рассылки» kept by the hub (`outreach-store-v1`): the page's outreaches, one whole, a save, a fan's send, the
+    // 72-hour touches — one call each, never repeated here (the tab keeps a save or a report that did not arrive).
+    'outreach.list': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().outreaches({ pageLabel: page.pageLabel })),
+    'outreach.get': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().outreach({ pageLabel: page.pageLabel, outreachId: request.outreachId })),
+    'outreach.save': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().outreachSave({ ...request.body, pageLabel: page.pageLabel, outreachId: request.outreachId })),
+    'outreach.send': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().outreachSend({ ...request.body, pageLabel: page.pageLabel, outreachId: request.outreachId })),
+    'outreach.touches': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().outreachTouches({ pageLabel: page.pageLabel })),
     'newcomers.list': (request, sender) =>
       onPage(request.pageId, sender, (page) =>
         deps.hub().audienceNew({ pageLabel: page.pageLabel, windowHours: request.windowHours, ...(request.cursor === null ? {} : { cursor: request.cursor }) }),

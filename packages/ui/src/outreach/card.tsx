@@ -17,7 +17,7 @@ import { priceText } from '../spenders/preview/MediaPicker';
 import { offersOpenInsert, openAndInsert } from '../spenders/preview/SendRow';
 import { Length, Thumb, Thumbs } from './offer';
 import { blockedReason } from './rows';
-import { asideText, isPaid, mediumWords, tierWords } from './words';
+import { asideText, isPaid, mediumWords, tierWords, touchedText } from './words';
 
 /** «Ivan» of «Ivan Petrov»: the card says «Медиа для Ivan». */
 const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
@@ -235,9 +235,17 @@ function Calm({ card, preview }: { readonly card: OutreachCardVM; readonly previ
         <span>
           <b>{i18n.t('outreach.card.staleWarn')}</b>: {i18n.t('outreach.card.staleTail')}
         </span>
-      ) : (
+      ) : warning.kind === 'talking' ? (
         <span>
           <b>{i18n.t('outreach.card.talkingWarn', { names: warning.names.join(', ') })}</b>: {i18n.t('outreach.card.talkingTail')}
+        </span>
+      ) : warning.kind === 'touched' ? (
+        <span>
+          <b>{touchedText(i18n, warning)}</b>: {i18n.t('outreach.card.touchedTail')}
+        </span>
+      ) : (
+        <span>
+          <b>{i18n.t('outreach.card.hubWarn')}</b>: {i18n.t('outreach.card.hubTail')}
         </span>
       )}
       <span class="cg-nw__grow" />
@@ -326,6 +334,7 @@ function Zone({ vm, card, preview, onSent }: { readonly vm: OutreachWindowVM; re
             <b>
               <Icon name="check" size={14} />
               {card.sentAt === null ? i18n.t('outreach.card.sentNow', { name: card.name }) : i18n.t('outreach.card.sent', { name: card.name, time: { time: card.sentAt } })}
+              {card.by === undefined ? null : ` · ${card.by}`}
             </b>
             <span>
               {what}
@@ -349,6 +358,7 @@ function Zone({ vm, card, preview, onSent }: { readonly vm: OutreachWindowVM; re
               <b>{i18n.t('outreach.card.versionFor', { name: card.name })}</b>
               <span>
                 {card.clickedAt === null ? null : i18n.t('outreach.card.clicked', { time: { time: card.clickedAt } })}
+                {card.by === undefined ? null : ` · ${card.by}`}
                 {card.replied === null ? null : ` · ${i18n.t('outreach.card.repliedCheck', { time: { time: card.replied.at } })}`}
               </span>
             </div>
@@ -389,7 +399,8 @@ function Zone({ vm, card, preview, onSent }: { readonly vm: OutreachWindowVM; re
           <b>{i18n.t('outreach.card.versionFor', { name: card.name })}</b>
           <span>
             {i18n.t('outreach.card.draft')}
-            {card.edited ? ` · ${i18n.t('outreach.card.edited')}` : null}
+            {card.edited ? ` · ${card.editedBy === undefined ? i18n.t('outreach.card.edited') : i18n.t('outreach.card.editedBy', { name: card.editedBy })}` : null}
+            {card.state === 'sending' && card.by !== undefined ? ` · ${i18n.t('outreach.card.sendingBy', { name: card.by })}` : null}
           </span>
           {card.edited && card.editable ? (
             <>

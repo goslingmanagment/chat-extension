@@ -478,6 +478,11 @@ export class FakePageBackground implements PageRpc {
       case 'queues.take':
       case 'queues.done':
       case 'queues.release':
+      case 'outreach.list':
+      case 'outreach.get':
+      case 'outreach.save':
+      case 'outreach.send':
+      case 'outreach.touches':
       case 'token.issue':
       case 'token.redeem':
       case 'voice.read':

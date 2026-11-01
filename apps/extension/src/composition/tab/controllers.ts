@@ -499,7 +499,19 @@ export async function startBoards(
     draftOf: (pageId, fanRef) => late.preview?.draftOf('newcomers', pageId, fanRef) ?? null,
   });
   // «Рассылка»: its own window over the Spenders board's fans; each site sends its versions its own way (the chunk says how).
-  const outreach = chunk.createOutreachController({ rpc, host: boardsHost, i18n, clock, context, surfaces, board: spenders.outreachBoard, ids: world.ids, ...(world.outreachSaved === undefined || world.outreachSaved === null ? {} : { store: world.outreachSaved }) });
+  const outreach = chunk.createOutreachController({
+    rpc,
+    host: boardsHost,
+    i18n,
+    clock,
+    context,
+    surfaces,
+    board: spenders.outreachBoard,
+    ids: world.ids,
+    ...(world.outreachSaved === undefined || world.outreachSaved === null ? {} : { store: world.outreachSaved }),
+    // «В разговоре»: Fansly's own send warns of a colleague talking to the fan, as the cards' send does.
+    ...(dock.talking === undefined ? {} : { talking: dock.talking }),
+  });
   const rowOf = (pageId: number, fanRef: string) => spenders.row(pageId, fanRef);
   const rowsChanged = (listener: () => void): (() => void) => spenders.directory.subscribe(listener);
   const palette = chunk.createPaletteDirectory({ host: boardsHost, context, rowOf, rowsChanged });

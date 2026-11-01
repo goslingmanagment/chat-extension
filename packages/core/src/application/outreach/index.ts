@@ -2,3 +2,5 @@
 // one click — one message.
 
 export * from './controller';
+
+export * from './hub';

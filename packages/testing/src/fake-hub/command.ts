@@ -133,6 +133,8 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   queue: { pageLabel: isString, waiting: isArray, winBack: isObject, handoff: isObject },
   online: { pageLabel: isString, items: isOnlineSeeds, templates: isOnlineTemplates },
   fanQueues: { pageLabel: isString, set: oneOf('stand', null), userId: isNumber },
+  outreachSeed: { pageLabel: isString, outreach: isObject },
+  outreachTouches: { pageLabel: isString, touches: isArray },
   status: {},
 };
 
@@ -163,6 +165,8 @@ const REQUIRED: Readonly<Partial<Record<FakeHubCommand['op'], readonly string[]>
   queue: ['pageLabel'],
   online: ['pageLabel'],
   fanQueues: ['pageLabel', 'set'],
+  outreachSeed: ['pageLabel', 'outreach'],
+  outreachTouches: ['pageLabel', 'touches'],
 };
 
 /** Keys of a config patch (FakeHubConfigPatch). */

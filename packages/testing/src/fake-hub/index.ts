@@ -9,6 +9,7 @@ export { FakeHub, FakeHubConnectionDrop, createFakeHub, hubErrorBody, FAKE_HUB_C
 export { startFakeHub, type FakeHubServer, type FakeHubServerOptions } from './server';
 export { fakeHubControl, type FakeHubControlClient } from './control-client';
 export { checkCommand } from './command';
+export { OutreachModel, type OutreachSeed, type OutreachTouchSeed } from './outreach';
 export { callsTo, describeCalls, forbiddenCalls, invalidCalls, journalViolations, JOURNAL_KEPT_STRING_KEYS, redact, unscriptedCalls } from './journal';
 export { AI_CAPABILITIES_HEADER, FORBIDDEN_OPERATION_ROUTES, FORBIDDEN_ROUTE_FAMILIES, facadeRequestOf, matchRoute, routePath, validateRequest, WIRE_SPECS, wireOf, type WireCall } from './routing';
 export {

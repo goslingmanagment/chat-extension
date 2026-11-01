@@ -3,6 +3,7 @@
 // in-process and over the loopback control endpoint) and the request journal.
 // Everything here is JSON-serialisable: the loopback control API carries it.
 
+import { type OutreachSeed, type OutreachTouchSeed } from './outreach';
 import type { ClientFeatureFlag, HubAiFeature, HubErrorBody, HubFrame, HubRouteKey, OnlineAttemptRequest } from '@cg/contracts';
 import type { FakeFeedRecord, FakeFeedTransaction } from './onlyfans-feed';
 
@@ -279,6 +280,13 @@ export type FakeHubCommand =
    * page of the hub has until someone asks Gengar. `userId` — the chatter the stand signs in as (WORLD.user by default).
    */
   | { readonly op: 'fanQueues'; readonly pageLabel: string; readonly set: 'stand' | null; readonly userId?: number }
+  /**
+   * 1.72.0: a colleague's outreach the hub keeps on the page (`clientOutreaches`): its fans' versions, some sent minutes
+   * ago (by the author unless `by` names another), with what came of them.
+   */
+  | { readonly op: 'outreachSeed'; readonly pageLabel: string; readonly outreach: OutreachSeed }
+  /** 1.72.0: fans a fan queue or «Онлайн» wrote to minutes ago (`clientOutreachTouches`). */
+  | { readonly op: 'outreachTouches'; readonly pageLabel: string; readonly touches: readonly OutreachTouchSeed[] }
   /** Chat Memory week 2: the fan's card as the hub answers it (`clientFanCard`), until a decision or a fact change moves it. */
   | { readonly op: 'fanCard'; readonly pageLabel: string; readonly fanRef: string; readonly card: Record<string, unknown> }
   /** 2026-10-29: a note write recorded before the run (a colleague's), as `clientNoteAttributions` would have it; the

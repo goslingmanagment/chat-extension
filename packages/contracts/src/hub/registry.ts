@@ -45,6 +45,7 @@ import { ServerTabStateRequestSchema, ServerTabStateResultSchema } from './serve
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema } from './fan-marks';
 import { FanQueueItemDoneRequestSchema, FanQueueItemDoneSchema, FanQueueReleaseRequestSchema, FanQueueReleaseSchema, FanQueuesQuerySchema, FanQueuesSchema, FanQueueTakeRequestSchema, FanQueueTakeSchema } from './fan-queues';
+import { OutreachStoreGetQuerySchema, OutreachStoreListQuerySchema, OutreachStoreListSchema, OutreachStoreOutreachSchema, OutreachStoreSavedSchema, OutreachStoreSaveRequestSchema, OutreachStoreSendAnswerSchema, OutreachStoreSendRequestSchema, OutreachStoreTouchesSchema } from './outreach-store';
 import { AiLimitReportSchema, AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
 import { PageFanParamsSchema, PageParamsSchema } from './wire';
 import { VoiceAllowanceQuerySchema, VoiceAllowanceSchema, VoiceNoteAudioBytesSchema, VoiceNoteCreateRequestSchema, VoiceNoteRefSchema, VoiceNoteViewSchema } from '../voice';
@@ -104,6 +105,11 @@ export const HUB_ROUTE_SCHEMAS = {
   clientFanQueueTake: { request: FanQueueTakeRequestSchema, response: FanQueueTakeSchema },
   clientFanQueueItemDone: { request: FanQueueItemDoneRequestSchema, response: FanQueueItemDoneSchema },
   clientFanQueueRelease: { request: FanQueueReleaseRequestSchema, response: FanQueueReleaseSchema },
+  clientOutreaches: { request: OutreachStoreListQuerySchema, response: OutreachStoreListSchema },
+  clientOutreach: { request: OutreachStoreGetQuerySchema, response: OutreachStoreOutreachSchema },
+  clientOutreachSave: { request: OutreachStoreSaveRequestSchema, response: OutreachStoreSavedSchema },
+  clientOutreachSend: { request: OutreachStoreSendRequestSchema, response: OutreachStoreSendAnswerSchema },
+  clientOutreachTouches: { request: OutreachStoreListQuerySchema, response: OutreachStoreTouchesSchema },
   clientFanCustomCreate: { request: FanCustomCreateRequestSchema, response: FanFactChangeResultSchema },
   clientFanCustomChange: { request: FanCustomChangeRequestSchema, response: FanFactChangeResultSchema },
   voiceNoteCreate: { request: VoiceNoteCreateRequestSchema, response: VoiceNoteViewSchema },

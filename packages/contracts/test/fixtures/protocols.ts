@@ -167,6 +167,24 @@ const MEMORY_CARD = { pageLabel: 'model-two-fansly', fanRef: '920000000000000003
 const notesFillStart = { feature: 'notes-fill', target: ofTarget, cause, window: 3000, fields: ['Имя', 'Локация'] } as const;
 const notesFillView = { ...opView, feature: 'notes-fill', result: noteFieldsResult, generationRef: uuid(0x560), toneUsed: null } as const;
 
+
+const T = '2026-11-01T10:00:00.000Z';
+const OUTREACH_ID = '0b9b1b54-6f7e-4a52-9a0c-3b2f7d1e5a10';
+const OUTREACH_PERSON = { name: 'grisha', isMe: false };
+const OUTREACH_FAN = {
+  fanRef: '12',
+  version: 'hey you',
+  basis: 'cbf29ce484222325',
+  versionAt: T,
+  edit: null,
+  editedBy: null,
+  editedAt: null,
+  send: { state: 'sent', attemptId: OUTREACH_ID, by: OUTREACH_PERSON, clickedAt: T, ticketUntil: null, sentAt: T, code: null, text: 'hey you', media: null, platformMessageId: '901', resolvedBy: null },
+  outcome: { replied: { at: T, text: 'hi' }, bought: null },
+};
+const OUTREACH = { outreachId: OUTREACH_ID, author: OUTREACH_PERSON, createdAt: T, updatedAt: T, updatedBy: OUTREACH_PERSON, text: 'hey', withMedia: false, settings: {}, order: ['12'], fans: [OUTREACH_FAN], serverNow: T };
+const OUTREACH_SUMMARY = { outreachId: OUTREACH_ID, author: OUTREACH_PERSON, createdAt: T, updatedAt: T, updatedBy: OUTREACH_PERSON, text: 'hey', withMedia: false, fans: 1, written: 1, sent: 1, uncertain: 0, sending: 0, failed: 0, replied: 1, bought: 0, boughtMills: 0, lastSentAt: T };
+
 export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixtures } = {
   'tab.register': {
     req: { valid: [{ host: 'chatspace', lateInjection: true, contractsVersion: '1.0.0' }], invalid: [{ host: 'chatspace', lateInjection: true }] },
@@ -501,6 +519,45 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'queues.release': {
     req: { valid: [{ pageId: 13, queueId: 4 }], invalid: [{ pageId: 13 }, { pageId: 13, queueId: 4, all: true }] },
     res: { valid: [{ released: 3 }], invalid: [{}, { released: '3' }] },
+  },
+  'outreach.list': {
+    req: { valid: [{ pageId: 13 }], invalid: [{}, { pageId: 13, all: true }] },
+    res: { valid: [{ pageLabel: 'lora-1', outreaches: [OUTREACH_SUMMARY], serverNow: T }], invalid: [{}, { pageLabel: 'lora-1', outreaches: [{}], serverNow: T }] },
+  },
+  'outreach.get': {
+    req: { valid: [{ pageId: 13, outreachId: OUTREACH_ID }], invalid: [{ pageId: 13 }, { pageId: 13, outreachId: '' }] },
+    res: { valid: [OUTREACH], invalid: [{}, { ...OUTREACH, fans: [{ fanRef: '12' }] }] },
+  },
+  'outreach.save': {
+    req: {
+      valid: [
+        { pageId: 13, outreachId: OUTREACH_ID, body: { text: 'hey' } },
+        { pageId: 13, outreachId: OUTREACH_ID, body: { order: ['12'], fans: [{ fanRef: '12', version: 'hey you', basis: 'cbf29ce484222325' }, { fanRef: '13', version: null, edit: null }] } },
+      ],
+      invalid: [
+        { pageId: 13, outreachId: OUTREACH_ID, body: { fans: [{ fanRef: 'x' }] } },
+        { pageId: 13, outreachId: OUTREACH_ID, body: { nope: 1 } },
+      ],
+    },
+    res: { valid: [{ ...OUTREACH, kept: [] }], invalid: [{}, { ...OUTREACH, kept: 'none' }] },
+  },
+  'outreach.send': {
+    req: {
+      valid: [
+        { pageId: 13, outreachId: OUTREACH_ID, body: { action: 'claim', fanRef: '12', attemptId: OUTREACH_ID, text: 'hey you', media: null } },
+        { pageId: 13, outreachId: OUTREACH_ID, body: { action: 'sent', fanRef: '12', attemptId: OUTREACH_ID, platformMessageId: '901' } },
+        { pageId: 13, outreachId: OUTREACH_ID, body: { action: 'record', fanRef: '12', attemptId: OUTREACH_ID, state: 'uncertain', clickedAt: T, text: 'hey you', media: null } },
+      ],
+      invalid: [
+        { pageId: 13, outreachId: OUTREACH_ID, body: { action: 'claim', fanRef: '12', attemptId: 'nope', text: 'hey you', media: null } },
+        { pageId: 13, outreachId: OUTREACH_ID, body: { action: 'resend', fanRef: '12', attemptId: OUTREACH_ID } },
+      ],
+    },
+    res: { valid: [{ outcome: 'taken', fan: OUTREACH_FAN, serverNow: T }], invalid: [{}, { outcome: 'ok', fan: {}, serverNow: T }] },
+  },
+  'outreach.touches': {
+    req: { valid: [{ pageId: 13 }], invalid: [{}, { pageId: '13' }] },
+    res: { valid: [{ pageLabel: 'lora-1', hours: 72, fans: [{ fanRef: '12', at: T, kind: 'queue', by: { name: 'grisha', isMe: false }, outreachId: null }], serverNow: T }], invalid: [{ pageLabel: 'lora-1', hours: 72, fans: 'none', serverNow: T }] },
   },
   'feed.read': {
     req: {

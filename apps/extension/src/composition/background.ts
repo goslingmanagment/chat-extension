@@ -1792,6 +1792,12 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('queues.take', data['queues.take']);
   rpc.handle('queues.done', data['queues.done']);
   rpc.handle('queues.release', data['queues.release']);
+  // 1.72.0: «Рассылки» kept by the hub, the page's team's.
+  rpc.handle('outreach.list', data['outreach.list']);
+  rpc.handle('outreach.get', data['outreach.get']);
+  rpc.handle('outreach.save', data['outreach.save']);
+  rpc.handle('outreach.send', data['outreach.send']);
+  rpc.handle('outreach.touches', data['outreach.touches']);
   // 1.47.0: voice notes, both sites.
   rpc.handle('notes.view', notes.handlers['notes.view']);
   rpc.handle('notes.setView', notes.handlers['notes.setView']);

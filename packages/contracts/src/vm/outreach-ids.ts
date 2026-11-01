@@ -9,9 +9,11 @@ export type OutreachTab = (typeof OUTREACH_TABS)[number];
  * The conditions of «Кому» over the chosen tiers: `spent` — spent more than the amount; `active` — wrote or bought in the
  * last 7 days; `notBought` — has not bought the paid media of the offer (only with a paid medium, and only where the site
  * says who bought it); `noWaiting` — leaves out the fans who wait for an answer; `noGone` (1.70.0) — leaves out the fans
- * whose account the site no longer finds (deleted, or the page blocked), shown only while the chosen fans have one.
+ * whose account the site no longer finds (deleted, or the page blocked), shown only while the chosen fans have one;
+ * `noTouched` (1.72.0) — leaves out the fans an outreach, a fan queue or «Онлайн» wrote to in the last 3 days (any of the
+ * team), shown only while the chosen fans have one.
  */
-export const OUTREACH_CONDITIONS = ['spent', 'active', 'notBought', 'noWaiting', 'noGone'] as const;
+export const OUTREACH_CONDITIONS = ['spent', 'active', 'notBought', 'noWaiting', 'noGone', 'noTouched'] as const;
 export type OutreachCondition = (typeof OUTREACH_CONDITIONS)[number];
 
 /** Which pane is on the right while no fan is chosen: the offer, or what the outreach did. */

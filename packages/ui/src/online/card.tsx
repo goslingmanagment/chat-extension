@@ -26,6 +26,7 @@ import { offersOpenInsert, openAndInsert } from '../spenders/preview/SendRow';
 import { blockedReason } from '../outreach/rows';
 import { OnlineAvatar } from './rows';
 import { actWord, asideText, firstName, seenLong, timeLeft } from './words';
+import { touchedText } from '../outreach/words';
 
 /** The text as the card's preview holds it: what «Открыть и вставить» puts into the fan's chat. */
 function textPart(preview: PreviewVM, handle: string): { readonly opId: string; readonly part: PartVM } | null {
@@ -261,9 +262,17 @@ function Calm({ card, preview }: { readonly card: OnlineCardVM; readonly preview
         <span>
           <b>{i18n.t('outreach.card.staleWarn')}</b>: {i18n.t('online.card.staleTail')}
         </span>
-      ) : (
+      ) : warning.kind === 'talking' ? (
         <span>
           <b>{i18n.t('outreach.card.talkingWarn', { names: warning.names.join(', ') })}</b>: {i18n.t('outreach.card.talkingTail')}
+        </span>
+      ) : warning.kind === 'touched' ? (
+        <span>
+          <b>{touchedText(i18n, warning)}</b>: {i18n.t('outreach.card.touchedTail')}
+        </span>
+      ) : (
+        <span>
+          <b>{i18n.t('outreach.card.hubWarn')}</b>: {i18n.t('outreach.card.hubTail')}
         </span>
       )}
       <span class="cg-nw__grow" />

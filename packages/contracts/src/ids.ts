@@ -84,6 +84,8 @@ export const RECAP_OFF_CAPABILITY = 'recap-off-v1';
 
 /** «Рассылка»: the bootstrap capability under which Fix takes `draftPurpose: 'outreach'` — a mass message made personal. */
 export const OUTREACH_FIX_CAPABILITY = 'outreach-fix-v1';
+/** 1.72.0: «Рассылки» kept by the hub and shared by the page's team (hub `outreach-store-v1`). */
+export const OUTREACH_STORE_CAPABILITY = 'outreach-store-v1';
 
 /** 1.65.0: «Онлайн» — the hub's list of the page's fans seen online, with why to write now (`clientOnline`). */
 export const ONLINE_CAPABILITY = 'online-v1';

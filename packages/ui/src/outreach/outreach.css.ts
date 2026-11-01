@@ -98,6 +98,8 @@ ${/* «Рассылки» in the head: the page's outreaches kept on this comput
 .cg-ow__savedt { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-weight: 400; color: var(--cg-ink); overflow-wrap: anywhere; }
 .cg-ow__pi.is-on .cg-ow__savedt { font-weight: 500; color: var(--cg-ink-strong); }
 .cg-ow__new .cg-ow__pib { align-items: center; color: var(--cg-ink-2); }
+/* 1.72.0: the hub did not answer: the outreach is kept on this computer meanwhile. */
+.cg-ow__offline { color: var(--cg-warn-ink, var(--cg-ink-2)); }
 .cg-ow__new .cg-ow__pib .cg-ico { flex: none; color: var(--cg-ink-muted); }
 
 ${/* The rows: the tier after the name, a version that went in one solid line, «Не войдут» with why. */ ''}
