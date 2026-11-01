@@ -17,6 +17,7 @@ const CONDITION_KEYS = {
   active: 'outreach.condition.active',
   notBought: 'outreach.condition.notBought',
   noWaiting: 'outreach.condition.noWaiting',
+  noGone: 'outreach.condition.noGone',
 } as const satisfies Record<OutreachConditionVM['id'], string>;
 
 /** The offer's paid media are one video: «Не купил это видео». */
@@ -40,6 +41,8 @@ function noteText(i18n: ReturnType<typeof useI18n>, note: OutreachConditionNoteV
       return i18n.plural('outreach.note.waiting', note.fans.names.length + note.fans.more, { names: namesText(i18n, note.fans) });
     case 'none-waiting':
       return i18n.t('outreach.note.noneWaiting');
+    case 'gone':
+      return i18n.plural('outreach.note.gone', note.fans.names.length + note.fans.more, { names: namesText(i18n, note.fans) });
   }
 }
 

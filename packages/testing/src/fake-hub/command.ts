@@ -36,6 +36,7 @@ const SEED_FIELDS: Readonly<Record<string, FieldCheck>> = {
   weWroteAgoSec: either(isNumber, oneOf(null)),
   awaiting: isBoolean,
   preview: isString,
+  lookupMissAgoSec: isNumber,
 };
 /** `spenderFans.fans`: objects with a fan id and nothing but the seed's own fields. */
 const isSpenderSeeds: FieldCheck = (value) =>

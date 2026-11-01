@@ -112,8 +112,9 @@ export function spenderRow(item: SpenderListItem, rank: number, boardPeriod: Hub
     lifetime,
     period,
     isNew: isNewSpender(lifetime, period, boardPeriod),
-    // `/api/v2/spenders` carries no deletion mark for a fan (the old `pageTopSpenders` did): nothing to show yet.
-    deleted: false,
+    // 1.70.0: the hub's latest account lookup through this page did not return the fan (deleted, or the page blocked),
+    // as the old extension's `deletedAt` said it: the row says «удалён».
+    deleted: item.accountLookupMissAt !== undefined && item.accountLookupMissAt !== null,
     weWroteAt,
     fanWroteAt,
     waiting,

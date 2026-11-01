@@ -277,7 +277,7 @@ function RowView({ item, index, active, locked, media, onPick }: RowProps): JSX.
           {row.tier === null ? null : <span class="cg-nw__tag">{tierWords(i18n, row.tier)}</span>}
         </span>
         <span class="cg-nw__mline">
-          <span class="cg-nw__meta cg-num">{[row.username === null ? null : `@${row.username}`, i18n.formatMoneyMills(row.lifetime)].filter((part) => part !== null && part !== '').join(' · ')}</span>
+          <span class="cg-nw__meta cg-num">{[row.gone === true ? i18n.t('spenders.tag.deleted') : row.username === null ? null : `@${row.username}`, i18n.formatMoneyMills(row.lifetime)].filter((part) => part !== null && part !== '').join(' · ')}</span>
           <TalkingMark handle={row.handle} />
         </span>
         <Status row={row} media={media} />

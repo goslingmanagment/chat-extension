@@ -96,5 +96,7 @@ export function asideText(i18n: I18n, reason: OutreachAsideVM, media: OutreachMe
       return i18n.t('outreach.aside.inactive');
     case 'manual':
       return i18n.t('outreach.aside.manual');
+    case 'gone':
+      return i18n.t('outreach.aside.gone');
   }
 }

@@ -46,7 +46,9 @@ export type OutreachConditionNoteVM =
   | { readonly kind: 'unknown' }
   /** `noWaiting`: these fans wait for an answer — their versions answer them. */
   | { readonly kind: 'waiting'; readonly fans: OutreachNamesVM }
-  | { readonly kind: 'none-waiting' };
+  | { readonly kind: 'none-waiting' }
+  /** `noGone` (1.70.0): these fans' accounts are not found — deleted, or the page blocked. */
+  | { readonly kind: 'gone'; readonly fans: OutreachNamesVM };
 
 export interface OutreachConditionVM {
   readonly id: OutreachCondition;
@@ -83,7 +85,9 @@ export type OutreachAsideVM =
   /** Neither wrote nor bought in 7 days, and «Писал или покупал за 7 дней» is on. */
   | { readonly kind: 'inactive' }
   /** Taken out by the person after the versions were written. */
-  | { readonly kind: 'manual' };
+  | { readonly kind: 'manual' }
+  /** 1.70.0: the site no longer finds the fan's account (deleted, or the page blocked), and «Без удалённых аккаунтов» is on. */
+  | { readonly kind: 'gone' };
 
 /**
  * How a fan of the outreach stands: `idle` — no version (not ticked yet, or the versions are not written); `queued`,
@@ -150,6 +154,8 @@ export interface OutreachRowVM {
   readonly badges?: FanBadges;
   readonly name: string;
   readonly username: string | null;
+  /** 1.70.0: the site no longer finds the fan's account (deleted, or the page blocked): «удалён» in place of the @handle. */
+  readonly gone?: true;
   /** The fan's tier by the board's bounds; null — none takes the fan. */
   readonly tier: OutreachTierVM['range'] | null;
   readonly lifetime: MoneyMills | null;

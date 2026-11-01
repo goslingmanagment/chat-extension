@@ -312,7 +312,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   function fansOf(index: BoardIndex): ReadonlyMap<string, AudienceFan> {
     let fans = fansCache.get(index);
     if (fans === undefined) {
-      fans = new Map(index.rows.map((row) => [row.fanRef, { fanRef: row.fanRef, lifetime: row.lifetime, fanWroteAt: row.fanWroteAt, waiting: row.waiting }]));
+      fans = new Map(index.rows.map((row) => [row.fanRef, { fanRef: row.fanRef, lifetime: row.lifetime, fanWroteAt: row.fanWroteAt, waiting: row.waiting, gone: row.deleted }]));
       fansCache.set(index, fans);
     }
     return fans;
@@ -594,11 +594,18 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       return audienceNow.pool.some((fanRef) => asking.has(fanRef) || ids.some((mediaId) => !bought.has(`${fanRef}|${mediaId}`))) ? { kind: 'checking' } : { kind: 'none-bought' };
     }
     if (id === 'noWaiting') {
-      const fans = audienceNow.pool.filter((fanRef) => index.byFan.get(fanRef)?.waiting === true && audienceNow.aside.get(fanRef)?.some((reason) => reason.kind === 'bought') !== true);
+      const fans = audienceNow.pool.filter((fanRef) => index.byFan.get(fanRef)?.waiting === true && audienceNow.aside.get(fanRef)?.some((reason) => reason.kind === 'bought' || reason.kind === 'gone') !== true);
       return fans.length > 0 ? { kind: 'waiting', fans: namesOf(fans, index) } : { kind: 'none-waiting' };
+    }
+    if (id === 'noGone') {
+      const fans = goneOf(audienceNow.pool, index);
+      return fans.length > 0 && conditions.noGone.on ? { kind: 'gone', fans: namesOf(fans, index) } : null;
     }
     return null;
   }
+
+  /** The fans of the pool whose account the site no longer finds (the board's «удалён»). */
+  const goneOf = (pool: readonly string[], index: BoardIndex): string[] => pool.filter((fanRef) => index.byFan.get(fanRef)?.deleted === true);
 
   /** «Не купил это видео» exists only with paid media of the vault and a site that says who bought them. */
   const canTellBought = (media: OutreachMediaVM | null): boolean => own === null && batchPort?.outreachStates !== undefined && paidIds(media).length > 0;
@@ -611,6 +618,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       handle: handleOf(fanRef),
       name: row?.name ?? fanRef,
       username: row?.username ?? null,
+      ...(row?.deleted === true ? { gone: true as const } : {}),
       tier: tierOf(index, fanRef),
       lifetime: row?.lifetime ?? null,
       selected: fanRef === selected,
@@ -773,8 +781,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       tiers: index.shelves
         .filter((shelf) => shelf.id !== OUTSIDE_SHELF_ID && shelf.rows.length > 0)
         .map((shelf) => ({ id: shelf.id, range: shelf.range, fans: shelf.rows.length, on: source?.kind === 'tiers' && source.on.has(shelf.id) })),
-      conditions: (['spent', 'active', 'notBought', 'noWaiting'] as const)
-        .filter((id) => id !== 'notBought' || canTellBought(media))
+      conditions: (['spent', 'active', 'notBought', 'noWaiting', 'noGone'] as const)
+        .filter((id) => (id !== 'notBought' || canTellBought(media)) && (id !== 'noGone' || goneOf(now.pool, index).length > 0))
         .map((id): OutreachConditionVM => ({ id, on: conditions[id].on, ...(id === 'spent' ? { amount: amountTyped } : {}), note: conditionNote(id, now, index, ids) })),
       count: out.length,
       spent,

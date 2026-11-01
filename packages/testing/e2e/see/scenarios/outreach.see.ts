@@ -26,6 +26,9 @@ const VERSIONS = [
 
 const BUNDLES = ['700000000000000011', '700000000000000012'];
 
+/** Fansly: a payer whose account is gone (the hub's account lookup missed them). */
+const GONE_FAN = '733785576267853800';
+
 /** Key by key, as a person types (one action of many keys drops a letter pressed again while still down). */
 async function typeIn(s: See, text: string): Promise<void> {
   for (const key of Array.from(text)) await s.browser.keys(key);
@@ -50,6 +53,8 @@ scenario(
     } else await s.leaveField();
     await s.keys(...s.PANEL, 'm');
     await s.browser.waitUntil(() => s.has('modal', '.cg-sp__outreach'), { timeout: 20_000, interval: 200, timeoutMsg: 'Spenders did not open' });
+    // Fansly: the payer whose account is gone stands «удалён» on the board.
+    if (fansly) await shot(s, 'outreach-spenders');
     await s.press(/^Рассылка/, 'modal', '.cg-sp__outreach');
     await s.see('modal', 'Предложение', 20_000);
     await s.browser.pause(400);
@@ -147,9 +152,11 @@ scenario(
         fans: [
           { fanRef: a.fan, displayName: 'Hub Whale', lifetimeUsd: 1200, windowUsd: 300 },
           { fanRef: b.fan, displayName: 'Hub Birch', lifetimeUsd: 650, windowUsd: 40, awaiting: true, fanWroteAgoSec: 7_200 },
+          // A fan whose account the page's lookup no longer finds: «удалён», and «Без удалённых аккаунтов» leaves them out.
+          { fanRef: GONE_FAN, displayName: 'Azure', username: 'Azure086', lifetimeUsd: 820, windowUsd: null, lookupMissAgoSec: 3 * 86_400 },
         ],
       });
-      await hub.command({ op: 'config', patch: { spendersTotal: 2 } });
+      await hub.command({ op: 'config', patch: { spendersTotal: 3 } });
     },
   },
 );
