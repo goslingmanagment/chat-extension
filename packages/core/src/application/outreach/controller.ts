@@ -31,6 +31,7 @@ import {
   type OutreachPane,
   type OutreachPostVM,
   type OutreachRowVM,
+  type OutreachSavedVM,
   type OutreachSendVM,
   type OutreachSummaryFanVM,
   type OutreachSummaryLeftVM,
@@ -43,7 +44,30 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
-import { DEFAULT_CONDITIONS, audienceOf, parseAmount, poolOf, type Audience, type AudienceFan, type AudienceSource, type AudienceTier, type OutreachConditions } from '../../domain/outreach';
+import {
+  DEFAULT_CONDITIONS,
+  EMPTY_OUTREACH_STORE,
+  OUTREACH_CHIP_BACK_MS,
+  audienceOf,
+  mergeOutreachStores,
+  outreachOwner,
+  outreachesOf,
+  parseAmount,
+  poolOf,
+  putOutreach,
+  readOutreachStore,
+  worthKeeping,
+  type Audience,
+  type AudienceFan,
+  type AudienceSource,
+  type AudienceTier,
+  type OutreachConditions,
+  type OutreachStore,
+  type SavedFan,
+  type SavedMedia,
+  type SavedOutreach,
+  type SavedSend,
+} from '../../domain/outreach';
 import { type BoardIndex } from '../../domain/spenders/board';
 import { normalizeSearch } from '../../domain/spenders/rows';
 import { OUTSIDE_SHELF_ID } from '../../domain/spenders/shelves';
@@ -75,6 +99,9 @@ const STATE_READS = 3;
 const NAMES_SHOWN = 3;
 /** The fan messages after our send that count as an answer: the archive's first page of the fan. */
 const FEED_LIMIT = 20;
+/** A change of the outreach is written to this computer at most this often (and once more after the last one). */
+export const OUTREACH_SAVE_MS = 700;
+
 
 /** An item of Fansly's «Copied …» list: 2 — «Copied Bundle», 1 — «Copied Media». */
 export interface OutreachItem {
@@ -137,7 +164,20 @@ export interface OutreachBoardPort {
   subscribe(listener: () => void): () => void;
 }
 
+/**
+ * 2026-11-01: the outreaches kept on this computer — one key of storage.local every tab shares (domain/outreach/saved.ts).
+ * The tab's early bundle owns the browser API, so the port is made there.
+ */
+export interface OutreachStorePort {
+  load(): Promise<unknown>;
+  save(value: unknown): Promise<void>;
+}
+
 export interface OutreachControllerDeps {
+  /** «Рассылки» kept on this computer; absent — an outreach lives until the tab reloads. */
+  readonly store?: OutreachStorePort;
+  /** Ids of the kept outreaches; absent — the clock and a random number. */
+  readonly ids?: { uuid(): string };
   readonly rpc: TabRpc;
   readonly i18n: I18n;
   readonly clock: BoardsClock;
@@ -196,6 +236,8 @@ interface FanFacts {
 const OUTREACH_SELECTOR = { of: 'outreach' } as const;
 const RETRY: UiAction = { type: 'ReloadView', selector: OUTREACH_SELECTOR };
 const keyOf = (item: OutreachItem): string => `${item.contentType}:${item.contentId}`;
+/** Media kept from before, as the window shows them (no picture: the vault's links expire). */
+const mediaVmOf = (media: SavedMedia | null): OutreachMediaVM | null => (media === null ? null : { items: media.items.map((item) => ({ ...item, thumb: null })), posts: media.posts, priceCents: media.priceCents, problem: null });
 const iso = (ms: number | null): IsoTimestamp | null => (ms === null ? null : new Date(ms).toISOString());
 const timeOf = (at: IsoTimestamp | null): number | null => {
   if (at === null) return null;
@@ -269,6 +311,27 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
   let offBatch: (() => void) | null = null;
   let epoch = context.current().epoch;
   let disposed = false;
+
+  // ── «Рассылки» kept on this computer ──
+  const store = deps.store ?? null;
+  const newId = (): string => deps.ids?.uuid() ?? `${clock.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  /** The window's outreach among the kept ones; null — not kept yet (nothing worth keeping so far). */
+  let currentId: string | null = null;
+  let createdAt: number | null = null;
+  /** The store as last read or written. */
+  let stored: OutreachStore = EMPTY_OUTREACH_STORE;
+  /** The first read of the store ended: until then nothing is written over what it holds. */
+  let storeRead = store === null;
+  /** The owner whose current outreach was looked for after the read (once per owner). */
+  let resumedFor: string | null = null;
+  let saveTimer: number | null = null;
+  /** The window's outreach as last written (without its times): an unchanged one is not written again. */
+  let lastSaved = '';
+  let writing: Promise<void> = Promise.resolve();
+  /** The cards' sends (ChatSpace) kept from before: a card holds no trace of them after a reload. */
+  const keptSends = new Map<string, SavedSend>();
+  /** Fans' names as kept, for a fan the board no longer lists. */
+  const keptNames = new Map<string, string>();
 
   const pageId = (): number | null => context.current().binding?.pageId ?? null;
   const handleOf = (fanRef: string): TargetHandle => fanHandle('outreach', pageId() ?? 0, fanRef);
@@ -513,6 +576,9 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         const facts = cardFacts(fanRef, card);
         return { ...facts, state: facts.state ?? 'sent' };
       }
+      // A send of the card kept from before the reload: what went, or may have, stands.
+      const kept = keptSends.get(fanRef);
+      if (kept !== undefined) return { ...none, state: kept.state === 'sent' ? 'sent' : 'uncertain', version: kept.text, media: mediaVmOf(kept.media), sentAt: kept.state === 'sent' ? iso(kept.at) : null, clickedAt: iso(kept.clickedAt) };
     } else {
       const sent = owned.get(fanRef);
       const took = sentTexts.get(fanRef);
@@ -616,7 +682,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const outcome = outcomes.get(fanRef);
     return {
       handle: handleOf(fanRef),
-      name: row?.name ?? fanRef,
+      name: row?.name ?? keptNames.get(fanRef) ?? fanRef,
       username: row?.username ?? null,
       ...(row?.deleted === true ? { gone: true as const } : {}),
       tier: tierOf(index, fanRef),
@@ -729,6 +795,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         stale: 0,
         card: null,
         summary: null,
+        saved: savedList(null),
       };
     }
 
@@ -807,7 +874,283 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       stale,
       card,
       summary,
+      saved: savedList(totals),
     };
+  }
+
+  // ── «Рассылки» kept on this computer ──
+
+  function ownerOf(): string | null {
+    const ctx = context.current();
+    const id = ctx.binding?.pageId;
+    return ctx.session === null || id === undefined ? null : outreachOwner(ctx.session.hubOrigin, ctx.session.userId, id);
+  }
+
+  /** The list in the head: the page's kept outreaches, newest first; the window's own with what it shows now. */
+  function savedList(totals: OutreachWindowVM['totals'] | null): OutreachSavedVM[] {
+    const owner = ownerOf();
+    if (owner === null) return [];
+    const at = (ms: number): IsoTimestamp => new Date(ms).toISOString();
+    const entry = (outreach: SavedOutreach): OutreachSavedVM => {
+      let sent = 0;
+      let replied = 0;
+      let boughtMills: number | null = null;
+      for (const fan of outreach.fans) {
+        if (fan.send?.state === 'sent') sent += 1;
+        if ((fan.outcome?.replied ?? null) !== null) replied += 1;
+        const mills = fan.outcome?.bought?.mills ?? null;
+        if (mills !== null) boughtMills = (boughtMills ?? 0) + mills;
+      }
+      return { id: outreach.id, current: false, text: outreach.text.slice(0, 200), startedAt: at(outreach.createdAt), updatedAt: at(outreach.updatedAt), total: outreach.locked?.length ?? 0, sent, replied, boughtMills, media: outreach.media !== null || outreach.picked.length > 0 };
+    };
+    const list = outreachesOf(stored, owner).map(entry);
+    const keeping = worthKeeping({ text, locked });
+    if (!keeping) return list.filter((item) => item.id !== currentId);
+    const now = clock.now();
+    const mine: OutreachSavedVM = {
+      id: currentId ?? '',
+      current: true,
+      text: text.slice(0, 200),
+      startedAt: at(createdAt ?? now),
+      updatedAt: list.find((item) => item.id === currentId)?.updatedAt ?? at(now),
+      total: locked === null ? 0 : (totals?.total ?? locked.length),
+      sent: totals?.sent ?? 0,
+      replied: totals?.replied ?? 0,
+      boughtMills: totals?.boughtMills ?? null,
+      media: offerMedia() !== null,
+    };
+    return [mine, ...list.filter((item) => item.id !== currentId)];
+  }
+
+  function mediaOfVm(media: OutreachMediaVM | null): SavedMedia | null {
+    return media === null ? null : { items: media.items.map(({ id, type, duration, free }) => ({ id, type, duration, free })), posts: media.posts, priceCents: media.priceCents };
+  }
+
+  /** The window's outreach as it is now, to keep. */
+  function snapshot(owner: string): SavedOutreach {
+    const now = clock.now();
+    const index = listIndex();
+    const fans: SavedFan[] = [];
+    for (const fanRef of locked ?? []) {
+      const facts = factsOf(fanRef);
+      const row = batch.row(handleOf(fanRef));
+      const fix = row.state === 'ready' || row.state === 'sent' ? row.text : null;
+      let send: SavedSend | null = null;
+      if (own !== null) {
+        const sent = owned.get(fanRef);
+        const took = sentTexts.get(fanRef);
+        // One on its way when the tab goes is unknown: it is never sent again from what was kept.
+        if (sent !== undefined) send = { state: sent.state === 'sending' ? 'uncertain' : sent.state, code: sent.code, clickedAt: sent.clickedAt, at: sent.at, text: took?.text ?? null, media: mediaOfVm(took?.media ?? null) };
+      } else if (facts.state === 'sent' || facts.state === 'uncertain' || facts.state === 'accepted' || facts.state === 'sending') {
+        send = { state: facts.state === 'sent' ? 'sent' : 'uncertain', code: null, clickedAt: timeOf(facts.clickedAt), at: timeOf(facts.sentAt), text: facts.version, media: mediaOfVm(facts.media) };
+      }
+      const outcome = outcomes.get(fanRef);
+      fans.push({
+        fanRef,
+        name: index?.byFan.get(fanRef)?.name ?? keptNames.get(fanRef) ?? null,
+        version: own === null ? (facts.version ?? fix) : fix,
+        revision: versions.get(fanRef) ?? 0,
+        edit: own === null ? null : (edits.get(fanRef) ?? null),
+        send,
+        outcome: outcome === undefined ? null : { sentAt: outcome.sentAt, mills: outcome.mills, paidIds: [...outcome.paidIds], bought: outcome.bought, replied: outcome.replied, checks: outcome.checks },
+      });
+    }
+    return {
+      id: currentId ?? '',
+      owner,
+      createdAt: createdAt ?? now,
+      updatedAt: now,
+      text,
+      textRevision,
+      textChangedAt,
+      source: source === null ? null : source.kind === 'tiers' ? { kind: 'tiers', on: [...source.on] } : { kind: 'picked', fans: [...source.fans] },
+      conditions,
+      amountTyped,
+      locked: locked === null ? null : [...locked],
+      unticked: [...unticked],
+      items: own === null ? [] : items.map(({ contentType, contentId }) => ({ contentType, contentId })),
+      picked: own === null ? [] : [...pickedItems],
+      media: own === null ? mediaOfVm(offerMedia()) : null,
+      fans,
+      folded: minimized || surfaces.current().outreach,
+    };
+  }
+
+  /** A kept outreach becomes the window's, as it was left: nothing is written or sent by it. */
+  function restoreFrom(saved: SavedOutreach): void {
+    resetCampaign();
+    keptSends.clear();
+    keptNames.clear();
+    currentId = saved.id;
+    createdAt = saved.createdAt;
+    text = saved.text;
+    textRevision = saved.textRevision;
+    textChangedAt = saved.textChangedAt;
+    source = saved.source === null ? null : saved.source.kind === 'tiers' ? { kind: 'tiers', on: new Set(saved.source.on) } : { kind: 'picked', fans: [...saved.source.fans] };
+    conditions = saved.conditions;
+    amountTyped = saved.amountTyped;
+    for (const fanRef of saved.unticked) unticked.add(fanRef);
+    locked = saved.locked === null ? null : [...saved.locked];
+    if (own !== null) {
+      if (saved.items.length > 0) {
+        items = saved.items.map(({ contentType, contentId }) => ({ contentType, contentId }));
+        itemsState = 'checked';
+      }
+      pickedItems.clear();
+      for (const key of saved.picked) pickedItems.add(key);
+    }
+    const ready: { handle: string; text: string }[] = [];
+    const again: string[] = [];
+    for (const fan of saved.fans) {
+      if (fan.name !== null) keptNames.set(fan.fanRef, fan.name);
+      versions.set(fan.fanRef, fan.revision);
+      const handle = handleOf(fan.fanRef);
+      const send = fan.send;
+      if (own !== null) {
+        // The site's own send (Fansly): the versions, the person's words and what went come back whole.
+        if (fan.version !== null) ready.push({ handle, text: fan.version });
+        if (fan.edit !== null) edits.set(fan.fanRef, fan.edit);
+        if (send !== null) {
+          owned.set(fan.fanRef, { state: send.state, code: send.code, clickedAt: send.clickedAt ?? send.at ?? saved.updatedAt, at: send.at });
+          if (send.state !== 'failed') sentTexts.set(fan.fanRef, { text: send.text ?? fan.edit ?? fan.version ?? '', media: mediaVmOf(send.media) });
+        }
+      } else if (send !== null && send.state !== 'failed') keptSends.set(fan.fanRef, send);
+      // The cards' send (ChatSpace): a version lives on its card, which a reload empties — «Дописать» writes it again.
+      else if (fan.version !== null) again.push(handle);
+      if (send?.clickedAt !== undefined && send.clickedAt !== null) clicks.set(fan.fanRef, send.clickedAt);
+      if (fan.outcome !== null) outcomes.set(fan.fanRef, { ...fan.outcome, paidIds: [...fan.outcome.paidIds], timer: null });
+    }
+    if (ready.length > 0) batch.restore(ready);
+    if (again.length > 0) batch.pick(again, true);
+    // Versions to write again («Дописать N») are work left, not the end: the pane stays on the offer.
+    endShown = again.length > 0;
+    audienceCache = null;
+    lastSaved = '';
+  }
+
+  /** The owner's current outreach comes back after the first read, unless the window holds one of its own already. */
+  function resumeCurrent(): void {
+    const owner = ownerOf();
+    if (!storeRead || owner === null || resumedFor === owner) return;
+    resumedFor = owner;
+    if (currentId !== null || text.trim() !== '' || locked !== null) return;
+    const id = stored.current[owner];
+    const saved = id === undefined ? undefined : stored.outreaches.find((outreach) => outreach.id === id && outreach.owner === owner);
+    if (saved === undefined) return;
+    restoreFrom(saved);
+    // Folded (or open) when the page went: its chip stands again, one click back to it.
+    if (saved.folded && clock.now() - saved.updatedAt < OUTREACH_CHIP_BACK_MS && !surfaces.current().outreach) {
+      minimized = true;
+      surfaces.setOutreachChip(true);
+      // The chip says how far the outreach got: the board its fans come from is read for it.
+      void board.load({ recent: conditions.active.on }).then(() => changed());
+    }
+  }
+
+  /** What another tab kept of the window's outreach: a send that went (or may have) there stands here too. */
+  function adoptKept(): boolean {
+    if (currentId === null) return false;
+    const saved = stored.outreaches.find((outreach) => outreach.id === currentId);
+    if (saved === undefined) return false;
+    let moved = false;
+    for (const fan of saved.fans) {
+      const send = fan.send;
+      if (send === null || send.state === 'failed') continue;
+      const state = factsOf(fan.fanRef).state;
+      if (state === 'sent' || state === 'uncertain' || state === 'sending' || state === 'accepted') continue;
+      if (own !== null) {
+        owned.set(fan.fanRef, { state: send.state, code: send.code, clickedAt: send.clickedAt ?? send.at ?? saved.updatedAt, at: send.at });
+        sentTexts.set(fan.fanRef, { text: send.text ?? fan.edit ?? fan.version ?? '', media: mediaVmOf(send.media) });
+      } else keptSends.set(fan.fanRef, send);
+      if (fan.outcome !== null && !outcomes.has(fan.fanRef)) outcomes.set(fan.fanRef, { ...fan.outcome, paidIds: [...fan.outcome.paidIds], timer: null });
+      moved = true;
+    }
+    return moved;
+  }
+
+  /** The store as the tabs left it: the list follows, and a send another tab made of this outreach stands. */
+  async function readStored(): Promise<void> {
+    if (store === null) return;
+    const raw = await store.load().catch(() => undefined);
+    if (disposed) return;
+    stored = mergeOutreachStores(readOutreachStore(raw, clock.now()), stored, clock.now());
+    if (adoptKept()) changed();
+    else cell.invalidate();
+  }
+
+  /** A change is written at most every OUTREACH_SAVE_MS. */
+  function scheduleSave(): void {
+    if (store === null || !storeRead || disposed || saveTimer !== null) return;
+    saveTimer = clock.setTimer(OUTREACH_SAVE_MS, () => {
+      saveTimer = null;
+      void save();
+    });
+  }
+
+  /** The window's outreach into the store, merged with what other tabs wrote; the snapshot is taken at once. */
+  function save(): Promise<void> {
+    const owner = ownerOf();
+    if (store === null || !storeRead || owner === null) return writing;
+    const snap = snapshot(owner);
+    if (!worthKeeping(snap)) return writing;
+    const key = JSON.stringify({ ...snap, id: '', createdAt: 0, updatedAt: 0 });
+    if (key === lastSaved && currentId !== null) return writing;
+    if (currentId === null) {
+      currentId = newId();
+      createdAt = snap.createdAt;
+    }
+    lastSaved = key;
+    const outreach: SavedOutreach = { ...snap, id: currentId };
+    writing = writing
+      .then(async () => {
+        const raw = await store.load().catch(() => undefined);
+        const now = clock.now();
+        const next = mergeOutreachStores(readOutreachStore(raw, now), putOutreach(EMPTY_OUTREACH_STORE, outreach, now), now);
+        await store.save(next);
+        if (disposed) return;
+        stored = next;
+        if (adoptKept()) changed();
+        else cell.invalidate();
+      })
+      .catch(() => undefined);
+    return writing;
+  }
+
+  /** What waits to be written goes now. */
+  function flush(): Promise<void> {
+    if (saveTimer !== null) {
+      clock.clearTimer(saveTimer);
+      saveTimer = null;
+    }
+    return save();
+  }
+
+  /** A send of this fan another tab kept for the window's outreach (went, or may have); null — none, or nothing kept. */
+  async function sentElsewhere(fanRef: string): Promise<SavedSend | null> {
+    const id = currentId;
+    if (store === null || id === null) return null;
+    const raw = await store.load().catch(() => undefined);
+    const saved = readOutreachStore(raw, clock.now()).outreaches.find((outreach) => outreach.id === id);
+    const send = saved?.fans.find((fan) => fan.fanRef === fanRef)?.send ?? null;
+    return send !== null && send.state !== 'failed' ? send : null;
+  }
+
+  /** «Рассылки»: another kept outreach becomes the window's; the one it held is kept as it is. */
+  async function resume(type: UiAction['type'], id: string): Promise<ActionReceipt> {
+    const owner = ownerOf();
+    if (store === null || owner === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
+    if (id === currentId) return done(type, 'noop');
+    // A version being written or a send on its way belongs to the outreach it started in.
+    if ((locked ?? []).some((fanRef) => MOVING.includes(factsOf(fanRef).state))) return refused(type, localError('CG-SEND-BUSY', i18n));
+    await flush();
+    await readStored();
+    if (disposed) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    const saved = stored.outreaches.find((outreach) => outreach.id === id && outreach.owner === owner);
+    if (saved === undefined) return refused(type, localError('CG-DATA-NOT-READY', i18n));
+    restoreFrom(saved);
+    surfaces.setPreview('outreach', null);
+    changed();
+    return done(type);
   }
 
   function cardOf(fanRef: string, index: BoardIndex, facts: FanFacts, now: Audience, members: readonly string[], all: ReadonlyMap<string, FanFacts>): OutreachCardVM {
@@ -909,6 +1252,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       followEnd();
       scheduleOutcomes();
     }
+    scheduleSave();
     cell.invalidate();
     if (!light) for (const listener of [...directoryListeners]) listener();
   }
@@ -1038,6 +1382,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const now = audience();
     if (card !== null && fanRef !== null && now !== null && (now.members.includes(fanRef) || now.aside.has(fanRef))) surfaces.setPreview('outreach', card);
     if (own !== null && items.length === 0 && itemsState !== 'reading') readCopied();
+    // What other tabs kept since: the list in the head, and their sends of this outreach.
+    void readStored();
     void board.load({ recent: conditions.active.on }).then(() => {
       if (source === null) seedSource(false);
       changed();
@@ -1122,6 +1468,17 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     pace();
     changed();
     const atEpoch = epoch;
+    // Another tab of this outreach may have sent this version meanwhile: its word stands, nothing goes twice.
+    const elsewhere = await sentElsewhere(fanRef);
+    if (elsewhere !== null) {
+      if (atEpoch === epoch && owned.get(fanRef) === sent) {
+        owned.set(fanRef, { state: elsewhere.state, code: elsewhere.code, clickedAt: elsewhere.clickedAt ?? sent.clickedAt, at: elsewhere.at });
+        sentTexts.set(fanRef, { text: elsewhere.text ?? body, media: mediaVmOf(elsewhere.media) });
+        changed();
+      }
+      return refused(type, localError('CG-SEND-BUSY', i18n));
+    }
+    if (disposed || atEpoch !== epoch || owned.get(fanRef) !== sent) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     const end = (state: OwnSend['state'], code: string | null): ActionReceipt => {
       if (atEpoch === epoch && owned.get(fanRef) === sent) {
         sent.state = state;
@@ -1181,6 +1538,15 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
 
   /** «Новая рассылка»: the window starts over — the text, the media and the conditions stay for the next one. */
   function fresh(type: UiAction['type']): ActionReceipt {
+    // The outreach it held is kept as it is (its snapshot is taken now), and stays in «Рассылки».
+    if (saveTimer !== null) clock.clearTimer(saveTimer);
+    saveTimer = null;
+    void save();
+    currentId = null;
+    createdAt = null;
+    lastSaved = '';
+    keptSends.clear();
+    keptNames.clear();
     resetCampaign();
     surfaces.setPreview('outreach', null);
     changed();
@@ -1322,7 +1688,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       const fanRef = fanOf(to.targetHandle);
       return fanRef === null ? null : board.openChat(action.type, fanRef);
     }
-    if (action.type === 'SetOutreach') return Promise.resolve(setOutreach(action));
+    if (action.type === 'SetOutreach') return action.resume !== undefined ? resume(action.type, action.resume) : Promise.resolve(setOutreach(action));
     if (action.type === 'SendOutreach' || action.type === 'RewriteOutreach' || action.type === 'EditOutreach') {
       const fanRef = fanOf(action.targetHandle);
       if (fanRef === null) return null;
@@ -1359,6 +1725,14 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
 
   function reset(): void {
     resetCampaign();
+    if (saveTimer !== null) clock.clearTimer(saveTimer);
+    saveTimer = null;
+    currentId = null;
+    createdAt = null;
+    lastSaved = '';
+    resumedFor = null;
+    keptSends.clear();
+    keptNames.clear();
     text = '';
     source = null;
     conditions = DEFAULT_CONDITIONS;
@@ -1384,6 +1758,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       surfaces.setList('outreach', false);
       surfaces.setOutreachChip(false);
     }
+    // The page known (or another one): its outreach of last time comes back.
+    resumeCurrent();
     changed();
   });
   const offBoard = board.subscribe(() => {
@@ -1400,6 +1776,23 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (state.outreach !== previous.outreach || state.outreachChip !== previous.outreachChip || state.preview.outreach !== previous.preview.outreach) changed();
   });
   const offLanguage = i18n.subscribe(() => changed());
+
+  // The first read of the kept outreaches: the page's current one comes back once the page is known.
+  if (store !== null) {
+    void store
+      .load()
+      .then(
+        (raw) => readOutreachStore(raw, clock.now()),
+        () => EMPTY_OUTREACH_STORE,
+      )
+      .then((read) => {
+        if (disposed) return;
+        stored = read;
+        storeRead = true;
+        resumeCurrent();
+        changed();
+      });
+  }
 
   return {
     kinds: ['outreach'],
@@ -1419,6 +1812,12 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       changed();
     },
     dispose() {
+      // A change still waiting goes now (the snapshot is taken at once; the write may outlive the tab).
+      if (saveTimer !== null) {
+        clock.clearTimer(saveTimer);
+        saveTimer = null;
+        void save();
+      }
       disposed = true;
       offBatch?.();
       batch.dispose();

@@ -91,6 +91,15 @@ input.cg-ow__minin.cg-field { flex: none; width: 82px; height: 24px; margin: -3p
 .cg-ow__popf { position: sticky; bottom: 0; margin: 6px -4px 0; padding: 10px 14px 11px; border-top: 1px solid var(--cg-rule); background: var(--cg-raised); font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-ow__popf b { color: var(--cg-ink-strong); font-weight: 500; }
 
+${/* «Рассылки» in the head: the page's outreaches kept on this computer, the window's own ticked. */ ''}
+.cg-ow__saved { position: relative; flex: none; display: inline-flex; }
+.cg-ow__pop.cg-ow__savedpop { left: auto; right: 0; top: 34px; width: 420px; }
+.cg-ow__savedpop .cg-ow__pib > span { gap: 2px; }
+.cg-ow__savedt { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-weight: 400; color: var(--cg-ink); overflow-wrap: anywhere; }
+.cg-ow__pi.is-on .cg-ow__savedt { font-weight: 500; color: var(--cg-ink-strong); }
+.cg-ow__new .cg-ow__pib { align-items: center; color: var(--cg-ink-2); }
+.cg-ow__new .cg-ow__pib .cg-ico { flex: none; color: var(--cg-ink-muted); }
+
 ${/* The rows: the tier after the name, a version that went in one solid line, «Не войдут» with why. */ ''}
 .cg-ow .cg-nw__row.is-off .cg-nw__copy { opacity: .55; }
 .cg-ow .cg-nw__row.is-aside { cursor: pointer; }

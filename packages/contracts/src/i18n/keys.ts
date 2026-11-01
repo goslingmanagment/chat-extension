@@ -201,7 +201,7 @@ export const UI_TEXT_KEYS = [
   'outreach.media.freeOne', 'outreach.media.freeMany', 'outreach.media.plusFreeVideo', 'outreach.media.plusFreePhoto', 'outreach.media.many', 'outreach.media.post',
   'outreach.media.postPrice', 'outreach.media.preview', 'outreach.media.free', 'outreach.media.freeFirst', 'outreach.media.forPrice', 'outreach.media.samePurchase',
   'outreach.aside.bought', 'outreach.aside.boughtIt', 'outreach.aside.waiting', 'outreach.aside.waitingFor', 'outreach.aside.spent', 'outreach.aside.inactive',
-  'outreach.aside.manual', 'outreach.aside.gone', 'outreach.card.label', 'outreach.card.period', 'outreach.card.archiveKept', 'outreach.card.archiveAfterSend', 'outreach.card.archiveByCheck',
+  'outreach.aside.manual', 'outreach.saved.button', 'outreach.saved.tooltip', 'outreach.saved.head', 'outreach.saved.noText', 'outreach.saved.now', 'outreach.saved.notWritten', 'outreach.saved.sentOf', 'outreach.saved.replied', 'outreach.saved.bought', 'outreach.saved.media', 'outreach.saved.foot', 'outreach.aside.gone', 'outreach.card.label', 'outreach.card.period', 'outreach.card.archiveKept', 'outreach.card.archiveAfterSend', 'outreach.card.archiveByCheck',
   'outreach.card.archiveTooltip', 'outreach.card.noChat', 'outreach.card.fromOutreach', 'outreach.card.bubbleBought', 'outreach.card.textOnly', 'outreach.card.mediaFor',
   'outreach.card.otherFor', 'outreach.card.ownFor', 'outreach.card.common', 'outreach.card.archiveWarn', 'outreach.card.byArchiveAt', 'outreach.card.staleWarn',
   'outreach.card.staleTail', 'outreach.card.talkingWarn', 'outreach.card.talkingTail', 'outreach.card.aside', 'outreach.card.notIn', 'outreach.card.writeFor',

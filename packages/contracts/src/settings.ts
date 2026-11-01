@@ -333,6 +333,8 @@ export const STORAGE_KEYS = {
   /** X8 attempt journal, no text (§6.7.7). */
   sendJournal: 'send.journal',
   newcomersDrafts: 'newcomers.drafts',
+  /** 2026-11-01: «Рассылки» kept on this computer — each outreach of a page with its versions and marks (≤ 2 MiB). */
+  outreachSaved: 'outreach.saved',
   /**
    * 1.15.0 (R20, FS-SET-1): what settings v1 cannot say, its own schema version (settings-ext.ts). The v1 owner
    * never writes it, and builds before 1.15.0 do not know it: their v1 repair drops unknown fields only inside

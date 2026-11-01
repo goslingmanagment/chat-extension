@@ -24,6 +24,7 @@ import { Foot } from './foot';
 import { Offer, OfferPlate } from './offer';
 import { OutreachRow, ROW_HEIGHTS, rowHeight, type ListItem } from './rows';
 import { MediaSheet } from './sheet';
+import { Saved } from './saved';
 import { Summary } from './summary';
 import { mediaShort } from './words';
 
@@ -283,6 +284,7 @@ export function OutreachWindow(): JSX.Element {
         <>
           {/* The offer: what this outreach sells, and the way back to it — while it is not on the right already. */}
           {vm.card !== null || vm.pane === 'summary' ? <OfferPlate vm={vm} /> : null}
+          <Saved vm={vm} />
           <Button label={i18n.t('outreach.minimize')} variant="quiet" size="sm" class="cg-ow__min" tooltip={i18n.t('outreach.minimizeTooltip')} onClick={() => void dispatch({ type: 'SetOutreach', minimized: true })} />
         </>
       }
