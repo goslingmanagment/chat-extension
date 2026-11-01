@@ -1957,13 +1957,21 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (!hubOn()) return { kind: 'off' };
     const outreachId = currentId;
     if (!synced || outreachId === null) return { kind: 'offline' };
-    const answer = await hub.send(page, outreachId, { action: 'claim', fanRef, attemptId, text: body, media });
+    let answer = await hub.send(page, outreachId, { action: 'claim', fanRef, attemptId, text: body, media });
+    if (!answer.ok && answer.kind === 'refused' && currentId === outreachId) {
+      // The hub has no such outreach (gone after 90 days untouched): saved again whole, then claimed once more.
+      synced = false;
+      base = null;
+      await push();
+      if (synced && currentId === outreachId) answer = await hub.send(page, outreachId, { action: 'claim', fanRef, attemptId, text: body, media });
+    }
     if (!answer.ok) {
       if (answer.kind === 'off') {
         hubOff = true;
         return { kind: 'off' };
       }
       if (answer.kind === 'offline') offlineSince ??= clock.now();
+      // Not answered, or refused (a fan the hub does not know): the person may send anyway, the hub hears of it later.
       return { kind: 'offline' };
     }
     cameBack();
