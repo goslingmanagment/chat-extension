@@ -95,13 +95,20 @@ export const FANSLY_ROUTES = {
   // decision 170 of the Fansly extension: Fansly's window takes `success` alone as an edit's confirmation.
   'notes.edit': { method: 'POST', path: 'notes/edit', query: [], write: true, checkFamily: null, pace: 'POST /notes', emptyAnswer: true },
   'notes.delete': { method: 'POST', path: 'notes/delete', query: [], write: true, checkFamily: null, pace: 'POST /notes', emptyAnswer: true },
+  // The vault's album (2026-11-03): its rows, the newest first, a page by `before` = the last row's id (the page's
+  // `getVaultAlbumMediaNewOrder`, main:29462); its members added again in an order (`createVaultAlbumMedia`, main:29526);
+  // one member's name in it (`renameVaultAlbumMedia`, main:29542). A member added again loses its old row and takes a
+  // new one on top, its name kept (hub docs/plans/2026-10-23-wall-posts/fansly-publish-contract.md §13).
+  'vault.albumMedia': { method: 'GET', path: 'media/vaultnew', query: ['albumId', 'mediaType', 'search', 'before', 'after'], write: false, checkFamily: 'vault', pace: 'GET /media/vaultnew' },
+  'vault.addMedia': { method: 'POST', path: 'vault/albums/media', query: [], write: true, checkFamily: 'vault', pace: 'POST /vault/albums/media' },
+  'vault.renameMedia': { method: 'POST', path: 'vault/albums/media/rename', query: [], write: true, checkFamily: 'vault', pace: 'POST /vault/albums/media' },
 } as const satisfies Record<string, FanslyRouteSpec>;
 
 export type FanslyRouteName = keyof typeof FANSLY_ROUTES;
 export const FANSLY_ROUTE_NAMES = Object.keys(FANSLY_ROUTES) as FanslyRouteName[];
 
 /** Why the extension asks Fansly at all: the rows of FS-NET-1's table. */
-export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv', 'preview', 'outreach', 'online', 'badges'] as const;
+export const FANSLY_PURPOSES = ['newcomers', 'greeting', 'spenders', 'registration', 'notes', 'identity', 'hi', 'ppv', 'preview', 'outreach', 'online', 'badges', 'vault'] as const;
 export type FanslyPurpose = (typeof FANSLY_PURPOSES)[number];
 
 /**
@@ -184,6 +191,11 @@ export const FS_NET_1: { readonly [P in FanslyPurpose]: Partial<Record<FanslyRou
   // (`GET /account?ids=`, their blue card «Recent Spender»), each fan at most once in ten minutes. Never queued, never
   // during a cooldown.
   badges: { 'account.byIds': POLL_READ },
+  // The vault's upload of a set (2026-11-03), started by the person's «Начать»: the album's rows read again after each
+  // part the page uploaded (a pass's read), the set added again in its order and a member renamed to its file — writes,
+  // one attempt each. Both writes are idempotent (a member added again keeps one row), so the run reads before it
+  // repeats any of them.
+  vault: { 'vault.albumMedia': PASS_READ, 'vault.addMedia': WRITE, 'vault.renameMedia': WRITE },
 };
 
 const has = (record: object, key: string): boolean => Object.prototype.hasOwnProperty.call(record, key);

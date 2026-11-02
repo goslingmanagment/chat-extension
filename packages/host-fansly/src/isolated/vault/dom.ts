@@ -32,6 +32,8 @@ export const VAULT_SELECTORS = {
   uploader: 'app-media-upload-input',
   input: 'input[type=file]',
   busy: '.proccessing-templates, app-account-media-create-template',
+  /** A file still on its way: the processing line, or an upload template with its progress (`*ngIf="isUploading"`, main:6454). */
+  uploading: '.proccessing-templates, app-account-media-create-template .upload-progress',
   list: '.vault-wrapper > .vault-content',
   spinner: ':scope > .flex-center',
   card: '.vault-row .render-container',
@@ -69,6 +71,11 @@ export interface VaultPage {
   readonly input: HTMLInputElement | null;
   /** A file of the page's own is being processed or uploaded: never hand over another one. */
   readonly busy: boolean;
+  /**
+   * A file is still on its way: processed, or uploading with its progress shown. Narrower than `busy`: a template Fansly
+   * gave up stays on the form without progress (its retry badge), and the form takes new files beside it.
+   */
+  readonly uploading: boolean;
   /** The uploader shows Fansly's failure words. */
   readonly failed: boolean;
   /** Those words as the page shows them (its lines that say so, «Upload failed. Retry»); null — none. */
@@ -100,7 +107,7 @@ function failureOf(uploader: Element | null): string | null {
 
 export function readVaultPage(doc: Document): VaultPage {
   const host = doc.querySelector(VAULT_SELECTORS.host);
-  if (host === null) return { host, albumOpen: false, title: null, input: null, busy: false, failed: false, failure: null, list: null, loading: false, cards: [], names: [], settled: [] };
+  if (host === null) return { host, albumOpen: false, title: null, input: null, busy: false, uploading: false, failed: false, failure: null, list: null, loading: false, cards: [], names: [], settled: [] };
   const uploader = host.querySelector(VAULT_SELECTORS.uploader);
   const title = text(host.querySelector(VAULT_SELECTORS.title));
   const list = host.querySelector(VAULT_SELECTORS.list);
@@ -123,6 +130,7 @@ export function readVaultPage(doc: Document): VaultPage {
     title: title === '' ? null : title,
     input: uploader === null ? null : uploader.querySelector<HTMLInputElement>(VAULT_SELECTORS.input),
     busy: uploader !== null && uploader.querySelector(VAULT_SELECTORS.busy) !== null,
+    uploading: uploader !== null && uploader.querySelector(VAULT_SELECTORS.uploading) !== null,
     failed: failure !== null,
     failure,
     list,

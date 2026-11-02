@@ -25,6 +25,7 @@ describe('FS-NET-1', () => {
         'GET /account/media/bundle',
         'GET /group/:group/',
         'GET /media/orderhistory',
+        'GET /media/vaultnew',
         'GET /message',
         'GET /message/automated',
         'GET /messaging/groups',
@@ -33,6 +34,8 @@ describe('FS-NET-1', () => {
         'POST /notes',
         'POST /notes/delete',
         'POST /notes/edit',
+        'POST /vault/albums/media',
+        'POST /vault/albums/media/rename',
       ].sort(),
     );
     expect(FANSLY_ROUTE_NAMES.some((route) => /ack|typing|unread/.test(FANSLY_ROUTES[route].path))).toBe(false);
@@ -61,6 +64,7 @@ describe('FS-NET-1', () => {
       outreach: { 'message.send': 'dispatch×1', 'media.bundles': 'check×1' },
       online: { 'followers.new': 'check×1' },
       badges: { 'account.byIds': 'check×1' },
+      vault: { 'vault.albumMedia': 'queue×4', 'vault.addMedia': 'dispatch×1', 'vault.renameMedia': 'dispatch×1' },
     });
     // A write is never asked twice.
     for (const purpose of FANSLY_PURPOSES) for (const [route, admission] of Object.entries(FS_NET_1[purpose])) if (FANSLY_ROUTES[route as keyof typeof FANSLY_ROUTES].write) expect(admission.attempts).toBe(1);

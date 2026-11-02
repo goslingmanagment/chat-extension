@@ -24,7 +24,7 @@ export class HandoffIndeterminateError extends Error {
 type PageWindow = Window & { readonly wrappedJSObject?: Window & typeof globalThis };
 type CloneInto = <T>(value: T, scope: object) => T;
 
-function handInPage(win: PageWindow, file: File, selector: string): boolean {
+function handInPage(win: PageWindow, files: readonly File[], selector: string): boolean {
   const page = win.wrappedJSObject;
   const cloneInto = (globalThis as { readonly cloneInto?: CloneInto }).cloneInto;
   if (page === undefined || cloneInto === undefined) return false;
@@ -32,7 +32,7 @@ function handInPage(win: PageWindow, file: File, selector: string): boolean {
   const input = inputs.length === 1 ? inputs.item(0) : null;
   if (!(input instanceof page.HTMLInputElement)) return false;
   const transfer = new page.DataTransfer();
-  transfer.items.add(cloneInto(file, page));
+  for (const file of files) transfer.items.add(cloneInto(file, page));
   input.files = transfer.files;
   input.dispatchEvent(new page.Event('change', cloneInto({ bubbles: true }, page)));
   return true;
@@ -44,14 +44,22 @@ function handInPage(win: PageWindow, file: File, selector: string): boolean {
  * input is gone, both paths refused); throws HandoffIndeterminateError once a dispatch may have reached the page.
  */
 export function handFile(win: Window, input: HTMLInputElement, file: File, selector: string): HandoffResult {
-  if (!input.isConnected) return 'unavailable';
+  return handFiles(win, input, [file], selector);
+}
+
+/**
+ * Several files in one `change`, as the person's picker gives a multiple selection (the vault's input is `multiple`,
+ * main:11646): the page takes them all at once and uploads them side by side. The paths and outcomes of `handFile`.
+ */
+export function handFiles(win: Window, input: HTMLInputElement, files: readonly File[], selector: string): HandoffResult {
+  if (!input.isConnected || files.length === 0) return 'unavailable';
   try {
     const transfer = new (win as Window & typeof globalThis).DataTransfer();
-    transfer.items.add(file);
+    for (const file of files) transfer.items.add(file);
     input.files = transfer.files;
   } catch {
     try {
-      return handInPage(win, file, selector) ? 'clone-into' : 'unavailable';
+      return handInPage(win, files, selector) ? 'clone-into' : 'unavailable';
     } catch (error) {
       // The page's path assigns and dispatches in one go: a throw there cannot be told from «the page saw it».
       throw new HandoffIndeterminateError({ cause: error });

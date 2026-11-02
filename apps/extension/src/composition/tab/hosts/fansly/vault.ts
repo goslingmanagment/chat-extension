@@ -20,7 +20,7 @@ import { admittedOn } from '@cg/core/domain/features';
 import { FANSLY_VAULT_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import { createLiveI18n } from '@cg/core/domain/i18n/live';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
-import { createVaultPanel, createVaultUploader, isVaultPath, vaultUploadOf, type VaultPanelStore, type VaultTarget } from '@cg/host-fansly/isolated/vault';
+import { VaultAlbumApiError, createVaultPanel, createVaultUploader, isVaultPath, vaultUploadOf, type VaultAlbumApi, type VaultPanelStore, type VaultTarget } from '@cg/host-fansly/isolated/vault';
 import { VAULT_SURFACE, vaultSurface } from '@cg/ui/hosts/fansly/vault';
 import { mountKitSurface, type KitMount } from '@cg/ui/kit';
 
@@ -55,6 +55,41 @@ export function vaultStoreOf(rpc: SiteAppEnv['rpc'], timeoutMs = VAULT_REQUEST_T
     },
   };
 }
+
+/** An album's read (page after page, each paced) or its lay-out (requests of 50): above the checkpoints' 15 s. */
+export const VAULT_ALBUM_TIMEOUT_MS = 120_000;
+
+/**
+ * The album through Fansly's API (2026-11-03): the background's `fansly.vault.album|arrange|rename`, over the tab's
+ * port. Fansly's refusal, a lost answer and a timeout all reject with VaultAlbumApiError: the run reads the album again
+ * before it repeats anything. An album read may take many pages and a lay-out several requests: their own timeout.
+ */
+export function vaultAlbumApiOf(rpc: SiteAppEnv['rpc'], timeoutMs = VAULT_ALBUM_TIMEOUT_MS): VaultAlbumApi {
+  const album = (target: VaultTarget) => ({ hostAccountId: target.hostAccountId, albumId: target.albumId });
+  const failed = (answer: { readonly ok: false; readonly error: { readonly code: string } }): never => {
+    throw new VaultAlbumApiError(answer.error.code);
+  };
+  return {
+    async album(target) {
+      const answer = await fanslyRequest(rpc, 'fansly.vault.album', album(target), timeoutMs);
+      if (!answer.ok) return failed(answer);
+      if (!answer.payload.ok) return failed(answer.payload);
+      return answer.payload.rows;
+    },
+    async arrange(target, mediaIds) {
+      const answer = await fanslyRequest(rpc, 'fansly.vault.arrange', { ...album(target), mediaIds: [...mediaIds] }, timeoutMs);
+      if (!answer.ok) return failed(answer);
+      if (!answer.payload.ok) return failed(answer.payload);
+    },
+    async rename(target, mediaId, name) {
+      const answer = await fanslyRequest(rpc, 'fansly.vault.rename', { ...album(target), mediaId, name }, timeoutMs);
+      if (!answer.ok) return failed(answer);
+      if (!answer.payload.ok) return failed(answer.payload);
+      return answer.payload.name;
+    },
+  };
+}
+
 
 /**
  * The tab's I18n with the vault's own texts (`fansly.vault.*`, R20 P13b): they come with this chunk, never in the
@@ -96,6 +131,7 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
   const panel = createVaultPanel({
     uploader,
     store: vaultStoreOf(rpc),
+    api: vaultAlbumApiOf(rpc),
     // The Fansly account as the page's own `/account/me` names it («Имя (@handle)», the old panel's); a page that named
     // neither — the hub page bound to it gives the name the person knows.
     account() {

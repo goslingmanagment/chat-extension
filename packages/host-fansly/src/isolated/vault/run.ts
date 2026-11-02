@@ -20,6 +20,7 @@
 
 import type { CgFanslyCode } from '@cg/contracts/errors-fansly';
 import { FANSLY_TAB_LIMITS, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
+import type { VaultOrderCheck } from '@cg/contracts/vault-fansly';
 
 import { vaultMediaKey } from './dom';
 import { vaultGuard, type VaultHalt, type VaultTarget, type VaultUploader } from './upload';
@@ -98,6 +99,8 @@ export type VaultStop =
   | { readonly kind: 'order-mismatch'; readonly expected: string; readonly actual: string | null }
   /** `afterUpload`: the file IS in the album; only the checkpoint does not say so yet. */
   | { readonly kind: 'checkpoint-write-failed'; readonly afterUpload: boolean }
+  /** The upload of a set (bulk.ts): Fansly did not answer a read, a lay-out or a rename of the album; `said` — the code. */
+  | { readonly kind: 'album-api'; readonly said?: string }
   | { readonly kind: 'internal-error' };
 
 export interface VaultRunSnapshot {
@@ -115,6 +118,8 @@ export interface VaultRunSnapshot {
   readonly code: CgFanslyCode | null;
   /** The last clear of the checkpoint failed: a stale «continue» may be offered on the next visit. */
   readonly checkpointLeftBehind: boolean;
+  /** The upload of a set: the album's rows read against the set after it was laid out (Fansly's word, not the page's). */
+  readonly order?: VaultOrderCheck | null;
 }
 
 export interface VaultRunInit {
@@ -129,6 +134,36 @@ export interface VaultRunDeps {
   readonly store: VaultCheckpointStore;
   readonly now?: () => number;
   readonly newId?: () => string;
+  /** The album through Fansly's API (the background's `fansly.vault.album|arrange|rename`): the upload of a set (bulk.ts). */
+  readonly api?: VaultAlbumApi;
+  /** Tests: the pause between two reads of the album. */
+  readonly sleep?: (ms: number) => Promise<void>;
+}
+
+/** One row of an album, the newest first (`fansly.vault.album`). */
+export interface VaultAlbumRowRef {
+  readonly row: string;
+  readonly mediaId: string;
+  /** The name the album shows; '' — none. */
+  readonly name: string;
+}
+
+/** The album through Fansly's API. A call Fansly did not answer rejects with VaultAlbumApiError. */
+export interface VaultAlbumApi {
+  /** The album's rows to its end, the newest first. */
+  album(target: VaultTarget): Promise<readonly VaultAlbumRowRef[]>;
+  /** The members added again in this order: the last one ends on top. */
+  arrange(target: VaultTarget, mediaIds: readonly string[]): Promise<void>;
+  /** The member's name in this album; resolves with the name Fansly kept. */
+  rename(target: VaultTarget, mediaId: string, name: string): Promise<string>;
+}
+
+/** A call of VaultAlbumApi that Fansly did not answer: `code` — the background's code (CG-FAN-*). */
+export class VaultAlbumApiError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+    this.name = 'VaultAlbumApiError';
+  }
 }
 
 export interface VaultRun {

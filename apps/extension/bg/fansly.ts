@@ -18,7 +18,10 @@
 // and answers the vault's checkpoints (`fansly.vault.{resume,checkpoint,clear}`,
 // core services/hosts/fansly/vault-checkpoints.ts) over storage.local: a
 // checkpoint outlives a reload of the tab and the event page's sleep; one tab
-// at a time holds an album's upload (its tab session, while registered). The other
+// at a time holds an album's upload (its tab session, while registered). Since
+// 2026-11-03 it also reads, lays out and renames the vault's album for the
+// upload of a set (`fansly.vault.{album,arrange,rename}`, fansly-api vault.ts),
+// for the tab's own creator only. The other
 // families answer CG-RUNTIME-UNREACHABLE until their PRs (P10*, P12b*).
 // Forgotten checkpoints go with the module's first start and «Очистить
 // локальные данные».
@@ -114,7 +117,7 @@ import { createFanslySend, type FanslySend, type FanslySendDeps, type FanslySend
 import { createFanslyGreeting, type FanslyGreeting } from '@cg/core/services/hosts/fansly/greeting';
 import { freshForSend, verdictMark } from '@cg/core/domain/hosts/fansly/verdict';
 import { createVaultCheckpoints } from '@cg/core/services/hosts/fansly/vault-checkpoints';
-import { createFanslyApi, createFanslyClient, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
+import { arrangeVaultAlbum, createFanslyApi, createFanslyClient, readVaultAlbum, renameVaultMember, traceFanslyTransport, FanslyApiError, type FanslyApi, type FanslyNetworkSession } from '@cg/fansly-api';
 import { copiedBundles, createSpendersLookup } from '@cg/fansly-api/spenders';
 
 import type { BackgroundHostHandle, BackgroundHostModule, BackgroundKit, HostAnswer, HostSiteRegistry, SettingsExtAnswer, SiteTabRegistration } from '../src/composition/background/host-module';
@@ -330,6 +333,33 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         }
         const request = payload as FanslyTabRequestPayload<'fansly.spenders.resolve'>;
         return ok({ ok: true, groupId: await spenders.resolve(request.hostAccountId, request) });
+      } catch (error) {
+        return ok({ ok: false, error: error instanceof FanslyApiError ? error.toWire() : { code: 'CG-FAN-REQUEST' } });
+      }
+    }
+    // 2026-11-03, the upload of a set into the vault (host-fansly isolated/vault/bulk.ts): the album's rows, the set laid
+    // out in its order, a member renamed to its file — only for the tab's own creator, over the client like every call.
+    if (type === 'fansly.vault.album' || type === 'fansly.vault.arrange' || type === 'fansly.vault.rename') {
+      const account = (payload as { hostAccountId: string }).hostAccountId;
+      const owns = (): boolean => {
+        const template = session?.forTab(sender.tabId) ?? null;
+        return template !== null && (template.legacyId === account || template.canonicalId === account);
+      };
+      if (!owns()) await (await clientNow())?.identify(account);
+      const client = owns() ? await clientNow() : null;
+      if (client === null) return ok({ ok: false, error: { code: 'CG-FAN-SESSION' } });
+      try {
+        if (type === 'fansly.vault.album') {
+          const request = payload as FanslyTabRequestPayload<'fansly.vault.album'>;
+          return ok({ ok: true, rows: await readVaultAlbum(client, account, request.albumId) });
+        }
+        if (type === 'fansly.vault.arrange') {
+          const request = payload as FanslyTabRequestPayload<'fansly.vault.arrange'>;
+          await arrangeVaultAlbum(client, account, request.albumId, request.mediaIds);
+          return ok({ ok: true });
+        }
+        const request = payload as FanslyTabRequestPayload<'fansly.vault.rename'>;
+        return ok({ ok: true, name: await renameVaultMember(client, account, request.albumId, request.mediaId, request.name) });
       } catch (error) {
         return ok({ ok: false, error: error instanceof FanslyApiError ? error.toWire() : { code: 'CG-FAN-REQUEST' } });
       }
