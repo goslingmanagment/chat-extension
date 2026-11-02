@@ -17,6 +17,13 @@ import * as z from 'zod/mini';
 import { type HostKind } from '../ids';
 import { NativeIdSchema, boundedText, type NativeId } from '../primitives';
 
+/**
+ * What a fan paid on one other page of the asked page's platform, any model (hub `otherPagesSpend`, on «Онлайн», «Новые»
+ * and the fan's marks): the page's label and the sum, the biggest first, only sums above zero. Absent or empty: none.
+ */
+export const OtherPageSpendSchema = z.object({ pageLabel: z.string(), grossMills: z.number() });
+export type OtherPageSpend = z.infer<typeof OtherPageSpendSchema>;
+
 /** Hub local business date `YYYY-MM-DD` (hub `businessDate`): a real calendar date. */
 export const BUSINESS_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 

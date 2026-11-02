@@ -13,7 +13,7 @@ import * as z from 'zod/mini';
 import { PART_LIMITS } from '../limits';
 import { CountSchema, GenerationRefSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, OpenTokenSchema, UuidSchema } from '../primitives';
 import { SendPurposeSchema } from '../send';
-import { HubCursorSchema, PageLabelSchema } from './wire';
+import { HubCursorSchema, OtherPageSpendSchema, PageLabelSchema } from './wire';
 
 // ── Claim and custody ──────────────────────────────────────────────────────
 
@@ -272,6 +272,8 @@ export const AudienceNewItemSchema = z.object({
    */
   lastPersonalSendAt: z.optional(z.nullable(IsoTimestampSchema)),
   claim: ClaimSummarySchema,
+  /** The fan's money on other pages of the platform; absent or empty — none. */
+  otherPagesSpend: z.optional(z.array(OtherPageSpendSchema)),
 });
 export type AudienceNewItem = z.infer<typeof AudienceNewItemSchema>;
 

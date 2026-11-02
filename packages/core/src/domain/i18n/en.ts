@@ -641,6 +641,7 @@ export const EN: I18nCatalog<'en'> = {
   'send.unverifiedTail': 'check the archive above; if the answer fits, send anyway.',
   'send.talking': '{names} is talking to this fan now',
   'talking.mark': 'talking: {names}',
+  'otherPages.title': 'Spends on other pages',
   'talking.notice': '{names} is talking to this fan · {age} ago',
   'talking.ok': 'Got it',
   'send.anyway': 'Send anyway',

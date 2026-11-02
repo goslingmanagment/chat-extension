@@ -8,7 +8,7 @@
 import * as z from 'zod/mini';
 
 import { NativeIdSchema } from '../primitives';
-import { PageLabelSchema } from './wire';
+import { OtherPageSpendSchema, PageLabelSchema } from './wire';
 
 /** The hub's cap of one blocklist post's text and of the posts it answers. */
 export const FAN_MARKS_LIMITS = { postTextMaxChars: 600, postsMax: 5, usernameMaxChars: 64 } as const;
@@ -49,6 +49,8 @@ export const FanMarksSchema = z.object({
   listsReadAt: TimeSchema,
   /** When the hub last read the group; null — never yet. */
   blocklistReadAt: TimeSchema,
+  /** The fan's money on other Fansly pages; absent or empty — none. Not a warning. */
+  otherPagesSpend: z.optional(z.array(OtherPageSpendSchema)),
 });
 export type FanMarks = z.infer<typeof FanMarksSchema>;
 

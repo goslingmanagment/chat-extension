@@ -55,6 +55,7 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
+import { otherPagesOf } from '../../domain/fans/other-pages';
 import { normalizeSearch } from '../../domain/spenders/rows';
 import { createFanBadgeStore, fanBadgeMarks, fanBadgeRank, type FanBadgesRead } from '../boards/badges';
 import { createBatch, type BatchPreviewPort, type OutreachCardRow } from '../boards/batch';
@@ -717,6 +718,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       name: entry.name,
       username: item.username,
       lifetime: item.lifetimeGrossMills > 0 ? item.lifetimeGrossMills : null,
+      ...otherPagesOf(item.otherPagesSpend),
       seenAt: item.seenAt,
       onlineSince: item.onlineSince,
       live: live.has(entry.fanRef),

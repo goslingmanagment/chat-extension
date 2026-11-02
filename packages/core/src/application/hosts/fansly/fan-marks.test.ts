@@ -33,7 +33,14 @@ describe('[host:fansly] the fan marks of an answer', () => {
         { postedAt: Date.parse(T), text: 'https://fansly.com/stand_fan_1\nDNP + TM', author: 'agency', link: 'https://t.me/c/1716498488/1', handle: 'stand_fan_1', renamed: false },
         { postedAt: Date.parse('2026-09-01T10:00:00.000Z'), text: 'https://fansly.com/old_name\nDNP + TM', author: 'agency', link: 'https://t.me/c/1716498488/1', handle: 'old_name', renamed: true },
       ],
+      otherPages: [],
     });
+  });
+
+  it('the money on other pages alone is a mark; a sum of zero or a page with no name is none', () => {
+    const otherPages = [{ pageLabel: 'mia-vip', grossMills: 1_653_000 }, { pageLabel: 'ella-moon', grossMills: 0 }, { pageLabel: ' ', grossMills: 5_000 }];
+    expect(fanMarksView({ lists: [], blocklist: [], otherPages }, null)).toEqual({ lists: null, posts: [], otherPages: [{ pageLabel: 'mia-vip', grossMills: 1_653_000 }] });
+    expect(fanMarksView({ lists: [], blocklist: [], otherPages: [{ pageLabel: 'ella-moon', grossMills: 0 }] }, null)).toBe(FAN_MARKS_NONE);
   });
 
   it('a list named with the team note after a dash is the short name, one group with the same list elsewhere', () => {

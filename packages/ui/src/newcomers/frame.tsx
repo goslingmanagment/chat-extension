@@ -16,7 +16,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { type UiTextSize } from '@cg/contracts/settings';
 import { type BatchVM, type I18n, type NewcomerRowVM, type NewcomersVM, type UiAction, type ValueSignal } from '@cg/contracts/vm';
 
-import { Button, Dialog, FanBadge, Icon, isComposing, OverlayLayer, pure, rovingIndex, Spinner, TalkingMark, useDispatch, useI18n, useKit, useValueSignal } from '../kit';
+import { Button, Dialog, FanBadge, Icon, isComposing, OtherPagesMark, OverlayLayer, pure, rovingIndex, Spinner, TalkingMark, useDispatch, useI18n, useKit, useValueSignal } from '../kit';
 import { useRowFocus } from '../spenders/rowFocus';
 import { ChoiceMenu, isPlainKey, type ChoiceItem } from '../spenders/window';
 
@@ -220,9 +220,20 @@ function PickAvatar({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
 
 // ── a row ──
 
+/** «@handle · 2 ч назад» under the name: when the line is short of room, the @handle gives way first. */
+export function MetaLine({ username, rest }: { readonly username: string | null; readonly rest: string }): JSX.Element {
+  return (
+    <span class="cg-nw__meta cg-nw__meta--parts cg-num">
+      {username === null ? null : <span class="cg-nw__mh">{rest === '' ? `@${username}` : `@${username} · `}</span>}
+      {rest === '' ? null : <span class="cg-nw__mm">{rest}</span>}
+    </span>
+  );
+}
+
 /** What a site puts into the row: its status line, its line under the name, what stands at the row's end. */
 export interface RowParts {
   readonly Status: ComponentType<{ readonly row: NewcomerRowVM }>;
+  /** The line under the name, after the @handle. */
   readonly meta: (i18n: I18n, row: NewcomerRowVM) => string;
   readonly End?: ComponentType<{ readonly row: NewcomerRowVM }>;
   /** A word after the name («черновик»), or null. */
@@ -279,7 +290,8 @@ function RowView({ row, index, count, active, parts, onPick }: RowProps): JSX.El
           {tag === null ? null : <span class="cg-nw__tag">{tag}</span>}
         </span>
         <span class="cg-nw__mline">
-          <span class="cg-nw__meta cg-num">{parts.meta(i18n, row)}</span>
+          <MetaLine username={row.username} rest={parts.meta(i18n, row)} />
+          <OtherPagesMark pages={row.otherPages} />
           <TalkingMark handle={row.talking ?? row.handle} />
         </span>
         <Status row={row} />
@@ -311,6 +323,7 @@ function sameRow(a: RowProps, b: RowProps): boolean {
     x.hasDraft === y.hasDraft &&
     x.draftStale === y.draftStale &&
     x.avatarUrl === y.avatarUrl &&
+    JSON.stringify(x.otherPages) === JSON.stringify(y.otherPages) &&
     greeting(x) === greeting(y) &&
     x.check?.status === y.check?.status &&
     x.check?.customName === y.check?.customName &&

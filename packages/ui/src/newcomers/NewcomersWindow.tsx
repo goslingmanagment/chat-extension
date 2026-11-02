@@ -123,7 +123,7 @@ function subscribedText(i18n: I18n, row: NewcomerRowVM): string {
 const ROW_PARTS: RowParts = {
   Status: GreetingStatus,
   End: RowSend,
-  meta: (i18n: I18n, row: NewcomerRowVM) => `${row.username === null ? '' : `@${row.username} · `}${subscribedText(i18n, row)}`,
+  meta: (i18n: I18n, row: NewcomerRowVM) => subscribedText(i18n, row),
   tag: (i18n: I18n, row: NewcomerRowVM) => (row.hasDraft ? i18n.t(row.draftStale ? 'newcomers.draftStale' : 'newcomers.draft') : null),
 };
 

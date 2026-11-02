@@ -68,6 +68,12 @@ ${/* «в разговоре: …» rides the meta line: a line of its own would
 .cg-nw__mline { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cg-nw__mline > .cg-nw__meta { flex: 0 0 auto; max-width: 100%; }
 .cg-nw__mline > .cg-talk { flex: 0 1 auto; min-width: 0; }
+${/* The mark of the fan's money elsewhere stays whole: the @handle line gives way to it. */ ''}
+.cg-nw__mline:has(> .cg-other) > .cg-nw__meta { flex: 0 1 auto; min-width: 0; }
+${/* The line in parts: the @handle is cut first, down to a few letters (never a clipped «@»), then what follows it (what the fan paid here, how long ago). */ ''}
+.cg-nw__meta--parts { display: flex; }
+.cg-nw__mh { flex: 0 1000 auto; min-width: 3em; padding-right: 1px; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.cg-nw__mm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cg-nw__st { display: flex; align-items: center; gap: 5px; min-width: 0; margin-top: 2px; font-size: var(--cg-text-sm); line-height: 16px; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-nw__st > .cg-dot, .cg-nw__st > .cg-spin, .cg-nw__st > .cg-ico { flex: none; }
 .cg-nw__st.is-act { color: var(--cg-clay-ink); font-weight: 500; }

@@ -487,6 +487,7 @@ export class FakeHub {
           eventRef: s.data.addAudienceEvent(this.page(command.pageLabel), command.fanRef, command.kind ?? 'new', command.trial ?? false, now - Math.max(0, command.agoMs ?? 0), command.fanWrote ?? false, command.handSent ?? false, {
             ...(command.username === undefined ? {} : { username: command.username }),
             ...(command.displayName === undefined ? {} : { displayName: command.displayName }),
+            ...(command.otherPagesSpend === undefined ? {} : { otherPagesSpend: command.otherPagesSpend }),
           }),
         };
       case 'spenderFans':

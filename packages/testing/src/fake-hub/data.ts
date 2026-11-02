@@ -18,6 +18,7 @@ import {
   type AiUsageQuery,
   type AiUsageReport,
   type AudienceNewItem,
+  type OtherPageSpend,
   type AudienceNewPage,
   type AudienceNewQuery,
   type AutoLists,
@@ -89,7 +90,7 @@ import { pageRefOf, type FakePage } from './config';
 import { FanQueuesModel, type FanQueuesSet } from './fan-queues';
 import { OutreachModel } from './outreach';
 import { FakeOnlyfansFeed, type FakeFeedRecord, type FakeFeedTransaction, type FeedArchiveMessage } from './onlyfans-feed';
-import { ONLINE_RULES, ONLINE_SEEN_SOURCES, OnlineModel, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
+import { ONLINE_RULES, ONLINE_SEEN_SOURCES, OnlineModel, standOtherPages, type OnlineFacts, type OnlineSeed, type OnlineWorld, type OthersTalking } from './online';
 import { SHOWCASE_NEW_MESSAGE, showcaseFirstDay, showcaseStats, showcaseSubscriber } from './showcase';
 import { type CoachDepthKnob, type FakeFanQueueDone, type FakeOnlineAttempt, type FakeOnlinePresenceReport, type FakeOnlineProbe, type SpenderSeed } from './types';
 
@@ -974,6 +975,7 @@ export class DataModel {
             subscribedAt: iso(subscribedAt),
             status: { ...item.status, endsAt: iso(this.base + 30 * DAY_MS), asOf: iso(this.base - 60_000) },
             thread: item.thread === null ? null : { ...item.thread, lastMessageAt: iso(subscribedAt), lastModelMessageAt: iso(subscribedAt) },
+            ...standOtherPages(n),
           },
         };
       });
@@ -986,7 +988,7 @@ export class DataModel {
    * `fanWrote` — the fan already wrote a message (one stored message of the fan's); `handSent` — a person greeted the
    * fan by hand in the site's composer (a send attribution of that moment).
    */
-  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false, handSent = false, named: { readonly username?: string; readonly displayName?: string } = {}): string {
+  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false, handSent = false, named: { readonly username?: string; readonly displayName?: string; readonly otherPagesSpend?: readonly OtherPageSpend[] } = {}): string {
     const events = this.audienceOf(page);
     const eventRef = `evt-${page.pageId}-${2000 + events.length}`;
     const { claim: _claim, ...seed } = SCENARIO_DATA.audienceItem(0);
@@ -1006,6 +1008,7 @@ export class DataModel {
         subscribedAtSource: 'notification',
         status: { isSubscriber: true, subscriptionStatus: 'active', endsAt: iso(now + 30 * DAY_MS), asOf: iso(now), source: 'webhook' },
         thread: fanWrote ? { lastMessageAt: iso(now), lastFanMessageAt: iso(now), lastModelMessageAt: null, storedMessageCount: 1, coverage: 'complete', backfillComplete: true } : null,
+        ...(named.otherPagesSpend === undefined ? {} : { otherPagesSpend: [...named.otherPagesSpend] }),
       },
     });
     if (handSent) {
@@ -1439,6 +1442,7 @@ export class DataModel {
         endsAt: index === ONLINE_STAND.expiring ? now + 2 * DAY_MS : index === fresh ? started + 30 * DAY_MS : now + (6 + 2 * index) * DAY_MS,
         autoRenew: index !== ONLINE_STAND.expiring,
         messageCount: index === ONLINE_STAND.shortChat ? 4 : facts.messageCount,
+        ...standOtherPages(index),
       };
     });
   }

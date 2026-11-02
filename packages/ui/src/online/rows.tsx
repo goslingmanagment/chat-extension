@@ -1,6 +1,6 @@
 // A fan of «Онлайн» in the list — «Новые»'s row: the picture with the presence dot (green: active within ten
 // minutes or the site's own «в сети», amber: within half an hour, grey: longer), the name with the fan's badges on
-// Fansly (FBuddy's gem, Fansly's blue card; the kit's FanBadge), «@handle · $560», why to
+// Fansly (FBuddy's gem, Fansly's blue card; the kit's FanBadge), «@handle · $560» with what he spends on other pages, why to
 // write now in words, how fresh the presence is at the end, and under it the text that would go: two lines of the
 // draft look while it waits, one muted line once it went.
 
@@ -8,8 +8,8 @@ import { type JSX } from 'preact';
 
 import { type OnlineRowVM } from '@cg/contracts/vm';
 
-import { FanBadge, Icon, Spinner, pure, useI18n, useTooltip } from '../kit';
-import { NewcomerAvatar } from '../newcomers/frame';
+import { FanBadge, Icon, OtherPagesMark, Spinner, pure, useI18n, useTooltip } from '../kit';
+import { MetaLine, NewcomerAvatar } from '../newcomers/frame';
 import { actWord, asideText, reasonShort, seenShort } from './words';
 
 /** The picture with the presence dot. */
@@ -103,7 +103,7 @@ function RowView({ row, onSelect }: RowProps): JSX.Element {
   const i18n = useI18n();
   const draft = draftKind(row);
   const done = row.skipped || row.state === 'sent' || row.state === 'uncertain';
-  const meta = [row.username === null ? null : `@${row.username}`, row.lifetime !== null ? i18n.formatMoneyMills(row.lifetime) : i18n.t('online.row.notPaid')].filter((part): part is string => part !== null && part !== '');
+  const money = row.lifetime !== null ? i18n.formatMoneyMills(row.lifetime) : i18n.t('online.row.notPaid');
   return (
     <div
       class={`cg-nw__row${row.selected ? ' is-sel' : ''}${done ? ' is-handled' : ''}${row.arrived ? ' is-new' : ''}${draft === null || draft === 'writing' ? '' : ' has-draft'}`}
@@ -122,7 +122,10 @@ function RowView({ row, onSelect }: RowProps): JSX.Element {
           <span class="cg-nw__name">{row.name}</span>
           <FanBadge badges={row.badges} />
         </span>
-        <span class="cg-nw__meta cg-num">{meta.join(' · ')}</span>
+        <span class="cg-nw__mline">
+          <MetaLine username={row.username} rest={money} />
+          <OtherPagesMark pages={row.otherPages} />
+        </span>
         <Status row={row} />
       </span>
       <span class="cg-nw__end">
