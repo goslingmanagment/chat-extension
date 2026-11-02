@@ -297,6 +297,9 @@ export type FakeHubCommand =
   /** 2026-10-29: a note write recorded before the run (a colleague's), as `clientNoteAttributions` would have it; the
    * person by their login (`chatter` — any other). */
   | { readonly op: 'noteWrite'; readonly pageLabel: string; readonly fanRef: string; readonly noteRef: string; readonly action: 'created' | 'edited' | 'deleted'; readonly login: string; readonly at: string }
+  /** 2026-11-03: a send recorded before the run (a colleague's), as `clientSendAttributions` would have it; the person by
+   * their login, how its text was written as the hub stores it (`reply`, `hand`, …). */
+  | { readonly op: 'messageAuthor'; readonly pageLabel: string; readonly fanRef: string; readonly messageId: string; readonly login: string; readonly at: string; readonly how?: string; readonly edited?: boolean }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
 

@@ -47,6 +47,7 @@ import {
   type IngestBatch,
   type SendAttributionsRequest,
   type FanNoteAttributionsQuery,
+  type MessageAuthorsQuery,
   type NoteAttributionsRequest,
   type ActivityBeatRequest,
   type FanCard,
@@ -497,6 +498,22 @@ export class FakeHub {
       case 'otherPages':
         s.data.useOtherPages(command.fans);
         return { ok: true, fans: Object.keys(command.fans).length };
+      case 'messageAuthor':
+        this.page(command.pageLabel);
+        s.data.seedSendAttribution({
+          pageLabel: command.pageLabel,
+          userId: 9_001,
+          name: command.login,
+          source: 'seeded',
+          platformMessageId: command.messageId,
+          fanRef: command.fanRef,
+          observedAt: command.at,
+          priced: false,
+          withMedia: false,
+          ...(command.how === undefined ? {} : { composedWith: command.how }),
+          ...(command.edited === undefined ? {} : { edited: command.edited }),
+        });
+        return { ok: true };
       case 'noteWrite': {
         this.page(command.pageLabel);
         s.data.seedNoteAttribution({ pageLabel: command.pageLabel, userId: 9_000, name: command.login, source: 'seeded', eventId: crypto.randomUUID(), fanRef: command.fanRef, noteRef: command.noteRef, noteKind: 'note', action: command.action, observedAt: command.at });
@@ -1228,6 +1245,8 @@ export class FakeHub {
         return read(s.data.noteAttributions(need(page), need(principal).user.userId, request as NoteAttributionsRequest, now));
       case 'clientFanNoteAttributions':
         return { kind: 'json', status: 200, body: s.data.fanNoteAttributions(need(page), (request as FanNoteAttributionsQuery).fanRef, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? 'chatter', now) };
+      case 'clientMessageAuthors':
+        return { kind: 'json', status: 200, body: s.data.messageAuthors(need(page), (request as MessageAuthorsQuery).fanRef, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? 'chatter', now) };
       case 'clientActivity': {
         const who = need(principal).user.userId;
         return read(s.data.activity(who, request as ActivityBeatRequest, (label) => this.pages().some((candidate) => candidate.pageLabel === label && this.granted(who, candidate)), now));

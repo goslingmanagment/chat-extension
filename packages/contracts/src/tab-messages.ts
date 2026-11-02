@@ -402,6 +402,21 @@ export const NotesAuthorsSchema = z.union([
 ]);
 export type NotesAuthors = z.infer<typeof NotesAuthorsSchema>;
 
+/**
+ * `messages.authors` (2026-11-03): who sent each outgoing message of the open fan's chat the hub knows a sender of — the
+ * login, whether it is the person's own, how its text was written (`composedWith`, `edited`); or why none is known.
+ */
+export const MessagesAuthorsSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    messages: z
+      .array(z.strictObject({ messageId: NativeIdSchema, name: z.string().check(z.maxLength(120)), me: z.boolean(), how: z.nullable(z.string().check(z.maxLength(16))), edited: z.nullable(z.boolean()) }))
+      .check(z.maxLength(200)),
+  }),
+  z.strictObject({ ok: z.literal(false), code: z.string().check(z.maxLength(64)) }),
+]);
+export type MessagesAuthors = z.infer<typeof MessagesAuthorsSchema>;
+
 export const TAB_REQUESTS = {
   // ── tab lifecycle ──
   /** First request of a tab document: the background mints the tab session (§5.1). */
@@ -865,6 +880,12 @@ export const TAB_REQUESTS = {
    * tab where the manifest admits `note-authors`; only ids and logins travel.
    */
   'notes.authors': { req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema }), res: NotesAuthorsSchema, from: TAB },
+  /**
+   * 2026-11-03 (the owner: «узнавать кто написал какое сообщение»): who sent each outgoing message of the open fan's
+   * chat, as the hub recorded the sends (`clientMessageAuthors`). A page bound to the tab where the manifest admits
+   * `message-authors`; only ids, logins and how a text was written travel.
+   */
+  'messages.authors': { req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema }), res: MessagesAuthorsSchema, from: TAB },
   /**
    * A write of «Заметки» the site took, from a tab that writes its notes itself (ChatSpace's OnlyMonster notes): told to
    * the hub's record of who wrote each note. Fansly's background tells its own. `queued` — owed to the hub now.

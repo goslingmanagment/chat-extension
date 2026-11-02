@@ -292,6 +292,26 @@ export interface FanslyRelayFrame {
  * world; MAIN is not involved — it writes nothing (§5). A member whose anchor is gone degrades on its own
  * (FANSLY_CAPABILITIES, FS-CTR-2).
  */
+/** 2026-11-03: one of the model's messages as «кто написал» words it: the login and how its text was written. */
+export interface FanslyMessageAuthor {
+  readonly name: string;
+  /** «Reply», «сам», «Reply + правка»; null — not said. */
+  readonly how: string | null;
+}
+
+/**
+ * 2026-11-03 (the owner: «узнавать кто написал какое сообщение»): who sent each of the model's messages of the open chat,
+ * by message id, as the hub recorded the sends — drawn beside the time Fansly prints under a run of them.
+ */
+export interface FanslyMessageAuthorsView {
+  readonly groupId: string;
+  readonly byId: ReadonlyMap<string, FanslyMessageAuthor>;
+  /** The words for `count` messages of a run whose sender is not known («+1 без автора»). */
+  readonly unknown: (count: number) => string;
+  /** Messages of the model seen live in this chat, lined up with a bubble, with no sender here yet: the hub may know them by now. */
+  readonly onUnknownLive?: (ids: readonly string[]) => void;
+}
+
 export interface FanslyPagePort {
   /** §7.4: the header slot of the open chat, re-made idempotently each time Fansly re-creates the contact block. */
   headerSlot(): FanslyHeaderSlot;
@@ -313,4 +333,6 @@ export interface FanslyPagePort {
    * model's pages in several tabs are told apart in the browser's strip; null — Fansly's own title again.
    */
   setTabLabel(label: string | null): void;
+  /** 2026-11-03: who wrote each of the model's messages of the open chat, beside their time; null — nothing of ours there. */
+  setMessageAuthors(view: FanslyMessageAuthorsView | null): void;
 }

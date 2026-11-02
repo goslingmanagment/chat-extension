@@ -94,7 +94,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration", "onlineProbe", "ofFeed", "ofPoll"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "other-pages-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1", "onlyfans-poll-v1", "chatspace-tab-state-v1", "chatspace-tab-state-v2", "outreach-store-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "message-authors-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "other-pages-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1", "onlyfans-poll-v1", "chatspace-tab-state-v1", "chatspace-tab-state-v2", "outreach-store-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -1497,6 +1497,22 @@ export declare const clientSendAttributionsResponseSchema: z.ZodObject<{
     results: z.ZodArray<z.ZodObject<{
         platformMessageId: z.ZodString;
         outcome: z.ZodString;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+/** The most messages of one fan `clientMessageAuthors` answers, the latest observed first. */
+export declare const CLIENT_MESSAGE_AUTHORS_MAX = 200;
+export declare const clientMessageAuthorsResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    fanRef: z.ZodString;
+    messages: z.ZodArray<z.ZodObject<{
+        platformMessageId: z.ZodString;
+        userId: z.ZodNumber;
+        name: z.ZodString;
+        isMe: z.ZodBoolean;
+        composedWith: z.ZodNullable<z.ZodString>;
+        edited: z.ZodNullable<z.ZodBoolean>;
+        at: z.ZodString;
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
@@ -4419,6 +4435,70 @@ export declare const clientRouteSchemas: {
                 results: z.ZodArray<z.ZodObject<{
                     platformMessageId: z.ZodString;
                     outcome: z.ZodString;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 404: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 409: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
+    readonly clientMessageAuthors: {
+        readonly auth: {
+            readonly kind: "apiKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "Who sent each outgoing message of a fan's chat, as the chat extension reported the sends";
+        readonly description: string;
+        readonly params: z.ZodObject<{
+            pageLabel: z.ZodString;
+            fanRef: z.ZodString;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                pageLabel: z.ZodString;
+                fanRef: z.ZodString;
+                messages: z.ZodArray<z.ZodObject<{
+                    platformMessageId: z.ZodString;
+                    userId: z.ZodNumber;
+                    name: z.ZodString;
+                    isMe: z.ZodBoolean;
+                    composedWith: z.ZodNullable<z.ZodString>;
+                    edited: z.ZodNullable<z.ZodBoolean>;
+                    at: z.ZodString;
                 }, z.core.$strip>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
@@ -7990,6 +8070,7 @@ export type ClientFanFactChangeResponse = z.infer<typeof clientFanFactChangeResp
 export type ClientSendAttributionsResponse = z.infer<typeof clientSendAttributionsResponseSchema>;
 export type ClientNoteAttributionsResponse = z.infer<typeof clientNoteAttributionsResponseSchema>;
 export type ClientFanNoteAttributionsResponse = z.infer<typeof clientFanNoteAttributionsResponseSchema>;
+export type ClientMessageAuthorsResponse = z.infer<typeof clientMessageAuthorsResponseSchema>;
 export type ClientNoteAttributionWho = z.infer<typeof clientNoteAttributionWhoSchema>;
 export type ClientAudienceNewQuery = z.infer<typeof clientAudienceNewQuerySchema>;
 export type ClientClaimSummary = z.infer<typeof clientClaimSummarySchema>;

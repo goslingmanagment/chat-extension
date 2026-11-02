@@ -44,7 +44,7 @@ import {
   type SpendersStats,
   type StatsQuery,
 } from './spenders';
-import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
+import { type MessageAuthors, type MessageAuthorsQuery, type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
 import { type FanNoteAttributions, type FanNoteAttributionsQuery, type NoteAttributionsRequest, type NoteAttributionsResult } from './note-attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
 import { type Handoff, type HandoffQuery } from './queue';
@@ -198,6 +198,8 @@ export interface HubFacade {
   noteAttributions(request: NoteAttributionsRequest): Promise<NoteAttributionsResult>;
   /** 2026-10-29: who created each of a fan's notes and who changed it last (`note-attribution-read-v1`). */
   fanNoteAttributions(query: FanNoteAttributionsQuery): Promise<FanNoteAttributions>;
+  /** 2026-11-03: who sent each outgoing message of a fan's chat (`message-authors-v1`). */
+  messageAuthors(query: MessageAuthorsQuery): Promise<MessageAuthors>;
   /**
    * Chat Memory week 1: the beat of the person signed in. Refused here without `chatter-activity-v1`; no page grant is
    * checked (the hub skips a page that is not theirs). Never repeated: a lost beat is just lost.

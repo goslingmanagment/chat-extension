@@ -73,6 +73,8 @@ import {
   type SendAttributionsResult,
   type FanNoteAttributions,
   type FanNoteAttributionsQuery,
+  type MessageAuthors,
+  type MessageAuthorsQuery,
   type NoteAttributionsRequest,
   type NoteAttributionsResult,
   ActivityBeatRequestSchema,
@@ -1002,6 +1004,11 @@ export class ChatExtensionHub implements HubFacade {
 
   async fanNoteAttributions(query: FanNoteAttributionsQuery): Promise<FanNoteAttributions> {
     return (await this.client('clientFanNoteAttributions', query, query.pageLabel)) as FanNoteAttributions;
+  }
+
+  /** 2026-11-03: who sent each outgoing message of a fan's chat, as the hub recorded the sends (`message-authors-v1`). */
+  async messageAuthors(query: MessageAuthorsQuery): Promise<MessageAuthors> {
+    return (await this.client('clientMessageAuthors', query, query.pageLabel)) as MessageAuthors;
   }
 
   /**

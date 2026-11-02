@@ -171,7 +171,8 @@ export class MessageContainer implements View {
     // The time line closes the collection: moved only when messages were added after it.
     if (view.body.lastElementChild !== stamp) view.body.append(stamp);
     const last = run.messages.at(-1);
-    const span = stamp.firstElementChild;
+    // Its own time span, as Angular's binding holds its text node: never another node put into the line.
+    const span = stamp.querySelector(':scope > span.margin-right-text');
     if (span !== null && last !== undefined) setText(span, clock(last.createdAt));
     for (const [index, message] of run.messages.entries()) {
       const bubble = view.body.querySelectorAll(':scope > .flex-col > app-group-message')[index];

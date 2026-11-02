@@ -20,7 +20,8 @@
 //   the deep window asks the background for the person's depth (R20 P8c).
 // - Its own surfaces (R20 P13b): the vault's chunk on `/creator/vault`; the floating launcher's clicks (X46) — «Онлайн», Spenders
 //   and «Новые» from every page, as the popup opens them; the mark of a chat waiting for a reply in Fansly's own list of
-//   chats (2026-10-29), as the settings page holds it; the page's hub label in front of the tab's title (2026-10-31).
+//   chats (2026-10-29), as the settings page holds it; the page's hub label in front of the tab's title (2026-10-31);
+//   who wrote each of the model's messages of the open chat, before its time (2026-11-03, message-authors.ts).
 
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
@@ -37,6 +38,7 @@ import type * as RegistrationChunk from '../../../../../lazy/fansly/registration
 import type * as VaultChunk from '../../../../../lazy/fansly/vault';
 import { FANSLY_FEATURE_SLICE } from '../../../features/fansly';
 import type { HostAppAdapter, HostThemeSource, SiteAppEnv } from '../../adapter';
+import { startFanslyMessageAuthors } from './message-authors';
 
 /** The page our content script runs in: read only when a surface mounts or the page's theme switches. */
 const page = (): Document => document;
@@ -166,7 +168,9 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   const offScheme = env.host.launcher.follow(env.deps.scheme);
   const offInboxMark = startFanslyInboxMark(env);
   const offTabLabel = startFanslyTabLabel(env);
+  const offAuthors = startFanslyMessageAuthors(env);
   return () => {
+    offAuthors();
     offTabLabel();
     offInboxMark();
     offOps();

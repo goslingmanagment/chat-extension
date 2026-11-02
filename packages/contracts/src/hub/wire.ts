@@ -162,6 +162,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    */
   'send-attribution-v1',
   /**
+   * 2026-11-03: who sent each outgoing message of a fan's chat, read back from that record (`clientMessageAuthors`):
+   * the login beside the time under the model's messages on Fansly. A hub without it is never asked.
+   */
+  'message-authors-v1',
+  /**
    * 1.27.0 (decision X54): the AI stream takes `livePpvContext`, the PPV state of the open OnlyFans chat the tab read
    * from OnlyMonster's API. The body is strict: a hub without it answers the field 400, so a draft start reads the
    * state and sends it only to a hub that lists this capability.

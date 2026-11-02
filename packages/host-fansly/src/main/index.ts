@@ -39,7 +39,9 @@
 //   the marked receipt of exactly `/api/v1/message` and its `5/1` echo, in
 //   either order, are `fx.sent` with the digest of the sent text;
 // - the requests: `fx.state` (and the stream starts), `fx.ack`, `fx.health`,
-//   `fx.focus`, `fx.windowMeta` and `fx.generationSnapshot` (snapshot.ts).
+//   `fx.focus`, `fx.windowMeta` and `fx.generationSnapshot` (snapshot.ts);
+//   `fx.order` (2026-11-03): a group's ids in order with their flags and the
+//   model's text hashes, for «кто написал» beside the page's bubbles.
 //
 // The page's own world: nothing of ours may throw into it (decision X22).
 // Every callback the page or the browser calls is a `guard(…)`; a Proxy's
@@ -81,6 +83,7 @@ import {
   REQ_HEALTH,
   REQ_SNAPSHOT,
   REQ_STATE,
+  REQ_ORDER,
   REQ_WINDOW,
   REQ_GROUP_FOR_FAN,
   RESPONSE_MAX_CHARS,
@@ -730,6 +733,21 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       if (t === REQ_WINDOW) {
         if (!isWindowRequest(payload)) return ERR_BAD_REQUEST;
         return world().views.chat((payload as { groupId: string }).groupId, routeEpoch);
+      }
+      if (t === REQ_ORDER) {
+        // The same shape as `fx.windowMeta`: a group id.
+        if (!isWindowRequest(payload)) return ERR_BAD_REQUEST;
+        const chat = world().observation.chat((payload as { groupId: string }).groupId);
+        if (chat === undefined) return null;
+        const n = chat.ids.length;
+        const bits: number[] = [];
+        const hashes: number[] = [];
+        // The record's third word is the model's folded-text hash (observation.ts); the fan's is 0.
+        for (let i = 0; i < n; i += 1) {
+          bits.push(chat.bits[i] as number);
+          hashes.push(chat.words[i * 3 + 2] as number);
+        }
+        return { ids: chat.ids.slice(), bits, hashes };
       }
       if (t === REQ_SNAPSHOT) {
         if (!isSnapshotRequest(payload)) return ERR_BAD_REQUEST;

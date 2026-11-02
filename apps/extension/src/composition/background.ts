@@ -154,7 +154,7 @@ import {
 
 import { CHATSPACE_MATCHES, CHATSPACE_STAND_MATCHES, RUNTIME_HOSTS, type PerHost, type RuntimeHostKind } from '../hosts/runtime';
 import { createAccountSwitch, humanSendObservable, incomingFactUsable } from './background/account-switch';
-import { ComposedWithMemory, attributionTarget, noteAttributionTarget, notesAuthorsOf, onlyfansFeedTarget } from './background/attribution';
+import { ComposedWithMemory, attributionTarget, messageAuthorsOf, messageAuthorsTarget, noteAttributionTarget, notesAuthorsOf, onlyfansFeedTarget } from './background/attribution';
 import { hubAddressRefusal, quietFetch } from './background/hub-address';
 import { hubDataHandlers, type PageLookup } from './background/hub-data';
 import { type BackgroundKit, type HostRequestType, type KitSender, type NoteAttributionPort, type SiteTabsPort, type VerifiedTabMessage } from './background/host-module';
@@ -1705,6 +1705,22 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     return ok({
       recorded: telemetry.report('sent', view, opId, { part: part.index, ...(part.variant === undefined ? {} : { variant: part.variant }) }, { via: 'composer', platformMessageId, edited }),
     });
+  });
+
+  // 2026-11-03 («кто написал»): who sent each outgoing message of the open fan's chat, as the hub recorded the sends, for
+  // a page bound to the tab where the site admits `message-authors`. Read when asked, kept nowhere.
+  rpc.handle('messages.authors', async ({ pageId, fanRef }, sender) => {
+    const host = sender.kind === 'tab' ? hostOfTab(sender.tabSessionId) : null;
+    if (host === null) return ok({ ok: false, code: 'CG-UI-FAILED' });
+    const page = await pageOf(pageId, sender);
+    if (!page.ok) return ok({ ok: false, code: page.code });
+    const target = messageAuthorsTarget(host, pageId, hubInstance?.cachedBootstrap()?.bootstrap ?? null, featuresOf);
+    if (!target.ok) return ok({ ok: false, code: target.reason });
+    try {
+      return ok(messageAuthorsOf(await hub().messageAuthors({ pageLabel: target.pageLabel, fanRef })));
+    } catch {
+      return ok({ ok: false, code: 'CG-HUB-UNAVAILABLE' });
+    }
   });
 
   // Who sent a message (decision X48): a human send of the composer whose own response named it, a draft of ours or
