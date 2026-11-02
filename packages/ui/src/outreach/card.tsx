@@ -10,7 +10,7 @@ import { useRef } from 'preact/hooks';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type I18n, type OutreachCardVM, type OutreachMediaVM, type OutreachRowVM, type OutreachWindowVM, type PartVM, type PreviewVM } from '@cg/contracts/vm';
 
-import { Button, Dot, FanBadge, Icon, Spinner, TalkingMark, TextField, useDispatch, useI18n, useTooltip } from '../kit';
+import { chatClick, Button, Dot, FanBadge, Icon, Spinner, TalkingMark, TextField, useDispatch, useI18n, useTooltip } from '../kit';
 import { NewcomerAvatar } from '../newcomers/frame';
 import { Feed } from '../spenders/preview/Feed';
 import { priceText } from '../spenders/preview/MediaPicker';
@@ -65,7 +65,7 @@ function Head({ card, row, preview }: { readonly card: OutreachCardVM; readonly 
         </div>
       </div>
       {preview.header === null ? null : (
-        <Button label={i18n.text(preview.openChat.label)} variant="quiet" size="sm" class="cg-nc__open" reason={preview.openChat.enabled ? null : preview.openChat.reason === null ? null : i18n.text(preview.openChat.reason.text)} onClick={() => void dispatch(preview.openChat.action)} />
+        <Button label={i18n.text(preview.openChat.label)} variant="quiet" size="sm" class="cg-nc__open" reason={preview.openChat.enabled ? null : preview.openChat.reason === null ? null : i18n.text(preview.openChat.reason.text)} onClick={(event) => void dispatch(chatClick(preview.openChat.action, event))} />
       )}
     </header>
   );
@@ -373,7 +373,7 @@ function Zone({ vm, card, preview, onSent }: { readonly vm: OutreachWindowVM; re
           </div>
           <div class="cg-ow__acts">
             <span class="cg-nw__grow" />
-            <Button label={i18n.t('outreach.card.verify')} variant="line" onClick={() => void dispatch(preview.openChat.action)} />
+            <Button label={i18n.t('outreach.card.verify')} variant="line" onClick={(event) => void dispatch(chatClick(preview.openChat.action, event))} />
           </div>
         </div>
       );

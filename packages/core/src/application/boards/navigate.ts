@@ -16,10 +16,11 @@ import { type CgCode, type CgErrorWire } from '@cg/contracts/errors';
 import { type Surface } from '@cg/contracts/features';
 import { type HostPort, type NavigationIntent, type NavigationReceipt } from '@cg/contracts/host';
 import { type ChatRef, type HumanCause } from '@cg/contracts/ids';
+import { type TabRequestPayload, type TabResponsePayload } from '@cg/contracts/tab-messages';
 
 import { flagRefusal } from '../../domain/ops/flags';
 import { pageFlagOf, type PageContextPort, type PageContextState } from './context';
-import { type IdSource, type TabRpc } from './ports';
+import { type IdSource, type RpcResult, type TabRpc } from './ports';
 
 export type TokenKind = 'generate' | 'insert' | 'navigate' | 'send';
 
@@ -50,6 +51,30 @@ export function boardOpenRefusal(state: PageContextState, boards: readonly Board
   return null;
 }
 
+/** The two requests of `openChatTab`: the tab's rpc of the boards and of the navigation alike. */
+interface OpenTabRpc {
+  request<T extends 'token.issue' | 'chat.openTab'>(type: T, payload: TabRequestPayload<T>): Promise<RpcResult<TabResponsePayload<T>>>;
+}
+
+/**
+ * ⌘/Ctrl+click on «Открыть чат»: the chat in a new tab of the browser, next to this one. Nothing moves in this tab: no
+ * route, no window closes, so what the person was doing stays. The chat is opened by the new tab's own loading, by this
+ * click's token. null — opened; else why not.
+ */
+export async function openChatTab(deps: { readonly rpc: OpenTabRpc; readonly host: HostPort }, surface: Surface, target: { readonly hostAccountId: string; readonly platformFanId: string; readonly conversationRef?: string }): Promise<CgCode | null> {
+  try {
+    const path = (await deps.host.chatPath?.(target)) ?? null;
+    if (path === null) return 'CG-HOST-CHAT-NOT-FOUND';
+    const issued = await deps.rpc.request('token.issue', { kind: 'navigate', surface });
+    if (!issued.ok) return issued.error.code;
+    const answer = await deps.rpc.request('chat.openTab', { path, surface, actionToken: issued.payload.actionToken });
+    if (!answer.ok) return answer.error.code;
+    return answer.payload.opened ? null : 'CG-NAV-FAILED';
+  } catch {
+    return 'CG-NAV-FAILED';
+  }
+}
+
 export interface ChatNavigator {
   /**
    * Opens the chat of a fan the person clicked in a board. `boards` — the switches of the board the click was
@@ -58,6 +83,8 @@ export interface ChatNavigator {
    * itself — the conversation is the fan, and the navigation names none.
    */
   open(chat: ChatRef, surface: Surface, boards: readonly BoardSwitch[], conversationRef?: string): Promise<NavigationReceipt>;
+  /** The same click with ⌘/Ctrl held (`openChatTab`): the same checks, the chat in a new tab. null — opened; else why not. */
+  openTab(chat: ChatRef, surface: Surface, boards: readonly BoardSwitch[], conversationRef?: string): Promise<CgCode | null>;
 }
 
 export function createChatNavigator(deps: { readonly rpc: TabRpc; readonly host: HostPort; readonly ids: IdSource; readonly context: PageContextPort }): ChatNavigator {
@@ -81,6 +108,13 @@ export function createChatNavigator(deps: { readonly rpc: TabRpc; readonly host:
       } catch {
         return { state: 'failed', code: 'CG-NAV-FAILED', insert: null };
       }
+    },
+    async openTab(chat, surface, boards, conversationRef) {
+      const state = deps.context.current();
+      const refusal = boardOpenRefusal(state, boards);
+      if (refusal !== null) return refusal.code;
+      if (state.binding?.hostAccountId !== chat.hostAccountId) return 'CG-CONTEXT-CHANGED';
+      return openChatTab(deps, surface, { hostAccountId: chat.hostAccountId, platformFanId: chat.platformFanId, ...(conversationRef === undefined || conversationRef === chat.platformFanId ? {} : { conversationRef }) });
     },
   };
 }

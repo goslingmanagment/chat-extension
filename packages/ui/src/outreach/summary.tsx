@@ -7,7 +7,7 @@ import { type JSX } from 'preact';
 
 import { type I18n, type OutreachSummaryFanVM, type OutreachSummaryLeftVM, type OutreachSummaryVM, type OutreachWindowVM } from '@cg/contracts/vm';
 
-import { Button, Dot, useDispatch, useI18n } from '../kit';
+import { chatClick, Button, Dot, useDispatch, useI18n } from '../kit';
 import { NewcomerAvatar } from '../newcomers/frame';
 import { reasonLine } from './rows';
 import { asideText, mediaTitle, mediaShort } from './words';
@@ -107,7 +107,7 @@ export function Summary({ vm, summary }: { readonly vm: OutreachWindowVM; readon
               <Fan
                 key={fan.handle}
                 fan={fan}
-                end={<Button label={i18n.t('outreach.card.verify')} variant="line" size="sm" onClick={() => void dispatch({ type: 'Navigate', to: { kind: 'chat', targetHandle: fan.handle } })} />}
+                end={<Button label={i18n.t('outreach.card.verify')} variant="line" size="sm" onClick={(event) => void dispatch(chatClick({ type: 'Navigate', to: { kind: 'chat', targetHandle: fan.handle } }, event))} />}
               >
                 <>
                   <Dot kind="ink" size={6} />

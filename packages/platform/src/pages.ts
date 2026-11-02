@@ -84,6 +84,35 @@ export function createTabFocus(api: BrowserApi = defaultBrowser()): TabFocusPort
   };
 }
 
+export interface ChatTabPort {
+  /**
+   * The address in a new tab right after `tabId`, in its window, in the background: what the browser's own ⌘+click does
+   * with a link, so the person stays where they are. No `tabs` permission: nothing of the tab's address is read.
+   * false — the browser refused (the tab is gone).
+   */
+  open(tabId: number, url: string): Promise<boolean>;
+}
+
+export function createChatTabs(api: BrowserApi = defaultBrowser()): ChatTabPort {
+  return {
+    async open(tabId, url) {
+      try {
+        const tab = await api.tabs.get(tabId);
+        await api.tabs.create({
+          url,
+          active: false,
+          openerTabId: tabId,
+          ...(tab.windowId === undefined ? {} : { windowId: tab.windowId }),
+          ...(tab.index === undefined ? {} : { index: tab.index + 1 }),
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
 export interface LinkOpenerPort {
   /** Opens an https address in a new tab; false — not an https address, nothing was opened. */
   open(url: string): boolean;

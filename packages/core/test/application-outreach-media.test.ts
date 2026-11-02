@@ -64,7 +64,7 @@ async function world() {
     ids: sequentialIds(0x9000),
     context,
     surfaces: new Surfaces(),
-    navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 1, insert: null }) },
+    navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 1, insert: null }), openTab: () => Promise.resolve(null) },
     directories: { spenders: null, newcomers: null, palette: null, outreach: directory, online: null, queue: null },
     greeting: null,
     sender: { send, onView: () => () => undefined },

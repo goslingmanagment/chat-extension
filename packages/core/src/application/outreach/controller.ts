@@ -202,7 +202,7 @@ export interface OutreachBoardPort {
   /** The fan's chat for a send or a read, as the board finds it (Fansly: its row, the page's memory, the inbox search). */
   group(fanRef: string): Promise<string | null>;
   /** «Открыть чат» of a fan the person clicked: the board's own way into the chat (the boards close). */
-  openChat(type: UiAction['type'], fanRef: string): Promise<ActionReceipt>;
+  openChat(type: UiAction['type'], fanRef: string, newTab?: boolean): Promise<ActionReceipt>;
   /** Fansly: the fan's badges as the board knows them (boards/badges.ts); null — none known. */
   badge?(fanRef: string): FanBadges | null;
   /** Fansly: the window shows these fans — the board asks their badges (an answer comes through `subscribe`). */
@@ -2835,7 +2835,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       }
       if (to.kind !== 'chat') return null;
       const fanRef = fanOf(to.targetHandle);
-      return fanRef === null ? null : board.openChat(action.type, fanRef);
+      return fanRef === null ? null : board.openChat(action.type, fanRef, to.newTab === true);
     }
     if (action.type === 'SetOutreach') return action.resume !== undefined ? resume(action.type, action.resume) : Promise.resolve(setOutreach(action));
     if (action.type === 'SendOutreach' || action.type === 'RewriteOutreach' || action.type === 'EditOutreach') {

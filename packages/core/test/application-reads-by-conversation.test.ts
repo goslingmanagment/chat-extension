@@ -169,7 +169,7 @@ describe('[host:fansly] R20 F6b: a preview reads the group its list resolved; it
       ids: sequentialIds(0x9000),
       context,
       surfaces: new Surfaces(),
-      navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 2, insert: null }) },
+      navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 2, insert: null }), openTab: () => Promise.resolve(null) },
       directories: { spenders: directory, newcomers: null, palette: null, outreach: null, online: null, queue: null },
       greeting: null,
       sender: null,
@@ -215,7 +215,7 @@ describe('[host:fansly] R20 P8a: a preview never reuses another group’s archiv
     const directory: PreviewDirectory = { resolve: () => info, neighbours: () => ({ previous: null, next: null }), subscribe: () => () => undefined };
     const controller = createPreviewController({
       rpc: bg.rpc, host, i18n, clock, ids: sequentialIds(0x9000), context, surfaces: new Surfaces(),
-      navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 2, insert: null }) },
+      navigator: { open: () => Promise.resolve({ state: 'navigated', routeEpoch: 2, insert: null }), openTab: () => Promise.resolve(null) },
       directories: { spenders: directory, newcomers: null, palette: null, outreach: null, online: null, queue: null },
       greeting: null, sender: null, drafts: null, clipboard: null, notifier: null,
     });

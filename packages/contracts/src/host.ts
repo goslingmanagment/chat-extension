@@ -1337,6 +1337,11 @@ export interface HostPort {
    */
   navigate(intent: NavigationIntent, options?: NavigateOptions): Promise<NavigationReceipt>;
   /**
+   * 1.73.0: the path of a chat on this site, for ⌘/Ctrl+click on «Открыть чат» (a new tab of the browser; nothing moves
+   * here). null — the host does not know the chat's address. Absent — the site has no way into a chat by address.
+   */
+  chatPath?(target: { readonly hostAccountId: string; readonly platformFanId: string; readonly conversationRef?: string }): Promise<string | null>;
+  /**
    * Snapshot of the freshness counters (§6.7.5), asked on the Generate click:
    * MAIN takes it in one synchronous step of its handler (only MAIN holds the
    * counters and the subscription epoch). A fan message that lands between

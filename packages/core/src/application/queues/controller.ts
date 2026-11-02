@@ -1391,7 +1391,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     return refused(type, answer === null ? localError('CG-RUNTIME-UNREACHABLE', i18n) : errorOf(answer.error, i18n));
   }
 
-  async function openChat(type: UiActionType, fanRef: string): Promise<ActionReceipt> {
+  async function openChat(type: UiActionType, fanRef: string, newTab = false): Promise<ActionReceipt> {
     const ctx = context.current();
     const binding = ctx.binding;
     const item = itemOf(fanRef);
@@ -1405,6 +1405,10 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       if (found === null) return refused(type, localError('CG-HOST-CHAT-NOT-FOUND', i18n));
       fan.group = found;
       conversation = found;
+    }
+    if (newTab) {
+      const why = await navigator.openTab({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['preview'], conversation);
+      return why === null ? done(type, 'opened') : refused(type, localError(why, i18n));
     }
     const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['preview'], conversation);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
@@ -1562,7 +1566,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       if (to.kind === 'surface' && to.surface === 'queues') return Promise.resolve(to.open ? open(action.type) : close(action.type));
       if (to.kind !== 'chat') return null;
       const fanRef = fanOf(to.targetHandle);
-      return fanRef === null ? null : openChat(action.type, fanRef);
+      return fanRef === null ? null : openChat(action.type, fanRef, to.newTab === true);
     }
     if (action.type === 'SetQueues') return Promise.resolve(setQueues(action));
     if (action.type === 'SendBatch' && action.list === 'queue') return Promise.resolve(sendAll(action.type));

@@ -66,6 +66,7 @@ function recordingNavigator(): ChatNavigator & { readonly opened: { readonly cha
       opened.push({ chat, surface, boards: switches, conversationRef });
       return Promise.resolve({ state: 'navigated', routeEpoch: 2, insert: null });
     },
+    openTab: () => Promise.resolve(null),
   };
 }
 

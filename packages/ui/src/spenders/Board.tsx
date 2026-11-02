@@ -19,7 +19,7 @@ import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type BatchVM, type I18n, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from '@cg/contracts/vm';
 
-import { ActionButton, activeIn, CheckGlyph, FanBadge, isComposing, Spinner, TalkingMark, useAnnounce, useDispatch, useI18n, useMinuteClock, useSpokenMoney, useTooltip, ViewState, VirtualList } from '../kit';
+import { chatClick, ActionButton, activeIn, CheckGlyph, FanBadge, isComposing, Spinner, TalkingMark, useAnnounce, useDispatch, useI18n, useMinuteClock, useSpokenMoney, useTooltip, ViewState, VirtualList } from '../kit';
 import { BatchBar, BatchCheck, BatchLine, inBatch } from './batch';
 import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, inlinePreviewHeight, isStop, nextStop, shelfLabel, shelfTier, type BoardItem } from './rows';
@@ -143,7 +143,7 @@ function OpenCell({ row, live }: { readonly row: SpenderRowVM; readonly live: bo
           onClick={(event) => {
             // The row's own click opens the preview; this one, the chat — the person's own click, which marks it read.
             event.stopPropagation();
-            void dispatch(openChat(row.handle));
+            void dispatch(chatClick(openChat(row.handle), event));
           }}
         >
           <span class="cg-bd__opent" aria-hidden="true">
@@ -263,7 +263,7 @@ function FanRow({ row, tierColumn, expanded, itemKey, index, rowIndex, active, o
           // the chat's opening needs. The browser's count alone is not enough (a click elsewhere a moment before counts
           // in it): the first click must be this row's.
           const second = onPress(itemKey);
-          void dispatch(second && event.detail >= 2 ? openChat(row.handle) : expanded ? CLOSE_PREVIEW : openPreview(row.handle));
+          void dispatch(second && event.detail >= 2 ? chatClick(openChat(row.handle), event) : expanded ? CLOSE_PREVIEW : openPreview(row.handle));
         },
         onFocus: () => onPick(itemKey),
       };

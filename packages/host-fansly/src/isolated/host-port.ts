@@ -999,6 +999,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       return composerField.write(wire, () => insertCheck(wire));
     },
     /** §7.6: on a human action only; its token is spent before the page is touched. */
+    chatPath: (target) => navigator.chatPath(target),
     async navigate(intent: NavigationIntent, navigateOptions?: NavigateOptions): Promise<NavigationReceipt> {
       const check = await validation();
       if (!check.isNavigationIntent(intent)) throw new TypeError('navigate() takes a NavigationIntent with its cause');

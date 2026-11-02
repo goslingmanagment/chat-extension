@@ -750,9 +750,13 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
 
   // ── actions ──
 
-  async function openChat(type: UiActionType, fanRef: string): Promise<ActionReceipt> {
+  async function openChat(type: UiActionType, fanRef: string, newTab = false): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
+    if (newTab) {
+      const why = await navigator.openTab({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'newcomers', ['newcomers']);
+      return why === null ? done(type, 'opened') : refused(type, localError(why, i18n));
+    }
     // The person's click on this fan in «Новые»: the list's own switch on its page, not `navigation`.
     const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'newcomers', ['newcomers']);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
@@ -774,7 +778,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
       }
       if (to.kind === 'chat') {
         const fanRef = own(to.targetHandle);
-        return fanRef === null ? null : openChat(type, fanRef);
+        return fanRef === null ? null : openChat(type, fanRef, to.newTab === true);
       }
       return null;
     }

@@ -789,7 +789,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     return parsed !== null && parsed.source === source && parsed.pageId === pageId() ? parsed.fanRef : null;
   };
 
-  async function openChat(type: UiAction['type'], fanRef: string): Promise<ActionReceipt> {
+  async function openChat(type: UiAction['type'], fanRef: string, newTab = false): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
     const admission = boardOpenRefusal(context.current(), ['spenders']);
@@ -815,6 +815,10 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     if (looks) lookupEnded(fanRef, found && !failed);
     if (run !== navigationRun) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     if (failed || !found) return refused(type, localError('CG-HOST-CHAT-NOT-FOUND', i18n));
+    if (newTab) {
+      const why = await navigator.openTab({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['spenders'], conversationRef);
+      return why === null ? done(type, 'opened') : refused(type, localError(why, i18n));
+    }
     // The person's click on this fan in the Spenders board: the board's own switch on its page, not `navigation`.
     const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['spenders'], conversationRef);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
@@ -832,7 +836,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       }
       if (to.kind === 'chat') {
         const fanRef = own(to.targetHandle);
-        return fanRef === null ? null : openChat(action.type, fanRef);
+        return fanRef === null ? null : openChat(action.type, fanRef, to.newTab === true);
       }
       return null;
     }
@@ -981,7 +985,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       await resolveConversation(fanRef, true);
       return conversationOfRow(knownRow(fanRef)?.row).conversationRef ?? null;
     },
-    openChat: (type, fanRef) => openChat(type, fanRef),
+    openChat: (type, fanRef, newTab) => openChat(type, fanRef, newTab),
     badge: (fanRef) => badges.get(fanRef),
     wantBadges(fanRefs) {
       const binding = context.current().binding;

@@ -485,6 +485,7 @@ export class FakePageBackground implements PageRpc {
       case 'outreach.touches':
       case 'token.issue':
       case 'token.redeem':
+      case 'chat.openTab':
       case 'voice.read':
       case 'voice.allowance':
       case 'voice.script':

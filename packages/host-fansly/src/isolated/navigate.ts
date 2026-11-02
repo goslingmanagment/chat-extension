@@ -92,6 +92,8 @@ export interface NavigatorEnv {
 
 export interface Navigator {
   navigate(intent: NavigationIntent, options?: NavigateOptions): Promise<NavigationReceipt>;
+  /** The address of a fan's chat, its group found as `navigate` finds it; null — another creator's, or no group known. */
+  chatPath(target: Pick<NavigationIntent['target'], 'hostAccountId' | 'conversationRef'> & { readonly platformFanId: string }): Promise<string | null>;
   /** Another write of ours into the open chat: the latest navigation stops — its waiting insert, its 2-second check. */
   cancel(): void;
   dispose(): void;
@@ -270,6 +272,12 @@ export function createNavigator(env: NavigatorEnv): Navigator {
 
   return {
     navigate,
+    async chatPath(target) {
+      if (disposed || target.hostAccountId !== env.creator()) return null;
+      const open = env.open();
+      const groupId = target.conversationRef ?? (open.fanId === target.platformFanId ? open.groupId : null) ?? (await env.groupForFan?.(target.hostAccountId, target.platformFanId).catch(() => null)) ?? null;
+      return groupId === null ? null : `/messages/${groupId}`;
+    },
     cancel() {
       latest += 1;
       current?.stop();

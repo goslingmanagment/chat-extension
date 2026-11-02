@@ -17,6 +17,7 @@ import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
 import { type ActionReceipt, type I18n, type NavigationTarget, type ToastPort, type UiAction } from '@cg/contracts/vm';
 
 import { rowPresent } from '../../domain/hotkeys/cheatsheet';
+import { openChatTab } from '../boards/navigate';
 import { chatAtSlot, nextUnreadChat, stepChat } from '../../domain/navigation';
 import { CHAT_HANDLE } from './chat-handle';
 import { type OverlayState } from './overlays';
@@ -186,6 +187,13 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     }
   };
 
+  /** ⌘/Ctrl+click on a way into a chat: a new tab of the browser; nothing moves here, and no window closes. */
+  const openTab = async (target: { readonly hostAccountId: string; readonly platformFanId: string; readonly conversationRef?: string }): Promise<ActionReceipt> => {
+    if (rowPresent('chat-next', deps.features) && (await deps.ownerSwitch?.(target.hostAccountId)) === false) return fail('CG-FEATURE-DISABLED');
+    const code = await openChatTab({ rpc: deps.rpc, host }, NAVIGATION_SURFACE, target);
+    return code === null ? done('opened') : fail(code);
+  };
+
   /**
    * A chat chosen in the palette on a site without our navigation: the board's way (`deps.board`) — its switch on the
    * page, its token — never `navigation`. One at a time, as ours; the windows that led to it close once it is open.
@@ -259,6 +267,7 @@ export function createNavigationController(deps: NavigationControllerDeps): Navi
     if (to.kind === 'chat') {
       const chat = parseChatHandle(to.targetHandle);
       if (chat === null) return null;
+      if (to.newTab === true) return openTab(chat);
       // 2026-10-26: a row of the palette (while it is open every action is one of its rows: the composition's
       // `closesPalette`) on a site without our navigation goes the board's way.
       if (deps.board !== undefined && overlays.isOpen('palette') && !rowPresent('chat-next', deps.features)) return pick(deps.board, chat);
