@@ -272,6 +272,7 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * and the posts of FANSLY BLOCKLIST about the fan's username. A hub without it is never asked, and no mark shows.
    */
   'fan-marks-v1',
+  'other-pages-v1',
   /**
    * Telegram as the third site (docs/specs/2026-10-27-telegram-site.md §5.7): pages of platform `telegram`, whose Reply,
    * Fix and Coach take the open chat in `clientContext` and the fan in `fanRef`. The extension offers Telegram only

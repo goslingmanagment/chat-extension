@@ -97,6 +97,8 @@ const FEATURES = {
   // The fan's warning marks after «Регистрация»: the agency's «💩 Бомж» lists and FANSLY BLOCKLIST's posts (`clientFanMarks`,
   // `fan-marks-v1`). No owner switch: a hub that does not serve them shows nothing. Warnings only, never a block.
   'fan-marks': { kind: 'panel', base: { flags: [], hostCapabilities: ['headerSlot'], clientNeeds: ['fan-marks-v1'] }, actions: {}, surfaces: ['header-slot'], source: 'hub' },
+  // The other-pages mark on the rows of «Новые», a list Fansly's own answers make (`clientOtherPages`, `other-pages-v1`). No owner switch.
+  'other-pages': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['other-pages-v1'] }, actions: {}, surfaces: [], source: 'hub' },
   vault: { kind: 'panel', base: { flags: ['vault'], hostCapabilities: ['vault'] }, actions: {}, surfaces: ['vault'], source: 'host-pass' },
   // «Fansly через вкладку»: a setting of the person, no switch of the owner.
   'via-tab': { kind: 'service', base: { flags: [], hostCapabilities: ['relay'] }, actions: {}, surfaces: [], source: 'page' },

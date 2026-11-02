@@ -122,6 +122,8 @@ export const FANSLY_TAB_LIMITS = {
   fanMarkPostMaxChars: 600,
   /** The fans whose badges one call asks for («Онлайн», Spenders, «Рассылка», «Новые»: the shown ones, the most relevant first). */
   fanBadgesMax: 100,
+  /** The fans of «Новые» whose other pages one call asks for (hub `CLIENT_OTHER_PAGES_MAX_FANS`). */
+  otherPagesFansMax: 100,
 } as const;
 
 /**
@@ -130,6 +132,11 @@ export const FANSLY_TAB_LIMITS = {
  * and FANSLY BLOCKLIST's newest posts about the fan's username. The background bounds the hub's answer to this; a
  * post's link is a `https://t.me/` one or none.
  */
+/** The other Fansly pages of one fan as a tab shows them: the hub's choice and order. */
+const FanslyOtherPagesSchema = z
+  .array(z.strictObject({ pageLabel: displayText(120), grossMills: MoneyMillsSchema, lastFanMessageAt: z.nullable(IsoTimestampSchema), relation: z.nullable(z.enum(['subscriber', 'follower'])) }))
+  .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkOtherPagesMax));
+
 export const FanslyFanMarksSchema = z.strictObject({
   lists: z
     .array(z.strictObject({ here: z.boolean(), name: displayText(120), label: displayText(120), since: z.nullable(IsoTimestampSchema) }))
@@ -146,11 +153,7 @@ export const FanslyFanMarksSchema = z.strictObject({
     )
     .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkPostsMax)),
   /** The other Fansly pages where the fan paid or lately wrote, the biggest money first; absent: none. Not a warning. */
-  otherPages: z.optional(
-    z
-      .array(z.strictObject({ pageLabel: displayText(120), grossMills: MoneyMillsSchema, lastFanMessageAt: z.nullable(IsoTimestampSchema), relation: z.nullable(z.enum(['subscriber', 'follower'])) }))
-      .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkOtherPagesMax)),
-  ),
+  otherPages: z.optional(FanslyOtherPagesSchema),
 });
 export type FanslyFanMarks = z.infer<typeof FanslyFanMarksSchema>;
 
@@ -706,6 +709,18 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.marks.read': {
     req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, username: z.optional(z.string().check(z.minLength(1), z.maxLength(64))) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), marks: FanslyFanMarksSchema }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
+   * The other-pages mark on the rows of «Новые» (hub `clientOtherPages`): a list Fansly's own answers make carries no
+   * hub answer, so its shown fans are asked here together, a hundred a call. Only the fans with another page come back.
+   */
+  'fansly.otherPages.read': {
+    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRefs: z.array(NativeIdSchema).check(z.minLength(1), z.maxLength(FANSLY_TAB_LIMITS.otherPagesFansMax)) }),
+    res: z.discriminatedUnion('ok', [
+      z.strictObject({ ok: z.literal(true), fans: z.array(z.strictObject({ fanRef: NativeIdSchema, otherPages: FanslyOtherPagesSchema })).check(z.maxLength(FANSLY_TAB_LIMITS.otherPagesFansMax)) }),
+      Failure,
+    ]),
     from: TAB, hosts: FANSLY,
   },
   /**

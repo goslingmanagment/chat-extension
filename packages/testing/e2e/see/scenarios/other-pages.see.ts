@@ -1,11 +1,13 @@
 // A fan who is on other pages of the agency too (hub `otherPages`), one mark beside the name: «Онлайн» on both sites,
-// «Новые» on ChatSpace (Fansly's «Новые» are a pass over Fansly's own API, no hub answer carries it), and Fansly's chat
+// «Новые» on both (Fansly's are a pass over Fansly's own API: one bulk read of the hub), and Fansly's chat
 // header with its card. Money, a word with no money, several pages in the tooltip, a long name; light and dark.
 
 import { $, browser } from '@wdio/globals';
 
 import { PAGE } from '../../../src/scenarios/hub';
-import { callFansly } from '../../support/fansly-stand';
+import { pageRpc, writeLocalStorage } from '../../support/extension';
+import { QUIET_PAGE } from '../../support/fake-hub';
+import { callFansly, fakeFansly } from '../../support/fansly-stand';
 import { STAND_IDS } from '../../support/stand';
 import { around, scenario, type Box, type See } from '../kit';
 
@@ -15,6 +17,9 @@ const TALKS = [{ pageLabel: 'ella-moon', grossMills: 0, lastFanMessageAt: wrote(
 const TWO = [{ pageLabel: 'ella-moon', grossMills: 412_500, lastFanMessageAt: null, relation: null }, { pageLabel: 'mia-vip', grossMills: 87_000, lastFanMessageAt: wrote(40), relation: 'follower' as const }];
 const THREE = [{ pageLabel: 'mia-vip', grossMills: 12_480_000, lastFanMessageAt: wrote(2), relation: 'subscriber' as const }, { pageLabel: 'ella-moon', grossMills: 2_310_000, lastFanMessageAt: wrote(30), relation: 'follower' as const }, { pageLabel: 'sofia-lane', grossMills: 0, lastFanMessageAt: wrote(64), relation: null }];
 const LONG = [{ pageLabel: 'model-three-fansly', grossMills: 12_480_000, lastFanMessageAt: wrote(9), relation: 'subscriber' as const }, { pageLabel: 'ella-moon', grossMills: 95_000, lastFanMessageAt: null, relation: null }];
+
+/** New followers of the stand's Fansly: a word, three pages, money, and one with no other page. */
+const NEW_FOLLOWERS = ['930000000000000781', '930000000000000782', '930000000000000783', '930000000000000784'] as const;
 
 const SLOT = '[data-host="header-slot"][data-header-order="30"]';
 const HEADER = '.message-content-header-contact';
@@ -155,6 +160,31 @@ scenario(
       await s.browser.pause(900);
       await shootList(s, 'newcomers-tooltip-light');
     } else {
+      // «Новые» of Fansly: a list Fansly's own answers make, its marks one bulk read of the hub.
+      const [talks, three, one] = NEW_FOLLOWERS;
+      for (const fan of NEW_FOLLOWERS) await fakeFansly().command({ op: 'follow', followerId: fan, silent: true });
+      await s.hub.command({ op: 'otherPages', fans: { [talks]: TALKS, [three]: THREE, [one]: ONE } });
+      await s.toPages();
+      await s.browser.url(s.page('popup.html'));
+      await writeLocalStorage({ 'dev.fanslyApi.origin': fakeFansly().apiOrigin });
+      await pageRpc('tab.command', { command: { kind: 'surface', surface: 'newcomers' } });
+      await s.browser.url(s.page(QUIET_PAGE));
+      await s.toChat();
+      await s.browser.waitUntil(() => s.has('modal', '.cg-fnw .cg-nw__tab'), { timeout: 30_000, timeoutMsg: '«Новые» did not open' });
+      await s.press(/^Все/, 'modal', '.cg-fnw .cg-nw__tab');
+      await s.browser.waitUntil(() => s.has('modal', '.cg-fnw [data-cg-other-pages]'), { timeout: 30_000, interval: 300, timeoutMsg: 'no mark in «Новые»' });
+      await s.browser.pause(500);
+      await pointerAway(s);
+      await s.shot('newcomers-window-dark');
+      await setTheme(s, 'light');
+      await s.shot('newcomers-window-light');
+      await s.h.ours('modal', '.cg-fnw [data-cg-other-pages="3"]').moveTo();
+      await s.browser.pause(900);
+      await s.shot('newcomers-tooltip-light');
+      await pointerAway(s);
+      await s.closeAll();
+      await setTheme(s, 'dark');
+
       await s.browser.waitUntil(async () => (await $(SLOT).isExisting()) && (await $(SLOT).shadow$('[data-fan-mark="other"]').isExisting()), { timeout: 20_000, interval: 200, timeoutMsg: 'no mark in the header' });
       await shootHeader(s, 'header-several-dark', false);
       await setTheme(s, 'light');

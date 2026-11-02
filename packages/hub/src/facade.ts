@@ -84,6 +84,8 @@ import {
   type FanCardQuery,
   type FanMarks,
   type FanMarksQuery,
+  type OtherPagesAnswer,
+  type OtherPagesRequest,
   type FanCustomChangeRequest,
   type FanCustomCreateRequest,
   type Handoff,
@@ -1033,6 +1035,11 @@ export class ChatExtensionHub implements HubFacade {
    */
   async fanMarks(query: FanMarksQuery): Promise<FanMarks> {
     return (await this.client('clientFanMarks', query, query.pageLabel)) as FanMarks;
+  }
+
+  /** The other pages of up to a hundred fans of a list the client made itself. A read: refused without `other-pages-v1`. */
+  async otherPages(request: OtherPagesRequest): Promise<OtherPagesAnswer> {
+    return (await this.client('clientOtherPages', request, request.pageLabel)) as OtherPagesAnswer;
   }
 
   /** A chatter's «Да» or «Нет» on a suggested account. Never repeated here: a lost answer is the person's to ask again. */

@@ -65,7 +65,7 @@ export interface HubPort {
    * The facade's custody routes, its errors as they are (the greeting leases read their wire form); «Онлайн»'s report
    * of the followers a Fansly tab saw active (`errorWire` reads its failure); the open Fansly fan's warning marks.
    */
-  readonly facade: Pick<HubFacade, 'claim' | 'claimStatus' | 'onlinePresence' | 'fanMarks'>;
+  readonly facade: Pick<HubFacade, 'claim' | 'claimStatus' | 'onlinePresence' | 'fanMarks' | 'otherPages'>;
   /**
    * A facade call as the core's services take it: the facade's own reading of a failure goes with it, and a
    * refusal of the hub layer itself (a flag off, a page not granted…) becomes a failure with its own code.

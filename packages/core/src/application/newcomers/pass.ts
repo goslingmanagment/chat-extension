@@ -49,6 +49,7 @@ import {
   type TargetHandle,
   type UiAction,
   type VmView,
+  type OtherPageVM,
 } from '@cg/contracts/vm';
 
 import { filterLeavesTodo, historyReadable, placePassPage, prependHistory, writable } from '../../domain/newcomers/pass';
@@ -62,6 +63,7 @@ import { ViewCell, done, refused } from '../boards/surface';
 import { dataView, failureView, loadingView, localError, msg, reason, stamp } from '../boards/views';
 import { type GreetChat, type GreetedChat, type GreetHereState, type NewcomersController } from './controller';
 import { createFanBadgeStore, type FanBadgesRead } from '../boards/badges';
+import { createOtherPagesStore, type OtherPagesRead } from '../boards/other-pages';
 import { batchDispatch, createBatch, isBatchAction } from '../boards/batch';
 import { createCardGreeting, type PassGreetingDeps } from './greeting';
 import { type NewcomersPassSource, type PassChange, type PassCounts, type PassQuery, type PassRow, type PassState } from './source';
@@ -97,6 +99,8 @@ export interface PassNewcomersDeps {
   };
   /** 2026-10-28: the new followers' badges (boards/badges.ts); absent — none. */
   readonly badges?: FanBadgesRead;
+  /** 2026-11-02: the other-pages mark of the new followers (boards/other-pages.ts); absent: none. */
+  readonly otherPages?: OtherPagesRead;
 }
 
 /** 2026-10-29: the greeting a reminder's «Hi» writes for its one fan in the toast (`greetHere`). */
@@ -212,7 +216,12 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     const known = badges.get(fanRef);
     return known === null ? {} : { badges: known };
   };
+  const otherPagesOfFan = (fanRef: string): { readonly otherPages?: readonly OtherPageVM[] } => {
+    const known = otherPages.get(fanRef);
+    return known === undefined ? {} : { otherPages: known };
+  };
   const badges = createFanBadgeStore({ read: deps.badges ?? null, clock, onChange: () => { if (!disposed) cell.invalidate(); } });
+  const otherPages = createOtherPagesStore({ read: deps.otherPages ?? null, clock, onChange: () => { if (!disposed) cell.invalidate(); } });
   const greetingSource = source.greeting;
   const card = deps.greeting === undefined || greetingSource === undefined ? null : createCardGreeting({ greeting: deps.greeting, source: greetingSource, i18n, clock, context, surfaces, changed });
   /** 2026-10-29: the reminders' greetings by fan, and who hears them change (the toast). */
@@ -982,13 +991,18 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
               check: { status: row.check, customName: row.customName, dmClosed: row.dmClosed },
               avatarUrl: row.avatarUrl ?? null,
               ...badgeOf(row.fanRef),
+              ...otherPagesOfFan(row.fanRef),
               ...(inBatch === null ? {} : { batch: inBatch }),
               // Only a draft the batch made is read and sent from the list.
               ...(inBatch?.state === 'ready' ? { send: sendOf(passId, row) } : {}),
             };
           });
 
-    if (ctx.binding !== null && rows.length > 0) badges.want(ctx.binding.pageId, ctx.binding.platformAccountId, rows.map((row) => row.fanRef));
+    if (ctx.binding !== null && rows.length > 0) {
+      const shown = rows.map((row) => row.fanRef);
+      badges.want(ctx.binding.pageId, ctx.binding.platformAccountId, shown);
+      otherPages.want(ctx.binding.pageId, ctx.binding.platformAccountId, shown);
+    }
 
     let view: VmView;
     const blocked = contextView(ctx);
@@ -1263,6 +1277,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
         letGo(true);
         forgetSolos();
         badges.reset();
+        otherPages.reset();
         changed();
         if (open()) void start();
         return;
@@ -1315,6 +1330,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       disposed = true;
       batch.dispose();
       badges.dispose();
+      otherPages.dispose();
       card?.dispose();
       soloCard?.dispose();
       solos.clear();

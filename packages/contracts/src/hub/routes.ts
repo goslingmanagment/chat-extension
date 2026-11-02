@@ -79,6 +79,8 @@ export const HUB_ROUTES = {
   clientFanFactChange: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
   /** The fan's warning marks: the agency's «💩 Бомж» lists on any of its Fansly pages, FANSLY BLOCKLIST's posts. No owner switch. */
   clientFanMarks: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-marks-v1'], narrowToken: true },
+  /** The other pages of fans of a list the client made itself (Fansly's «Новые»). A read, a POST only for the size of the list. No owner switch. */
+  clientOtherPages: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['other-pages-v1'], narrowToken: true },
   /** Chat Memory week 3: «Очередь» — the shift handoff. No owner switch. */
   /** «Онлайн»: the page's fans seen online, why to write now and with what (hub #879). */
   clientOnline: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },

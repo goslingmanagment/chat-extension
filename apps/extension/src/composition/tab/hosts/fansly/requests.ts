@@ -8,6 +8,7 @@
 
 import type { CgErrorWire } from '@cg/contracts/errors';
 import type { FanBadges, FbuddyState } from '@cg/contracts/fan-badges';
+import type { OtherPageVM } from '@cg/contracts/vm';
 import {
   parseFanslyTabPayload,
   type FanslyTabEventPayload,
@@ -57,5 +58,14 @@ export function fanBadgesRead(rpc: FanslyRpc) {
     const answer = await fanslyRequest(rpc, 'fansly.fans.badges', { pageId, hostAccountId: account, fanRefs: [...fanRefs] }, FAN_BADGES_TIMEOUT_MS);
     if (!answer.ok || !answer.payload.ok) return null;
     return { fans: new Map(answer.payload.fans.map(({ fanRef, ...badges }) => [fanRef, badges])), fbuddy: answer.payload.fbuddy };
+  };
+}
+
+/** The other pages of the shown fans of «Новые» (`fansly.otherPages.read`). A fan absent has none; null: not read. */
+export function otherPagesRead(rpc: FanslyRpc) {
+  return async (pageId: number, account: string, fanRefs: readonly string[]): Promise<ReadonlyMap<string, readonly OtherPageVM[]> | null> => {
+    const answer = await fanslyRequest(rpc, 'fansly.otherPages.read', { pageId, hostAccountId: account, fanRefs: [...fanRefs] }, FAN_BADGES_TIMEOUT_MS);
+    if (!answer.ok || !answer.payload.ok) return null;
+    return new Map(answer.payload.fans.map(({ fanRef, otherPages }) => [fanRef, otherPages]));
   };
 }

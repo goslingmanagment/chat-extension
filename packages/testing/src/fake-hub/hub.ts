@@ -68,6 +68,7 @@ import {
   type OnlineTemplate,
   type FanCardQuery,
   type FanMarksQuery,
+  type OtherPagesRequest,
   type FanFactChangeRequest,
   type FanLinkDecideRequest,
   type PersonaCatalogItem,
@@ -493,6 +494,9 @@ export class FakeHub {
       case 'spenderFans':
         s.data.useSpenderFans(command.fans);
         return { ok: true, fans: command.fans.length };
+      case 'otherPages':
+        s.data.useOtherPages(command.fans);
+        return { ok: true, fans: Object.keys(command.fans).length };
       case 'noteWrite': {
         this.page(command.pageLabel);
         s.data.seedNoteAttribution({ pageLabel: command.pageLabel, userId: 9_000, name: command.login, source: 'seeded', eventId: crypto.randomUUID(), fanRef: command.fanRef, noteRef: command.noteRef, noteKind: 'note', action: command.action, observedAt: command.at });
@@ -1236,6 +1240,8 @@ export class FakeHub {
         return { kind: 'json', status: 200, body: s.data.fanCard(need(page), (request as FanCardQuery).fanRef, now) };
       case 'clientFanMarks':
         return { kind: 'json', status: 200, body: fakeFanMarks(need(page), request as FanMarksQuery, now) };
+      case 'clientOtherPages':
+        return { kind: 'json', status: 200, body: s.data.otherPagesOf(need(page), (request as OtherPagesRequest).fanRefs) };
       case 'clientFanLinkDecide':
         return read(s.data.fanLinkDecide(need(page), request as FanLinkDecideRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
       case 'clientFanFactChange':
