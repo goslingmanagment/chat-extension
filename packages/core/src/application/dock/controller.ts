@@ -414,6 +414,7 @@ export function createDockController(ws: AiWorkspace): DockController {
         splitHotkey: catalog.entry('split').hotkey,
       },
       actions: actionVms,
+      queue: ws.ports.queues?.strip?.() ?? null,
       // The bar's chips as data: what has a chip on this site, in the manifest's order (`dockChips`, domain/features/admission.ts).
       chips: dockChips(ws.ports.features, actionVms, handle, (action) => catalog.entry(action).hotkey, panels(situation, handle, sheet), { ...ONLINE_CHIP(ws.ports.online?.count() ?? null), ...QUEUES_CHIP(ws.ports.queues?.count() ?? null) }),
       result,
@@ -654,6 +655,10 @@ export function createDockController(ws: AiWorkspace): DockController {
         return savePreference(action, { onboarding: { keysFooter: { shown, dismissed: action.value } } });
       }
       return null;
+    },
+    DismissQueueNudge(action) {
+      ws.ports.queues?.dismissNudge?.();
+      return Promise.resolve(done(action.type));
     },
     ReloadView(action) {
       if (action.selector.of !== 'dock') return null;

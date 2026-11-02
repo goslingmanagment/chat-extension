@@ -60,6 +60,7 @@ export const STORAGE_KEY_BUDGETS: Readonly<Record<string, number>> = {
   [STORAGE_KEYS.newcomersDrafts]: STORAGE_LIMITS.previewDraftsTotalBytes,
   /** «Рассылки»: up to 20 outreaches a page within 2 MiB (domain/outreach/saved.ts fits them), and room for the JSON. */
   [STORAGE_KEYS.outreachSaved]: 2 * MiB + 256 * KiB,
+  [STORAGE_KEYS.queuesNudges]: 16 * KiB,
   /** 500 models × 16 ids of up to 30 digits, plus canonical keys and JSON. */
   [LOCAL_KEYS.soundAccounts]: 320 * KiB,
   /** No text: at most 200 registrations of a few hundred bytes. */

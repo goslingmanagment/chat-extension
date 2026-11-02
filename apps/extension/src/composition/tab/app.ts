@@ -91,6 +91,8 @@ export interface TabAppEnv<P extends HostPort = HostPort> {
   readonly drafts: DraftStore | null;
   /** `outreach.saved` of storage.local («Рассылки»); absent or null — an outreach lives until the tab reloads. */
   readonly outreachSaved?: OutreachSavedStore | null;
+  /** `queues.nudges` of storage.local (the strip's reminder); absent or null — until the tab reloads. */
+  readonly queuesNudges?: OutreachSavedStore | null;
   /** Test builds only. */
   readonly probe: TabProbe | null;
 }
@@ -349,8 +351,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     action.type === 'GreetNewcomer' ||
     // «Онлайн» opens by its own action (the bar's chip).
     (action.type === 'SetOnline' && action.open === true) ||
-    // «Очереди» too (the bar's chip, ⌘K).
-    (action.type === 'SetQueues' && action.open === true) ||
+    // «Очереди» too (the bar's chip, ⌘K, the strip's reminder).
+    (action.type === 'SetQueues' && (action.open === true || action.walk === 'start')) ||
     (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface));
   /** What a board could not say itself (it has closed, or its row keeps nothing of it): a toast with the code. */
   const say = (code: CgCode, scope: string, title: I18nKey | null): void => {
@@ -418,6 +420,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     logger,
     drafts: env.drafts,
     outreachSaved: env.outreachSaved ?? null,
+    queuesNudges: env.queuesNudges ?? null,
     files: { save: (file) => saveFile({ fileName: file.name, mime: file.mime, body: file.bytes }) },
     pins,
     ...(online === undefined ? {} : { online }),
@@ -822,6 +825,15 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     );
   }
 
+  // The queue in the chat (2026-11-02): the person holds a portion with no window open — the boards start for its strip
+  // now, not at the first board they open.
+  offs.push(
+    ai.queues.subscribe(() => {
+      const held = ai.queues.list()?.queues.some((queue) => queue.status === 'active' && queue.leasedToMe > 0) === true;
+      if (held && !disposed) void ensureBoards().catch(() => undefined);
+    }),
+  );
+
   // ── stage two: Recap, Coach (and its Review) — then the keys ───────────────
   stageTwo = Promise.all([env.lazy<typeof AnalysisChunk>('ai-analysis'), env.lazy<typeof CoachChunk>('ai-coach')])
     .then(([analysis, coach]) => {
@@ -877,6 +889,7 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
         startBoards(world, chunk, preview, facts, {
           bind: (results) => ai.workspace.bindBoards(results),
           talking: navigation.talking,
+          queuesCount: ai.queues,
           // §6.5: the chat is open — its dock goes on with the result. What the dock could not take is said aloud.
           handover(handover) {
             void ai.workspace.adoptBoardResult(handover).then(

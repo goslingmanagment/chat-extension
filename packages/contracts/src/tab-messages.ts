@@ -670,7 +670,7 @@ export const TAB_REQUESTS = {
   'queues.list': { req: z.strictObject({ pageId: HubIntIdSchema }), res: FanQueuesSchema, from: TAB },
   /** A portion of a queue (hub `clientFanQueueTake`): up to 10 fans, each re-checked by the hub. Nothing is sent. */
   'queues.take': {
-    req: z.strictObject({ pageId: HubIntIdSchema, queueId: HubIntIdSchema, count: z.int().check(z.gte(1), z.lte(FAN_QUEUE_PORTION_MAX)), more: z.boolean() }),
+    req: z.strictObject({ pageId: HubIntIdSchema, queueId: HubIntIdSchema, count: z.int().check(z.gte(0), z.lte(FAN_QUEUE_PORTION_MAX)), more: z.boolean() }),
     res: FanQueueTakeSchema,
     from: TAB,
   },

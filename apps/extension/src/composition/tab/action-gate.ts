@@ -197,6 +197,8 @@ export const GRANTED_KINDS: Readonly<Partial<Record<UiAction['type'], readonly A
   OpenAndInsertPart: ['navigate'],
   OpenChatToVerify: ['navigate'],
   Navigate: ['navigate'],
+  // 2026-11-02: «Начать →» of the queues' reminder opens the queue's first fan's chat by this click.
+  SetQueues: ['navigate'],
   SendPart: ['send'],
   // The person's own text from a preview's draft field (audit 2026-10-20, row 1): a send by this click.
   SendDraft: ['send'],

@@ -1038,6 +1038,8 @@ export declare const fanQueueRouteSchemas: {
                     templateId: import("zod").ZodNullable<import("zod").ZodString>;
                     answeredAt: import("zod").ZodString;
                     answerText: import("zod").ZodNullable<import("zod").ZodString>;
+                    lifetimeGrossMills: import("zod").ZodNumber;
+                    last30dGrossMills: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
                 templates: import("zod").ZodArray<import("zod").ZodObject<{
                     id: import("zod").ZodString;
@@ -1151,6 +1153,16 @@ export declare const fanQueueRouteSchemas: {
                 }, import("zod/v4/core").$strip>;
                 pending: import("zod").ZodNumber;
                 dropped: import("zod").ZodNumber;
+                left: import("zod").ZodArray<import("zod").ZodObject<{
+                    itemId: import("zod").ZodNumber;
+                    fanRef: import("zod").ZodString;
+                    reason: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                results: import("zod").ZodObject<{
+                    sent: import("zod").ZodNumber;
+                    answered: import("zod").ZodNumber;
+                    spentMills: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
         };

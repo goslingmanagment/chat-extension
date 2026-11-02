@@ -12,18 +12,19 @@
 // «Не предлагать».
 
 import { Fragment, type JSX } from 'preact';
-import { useRef, useState } from 'preact/hooks';
+import { useRef } from 'preact/hooks';
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
-import { type I18n, type Msg, type OnlineCardVM, type OnlineChoice, type PartVM, type PreviewVM, type QueueSkipReason } from '@cg/contracts/vm';
+import { type I18n, type Msg, type OnlineCardVM, type OnlineChoice, type PartVM, type PreviewVM } from '@cg/contracts/vm';
 
-import { chatClick, Button, Dot, FanBadge, GooseMark, Icon, Menu, MenuAnchor, Spinner, StripButton, TextField, menuTriggerKeys, useDispatch, useHints, useI18n, useTooltip } from '../kit';
+import { chatClick, Button, Dot, FanBadge, GooseMark, Icon, Spinner, StripButton, TextField, useDispatch, useHints, useI18n, useTooltip } from '../kit';
 import { Feed } from '../spenders/preview/Feed';
 import { priceText } from '../spenders/preview/MediaPicker';
 import { SEGMENT_LETTERS, ToneCapsule, reasonText, stripKeys } from '../spenders/preview/MiniStrip';
 import { useOwnEchoes } from '../spenders/ownEchoes';
 import { offersOpenInsert, openAndInsert } from '../spenders/preview/SendRow';
 import { blockedReason } from '../outreach/rows';
+import { QueueSkip } from '../queues/skip';
 import { OnlineAvatar } from './rows';
 import { actWord, asideText, firstName, seenLong, timeLeft } from './words';
 import { touchedText } from '../outreach/words';
@@ -44,7 +45,7 @@ function codeTail(i18n: I18n, code: string): string {
 function Head({ card, preview }: { readonly card: OnlineCardVM; readonly preview: PreviewVM }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const money = [card.username === null ? null : `@${card.username}`, card.lifetime !== null ? i18n.formatMoneyMills(card.lifetime) : card.moneyUnknown === true ? null : i18n.t('online.row.notPaid')].filter((part): part is string => part !== null);
+  const money = [card.username === null ? null : `@${card.username}`, card.lifetime !== null ? i18n.formatMoneyMills(card.lifetime) : i18n.t('online.row.notPaid')].filter((part): part is string => part !== null);
   const subscribed = card.subscription?.startedAt ?? null;
   return (
     <header class="cg-nc__head">
@@ -281,56 +282,11 @@ function Calm({ card, preview }: { readonly card: OnlineCardVM; readonly preview
   );
 }
 
-/**
- * «Пропустить ▾» of a fan of «Очереди»: «Не подходит», «Позже», «Уже общаемся», «Не предлагать», each with what it
- * does. One report to the hub (`SkipQueue`); a fan who answered has none (he is no longer in the portion).
- */
-function QueueSkip({ card, busy }: { readonly card: OnlineCardVM; readonly busy: boolean }): JSX.Element | null {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement>(null);
-  const skips = card.queue?.skips ?? [];
-  if (skips.length === 0) return null;
-  return (
-    <MenuAnchor>
-      <Button
-        label={i18n.t('queues.skip')}
-        variant="quiet"
-        size="sm"
-        haspopup="menu"
-        expanded={open}
-        buttonRef={button}
-        trailing={<Icon name="chevronDown" size={12} />}
-        reason={busy ? i18n.t('outreach.card.going') : null}
-        onClick={() => setOpen((value) => !value)}
-        onKeyDown={(event) => {
-          if (!open) menuTriggerKeys(event, () => setOpen(true));
-        }}
-      />
-      <Menu
-        open={open}
-        kind="action"
-        label={i18n.t('queues.skip')}
-        items={skips.map((reason) => ({ id: reason, label: i18n.t(`queues.skip.${reason}`), note: i18n.t(`queues.skip.hint.${reason}`) }))}
-        align="end"
-        placement="top"
-        onSelect={(id) => {
-          setOpen(false);
-          void dispatch({ type: 'SkipQueue', targetHandle: card.handle, reason: id as QueueSkipReason });
-        }}
-        onClose={() => setOpen(false)}
-        returnFocusTo={() => button.current}
-      />
-    </MenuAnchor>
-  );
-}
-
 /** «Пропустить» and «Не предлагать» of the card, beside its main button; a queue's fan has «Пропустить ▾» instead. */
 function PassButtons({ card, busy }: { readonly card: OnlineCardVM; readonly busy: boolean }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  if (card.queue !== undefined) return <QueueSkip card={card} busy={busy} />;
+  if (card.queue !== undefined) return <QueueSkip handle={card.handle} skips={card.queue.skips} busy={busy ? i18n.t('outreach.card.going') : null} />;
   return (
     <>
       <Button label={i18n.t('online.card.skip')} variant="quiet" size="sm" trailing={<kbd>S</kbd>} tooltip={i18n.t('online.card.skipTooltip')} reason={busy ? i18n.t('outreach.card.going') : null} onClick={() => void dispatch({ type: 'SkipOnline', targetHandle: card.handle, skip: true })} />
@@ -380,7 +336,7 @@ function Strip({ card, preview }: { readonly card: OnlineCardVM; readonly previe
       </span>
       <div class="cg-pvb__acts">
         {chips.flatMap((choice, index) => {
-          const act = actWord(i18n, choice.act);
+          const act = choice.act === 'template' && card.queue?.ownText === true ? i18n.t('queues.card.ownText') : actWord(i18n, choice.act);
           const busy = writing && choice.current;
           const reason = busy ? null : writing ? i18n.t('online.row.writing', { act: actWord(i18n, card.act) }) : heldOf(i18n, card, preview, choice.act);
           const tooltip = choice.current ? i18n.t('online.pick.again', { act }) : choice.act === 'template' ? i18n.t('online.pick.template') : i18n.t('online.pick.tooltip', { act });

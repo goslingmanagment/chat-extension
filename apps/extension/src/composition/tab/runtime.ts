@@ -142,6 +142,17 @@ export function outreachSavedOf(api: BrowserApi = defaultBrowser()): { load(): P
   };
 }
 
+/** `queues.nudges` (contracts STORAGE_KEYS), spelled out for the early bundle as the drafts' key is. */
+export const QUEUES_NUDGES_KEY = 'queues.nudges';
+
+/** The strip's reminder (2026-11-02): by page, the Moscow day it was seen off. One key of storage.local, read when the dock starts. */
+export function queuesNudgesOf(api: BrowserApi = defaultBrowser()): { load(): Promise<unknown>; save(value: unknown): Promise<void> } {
+  return {
+    load: async () => (await api.storage.local.get(QUEUES_NUDGES_KEY))[QUEUES_NUDGES_KEY],
+    save: (value) => api.storage.local.set({ [QUEUES_NUDGES_KEY]: value }),
+  };
+}
+
 const isAck = (value: unknown): value is { recorded: boolean } =>
   typeof value === 'object' && value !== null && Object.keys(value).length === 1 && typeof (value as { recorded?: unknown }).recorded === 'boolean';
 
@@ -340,6 +351,7 @@ export function startTabRuntime(env: TabRuntimeEnv): TabRuntime {
         lazy: env.lazy,
         drafts: draftStoreOf(env.api, win),
         outreachSaved: outreachSavedOf(env.api),
+        queuesNudges: queuesNudgesOf(env.api),
         ownOrigin: extensionUrl('').replace(/\/$/, ''),
         extensionVersion: extensionVersionOf(env.api),
         contractsVersion: CONTRACTS_VERSION,

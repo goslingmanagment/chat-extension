@@ -15,6 +15,7 @@ import { type DockVM } from '@cg/contracts/vm';
 import { Hints, TalkingNotice, useKit, useResultCap, useView, windowOf } from '../kit';
 import { DEFAULT_PARTS } from './lazy';
 import { type DockParts } from './lazy-part';
+import { QueueStrip } from './QueueStrip';
 import { Sheet } from './Sheet';
 import { useSteadyView } from './Stream';
 import { Strip } from './Strip';
@@ -67,6 +68,8 @@ export function DockView({ parts }: DockViewProps): JSX.Element | null {
         <Strip vm={vm} onRefused={() => setHidden(null)} />
         {/* Chat Memory week 1: another chatter is talking to this fan — a notice, never a block («Понятно» hides it). */}
         <TalkingNotice handle={vm.targetHandle} />
+        {/* 2026-11-02: the queue goes with the person from chat to chat; nothing moves but by a click. */}
+        <QueueStrip vm={vm.queue} />
         <Sheet vm={vm} view={view} parts={all} refusalHidden={hidden !== null && hidden === refusal} onHideRefusal={() => setHidden(refusal)} />
       </div>
     </Hints>

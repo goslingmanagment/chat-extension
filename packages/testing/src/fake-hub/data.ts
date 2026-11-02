@@ -1226,6 +1226,8 @@ export class DataModel {
       const known = this.attributions.get(key);
       if (known === undefined) {
         this.attributions.set(key, { pageLabel: page.pageLabel, userId, source: request.source, ...fact });
+        // As the hub's: a person's own send to a fan of a queue they work is the queue's work.
+        this.queuesModel.sentFromChat(page, userId, fact.fanRef, fact.composedWith, now);
         return { platformMessageId: fact.platformMessageId, outcome: 'recorded' };
       }
       return { platformMessageId: fact.platformMessageId, outcome: known.userId === userId && known.fanRef === fact.fanRef && known.conversationRef === fact.conversationRef ? 'duplicate' : 'conflict' };

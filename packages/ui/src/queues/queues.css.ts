@@ -52,6 +52,11 @@ ${/* The list and its foot. */ ''}
 .qu-day__rest { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cg-ink-muted); }
 .qu-hint { flex: 1; min-width: 0; color: var(--cg-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qu .qu-all { flex: none; }
+.qu .qu-start { flex: none; }
+.qu-hint.is-keys { font-size: var(--cg-text-2xs); }
+.qu-results { color: var(--cg-ink-2); font-size: var(--cg-text-xs); }
+${/* Who the hub took out of the portion, and why: under the list, in the quiet colour. */ ''}
+.qu-gone__line { padding: 2px 12px; color: var(--cg-ink-muted); font-size: var(--cg-text-xs); }
 .qu-me { color: var(--cg-ink-muted); }
 `;
 

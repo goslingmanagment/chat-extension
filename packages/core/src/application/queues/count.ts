@@ -5,6 +5,7 @@
 // number out until the next one.
 
 import { type FanQueues } from '@cg/contracts/hub';
+import { type QueueNudgeVM, type QueueStripVM, type QueueWalkVM } from '@cg/contracts/vm';
 
 /** The chip's number is read again this often while the tab is on screen. */
 export const QUEUES_COUNT_POLL_MS = 60_000;
@@ -22,6 +23,8 @@ export interface QueuesCountDeps {
   readonly page: () => QueuesCountPage | null;
   /** One read of the hub's list; null — it failed. */
   readonly read: (page: QueuesCountPage) => Promise<FanQueues | null>;
+  /** Which pages' reminder the person has seen off, and on which Moscow day (storage.local). Absent — until the tab reloads. */
+  readonly nudges?: { load(): Promise<unknown>; save(value: unknown): Promise<void> };
 }
 
 /** What the chip shows: the queues with work today, and the fans who answered a message from a queue. */
@@ -40,6 +43,11 @@ export interface QueuesCount {
   subscribe(listener: () => void): () => void;
   /** The open chat's page may have changed: read it soon. */
   touch(): void;
+  /** The strip over the dock: the portion the person walks (the boards tell it), else the day's reminder; null — nothing. */
+  strip(): QueueStripVM | null;
+  setWalk(walk: QueueWalkVM | null): void;
+  /** «Не сегодня» of the reminder. */
+  dismissNudge(): void;
   dispose(): void;
 }
 
@@ -53,6 +61,18 @@ export function tallyOf(list: FanQueues): QueuesTally {
   return { work, answered: list.answered.length, queues: list.queues.length };
 }
 
+/** The Moscow day of a moment: the hub counts a day's work by it. */
+export function moscowDay(at: string): string {
+  const date = new Date(at);
+  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(date);
+}
+
+/** A queue worth a reminder: it has fans for the person, and they have not touched it today. */
+export function nudgeOf(list: FanQueues): QueueNudgeVM | null {
+  const queue = list.queues.find((one) => one.status === 'active' && one.today.mine === 0 && one.leasedToMe === 0 && one.pending > 0);
+  return queue === undefined ? null : { kind: 'nudge', queueId: queue.queueId, name: queue.name, waiting: queue.pending, batch: queue.scenario.action === 'template' && queue.scenario.sendMode === 'batch' };
+}
+
 export function createQueuesCount(deps: QueuesCountDeps): QueuesCount {
   const { clock } = deps;
   const listeners = new Set<() => void>();
@@ -62,6 +82,30 @@ export function createQueuesCount(deps: QueuesCountDeps): QueuesCount {
   let timer: unknown = null;
   let reads = 0;
   let disposed = false;
+  let walk: QueueWalkVM | null = null;
+  /** By page: the Moscow day the person last saw the reminder off (or started a walk). */
+  const seenOff = new Map<string, string>();
+  const loaded = deps.nudges === undefined ? Promise.resolve() : deps.nudges.load().then(
+    (raw) => {
+      if (raw === null || typeof raw !== 'object') return;
+      for (const [page, day] of Object.entries(raw as Record<string, unknown>)) if (typeof day === 'string') seenOff.set(page, day);
+    },
+    () => undefined,
+  );
+  let loadedYet = deps.nudges === undefined;
+
+  const tell = (): void => {
+    for (const listener of [...listeners]) listener();
+  };
+
+  function seeOff(): void {
+    if (last === null || of === null) return;
+    const day = moscowDay(last.serverNow);
+    if (seenOff.get(String(of)) === day) return;
+    seenOff.set(String(of), day);
+    // One mark per page: a new day writes over the last.
+    void deps.nudges?.save(Object.fromEntries(seenOff)).catch(() => undefined);
+  }
 
   /** A new list tells the listeners too: the palette's group shows each queue's day. */
   const set = (next: QueuesTally | null, list: FanQueues | null = null): void => {
@@ -69,7 +113,7 @@ export function createQueuesCount(deps: QueuesCountDeps): QueuesCount {
     if (same && list === last) return;
     value = next;
     last = list;
-    for (const listener of [...listeners]) listener();
+    tell();
   };
 
   function schedule(ms: number): void {
@@ -104,6 +148,10 @@ export function createQueuesCount(deps: QueuesCountDeps): QueuesCount {
   }
 
   schedule(QUEUES_COUNT_FIRST_MS);
+  void loaded.then(() => {
+    loadedYet = true;
+    if (!disposed && last !== null) tell();
+  });
 
   return {
     count: () => value,
@@ -117,6 +165,22 @@ export function createQueuesCount(deps: QueuesCountDeps): QueuesCount {
     touch() {
       const page = deps.page();
       if (!disposed && page !== null && page.pageId !== of) schedule(QUEUES_COUNT_FIRST_MS);
+    },
+    strip() {
+      if (walk !== null) return walk;
+      if (last === null || of === null || !loadedYet || seenOff.get(String(of)) === moscowDay(last.serverNow)) return null;
+      return nudgeOf(last);
+    },
+    setWalk(next) {
+      const started = walk === null && next !== null;
+      walk = next;
+      // A walk counts as the day's start: the reminder does not come back after it.
+      if (started) seeOff();
+      tell();
+    },
+    dismissNudge() {
+      seeOff();
+      tell();
     },
     dispose() {
       disposed = true;

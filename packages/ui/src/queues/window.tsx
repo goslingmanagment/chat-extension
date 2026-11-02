@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 
 import { type I18n, type OnlineRowVM, type QueueChipVM, type QueueEndVM, type QueueHowVM, type QueuesWindowVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, Icon, Spinner, ViewState, isComposing, useDispatch, useI18n, useMinuteClock, useTooltip, useView } from '../kit';
+import { Button, Icon, Spinner, ViewState, chatClick, isComposing, useDispatch, useI18n, useMinuteClock, useTooltip, useView } from '../kit';
 import { NewcomersFrame } from '../newcomers/frame';
 import { OnlineCard } from '../online/card';
 import { OnlineRow } from '../online/rows';
@@ -137,8 +137,24 @@ function Foot({ vm }: { readonly vm: QueuesWindowVM }): JSX.Element | null {
   if (day === null) return null;
   const batch = vm.batch;
   let action: JSX.Element;
-  if (batch === null) action = <div class="cg-nw__bline is-hint">{i18n.t('queues.foot.keys')}</div>;
-  else if (batch.running !== null) {
+  if (batch === null) {
+    const start = vm.start;
+    action = (
+      <div class="cg-nw__bline" data-cg-queue-start={start === null ? 'none' : 'ready'}>
+        <span class="qu-hint is-keys">{i18n.t('queues.foot.keys')}</span>
+        {start === null ? null : (
+          <Button
+            label={i18n.t('queues.foot.start')}
+            variant="line"
+            size="sm"
+            class="qu-start"
+            tooltip={i18n.t('queues.foot.startTooltip')}
+            onClick={(event) => void dispatch(chatClick({ type: 'Navigate', to: { kind: 'chat', targetHandle: start } }, event))}
+          />
+        )}
+      </div>
+    );
+  } else if (batch.running !== null) {
     action = (
       <div class="cg-nw__bline" data-cg-send="running">
         <span class="cg-nw__bst" role="status">
@@ -176,6 +192,13 @@ function Foot({ vm }: { readonly vm: QueuesWindowVM }): JSX.Element | null {
           {i18n.t('queues.foot.pending', { n: count(i18n, day.pending) })}
         </span>
       </div>
+      {vm.results === null || vm.results.sent === 0 ? null : (
+        <div class="cg-nw__bline qu-results" data-cg-queue-results="1">
+          {vm.results.spentMills > 0
+            ? i18n.t('queues.foot.resultsMoney', { sent: vm.results.sent, answered: vm.results.answered, money: i18n.formatMoneyMills(vm.results.spentMills) })
+            : i18n.t('queues.foot.results', { sent: vm.results.sent, answered: vm.results.answered })}
+        </div>
+      )}
       {action}
     </div>
   );
@@ -215,7 +238,6 @@ function EndPane({ end }: { readonly end: QueueEndVM | null }): JSX.Element {
         <>
           <h3>{i18n.t('queues.end.day.title', { mine: one.today, per: one.perPerson })}</h3>
           <p>{one.dailyLimit === null || one.room === null ? i18n.t('queues.end.day.noteOpen') : i18n.t('queues.end.day.note', { limit: one.dailyLimit, room: one.room })}</p>
-          <p>{i18n.t('queues.end.day.audit', { mine: one.today, per: one.perPerson })}</p>
           {one.room === 0 ? (
             <p>
               <b>{i18n.t('queues.end.day.full')}</b>
@@ -341,6 +363,21 @@ export function QueuesWindow(): JSX.Element {
       </div>
     );
   }
+  const goneList =
+    vm.gone.length === 0 ? null : (
+      <div class="qu-gone" data-cg-queue-group="gone">
+        <div class="cg-ow__group" role="presentation">
+          {i18n.t('queues.section.gone')}
+          <span class="cg-num">{vm.gone.length}</span>
+          <i />
+        </div>
+        {vm.gone.map((one) => (
+          <div class="qu-gone__line" key={`${one.name}|${one.reason}`}>
+            {i18n.t('queues.gone.line', { name: one.name, why: i18n.t(`queues.left.${one.reason}`) })}
+          </div>
+        ))}
+      </div>
+    );
   const list = blocked ? (
     <div class="cg-nw__state">
       <ViewState view={vm.view} />
@@ -360,6 +397,7 @@ export function QueuesWindow(): JSX.Element {
         </div>
       )}
       {portion}
+      {goneList}
     </div>
   );
 

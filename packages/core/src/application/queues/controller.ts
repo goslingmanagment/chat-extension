@@ -14,9 +14,16 @@
 // «Отправить всем» of a template queue (the owner's «2 да», 2026-10-29) goes through the portion one fan at a time,
 // each by the card's own send, a second apart and never faster than the hub's minute — the «Новые» batch's rules.
 // The day's portion is a target, never a block: «На сегодня всё» offers «Ещё 10».
+//
+// The queue in the chat (2026-11-02, the owner's «да»; the audit of the first queue, where 22 fans were written to from the
+// chats and none from the card): once the person opens a fan's chat from the queue, they walk the portion. The strip over
+// the dock (`QueueStripVM`, told through `deps.strip`) says who this fan is and why he is here, what a send came to, and
+// who is next; the next chat opens only by a click. A message that goes from the chat is seen here at once
+// (`deps.sentHere`) and counted by the hub from the send's own report, not from us. The portion is the hub's: its lease is
+// renewed while the person walks, and a reload picks the walk up from the list (`noticeList`).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
-import { type FanQueueAnswered, type FanQueueItem, type FanQueues, type FanQueueSentAct, type FanQueueSummary, type FanQueueTake, type OnlineTemplate, type SendAttributionComposedWith } from '@cg/contracts/hub';
+import { FAN_QUEUE_LEFT_REASONS, type FanQueueAnswered, type FanQueueItem, type FanQueueLeftReason, type FanQueues, type FanQueueSentAct, type FanQueueSummary, type FanQueueTake, type OnlineTemplate, type SendAttributionComposedWith } from '@cg/contracts/hub';
 import { CHAT_IS_FAN, FAN_QUEUES_CAPABILITY } from '@cg/contracts/ids';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
 import {
@@ -38,8 +45,10 @@ import {
   type QueueChipVM,
   type QueueEndVM,
   type QueueHowVM,
+  type QueueGoneVM,
   type QueueLineVM,
   type QueueSkipReason,
+  type QueueWalkVM,
   type QueuesWindowVM,
   type TargetHandle,
   type UiAction,
@@ -77,6 +86,12 @@ export const QUEUES_BATCH_STEP_MS = 20_000;
 const BATCH_LOOK_MS = 250;
 /** The hub counts a minute; a little room over it. */
 const MINUTE_MS = 61_000;
+/** The hub hears of a send from the chat by the send's own report (a few seconds later): the list is read again then. */
+export const QUEUES_SENT_READ_MS = 5_000;
+/** The hub's lease of a portion, a little under its 30 minutes: past it a renewal asks for the fans back. */
+const LEASE_LAPSES_MS = 29 * 60_000;
+/** A card's own send may be heard from the page too: a send this soon after its click is that one. */
+const CARD_SEND_MS = 60_000;
 /** One text at most (the preview's draft limit). */
 export const QUEUES_TEXT_MAX = 5_000;
 /** A start the person's click gave no token for: nothing was written, a click on the card writes it. */
@@ -95,6 +110,12 @@ export interface QueuesControllerDeps {
   readonly visible?: () => boolean;
   /** The fan whose chat is open on the page: the pass does not go there by itself. */
   readonly openChat?: () => string | null;
+  /** The open chat changed. Absent — the strip follows the next change of anything else. */
+  readonly routed?: (listener: () => void) => () => void;
+  /** A message went from this tab's chat, by the page's own send: the fan it went to. */
+  readonly sentHere?: (listener: (fanRef: string) => void) => () => void;
+  /** The strip over the dock, told when it changes; null — none. */
+  readonly strip?: (vm: QueueWalkVM | null) => void;
 }
 
 export interface QueuesController extends SurfaceController<'queues'> {
@@ -102,6 +123,8 @@ export interface QueuesController extends SurfaceController<'queues'> {
   readonly directory: PreviewDirectory;
   /** The preview, made after the lists: until then the window writes no texts. */
   attachBatch(port: BatchPreviewPort): void;
+  /** The bar's own read of the list: the person holds a portion with no window open (a reload, a chat opened from it) — the walk goes on. */
+  noticeList(next: FanQueues | null): void;
 }
 
 /** A send of the site's own channel (Fansly): where it stands. */
@@ -141,6 +164,8 @@ interface PassFan {
   own: OwnSend | null;
   ownText: string | null;
   sent: { readonly text: string; readonly act: OnlineAct; readonly templateId: string | null; readonly at: number; readonly opId: string | null } | null;
+  /** A message went to the fan from the chat itself (the hub counts it by the send's own report). */
+  chatAt: number | null;
   clickedAt: number | null;
   advanced: boolean;
   /** The hub heard of the send (`queues.done`), once. */
@@ -170,8 +195,6 @@ interface Facts {
 interface Known {
   readonly item: FanQueueItem;
   readonly answered: FanQueueAnswered | null;
-  /** Known only by the hub's list of answers: his money and his subscription are not known. */
-  readonly factless?: true;
 }
 
 /** «Отправить всем»'s run. */
@@ -231,8 +254,8 @@ function answeredItem(answer: FanQueueAnswered, known: FanQueueItem | undefined)
     displayName: answer.displayName,
     alias: answer.alias,
     greetingName: null,
-    lifetimeGrossMills: 0,
-    last30dGrossMills: 0,
+    lifetimeGrossMills: answer.lifetimeGrossMills,
+    last30dGrossMills: answer.last30dGrossMills,
     seenAt: null,
     onlineSince: null,
     seenSource: null,
@@ -284,6 +307,16 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   let portionDone = false;
   /** Sent and skipped in this portion. */
   let tally = { sent: 0, skipped: 0 };
+  /** The person walks the portion in the chats: the strip stands over the dock, the lease is renewed with the window closed. */
+  let walking = false;
+  /** Who left the portion since it was taken, by the hub's word. */
+  const gone = new Map<string, QueueGoneVM>();
+  let renewedAt: number | null = null;
+  let readTimer: number | null = null;
+  /** The bar's last list this looked at, and one that waits for the page's context. */
+  let seenList: FanQueues | null = null;
+  let noticed: FanQueues | null = null;
+  let stripSaid = 'null';
 
   // ── the person's moves ──
   let pending: string | null = null;
@@ -328,7 +361,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   const passOf = (fanRef: string): PassFan => {
     let fan = pass.get(fanRef);
     if (fan === undefined) {
-      fan = { skipped: null, skipping: false, template: null, chosen: null, textOp: null, making: false, edit: null, own: null, ownText: null, sent: null, clickedAt: null, advanced: false, reported: false, group: null, aiKey: null, manualFailedAt: null, clickAct: null };
+      fan = { skipped: null, skipping: false, template: null, chosen: null, textOp: null, making: false, edit: null, own: null, ownText: null, sent: null, chatAt: null, clickedAt: null, advanced: false, reported: false, group: null, aiKey: null, manualFailedAt: null, clickAct: null };
       pass.set(fanRef, fan);
     }
     return fan;
@@ -492,6 +525,8 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   function factsOf(fanRef: string, item: FanQueueItem): Facts {
     const handle = handleOf(fanRef);
     const fan = pass.get(fanRef);
+    // It went from the chat: nothing of it is the card's (the conversation shows it).
+    if (fan !== undefined && fan.chatAt !== null && !answeredNow(fanRef)) return { ...NONE, state: 'sent', sentAt: iso(fan.chatAt) };
     const how = howOf(fanRef, item);
     const again = answeredNow(fanRef) && fan?.sent !== null && fan?.sent !== undefined;
     if (own === null) {
@@ -656,7 +691,6 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       arrived: false,
       replied: answer === null || !answeredNow(entry.fanRef) ? null : { at: answer.answeredAt, text: answer.answerText },
       code: facts.code,
-      ...(known.get(entry.fanRef)?.factless === true ? { moneyUnknown: true as const } : {}),
     };
   }
 
@@ -679,10 +713,13 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     const went = WENT.includes(facts.state) || MOVING.includes(facts.state);
     const advice = adviceOf(entry.fanRef, item);
     const hasTemplates = templatesOf(groupFor(item)).length > 0;
+    // A queue the person writes by themselves («Свой текст»): the guide's templates are not what it asked for, and Hi is for a first word.
+    const ownQueue = item.act === 'own';
+    const offered = (choice: OnlineChoice): boolean => (choice === 'template' ? hasTemplates && !ownQueue : choice === 'hi' ? !ownQueue || item.messageCount === 0 : true);
     const choices =
       batchPort === null || went || fan?.skipped !== null && fan?.skipped !== undefined
         ? []
-        : ONLINE_CHOICES.filter((choice) => choice !== 'template' || hasTemplates).map((choice) => ({ act: choice, suggested: choice === advice, current: choice === fan?.chosen && facts.state !== 'idle' }));
+        : ONLINE_CHOICES.filter(offered).map((choice) => ({ act: choice, suggested: choice === advice, current: choice === fan?.chosen && facts.state !== 'idle' }));
     const group = how.template?.group ?? null;
     // The queue's own message (group `q<queueId>`): «Сообщение очереди», its variant of the queue's texts.
     const ownTexts = how.template !== null && group !== null && group.startsWith('q') ? templatesOf(group) : null;
@@ -733,8 +770,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       dismiss: 'dismiss',
       noChat,
       next: next === null ? null : { handle: handleOf(next.fanRef), name: next.name },
-      queue: { skips: entry.answered ? [] : QUEUE_SKIP_REASONS, skipped: fan?.skipped ?? null },
-      ...(known.get(entry.fanRef)?.factless === true ? { moneyUnknown: true as const } : {}),
+      queue: { skips: entry.answered ? [] : QUEUE_SKIP_REASONS, skipped: fan?.skipped ?? null, ownText: item.act === 'template_q' },
     };
   }
 
@@ -790,12 +826,58 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     const stopped = take?.stopped ?? null;
     const day = queue.today;
     if (queue.perPerson !== null && day.mine >= queue.perPerson && (stopped === 'portion_done' || portionDone || entries.portion.length === 0)) {
-      const room = queue.dailyLimit === null ? null : Math.max(0, queue.dailyLimit - day.page);
+      // The page's limit brakes a batch; a queue written one by one goes on past the person's portion.
+      const room = queue.dailyLimit === null || !howOfQueue(queue).batch ? null : Math.max(0, queue.dailyLimit - day.page);
       return { kind: 'day', today: day.mine, perPerson: queue.perPerson, room, dailyLimit: queue.dailyLimit };
     }
     if (stopped === 'limit_reached') return { kind: 'limit', dailyLimit: queue.dailyLimit };
     if (entries.portion.length === 0 && (stopped === 'empty' || queue.pending === 0)) return { kind: 'empty' };
     return { kind: 'portion', sent: tally.sent, skipped: tally.skipped, today: day.mine, perPerson: queue.perPerson, page: day.page, dailyLimit: queue.dailyLimit, pending: queue.pending };
+  }
+
+  /** Who «Начать в чате» opens: the fan whose card is open, else the next one to do. */
+  function startOf(open: string | null, entries: { readonly answered: Entry[]; readonly portion: Entry[] }): TargetHandle | null {
+    const here = open === null ? undefined : all(entries).find((entry) => entry.fanRef === open && !entry.done);
+    const fanRef = here?.fanRef ?? nextTodo(null, entries);
+    return fanRef === null ? null : handleOf(fanRef);
+  }
+
+  /** The strip over the dock while the person walks the portion. */
+  function stripOf(): QueueWalkVM | null {
+    const queue = queueOf(chosen);
+    if (!walking || queue === null || queue.status !== 'active') return null;
+    const entries = entriesOf();
+    const here = deps.openChat?.() ?? null;
+    const entry = here === null ? undefined : all(entries).find((one) => one.fanRef === here);
+    const nextRef = nextTodo(here, entries);
+    const next = nextRef === null ? undefined : all(entries).find((one) => one.fanRef === nextRef);
+    const left = entries.portion.filter((one) => !one.done).length;
+    const stateOf = (one: Entry): NonNullable<QueueWalkVM['here']>['state'] => {
+      if (one.fan?.skipped !== null && one.fan?.skipped !== undefined) return 'skipped';
+      if (one.answered && answeredNow(one.fanRef)) return 'answered';
+      return one.done ? 'written' : 'todo';
+    };
+    const nobodyLeft = next === undefined && (entry === undefined || entry.done);
+    return {
+      kind: 'walk',
+      queueId: queue.queueId,
+      name: queue.name,
+      goal: queue.goal,
+      left,
+      today: queue.today.mine,
+      here: entry === undefined ? null : { handle: handleOf(entry.fanRef), name: entry.name, why: entry.item.why, state: stateOf(entry), skips: entry.answered ? [] : QUEUE_SKIP_REASONS },
+      gone: here === null ? null : (gone.get(here) ?? null),
+      next: next === undefined ? null : { handle: handleOf(next.fanRef), name: next.name, answered: next.answered },
+      end: nobodyLeft && left === 0 ? { written: tally.sent, skipped: tally.skipped, more: queue.pending > 0 } : null,
+    };
+  }
+
+  function sayStrip(): void {
+    const vm = stripOf();
+    const said = JSON.stringify(vm);
+    if (said === stripSaid) return;
+    stripSaid = said;
+    deps.strip?.(vm);
   }
 
   function build(): QueuesWindowVM {
@@ -820,6 +902,9 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       taking,
       day: queue === null ? null : { mine: queue.today.mine, perPerson: queue.perPerson, page: queue.today.page, dailyLimit: queue.dailyLimit, pending: queue.pending },
       batch: batchOf(queue, entries),
+      start: queue === null || queue.status !== 'active' || howOfQueue(queue).batch ? null : startOf(open, entries),
+      results: take?.results ?? null,
+      gone: [...gone.values()],
       card,
       end: card === null ? endOf(queue, entries) : null,
     };
@@ -832,6 +917,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     if (!light) followSends();
     cell.invalidate();
     if (!light) for (const listener of [...directoryListeners]) listener();
+    sayStrip();
   }
 
   /** What went from here is told to the hub once (`queues.done`, never repeated); once the open card's text went the next card opens. */
@@ -950,10 +1036,12 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     }
     for (const answer of next.answered) {
       const before = seen.get(answer.fanRef);
-      fresh.set(answer.fanRef, { item: answeredItem(answer, before), answered: answer, ...(before === undefined ? { factless: true as const } : {}) });
+      fresh.set(answer.fanRef, { item: answeredItem(answer, before), answered: answer });
       // He waits for an answer again: Reply is advised (written by a click on his card), the old text is history.
       const fan = pass.get(answer.fanRef);
-      if (fan !== undefined && fan.sent !== null && fan.sent.at < (timeOf(answer.answeredAt) ?? 0) && fan.clickedAt !== null && fan.clickedAt < (timeOf(answer.answeredAt) ?? 0)) {
+      const answeredAt = timeOf(answer.answeredAt) ?? 0;
+      if (fan !== undefined && fan.sent !== null && fan.sent.at < answeredAt && ((fan.clickedAt !== null && fan.clickedAt < answeredAt) || (fan.chatAt !== null && fan.chatAt < answeredAt))) {
+        fan.chatAt = null;
         fan.chosen = null;
         fan.edit = null;
         fan.own = null;
@@ -969,14 +1057,14 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     known = fresh;
   }
 
-  /** The portion of a queue: the kept fans first, then the new ones; `more` — past the day's portion. */
-  async function takePortion(queueId: number, more: boolean, fresh: boolean): Promise<void> {
+  /** The portion of a queue: the kept fans first, then the new ones; `more` — past the day's portion; `count` 0 — only the kept ones. */
+  async function takePortion(queueId: number, more: boolean, fresh: boolean, count = QUEUES_PORTION): Promise<void> {
     const binding = context.current().binding;
     if (binding === null) return;
     const atEpoch = epoch;
     taking = true;
     changed(true);
-    const answer = await rpc.request('queues.take', { pageId: binding.pageId, queueId, count: QUEUES_PORTION, more }).catch(() => null);
+    const answer = await rpc.request('queues.take', { pageId: binding.pageId, queueId, count, more }).catch(() => null);
     taking = false;
     if (disposed || atEpoch !== epoch || chosen !== queueId) return;
     if (answer === null) takeError = { code: 'CG-RUNTIME-UNREACHABLE' };
@@ -991,12 +1079,21 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   /** A take's answer: a fresh portion replaces the done one; a renewal keeps what this portion did. */
   function portionFrom(next: FanQueueTake, fresh: boolean): void {
     take = next;
+    renewedAt = clock.now();
     if (fresh) {
       for (const fanRef of order) if (known.get(fanRef)?.answered === null) known.delete(fanRef);
       order = [];
       portionDone = false;
       tally = { sent: 0, skipped: 0 };
+      gone.clear();
     } else {
+      // The hub took them out of the portion: the person sees who and why, unless they wrote to him themselves.
+      for (const one of next.left) {
+        const fan = pass.get(one.fanRef);
+        const item = itemOf(one.fanRef);
+        if (item === undefined || fan?.chatAt !== null && fan?.chatAt !== undefined || fan?.clickedAt !== null && fan?.clickedAt !== undefined) continue;
+        gone.set(one.fanRef, { name: nameOf(item), reason: (FAN_QUEUE_LEFT_REASONS as readonly string[]).includes(one.reason) ? (one.reason as FanQueueLeftReason) : 'other' });
+      }
       // A fan the hub no longer holds for the person (the lease ran out while the tab was hidden, and someone else took
       // him): out of the portion, unless something was done to him here — his own card says what.
       const held = new Set(next.items.map((item) => item.fanRef));
@@ -1019,14 +1116,18 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     if (list !== null) list = { ...list, queues: list.queues.map((queue) => (queue.queueId === next.queueId ? { ...queue, today: next.today, pending: next.pending, leasedToMe: next.items.length } : queue)) };
   }
 
-  /** The lease of the portion renewed with each minute's read (nothing new is taken: only the fans in hand). */
+  /**
+   * The lease of the portion renewed with each minute's read (nothing new is taken: only the fans in hand), the hub
+   * re-checking each of them. A lease that ran out while the tab was hidden: the same number of fans are asked for back.
+   */
   async function renew(): Promise<void> {
     const queueId = chosen;
     const binding = context.current().binding;
     if (queueId === null || binding === null) return;
     const inHand = entriesOf().portion.filter((entry) => !entry.done).length;
     if (inHand === 0) return;
-    const answer = await rpc.request('queues.take', { pageId: binding.pageId, queueId, count: Math.min(QUEUES_PORTION, inHand), more: true }).catch(() => null);
+    const lapsed = renewedAt !== null && clock.now() - renewedAt > LEASE_LAPSES_MS;
+    const answer = await rpc.request('queues.take', { pageId: binding.pageId, queueId, count: lapsed ? Math.min(QUEUES_PORTION, inHand) : 0, more: true }).catch(() => null);
     if (disposed || chosen !== queueId || answer === null || !answer.ok) return;
     portionFrom(answer.payload, false);
     changed();
@@ -1036,7 +1137,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     if (pollTimer !== null) clock.clearTimer(pollTimer);
     pollTimer = clock.setTimer(QUEUES_POLL_MS, () => {
       pollTimer = null;
-      if (!surfaces.current().queues) return;
+      if (!surfaces.current().queues && !walking) return;
       if (visible()) void read();
       schedulePoll();
     });
@@ -1151,6 +1252,9 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   // ── actions ──
 
   function open(type: UiActionType): ActionReceipt {
+    // «Карточка» of the strip: the window opens on the fan whose chat is open.
+    const here = deps.openChat?.() ?? null;
+    if (walking && here !== null && known.has(here)) lastCard = here;
     surfaces.setList('queues', true);
     schedulePoll();
     startPending = true;
@@ -1174,12 +1278,107 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   function close(type: UiActionType): ActionReceipt {
     surfaces.setList('queues', false);
     if (run !== null) run.running = false;
+    // The person walks the portion in the chats: it stays theirs, the strip goes on.
+    if (!walking) release();
+    return done(type);
+  }
+
+  function release(): void {
     const binding = context.current().binding;
     if (binding !== null && chosen !== null && releasable()) {
       const queueId = chosen;
       void rpc.request('queues.release', { pageId: binding.pageId, queueId }).catch(() => undefined);
     }
+  }
+
+  // ── the queue in the chat ──
+
+  /** The strip's ×: the walk is over, who is not done goes back to the queue. */
+  function stopWalk(type: UiActionType): ActionReceipt {
+    if (!walking) return done(type, 'noop');
+    release();
+    walking = false;
+    if (!surfaces.current().queues && pollTimer !== null) {
+      clock.clearTimer(pollTimer);
+      pollTimer = null;
+    }
+    changed();
     return done(type);
+  }
+
+  /** «Начать» of the day's reminder: the queue's portion, and by this click its first fan's chat. */
+  async function startWalk(type: UiActionType, queueId: number): Promise<ActionReceipt> {
+    if (list === null) {
+      // The first read takes this queue's portion, not the first one with work.
+      chosen = queueId;
+      await read();
+    } else await choose(queueId, true);
+    if (queueOf(queueId) === null) return refused(type, localError('CG-DATA-NOT-READY', i18n));
+    const first = nextTodo(null, entriesOf());
+    if (first === null) {
+      changed();
+      return done(type, 'noop');
+    }
+    // A chat that does not open leaves the strip standing, its next fan a click away.
+    walking = true;
+    schedulePoll();
+    changed();
+    return openChat(type, first);
+  }
+
+  /** A message went from the chat on screen, by the page's own send. */
+  function sentInChat(fanRef: string): void {
+    if (disposed) return;
+    const entry = known.get(fanRef);
+    if (entry === undefined) return;
+    const fan = passOf(fanRef);
+    const now = clock.now();
+    if (fan.skipped !== null || (fan.clickedAt !== null && now - fan.clickedAt < CARD_SEND_MS)) return;
+    const first = fan.chatAt === null && entry.answered === null;
+    fan.chatAt = now;
+    fan.sent = { text: '', act: 'own', templateId: null, at: now, opId: null };
+    fan.reported = true;
+    fan.advanced = true;
+    if (first) {
+      tally = { ...tally, sent: tally.sent + 1 };
+      if (list !== null) list = { ...list, queues: list.queues.map((queue) => (queue.queueId === entry.item.queueId ? { ...queue, today: { mine: queue.today.mine + 1, page: queue.today.page + 1 } } : queue)) };
+    }
+    changed();
+    // The hub's count arrives with the send's own report.
+    if (readTimer !== null) clock.clearTimer(readTimer);
+    readTimer = clock.setTimer(QUEUES_SENT_READ_MS, () => {
+      readTimer = null;
+      if (surfaces.current().queues || walking) void read();
+    });
+  }
+
+  /** The bar read the list again. One list, one look: the strip's own changes tell the same list again, and a list read before a release is old news. */
+  function noticeList(next: FanQueues | null): void {
+    if (next === seenList) return;
+    seenList = next;
+    lookAt(next);
+  }
+
+  /** The person holds a portion and no window is open (a reload, a chat opened some other way): the walk goes on. */
+  function lookAt(next: FanQueues | null): void {
+    // The page's context may not be ready yet (a reload): the list waits for it.
+    if (!disposed && next !== null && !usable(context.current())) {
+      noticed = next;
+      return;
+    }
+    noticed = null;
+    if (disposed || walking || next === null || surfaces.current().queues) return;
+    const held = next.queues.find((queue) => queue.status === 'active' && queue.leasedToMe > 0);
+    if (held === undefined) return;
+    walking = true;
+    took(next);
+    chosen = held.queueId;
+    void takePortion(held.queueId, true, true, 0).then(() => {
+      // Nobody came back (the portion was given back meanwhile): nothing to walk.
+      if (order.length === 0) walking = false;
+      else schedulePoll();
+      changed();
+    });
   }
 
   function tryStart(): void {
@@ -1412,7 +1611,13 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     }
     const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['preview'], conversation);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
+    // The queue goes on in the chat: the strip over the dock, the lease renewed.
+    if (known.get(fanRef)?.answered === null) {
+      walking = true;
+      schedulePoll();
+    }
     surfaces.closeBoards();
+    changed();
     return done(type, 'opened');
   }
 
@@ -1544,6 +1749,8 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
   }
 
   function setQueues(action: Extract<UiAction, { type: 'SetQueues' }>): Promise<ActionReceipt> | ActionReceipt {
+    if (action.walk === 'stop') return stopWalk(action.type);
+    if (action.walk === 'start') return action.queue === undefined ? refused(action.type, localError('CG-DATA-NOT-READY', i18n)) : startWalk(action.type, action.queue);
     if (action.open === true) {
       // ⌘K's row of a queue: the window opens on it.
       if (action.queue !== undefined && action.queue !== chosen) void choose(action.queue, true);
@@ -1620,12 +1827,16 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     pending = null;
     startPending = false;
     lastCard = null;
+    walking = false;
+    gone.clear();
+    renewedAt = null;
     if (run !== null) run.running = false;
     run = null;
-    for (const timer of [settleTimer, advanceTimer, manualTimer]) if (timer !== null) clock.clearTimer(timer);
+    for (const timer of [settleTimer, advanceTimer, manualTimer, readTimer]) if (timer !== null) clock.clearTimer(timer);
     settleTimer = null;
     advanceTimer = null;
     manualTimer = null;
+    readTimer = null;
   }
 
   const offContext = context.subscribe((state) => {
@@ -1635,12 +1846,15 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       surfaces.setList('queues', false);
     } else if (surfaces.current().queues && list === null && usable(state)) void read();
     changed();
+    if (noticed !== null && usable(state)) lookAt(noticed);
   });
   const offSurfaces = surfaces.subscribe((state, previous) => {
     if (state.queues) lastCard = state.preview.queue === null ? lastCard : fanOf(state.preview.queue);
     if (!state.queues && previous.queues) {
-      if (pollTimer !== null) clock.clearTimer(pollTimer);
-      pollTimer = null;
+      if (pollTimer !== null && !walking) {
+        clock.clearTimer(pollTimer);
+        pollTimer = null;
+      }
       if (settleTimer !== null) clock.clearTimer(settleTimer);
       settleTimer = null;
       pending = null;
@@ -1649,6 +1863,10 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
     if (state.queues !== previous.queues || state.preview.queue !== previous.preview.queue) changed();
   });
   const offLanguage = i18n.subscribe(() => changed(true));
+  const offRouted = deps.routed?.(() => {
+    sayStrip();
+  }) ?? null;
+  const offSent = deps.sentHere?.(sentInChat) ?? null;
 
   return {
     kinds: ['queues'],
@@ -1662,6 +1880,7 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       offBatch = port.onBatch(() => changed());
       changed();
     },
+    noticeList,
     dispose() {
       disposed = true;
       if (run !== null) run.running = false;
@@ -1670,7 +1889,10 @@ export function createQueuesController(deps: QueuesControllerDeps): QueuesContro
       offContext();
       offSurfaces();
       offLanguage();
-      for (const timer of [pollTimer, settleTimer, advanceTimer, paceTimer, manualTimer]) if (timer !== null) clock.clearTimer(timer);
+      offRouted?.();
+      offSent?.();
+      deps.strip?.(null);
+      for (const timer of [pollTimer, settleTimer, advanceTimer, paceTimer, manualTimer, readTimer]) if (timer !== null) clock.clearTimer(timer);
       directoryListeners.clear();
       cell.clear();
     },

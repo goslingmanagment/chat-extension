@@ -27,6 +27,10 @@ export type FanQueueSentAct = (typeof FAN_QUEUE_SENT_ACTS)[number];
 export const FAN_QUEUE_STOPS = ['paused', 'done', 'portion_done', 'limit_reached', 'empty'] as const;
 export type FanQueueStop = (typeof FAN_QUEUE_STOPS)[number];
 
+/** Why the hub took a fan out of the person's portion; open on the wire, another reads as `other`. */
+export const FAN_QUEUE_LEFT_REASONS = ['fan_wrote', 'messaged', 'bought', 'unreachable', 'dismissed', 'talking', 'waits'] as const;
+export type FanQueueLeftReason = (typeof FAN_QUEUE_LEFT_REASONS)[number] | 'other';
+
 const Time = z.string();
 
 /** How the queue writes, as the hub answers it: open tokens. */
@@ -91,6 +95,8 @@ export const FanQueueAnsweredSchema = z.object({
   templateId: z.nullable(z.string()),
   answeredAt: Time,
   answerText: z.nullable(z.string()),
+  lifetimeGrossMills: z.number(),
+  last30dGrossMills: z.number(),
 });
 export type FanQueueAnswered = z.infer<typeof FanQueueAnsweredSchema>;
 
@@ -111,8 +117,9 @@ export type FanQueues = z.infer<typeof FanQueuesSchema>;
 export const FanQueueTakeRequestSchema = z.strictObject({
   pageLabel: PageLabelSchema,
   queueId: HubIntIdSchema,
-  count: z.int().check(z.gte(1), z.lte(FAN_QUEUE_PORTION_MAX)),
-  /** «Ещё 10»: past the caller's portion for the day, while the page's limit allows. */
+  /** Fans the portion should hold; 0 — only what the caller holds is renewed and re-checked, nobody new comes. */
+  count: z.int().check(z.gte(0), z.lte(FAN_QUEUE_PORTION_MAX)),
+  /** «Ещё 10»: past the caller's portion for the day; a batch queue only while the page's limit allows. */
   more: z.boolean(),
 });
 export type FanQueueTakeRequest = z.infer<typeof FanQueueTakeRequestSchema>;
@@ -142,6 +149,10 @@ export const FanQueueTakeSchema = z.object({
   pending: z.number(),
   /** Fans this take dropped on the hub's re-check. */
   dropped: z.number(),
+  /** Who of the caller's portion this take took away and why (open token, FAN_QUEUE_LEFT_REASONS); `talking`, `waits` — he is back later. */
+  left: z.array(z.object({ itemId: z.number(), fanRef: z.string(), reason: z.string() })),
+  /** What came of the caller's work on this queue so far: written to, answered within 72 hours, spent within 30 days. */
+  results: z.object({ sent: z.number(), answered: z.number(), spentMills: z.number() }),
   serverNow: Time,
 });
 export type FanQueueTake = z.infer<typeof FanQueueTakeSchema>;

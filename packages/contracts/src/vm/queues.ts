@@ -11,9 +11,12 @@
 // Who is in a queue and what came of each fan is the hub's (`clientFanQueues`, `clientFanQueueTake`,
 // `clientFanQueueItemDone`); the card is the fan's preview (`preview` from `queue`).
 
+import { type FanQueueLeftReason } from '../hub/fan-queues';
 import { type IsoTimestamp } from '../primitives';
 import { type Msg } from './i18n';
 import { type OnlineCardVM, type OnlineRowVM } from './online';
+import { type QueueSkipReason } from './queues-ids';
+import { type TargetHandle } from './selectors';
 import { type DataStamp, type VmView } from './view';
 
 export * from './queues-ids';
@@ -82,6 +85,56 @@ export type QueueEndVM =
   /** The person picks a fan of the portion. */
   | { readonly kind: 'pick' };
 
+/** Someone the hub took out of the portion, and why (`queues.left.*`). */
+export interface QueueGoneVM {
+  readonly name: string;
+  readonly reason: FanQueueLeftReason;
+}
+
+/**
+ * The strip over the dock (2026-11-02, the owner's «да»; the audit of the first queue: the person works in the chats, with
+ * the dock's Ping, Fix and Coach, not from the window's card). The queue goes with the person from chat to chat: who this
+ * fan is and why he is here, what to do next. The next chat opens only by a click. The hub holds the portion, so a reload
+ * loses nothing, and counts a send from the chat by itself.
+ */
+export interface QueueWalkVM {
+  readonly kind: 'walk';
+  readonly queueId: number;
+  readonly name: string;
+  readonly goal: string | null;
+  /** Fans of the portion not done yet. */
+  readonly left: number;
+  /** Written today by the person. */
+  readonly today: number;
+  /** The open chat's fan, when he is one of the queue's; null — another chat. */
+  readonly here: {
+    readonly handle: TargetHandle;
+    readonly name: string;
+    readonly why: string | null;
+    /** `todo` — not written yet; `written` — a message went from here; `skipped`; `answered` — he answered a message from a queue. */
+    readonly state: 'todo' | 'written' | 'skipped' | 'answered';
+    readonly skips: readonly QueueSkipReason[];
+  } | null;
+  /** The open chat's fan left the portion since it was taken. */
+  readonly gone: QueueGoneVM | null;
+  /** Who a click opens next; null — nobody. */
+  readonly next: { readonly handle: TargetHandle; readonly name: string; readonly answered: boolean } | null;
+  /** Nobody is left to do in the portion: what it came to, and whether «Ещё 10» has anyone to give. */
+  readonly end: { readonly written: number; readonly skipped: number; readonly more: boolean } | null;
+}
+
+/** The day's reminder on the same place: a queue has fans for the person and they have not started it today. */
+export interface QueueNudgeVM {
+  readonly kind: 'nudge';
+  readonly queueId: number;
+  readonly name: string;
+  readonly waiting: number;
+  /** A batch queue is worked in the window: «Начать» opens it. */
+  readonly batch: boolean;
+}
+
+export type QueueStripVM = QueueWalkVM | QueueNudgeVM;
+
 export interface QueuesWindowVM {
   /** The hub's list: `loading`, `error` with «Повторить», `empty` — no queue on the page for the person. */
   readonly view: VmView;
@@ -105,6 +158,12 @@ export interface QueuesWindowVM {
   readonly day: { readonly mine: number; readonly perPerson: number | null; readonly page: number; readonly dailyLimit: number | null; readonly pending: number } | null;
   /** A template queue's «Отправить всем»; null — the queue sends one by one. */
   readonly batch: QueueBatchVM | null;
+  /** A queue written one by one: the fan «Начать в чате» opens; null — nobody to open. */
+  readonly start: TargetHandle | null;
+  /** What came of the person's work on the chosen queue so far; null — not read yet. */
+  readonly results: { readonly sent: number; readonly answered: number; readonly spentMills: number } | null;
+  /** Who left the portion since it was taken, and why. */
+  readonly gone: readonly QueueGoneVM[];
   readonly card: OnlineCardVM | null;
   readonly end: QueueEndVM | null;
 }

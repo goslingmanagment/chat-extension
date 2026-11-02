@@ -335,6 +335,8 @@ export const STORAGE_KEYS = {
   newcomersDrafts: 'newcomers.drafts',
   /** 2026-11-01: «Рассылки» kept on this computer — each outreach of a page with its versions and marks (≤ 2 MiB). */
   outreachSaved: 'outreach.saved',
+  /** 2026-11-02: by page, the Moscow day the person saw the queues' reminder off. */
+  queuesNudges: 'queues.nudges',
   /**
    * 1.15.0 (R20, FS-SET-1): what settings v1 cannot say, its own schema version (settings-ext.ts). The v1 owner
    * never writes it, and builds before 1.15.0 do not know it: their v1 repair drops unknown fields only inside
