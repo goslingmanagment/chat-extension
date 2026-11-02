@@ -6,7 +6,6 @@
 
 import * as z from 'zod/mini';
 
-import { HubIntIdSchema, NativeIdSchema } from '../primitives';
 import { PageLabelSchema } from './wire';
 
 const Time = z.string();
