@@ -10,8 +10,8 @@ describe('the mark of a fan money on other pages', () => {
     const ari = { pageLabel: 'ari-1', grossMills: 120_000 };
     const lilly = { pageLabel: 'lilly-1', grossMills: 40_000 };
     expect(otherPagesLabel(i18n, [])).toBe('');
-    expect(otherPagesLabel(i18n, [lora])).toBe('lora-2 · $1653');
-    expect(otherPagesLabel(i18n, [lora, ari])).toBe('lora-2 · $1653 +1');
-    expect(otherPagesLabel(i18n, [lora, ari, lilly])).toBe('lora-2 · $1653 +2');
+    expect(otherPagesLabel(i18n, [lora])).toBe('lora-2 $1653');
+    expect(otherPagesLabel(i18n, [lora, ari])).toBe('lora-2 $1653 +1');
+    expect(otherPagesLabel(i18n, [lora, ari, lilly])).toBe('lora-2 $1653 +2');
   });
 });

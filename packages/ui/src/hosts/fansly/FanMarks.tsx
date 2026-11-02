@@ -1,6 +1,6 @@
 // The open fan's marks in Fansly's own chat header, after «Регистрация»: the agency's list the fan is in («💩 Бомж», the
 // list's own label), «⛔ Блоклист» when FANSLY BLOCKLIST has posts about the fan, and what he spends on other pages
-// («lora-2 · $1,653 +1»). In that row's size: the warnings in the warm and the red ink, the money in the row's neutral
+// («lora-2 $1,653 +1»). In that row's size: the warnings in the warm and the red ink, the money in the row's neutral
 // one; nothing at all when no mark applies. They disable nothing.
 //
 // Each mark explains itself in a card under it: on hover (after a short pause, kept while the pointer is over the mark

@@ -1,6 +1,7 @@
-// What a fan spends on other pages of the agency (hub `otherPagesSpend`): a short mark in the row's small print, so a
-// chatter does not greet him as a cold follower. «lora-2 · $1,653»; several pages: the biggest and «+N», the tooltip
-// lists all. Neutral ink: an attribute of a fan, never a warning. One line, whole: the row's own line gives way to it.
+// What a fan spends on other pages of the agency (hub `otherPagesSpend`): the rest of the row's small print, so a chatter
+// does not greet him as a cold follower. «@handle · не платил · lora-2 $1,653»; several pages: the biggest and «+N», the
+// tooltip lists all. No plate and no colour of its own: one tone darker than the line, an attribute of a fan, never a
+// warning. Whole: the row's own line gives way to it.
 
 import { type JSX } from 'preact';
 
@@ -11,8 +12,8 @@ import { useTooltip } from './Tooltip';
 
 type Money = Pick<I18n, 'formatMoneyMills'>;
 
-/** One page: «lora-2 · $1,653». */
-export const otherPagesLine = (i18n: Money, page: OtherPageSpendVM): string => `${page.pageLabel} · ${i18n.formatMoneyMills(page.grossMills)}`;
+/** One page: «lora-2 $1,653». */
+export const otherPagesLine = (i18n: Money, page: OtherPageSpendVM): string => `${page.pageLabel} ${i18n.formatMoneyMills(page.grossMills)}`;
 
 /** The mark's text: the biggest page, and «+N» for the rest. The list comes the biggest first. */
 export function otherPagesLabel(i18n: Money, pages: readonly OtherPageSpendVM[]): string {
@@ -35,5 +36,6 @@ export function OtherPagesMark({ pages }: { readonly pages: readonly OtherPageSp
 }
 
 export const OTHER_PAGES_CSS = `
-.cg-other { flex: none; max-width: 100%; box-sizing: border-box; padding: 0 5px; overflow: hidden; border-radius: var(--cg-r-sm); background: var(--cg-chip); white-space: nowrap; text-overflow: ellipsis; font-size: var(--cg-text-2xs); color: var(--cg-ink-2); }
+.cg-other { flex: none; max-width: 100%; margin-left: -4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
+.cg-other::before { content: '·'; margin-right: .35em; color: var(--cg-ink-muted); }
 `;
