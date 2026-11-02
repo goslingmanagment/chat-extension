@@ -24,7 +24,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { cgBodyKey } from '@cg/contracts/i18n/keys';
 import { SEND_REASON_KEYS, isSendReasonCode, type I18n, type PartVM, type PreviewSendView, type ResultVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, Dot, Icon, Spinner, useCountdown, useDispatch, useHints, useI18n, useNowFn } from '../../kit';
+import { chatClick, Button, Dot, Icon, Spinner, useCountdown, useDispatch, useHints, useI18n, useNowFn } from '../../kit';
 import { sendWithMediaLabel, useMediaAttached } from './MediaPicker';
 
 /** The text after «ChatGoose · CG-…:» split off its prefix, so the prefix can be set in its own ink. */
@@ -322,7 +322,7 @@ export function SendRow({ result, part }: SendRowProps): JSX.Element | null {
             <Dot kind="ink" />
             {i18n.t('send.uncertain')}
           </State>
-          <Button label={i18n.t('send.openToVerify')} variant="quiet" class="cg-pvs__verify" onClick={() => void dispatch({ type: 'OpenChatToVerify', attemptId: send.attemptId })} />
+          <Button label={i18n.t('send.openToVerify')} variant="quiet" class="cg-pvs__verify" onClick={(event) => void dispatch(chatClick({ type: 'OpenChatToVerify', attemptId: send.attemptId }, event))} />
           <SendButton part={part} opId={opId} label={i18n.t('send.retry')} tooltip={i18n.t('send.uncertainRetryTooltip')} />
           <CopyIcon part={part} />
           <CodeLine code="CG-SEND-UNCERTAIN" text={i18n.t('send.uncertainTail', { time: { time: send.since } })} />

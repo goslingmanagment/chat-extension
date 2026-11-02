@@ -14,7 +14,7 @@ import { useState } from 'preact/hooks';
 
 import { type FanCustomPaymentVM, type FanCustomVM, type FanMemoryCustomsVM, type FanMemoryFactVM, type FanMemoryPageVM, type FanMemoryVM, type I18n } from '@cg/contracts/vm';
 
-import { Button, ErrorCard, ViewState, useDispatch, useI18n } from '../kit';
+import { chatClick, Button, ErrorCard, ViewState, useDispatch, useI18n } from '../kit';
 
 const FACT_KEYS = { about: 'fanPanel.memory.facts.about', promise: 'fanPanel.memory.facts.promise', agreement: 'fanPanel.memory.facts.agreement' } as const;
 
@@ -69,7 +69,7 @@ function FactRow({ fact }: { readonly fact: FanMemoryFactVM }): JSX.Element {
       {fact.quote === null ? null : <FactQuote quote={fact.quote} />}
       {fact.mine ? (
         <div class="cg-fp__acts">
-          {fact.open === null ? null : <Button label={i18n.t('common.openChat')} variant="quiet" onClick={() => void dispatch(fact.open!)} />}
+          {fact.open === null ? null : <Button label={i18n.t('common.openChat')} variant="quiet" onClick={(event) => void dispatch(chatClick(fact.open!, event))} />}
           {fact.correctable ? <Button label={i18n.t('fanPanel.memory.fix')} variant="quiet" reason={fact.busy ? i18n.t('common.loading') : null} onClick={() => setDraft(fact.text)} /> : null}
           {fact.remove === null ? null : <Button label={i18n.t('fanPanel.memory.delete')} variant="quiet" reason={fact.busy ? i18n.t('common.loading') : null} onClick={() => void dispatch(fact.remove!)} />}
         </div>

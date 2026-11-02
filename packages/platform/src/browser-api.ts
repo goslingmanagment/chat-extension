@@ -18,6 +18,8 @@ export interface TabApi {
   readonly url?: string;
   /** The window the tab is in (`tabs.update` answers it without the `tabs` permission). */
   readonly windowId?: number;
+  /** Its place in the window's strip. */
+  readonly index?: number;
 }
 
 /** Who sent a runtime message or opened a port. */
@@ -163,7 +165,8 @@ export interface ScriptingApi {
 
 /** Without the `tabs` permission: create, update a tab of our own page, and bring a tab we know by its id to the front. */
 export interface TabsApi {
-  create(properties: { url: string; active?: boolean }): Promise<TabApi>;
+  create(properties: { url: string; active?: boolean; windowId?: number; index?: number; openerTabId?: number }): Promise<TabApi>;
+  get(tabId: number): Promise<TabApi>;
   update(tabId: number, properties: { url?: string; active?: boolean }): Promise<TabApi>;
   query(query: { url: string[] }): Promise<TabApi[]>;
   reload(tabId: number): Promise<void>;

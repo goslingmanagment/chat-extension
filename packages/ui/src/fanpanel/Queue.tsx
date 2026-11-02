@@ -12,7 +12,7 @@ import { type ComponentChildren, type JSX } from 'preact';
 import { type I18nKey } from '@cg/contracts/errors';
 import { type QueueFanVM, type QueueTab as QueueTabId, type QueueVM } from '@cg/contracts/vm';
 
-import { Button, ErrorCard, Money, Segmented, TalkingMark, ViewState, useDispatch, useI18n, useMinuteClock } from '../kit';
+import { chatClick, Button, ErrorCard, Money, Segmented, TalkingMark, ViewState, useDispatch, useI18n, useMinuteClock } from '../kit';
 
 const TAB_KEYS: Readonly<Record<QueueTabId, I18nKey>> = { waiting: 'queue.tab.waiting', winback: 'queue.tab.winback', handoff: 'queue.tab.handoff' };
 
@@ -23,7 +23,7 @@ function FanRow({ fan, meta, talking = true, children }: { readonly fan: QueueFa
   const open = fan.open;
   return (
     <div class="cg-q__row" data-cg-queue-fan={fan.key}>
-      <button type="button" class="cg-q__open" disabled={open === null} title={i18n.t('common.openChat')} onClick={() => (open === null ? undefined : void dispatch(open))}>
+      <button type="button" class="cg-q__open" disabled={open === null} title={i18n.t('common.openChat')} onClick={(event) => (open === null ? undefined : void dispatch(chatClick(open, event)))}>
         <span class="cg-q__name">{fan.name}</span>
         {fan.username === null ? null : <span class="cg-q__user">{fan.username}</span>}
         {fan.spent === null ? null : <Money mills={fan.spent} class="cg-q__money" />}
@@ -62,7 +62,7 @@ function WinBack({ queue }: { readonly queue: QueueVM }): JSX.Element | null {
       {picked === null ? null : (
         <div class="cg-fp__sec cg-q__picked" role="status" data-cg-queue-picked="1">
           <span>{i18n.t('queue.winback.picked', { approach: picked.approach, name: picked.name })}</span>
-          {picked.open === null ? null : <Button label={i18n.t('common.openChat')} variant="line" size="sm" onClick={() => void dispatch(picked.open!)} />}
+          {picked.open === null ? null : <Button label={i18n.t('common.openChat')} variant="line" size="sm" onClick={(event) => void dispatch(chatClick(picked.open!, event))} />}
         </div>
       )}
       {winBack.rows.length === 0 ? (
@@ -128,7 +128,7 @@ function Handoff({ queue }: { readonly queue: QueueVM }): JSX.Element | null {
                     .filter((part) => part !== null)
                     .join(' · ')}
                 </span>
-                {custom.open === null ? null : <Button label={i18n.t('common.openChat')} variant="quiet" size="sm" onClick={() => void dispatch(custom.open!)} />}
+                {custom.open === null ? null : <Button label={i18n.t('common.openChat')} variant="quiet" size="sm" onClick={(event) => void dispatch(chatClick(custom.open!, event))} />}
               </div>
             </div>
           ))}
@@ -142,7 +142,7 @@ function Handoff({ queue }: { readonly queue: QueueVM }): JSX.Element | null {
             <div class="cg-q__text">{promise.text}</div>
             <div class="cg-q__meta">
               <span>{[promise.name, promise.at === null ? null : i18n.formatTime(promise.at, 'date')].filter((part) => part !== null).join(' · ')}</span>
-              {promise.open === null ? null : <Button label={i18n.t('common.openChat')} variant="quiet" size="sm" onClick={() => void dispatch(promise.open!)} />}
+              {promise.open === null ? null : <Button label={i18n.t('common.openChat')} variant="quiet" size="sm" onClick={(event) => void dispatch(chatClick(promise.open!, event))} />}
             </div>
           </div>
         ))}

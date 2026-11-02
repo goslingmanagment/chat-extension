@@ -137,6 +137,7 @@ import {
   createHostPermissions,
   createKeyValueStore,
   createLifecycle,
+  createChatTabs,
   createTabFocus,
   defaultBrowser,
   readClientEnv,
@@ -1991,6 +1992,19 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     const refusal = tokens.check({ tabSessionId: sender.tabSessionId, kind, surface, actionToken });
     if (refusal !== null) logger.warn('bg.tokens', 'action token refused', { fields: { kind, surface, refusal }, ctx: { tabSessionId: sender.tabSessionId } });
     return ok({ redeemed: refusal === null });
+  });
+
+  // ⌘/Ctrl+click on «Открыть чат»: a tab of the sender's own site, only by the click's token.
+  const chatTabs = createChatTabs(api);
+  rpc.handle('chat.openTab', async ({ path, surface, actionToken }, sender) => {
+    if (sender.kind !== 'tab') return fail('CG-UI-FAILED', 'tab only');
+    const refusal = tokens.check({ tabSessionId: sender.tabSessionId, kind: 'navigate', surface, actionToken });
+    if (refusal !== null) {
+      logger.warn('bg.tokens', 'action token refused', { fields: { kind: 'navigate', surface, refusal }, ctx: { tabSessionId: sender.tabSessionId } });
+      return ok({ opened: false });
+    }
+    const { origin } = new URL(sender.url);
+    return ok({ opened: await chatTabs.open(sender.tabId, new URL(path, origin).href) });
   });
 
   // ── test builds only ───────────────────────────────────────────────────────

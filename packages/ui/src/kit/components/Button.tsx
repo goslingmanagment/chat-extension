@@ -10,6 +10,7 @@ import { type ComponentChildren, type JSX, type Ref, type TargetedKeyboardEvent,
 
 import { type ActionButtonVM, type HotkeyLabel } from '@cg/contracts/vm';
 
+import { chatClick } from '../chat-click';
 import { useDispatch, useHints, useI18n, useOffClick } from '../context';
 import { swallowHeldEnter } from '../focus';
 import { dark } from '../tokens';
@@ -148,7 +149,7 @@ export function ActionButton({
       size={size ?? 'md'}
       hotkey={vm.hotkey}
       reason={vm.enabled ? null : vm.reason === null ? i18n.t('common.unknown') : i18n.text(vm.reason.text)}
-      onClick={() => void dispatch(vm.action)}
+      onClick={(event) => void dispatch(chatClick(vm.action, event))}
       {...(icon === undefined ? {} : { icon })}
       {...(trailing === undefined ? {} : { trailing })}
       {...(extra === undefined ? {} : { class: extra })}

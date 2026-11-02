@@ -1217,6 +1217,8 @@ export function createChatSpaceHostPort(options: ChatSpaceHostOptions): ChatSpac
       }
     },
 
+    // ChatSpace's `chat` route: the account and the fan name it, whichever tab asks (keyboard.ts).
+    chatPath: (target) => Promise.resolve(`/accounts/${target.hostAccountId}/chats/${target.platformFanId}`),
     async navigate(intent: NavigationIntent, options: NavigateOptions = {}): Promise<NavigationReceipt> {
       const check = await validation();
       if (!check.isNavigationIntent(intent)) throw new HostContractError('navigate() takes a NavigationIntent with its cause');

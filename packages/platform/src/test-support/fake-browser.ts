@@ -335,6 +335,7 @@ export function createFakeBrowser(options: { runtimeId?: string; base?: string }
         query: async () => [],
         reload: async (tabId) => { tabCalls.push(`reload ${tabId}`); },
         onRemoved: new FakeEvent<(tabId: number) => void>(),
+        get: async (tabId) => ({ id: tabId, windowId: 1, index: tabId }),
         async create(properties: { url: string; active?: boolean }): Promise<TabApi> {
           tabCalls.push(`create ${properties.url}`);
           return { id: nextTabId++, url: properties.url };

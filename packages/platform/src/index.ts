@@ -15,7 +15,7 @@
 //   ChatSpace tab to the front; open an https link of ours in a new tab
 
 export { defaultBrowser, type BrowserApi, type MessageSenderApi, type PortApi } from './browser-api';
-export { createExtensionPages, createLinkOpener, createTabFocus, type ExtensionPagesPort, type LinkOpenerPort, type OpenPageResult, type TabExtensionPage, type TabFocusPort } from './pages';
+export { createChatTabs, createExtensionPages, createLinkOpener, createTabFocus, type ChatTabPort, type ExtensionPagesPort, type LinkOpenerPort, type OpenPageResult, type TabExtensionPage, type TabFocusPort } from './pages';
 export { extensionUrl, extensionId, isExtensionContextAlive } from './runtime';
 export { syncDynamicMainScript, mainScriptRegistration, type DynamicMainScriptSpec, type DynamicScriptSync } from './scripting';
 export {

@@ -5,6 +5,8 @@
 // atoms and shared molecules of ui-design §4. Rules: no browser.*, no fetch,
 // no postMessage, no host DOM, no timers in idle faster than 1 Hz (§4, §11).
 
+export { chatClick } from './chat-click';
+
 // ── theme, styles, layers ──
 export {
   BASE_TEXT_DECLARATIONS,

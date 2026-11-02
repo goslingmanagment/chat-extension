@@ -17,7 +17,7 @@ import { useRef, useState } from 'preact/hooks';
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type I18n, type Msg, type OnlineCardVM, type OnlineChoice, type PartVM, type PreviewVM, type QueueSkipReason } from '@cg/contracts/vm';
 
-import { Button, Dot, FanBadge, GooseMark, Icon, Menu, MenuAnchor, Spinner, StripButton, TextField, menuTriggerKeys, useDispatch, useHints, useI18n, useTooltip } from '../kit';
+import { chatClick, Button, Dot, FanBadge, GooseMark, Icon, Menu, MenuAnchor, Spinner, StripButton, TextField, menuTriggerKeys, useDispatch, useHints, useI18n, useTooltip } from '../kit';
 import { Feed } from '../spenders/preview/Feed';
 import { priceText } from '../spenders/preview/MediaPicker';
 import { SEGMENT_LETTERS, ToneCapsule, reasonText, stripKeys } from '../spenders/preview/MiniStrip';
@@ -72,7 +72,7 @@ function Head({ card, preview }: { readonly card: OnlineCardVM; readonly preview
         </div>
       </div>
       {preview.header === null ? null : (
-        <Button label={i18n.text(preview.openChat.label)} variant="quiet" size="sm" class="cg-nc__open" reason={preview.openChat.enabled ? null : preview.openChat.reason === null ? null : i18n.text(preview.openChat.reason.text)} onClick={() => void dispatch(preview.openChat.action)} />
+        <Button label={i18n.text(preview.openChat.label)} variant="quiet" size="sm" class="cg-nc__open" reason={preview.openChat.enabled ? null : preview.openChat.reason === null ? null : i18n.text(preview.openChat.reason.text)} onClick={(event) => void dispatch(chatClick(preview.openChat.action, event))} />
       )}
     </header>
   );
@@ -755,7 +755,7 @@ function Zone({ card, preview }: { readonly card: OnlineCardVM; readonly preview
           </div>
           <div class="cg-ow__acts">
             <span class="cg-nw__grow" />
-            <Button label={i18n.t('outreach.card.verify')} variant="line" onClick={() => void dispatch(preview.openChat.action)} />
+            <Button label={i18n.t('outreach.card.verify')} variant="line" onClick={(event) => void dispatch(chatClick(preview.openChat.action, event))} />
           </div>
         </div>
       );

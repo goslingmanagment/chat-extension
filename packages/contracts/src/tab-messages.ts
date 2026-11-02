@@ -1104,6 +1104,16 @@ export const TAB_REQUESTS = {
     res: z.strictObject({ redeemed: z.boolean() }),
     from: TAB,
   },
+  /**
+   * 1.73.0: ⌘/Ctrl+click on «Открыть чат»: the chat at `path` of the sender's own site in a new tab next to the sender's,
+   * in the background, as the browser's own ⌘+click on a link. The `navigate` token of the click is spent here.
+   * `opened: false` — the token was refused, or the browser refused the tab.
+   */
+  'chat.openTab': {
+    req: z.strictObject({ path: z.string().check(z.maxLength(200), z.regex(/^\/[\w/-]+$/)), surface: SurfaceSchema, actionToken: ActionTokenSchema }),
+    res: z.strictObject({ opened: z.boolean() }),
+    from: TAB,
+  },
 } as const satisfies Record<string, TabRequestSpec>;
 
 export type TabRequestType = keyof typeof TAB_REQUESTS;

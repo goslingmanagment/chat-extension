@@ -2535,9 +2535,13 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
   /** The switches a click in a preview answers to on its page: the preview's own, and the list's for a card of «Новые». */
   const boardsOf = (source: PreviewSource): readonly BoardSwitch[] => (source === 'newcomers' ? ['preview', 'newcomers'] : ['preview']);
 
-  async function openChat(type: UiActionType, fanRef: string, surface: Surface, source: PreviewSource, conversationRef: string | undefined): Promise<ActionReceipt> {
+  async function openChat(type: UiActionType, fanRef: string, surface: Surface, source: PreviewSource, conversationRef: string | undefined, newTab = false): Promise<ActionReceipt> {
     const binding = context.current().binding;
     if (binding === null) return refused(type, localError('CG-BINDING-MISSING', i18n));
+    if (newTab) {
+      const why = await navigator.openTab({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, surface, boardsOf(source), conversationRef);
+      return why === null ? done(type, 'opened') : refused(type, localError(why, i18n));
+    }
     const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, surface, boardsOf(source), conversationRef);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
     surfaces.closeBoards();
@@ -2877,7 +2881,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
         const parsed = parseFanHandle(to.targetHandle);
         // A list answers for its own handles; the palette's fans have no list.
         return parsed !== null && parsed.source === 'palette' && parsed.pageId === context.current().binding?.pageId
-          ? openChat(type, parsed.fanRef, 'preview', 'palette', deps.directories.palette?.resolve(to.targetHandle)?.conversationRef)
+          ? openChat(type, parsed.fanRef, 'preview', 'palette', deps.directories.palette?.resolve(to.targetHandle)?.conversationRef, to.newTab === true)
           : null;
       }
       return null;
@@ -2925,7 +2929,7 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       const owner = attemptOwner.get(action.attemptId);
       const track = owner === undefined ? undefined : tracks.get(owner.opId);
       // §6.7.8: the only way on from an unknown outcome — look at the chat. Nothing is sent or inserted.
-      return track === undefined ? null : openChat(type, track.fanRef, track.surface, track.source, track.target.conversationRef);
+      return track === undefined ? null : openChat(type, track.fanRef, track.surface, track.source, track.target.conversationRef, action.newTab === true);
     }
     if (action.type === 'EditPart') {
       const track = tracks.get(action.operationId);

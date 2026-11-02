@@ -12,7 +12,7 @@ import { type JSX } from 'preact';
 import { OP_TERMINAL_STATES, type OpState } from '@cg/contracts/ops';
 import { type I18n, type NewcomersVM, type PartVM, type PreviewVM, type ResultVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, Dot, Icon, Spinner, ViewState, useDispatch, useI18n, useMinuteClock, useTooltip, useView } from '../kit';
+import { chatClick, Button, Dot, Icon, Spinner, ViewState, useDispatch, useI18n, useMinuteClock, useTooltip, useView } from '../kit';
 import { SeenMark } from '../spenders/preview/Feed';
 import { MediaPicker, MediaToggle, sendWithMediaLabel } from '../spenders/preview/MediaPicker';
 import { generateAction } from '../spenders/preview/MiniStrip';
@@ -87,7 +87,7 @@ function Notes({ vm }: { readonly vm: PreviewVM }): JSX.Element {
 function VerifyButton({ attemptId }: { readonly attemptId: string }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  return <Button label={i18n.t('send.openToVerify')} variant="quiet" size="sm" onClick={() => void dispatch({ type: 'OpenChatToVerify', attemptId })} />;
+  return <Button label={i18n.t('send.openToVerify')} variant="quiet" size="sm" onClick={(event) => void dispatch(chatClick({ type: 'OpenChatToVerify', attemptId }, event))} />;
 }
 
 /** «Отправить →» of one part and the line of where its send stands (ui-design §4.13, the words of SendRow.tsx). */

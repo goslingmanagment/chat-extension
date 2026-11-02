@@ -1378,7 +1378,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   }
 
   /** The fan's chat, by the person's click on the card's «Открыть чат»: the window closes, the chat opens. */
-  async function openChat(type: UiActionType, fanRef: string): Promise<ActionReceipt> {
+  async function openChat(type: UiActionType, fanRef: string, newTab = false): Promise<ActionReceipt> {
     const ctx = context.current();
     const binding = ctx.binding;
     const item = items.get(fanRef);
@@ -1392,6 +1392,10 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       if (found === null) return refused(type, localError('CG-HOST-CHAT-NOT-FOUND', i18n));
       fan.group = found;
       conversation = found;
+    }
+    if (newTab) {
+      const why = await navigator.openTab({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['preview'], conversation);
+      return why === null ? done(type, 'opened') : refused(type, localError(why, i18n));
     }
     const receipt = await navigator.open({ host: binding.host, hostAccountId: binding.hostAccountId, platformFanId: fanRef }, 'preview', ['preview'], conversation);
     if (receipt.state === 'failed') return refused(type, localError(receipt.code, i18n));
@@ -1437,7 +1441,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       }
       if (to.kind !== 'chat') return null;
       const fanRef = fanOf(to.targetHandle);
-      return fanRef === null ? null : openChat(action.type, fanRef);
+      return fanRef === null ? null : openChat(action.type, fanRef, to.newTab === true);
     }
     if (action.type === 'SetOnline') return Promise.resolve(setOnline(action));
     if (action.type === 'SelectOnline') {

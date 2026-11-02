@@ -25,7 +25,7 @@ export interface SurfaceController {
 export type RpcAnswer<T> = { readonly ok: true; readonly payload: T } | { readonly ok: false; readonly error: CgErrorWire };
 
 /** Requests these controllers make; `@cg/platform` TabRpcClient serves them all. */
-export type NavRequestType = Extract<TabRequestType, 'token.issue' | 'op.list' | 'binding.resolve' | 'spenders.board' | 'spenders.queue' | 'newcomers.list'>;
+export type NavRequestType = Extract<TabRequestType, 'token.issue' | 'chat.openTab' | 'op.list' | 'binding.resolve' | 'spenders.board' | 'spenders.queue' | 'newcomers.list'>;
 
 export interface TabRpc {
   request<T extends NavRequestType>(type: T, payload: TabRequestPayload<T>): Promise<RpcAnswer<TabResponsePayload<T>>>;

@@ -98,8 +98,11 @@ export type UserOptions = z.infer<typeof UserOptionsSchema>;
 
 /** Where Navigate goes. Host navigation happens only on a human click or key, through the dispatcher (§6.9). */
 export const NavigationTargetSchema = z.discriminatedUnion('kind', [
-  /** Open a fan's chat in ChatSpace: «Открыть чат», «Перейти», a palette or quick-jump row, a toast. */
-  z.strictObject({ kind: z.literal('chat'), targetHandle: HandleSchema }),
+  /**
+   * Open a fan's chat in ChatSpace: «Открыть чат», «Перейти», a palette or quick-jump row, a toast. 1.73.0: `newTab` —
+   * ⌘/Ctrl+click: in a new tab of the browser, this tab and its windows stay as they are.
+   */
+  z.strictObject({ kind: z.literal('chat'), targetHandle: HandleSchema, newTab: z.optional(z.literal(true)) }),
   /** J / K over the chat list the person sees. */
   z.strictObject({ kind: z.literal('chat-step'), direction: z.enum(['next', 'previous']) }),
   /** ⌘U / Ctrl+U. */
@@ -241,7 +244,7 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('EditPart', { operationId: UuidSchema, variant, part, text: z.nullable(displayText(SEND_LIMITS.previewDraftMaxChars)) }),
   /** «Отправить» of the preview's draft field: the person's own text, one message, by this click (row 1). */
   act('SendDraft', { targetHandle: HandleSchema }),
-  act('OpenChatToVerify', { attemptId: UuidSchema }),
+  act('OpenChatToVerify', { attemptId: UuidSchema, newTab: z.optional(z.literal(true)) }),
   /** Writes `copied` only after the clipboard write succeeded. */
   act('Copy', { artifactHandle: HandleSchema }),
 

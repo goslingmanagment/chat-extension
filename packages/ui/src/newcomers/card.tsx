@@ -15,7 +15,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact
 
 import { type ActionReceipt, type UiAction } from '@cg/contracts/vm';
 
-import { Button, FanBadge, focusQuietly, TextField, useDispatch, useHints, useTooltip } from '../kit';
+import { chatClick, Button, FanBadge, focusQuietly, TextField, useDispatch, useHints, useTooltip } from '../kit';
 import { useOwnEchoes } from '../spenders/ownEchoes';
 import { NewcomerAvatar } from './frame';
 
@@ -127,7 +127,7 @@ export function CardOpen({ label, tooltip = null, href = null, action = null, re
       </>
     );
   }
-  return <Button label={label} variant="quiet" size="sm" class="cg-nc__open" tooltip={tooltip} reason={reason} onClick={() => (action === null ? undefined : void dispatch(action))} />;
+  return <Button label={label} variant="quiet" size="sm" class="cg-nc__open" tooltip={tooltip} reason={reason} onClick={(event) => (action === null ? undefined : void dispatch(chatClick(action, event)))} />;
 }
 
 // ── the greeting ──
