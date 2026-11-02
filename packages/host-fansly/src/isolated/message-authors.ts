@@ -17,7 +17,9 @@
 //   change — a label the page wrote into or took away too: what our own writes said is taken at once, so whatever it
 //   hears is the page's — and a burst of changes makes one pass. A label is kept only while it still says its words.
 //   Plain nodes with inline styles, named by `data-cg-author`; nothing of the page's is changed, and they all go when
-//   the view goes, the chat changes or the port is disposed.
+//   the view goes, the chat changes or the port is disposed. MAIN's word that the chat's window moved (`fx.chat`) makes
+//   a pass too: it may read a page of history after the page drew it; a chat MAIN does not know yet is asked again a
+//   few times.
 
 import type { FanslyOrder } from '@cg/contracts/bridge-messages-fansly';
 import type { FanslyMessageAuthor, FanslyMessageAuthorsView } from '@cg/contracts/fansly';
@@ -39,6 +41,9 @@ const LIVE = 32;
 
 /** A burst of the page's changes (a page of history, a send) makes one pass. */
 const PASS_MS = 60;
+/** MAIN does not know the chat yet (it starts, or reads the history later): asked again this much later, this often. */
+const UNKNOWN_RETRY_MS = 1_000;
+const UNKNOWN_RETRIES = 5;
 /** The model's newest bubbles a pass lines up: MAIN holds at most 120 messages of a chat. */
 const BUBBLES_MAX = 300;
 /** Names one label shows before «+N». */
@@ -159,6 +164,8 @@ export function createMessageAuthors(doc: Document, deps: MessageAuthorsDeps): M
   let timer: ReturnType<typeof setTimeout> | null = null;
   let run = 0;
   let disposed = false;
+  /** Passes in a row MAIN answered nothing for this chat. */
+  let unknownPasses = 0;
   /** The model's live messages of this chat already told unknown to the application: each once. */
   const told = new Set<string>();
 
@@ -260,16 +267,18 @@ export function createMessageAuthors(doc: Document, deps: MessageAuthorsDeps): M
     const order = await deps.order(group).catch(() => null);
     if (disposed || asked !== run || view !== shown || groupId !== group || container !== box || !list.isConnected) return;
     draw(list, shown, order);
+    unknownPasses = order === null ? unknownPasses + 1 : 0;
+    if (order === null && unknownPasses <= UNKNOWN_RETRIES) schedule(UNKNOWN_RETRY_MS);
     // What our own writes said to the observer is not the page's change.
     observer.takeRecords();
   };
 
-  function schedule(): void {
+  function schedule(ms: number = PASS_MS): void {
     if (disposed || timer !== null) return;
     timer = setTimeout(() => {
       timer = null;
       void pass();
-    }, PASS_MS);
+    }, ms);
   }
 
   return {
@@ -282,7 +291,10 @@ export function createMessageAuthors(doc: Document, deps: MessageAuthorsDeps): M
     place(nextContainer, nextGroup) {
       if (nextContainer === container && nextGroup === groupId) return;
       if (container !== null && container !== nextContainer) remove(container);
-      if (nextGroup !== groupId) told.clear();
+      if (nextGroup !== groupId) {
+        told.clear();
+        unknownPasses = 0;
+      }
       container = nextContainer;
       groupId = nextGroup;
       schedule();

@@ -524,6 +524,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const before = chatWire;
     chatWire = next;
     sync();
+    // MAIN's window of the chat moved (a page of history read, a message come): its order may say more now.
+    if (next !== null) messageAuthors.changed(next.groupId);
     const chat = routeState.chat;
     const same = before !== null && next !== null && before.groupId === next.groupId && before.fanId === next.fanId;
     if (chat !== null && same && JSON.stringify(before.window) !== JSON.stringify(next.window)) emit({ type: 'chatCache', chat });
