@@ -4,7 +4,7 @@
 // hundred a call (the background keeps each fan ten minutes and asks Fansly and FBuddy itself) — and tells the board
 // when an answer came. A site without badges (ChatSpace) has no `read`: the store asks nothing and knows nothing.
 
-import { type FanBadges, type FbuddyState } from '@cg/contracts/fan-badges';
+import { type FanBadgeMark, type FanBadges, type FbuddyState } from '@cg/contracts/fan-badges';
 
 import { type BoardsClock } from './ports';
 
@@ -21,6 +21,23 @@ export const FAN_BADGES = {
   /** The fans wanted within this moment go in one round. */
   settleMs: 250,
 } as const;
+
+/**
+ * What a fan's row shows, as the ticks of «Значки» name it (the kit's FanBadge draws the same): a gem's tier and the
+ * card beside it; the card alone over Basic, as the row has it; Basic; nothing — no badge, or none known yet.
+ */
+export function fanBadgeMarks(badges: FanBadges | null): readonly FanBadgeMark[] {
+  const card = badges?.recentSpender === true;
+  const tier = badges?.tier ?? null;
+  if (tier !== null && tier !== 'basic') return card ? [tier, 'card'] : [tier];
+  if (card) return ['card'];
+  return tier === 'basic' ? ['basic'] : ['none'];
+}
+
+const MARK_RANK: Readonly<Record<FanBadgeMark, number>> = { platinum: 5, gold: 4, silver: 3, bronze: 2, card: 1, basic: 0, none: 0 };
+
+/** The higher a fan's best mark, the sooner they stand once ticks are on. */
+export const fanBadgeRank = (badges: FanBadges | null): number => Math.max(...fanBadgeMarks(badges).map((mark) => MARK_RANK[mark]));
 
 export interface FanBadgeStore {
   /** The fan's badges; null — none known (not read yet, or the site has none). */

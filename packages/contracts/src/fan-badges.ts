@@ -26,6 +26,13 @@ export const FbuddyStateSchema = z.enum(FBUDDY_STATES);
 export const FBUDDY_ORIGIN = 'https://apiv2.fbuddy.net';
 export const FBUDDY_MATCH = `${FBUDDY_ORIGIN}/*`;
 
+/**
+ * «Значки» of «Онлайн» (2026-11-02, the owner: ticks of whom to show): what a fan's row shows — a gem of a tier, the blue
+ * card, Basic's crossed banknote, or nothing. A gem with the card in its corner stands under both its tier and `card`.
+ */
+export const FAN_BADGE_MARKS = ['platinum', 'gold', 'silver', 'bronze', 'card', 'basic', 'none'] as const;
+export type FanBadgeMark = (typeof FAN_BADGE_MARKS)[number];
+
 /** One fan's badges; null — not known (not read, or the source did not say). */
 export interface FanBadges {
   /** Fansly's blue card «Recent Spender». */

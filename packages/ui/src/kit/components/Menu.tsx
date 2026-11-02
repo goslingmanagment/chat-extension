@@ -4,12 +4,15 @@
 // the first); ↑ ↓ Home End move, Enter and Space choose, Esc and choosing
 // return focus to the button. Clicking or tabbing away closes it. The menu
 // sits above its button (z 5 inside the dock), aligned to its left or right.
+// A `check` menu is a list of ticks: `menuitemcheckbox`, a box before each item,
+// and it stays open as they are pressed, until Esc or a press away.
 
 import { type ComponentChildren, type JSX, type TargetedFocusEvent, type TargetedKeyboardEvent } from 'preact';
 import { useEffect, useId, useLayoutEffect, useRef } from 'preact/hooks';
 
 import { useKit, useOffClick } from '../context';
 import { focusQuietly, isHeldKey, rovingIndex } from '../focus';
+import { CheckGlyph } from './Icon';
 import { useTooltip } from './Tooltip';
 
 export interface MenuItem {
@@ -21,16 +24,18 @@ export interface MenuItem {
   readonly note?: string;
   /** A second line under the label (what the item does), `ink-muted`, wrapping: the menu widens to fit it. */
   readonly detail?: string;
-  /** Radio menus mark the chosen item with ✓ and `aria-checked`. */
+  /** Radio menus mark the chosen item with ✓ and `aria-checked`; check menus tick its box. */
   readonly checked?: boolean;
+  /** Before the label: a picture of what the item is (a fan's badge). */
+  readonly lead?: ComponentChildren;
   /** Unavailable items stay focusable and say why. */
   readonly reason?: string | null;
 }
 
 export interface MenuProps {
   readonly open: boolean;
-  /** `menuitemradio` items (the window of «Новые», a select of the settings) or plain `menuitem` (Ещё). */
-  readonly kind: 'radio' | 'action';
+  /** `menuitemradio` items (the window of «Новые», a select of the settings), plain `menuitem` (Ещё), or `menuitemcheckbox` ticks. */
+  readonly kind: 'radio' | 'action' | 'check';
   readonly label: string;
   readonly items: readonly MenuItem[];
   readonly align?: 'start' | 'end';
@@ -104,7 +109,7 @@ export function Menu(props: MenuProps): JSX.Element | null {
       return;
     }
     props.onSelect(item.id);
-    close('select', true);
+    if (props.kind !== 'check') close('select', true);
   };
 
   const onKeyDown = (event: TargetedKeyboardEvent<HTMLDivElement>): void => {
@@ -153,21 +158,26 @@ export function Menu(props: MenuProps): JSX.Element | null {
   );
 }
 
-function MenuEntry({ item, kind, onChoose }: { readonly item: MenuItem; readonly kind: 'radio' | 'action'; readonly onChoose: () => void }): JSX.Element {
+function MenuEntry({ item, kind, onChoose }: { readonly item: MenuItem; readonly kind: MenuProps['kind']; readonly onChoose: () => void }): JSX.Element {
   const unavailable = item.reason !== null && item.reason !== undefined && item.reason !== '';
   const tip = useTooltip(unavailable ? (item.reason ?? null) : null);
   return (
     <>
       <button
         type="button"
-        class={`cg-menu__item${item.checked === true ? ' is-on' : ''}`}
-        role={kind === 'radio' ? 'menuitemradio' : 'menuitem'}
+        class={`cg-menu__item${kind === 'check' ? ' is-check' : item.checked === true ? ' is-on' : ''}`}
+        role={kind === 'radio' ? 'menuitemradio' : kind === 'check' ? 'menuitemcheckbox' : 'menuitem'}
         tabIndex={-1}
         data-cg-menuitem=""
         {...tip.props}
-        {...(kind === 'radio' ? { 'aria-checked': item.checked === true ? 'true' : 'false' } : {})}
+        {...(kind === 'action' ? {} : { 'aria-checked': item.checked === true ? 'true' : 'false' })}
         {...(unavailable ? { 'aria-disabled': 'true' } : {})}
-        onClick={onChoose}
+        // A tick keeps the menu open, so the press never takes focus out of it (Firefox on macOS does not focus a pressed button).
+        {...(kind === 'check' ? { onMouseDown: (event: MouseEvent) => event.preventDefault() } : {})}
+        onClick={(event) => {
+          if (kind === 'check') focusQuietly(event.currentTarget);
+          onChoose();
+        }}
         onKeyDown={(event) => {
           tip.props.onKeyDown(event);
           if (event.key === ' ' || event.key === 'Enter') {
@@ -177,6 +187,8 @@ function MenuEntry({ item, kind, onChoose }: { readonly item: MenuItem; readonly
           }
         }}
       >
+        {kind === 'check' ? <CheckGlyph on={item.checked === true} size={14} /> : null}
+        {item.lead}
         <span class="cg-menu__t">{item.label}</span>
         {item.hint !== undefined ? <kbd>{item.hint}</kbd> : item.note === undefined ? null : <span class="cg-menu__n">{item.note}</span>}
         {item.detail === undefined ? null : <span class="cg-menu__d">{item.detail}</span>}
@@ -219,6 +231,11 @@ export const MENU_CSS = `
 .cg-menu__item.is-on { background: var(--cg-clay-bg); color: var(--cg-clay-ink); font-weight: 600; }
 .cg-menu__item.is-on::after { content: "✓"; color: var(--cg-clay-ink); font-size: var(--cg-text-sm); }
 .cg-menu__item[aria-disabled="true"] { color: var(--cg-ink-faint); cursor: default; }
+.cg-menu__item.is-check { justify-content: flex-start; gap: 8px; }
+.cg-menu__item.is-check .cg-menu__t { flex: 1; }
+.cg-menu__item.is-check .cg-cb { flex: none; color: var(--cg-ink-muted); }
+.cg-menu__item.is-check[aria-checked="true"] { color: var(--cg-ink-strong); font-weight: 500; }
+.cg-menu__item.is-check[aria-checked="true"] .cg-cb { color: var(--cg-clay-ink); }
 .cg-menu--detailed { width: 320px; }
 .cg-menu--detailed .cg-menu__item { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; height: auto; padding: 8px; white-space: normal; }
 .cg-menu--detailed .cg-menu__t { font-weight: 600; }

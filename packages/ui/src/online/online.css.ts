@@ -57,8 +57,11 @@ ${/* 2026-10-31: the page's probe ChatSpace did not answer, under the line. */ '
 .ol-probe { background: var(--cg-amber-bg); color: var(--cg-amber-ink); }
 .ol-probe > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
 
-${/* The bar: «Зашли за» and its menu. */ ''}
+${/* The bar: «Зашли за» and its menu; «Значки»' ticks, each with its badge, the badges in one column. */ ''}
 .ol-period { display: inline-flex; align-items: center; gap: 4px; }
+.ol-flt__badge { flex: none; display: inline-flex; justify-content: center; width: 30px; }
+.ol .cg-nw__bar .cg-menu { min-width: 230px; }
+.ol .cg-nw__bar .cg-menu__item kbd { font: 400 var(--cg-text-sm)/16px var(--cg-font); color: var(--cg-ink-muted); }
 
 ${/* The card: why now, the conversation, the text. */ ''}
 .ol .cg-nc__head { padding-bottom: 10px; }

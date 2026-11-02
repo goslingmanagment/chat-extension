@@ -1,7 +1,7 @@
 // «Онлайн»'s badges on Fansly (2026-10-28), on by default: each fan's FBuddy gem in its tier's colour with Fansly's
 // blue card «Recent Spender» in its corner, the blue card alone where there is no tier; Fansly's card in the settings
 // with its row «Алмазики FBuddy в «Онлайн»» («Включены»: the test build is granted FBuddy's address at install, as a
-// release is). The stand's copy of FBuddy answers (never FBuddy).
+// release is). The stand's copy of FBuddy answers (never FBuddy). «Значки» (2026-11-02): the ticks of whom the list shows.
 
 import { openOptions } from '../../support/pages';
 import { scenario, type See } from '../kit';
@@ -66,6 +66,24 @@ scenario(
     // The note's picture: the list alone, the fans with their badges.
     const list = await s.rect('modal', '.cg-nw__side');
     if (list !== null) await s.shot('badges-list', { clip: { ...list, height: Math.min(list.height, 560) }, file: 'online-fbuddy-badges' });
+
+    // «Значки»: Gold and Platinum ticked, the list has only them; then the blue card too; then everyone again.
+    await s.press(/^Значки/, 'modal', '.cg-nw__bar button');
+    await s.browser.pause(300);
+    await shot(s, 'filter-menu');
+    await s.press(/Gold/, 'modal', '.cg-menu__item');
+    await s.press(/Platinum/, 'modal', '.cg-menu__item');
+    await s.browser.pause(400);
+    const ticks = await s.rect('modal', '.cg-nw__main');
+    await shot(s, 'filter-ticked');
+    if (ticks !== null) await s.shot('filter-note', { clip: { x: ticks.x, y: ticks.y - 76, width: Math.min(ticks.width, 720), height: 330 }, file: 'online-badge-filter' });
+    await s.press(/Голубая карта/, 'modal', '.cg-menu__item');
+    await s.browser.pause(400);
+    await shot(s, 'filter-card-too');
+    await s.press(/Все фаны/, 'modal', '.cg-menu__item');
+    await s.browser.pause(300);
+    await shot(s, 'filter-all-again');
+    await s.browser.keys('Escape');
 
     // The settings: Fansly's card says the gems are on.
     await s.toPages();

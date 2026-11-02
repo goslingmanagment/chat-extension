@@ -8,6 +8,7 @@
 import * as z from 'zod/mini';
 
 import { CgCodeSchema, SettingsRouteSchema } from '../errors';
+import { FAN_BADGE_MARKS } from '../fan-badges';
 import { FeatureIdSchema, RecapReaderSchema, ToneSchema } from '../features';
 import { MediaFolderIdSchema } from '../send-media';
 import { NativeIdSchema, PersonaKeySchema, UuidSchema, boundedText, displayText } from '../primitives';
@@ -456,13 +457,14 @@ export const UiActionSchema = z.discriminatedUnion('type', [
   act('ResetOutreachMedia', { targetHandle: HandleSchema }),
   /**
    * 1.65.0, the window of «Онлайн» (vm/online): one move of the person, nothing sent — `open` (the bar's «Онлайн», ⌘K);
-   * the list's tab; `minutes` — «Зашли за»; `refresh` — the hub's list read again now.
+   * the list's tab; `minutes` — «Зашли за»; `refresh` — the hub's list read again now; `badges` — «Значки»: every tick now, none — everyone.
    */
   act('SetOnline', {
     open: z.optional(z.boolean()),
     tab: z.optional(z.enum(ONLINE_TABS)),
     minutes: z.optional(z.union([z.literal(10), z.literal(30), z.literal(120)])),
     refresh: z.optional(z.literal(true)),
+    badges: z.optional(z.array(z.enum(FAN_BADGE_MARKS)).check(z.maxLength(FAN_BADGE_MARKS.length))),
   }),
   /**
    * 1.65.0: a fan of «Онлайн» chosen — a click on the row, or J / K (`keys`: the card follows once the keys stop): their
