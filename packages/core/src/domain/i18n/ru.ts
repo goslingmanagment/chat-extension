@@ -679,6 +679,10 @@ export const RU: I18nCatalog<'ru'> = {
   // Chat Memory week 1: «в разговоре» — another chatter wrote to the fan in the last 15 minutes. A warning, never a block.
   'send.talking': 'С ним сейчас говорит {names}',
   'talking.mark': 'в разговоре: {names}',
+  'otherPages.title': 'Есть на других страницах',
+  'otherPages.wrote': 'писал {age} назад',
+  'otherPages.subscriber': 'подписан',
+  'otherPages.follower': 'фолловит',
   'talking.notice': 'С ним сейчас говорит {names} · {age} назад',
   'talking.ok': 'Понятно',
   'send.anyway': 'Отправить всё равно',

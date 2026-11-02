@@ -118,6 +118,7 @@ export const FANSLY_TAB_LIMITS = {
   /** The fan's marks: the agency's lists of the fan (one a page, far above the pages it has), FANSLY BLOCKLIST's newest posts. */
   fanMarkListsMax: 50,
   fanMarkPostsMax: 5,
+  fanMarkOtherPagesMax: 50,
   fanMarkPostMaxChars: 600,
   /** The fans whose badges one call asks for («Онлайн», Spenders, «Рассылка», «Новые»: the shown ones, the most relevant first). */
   fanBadgesMax: 100,
@@ -144,6 +145,12 @@ export const FanslyFanMarksSchema = z.strictObject({
       }),
     )
     .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkPostsMax)),
+  /** The other Fansly pages where the fan paid or lately wrote, the biggest money first; absent: none. Not a warning. */
+  otherPages: z.optional(
+    z
+      .array(z.strictObject({ pageLabel: displayText(120), grossMills: MoneyMillsSchema, lastFanMessageAt: z.nullable(IsoTimestampSchema), relation: z.nullable(z.enum(['subscriber', 'follower'])) }))
+      .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkOtherPagesMax)),
+  ),
 });
 export type FanslyFanMarks = z.infer<typeof FanslyFanMarksSchema>;
 

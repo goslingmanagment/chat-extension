@@ -660,6 +660,7 @@ export function createNewcomersController(deps: NewcomersControllerDeps): Newcom
         handle: fanHandle('newcomers', id ?? 0, row.fanRef),
         name: row.name,
         username: row.username,
+        ...(row.otherPages === undefined ? {} : { otherPages: row.otherPages }),
         kind: row.kind,
         subscribedAt: row.subscribedAt,
         greeting: status(row),

@@ -1,5 +1,7 @@
-// The open fan's warning marks in Fansly's chat header (hub `clientFanMarks`): the header's own client, like
-// «Регистрация»'s; no DOM or network. Warnings only: nothing here disables or blocks anything.
+// The open fan's marks in Fansly's chat header (hub `clientFanMarks`): the header's own client, like «Регистрация»'s;
+// no DOM or network. Two warnings and, not a warning, his money on other pages: nothing here disables or blocks anything.
+
+import type { OtherPageVM } from './vm/other-pages';
 
 /** Where the fan is in a list of one label: on this page (`here`), and the other models' names, deduplicated. */
 export interface FanMarksListGroup {
@@ -25,6 +27,8 @@ export interface FanMarksView {
   readonly lists: { readonly label: string; readonly groups: readonly FanMarksListGroup[] } | null;
   /** FANSLY BLOCKLIST's posts about the fan, newest first; empty — none. */
   readonly posts: readonly FanMarksPostView[];
+  /** The fan's money on other pages, the biggest first; empty — none. */
+  readonly otherPages: readonly OtherPageVM[];
 }
 
 export interface FanMarksClient {

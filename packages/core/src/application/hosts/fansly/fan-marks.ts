@@ -1,10 +1,12 @@
-// The open fan's warning marks in Fansly's chat header (hub `clientFanMarks`; contracts fan-marks-fansly.ts): what the
+// The open fan's marks in Fansly's chat header (hub `clientFanMarks`; contracts fan-marks-fansly.ts): what the
 // header shows of the background's answer, and when it asks. One read per opened chat: the chat a person opens (its
 // page, fan and username) is asked once, a sync while it stays open asks nothing, and opening it again asks again (the
 // background answers from its ten-minute cache). The tab keeps the last answers of this document, so a chat opened
 // again shows its marks at once. Nothing while loading, nothing on a failed read: a mark shows only when it applies.
 import type { FanMarksClient, FanMarksListGroup, FanMarksPostView, FanMarksView } from '@cg/contracts/fan-marks-fansly';
 import type { FanslyFanMarks } from '@cg/contracts/tab-messages-fansly';
+
+import { otherPagesOf } from '../../../domain/fans/other-pages';
 
 export interface FanMarksTarget {
   readonly pageId: number;
@@ -16,7 +18,7 @@ export interface FanMarksTarget {
 
 export type FanMarksAnswer = { readonly ok: true; readonly marks: FanslyFanMarks } | { readonly ok: false };
 
-export const FAN_MARKS_NONE: FanMarksView = { lists: null, posts: [] };
+export const FAN_MARKS_NONE: FanMarksView = { lists: null, posts: [], otherPages: [] };
 /** Answers the tab keeps for chats opened again; the oldest goes first. */
 const KEPT = 50;
 
@@ -53,7 +55,8 @@ export function fanMarksView(marks: FanslyFanMarks, username: string | null): Fa
   }
   posts.sort((a, b) => b.postedAt - a.postedAt);
   const first = shown[0];
-  return first === undefined && posts.length === 0 ? FAN_MARKS_NONE : { lists: first === undefined ? null : { label: first.label, groups: shown }, posts };
+  const otherPages = otherPagesOf(marks.otherPages).otherPages ?? [];
+  return first === undefined && posts.length === 0 && otherPages.length === 0 ? FAN_MARKS_NONE : { lists: first === undefined ? null : { label: first.label, groups: shown }, posts, otherPages };
 }
 
 export function createFanMarks(deps: {

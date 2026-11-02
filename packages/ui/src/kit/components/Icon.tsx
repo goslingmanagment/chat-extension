@@ -135,6 +135,13 @@ const PATHS = {
   /** A take that plays (1.47.0): «Пауза». */
   pause: <path d="M5.6 4.2v7.6M10.4 4.2v7.6" />,
   /** «Рассылка» (1.63.0): an envelope — its button in Spenders and its chip in the page's corner. */
+  /** A fan who is on other pages of the agency too: two circles that overlap. */
+  overlap: (
+    <>
+      <circle cx="5.8" cy="8" r="4" />
+      <circle cx="10.2" cy="8" r="4" />
+    </>
+  ),
   /** FBuddy's spending tier of a fan («Онлайн», 2026-10-28): a gem. */
   gem: (
     <>

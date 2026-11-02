@@ -15,7 +15,20 @@
 import * as z from 'zod/mini';
 
 import { type HostKind } from '../ids';
-import { NativeIdSchema, boundedText, type NativeId } from '../primitives';
+import { IsoTimestampSchema, NativeIdSchema, boundedText, type NativeId } from '../primitives';
+
+/**
+ * A fan on one other page of the asked page's platform, any model (hub `otherPages`, on «Онлайн», «Новые» and the fan's
+ * marks), where he paid or wrote himself within 90 days: the sum (0: nothing), when he last wrote and whether he subscribes
+ * or follows, the biggest money first. Absent or empty: none.
+ */
+export const OtherPageSchema = z.object({
+  pageLabel: z.string(),
+  grossMills: z.number(),
+  lastFanMessageAt: z.nullable(IsoTimestampSchema),
+  relation: z.nullable(z.enum(['subscriber', 'follower'])),
+});
+export type OtherPage = z.infer<typeof OtherPageSchema>;
 
 /** Hub local business date `YYYY-MM-DD` (hub `businessDate`): a real calendar date. */
 export const BUSINESS_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;

@@ -33,7 +33,16 @@ describe('[host:fansly] the fan marks of an answer', () => {
         { postedAt: Date.parse(T), text: 'https://fansly.com/stand_fan_1\nDNP + TM', author: 'agency', link: 'https://t.me/c/1716498488/1', handle: 'stand_fan_1', renamed: false },
         { postedAt: Date.parse('2026-09-01T10:00:00.000Z'), text: 'https://fansly.com/old_name\nDNP + TM', author: 'agency', link: 'https://t.me/c/1716498488/1', handle: 'old_name', renamed: true },
       ],
+      otherPages: [],
     });
+  });
+
+  it('being on another page alone is a mark, money or none; a page with no name is none', () => {
+    const paid = { pageLabel: 'mia-vip', grossMills: 1_653_000, lastFanMessageAt: null, relation: 'subscriber' as const };
+    const talks = { pageLabel: 'ella-moon', grossMills: 0, lastFanMessageAt: '2026-10-20T10:00:00.000Z', relation: null };
+    const otherPages = [paid, talks, { pageLabel: ' ', grossMills: 5_000, lastFanMessageAt: null, relation: null }];
+    expect(fanMarksView({ lists: [], blocklist: [], otherPages }, null)).toEqual({ lists: null, posts: [], otherPages: [paid, talks] });
+    expect(fanMarksView({ lists: [], blocklist: [], otherPages: [{ ...talks, pageLabel: ' ' }] }, null)).toBe(FAN_MARKS_NONE);
   });
 
   it('a list named with the team note after a dash is the short name, one group with the same list elsewhere', () => {

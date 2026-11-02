@@ -125,7 +125,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   archiveRebuild: PAGE_FAN,
   grantPages: { username: isString, userId: isNumber, pages: isStringArray },
   pageAccount: { pageLabel: isString, platformAccountId: either(isString, oneOf(null)) },
-  audienceEvent: { ...PAGE_FAN, kind: oneOf('new', 'returning'), trial: isBoolean, fanWrote: isBoolean, handSent: isBoolean, agoMs: isNumber, username: isString, displayName: isString },
+  audienceEvent: { ...PAGE_FAN, kind: oneOf('new', 'returning'), trial: isBoolean, fanWrote: isBoolean, handSent: isBoolean, agoMs: isNumber, username: isString, displayName: isString, otherPages: isArray },
   spenderFans: { fans: isSpenderSeeds },
   talking: { ...PAGE_FAN, conversationRef: isNativeId, name: isString, agoMs: isNumber },
   fanCard: { ...PAGE_FAN, card: isObject },

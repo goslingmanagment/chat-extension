@@ -16,7 +16,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { type UiTextSize } from '@cg/contracts/settings';
 import { type BatchVM, type I18n, type NewcomerRowVM, type NewcomersVM, type UiAction, type ValueSignal } from '@cg/contracts/vm';
 
-import { Button, Dialog, FanBadge, Icon, isComposing, OverlayLayer, pure, rovingIndex, Spinner, TalkingMark, useDispatch, useI18n, useKit, useValueSignal } from '../kit';
+import { Button, Dialog, FanBadge, Icon, isComposing, OtherPagesMark, OverlayLayer, pure, rovingIndex, Spinner, TalkingMark, useDispatch, useI18n, useKit, useValueSignal } from '../kit';
 import { useRowFocus } from '../spenders/rowFocus';
 import { ChoiceMenu, isPlainKey, type ChoiceItem } from '../spenders/window';
 
@@ -272,11 +272,14 @@ function RowView({ row, index, count, active, parts, onPick }: RowProps): JSX.El
     >
       <PickAvatar row={row} />
       <span class="cg-nw__copy">
-        <span class="cg-nw__name">
-          {row.name}
-          <FanBadge badges={row.badges} inline />
-          {custom === null ? null : <span class="cg-nw__custom"> ({custom})</span>}
-          {tag === null ? null : <span class="cg-nw__tag">{tag}</span>}
+        <span class="cg-fbname">
+          <span class="cg-nw__name">
+            {row.name}
+            <FanBadge badges={row.badges} inline />
+            {custom === null ? null : <span class="cg-nw__custom"> ({custom})</span>}
+            {tag === null ? null : <span class="cg-nw__tag">{tag}</span>}
+          </span>
+          <OtherPagesMark pages={row.otherPages} />
         </span>
         <span class="cg-nw__mline">
           <span class="cg-nw__meta cg-num">{parts.meta(i18n, row)}</span>
@@ -311,6 +314,7 @@ function sameRow(a: RowProps, b: RowProps): boolean {
     x.hasDraft === y.hasDraft &&
     x.draftStale === y.draftStale &&
     x.avatarUrl === y.avatarUrl &&
+    JSON.stringify(x.otherPages) === JSON.stringify(y.otherPages) &&
     greeting(x) === greeting(y) &&
     x.check?.status === y.check?.status &&
     x.check?.customName === y.check?.customName &&

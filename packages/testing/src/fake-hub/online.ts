@@ -20,12 +20,14 @@
 // in-conversation) sets him aside; a message the window sent sets him aside as «писали из окна» until he writes (the
 // fake keeps it that simple: whatever his reason). Set aside is never hidden. Times are the hub clock's.
 
+import { SHOWCASE } from '../showcase';
 import {
   CHAT_IS_FAN,
   ONLINE_REASONS,
   type OnlineAttemptRequest,
   type OnlineAttemptResult,
   type OnlineItem,
+  type OtherPage,
   type OnlineList,
   type OnlinePresenceRequest,
   type OnlinePresenceResult,
@@ -118,6 +120,20 @@ export interface OnlineFacts {
   readonly autoRenew: boolean | null;
   /** Messages of the primary chat, counted up to 10. */
   readonly messageCount: number;
+  /** The other pages where the fan paid or lately wrote (hub `otherPages`); absent: none. */
+  readonly otherPages?: readonly OtherPage[];
+}
+
+/**
+ * The stand's fans who are on other pages, by their place in a list (the hub's `otherPages`): one page, and several,
+ * the biggest money first. Invented pages.
+ */
+export function standOtherPages(index: number): { readonly otherPages?: OtherPage[] } {
+  const [first, second] = SHOWCASE ? ['mia-vip', 'ella-moon'] : ['model-three-fansly', 'model-four'];
+  const wrote = (days: number): string => new Date(Date.now() - days * 86_400_000).toISOString();
+  if (index === 1) return { otherPages: [{ pageLabel: first, grossMills: 1_653_000, lastFanMessageAt: wrote(5), relation: 'subscriber' }] };
+  if (index === 3) return { otherPages: [{ pageLabel: second, grossMills: 412_500, lastFanMessageAt: wrote(40), relation: 'follower' }, { pageLabel: first, grossMills: 0, lastFanMessageAt: wrote(12), relation: null }] };
+  return {};
 }
 
 /** What a scenario says of one item: the decision as given (reason, act, aside), or none — the rules decide. */
@@ -144,7 +160,7 @@ export type OnlineSeed = { readonly fanRef: string; readonly seenAgoMs?: number;
 /** The keys a scenario's item may carry (the control op refuses any other). */
 export const ONLINE_SEED_KEYS: ReadonlySet<string> = new Set([
   'fanRef', 'seenAgoMs', 'onlineAgoMs', 'conversationRef', 'username', 'displayName', 'alias', 'greetingName', 'lifetimeGrossMills', 'last30dGrossMills', 'seenAt', 'onlineSince', 'seenSource',
-  'reason', 'reasonAt', 'act', 'aside', 'asideAt', 'asideBy', 'messageCount', 'lastFanMessageAt', 'lastPageMessageAt', 'subscription',
+  'reason', 'reasonAt', 'act', 'aside', 'asideAt', 'asideBy', 'messageCount', 'lastFanMessageAt', 'lastPageMessageAt', 'subscription', 'otherPages',
 ]);
 
 /** Another chatter «в разговоре» with a fan: their names, the newest send (the fake's in-conversation). */
@@ -273,6 +289,7 @@ export function seedRow(page: FakePage, seed: OnlineSeed, now: number): OnlineRo
     endsAt: parsed(subscription.endsAt),
     autoRenew: subscription.autoRenew ?? null,
     messageCount: seed.messageCount ?? 0,
+    ...(seed.otherPages === undefined ? {} : { otherPages: seed.otherPages }),
   };
   const fixed: OnlineFixed = {
     ...(seed.reason === undefined ? {} : { reason: seed.reason }),
@@ -386,6 +403,7 @@ export class OnlineModel {
       lastFanMessageAt: isoOrNull(facts.lastFanMessageAt),
       lastPageMessageAt: isoOrNull(facts.answeredAt),
       subscription: { isSubscriber: facts.isSubscriber, startedAt: isoOrNull(facts.startedAt), endsAt: isoOrNull(facts.endsAt), autoRenew: facts.autoRenew },
+      ...(facts.otherPages === undefined ? {} : { otherPages: [...facts.otherPages] }),
     };
   }
 

@@ -1,6 +1,6 @@
-// The open fan's warning marks for Fansly's chat header (`fansly.marks.read`, contracts tab-messages-fansly.ts): the
-// hub's `clientFanMarks` — the agency's lists labelled like «💩 Бомж» the fan is in, on any of its Fansly pages, and
-// FANSLY BLOCKLIST's posts about the fan's username. Only for a tab granted the creator's page where the manifest admits
+// The open fan's marks for Fansly's chat header (`fansly.marks.read`, contracts tab-messages-fansly.ts): the hub's
+// `clientFanMarks` — the agency's lists labelled like «💩 Бомж» the fan is in, on any of its Fansly pages, FANSLY
+// BLOCKLIST's posts about the fan's username, and what he paid on other Fansly pages. Only for a tab granted the creator's page where the manifest admits
 // `fan-marks` (a hub with `fan-marks-v1`; no owner switch).
 //
 // The tab asks once per opened chat. Each page's and fan's answer is kept ten minutes for the person signed in, so a
@@ -65,7 +65,14 @@ export function boundFanMarks(marks: FanMarks, pageLabel: string): FanslyFanMark
     });
     if (blocklist.length === FANSLY_TAB_LIMITS.fanMarkPostsMax) break;
   }
-  return { lists, blocklist };
+  const otherPages: NonNullable<FanslyFanMarks['otherPages']> = [];
+  for (const page of marks.otherPages ?? []) {
+    const pageLabel = cut(page.pageLabel.trim(), 120);
+    if (pageLabel === '') continue;
+    otherPages.push({ pageLabel, grossMills: Math.max(0, page.grossMills), lastFanMessageAt: page.lastFanMessageAt, relation: page.relation });
+    if (otherPages.length === FANSLY_TAB_LIMITS.fanMarkOtherPagesMax) break;
+  }
+  return { lists, blocklist, ...(otherPages.length === 0 ? {} : { otherPages }) };
 }
 
 interface Held {
@@ -73,7 +80,7 @@ interface Held {
   answer: Promise<Answer>;
   settled: boolean;
   ok: boolean;
-  /** The answer named no list and no post. */
+  /** The answer named no list, no post and no other page's money. */
   empty: boolean;
 }
 
@@ -92,7 +99,7 @@ export function createFanMarksReader(kit: Pick<BackgroundKit, 'hub' | 'clock' | 
     try {
       const marks = boundFanMarks(await kit.hub.facade.fanMarks({ pageLabel, fanRef: request.fanRef, ...(request.username === undefined ? {} : { username: request.username }) }), pageLabel);
       held.ok = true;
-      held.empty = marks.lists.length === 0 && marks.blocklist.length === 0;
+      held.empty = marks.lists.length === 0 && marks.blocklist.length === 0 && marks.otherPages === undefined;
       return { ok: true, marks };
     } catch (error) {
       const wire = kit.hub.errorWire(error);
