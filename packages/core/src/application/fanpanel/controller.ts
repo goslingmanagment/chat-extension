@@ -417,7 +417,7 @@ export function createFanPanelController(deps: FanPanelControllerDeps): FanPanel
       }
       return Promise.resolve(done(action.type));
     }
-    if (action.type === 'SetQueueTab' || action.type === 'PickWinBack') return queue.dispatch(action);
+    if (action.type === 'SetQueueTab') return queue.dispatch(action);
     // Chat Memory week 2: «Да, это он» / «Нет» on a suggested account; «Удалить» / «Исправить» of a fact.
     if (action.type === 'DecideFanLink') {
       const { otherPlatform, otherFanRef, decision } = action;

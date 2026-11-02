@@ -9,15 +9,15 @@
 // failures, as «Новые» polls (domain/newcomers/poll.ts). A row opens the fan's chat through the tab's own navigation.
 
 import { type CgErrorWire } from '@cg/contracts/errors';
-import { hasCapability, type Handoff, type QueuePage, type WinBackList } from '@cg/contracts/hub';
+import { hasCapability, type Handoff, type QueuePage } from '@cg/contracts/hub';
 import { type ActionReceipt, type I18n, type QueueCustomVM, type QueueFanVM, type QueueTab, type QueueVM, type QueueWaitingVM, type UiAction, type VmView } from '@cg/contracts/vm';
 
-import { queueName, winBackReason } from '../../domain/fanpanel/queue';
+import { queueName } from '../../domain/fanpanel/queue';
 import { POLL_OPEN_MS, nextPollDelay } from '../../domain/newcomers/poll';
 import { type PageContextPort, pageFlag } from '../boards/context';
 import { type BoardsClock, type TabRpc } from '../boards/ports';
-import { done, refused } from '../boards/surface';
-import { dataView, errorOf, failureView, loadingView, msg } from '../boards/views';
+import { done } from '../boards/surface';
+import { dataView, failureView, loadingView, msg } from '../boards/views';
 import { chatHandle } from '../navigation/chat-handle';
 
 /** Rows of «Ждут»: a shift's worth; the total says how many more. */
@@ -69,22 +69,17 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
   let active = false;
   let pageId: number | null = null;
   let waiting = list<QueuePage>();
-  let winBack = list<WinBackList>();
   let handoff = list<Handoff>();
-  /** Picks on their way, by fan. */
-  const picking = new Set<string>();
-  let picked: NonNullable<QueueVM['winBack']>['picked'] = null;
-  let pickError: CgErrorWire | null = null;
   let timer: number | null = null;
   let disposed = false;
 
-  const served = (capability: 'win-back-v1' | 'handoff-v1'): boolean => {
+  const served = (capability: 'handoff-v1'): boolean => {
     const bootstrap = context.current().bootstrap;
     return bootstrap !== null && hasCapability(bootstrap.capabilities, capability);
   };
-  const tabs = (): QueueTab[] => ['waiting', ...(served('win-back-v1') ? (['winback'] as const) : []), ...(served('handoff-v1') ? (['handoff'] as const) : [])];
+  const tabs = (): QueueTab[] => ['waiting', ...(served('handoff-v1') ? (['handoff'] as const) : [])];
   const shown = (): QueueTab => (tabs().includes(tab) ? tab : 'waiting');
-  const listOf = (of: QueueTab): List<unknown> => (of === 'waiting' ? waiting : of === 'winback' ? winBack : handoff);
+  const listOf = (of: QueueTab): List<unknown> => (of === 'waiting' ? waiting : handoff);
 
   function stop(): void {
     if (timer !== null) clock.clearTimer(timer);
@@ -93,11 +88,7 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
 
   function reset(): void {
     waiting = list();
-    winBack = list();
     handoff = list();
-    picking.clear();
-    picked = null;
-    pickError = null;
   }
 
   /** The page the panel reads: the context's, when the panel's switch is on. */
@@ -133,7 +124,6 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
 
   function load(of: QueueTab): Promise<void> {
     if (of === 'waiting') return read(waiting, (id) => rpc.request('spenders.queue', { pageId: id, cursor: null, limit: QUEUE_WAITING_ROWS, everyone: true }));
-    if (of === 'winback') return read(winBack, (id) => rpc.request('queue.winback', { pageId: id }));
     return read(handoff, (id) => rpc.request('queue.handoff', { pageId: id }));
   }
 
@@ -184,15 +174,7 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
     const ctx = context.current();
     if (ctx.binding === null || (ctx.phase === 'ready' && !pageFlag(ctx, 'fanPanel'))) return undefined;
     const of = shown();
-    const now = clock.now();
     const waitingRows: QueueWaitingVM[] = (waiting.data?.items ?? []).map((row) => ({ ...fanOf(row, row.lifetimeGrossMills), since: row.lastFanMessageAt }));
-    const approaches = winBack.data?.approaches ?? [];
-    const winBackRows = (winBack.data?.items ?? []).map((row) => ({
-      ...fanOf(row, row.lifetimeGrossMills),
-      reason: winBackReason(row.reason, row.reasonAt, now),
-      approaches: approaches.map((approach) => ({ id: approach.id, label: approach.label, pick: { type: 'PickWinBack', fanRef: row.fanRef, approachId: approach.id } as const })),
-      busy: picking.has(row.fanRef),
-    }));
     const recent = (handoff.data?.recent ?? []).map((row) => ({ ...fanOf(row, null), lastSentAt: row.lastSentAt, messages: row.messages, chatters: row.chatters, inConversation: row.inConversation }));
     const handoffWaiting = (handoff.data?.waiting.head ?? []).map((row) => ({ ...fanOf(row, row.lifetimeGrossMills), since: row.lastFanMessageAt }));
     // A promise names its fan when a row of the handoff does.
@@ -221,61 +203,25 @@ export function createQueuePanel(deps: QueuePanelDeps): QueuePanel {
           ? loadingView(null)
           : of === 'waiting'
             ? stateView(waiting, waitingRows.length === 0, 'queue.waiting.none')
-            : of === 'winback'
-              ? stateView(winBack, winBackRows.length === 0 && picked === null, 'queue.winback.none')
-              : stateView(handoff, false, 'queue.waiting.none');
+            : stateView(handoff, false, 'queue.waiting.none');
     return {
       tab: of,
       tabs: tabs(),
       view: shownView,
       waiting: waiting.data === null ? null : { total: waiting.data.total, rows: waitingRows },
-      winBack: winBack.data === null ? null : { rows: winBackRows, picked },
       handoff: handoff.data === null ? null : { recent, waitingTotal: handoff.data.waiting.total, waiting: handoffWaiting, promises, ...(customs === undefined ? {} : { customs }) },
-      error: pickError === null ? null : errorOf(pickError, i18n),
     };
-  }
-
-  /** «Вернуть»: the pick of an approach — one call, never repeated; the fan leaves the list with its answer. */
-  async function pick(fanRef: string, approachId: number): Promise<ActionReceipt> {
-    const id = page();
-    const row = winBack.data?.items.find((item) => item.fanRef === fanRef);
-    const approach = winBack.data?.approaches.find((item) => item.id === approachId);
-    if (id === null || row === undefined || approach === undefined || picking.has(fanRef)) return done('PickWinBack', 'noop');
-    picking.add(fanRef);
-    pickError = null;
-    changed();
-    const answer = await rpc.request('queue.winback.pick', { pageId: id, fanRef, approachId });
-    picking.delete(fanRef);
-    if (disposed || pageId !== id) return done('PickWinBack', 'noop');
-    if (answer.ok) {
-      // A read of the list on its way began before this pick: its answer is older than this one.
-      winBack.run += 1;
-      winBack.loading = false;
-      winBack.since = null;
-      winBack.data = answer.payload.list;
-      winBack.loadedAt = clock.now();
-      picked = { name: queueName(row).name, approach: approach.label, open: openOf(row.fanRef, row.conversationRef) };
-    } else {
-      pickError = answer.error;
-      // «not_listed» / «approach_inactive»: the list moved — read it again.
-      winBack.nextAt = 0;
-    }
-    changed();
-    tick();
-    return answer.ok ? done('PickWinBack') : refused('PickWinBack', errorOf(answer.error, i18n));
   }
 
   function dispatch(action: UiAction): Promise<ActionReceipt> | null {
     if (action.type === 'SetQueueTab') {
       if (tab !== action.tab) {
         tab = action.tab;
-        pickError = null;
         changed();
         tick();
       }
       return Promise.resolve(done(action.type));
     }
-    if (action.type === 'PickWinBack') return pick(action.fanRef, action.approachId);
     return null;
   }
 

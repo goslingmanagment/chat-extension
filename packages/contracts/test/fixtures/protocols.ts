@@ -97,7 +97,6 @@ const fuseState = { fuse: { trippedAt: T0, reason: 'text', where: 'echo', build:
 const dto = (valid: object, invalid: object) => ({ valid: [valid], invalid: [invalid, { any: 'shape' }] }) as const;
 
 /** Chat Memory week 3: «Вернуть» and «Передача» of «Очередь» as the hub answers them. */
-const WIN_BACK = { pageLabel: 'model-two-fansly', approaches: [{ id: 2, label: 'Скучала' }], items: [{ fanRef: '920000000000000031', conversationRef: '810000000000000031', username: 'kai_38', displayName: 'Kai', alias: '💵Rowan/Norway/52', lifetimeGrossMills: 120000, reason: 'expiring', reasonAt: '2026-10-26T10:00:00.000Z' }], serverNow: '2026-10-24T10:00:00.000Z' };
 const HANDOFF = {
   pageLabel: 'model-two-fansly',
   recent: [{ fanRef: '920000000000000031', conversationRef: '810000000000000031', username: 'kai_38', alias: null, lastSentAt: '2026-10-24T09:50:00.000Z', messages: 4, chatters: ['Никита'], inConversation: ['Никита'] }],
@@ -430,14 +429,6 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   'spenders.queue': {
     req: { valid: [{ pageId: 11, cursor: null, limit: 50 }, { pageId: 11, cursor: 'c1', limit: 100 }, { pageId: 11, cursor: null, limit: 50, everyone: true }], invalid: [{ pageId: 11, cursor: null, limit: 101 }, { pageId: 11, cursor: null, limit: 50, everyone: 'true' }] },
     res: dto(H.queuePage, { ...H.queuePage, nextCursor: '' }),
-  },
-  'queue.winback': {
-    req: { valid: [{ pageId: 11 }], invalid: [{ pageId: 11, fanRef: '1' }] },
-    res: { valid: [WIN_BACK], invalid: [{ ...WIN_BACK, items: [{ fanRef: '1' }] }] },
-  },
-  'queue.winback.pick': {
-    req: { valid: [{ pageId: 11, fanRef: '920000000000000031', approachId: 2 }], invalid: [{ pageId: 11, fanRef: '920000000000000031', approachId: 0 }, { pageId: 11, approachId: 2 }] },
-    res: { valid: [{ attemptId: 5, list: WIN_BACK }], invalid: [{ attemptId: 5 }] },
   },
   'queue.handoff': {
     req: { valid: [{ pageId: 11 }], invalid: [{ pageId: 0 }] },

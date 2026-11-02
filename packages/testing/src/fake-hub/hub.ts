@@ -53,8 +53,6 @@ import {
   type FanCustomChangeRequest,
   type FanCustomCreateRequest,
   type Handoff,
-  type WinBackAttemptRequest,
-  type WinBackList,
   type FanQueueItemDoneRequest,
   type FanQueueReleaseRequest,
   type OutreachStoreGetQuery,
@@ -507,7 +505,6 @@ export class FakeHub {
         this.page(command.pageLabel);
         s.data.setQueue(command.pageLabel, {
           ...(command.waiting === undefined ? {} : { waiting: command.waiting as unknown as QueuePage['items'] }),
-          ...(command.winBack === undefined ? {} : { winBack: command.winBack as unknown as WinBackList }),
           ...(command.handoff === undefined ? {} : { handoff: command.handoff as unknown as Handoff }),
         });
         return { ok: true };
@@ -1246,10 +1243,6 @@ export class FakeHub {
         return read(s.data.fanCustomCreate(need(page), request as FanCustomCreateRequest, s.auth.userById(need(principal).user.userId)?.username ?? 'chatter', now));
       case 'clientFanCustomChange':
         return read(s.data.fanCustomChange(need(page), request as FanCustomChangeRequest, now));
-      case 'clientWinBack':
-        return { kind: 'json', status: 200, body: s.data.winBack(need(page), now) };
-      case 'clientWinBackAttempt':
-        return read(s.data.winBackAttempt(need(page), request as WinBackAttemptRequest, now));
       case 'clientHandoff':
         return { kind: 'json', status: 200, body: s.data.handoff(need(page), now) };
       case 'clientInConversation':

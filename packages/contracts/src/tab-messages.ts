@@ -44,7 +44,7 @@ import { ONLYFANS_FEED_MAX_RECORDS, OnlyfansFeedRecordSchema, OnlyfansPollPassSc
 import { AudienceNewPageSchema, ClaimStateSchema } from './hub/newcomers';
 import { DossierSchema, RecapStatusSchema, SharedRecapsSchema } from './hub/recaps';
 import { FAN_CUSTOM_MAX_CHARS, FAN_FACT_MAX_CHARS, FanCardSchema, FanFactChangeResultSchema, FanLinkDecideResultSchema } from './hub/fan-card';
-import { HandoffSchema, WinBackAttemptResultSchema, WinBackListSchema } from './hub/queue';
+import { HandoffSchema } from './hub/queue';
 import { ONLINE_ATTEMPT_ACTIONS, ONLINE_PRESENCE_MAX, ONLINE_SENT_ACTS, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceResultSchema, OnlineProbeResultSchema } from './hub/online';
 import { FAN_QUEUE_PORTION_MAX, FAN_QUEUE_SENT_ACTS, FAN_QUEUE_SKIP_REASONS, FanQueueItemDoneSchema, FanQueueReleaseSchema, FanQueuesSchema, FanQueueTakeSchema } from './hub/fan-queues';
 import { OutreachStoreListSchema, OutreachStoreOutreachSchema, OutreachStoreSaveBodySchema, OutreachStoreSavedSchema, OutreachStoreSendAnswerSchema, OutreachStoreSendBodySchema, OutreachStoreTouchesSchema } from './hub/outreach-store';
@@ -617,10 +617,6 @@ export const TAB_REQUESTS = {
     res: QueuePageSchema,
     from: TAB,
   },
-  /** Chat Memory week 3, «Вернуть» of «Очередь»: a few fans of the page to win back and the owner's approaches. */
-  'queue.winback': { req: z.strictObject({ pageId: HubIntIdSchema }), res: WinBackListSchema, from: TAB },
-  /** A chatter's approach pick for a fan of the list: one call, never repeated; answered with the list after it. Nothing is sent to the fan. */
-  'queue.winback.pick': { req: z.strictObject({ pageId: HubIntIdSchema, fanRef: NativeIdSchema, approachId: HubIntIdSchema }), res: WinBackAttemptResultSchema, from: TAB },
   /**
    * «Онлайн» (hub `clientOnline`, `online-v1`): the page's fans seen online within `minutes`, each with why to write now
    * and with what, the team's guide texts with them. Read while the window or the bar's count needs it; nothing is sent.

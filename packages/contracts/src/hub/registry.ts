@@ -38,7 +38,7 @@ import {
 import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
 import { FanNoteAttributionsQuerySchema, FanNoteAttributionsSchema, NoteAttributionsRequestSchema, NoteAttributionsResultSchema } from './note-attribution';
 import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
-import { HandoffQuerySchema, HandoffSchema, WinBackAttemptRequestSchema, WinBackAttemptResultSchema, WinBackListSchema, WinBackQuerySchema } from './queue';
+import { HandoffQuerySchema, HandoffSchema } from './queue';
 import { OnlineAttemptRequestSchema, OnlineAttemptResultSchema, OnlineListSchema, OnlinePresenceRequestSchema, OnlinePresenceResultSchema, OnlineProbeRequestSchema, OnlineProbeResultSchema, OnlineQuerySchema } from './online';
 import { OnlyfansFeedRequestSchema, OnlyfansFeedResultSchema, OnlyfansPollRequestSchema, OnlyfansPollResultSchema } from './onlyfans-feed';
 import { ServerTabStateRequestSchema, ServerTabStateResultSchema } from './server-tab';
@@ -91,8 +91,6 @@ export const HUB_ROUTE_SCHEMAS = {
   clientFanLinkDecide: { request: FanLinkDecideRequestSchema, response: FanLinkDecideResultSchema },
   clientFanFactChange: { request: FanFactChangeRequestSchema, response: FanFactChangeResultSchema },
   clientFanMarks: { request: FanMarksQuerySchema, response: FanMarksSchema },
-  clientWinBack: { request: WinBackQuerySchema, response: WinBackListSchema },
-  clientWinBackAttempt: { request: WinBackAttemptRequestSchema, response: WinBackAttemptResultSchema },
   clientHandoff: { request: HandoffQuerySchema, response: HandoffSchema },
   clientOnline: { request: OnlineQuerySchema, response: OnlineListSchema },
   clientOnlinePresence: { request: OnlinePresenceRequestSchema, response: OnlinePresenceResultSchema },

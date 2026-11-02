@@ -54,9 +54,6 @@ import {
   type FanCustomChangeRequest,
   type FanCustomCreateRequest,
   type Handoff,
-  type WinBackAttemptRequest,
-  type WinBackAttemptResult,
-  type WinBackList,
   type FanQueueItemDone,
   type FanQueueItemDoneRequest,
   type FanQueueRelease,
@@ -314,8 +311,7 @@ export class DataModel {
   /** Chat Memory week 2: the fans' cards a scenario set (`fanCard`), by `page|fan`. */
   private readonly cards = new Map<string, FanCard>();
   /** Chat Memory week 3: «Очередь» a scenario set (`queue`), by page. */
-  private readonly queues = new Map<string, { waiting?: QueuePage['items']; winBack?: WinBackList; handoff?: Handoff }>();
-  private winBackAttempts = 0;
+  private readonly queues = new Map<string, { waiting?: QueuePage['items']; handoff?: Handoff }>();
   /** «Онлайн»: a scenario's lists, the Fansly tabs' presence reports, what the chatters did in the window. */
   private readonly onlineModel = new OnlineModel();
   /** hub #953: the OnlyFans feed the tabs reported (onlyfans-feed.ts). */
@@ -1349,28 +1345,9 @@ export class DataModel {
     return ok({ changed: true, card: next });
   }
 
-  setQueue(pageLabel: string, set: { readonly waiting?: QueuePage['items']; readonly winBack?: WinBackList; readonly handoff?: Handoff }): void {
+  setQueue(pageLabel: string, set: { readonly waiting?: QueuePage['items']; readonly handoff?: Handoff }): void {
     this.queues.set(pageLabel, { ...this.queues.get(pageLabel), ...set });
   }
-
-  /** As the hub's `clientWinBack`: the list a scenario set, else nobody to win back. */
-  winBack(page: FakePage, now: number): WinBackList {
-    const set = this.queues.get(page.pageLabel)?.winBack;
-    return set === undefined ? { pageLabel: page.pageLabel, approaches: [], items: [], serverNow: iso(now) } : { ...set, serverNow: iso(now) };
-  }
-
-  /** As the hub's `clientWinBackAttempt`: only a fan on the list and an approach of it (409 `not_listed` / `approach_inactive`); the fan leaves the list. */
-  winBackAttempt(page: FakePage, request: WinBackAttemptRequest, now: number): Read<WinBackAttemptResult> {
-    const list = this.winBack(page, now);
-    if (!list.items.some((item) => item.fanRef === request.fanRef)) return no('conflict', 'not_listed');
-    if (!list.approaches.some((approach) => approach.id === request.approachId)) return no('conflict', 'approach_inactive');
-    const next = { ...list, items: list.items.filter((item) => item.fanRef !== request.fanRef) };
-    this.setQueue(page.pageLabel, { winBack: next });
-    this.winBackAttempts += 1;
-    return ok({ attemptId: this.winBackAttempts, list: next });
-  }
-
-  // ── «Онлайн» (hub #879; online.ts) ──
 
   /** A scenario's «Онлайн» of a page: its items and templates; `null` — back to the stand's fans or the guide. */
   setOnline(pageLabel: string, set: { readonly items?: readonly OnlineSeed[] | null; readonly templates?: readonly OnlineTemplate[] | null }): void {
