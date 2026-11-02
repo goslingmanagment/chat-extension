@@ -68,6 +68,13 @@ scenario(
     await s.browser.pause(1_200);
     await shot(s, 'qc-todo');
     await crop(s, 'qc-todo-strip');
+    // A narrow chat: «Карточка» gives its place, the words give way first.
+    const wide = await s.browser.getWindowSize();
+    await s.browser.setWindowSize(1000, 800);
+    await s.browser.pause(800);
+    await crop(s, 'qc-todo-narrow');
+    await s.browser.setWindowSize(wide.width, wide.height);
+    await s.browser.pause(500);
 
     // «Пропустить ▾» stands over the strip, its reasons with what each does.
     await s.press(/^Пропустить/, 'dock', '.cg-qs button');
