@@ -887,7 +887,7 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
   },
   'chat.openTab': {
     req: {
-      valid: [{ path: '/messages/123', surface: 'preview', actionToken: ACTION_TOKEN }, { path: '/accounts/36408/chats/518588958', surface: 'preview', actionToken: ACTION_TOKEN }],
+      valid: [{ path: '/messages/123', surface: 'preview', actionToken: ACTION_TOKEN }, { path: '/accounts/910101/chats/74001004', surface: 'preview', actionToken: ACTION_TOKEN }],
       invalid: [{ path: 'https://example.com/', surface: 'preview', actionToken: ACTION_TOKEN }, { path: '/a', surface: 'preview' }],
     },
     res: { valid: [{ opened: true }], invalid: [{ opened: 'yes' }] },
