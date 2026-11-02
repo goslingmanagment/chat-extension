@@ -34,7 +34,7 @@ export function routeFamily(value: string): string | null {
     const path = new URL(value).pathname;
     return [
       ['/api/v1/account/wallets/earnings/', 'earnings'], ['/api/v1/subscribers', 'subscribers'],
-      ['/api/v1/media/orderhistory', 'media'], ['/api/v1/messaging/groups', 'messagingGroups'],
+      ['/api/v1/media/orderhistory', 'media'], ['/api/v1/media/vaultnew', 'vault'], ['/api/v1/vault/', 'vault'], ['/api/v1/messaging/groups', 'messagingGroups'],
       ['/api/v1/group/', 'group'], ['/api/v1/message', 'message'], ['/api/v1/account', 'account'],
     ].find(([prefix]) => prefix !== undefined && path.startsWith(prefix))?.[1] ?? null;
   } catch { return null; }

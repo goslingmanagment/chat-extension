@@ -429,6 +429,29 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
     req: { valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, uploadId: uuid(310) }], invalid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId }] },
     res: vaultAck,
   },
+  'fansly.vault.album': {
+    req: { valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId }], invalid: [{ albumId: vaultCheckpoint.albumId }] },
+    res: {
+      valid: [{ ok: true, rows: [{ row: '800000000000000002', mediaId: '800000000000000001', name: 'SXT-003_01_pic01.jpeg' }, { row: '800000000000000004', mediaId: '800000000000000003', name: '' }] }, { ok: true, rows: [] }, { ok: false, error: { code: 'CG-FAN-SESSION' } }],
+      // A row without its member; a member that is no id.
+      invalid: [{ ok: true, rows: [{ row: '800000000000000002', name: 'a.jpeg' }] }, { ok: true, rows: [{ row: '800000000000000002', mediaId: 'm1', name: 'a.jpeg' }] }],
+    },
+  },
+  'fansly.vault.arrange': {
+    req: {
+      valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, mediaIds: ['800000000000000001', '800000000000000003'] }],
+      // Nothing to add; an id that is no id.
+      invalid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, mediaIds: [] }, { hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, mediaIds: ['m1'] }],
+    },
+    res: { valid: [{ ok: true }, { ok: false, error: { code: 'CG-FAN-REQUEST' } }], invalid: [{ ok: true, rows: [] }] },
+  },
+  'fansly.vault.rename': {
+    req: {
+      valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, mediaId: '800000000000000001', name: 'SXT-003_11_pic09.jpg' }],
+      invalid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, name: 'SXT-003_11_pic09.jpg' }],
+    },
+    res: { valid: [{ ok: true, name: 'SXT-003_11_pic09.jpg' }, { ok: false, error: { code: 'CG-FAN-REQUEST' } }], invalid: [{ ok: true }] },
+  },
 
   'fansly.relay.hello': {
     req: {

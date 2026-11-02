@@ -103,6 +103,8 @@ export const FANSLY_TAB_LIMITS = {
    * item 22): this only bounds the checkpoint in storage, far above a real upload.
    */
   vaultFilesPerUpload: 10_000,
+  /** The rows of one album the upload of a set reads (`fansly.vault.album`): far above a real album. */
+  vaultAlbumRowsMax: 20_000,
   /** Full URL: up to 7 query values × 2048 UTF-16 units × 9 percent-encoded chars, plus base, path and keys. */
   relayRequestUrlMaxChars: 128 * 1024,
   /** The relay: a request body we send, a response body it hands back, and the headers each way. */
@@ -836,6 +838,39 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.vault.resume': { req: z.strictObject(AlbumRef), res: z.strictObject({ checkpoint: z.nullable(VaultCheckpointSchema), held: z.optional(z.boolean()) }), from: TAB, hosts: FANSLY },
   /** The upload is over or the person dropped it; `held` — another open tab holds it: nothing is cleared. */
   'fansly.vault.clear': { req: z.strictObject({ ...AlbumRef, uploadId: UuidSchema }), res: VaultAck, from: TAB, hosts: FANSLY },
+  /**
+   * 2026-11-03, the upload of a set: the album's rows to its end, the newest first (`GET /media/vaultnew`, FS-NET-1
+   * `vault`) — the row's id, its member and the name the album shows ('' — none). Only the tab's own creator.
+   */
+  'fansly.vault.album': {
+    req: z.strictObject(AlbumRef),
+    res: z.discriminatedUnion('ok', [
+      z.strictObject({
+        ok: z.literal(true),
+        rows: z.array(z.strictObject({ row: NativeIdSchema, mediaId: NativeIdSchema, name: displayText(255) })).check(z.maxLength(FANSLY_TAB_LIMITS.vaultAlbumRowsMax)),
+      }),
+      Failure,
+    ]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * 2026-11-03: the members added again in this order, the last one on top (`POST /vault/albums/media`): the album laid
+   * out as the set reads. One attempt; asked again only after a read of the album (a member added again keeps one row).
+   */
+  'fansly.vault.arrange': {
+    req: z.strictObject({ ...AlbumRef, mediaIds: z.array(NativeIdSchema).check(z.minLength(1), z.maxLength(FANSLY_TAB_LIMITS.vaultFilesPerUpload)) }),
+    res: z.discriminatedUnion('ok', [Done, Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /** 2026-11-03: one member's name in this album — its file's name, where Fansly kept another (`POST /vault/albums/media/rename`). */
+  'fansly.vault.rename': {
+    req: z.strictObject({ ...AlbumRef, mediaId: NativeIdSchema, name: displayText(255) }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), name: displayText(255) }), Failure]),
+    from: TAB,
+    hosts: FANSLY,
+  },
 
   // ── relay: it is up, and its answers to `fansly.relay.fetch` ──
   /**

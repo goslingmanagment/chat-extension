@@ -27,8 +27,9 @@ import { vaultCheckpointFollows, type VaultCheckpoint } from '@cg/contracts/tab-
 import type { VaultAlbumOrder, VaultItemState, VaultOrderCheck, VaultPanelAction, VaultPanelClient, VaultPanelNote, VaultPanelVM, VaultResumeVM, VaultRunVM, VaultStartBlock } from '@cg/contracts/vault-fansly';
 
 import { vaultMediaKey } from './dom';
+import { createVaultBulkRun } from './bulk';
 import { planVaultUpload, type VaultPlan } from './plan';
-import { VAULT_CHECKPOINT_TTL_MS, createVaultRun, findVaultCheckpoint, sameVaultFiles, type VaultCheckpointStore, type VaultRun, type VaultRunSnapshot } from './run';
+import { VAULT_CHECKPOINT_TTL_MS, createVaultRun, findVaultCheckpoint, sameVaultFiles, type VaultAlbumApi, type VaultCheckpointStore, type VaultRun, type VaultRunSnapshot } from './run';
 import { vaultTargetOf, type VaultTarget, type VaultUploader, type VaultView } from './upload';
 
 /**
@@ -48,7 +49,12 @@ export interface VaultPanelDeps {
   readonly onPage: (listener: () => void) => () => void;
   readonly now?: () => number;
   readonly newId?: () => string;
-  /** Tests: the run of P13a by default. */
+  /**
+   * The album through Fansly's API (2026-11-03): with it a run takes the whole set at once and lays the album out by one
+   * request (bulk.ts); without it, file by file (run.ts).
+   */
+  readonly api?: VaultAlbumApi;
+  /** Tests: the run of the set (bulk.ts) with `api`, else the run of P13a. */
   readonly createRun?: typeof createVaultRun;
 }
 
@@ -111,7 +117,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   const { uploader, store } = deps;
   const now = deps.now ?? (() => Date.now());
   const newId = deps.newId ?? (() => crypto.randomUUID());
-  const makeRun = deps.createRun ?? createVaultRun;
+  const makeRun = deps.createRun ?? (deps.api === undefined ? createVaultRun : createVaultBulkRun);
   const listeners = new Set<(view: VaultPanelVM) => void>();
 
   let shown = false;
@@ -152,11 +158,12 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   const bind = (at: VaultTarget, files: readonly File[], checkpoint: VaultCheckpoint | null): Bound => {
     const uploadId = checkpoint?.uploadId ?? newId();
     let made: Bound | null = null;
-    const run = makeRun({ target: at, files, checkpoint }, { uploader, store, now, newId: () => uploadId }, (snapshot) => {
+    const run = makeRun({ target: at, files, checkpoint }, { uploader, store, now, newId: () => uploadId, ...(deps.api === undefined ? {} : { api: deps.api }) }, (snapshot) => {
       if (made === null || bound !== made) return;
       made.snapshot = snapshot;
       if (snapshot.state === 'complete') {
-        if (made.order === null) made.order = checkVaultOrder(made.files, uploader.view());
+        // The set's run read the album itself after laying it out; the page's cards show it only after a reload.
+        if (made.order === null) made.order = snapshot.order ?? checkVaultOrder(made.files, uploader.view());
         // The run cleared its checkpoint; one it could not clear may be offered again on the next visit.
         checked = { key: made.key, checkpoint: null, held: false };
         if (snapshot.checkpointLeftBehind) note = 'left-behind';

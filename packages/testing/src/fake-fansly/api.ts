@@ -39,6 +39,8 @@ import { FakeFanslyCommandError, groupCreatedFrame, runCommand } from './control
 import { HISTORY_PAGE, MESSAGE_TYPE, standFbuddyTier, type FanslyWorld } from './data';
 
 /** The stand's copy of FBuddy's batch of tiers (`<stand>/fbuddy` is a test build's FBuddy base). */
+/** Rows of one `GET /media/vaultnew` page: small, so a run reads an album page by page as on Fansly. */
+const VAULT_PAGE_ROWS = 25;
 const STAND_FBUDDY_BATCH = '/fbuddy/api/v1/fan-spend/batch';
 import { classifyCaller, hasNgswBypass, type FanslyCaller, type FanslyRoute, type FanslyVia, type RequestFacts } from './journal';
 import type { FanslySocketHub } from './socket';
@@ -353,7 +355,7 @@ const ROUTES: readonly Route[] = [
       const mediaIds = Array.isArray(asked?.['mediaIds']) ? asked['mediaIds'].filter((id): id is string => typeof id === 'string') : [];
       if (album === undefined) return missing('no album');
       if (mediaIds.length === 0) return bad('mediaIds');
-      album.mediaIds.push(...mediaIds);
+      world.addAlbumMedia(album, mediaIds);
       return { response: {} };
     },
   },
@@ -367,7 +369,7 @@ const ROUTES: readonly Route[] = [
       // A type album («Posts», «Messages»): the stand keeps none of its media.
       if (albumId === null) return { response: { albumMedia: [], media: [] } };
       const album = world.albums.find((item) => item.id === albumId);
-      return album === undefined ? missing('no album') : { response: world.wireAlbumMedia(album) };
+      return album === undefined ? missing('no album') : { response: world.wireAlbumMedia(album, params.get('before'), VAULT_PAGE_ROWS) };
     },
   },
   {
@@ -377,9 +379,15 @@ const ROUTES: readonly Route[] = [
     run: ({ world, body }) => ({
       response: (Array.isArray(body) ? body : []).map((item: unknown) => {
         const file = asRecord(item);
+        // Fansly knows a file by its content (fansly-publish-contract.md §2): the same file again is the same medium,
+        // under the name it got the first time — the stand takes the name, the size and the type for the content.
+        const content = typeof file?.['name'] === 'string' ? `${file['name']}:${String(file['size'] ?? '')}:${String(file['type'] ?? '')}` : null;
+        const known = content === null ? undefined : world.uploadedContent.get(content);
+        if (known !== undefined) return { contentId: known, contentType: 1 };
         const id = world.nextId();
         // A medium with a file name is kept: an album it is added to shows its card (the vault, R20 P13a).
         if (typeof file?.['name'] === 'string') world.media.set(id, { id, filename: world.uploadFilenames.get(file['name']) ?? file['name'], mimetype: typeof file['type'] === 'string' ? file['type'] : '', createdAt: Date.now() });
+        if (content !== null) world.uploadedContent.set(content, id);
         return { contentId: id, contentType: 1 };
       }),
     }),

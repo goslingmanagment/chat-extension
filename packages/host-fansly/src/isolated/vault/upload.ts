@@ -34,11 +34,18 @@ import type { HostEvent } from '@cg/contracts/host';
 
 import type { FanslyPort, FanslyVaultFact, FanslyVaultFacts } from '../host-port';
 import { isVaultPath, readVaultPage, VAULT_SELECTORS, vaultMediaKey, type VaultPage } from './dom';
-import { handFile } from '../handoff';
+import { handFile, handFiles } from '../handoff';
 import { prependedVaultCard, renameVaultCard, VAULT_CONFIRM_TIMEOUT_MS } from './rename';
 
 /** How long one file may take to be confirmed (the old extension's limit). */
 export const VAULT_FILE_TIMEOUT_MS = 45 * 60 * 1000;
+/**
+ * A set on its way (`uploadMany`): how long the page may show nothing new — its uploads move their progress all along,
+ * so a page silent this long has stopped.
+ */
+export const VAULT_BATCH_STALL_MS = 10 * 60 * 1000;
+/** The page is done with a set when no file of it has been on its way for this long: its additions go 1 s after the last upload (main:12536). */
+export const VAULT_BATCH_QUIET_MS = 3_000;
 
 /**
  * The account and the album a run is bound to (the checkpoint's key, `fansly.vault.*`), and the album's title as the
@@ -91,6 +98,18 @@ export type VaultUploadOutcome =
   /** Handed over (or maybe), the outcome not seen: only the person says what happened to it. */
   | { readonly state: 'unknown'; readonly halt: VaultHalt; readonly path: FanslyHandoffPath | null };
 
+/** A set of files handed to the page at once (`uploadMany`). */
+export type VaultBatchOutcome =
+  /**
+   * The page took the files and is done with them: none on its way, quiet since. What landed is the album's word (its
+   * rows, read by the run), not the page's; `said` — Fansly's words on a file it gave up, if it shows any.
+   */
+  | { readonly state: 'settled'; readonly path: FanslyHandoffPath; readonly said: string | null }
+  /** Nothing was handed over. */
+  | { readonly state: 'refused'; readonly halt: VaultHalt }
+  /** Handed over (or maybe), the page not seen to its end: the album tells what landed. */
+  | { readonly state: 'unknown'; readonly halt: VaultHalt; readonly path: FanslyHandoffPath | null };
+
 /** What the page shows the uploader now. */
 export interface VaultView {
   /** On `/creator/vault`. */
@@ -133,6 +152,12 @@ export interface VaultUploader {
   ticket(): string;
   /** Hands `file` to the open album of `target` and waits for its confirmation; never rejects. One at a time. */
   upload(file: File, target: VaultTarget, options?: VaultUploadOptions): Promise<VaultUploadOutcome>;
+  /**
+   * Hands `files` to the open album of `target` in one `change` — the page uploads them side by side and adds each to
+   * the album as it lands — and waits until the page is done with them; never rejects. Which of them landed and where is
+   * the album's word, read by the caller. One handoff at a time, as `upload`.
+   */
+  uploadMany(files: readonly File[], target: VaultTarget, options?: VaultUploadOptions): Promise<VaultBatchOutcome>;
   stats(): VaultUploaderStats;
   /** Stops hearing the port; a file in flight is not known. */
   dispose(): void;
@@ -151,6 +176,9 @@ export interface VaultUploaderEnv {
   readonly port: VaultPort;
   readonly timeoutMs?: number;
   readonly timer?: VaultTimer;
+  /** Tests: VAULT_BATCH_QUIET_MS and VAULT_BATCH_STALL_MS. */
+  readonly batchQuietMs?: number;
+  readonly batchStallMs?: number;
 }
 
 /**
@@ -190,6 +218,8 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
   const { win, port } = env;
   const doc = win.document;
   const limit = env.timeoutMs ?? VAULT_FILE_TIMEOUT_MS;
+  const batchQuiet = env.batchQuietMs ?? VAULT_BATCH_QUIET_MS;
+  const batchStall = env.batchStallMs ?? VAULT_BATCH_STALL_MS;
   const timer: VaultTimer = env.timer ?? { set: (callback, ms) => win.setTimeout(callback, ms), clear: (handle) => win.clearTimeout(handle as number) };
   let flight: Flight | null = null;
   let watches = 0;
@@ -363,10 +393,103 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
     });
   };
 
+  const uploadMany = (files: readonly File[], target: VaultTarget, options: VaultUploadOptions = {}): Promise<VaultBatchOutcome> => {
+    if (flight !== null || disposed || files.length === 0) return Promise.resolve({ state: 'refused', halt: 'uploader-busy' });
+    const page = readVaultPage(doc);
+    // A template Fansly gave up may stay on the form: only a file still on its way keeps the form from another set.
+    let blocked = vaultGuard(viewOf(page), target) ?? (page.uploading ? 'uploader-busy' : null);
+    if (blocked === null && options.ticket !== undefined && options.ticket !== ticket()) {
+      blocked = options.ticket.split(':')[0] === String(generation()) ? 'album-changed' : 'route-left';
+    }
+    const { input, host } = page;
+    if (blocked !== null || input === null || host === null) return Promise.resolve({ state: 'refused', halt: blocked ?? 'uploader-missing' });
+    const { signal } = options;
+    if (signal?.aborted === true) return Promise.resolve({ state: 'refused', halt: 'stopped' });
+    const fence = Math.max(heard, bound?.seq ?? 0);
+
+    return new Promise<VaultBatchOutcome>((resolve) => {
+      let path: FanslyHandoffPath | null = null;
+      let quiet: unknown = null;
+      let stall: unknown = null;
+      const offs: Array<() => void> = [];
+      const calm = (): void => {
+        if (quiet !== null) timer.clear(quiet);
+        quiet = null;
+      };
+      const settle = (outcome: VaultBatchOutcome): void => {
+        if (flight !== current) return;
+        flight = null;
+        calm();
+        if (stall !== null) timer.clear(stall);
+        for (const off of offs.splice(0)) off();
+        resolve(outcome);
+      };
+      const unknown = (halt: VaultHalt): void => settle({ state: 'unknown', halt, path });
+      const check = (): void => {
+        if (path === null) return;
+        // Every sign of life — a mutation, a fact — moves the stall's deadline: an upload moves its progress all along.
+        if (stall !== null) timer.clear(stall);
+        stall = timer.set(() => unknown('timeout'), batchStall);
+        const after = readVaultPage(doc);
+        if (!after.albumOpen) return unknown('album-closed');
+        if (after.input === null) return unknown('uploader-missing');
+        // The page loads the album again after each addition: a load on its way is no move of the person's.
+        const guard = vaultGuard(viewOf(after), target);
+        if (guard !== null && guard !== 'album-loading') return unknown(guard);
+        if (after.uploading) return calm();
+        if (quiet !== null) return;
+        quiet = timer.set(() => {
+          quiet = null;
+          const last = readVaultPage(doc);
+          if (!last.uploading) settle({ state: 'settled', path: path ?? 'data-transfer', said: last.failure });
+        }, batchQuiet);
+      };
+      const current: Flight = {
+        account: target.hostAccountId,
+        fact(fact) {
+          if (fact.p.seq <= fence) return;
+          // The page shows another album: its additions may have gone there.
+          if (fact.t === 'fx.vaultLoaded' && fact.p.albumId !== target.albumId) return unknown('album-changed');
+          // An addition answered, or its reload: the page is still at work — the quiet starts again.
+          calm();
+          check();
+        },
+        halt: unknown,
+      };
+
+      flight = current;
+      watches += 1;
+      const observer = new (win as Window & typeof globalThis).MutationObserver(() => {
+        mutations += 1;
+        check();
+      });
+      observer.observe(host, { childList: true, subtree: true, characterData: true });
+      offs.push(() => observer.disconnect());
+      if (signal !== undefined) {
+        const onAbort = (): void => unknown('stopped');
+        signal.addEventListener('abort', onAbort);
+        offs.push(() => signal.removeEventListener('abort', onAbort));
+      }
+
+      let handed: ReturnType<typeof handFiles>;
+      try {
+        handed = handFiles(win, input, files, `${VAULT_SELECTORS.host} ${VAULT_SELECTORS.uploader} ${VAULT_SELECTORS.input}`);
+      } catch {
+        return unknown('handoff-indeterminate');
+      }
+      if (handed === 'unavailable') return settle({ state: 'refused', halt: 'handoff-unavailable' });
+      path = handed;
+      // The page takes the files in the same task (its processing line, main:11597): no sign of them — it did not.
+      if (!readVaultPage(doc).uploading) return unknown('not-taken');
+      check();
+    });
+  };
+
   return {
     view: () => viewOf(readVaultPage(doc)),
     ticket,
     upload,
+    uploadMany,
     stats: () => ({ watching: flight !== null, watches, mutations }),
     dispose() {
       if (disposed) return;

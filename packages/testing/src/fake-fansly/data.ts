@@ -219,6 +219,10 @@ export class FanslyWorld {
   readonly media = new Map<string, FakeMedia>();
   readonly uploadFilenames = new Map<string, string>();
   readonly albumFilenames = new Map<string, string>();
+  /** The media the page uploaded, by content (`name:size:type`): the same file again is the same medium. */
+  readonly uploadedContent = new Map<string, string>();
+  /** The row of a member in an album (`<album>:<media>`): a new one each time it is added. */
+  readonly albumRows = new Map<string, string>();
   /** Paid attachments by content id (the `ppv` command), and the fans' orders of them. */
   readonly paid = new Map<string, FakePaidContent>();
   /** The creator's bundles a post holds (the stand's `bundles` command): what «Copy» on a post puts in the «Copied …» list. */
@@ -709,12 +713,35 @@ export class FanslyWorld {
     return { albums: this.albums.map((album) => this.wireAlbum(album)), aggregationData: { media: [] } };
   }
 
-  /** An album's media, the newest first, with the media they name (`GET /media/vaultnew`). */
-  wireAlbumMedia(album: FakeAlbum): WireVaultAlbumMediaPage {
-    const media = [...album.mediaIds].reverse().flatMap((id) => this.media.get(id) ?? []);
+  /**
+   * An album's media, the newest first, with the media they name (`GET /media/vaultnew`). `before` — the id of the last
+   * row of the page before ('0' or none — the head); a page holds at most `pageSize` rows, as Fansly's do.
+   */
+  wireAlbumMedia(album: FakeAlbum, before: string | null = null, pageSize = Number.POSITIVE_INFINITY): WireVaultAlbumMediaPage {
+    const rows = [...album.mediaIds].reverse().flatMap((id) => {
+      const item = this.media.get(id);
+      return item === undefined ? [] : [{ row: this.albumRows.get(`${album.id}:${id}`) ?? String(BigInt(id) + 1n), item }];
+    });
+    const from = before === null || before === '0' ? 0 : rows.findIndex((entry) => entry.row === before) + 1;
+    // A cursor the album does not hold: past its end.
+    const page = from === 0 && before !== null && before !== '0' ? [] : rows.slice(from, from + pageSize);
     return {
-      albumMedia: media.map((item) => ({ id: String(BigInt(item.id) + 1n), albumId: album.id, mediaId: item.id, customFilename: this.albumFilenames.get(`${album.id}:${item.id}`) ?? null, createdAt: Math.floor(item.createdAt / 1000) })),
-      media: media.map((item) => ({ id: item.id, filename: item.filename, mimetype: item.mimetype })),
+      albumMedia: page.map(({ row, item }) => ({ id: row, albumId: album.id, mediaId: item.id, customFilename: this.albumFilenames.get(`${album.id}:${item.id}`) ?? null, createdAt: Math.floor(item.createdAt / 1000) })),
+      media: page.map(({ item }) => ({ id: item.id, filename: item.filename, mimetype: item.mimetype })),
     };
+  }
+
+  /**
+   * `POST /vault/albums/media` as Fansly answers it (hub docs/plans/2026-10-23-wall-posts/fansly-publish-contract.md
+   * §13): each member gets a new row in the request's order, the last one on top; a member already in the album loses its
+   * old row first, its name in the album kept.
+   */
+  addAlbumMedia(album: FakeAlbum, mediaIds: readonly string[]): void {
+    for (const id of mediaIds) {
+      const at = album.mediaIds.indexOf(id);
+      if (at >= 0) album.mediaIds.splice(at, 1);
+      album.mediaIds.push(id);
+      this.albumRows.set(`${album.id}:${id}`, this.nextId());
+    }
   }
 }

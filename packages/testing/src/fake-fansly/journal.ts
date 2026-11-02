@@ -61,7 +61,8 @@ export type FanslyRoute =
  * FS-NET-1 (spec.md §4): the only calls our background may make — the pass of «Новые» (`followersnew`, the start of
  * the inbox, profiles, `GET /group`, `POST /group`, pages of history, `message/automated`), the greeting
  * (`POST /message`), Spenders (the inbox search, `POST /group`), «Регистрация» (`GET /group/<id>`), «Заметки»
- * (`GET /account?ids=`, `POST /notes`, `/notes/edit`, `/notes/delete`) and the identity (`GET /account/me`). The
+ * (`GET /account?ids=`, `POST /notes`, `/notes/edit`, `/notes/delete`), the identity (`GET /account/me`) and the vault's
+ * upload of a set (`GET /media/vaultnew`, `POST /vault/albums/media`, `/vault/albums/media/rename`). The
  * server's own copy of the list: the client's (packages/fansly-api) is checked against it by arriving here.
  */
 export const FS_NET_1: ReadonlySet<FanslyRoute> = new Set<FanslyRoute>([
@@ -79,6 +80,9 @@ export const FS_NET_1: ReadonlySet<FanslyRoute> = new Set<FanslyRoute>([
   'notes.delete',
   'media.orderhistory',
   'media.bundles',
+  'vault.albumMedia',
+  'vault.addMedia',
+  'vault.renameMedia',
 ]);
 
 export type FanslyViolationReason =

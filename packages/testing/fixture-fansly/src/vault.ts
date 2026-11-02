@@ -219,7 +219,12 @@ export class VaultRoute {
     for (const template of uploader.querySelectorAll('.media-container-wrapper:has(> app-account-media-create-template)')) template.remove();
     const media = uploader.querySelector('.media-wrapper');
     if (this.processing > 0) media?.before(el(s, 'div', { class: 'proccessing-templates bold' }, [el(s, 'i', { class: 'fa-fw fal fa-circle-notch fa-spin' }), 'Processing Media', ` (0/${String(this.processing)}) `]));
-    for (let i = 0; i < this.uploading; i += 1) media?.prepend(el(s, 'div', { class: 'media-container-wrapper' }, [host(s, 'app-account-media-create-template')]));
+    // An upload template shows its progress while it uploads (`*ngIf="isUploading"`, main:6454).
+    for (let i = 0; i < this.uploading; i += 1) {
+      const template = host(s, 'app-account-media-create-template');
+      template.append(el(s, 'div', { class: 'upload-progress' }, [el(s, 'div', { class: 'progress-percent' }, [' 50.0% '])]));
+      media?.prepend(el(s, 'div', { class: 'media-container-wrapper' }, [template]));
+    }
   }
 
   /** `onMediaUploaded`: queued, and added to the open album 1 s after the last one. */
