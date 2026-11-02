@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "df2949ecea1696aea0ec7e6e4c5742dcf8feb2f226934219480720bd3bc9afdf",
-    "sourceCommit": "aa0906c1e4cfda1aa62098b999134a866dc95270",
-    "note": "Vendored on 2026-11-01 from hub main aa0906c1 (#973) with scripts/vendor-sdk.mjs: «Рассылки» kept by Hub for the page's team (outreach-store-v1: clientOutreaches, clientOutreach, clientOutreachSave, clientOutreachSend, clientOutreachTouches). Re-vendor with the same script and update this pin together."
+    "contractHash": "22ed6a3151c13cf26f69c88fb900db982e8dbde3f94940eaa817b7200d6eea7d",
+    "sourceCommit": "cf2cd0e85f378c71c43489a621e8163265594af5",
+    "note": "Vendored on 2026-11-02 from hub main cf2cd0e8 (#976, deployed) with scripts/vendor-sdk.mjs: an optional otherPagesSpend on clientOnline, clientAudienceNew and clientFanMarks. Re-vendor with the same script and update this pin together."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

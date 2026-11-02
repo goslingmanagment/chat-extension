@@ -852,6 +852,10 @@ export declare const clientFanQueueItemSchema: z.ZodObject<{
         endsAt: z.ZodNullable<z.ZodString>;
         autoRenew: z.ZodNullable<z.ZodBoolean>;
     }, z.core.$strip>;
+    otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        grossMills: z.ZodNumber;
+    }, z.core.$strip>>>;
     itemId: z.ZodNumber;
     queueId: z.ZodNumber;
     why: z.ZodNullable<z.ZodString>;
@@ -892,6 +896,10 @@ export declare const clientFanQueueTakeResponseSchema: z.ZodObject<{
             endsAt: z.ZodNullable<z.ZodString>;
             autoRenew: z.ZodNullable<z.ZodBoolean>;
         }, z.core.$strip>;
+        otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            pageLabel: z.ZodString;
+            grossMills: z.ZodNumber;
+        }, z.core.$strip>>>;
         itemId: z.ZodNumber;
         queueId: z.ZodNumber;
         why: z.ZodNullable<z.ZodString>;

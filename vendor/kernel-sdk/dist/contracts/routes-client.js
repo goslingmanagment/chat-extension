@@ -1509,6 +1509,14 @@ export const clientClaimSummarySchema = z.object({
     heldBy: z.enum(CLIENT_LEASE_HOLDERS).nullable(),
     custody: z.enum(CLIENT_CUSTODY_STATES).nullable(),
 });
+/**
+ * What a fan paid on one other page of the asked page's platform, any model: the mark on a fan in a chatter's lists.
+ * The page and the sum only, also for a page the caller does not work; never a message or a fact of that page.
+ */
+export const clientOtherPageSpendSchema = z.object({
+    pageLabel: z.string(),
+    grossMills: mills,
+});
 export const clientAudienceNewItemSchema = z.object({
     /** The hub's id of the subscription event: stable, so a client can tell an event it already announced. */
     eventRef: z.string(),
@@ -1560,6 +1568,8 @@ export const clientAudienceNewItemSchema = z.object({
      */
     lastPersonalSendAt: isoTimestamp.nullable(),
     claim: clientClaimSummarySchema,
+    /** The fan's money on other pages of this platform, the biggest first, only sums above zero. Absent or empty: none. */
+    otherPagesSpend: z.array(clientOtherPageSpendSchema).optional(),
 });
 export const clientAudienceNewResponseSchema = z.object({
     pageLabel: z.string(),
@@ -2509,6 +2519,8 @@ export const clientFanMarksResponseSchema = z.object({
     listsReadAt: isoTimestamp.nullable(),
     /** The blocklist reader's last full read; null — the reader is off or never read. */
     blocklistReadAt: isoTimestamp.nullable(),
+    /** His money on other Fansly pages, the biggest first, only sums above zero. Absent or empty: none. Absent on OnlyFans. */
+    otherPagesSpend: z.array(clientOtherPageSpendSchema).optional(),
 });
 // ── Chat Memory week 3: win back (clientWinBack, clientWinBackAttempt) ──────
 //
@@ -2659,6 +2671,8 @@ export const clientOnlineItemSchema = z.object({
         endsAt: isoTimestamp.nullable(),
         autoRenew: z.boolean().nullable(),
     }),
+    /** The fan's money on other pages of this platform, the biggest first, only sums above zero. Absent or empty: none. */
+    otherPagesSpend: z.array(clientOtherPageSpendSchema).optional(),
 });
 /** A text of the team's reactivation guide, word for word; `love` is the place of the fan's name. */
 export const clientOnlineTemplateSchema = z.object({
