@@ -220,20 +220,9 @@ function PickAvatar({ row }: { readonly row: NewcomerRowVM }): JSX.Element {
 
 // ── a row ──
 
-/** «@handle · 2 ч назад» under the name: when the line is short of room, the @handle gives way first. */
-export function MetaLine({ username, rest }: { readonly username: string | null; readonly rest: string }): JSX.Element {
-  return (
-    <span class="cg-nw__meta cg-nw__meta--parts cg-num">
-      {username === null ? null : <span class="cg-nw__mh">{rest === '' ? `@${username}` : `@${username} · `}</span>}
-      {rest === '' ? null : <span class="cg-nw__mm">{rest}</span>}
-    </span>
-  );
-}
-
 /** What a site puts into the row: its status line, its line under the name, what stands at the row's end. */
 export interface RowParts {
   readonly Status: ComponentType<{ readonly row: NewcomerRowVM }>;
-  /** The line under the name, after the @handle. */
   readonly meta: (i18n: I18n, row: NewcomerRowVM) => string;
   readonly End?: ComponentType<{ readonly row: NewcomerRowVM }>;
   /** A word after the name («черновик»), or null. */
@@ -283,15 +272,17 @@ function RowView({ row, index, count, active, parts, onPick }: RowProps): JSX.El
     >
       <PickAvatar row={row} />
       <span class="cg-nw__copy">
-        <span class="cg-nw__name">
-          {row.name}
-          <FanBadge badges={row.badges} inline />
-          {custom === null ? null : <span class="cg-nw__custom"> ({custom})</span>}
-          {tag === null ? null : <span class="cg-nw__tag">{tag}</span>}
+        <span class="cg-fbname">
+          <span class="cg-nw__name">
+            {row.name}
+            <FanBadge badges={row.badges} inline />
+            {custom === null ? null : <span class="cg-nw__custom"> ({custom})</span>}
+            {tag === null ? null : <span class="cg-nw__tag">{tag}</span>}
+          </span>
+          <OtherPagesMark pages={row.otherPages} />
         </span>
         <span class="cg-nw__mline">
-          <MetaLine username={row.username} rest={parts.meta(i18n, row)} />
-          <OtherPagesMark pages={row.otherPages} />
+          <span class="cg-nw__meta cg-num">{parts.meta(i18n, row)}</span>
           <TalkingMark handle={row.talking ?? row.handle} />
         </span>
         <Status row={row} />

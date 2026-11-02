@@ -1,18 +1,18 @@
 // The open fan's marks in Fansly's own chat header, after «Регистрация»: the agency's list the fan is in («💩 Бомж», the
-// list's own label), «⛔ Блоклист» when FANSLY BLOCKLIST has posts about the fan, and what he spends on other pages
-// («lora-2 $1,653 +1»). In that row's size: the warnings in the warm and the red ink, the money in the row's neutral
-// one; nothing at all when no mark applies. They disable nothing.
+// list's own label), «⛔ Блоклист» when FANSLY BLOCKLIST has posts about the fan, and a green coin when he spends on
+// other pages (the sums in its card). In that row's size: the warnings in the warm and the red ink; nothing at all when
+// no mark applies. They disable nothing.
 //
 // Each mark explains itself in a card under it: on hover (after a short pause, kept while the pointer is over the mark
 // or the card), on keyboard focus, and pinned by a click (a second click, Esc or a press elsewhere puts it away). The
 // card is a manual popover: the top layer escapes the slot's `contain: layout` and the header's clipping, as our
 // tooltip does (kit/components/Tooltip.tsx); without popover support it stands `position: fixed`.
-import type { JSX, TargetedKeyboardEvent } from 'preact';
+import type { ComponentChild, JSX, TargetedKeyboardEvent } from 'preact';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 
 import type { FanMarksClient, FanMarksCopy, FanMarksView } from '@cg/contracts/fan-marks-fansly';
 
-import { otherPagesLabel, otherPagesLine, useI18n, useNowFn, type SurfaceDefinition } from '../../kit';
+import { Icon, otherPagesLine, useI18n, useNowFn, type SurfaceDefinition } from '../../kit';
 
 type Which = 'lists' | 'blocklist' | 'other';
 type PopoverElement = HTMLElement & { showPopover?: () => void; hidePopover?: () => void };
@@ -128,7 +128,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
       setOpen(null);
       anchor?.focus();
     };
-    const mark = (kind: Which, label: string): JSX.Element => (
+    const mark = (kind: Which, label: ComponentChild, name?: string): JSX.Element => (
       <>
         <span aria-hidden="true" class="cg-fm__divider">
           |
@@ -140,6 +140,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
           }}
           class={`cg-fm__mark cg-fm__mark--${kind}`}
           data-fan-mark={kind}
+          aria-label={name}
           aria-expanded={which === kind ? 'true' : 'false'}
           aria-controls={which === kind ? `cg-fm-${id}` : undefined}
           onPointerEnter={() => enter(kind)}
@@ -163,7 +164,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
       <span class="cg-fm" ref={root} data-fan-marks={[shown.lists ? 'lists' : '', shown.blocklist ? 'blocklist' : '', shown.other ? 'other' : ''].filter(Boolean).join(' ')}>
         {view.lists === null ? null : mark('lists', view.lists.label)}
         {shown.blocklist ? mark('blocklist', copy.blocklist) : null}
-        {shown.other ? mark('other', otherPagesLabel(i18n, view.otherPages)) : null}
+        {shown.other ? mark('other', <Icon name="coin" size={14} />, i18n.t('otherPages.title')) : null}
         {which === null ? null : (
           <div
             ref={card}
@@ -231,10 +232,10 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
     .cg-fm__mark { all: unset; display: inline-flex; align-items: center; cursor: pointer; border-radius: 6px; font-weight: 500; }
     .cg-fm__mark--lists { color: var(--cg-amber-ink); }
     .cg-fm__mark--blocklist { color: var(--cg-bad-ink); }
-    .cg-fm__mark--other { color: var(--cg-ink-2); font-weight: 400; font-variant-numeric: tabular-nums; }
-    .cg-fm__mark--other .cg-fm__label { max-width: none; }
+    .cg-fm__mark--other { color: var(--cg-good-ink); }
     .cg-fm__label { display: inline-block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
     .cg-fm__mark:hover .cg-fm__label, .cg-fm__mark[aria-expanded='true'] .cg-fm__label { text-decoration: underline; text-underline-offset: 2px; }
+    .cg-fm__mark--other .cg-fm__label { display: inline-flex; }
     .cg-fm__mark:focus-visible { outline: 2px solid var(--cg-focus); outline-offset: 1px; }
     .cg-fm__card {
       position: fixed; z-index: 970; inset: auto; top: 0; left: 0; margin: 0; border: 0; box-sizing: border-box;

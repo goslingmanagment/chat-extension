@@ -103,7 +103,7 @@ function RowSend({ row }: { readonly row: NewcomerRowVM }): JSX.Element | null {
 /** What the rows of Fansly's list say: «@handle · 2 ч назад», the pass's verdict, the row's own «Отправить». */
 const ROW_PARTS: RowParts = {
   Status: RowStatus,
-  meta: (i18n: I18n, row: NewcomerRowVM) => fanslyText(i18n, 'fansly.newcomers.ago', { age: i18n.formatAge(row.subscribedAt) }),
+  meta: (i18n: I18n, row: NewcomerRowVM) => `${row.username === null ? '' : `@${row.username} · `}${fanslyText(i18n, 'fansly.newcomers.ago', { age: i18n.formatAge(row.subscribedAt) })}`,
   End: RowSend,
 };
 

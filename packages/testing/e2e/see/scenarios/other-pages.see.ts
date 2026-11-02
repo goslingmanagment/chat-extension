@@ -1,6 +1,6 @@
-// What a fan spends on other pages of the agency (hub `otherPagesSpend`), in the small print of his row: «Онлайн» on
-// both sites, «Новые» on ChatSpace (Fansly's «Новые» are a pass over Fansly's own API, no hub answer carries it), and
-// Fansly's chat header with its card. One page, several with «+N» and the tooltip, a long name; light and dark.
+// What a fan spends on other pages of the agency (hub `otherPagesSpend`), a green coin beside the name: «Онлайн» on both
+// sites, «Новые» on ChatSpace (Fansly's «Новые» are a pass over Fansly's own API, no hub answer carries it), and Fansly's
+// chat header with its card. One page, several in the tooltip, a long name; light and dark.
 
 import { $, browser } from '@wdio/globals';
 
@@ -119,10 +119,13 @@ scenario(
 
     await openOnline(s);
     await shootList(s, 'online-rows-light');
-    // The note's picture (`--showcase`): the list, the fans with what they spend elsewhere.
+    // The note's picture (`--showcase`): the list, a coin's tooltip open.
     if (s.showcase) {
+      await s.h.ours('modal', '[data-cg-other-pages="3"]').moveTo();
+      await s.browser.pause(900);
       const list = await s.rect('modal', '.cg-nw__side');
       if (list !== null) await s.shot('note', { clip: { ...list, height: Math.min(list.height, 560) }, file: 'other-pages-mark' });
+      await pointerAway(s);
     }
     await shootTooltip(s, 'online-tooltip-light');
     await s.shot('online-window-light');

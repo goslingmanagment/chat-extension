@@ -115,7 +115,7 @@ export { CheckGlyph, GooseMark, ICON_NAMES, Icon, type IconName, type IconProps 
 export { DOCK_GROUP_SLOT, type DockIcon } from './chips';
 export { ACCENT_USES, Caret, Dot, ReadyBadge, Spinner, type AccentUse, type DotProps } from './components/Indicators';
 export { TalkingMark, TalkingNotice } from './components/Talking';
-export { OtherPagesMark, otherPagesLabel, otherPagesLine } from './components/OtherPages';
+export { OtherPagesMark, otherPagesLine } from './components/OtherPages';
 export { FanBadge, badgeLook } from './components/FanBadge';
 export { Menu, MenuAnchor, menuTriggerKeys, type MenuItem, type MenuProps } from './components/Menu';
 export {
