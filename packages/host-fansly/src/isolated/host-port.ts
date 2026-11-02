@@ -48,7 +48,11 @@ import type { PageDiagnostics } from '@cg/contracts/diagnostics';
 //   on the rows of the list the page shows as the application says
 //   (`fansly.setInboxMark`); a new `fx.state` starts the words over, as MAIN
 //   says them all again after it. 2026-10-31: the page's hub label in front of
-//   the tab's title (tab-label.ts, `fansly.setTabLabel`).
+//   the tab's title (tab-label.ts, `fansly.setTabLabel`). 2026-11-03: who wrote
+//   each of the model's messages of the open chat, before the time under each
+//   run of them (message-authors.ts, `fansly.setMessageAuthors`): the
+//   application's view, lined up with the bubbles by MAIN's order of the chat
+//   (`fx.order`), looked at again when MAIN hears a message of it come or go.
 // - `vault`: the vault's facts of MAIN's stream (§7.11, R20 P13a) — an addition
 //   to an album and an album the page loaded — for the uploader, which comes in
 //   its own module (`isolated/vault`, never in this early bundle); the port
@@ -79,6 +83,7 @@ import { createFreshnessPort } from './freshness';
 import { createGeneration } from './generation';
 import { createHeaderSlots, type HeaderSlots } from './header-slot';
 import { createInboxMarks } from './inbox-marks';
+import { createMessageAuthors } from './message-authors';
 import { createTabLabel } from './tab-label';
 import { createComposerField, rejected, type InsertionRecord, type WritePath } from './insert';
 import { FANSLY_KIND, FANSLY_PLATFORM, accountOf, chatFits, chatWindowOf, fanOf, identityMatches, identityOf, routeStateOf, sameChat, sameRoute } from './identity';
@@ -211,6 +216,14 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const header = createHeaderSlots(doc, mounts.registry);
   const wholeName = createWholeName(FANSLY_SELECTORS.headerName);
   const inboxMarks = createInboxMarks(doc);
+  // MAIN's order of a group's messages, for «кто написал»; nothing without MAIN, or for an answer of another generation.
+  const messageAuthors = createMessageAuthors(doc, {
+    order: async (groupId) => {
+      if (bridge === null || disposed) return null;
+      const taken = await generation.under(() => bridge.request('fx.order', { groupId }));
+      return taken.ok && taken.fresh() && !disposed ? taken.value : null;
+    },
+  });
   const tabLabel = createTabLabel(doc);
   /** Fansly's list of chats, live: read on every sync, it costs no walk of the document. */
   const inboxes = doc.getElementsByClassName(FANSLY_SELECTORS.inbox);
@@ -460,6 +473,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const account = routeState.chat === null ? null : (conversation?.contact?.querySelector(FANSLY_SELECTORS.headerAccount) ?? null);
     wholeName.sync(account, chatWire?.fanCustomName ?? chatWire?.fanDisplayName ?? chatWire?.fanUsername ?? null);
     inboxMarks.place([...inboxes].find((element) => element.tagName === 'DIV') ?? null);
+    messageAuthors.place(routeState.name === 'chat' ? (conversation?.container ?? null) : null, routeState.name === 'chat' ? (now.groupId ?? null) : null);
 
     if (routeMoved) emit({ type: 'route', route: routeState });
     if (seen !== composerSeen) {
@@ -482,6 +496,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     if (next === creator) return false;
     fanLabels.clear();
     inboxMarks.clear();
+    // Another creator's chats: what the application said of the old one's goes until it says again.
+    messageAuthors.set(null);
     // Identity may change between two facts of one batch: none of the old
     // account's pending sounds may be attributed to the new one at flush.
     soundEvents = [];
@@ -565,6 +581,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // Chat Memory week 1: any message the page sent from this tab — who sent it. Under the creator of its answer only.
       case 'fx.pageSent': {
         const p = event.p;
+        messageAuthors.changed(p.groupId);
         if (creator === null || p.accountId !== creator || p.fanId === creator) return;
         emit({ type: 'pageSent', fact: { chat: { host: FANSLY_KIND, hostAccountId: creator, platformFanId: p.fanId }, conversationRef: p.groupId, platformMessageId: p.msgId, media: p.media } });
         return;
@@ -572,6 +589,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // Sound facts stay together until the end of this MAIN batch (P14a).
       case 'fx.incoming': {
         const p = event.p;
+        messageAuthors.changed(p.groupId);
         // The account at capture time survives a backed-up MAIN stream and a login switch.
         // Older facts lacking attribution are not enough to classify our own aliases.
         if (p.senderId !== undefined && creator !== null && p.accountId === creator) soundEvents.push({ kind: 'message', id: p.msgId, conversationRef: p.groupId, senderId: p.senderId, fromFan: p.fromFan, automatic: p.automated, tip: p.tip, sentAt: p.createdAt });
@@ -583,8 +601,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       case 'fx.lastWord':
         inboxMarks.word(event.p.groupId, event.p.word);
         return;
-      case 'fx.coverage':
       case 'fx.deleted':
+        messageAuthors.changed(event.p.groupId);
+        return;
+      case 'fx.coverage':
         return;
     }
   };
@@ -778,6 +798,9 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     setTabLabel: (label) => {
       if (!disposed) tabLabel.set(label);
     },
+    setMessageAuthors: (view) => {
+      if (!disposed) messageAuthors.set(view);
+    },
   };
 
   const dispose = (): void => {
@@ -798,6 +821,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     header.dispose();
     wholeName.dispose();
     inboxMarks.dispose();
+    messageAuthors.dispose();
     tabLabel.dispose();
     theme.dispose();
     options.coexistence?.dispose();

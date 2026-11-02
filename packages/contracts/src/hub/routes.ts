@@ -69,6 +69,8 @@ export const HUB_ROUTES = {
   clientNoteAttributions: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['note-attribution-v1'], narrowToken: true },
   /** 2026-10-29: who created a fan's notes and who changed them last, as the hub recorded our writes. No owner switch. */
   clientFanNoteAttributions: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['note-attribution-read-v1'], narrowToken: true },
+  /** 2026-11-03: who sent each outgoing message of a fan's chat, as the hub recorded the sends. No owner switch. */
+  clientMessageAuthors: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['message-authors-v1'], narrowToken: true },
   /** Chat Memory week 1: the beat — the pages open and the person's idle on each; no page in the path, the hub skips a page not theirs. */
   clientActivity: { method: 'POST', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['chatter-activity-v1'], narrowToken: true },
   /** Chat Memory week 1: «в разговоре» — who wrote to which fan of the page in the last 15 minutes. No owner switch. */

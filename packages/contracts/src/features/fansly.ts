@@ -93,6 +93,9 @@ const FEATURES = {
   'note-attribution': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-v1'] }, actions: {}, surfaces: [], source: 'page' },
   // 2026-10-29: who created the questionnaire and who changed it last, read back from that record (`note-attribution-read-v1`).
   'note-authors': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['note-attribution-read-v1'] }, actions: {}, surfaces: [], source: 'page' },
+  // 2026-11-03: who sent each of the model's messages of the open chat, before its time (`message-authors-v1`). No owner
+  // switch. ChatSpace has no such entry: OnlyMonster shows its own «Sent by».
+  'message-authors': { kind: 'service', base: { flags: [], hostCapabilities: [], clientNeeds: ['message-authors-v1'] }, actions: {}, surfaces: [], source: 'page' },
   registration: { kind: 'panel', base: { flags: ['registration'], hostCapabilities: ['headerSlot'] }, actions: {}, surfaces: ['header-slot'], source: 'page' },
   // The fan's warning marks after «Регистрация»: the agency's «💩 Бомж» lists and FANSLY BLOCKLIST's posts (`clientFanMarks`,
   // `fan-marks-v1`). No owner switch: a hub that does not serve them shows nothing. Warnings only, never a block.

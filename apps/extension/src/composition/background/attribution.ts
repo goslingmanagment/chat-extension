@@ -17,10 +17,10 @@
 
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import { HOST_NOTE_ATTRIBUTION_SOURCE, HOST_SEND_ATTRIBUTION_SOURCE } from '@cg/contracts/hosts';
-import { FAN_NOTE_ATTRIBUTIONS_MAX_NOTES, type Bootstrap, type FanNoteAttributions, type FanNoteAttributionWho, type SendAttributionComposedWith } from '@cg/contracts/hub';
+import { FAN_NOTE_ATTRIBUTIONS_MAX_NOTES, MESSAGE_AUTHORS_MAX, type Bootstrap, type FanNoteAttributions, type FanNoteAttributionWho, type MessageAuthors, type SendAttributionComposedWith } from '@cg/contracts/hub';
 import type { HostKind } from '@cg/contracts/ids';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
-import type { NotesAuthors } from '@cg/contracts/tab-messages';
+import type { MessagesAuthors, NotesAuthors } from '@cg/contracts/tab-messages';
 import { admission, onPage } from '@cg/core/domain/features';
 import type { Clock } from '@cg/core/services';
 
@@ -91,6 +91,34 @@ export function notesAuthorsOf(answer: FanNoteAttributions): NotesAuthors {
     .slice(0, FAN_NOTE_ATTRIBUTIONS_MAX_NOTES)
     .map((note) => ({ noteId: note.noteRef, created: who(note.created), edited: who(note.edited) }));
   return { ok: true, notes };
+}
+
+/**
+ * 2026-11-03 («кто написал»): the page whose record of senders a tab reads back (hub `clientMessageAuthors`) — somebody
+ * is signed in, the page is this bootstrap's and admits the site's feature `message-authors` (the hub serves
+ * `message-authors-v1`; only Fansly has the feature: ChatSpace shows OnlyMonster's own «Sent by»).
+ */
+export function messageAuthorsTarget(host: HostKind, pageId: number, bootstrap: Bootstrap | null, features: (host: HostKind) => FeatureSlice | null): { readonly ok: true; readonly pageLabel: string } | { readonly ok: false; readonly reason: 'signed_out' | 'unbound' | 'not_admitted' } {
+  if (bootstrap === null) return { ok: false, reason: 'signed_out' };
+  const page = bootstrap.pages.find((candidate) => candidate.pageId === pageId);
+  if (page === undefined) return { ok: false, reason: 'unbound' };
+  if (admission(features(host), 'message-authors', null, onPage(bootstrap, page)).state !== 'on') return { ok: false, reason: 'not_admitted' };
+  return { ok: true, pageLabel: page.pageLabel };
+}
+
+/** The hub's answer (`clientMessageAuthors`) as a tab takes it (`messages.authors`); an id or a login it cannot read is left out. */
+export function messageAuthorsOf(answer: MessageAuthors): MessagesAuthors {
+  const messages = answer.messages
+    .filter((message) => NATIVE_ID_PATTERN.test(message.platformMessageId) && message.name.trim() !== '')
+    .slice(0, MESSAGE_AUTHORS_MAX)
+    .map((message) => ({
+      messageId: message.platformMessageId,
+      name: cut(message.name.trim(), 120),
+      me: message.isMe,
+      how: message.composedWith === null ? null : cut(message.composedWith, 16),
+      edited: message.edited,
+    }));
+  return { ok: true, messages };
 }
 
 /** How long a draft of ours waits for its button (`op.reportSent` of the same message) before it is `unknown`. */

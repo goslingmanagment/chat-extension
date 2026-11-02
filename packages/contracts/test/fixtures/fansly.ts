@@ -276,6 +276,13 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
       invalid: [{ ...fanslyChatWire, kind: 'group' }, { ...fanslyChatWire, window: { ...chatWindow, loaded: FANSLY_LIMITS.ringRecords + 1 } }],
     },
   },
+  'fx.order': {
+    payload: { valid: [{ groupId: group }], invalid: [{ groupId: Number(group) }, {}] },
+    data: {
+      valid: [{ ids: ['100', '101'], bits: [1, 16], hashes: [0, 2_166_136_261] }, { ids: [], bits: [], hashes: [] }, null],
+      invalid: [{ ids: ['100'], bits: [], hashes: [0] }, { ids: ['100'], bits: [256], hashes: [0] }],
+    },
+  },
   'fx.ack': {
     payload: { valid: [{ n: 1 }, { n: 9 }], invalid: [{ n: 0 }, { n: '1' }, { n: 1, bytes: 300 }] },
     data: { valid: [null], invalid: [{ freed: 1 }] },

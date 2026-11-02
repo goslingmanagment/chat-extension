@@ -39,6 +39,7 @@ import {
   type QueueQuery,
   type RecapBody,
   type RecapStatus,
+  type MessageAuthors,
   type SendAttributionsRequest,
   type SendAttributionsResult,
   type FanNoteAttributions,
@@ -1253,6 +1254,29 @@ export class DataModel {
     return [...this.attributions.values()];
   }
 
+  /** A scenario's record of a send made before the run (another chatter's, or the person's own), as if reported then. */
+  seedSendAttribution(row: FakeSendAttribution): void {
+    this.attributions.set(`${row.pageLabel}|${row.platformMessageId}`, row);
+  }
+
+  /** As the hub's `clientMessageAuthors` (2026-11-03): the fan's recorded sends on the page, the latest observed first, at most 200. */
+  messageAuthors(page: FakePage, fanRef: string, me: number, name: (userId: number) => string, now: number): MessageAuthors {
+    const messages = [...this.attributions.values()]
+      .filter((row) => row.pageLabel === page.pageLabel && row.fanRef === fanRef)
+      .sort((a, b) => Date.parse(b.observedAt) - Date.parse(a.observedAt) || (b.platformMessageId > a.platformMessageId ? 1 : -1))
+      .slice(0, 200)
+      .map((row) => ({
+        platformMessageId: row.platformMessageId,
+        userId: row.userId,
+        name: row.name ?? name(row.userId),
+        isMe: row.name === undefined && row.userId === me,
+        composedWith: row.composedWith ?? null,
+        edited: row.edited ?? null,
+        at: row.observedAt,
+      }));
+    return { pageLabel: page.pageLabel, fanRef, messages, serverNow: iso(now) };
+  }
+
   /**
    * As the hub's `clientNoteAttributions`: Fansly's on Fansly pages, ChatSpace's on OnlyFans ones (hub #912), the person
    * is the token's, one row per event of a page —
@@ -1707,4 +1731,6 @@ export interface FakeSendAttribution {
   readonly withMedia: boolean;
   readonly composedWith?: string | undefined;
   readonly edited?: boolean | undefined;
+  /** A seeded colleague's login (`messageAuthor`); absent — the user's own. */
+  readonly name?: string | undefined;
 }

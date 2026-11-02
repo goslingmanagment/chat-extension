@@ -54,8 +54,9 @@ export { CLIENT_CLAIM_ACTIONS, CLIENT_CLAIM_MAX_PARTS, CLIENT_CLAIM_MAX_VARIANTS
 export { CLIENT_AUDIENCE_NEW_COVERAGE_REASONS, CLIENT_AUDIENCE_NEW_DEFAULT_LIMIT, CLIENT_AUDIENCE_NEW_DEFAULT_WINDOW_HOURS, CLIENT_AUDIENCE_NEW_KINDS, CLIENT_AUDIENCE_NEW_MAX_LIMIT, CLIENT_AUDIENCE_NEW_MAX_WINDOW_HOURS, CLIENT_AUDIENCE_NEW_REFUSAL_REASONS, CLIENT_AUDIENCE_NEW_STATUS_SOURCES, CLIENT_AUDIENCE_NEW_SUBSCRIBED_AT_SOURCES, CLIENT_AUDIENCE_NEW_SUBSCRIPTION_STATUSES, } from "./contracts/index";
 // Who sent each outgoing message (routes-client.ts, clientSendAttributions,
 // send-attribution-v1): the clients a report may name, what the hub did with
-// each fact, and the limits of a report.
-export { CLIENT_SEND_ATTRIBUTION_MAX_AGE_DAYS, CLIENT_SEND_ATTRIBUTION_MAX_AHEAD_MS, CLIENT_SEND_ATTRIBUTION_MAX_FACTS, CLIENT_SEND_ATTRIBUTION_OUTCOMES, CLIENT_SEND_ATTRIBUTION_SOURCES, } from "./contracts/index";
+// each fact, and the limits of a report; how many messages of a fan the read
+// (clientMessageAuthors, message-authors-v1) answers.
+export { CLIENT_MESSAGE_AUTHORS_MAX, CLIENT_SEND_ATTRIBUTION_MAX_AGE_DAYS, CLIENT_SEND_ATTRIBUTION_MAX_AHEAD_MS, CLIENT_SEND_ATTRIBUTION_MAX_FACTS, CLIENT_SEND_ATTRIBUTION_OUTCOMES, CLIENT_SEND_ATTRIBUTION_SOURCES, } from "./contracts/index";
 // Who wrote each fan note (routes-client.ts, clientNoteAttributions,
 // note-attribution-v1): the vocabularies and the limits of a report, and
 // how many notes of a fan the read (clientFanNoteAttributions) answers.

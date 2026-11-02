@@ -209,6 +209,26 @@ export type FanslyHealth = z.infer<typeof FanslyHealthSchema>;
 
 // ── Requests ───────────────────────────────────────────────────────────────
 
+/**
+ * The flags of a message in `fx.order`: MAIN's record flags (host-fansly main/observation.ts), repeated here because
+ * MAIN's bundle carries no contracts.
+ */
+export const FANSLY_ORDER_BITS = { fan: 1, media: 2, deleted: 4, made: 8, text: 16, live: 32 } as const;
+
+/**
+ * `fx.order` (2026-11-03, «кто написал»): the messages of a group MAIN holds, oldest first (the snowflake's order),
+ * without a text — per id its FANSLY_ORDER_BITS and, for the model's, the hash of its whitespace-folded text (FNV-1a,
+ * main/automation.ts `textHash`; 0 — the fan's, or no text). The isolated side lines them up with the page's bubbles.
+ */
+export const FanslyOrderSchema = z
+  .strictObject({
+    ids: z.array(NativeIdSchema).check(z.maxLength(FANSLY_LIMITS.ringRecords)),
+    bits: z.array(z.int().check(z.gte(0), z.lte(255))).check(z.maxLength(FANSLY_LIMITS.ringRecords)),
+    hashes: z.array(z.int().check(z.gte(0), z.lte(0xffff_ffff))).check(z.maxLength(FANSLY_LIMITS.ringRecords)),
+  })
+  .check(z.refine((order) => order.bits.length === order.ids.length && order.hashes.length === order.ids.length, { message: 'one flag set and one hash an id' }));
+export type FanslyOrder = z.infer<typeof FanslyOrderSchema>;
+
 /** `fx.generationSnapshot` (§5.8): `window` is the function's messageCount; MAIN takes the last min(60, window). */
 export const FanslySnapshotRequestSchema = z.strictObject({
   groupId: NativeIdSchema, feature: FanslySnapshotFeatureSchema, window: z.int().check(z.gte(1)), withText: z.boolean(),
@@ -231,6 +251,8 @@ export const TO_MAIN_FANSLY = {
   'fx.groupForFan': { payload: z.strictObject({ creatorId: NativeIdSchema, fanId: NativeIdSchema }), data: z.strictObject({ groupId: z.nullable(NativeIdSchema) }), write: false, timeout: 'call' },
   /** The window summary of any group MAIN observes; null — not observed. */
   'fx.windowMeta': { payload: z.strictObject({ groupId: NativeIdSchema }), data: z.nullable(FanslyChatWireSchema), write: false, timeout: 'call' },
+  /** 2026-11-03: the order of a group's messages MAIN holds, for «кто написал» beside the page's bubbles; null — not observed. */
+  'fx.order': { payload: z.strictObject({ groupId: NativeIdSchema }), data: z.nullable(FanslyOrderSchema), write: false, timeout: 'call' },
   /**
    * The isolated side took every batch up to `n`, parsed or not (a rejected one is a gap of its own): MAIN frees their
    * credits. Cumulative, so a late ack cannot hold credits forever.
@@ -410,6 +432,7 @@ export const FanslyBridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('fx.generationSnapshot'),
   requestFrame('fx.groupForFan'),
   requestFrame('fx.windowMeta'),
+  requestFrame('fx.order'),
   requestFrame('fx.ack'),
   requestFrame('fx.health'),
 ]);

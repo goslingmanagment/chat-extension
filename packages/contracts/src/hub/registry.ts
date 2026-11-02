@@ -35,7 +35,7 @@ import {
   SpendersStatsSchema,
   StatsQuerySchema,
 } from './spenders';
-import { SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
+import { MessageAuthorsQuerySchema, MessageAuthorsSchema, SendAttributionsRequestSchema, SendAttributionsResultSchema } from './attribution';
 import { FanNoteAttributionsQuerySchema, FanNoteAttributionsSchema, NoteAttributionsRequestSchema, NoteAttributionsResultSchema } from './note-attribution';
 import { ActivityBeatRequestSchema, ActivityBeatResultSchema, InConversationQuerySchema, InConversationResultSchema } from './conversation';
 import { HandoffQuerySchema, HandoffSchema } from './queue';
@@ -85,6 +85,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientSendAttributions: { request: SendAttributionsRequestSchema, response: SendAttributionsResultSchema },
   clientNoteAttributions: { request: NoteAttributionsRequestSchema, response: NoteAttributionsResultSchema },
   clientFanNoteAttributions: { request: FanNoteAttributionsQuerySchema, response: FanNoteAttributionsSchema },
+  clientMessageAuthors: { request: MessageAuthorsQuerySchema, response: MessageAuthorsSchema },
   clientActivity: { request: ActivityBeatRequestSchema, response: ActivityBeatResultSchema },
   clientInConversation: { request: InConversationQuerySchema, response: InConversationResultSchema },
   clientFanCard: { request: FanCardQuerySchema, response: FanCardSchema },

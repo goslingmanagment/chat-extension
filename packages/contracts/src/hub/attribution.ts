@@ -80,3 +80,31 @@ export const SendAttributionsResultSchema = z.object({
   serverNow: z.string(),
 });
 export type SendAttributionsResult = z.infer<typeof SendAttributionsResultSchema>;
+
+// ── who sent each message of a fan's chat, read back (hub `clientMessageAuthors`, `message-authors-v1`, 2026-11-03,
+// the owner: «узнавать кто написал какое сообщение») ──
+
+/** The most messages of one fan the hub answers (hub CLIENT_MESSAGE_AUTHORS_MAX), the latest observed first. */
+export const MESSAGE_AUTHORS_MAX = 200;
+
+/** Path `pageLabel` and `fanRef`. */
+export const MessageAuthorsQuerySchema = z.strictObject({ pageLabel: PageLabelSchema, fanRef: NativeIdSchema });
+export type MessageAuthorsQuery = z.infer<typeof MessageAuthorsQuerySchema>;
+
+/** Each message of the fan the hub recorded a sender of: the login, whether it is the caller, how its text was written. */
+export const MessageAuthorsSchema = z.object({
+  pageLabel: z.string(),
+  fanRef: z.string(),
+  messages: z.array(z.object({
+    platformMessageId: z.string(),
+    userId: z.number(),
+    name: z.string(),
+    isMe: z.boolean(),
+    /** Open token; known values: SEND_ATTRIBUTION_COMPOSED_WITH; null — the report said none. */
+    composedWith: z.nullable(OpenTokenSchema),
+    edited: z.nullable(z.boolean()),
+    at: z.string(),
+  })),
+  serverNow: z.string(),
+});
+export type MessageAuthors = z.infer<typeof MessageAuthorsSchema>;

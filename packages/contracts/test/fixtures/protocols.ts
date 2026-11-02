@@ -675,6 +675,13 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
       invalid: [{ ok: true, notes: [{ noteId: '8901', created: { name: 'kate', me: true, atMs: 0 }, edited: null }] }, { ok: true }],
     },
   },
+  'messages.authors': {
+    req: { valid: [{ pageId: 3, fanRef: '74001001' }], invalid: [{ pageId: 3 }, { pageId: 3, fanRef: 'x' }] },
+    res: {
+      valid: [{ ok: true, messages: [{ messageId: '9101', name: 'kate', me: false, how: 'reply', edited: false }, { messageId: '9102', name: 'kate', me: false, how: null, edited: null }] }, { ok: true, messages: [] }, { ok: false, code: 'not_admitted' }],
+      invalid: [{ ok: true, messages: [{ messageId: 'x', name: 'kate', me: false, how: null, edited: null }] }, { ok: true }],
+    },
+  },
   'notes.written': {
     req: { valid: [{ pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'created', origin: 'field', fields: ['Имя'] }, { pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'deleted' }], invalid: [{ pageId: 3, fanRef: '74001001', noteRef: '8901', action: 'moved' }] },
     res: { valid: [{ queued: true }, { queued: false }], invalid: [{}] },
