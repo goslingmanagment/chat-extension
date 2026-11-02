@@ -51,6 +51,7 @@ export type FanslyRoute =
   | 'notes.delete'
   | 'vault.albums'
   | 'vault.addMedia'
+  | 'vault.renameMedia'
   | 'vault.albumMedia'
   | 'media.create'
   | 'media.orderhistory'

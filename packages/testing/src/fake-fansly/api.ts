@@ -328,6 +328,21 @@ const ROUTES: readonly Route[] = [
   },
   { name: 'vault.albums', method: 'GET', path: /^\/vault\/albums(?:new)?$/, run: ({ world }) => ({ response: world.wireAlbums() }) },
   {
+    name: 'vault.renameMedia',
+    method: 'POST',
+    path: /^\/vault\/albums\/media\/rename$/,
+    run: ({ world, body }) => {
+      const asked = asRecord(body);
+      const album = world.albums.find((item) => item.id === asked?.['albumId']);
+      const id = asked?.['mediaId'];
+      const name = asked?.['customFilename'];
+      if (album === undefined || typeof id !== 'string' || !album.mediaIds.includes(id)) return missing('no album media');
+      if (typeof name !== 'string') return bad('customFilename');
+      world.albumFilenames.set(`${album.id}:${id}`, name);
+      return { response: { customFilename: name } };
+    },
+  },
+  {
     // The page checks only `success` (main:30320-30326, :12818-12827); what the answer carries is not known.
     name: 'vault.addMedia',
     method: 'POST',
@@ -364,7 +379,7 @@ const ROUTES: readonly Route[] = [
         const file = asRecord(item);
         const id = world.nextId();
         // A medium with a file name is kept: an album it is added to shows its card (the vault, R20 P13a).
-        if (typeof file?.['name'] === 'string') world.media.set(id, { id, filename: file['name'], mimetype: typeof file['type'] === 'string' ? file['type'] : '', createdAt: Date.now() });
+        if (typeof file?.['name'] === 'string') world.media.set(id, { id, filename: world.uploadFilenames.get(file['name']) ?? file['name'], mimetype: typeof file['type'] === 'string' ? file['type'] : '', createdAt: Date.now() });
         return { contentId: id, contentType: 1 };
       }),
     }),

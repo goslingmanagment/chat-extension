@@ -249,6 +249,10 @@ export class XhrBackend implements StandBackend, VaultApi {
     this.http.request<unknown>('POST', '/vault/albums/media', { albumId, mediaIds }, (error) => done(error === null), { albumId, media: mediaIds.length });
   }
 
+  vaultRename(albumId: string, mediaId: string, customFilename: string, done: (name: string | null) => void): void {
+    this.http.request<{ customFilename: string }>('POST', '/vault/albums/media/rename', { albumId, mediaId, customFilename }, (error, response) => done(error === null ? response?.customFilename ?? null : null));
+  }
+
   // ── unread and the page's marks ──
 
   /** A fan's message arrived (socket 5/1) and is not read yet. */

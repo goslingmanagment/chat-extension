@@ -28,6 +28,8 @@ export interface VaultApi {
   vaultUpload(file: UploadFile, done: (mediaId: string | null) => void): void;
   /** `POST /vault/albums/media`. */
   vaultAdd(albumId: string, mediaIds: readonly string[], done: (ok: boolean) => void): void;
+  /** `POST /vault/albums/media/rename`: changes this album's name only. */
+  vaultRename(albumId: string, mediaId: string, customFilename: string, done: (name: string | null) => void): void;
 }
 
 /** The page's input takes these (its `accept`, main:11937); `processFiles` keeps image, video and audio. */
@@ -150,15 +152,36 @@ export class VaultRoute {
     this.api.vaultAlbumMedia(album.id, (page) => {
       if (this.destroyed || this.selected !== album || page === null) return;
       const names = new Map(page.media.map((media) => [media.id, media.filename]));
-      const cards = page.albumMedia.map((item) =>
-        el(s, 'div', { class: 'render-container' }, [
+      const cards = page.albumMedia.map((item) => {
+        const label = el(s, 'div', { class: 'image-filename blue-1-hover-only pointer' }, [el(s, 'i', { class: 'fa-light fa-pencil' }), ` ${item.customFilename ?? names.get(item.mediaId) ?? ''} `]);
+        label.addEventListener('click', handler(() => this.rename(album.id, item.mediaId, label)));
+        return el(s, 'div', { class: 'render-container' }, [
           el(s, 'div', { class: 'image-date' }, ['15 Oct']),
-          el(s, 'div', { class: 'image-filename blue-1-hover-only pointer' }, [el(s, 'i', { class: 'fa-light fa-pencil' }), ` ${item.customFilename ?? names.get(item.mediaId) ?? ''} `]),
-        ]),
-      );
+          label,
+        ]);
+      });
       body.replaceChildren(el(s, 'div', { class: 'vault-content' }, [el(s, 'div', { class: 'spacer' }), el(s, 'div', { class: 'vault-row' }, cards), el(s, 'div', { class: 'spacer' })]));
       record('vault-loaded', { albumId: album.id, cards: cards.length });
     });
+  }
+
+  /** Fansly's own rename modal (2026-10-30 bundle), including its existing filename text node. */
+  private rename(albumId: string, mediaId: string, label: HTMLElement): void {
+    const s = this.s;
+    const modal = host(s, 'app-vault-ablum-media-rename-modal');
+    const input = el(s, 'input', { attrs: { type: 'text' } });
+    const close = (): void => { modal.remove(); document.body.classList.remove('modal-opened'); };
+    const cancel = el(s, 'div', { class: 'btn margin-right-2' }, ['Cancel']);
+    cancel.addEventListener('click', handler(close));
+    const save = el(s, 'div', { class: 'btn solid-blue' }, ['Save']);
+    save.addEventListener('click', handler(() => this.api.vaultRename(albumId, mediaId, input.value, (name) => {
+      if (name === null) return;
+      if (label.lastChild !== null) label.lastChild.textContent = ` ${name} `;
+      close();
+    })));
+    modal.append(el(s, 'div', { class: 'modal' }, [el(s, 'div', { class: 'modal-header' }, ['Rename Album Media']), el(s, 'div', { class: 'modal-content' }, [input, cancel, save])]));
+    document.body.classList.add('modal-opened');
+    document.body.append(modal);
   }
 
   /** `onFileInputChange` → `processFiles`: what the page accepts is taken now, processed a moment later, then uploaded. */

@@ -217,6 +217,8 @@ export class FanslyWorld {
   readonly albums: FakeAlbum[];
   /** The account's media by id: what the page uploaded. */
   readonly media = new Map<string, FakeMedia>();
+  readonly uploadFilenames = new Map<string, string>();
+  readonly albumFilenames = new Map<string, string>();
   /** Paid attachments by content id (the `ppv` command), and the fans' orders of them. */
   readonly paid = new Map<string, FakePaidContent>();
   /** The creator's bundles a post holds (the stand's `bundles` command): what «Copy» on a post puts in the «Copied …» list. */
@@ -711,7 +713,7 @@ export class FanslyWorld {
   wireAlbumMedia(album: FakeAlbum): WireVaultAlbumMediaPage {
     const media = [...album.mediaIds].reverse().flatMap((id) => this.media.get(id) ?? []);
     return {
-      albumMedia: media.map((item) => ({ id: String(BigInt(item.id) + 1n), albumId: album.id, mediaId: item.id, customFilename: null, createdAt: Math.floor(item.createdAt / 1000) })),
+      albumMedia: media.map((item) => ({ id: String(BigInt(item.id) + 1n), albumId: album.id, mediaId: item.id, customFilename: this.albumFilenames.get(`${album.id}:${item.id}`) ?? null, createdAt: Math.floor(item.createdAt / 1000) })),
       media: media.map((item) => ({ id: item.id, filename: item.filename, mimetype: item.mimetype })),
     };
   }

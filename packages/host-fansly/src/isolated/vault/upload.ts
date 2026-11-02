@@ -17,10 +17,13 @@
 //   that began earlier and answers late — is no evidence. Then all of it, in this order: an addition to an album
 //   (`fx.vaultAdded`, the page's `POST /vault/albums/media` after its 1 s debounce, main:12828-12834); a load of THIS
 //   album after that addition (the page's `loadVault()`, main:12818-12827); the file's card in the album, settled
-//   (no «Processing» on it), with the page's upload line gone. A load of another album after the handoff — the person
+//   (no «Processing» on it), with the page's upload line gone. If Fansly retained an original filename, only one new
+//   prepended card with the old visible prefix intact may be renamed, through the page's own album-name modal.
+//   A ready card whose identity/name cannot be confirmed stops after 30 s, without another upload.
+//   A load of another album after the handoff — the person
 //   switched it, and the page added the file to that one — the album closed, «Upload to Vault» collapsed, the route,
 //   the creator, a loss of MAIN's facts: not known, at once.
-// - Watched only while the file is in flight (FS-VLT-2): one `childList` observer on the album view and the file's
+// - Watched only while the file is in flight (FS-VLT-2): one child/text observer on the album view and the file's
 //   time limit, 45 min (the old extension's: a 1 GB video took most of it); idle, the uploader observes nothing on the
 //   page. What it hears all along is the port's: the vault's facts, losses, route and accounts — the binding's.
 // - Never a second handoff of the same file: whatever was handed and not confirmed is `unknown`, and only the
@@ -32,6 +35,7 @@ import type { HostEvent } from '@cg/contracts/host';
 import type { FanslyPort, FanslyVaultFact, FanslyVaultFacts } from '../host-port';
 import { isVaultPath, readVaultPage, VAULT_SELECTORS, vaultMediaKey, type VaultPage } from './dom';
 import { handFile } from '../handoff';
+import { prependedVaultCard, renameVaultCard, VAULT_CONFIRM_TIMEOUT_MS } from './rename';
 
 /** How long one file may take to be confirmed (the old extension's limit). */
 export const VAULT_FILE_TIMEOUT_MS = 45 * 60 * 1000;
@@ -55,7 +59,8 @@ export interface VaultTarget {
  * `uploader-busy` — a file of the page's own in progress; `uploader-error` — Fansly gave the file up, nothing landed;
  * `handoff-unavailable` — the input took nothing; `handoff-indeterminate` — the dispatch may have reached the page;
  * `not-taken` — the page showed no sign of the file; `lost` — MAIN's facts were lost; `timeout` — not confirmed
- * within the limit; `stopped` — the run was stopped with the file in flight.
+ * within the upload limit; `confirmation-failed` — ready but its album card/name cannot be confirmed;
+ * `stopped` — the run was stopped with the file in flight.
  */
 export const VAULT_HALTS = [
   'route-left',
@@ -71,6 +76,7 @@ export const VAULT_HALTS = [
   'not-taken',
   'lost',
   'timeout',
+  'confirmation-failed',
   'stopped',
 ] as const;
 export type VaultHalt = (typeof VAULT_HALTS)[number];
@@ -266,10 +272,14 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
       /** The newest addition after the fence; null — none yet. */
       let added: number | null = null;
       let reloaded = false;
+      let renaming = false;
+      let confirming = false;
+      const renameAbort = new AbortController();
       const offs: Array<() => void> = [];
       const settle = (outcome: VaultUploadOutcome): void => {
         if (flight !== current) return;
         flight = null;
+        renameAbort.abort();
         for (const off of offs.splice(0)) off();
         resolve(outcome);
       };
@@ -282,7 +292,28 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
         if (after.input === null) return unknown('uploader-missing');
         // Fansly gave the file up before adding anything: nothing landed.
         if (added === null && after.failed) return settle({ state: 'failed', path, said: after.failure });
-        if (reloaded && !after.busy && after.settled.includes(key)) settle({ state: 'done', path, top: after.cards[0] ?? null });
+        if (!reloaded || after.busy || after.loading || renaming) return;
+        const guard = vaultGuard(viewOf(after), target);
+        if (guard !== null) return unknown(guard);
+        if (after.settled.includes(key)) return settle({ state: 'done', path, top: after.cards[0] ?? null });
+        const top = after.cards[0];
+        // Video processing is still real work: the upload's long deadline continues to apply.
+        if (top === undefined || !after.settled.includes(top)) return;
+        if (prependedVaultCard(page.cards, after.cards)) {
+          renaming = true;
+          const allowed = (): boolean => flight === current && generation() === life && vaultGuard(viewOf(readVaultPage(doc)), target) === null;
+          void renameVaultCard(win, file.name, allowed, renameAbort.signal, timer).then((ok) => {
+            if (flight !== current) return;
+            renaming = false;
+            if (!ok) unknown('confirmation-failed');
+            else check();
+          });
+        } else if (!confirming) {
+          // Fansly finished but the new card cannot be attributed safely. Do not wait 45 minutes or upload twice.
+          confirming = true;
+          const confirmationDeadline = timer.set(() => unknown('confirmation-failed'), VAULT_CONFIRM_TIMEOUT_MS);
+          offs.push(() => timer.clear(confirmationDeadline));
+        }
       };
       const current: Flight = {
         account: target.hostAccountId,
@@ -308,7 +339,7 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
         mutations += 1;
         check();
       });
-      observer.observe(host, { childList: true, subtree: true });
+      observer.observe(host, { childList: true, subtree: true, characterData: true });
       offs.push(() => observer.disconnect());
       const deadline = timer.set(() => unknown('timeout'), limit);
       offs.push(() => timer.clear(deadline));
