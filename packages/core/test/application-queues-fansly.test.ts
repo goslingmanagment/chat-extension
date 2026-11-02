@@ -5,10 +5,10 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { BATCH_LIMITS, type ActionReceipt, type FanQueueItem, type FanQueueTake, type FanQueues, type QueuesWindowVM, type SettingsV1 } from '@cg/contracts';
+import { BATCH_LIMITS, type ActionReceipt, type FanQueueItem, type FanQueueTake, type FanQueues, type QueueStripVM, type QueueWalkVM, type QueuesWindowVM, type SettingsV1 } from '@cg/contracts';
 import { Surfaces, fanHandle, type PageContextPort, type PageContextState, type TabRpc } from '@cg/core/application/boards';
 import { type OnlineSendAnswer, type OnlineSendRequest } from '@cg/core/application/online';
-import { createQueuesController, fillQueueText } from '@cg/core/application/queues';
+import { createQueuesController, createQueuesCount, fillQueueText, QUEUES_POLL_MS, QUEUES_SENT_READ_MS } from '@cg/core/application/queues';
 import { createI18n } from '@cg/core/domain/i18n';
 import { BOOTSTRAP_PILOT_PAGES } from '@cg/testing/hub';
 
@@ -104,7 +104,7 @@ const LIST: FanQueues = {
   ],
   serverNow: iso(NOW_MS),
 };
-const TAKE: FanQueueTake = { queueId: 1, items: [item(0), item(1), item(2)], stopped: null, today: { mine: 12, page: 61 }, pending: 1_945, dropped: 0, serverNow: iso(NOW_MS) };
+const TAKE: FanQueueTake = { queueId: 1, items: [item(0), item(1), item(2)], stopped: null, today: { mine: 12, page: 61 }, pending: 1_945, dropped: 0, left: [], results: { sent: 0, answered: 0, spentMills: 0 }, serverNow: iso(NOW_MS) };
 
 function world(answer: (request: OnlineSendRequest) => OnlineSendAnswer = () => ({ ok: true, messageId: '700000000000000099' })) {
   const clock = new FakeClock(NOW_MS);
@@ -112,11 +112,20 @@ function world(answer: (request: OnlineSendRequest) => OnlineSendAnswer = () => 
   const sentAt: number[] = [];
   const done: unknown[] = [];
   const released: unknown[] = [];
+  const takes: unknown[] = [];
+  let take: FanQueueTake = TAKE;
+  let here: string | null = null;
+  let strip: QueueWalkVM | null = null;
+  let onRoute: () => void = () => undefined;
+  let onSent: (fanRef: string) => void = () => undefined;
   const rpc = {
     request(type: string, payload: Record<string, unknown>) {
       if (type === 'token.issue') return Promise.resolve({ ok: true, payload: { actionToken: TOKEN, expiresAt: clock.now() + 10_000 } });
       if (type === 'queues.list') return Promise.resolve({ ok: true, payload: LIST });
-      if (type === 'queues.take') return Promise.resolve({ ok: true, payload: TAKE });
+      if (type === 'queues.take') {
+        takes.push(payload);
+        return Promise.resolve({ ok: true, payload: take });
+      }
       if (type === 'queues.done') {
         done.push(payload);
         return Promise.resolve({ ok: true, payload: { itemId: payload['itemId'], state: payload['outcome'], today: { mine: 12 + done.length, page: 61 + done.length }, serverNow: iso(clock.now()) } });
@@ -136,6 +145,18 @@ function world(answer: (request: OnlineSendRequest) => OnlineSendAnswer = () => 
     context,
     surfaces: new Surfaces(),
     navigator: { open: () => Promise.resolve({ state: 'navigated' }) } as never,
+    openChat: () => here,
+    routed(listener) {
+      onRoute = listener;
+      return () => undefined;
+    },
+    sentHere(listener) {
+      onSent = listener;
+      return () => undefined;
+    },
+    strip(vm) {
+      strip = vm;
+    },
     own: {
       group: (_account, fan) => Promise.resolve(`81000000000000${fan.fanRef.slice(-4)}`),
       send(request) {
@@ -161,7 +182,19 @@ function world(answer: (request: OnlineSendRequest) => OnlineSendAnswer = () => 
     await clock.advance(10);
     await settle(12);
   };
-  return { clock, sent, sentAt, done, released, queues, vm, handle, act, opened };
+  /** The person's chat on the page, as the site's route says it. */
+  const route = (fanRef: string | null): void => {
+    here = fanRef;
+    onRoute();
+  };
+  return {
+    clock, sent, sentAt, done, released, takes, queues, vm, handle, act, opened, route,
+    strip: (): QueueWalkVM | null => strip,
+    sentFromChat: (fanRef: string): void => onSent(fanRef),
+    answerTakes(next: FanQueueTake): void {
+      take = next;
+    },
+  };
 }
 
 describe('[host:fansly] «Очереди»: what goes, to whom, and what the hub hears', () => {
@@ -213,6 +246,107 @@ describe('[host:fansly] «Очереди»: what goes, to whom, and what the hub
 
     await w.act({ type: 'SetQueues', open: false });
     expect(w.released).toEqual([{ pageId: PAGE_ID, queueId: 1 }]);
+  });
+
+  it('the queue in the chat: «Открыть чат» starts the walk, a send from the chat is seen at once and left to the hub to count', async () => {
+    const w = world();
+    await w.opened();
+    await w.act({ type: 'Navigate', to: { kind: 'chat', targetHandle: w.handle(FANS[0]) } });
+    w.route(FANS[0]);
+    expect(w.strip()).toMatchObject({ kind: 'walk', name: 'Холодные живые', left: 3, today: 12, here: { state: 'todo', name: 'Mike Doe' }, next: { name: 'Jordan Doe' } });
+
+    w.sentFromChat(FANS[0]);
+    w.sentFromChat(FANS[0]);
+    await settle(12);
+    expect(w.strip()).toMatchObject({ left: 2, today: 13, here: { state: 'written' }, next: { handle: w.handle(FANS[1]) } });
+    expect(w.vm().portion[0]?.state).toBe('sent');
+    // No report from here, no card opens by itself: the hub counts it from the send's own report.
+    expect(w.done).toEqual([]);
+    expect(w.sent).toEqual([]);
+
+    // The window closed in the chat: the portion stays the person's; each minute only renews it, nobody new comes.
+    await w.act({ type: 'SetQueues', open: false });
+    expect(w.released).toEqual([]);
+    const before = w.takes.length;
+    await w.clock.advance(QUEUES_SENT_READ_MS);
+    await settle(12);
+    expect(w.takes.slice(before)).toEqual([{ pageId: PAGE_ID, queueId: 1, count: 0, more: true }]);
+
+    // A fan who is not of the queue: the strip stays, one line back to it.
+    w.route('700000000000000999');
+    expect(w.strip()).toMatchObject({ here: null, next: { handle: w.handle(FANS[1]) } });
+
+    // The ×: the walk is over, who is not done goes back.
+    await w.act({ type: 'SetQueues', walk: 'stop' });
+    expect(w.released).toEqual([{ pageId: PAGE_ID, queueId: 1 }]);
+    expect(w.strip()).toBeNull();
+  });
+
+  it('a portion held with no window open comes back after a reload; one list is looked at once, so the strip never takes itself up again', async () => {
+    const w = world();
+    const held: FanQueues = { ...LIST, queues: LIST.queues.map((queue) => ({ ...queue, leasedToMe: 3 })) };
+    w.queues.noticeList(held);
+    await settle(12);
+    expect(w.takes).toEqual([{ pageId: PAGE_ID, queueId: 1, count: 0, more: true }]);
+    expect(w.strip()).toMatchObject({ kind: 'walk', left: 3 });
+
+    await w.act({ type: 'SetQueues', walk: 'stop' });
+    w.queues.noticeList(held);
+    await settle(12);
+    expect(w.takes).toHaveLength(1);
+    expect(w.strip()).toBeNull();
+  });
+
+  it('who the hub took out of the portion is said with why; what the person did to him themselves is not', async () => {
+    const w = world();
+    await w.opened();
+    w.sentFromChat(FANS[1]);
+    w.answerTakes({
+      ...TAKE,
+      items: [item(2)],
+      left: [{ itemId: 100, fanRef: FANS[0], reason: 'fan_wrote' }, { itemId: 101, fanRef: FANS[1], reason: 'messaged' }],
+      results: { sent: 1, answered: 0, spentMills: 0 },
+    });
+    await w.clock.advance(QUEUES_POLL_MS);
+    await settle(12);
+    expect(w.vm().gone).toEqual([{ name: 'Mike Doe', reason: 'fan_wrote' }]);
+    expect(w.vm().results).toEqual({ sent: 1, answered: 0, spentMills: 0 });
+    expect(w.vm().portion.map((row) => row.handle)).toEqual([w.handle(FANS[1]), w.handle(FANS[2])]);
+  });
+
+  it("the day's reminder: a queue with fans the person has not touched today, gone once seen off or walked, back on the next Moscow day", async () => {
+    const clock = new FakeClock(NOW_MS);
+    const saved: unknown[] = [];
+    let list: FanQueues = { ...LIST, serverNow: '2026-11-02T10:00:00.000Z', queues: LIST.queues.map((queue) => ({ ...queue, today: { mine: 0, page: 0 }, leasedToMe: 0, pending: 25 })) };
+    const count = createQueuesCount({
+      clock,
+      visible: () => true,
+      page: () => ({ pageId: PAGE_ID }),
+      read: () => Promise.resolve(list),
+      nudges: { load: () => Promise.resolve(undefined), save: (value) => Promise.resolve(void saved.push(value)) },
+    });
+    await clock.advance(3_000);
+    await settle(12);
+    const nudge = (): QueueStripVM | null => count.strip();
+    expect(nudge()).toMatchObject({ kind: 'nudge', waiting: 25, batch: true });
+
+    count.dismissNudge();
+    expect(nudge()).toBeNull();
+    expect(saved).toEqual([{ [String(PAGE_ID)]: '2026-11-02' }]);
+
+    list = { ...list, serverNow: '2026-11-02T21:30:00.000Z' };
+    await clock.advance(60_000);
+    await settle(12);
+    // 00:30 in Moscow: another day.
+    expect(nudge()).toMatchObject({ kind: 'nudge' });
+
+    // A walk counts as the day's start: the reminder does not come back after it.
+    const walk = { kind: 'walk' } as QueueWalkVM;
+    count.setWalk(walk);
+    expect(nudge()).toBe(walk);
+    count.setWalk(null);
+    expect(nudge()).toBeNull();
+    count.dispose();
   });
 
   it("a queue's own message: every {name} the fan's name, the guide's first «love»; no name — {name} goes cleanly, «love» stays", () => {

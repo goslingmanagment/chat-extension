@@ -143,8 +143,6 @@ export interface OnlineRowVM {
   readonly code: string | null;
   /** Fansly: the fan's blue card and FBuddy's gem (contracts fan-badges.ts); absent or null — none known. */
   readonly badges?: FanBadges | null;
-  /** «Очереди»: a fan known only by the hub's list of answers — what he paid is not known (no «не платил»). */
-  readonly moneyUnknown?: true;
 }
 
 /** The chosen fan: why now, their conversation (the preview's feed), the text that would go and its «Отправить →». */
@@ -216,9 +214,12 @@ export interface OnlineCardVM {
    * 2026-10-29: the card of «Очереди» — «Пропустить ▾» with its reasons instead of «Пропустить» and «Не предлагать»
    * (a skip is the hub's, never undone here); `skipped` — why the fan was skipped. Absent — «Онлайн»'s card.
    */
-  readonly queue?: { readonly skips: readonly QueueSkipReason[]; readonly skipped: QueueSkipReason | null };
-  /** «Очереди»: a fan who answered, known only by the hub's list of answers — what he paid is not known (no «не платил»). */
-  readonly moneyUnknown?: true;
+  readonly queue?: {
+    readonly skips: readonly QueueSkipReason[];
+    readonly skipped: QueueSkipReason | null;
+    /** The asker's own message stands for this fan: the strip's chip says so, it is no template of the guide. */
+    readonly ownText: boolean;
+  };
 }
 
 export interface OnlineGroupVM {

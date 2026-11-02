@@ -124,6 +124,8 @@ interface Queue {
   /** Fans the queue holds beyond the listed ones: counted, never handed out. */
   readonly more: number;
   readonly fans: QueueFan[];
+  /** Who the next take says left the caller's portion (a scenario's `fanQueueLeft`). */
+  readonly left: { itemId: number; fanRef: string; reason: string }[];
 }
 
 /** «12 мар». */
@@ -296,6 +298,7 @@ export class FanQueuesModel {
         before: { mine: 12, page: 61 },
         more: 1_948 - COLD.length,
         fans: coldFans,
+        left: [],
       },
       {
         queueId: 2,
@@ -315,6 +318,7 @@ export class FanQueuesModel {
         before: { mine: 3, page: 9 },
         more: 38,
         fans: answered === null ? paidFans : [...paidFans, answered],
+        left: [],
       },
       {
         queueId: 3,
@@ -334,6 +338,7 @@ export class FanQueuesModel {
         before: { mine: 0, page: 0 },
         more: 5_420,
         fans: [],
+        left: [],
       },
       {
         queueId: 4,
@@ -353,6 +358,7 @@ export class FanQueuesModel {
         before: { mine: 0, page: 4 },
         more: 0,
         fans: mineFans,
+        left: [],
       },
       {
         queueId: 5,
@@ -372,6 +378,7 @@ export class FanQueuesModel {
         before: { mine: 0, page: 2 },
         more: 6,
         fans: thanksFans,
+        left: [],
       },
     ];
   }
@@ -459,6 +466,8 @@ export class FanQueuesModel {
           templateId: fan.templateId,
           answeredAt: iso(fan.answer.at),
           answerText: fan.answer.text,
+          lifetimeGrossMills: fan.facts.lifetimeGrossMills,
+          last30dGrossMills: fan.facts.last30dGrossMills,
         });
       }
     }
@@ -547,7 +556,30 @@ export class FanQueuesModel {
     const portion = [...mine, ...taken].sort((a, b) => a.rank - b.rank);
     const pending = this.pending(queue);
     if (stopped === null && portion.length < request.count && pending === 0) stopped = 'empty';
-    return { ok: true, body: { queueId: queue.queueId, items: portion.map((fan) => this.wire(queue, fan, until, now)), stopped, today, pending, dropped: 0, serverNow: iso(now) } };
+    const left = queue.left.splice(0);
+    const written = queue.fans.filter((fan) => fan.state === 'sent' && fan.doneBy === userId);
+    const results = { sent: written.length, answered: written.filter((fan) => fan.answer !== null).length, spentMills: 0 };
+    return { ok: true, body: { queueId: queue.queueId, items: portion.map((fan) => this.wire(queue, fan, until, now)), stopped, today, pending, dropped: left.length, left, results, serverNow: iso(now) } };
+  }
+
+  /**
+   * As the hub's `countOwnSendsInFanQueues` (services/fan-queues.ts): a message the person sent from the chat, reported by
+   * the extension, to a fan they hold or who waits for them: the queue's work. Another's fan stays theirs.
+   */
+  sentFromChat(page: FakePage, userId: number, fanRef: string, composedWith: string | undefined, now: number): void {
+    for (const queue of this.pages.get(page.pageLabel) ?? []) {
+      const fan = queue.fans.find((one) => one.facts.fanRef === fanRef && (one.state === 'pending' || (one.state === 'leased' && one.leasedTo === userId)));
+      if (fan === undefined) continue;
+      if (queue.distribution === 'people' && !queue.people.includes(userId)) continue;
+      fan.state = 'sent';
+      fan.leasedTo = null;
+      fan.leaseUntil = null;
+      fan.doneBy = userId;
+      fan.doneAt = now;
+      fan.act = composedWith === 'ping' || composedWith === 'hi' || composedWith === 'reply' ? composedWith : 'own';
+      fan.templateId = null;
+      return;
+    }
   }
 
   /** As the hub's `clientFanQueueItemDone`: a fan of the caller's portion, once; another's or a done one is 409. */

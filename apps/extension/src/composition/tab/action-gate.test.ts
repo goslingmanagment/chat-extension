@@ -311,6 +311,7 @@ describe('the action tokens of a tab', () => {
       OpenAndInsertPart: ['navigate'],
       OpenChatToVerify: ['navigate'],
       Navigate: ['navigate'],
+      SetQueues: ['navigate'],
       SendPart: ['send'],
       SendDraft: ['send'],
       SendNewcomerGreeting: ['send'],

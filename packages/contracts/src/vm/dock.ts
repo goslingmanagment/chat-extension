@@ -11,6 +11,7 @@ import { type IsoTimestamp, type Uuid } from '../primitives';
 import type { UiAction } from './actions';
 import { type ReasonVM, type HotkeyLabel } from './catalog';
 import type { Msg } from './i18n';
+import { type QueueStripVM } from './queues';
 import { type RefusalVM, type ResultVM } from './result';
 import { type TargetHandle } from './selectors';
 import { type RunningOpVM, type VmView } from './view';
@@ -184,6 +185,8 @@ export interface DockVM {
    * chip (every producer of this version sets it).
    */
   readonly chips?: readonly ChipVM[];
+  /** 2026-11-02: «Очереди» in the chat: the strip over the bar, or the day's reminder; absent or null — nothing. */
+  readonly queue?: QueueStripVM | null;
   /** The draft result sheet (Reply, Fix, Hi, Ping); null — collapsed strip. */
   readonly result: ResultVM | null;
   /**

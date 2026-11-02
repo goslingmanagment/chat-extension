@@ -494,13 +494,18 @@ export const UiActionSchema = z.discriminatedUnion('type', [
    * ⌘K); `queue` — a queue's chip chosen (its portion is taken); `refresh` — the list read again now; `more` — «Ещё 10»
    * past the day's portion, or the next portion once one is done. A fan's card, its text and its «Отправить →» are
    * «Онлайн»'s actions with the card's `queue:` handle (`SelectOnline`, `RewriteOnline`, `EditOnline`, `SendOnline`).
+   * 2026-11-02, the strip over the dock: `walk: 'start'` — «Начать» of the day's reminder (the portion of `queue` is
+   * taken, its first fan's chat opens by this click); `walk: 'stop'` — the strip's × (who is not done goes back).
    */
   act('SetQueues', {
     open: z.optional(z.boolean()),
     queue: z.optional(z.int().check(z.gte(1))),
     refresh: z.optional(z.literal(true)),
     more: z.optional(z.literal(true)),
+    walk: z.optional(z.enum(['start', 'stop'])),
   }),
+  /** «Не сегодня» of the strip's reminder: no more of it today. Nothing is sent. */
+  act('DismissQueueNudge', {}),
   /**
    * 2026-10-29: «Пропустить ▾» of a fan of «Очереди»: why — «Не подходит», «Позже» (back in three days), «Уже общаемся»,
    * «Не предлагать» (the team's mark, as «Онлайн»'s). One report to the hub, never repeated; the next fan's card opens.

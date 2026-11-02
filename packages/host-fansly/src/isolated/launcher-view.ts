@@ -1,6 +1,6 @@
 // The floating launcher of a Fansly page, drawn (decision X46; ui-design §3.13; SP-001, NF-001): one raised card in
-// the bottom left corner with three rows, top to bottom as the dock's chips stand — «Онлайн», «Spenders», «Новые»
-// (2026-10-27: a column, «Онлайн» added). The old Fansly extension had «$» and «Новые» there (`fansly-chat`
+// the bottom left corner with its rows, top to bottom as the dock's chips stand — «Онлайн», «Очереди», «Spenders», «Новые»
+// (2026-10-27: a column, «Онлайн» added; 2026-11-02: «Очереди»). The old Fansly extension had «$» and «Новые» there (`fansly-chat`
 // src/content/bootstrap.css: left 18 px, bottom 18 px, every page). One chunk of Fansly's own lazy build
 // (lazy/fansly/launcher.ts), loaded once the tab is admitted (starter.ts); plain DOM in a closed root: the application
 // — Preact, the kit, the texts — is loaded by the first click, never for the buttons.
@@ -26,6 +26,7 @@ import type { FanslyLauncher, LauncherTarget } from './launcher';
 /** The launcher's words: Russian, as the old extension's (the application's language setting is not read this early). */
 export const LAUNCHER_TEXT: Readonly<Record<LauncherTarget, { readonly label: string; readonly title: string; readonly aria: string }>> = {
   online: { label: 'Онлайн', title: 'Фаны онлайн', aria: 'Открыть «Онлайн»' },
+  queues: { label: 'Очереди', title: 'Очереди фанов', aria: 'Открыть «Очереди»' },
   spenders: { label: 'Spenders', title: 'Spenders', aria: 'Открыть Spenders' },
   newcomers: { label: 'Новые', title: 'Новые фоловеры', aria: 'Открыть «Новые»' },
 };
@@ -37,7 +38,7 @@ export const spendersKeyLabel = (platform: string): string => (isMac(platform) ?
 export const newcomersKeyLabel = (platform: string): string => (isMac(platform) ? '⌘⇧U' : 'Ctrl+Alt+U');
 
 /** The rows top to bottom: the dock's order of its board chips (contracts features/common.ts). */
-export const LAUNCHER_ORDER: readonly LauncherTarget[] = ['online', 'spenders', 'newcomers'];
+export const LAUNCHER_ORDER: readonly LauncherTarget[] = ['online', 'queues', 'spenders', 'newcomers'];
 
 /** The key in a row's tooltip; null — the row has none. */
 const keyLabel = (target: LauncherTarget, platform: string): string | null =>
@@ -49,6 +50,12 @@ const GLYPHS: Readonly<Record<LauncherTarget, readonly (readonly [string, Readon
     ['circle', { cx: '6.4', cy: '5.6', r: '2.7' }],
     ['path', { d: 'M1.8 13.8c.5-2.6 2.3-4.1 4.6-4.1s4.1 1.5 4.6 4.1' }],
     ['circle', { class: 'dot', cx: '12.6', cy: '4.3', r: '2.2' }],
+  ],
+  queues: [
+    ['path', { d: 'M6.2 4.2h7.6M6.2 8h7.6M6.2 11.8h7.6' }],
+    ['circle', { class: 'fill', cx: '2.9', cy: '4.2', r: '1.1' }],
+    ['circle', { cx: '2.9', cy: '8', r: '0.75' }],
+    ['circle', { cx: '2.9', cy: '11.8', r: '0.75' }],
   ],
   spenders: [
     ['circle', { cx: '8', cy: '8', r: '6.2' }],

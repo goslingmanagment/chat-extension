@@ -48,6 +48,7 @@
 // chip on a ~540 px composer, as on a 1512 px window with ChatSpace's side
 // panel open.
 
+import { QUEUE_STRIP_CSS } from './QueueStrip';
 import { BASE_TEXT_DECLARATIONS, dark, type StyleSource } from '../kit';
 import { STALE_ROW_CSS, STALE_ROW_NARROW_CSS } from './stale-row.css';
 
@@ -91,6 +92,7 @@ function barStep(below: number, withLimit: number, rules: (strip: string) => str
 }
 
 export const DOCK_CSS = `
+${QUEUE_STRIP_CSS}
 ${/* The bar is first in the document (Tab reaches it first, ui-design §6.3) and last on screen. In the dock the gutter is the number cell of a draft card. */ ''}
 .cg-dock { position: relative; display: flex; flex-direction: column-reverse; font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); --cg-gutter: 31px; --cg-lead: 12px; }
 ${/* The bar and a result's head keep the base type scale under «Крупнее» (2026-10-22): only the AI text, parts and cards grow. */ ''}

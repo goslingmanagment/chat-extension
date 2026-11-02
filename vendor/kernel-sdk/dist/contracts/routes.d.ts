@@ -34321,6 +34321,8 @@ declare const baseRouteSchemas: {
                     templateId: z.ZodNullable<z.ZodString>;
                     answeredAt: z.ZodString;
                     answerText: z.ZodNullable<z.ZodString>;
+                    lifetimeGrossMills: z.ZodNumber;
+                    last30dGrossMills: z.ZodNumber;
                 }, z.core.$strip>>;
                 templates: z.ZodArray<z.ZodObject<{
                     id: z.ZodString;
@@ -34434,6 +34436,16 @@ declare const baseRouteSchemas: {
                 }, z.core.$strip>;
                 pending: z.ZodNumber;
                 dropped: z.ZodNumber;
+                left: z.ZodArray<z.ZodObject<{
+                    itemId: z.ZodNumber;
+                    fanRef: z.ZodString;
+                    reason: z.ZodString;
+                }, z.core.$strip>>;
+                results: z.ZodObject<{
+                    sent: z.ZodNumber;
+                    answered: z.ZodNumber;
+                    spentMills: z.ZodNumber;
+                }, z.core.$strip>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
         };

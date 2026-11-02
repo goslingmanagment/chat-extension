@@ -1447,7 +1447,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
         sound.forget();
         greetings.forget();
         aiLimitAlerts.forget();
-        void local.remove([STORAGE_KEYS.newcomersDrafts, STORAGE_KEYS.outreachSaved]);
+        void local.remove([STORAGE_KEYS.newcomersDrafts, STORAGE_KEYS.outreachSaved, STORAGE_KEYS.queuesNudges]);
       }
       // §9.4: at sign-out what is finished of the X8 journal goes; open records stay until resolved.
       if (ownerChanged || change.session === null) {

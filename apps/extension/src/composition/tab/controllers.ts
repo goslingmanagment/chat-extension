@@ -21,7 +21,7 @@ import { OP_TIMEOUTS } from '@cg/contracts/limits';
 import type { AiHostPolicy, OpState } from '@cg/contracts/ops';
 import type { SendAttemptView } from '@cg/contracts/send';
 import type { HostPort, NavigationReceipt } from '@cg/contracts/host';
-import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, TargetHandle, ToastPort, UiAction } from '@cg/contracts/vm';
+import type { ActionCatalog, ActionReceipt, AppClient, ClipboardPort, DockVM, FanPanelVM, I18n, PreviewSource, QueueWalkVM, TargetHandle, ToastPort, UiAction } from '@cg/contracts/vm';
 import type { AppRouter } from '@cg/core/application';
 import type { GreetHereState, GreetedChat } from '@cg/core/application/newcomers';
 import type { GreetRun } from '@cg/core/application/shell';
@@ -95,6 +95,8 @@ export interface TabWorld {
   readonly drafts: DraftStore | null;
   /** «Рассылки» kept on this computer; null — an outreach lives until the tab reloads. */
   readonly outreachSaved?: OutreachSavedStore | null;
+  /** 2026-11-02: the day each page's queue reminder was seen off; null — until the tab reloads. */
+  readonly queuesNudges?: OutreachSavedStore | null;
   /** 1.47.0: «Скачать MP3» of a voice take — a Blob saved inside our own closed root. */
   readonly files: AiChunk.FileSaver;
   /** What stands over the page without being a window: «Рассылка» folded into its chip. Absent — nothing. */
@@ -152,6 +154,7 @@ export function startAi(world: TabWorld, chunk: typeof AiChunk, catalog: ActionC
       const answer = await world.rpc.request('queues.list', { pageId: page.pageId });
       return answer.ok ? answer.payload : null;
     },
+    ...(world.queuesNudges === undefined || world.queuesNudges === null ? {} : { nudges: world.queuesNudges }),
   });
   const ports: AiChunk.AiPorts = {
     rpc: world.rpc,
@@ -411,6 +414,8 @@ export interface BoardsDock {
   handover(handover: PreviewChunk.BoardHandover): void;
   /** Chat Memory week 1: «в разговоре» of the tab (the navigation family's): the preview's X8 warning reads it. */
   readonly talking?: NavigationChunk.TalkingController;
+  /** 2026-11-02: the dock's own read of the queues: the strip over the bar, and whether the person holds a portion. */
+  readonly queuesCount?: AiChunk.QueuesCount;
   /**
    * 2026-10-26: a greeting reminder's «Hi» goes on in the fan's chat it opened. The dock's handle of `chat` once its dock
    * can start a generation there; null — not within `ms`.
@@ -541,8 +546,18 @@ export async function startBoards(
     navigator,
     visible: () => win.document.visibilityState === 'visible',
     openChat: () => boardsHost.current().route.chat?.platformFanId ?? null,
+    // The queue in the chat (2026-11-02): the strip follows the open chat and what the page sends from it.
+    routed: (listener) =>
+      boardsHost.subscribe((event) => {
+        if (event.type === 'route') listener();
+      }),
+    sentHere: (listener) =>
+      boardsHost.subscribe((event) => {
+        if (event.type === 'pageSent') listener(event.fact.chat.platformFanId);
+        else if (event.type === 'humanSend' && event.fact.platformMessageId !== null) listener(event.fact.chat.platformFanId);
+      }),
+    ...(dock.queuesCount === undefined ? {} : { strip: (vm: QueueWalkVM | null) => dock.queuesCount?.setWalk(vm) }),
   });
-
   // X8: one click — one attempt. The driver asks MAIN, then the background, then MAIN's queue; every state goes on.
   const sendListeners = new Set<(view: SendAttemptView) => void>();
   const driver = new previewChunk.PreviewSendDriver({
@@ -608,6 +623,12 @@ export async function startBoards(
   // R12's order: the preview first — it answers for the parts of its own results.
   const controllers = [preview, spenders, newcomers, fanPanel, outreach, online, queues];
   const offs = controllers.map((controller) => router.register(adopt(controller as unknown as LooseController)));
+  // A portion the person holds with no window open (a reload, a chat opened from the queue): the walk goes on.
+  const queuesCount = dock.queuesCount;
+  if (queuesCount !== undefined) {
+    offs.push(queuesCount.subscribe(() => queues.noticeList(queuesCount.list())));
+    queues.noticeList(queuesCount.list());
+  }
 
   /**
    * «Hi» of a greeting reminder's toast (2026-10-24; 2026-10-25, the owner: «по hi нажимая начиналась генерация сообщения
