@@ -80,6 +80,8 @@ export type FakeFanslyCommand =
   /** P16b: switch the synthetic creator, with a fresh world/session. The test reloads its tabs afterwards. */
   | { readonly op: 'account'; readonly creatorId: string }
   | { readonly op: 'status' }
+  /** The upload service retains these original filenames instead of the selected File names. */
+  | { readonly op: 'vault-filenames'; readonly filenames: Readonly<Record<string, string>> }
   /** A message appears in a group and its `5/1` frame goes out (`silent` — no frame: the socket «lost» it). */
   | {
       readonly op: 'message';
