@@ -18,7 +18,7 @@ import {
   type AiUsageQuery,
   type AiUsageReport,
   type AudienceNewItem,
-  type OtherPageSpend,
+  type OtherPage,
   type AudienceNewPage,
   type AudienceNewQuery,
   type AutoLists,
@@ -988,7 +988,7 @@ export class DataModel {
    * `fanWrote` — the fan already wrote a message (one stored message of the fan's); `handSent` — a person greeted the
    * fan by hand in the site's composer (a send attribution of that moment).
    */
-  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false, handSent = false, named: { readonly username?: string; readonly displayName?: string; readonly otherPagesSpend?: readonly OtherPageSpend[] } = {}): string {
+  addAudienceEvent(page: FakePage, fanRef: string, kind: 'new' | 'returning', trial: boolean, now: number, fanWrote = false, handSent = false, named: { readonly username?: string; readonly displayName?: string; readonly otherPages?: readonly OtherPage[] } = {}): string {
     const events = this.audienceOf(page);
     const eventRef = `evt-${page.pageId}-${2000 + events.length}`;
     const { claim: _claim, ...seed } = SCENARIO_DATA.audienceItem(0);
@@ -1008,7 +1008,7 @@ export class DataModel {
         subscribedAtSource: 'notification',
         status: { isSubscriber: true, subscriptionStatus: 'active', endsAt: iso(now + 30 * DAY_MS), asOf: iso(now), source: 'webhook' },
         thread: fanWrote ? { lastMessageAt: iso(now), lastFanMessageAt: iso(now), lastModelMessageAt: null, storedMessageCount: 1, coverage: 'complete', backfillComplete: true } : null,
-        ...(named.otherPagesSpend === undefined ? {} : { otherPagesSpend: [...named.otherPagesSpend] }),
+        ...(named.otherPages === undefined ? {} : { otherPages: [...named.otherPages] }),
       },
     });
     if (handSent) {

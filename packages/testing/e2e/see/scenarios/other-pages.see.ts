@@ -1,6 +1,6 @@
-// What a fan spends on other pages of the agency (hub `otherPagesSpend`), a green coin beside the name: «Онлайн» on both
-// sites, «Новые» on ChatSpace (Fansly's «Новые» are a pass over Fansly's own API, no hub answer carries it), and Fansly's
-// chat header with its card. One page, several in the tooltip, a long name; light and dark.
+// A fan who is on other pages of the agency too (hub `otherPages`), one mark beside the name: «Онлайн» on both sites,
+// «Новые» on ChatSpace (Fansly's «Новые» are a pass over Fansly's own API, no hub answer carries it), and Fansly's chat
+// header with its card. Money, a word with no money, several pages in the tooltip, a long name; light and dark.
 
 import { $, browser } from '@wdio/globals';
 
@@ -9,10 +9,12 @@ import { callFansly } from '../../support/fansly-stand';
 import { STAND_IDS } from '../../support/stand';
 import { around, scenario, type Box, type See } from '../kit';
 
-const ONE = [{ pageLabel: 'mia-vip', grossMills: 1_653_000 }];
-const TWO = [{ pageLabel: 'ella-moon', grossMills: 412_500 }, { pageLabel: 'mia-vip', grossMills: 87_000 }];
-const THREE = [{ pageLabel: 'mia-vip', grossMills: 12_480_000 }, { pageLabel: 'ella-moon', grossMills: 2_310_000 }, { pageLabel: 'sofia-lane', grossMills: 95_000 }];
-const LONG = [{ pageLabel: 'model-three-fansly', grossMills: 12_480_000 }, { pageLabel: 'ella-moon', grossMills: 95_000 }];
+const wrote = (days: number): string => new Date(Date.now() - days * 86_400_000).toISOString();
+const ONE = [{ pageLabel: 'mia-vip', grossMills: 1_653_000, lastFanMessageAt: wrote(5), relation: 'subscriber' as const }];
+const TALKS = [{ pageLabel: 'ella-moon', grossMills: 0, lastFanMessageAt: wrote(12), relation: 'follower' as const }];
+const TWO = [{ pageLabel: 'ella-moon', grossMills: 412_500, lastFanMessageAt: null, relation: null }, { pageLabel: 'mia-vip', grossMills: 87_000, lastFanMessageAt: wrote(40), relation: 'follower' as const }];
+const THREE = [{ pageLabel: 'mia-vip', grossMills: 12_480_000, lastFanMessageAt: wrote(2), relation: 'subscriber' as const }, { pageLabel: 'ella-moon', grossMills: 2_310_000, lastFanMessageAt: wrote(30), relation: 'follower' as const }, { pageLabel: 'sofia-lane', grossMills: 0, lastFanMessageAt: wrote(64), relation: null }];
+const LONG = [{ pageLabel: 'model-three-fansly', grossMills: 12_480_000, lastFanMessageAt: wrote(9), relation: 'subscriber' as const }, { pageLabel: 'ella-moon', grossMills: 95_000, lastFanMessageAt: null, relation: null }];
 
 const SLOT = '[data-host="header-slot"][data-header-order="30"]';
 const HEADER = '.message-content-header-contact';
@@ -24,12 +26,12 @@ const standFan = (index: number): string => String(920_000_000_000_000_000n + Bi
 async function seedOnline(s: See): Promise<void> {
   const ids = s.site === 'fansly' ? [0, 9, 3, 5, 8].map(standFan) : [STAND_IDS.fans.a2, STAND_IDS.fans.a5, STAND_IDS.fans.a6, STAND_IDS.fans.a7, STAND_IDS.fans.a3];
   const fans = [
-    { username: 'mike_dallas', displayName: 'Mike', otherPagesSpend: ONE, lifetimeGrossMills: 0, reason: 'never_wrote', act: 'template_b' },
+    { username: 'mike_dallas', displayName: 'Mike', otherPages: TALKS, lifetimeGrossMills: 0, reason: 'never_wrote', act: 'template_b' },
     s.showcase
-      ? { username: 'chris_w', displayName: 'Chris', otherPagesSpend: ONE, lifetimeGrossMills: 0, reason: 'never_wrote', act: 'template_b' }
-      : { username: 'the_very_long_handle_of_a_fan_2026', displayName: 'Christopher Alexander Montgomery the Third', otherPagesSpend: LONG, lifetimeGrossMills: 0, reason: 'never_wrote', act: 'template_b' },
-    { username: 'northstar77', displayName: 'Daniel', otherPagesSpend: THREE, lifetimeGrossMills: 0, reason: 'quiet', act: 'template_a', messageCount: 3 },
-    { username: 'quietguy', displayName: 'Jack', otherPagesSpend: TWO, lifetimeGrossMills: 560_000, reason: 'silent', act: 'ping', messageCount: 10 },
+      ? { username: 'chris_w', displayName: 'Chris', otherPages: ONE, lifetimeGrossMills: 0, reason: 'never_wrote', act: 'template_b' }
+      : { username: 'the_very_long_handle_of_a_fan_2026', displayName: 'Christopher Alexander Montgomery the Third', otherPages: LONG, lifetimeGrossMills: 0, reason: 'never_wrote', act: 'template_b' },
+    { username: 'northstar77', displayName: 'Daniel', otherPages: THREE, lifetimeGrossMills: 0, reason: 'quiet', act: 'template_a', messageCount: 3 },
+    { username: 'quietguy', displayName: 'Jack', otherPages: TWO, lifetimeGrossMills: 560_000, reason: 'silent', act: 'ping', messageCount: 10 },
     { username: 'sam_k', displayName: 'Sam', lifetimeGrossMills: 45_000, reason: 'quiet', act: 'template_a', messageCount: 3 },
   ];
   await s.hub.command({
@@ -80,7 +82,7 @@ async function shootTooltip(s: See, name: string): Promise<void> {
   await s.h.ours('modal', '[data-cg-other-pages="3"]').moveTo();
   await s.browser.pause(900);
   const list = await s.rect('modal', '.cg-nw__side');
-  await s.shot(name, list === null ? {} : { clip: { ...list, width: list.width + 120, height: Math.min(list.height, 640) } });
+  await s.shot(name, list === null ? {} : { clip: { ...list, x: list.x - 48, width: list.width + 168, height: Math.min(list.height, 640) } });
   await pointerAway(s);
 }
 
@@ -119,12 +121,13 @@ scenario(
 
     await openOnline(s);
     await shootList(s, 'online-rows-light');
-    // The note's picture (`--showcase`): the list, a coin's tooltip open.
+    // The note's picture (`--showcase`): the list, a mark's tooltip open.
     if (s.showcase) {
       await s.h.ours('modal', '[data-cg-other-pages="3"]').moveTo();
       await s.browser.pause(900);
       const list = await s.rect('modal', '.cg-nw__side');
-      if (list !== null) await s.shot('note', { clip: { ...list, height: Math.min(list.height, 560) }, file: 'other-pages-mark' });
+      // The bubble stands centred on the mark and reaches past the list's left edge.
+      if (list !== null) await s.shot('note', { clip: { ...list, x: list.x - 48, width: list.width + 48, height: Math.min(list.height, 560) }, file: 'other-pages-mark' });
       await pointerAway(s);
     }
     await shootTooltip(s, 'online-tooltip-light');
@@ -167,9 +170,9 @@ scenario(
     before: async ({ hub }) => {
       const { a2, a5, a6, a7 } = STAND_IDS.fans;
       await hub.command({ op: 'config', patch: { onlineStand: false } });
-      await hub.command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a2, username: 'mike_dallas', displayName: 'Mike', otherPagesSpend: ONE });
-      await hub.command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a5, username: 'the_very_long_handle_of_a_fan_2026', displayName: 'Christopher Alexander Montgomery the Third', otherPagesSpend: LONG });
-      await hub.command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a6, username: 'northstar77', displayName: 'Daniel', otherPagesSpend: THREE });
+      await hub.command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a2, username: 'mike_dallas', displayName: 'Mike', otherPages: TALKS });
+      await hub.command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a5, username: 'the_very_long_handle_of_a_fan_2026', displayName: 'Christopher Alexander Montgomery the Third', otherPages: LONG });
+      await hub.command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a6, username: 'northstar77', displayName: 'Daniel', otherPages: THREE });
       await hub.command({ op: 'audienceEvent', pageLabel: PAGE, fanRef: a7, username: 'sam_k', displayName: 'Sam' });
     },
     sites: ['chatspace', 'fansly'],

@@ -1,6 +1,6 @@
 // The open fan's marks in Fansly's own chat header, after «Регистрация»: the agency's list the fan is in («💩 Бомж», the
-// list's own label), «⛔ Блоклист» when FANSLY BLOCKLIST has posts about the fan, and a green coin when he spends on
-// other pages (the sums in its card). In that row's size: the warnings in the warm and the red ink; nothing at all when
+// list's own label), «⛔ Блоклист» when FANSLY BLOCKLIST has posts about the fan, and two overlapping circles when he is on
+// other pages (each page in its card). In that row's size: the warnings in the warm and the red ink; nothing at all when
 // no mark applies. They disable nothing.
 //
 // Each mark explains itself in a card under it: on hover (after a short pause, kept while the pointer is over the mark
@@ -164,7 +164,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
       <span class="cg-fm" ref={root} data-fan-marks={[shown.lists ? 'lists' : '', shown.blocklist ? 'blocklist' : '', shown.other ? 'other' : ''].filter(Boolean).join(' ')}>
         {view.lists === null ? null : mark('lists', view.lists.label)}
         {shown.blocklist ? mark('blocklist', copy.blocklist) : null}
-        {shown.other ? mark('other', <Icon name="coin" size={14} />, i18n.t('otherPages.title')) : null}
+        {shown.other ? mark('other', <Icon name="overlap" size={14} />, i18n.t('otherPages.title')) : null}
         {which === null ? null : (
           <div
             ref={card}
@@ -232,7 +232,7 @@ export function fanMarksSurface(client: FanMarksClient, texts: Readonly<Record<'
     .cg-fm__mark { all: unset; display: inline-flex; align-items: center; cursor: pointer; border-radius: 6px; font-weight: 500; }
     .cg-fm__mark--lists { color: var(--cg-amber-ink); }
     .cg-fm__mark--blocklist { color: var(--cg-bad-ink); }
-    .cg-fm__mark--other { color: var(--cg-good-ink); }
+    .cg-fm__mark--other { color: var(--cg-other-ink); }
     .cg-fm__label { display: inline-block; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
     .cg-fm__mark:hover .cg-fm__label, .cg-fm__mark[aria-expanded='true'] .cg-fm__label { text-decoration: underline; text-underline-offset: 2px; }
     .cg-fm__mark--other .cg-fm__label { display: inline-flex; }

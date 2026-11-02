@@ -145,8 +145,12 @@ export const FanslyFanMarksSchema = z.strictObject({
       }),
     )
     .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkPostsMax)),
-  /** The fan's money on other Fansly pages, the biggest first; absent — none. Not a warning. */
-  otherPages: z.optional(z.array(z.strictObject({ pageLabel: displayText(120), grossMills: MoneyMillsSchema })).check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkOtherPagesMax))),
+  /** The other Fansly pages where the fan paid or lately wrote, the biggest money first; absent: none. Not a warning. */
+  otherPages: z.optional(
+    z
+      .array(z.strictObject({ pageLabel: displayText(120), grossMills: MoneyMillsSchema, lastFanMessageAt: z.nullable(IsoTimestampSchema), relation: z.nullable(z.enum(['subscriber', 'follower'])) }))
+      .check(z.maxLength(FANSLY_TAB_LIMITS.fanMarkOtherPagesMax)),
+  ),
 });
 export type FanslyFanMarks = z.infer<typeof FanslyFanMarksSchema>;
 

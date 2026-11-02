@@ -17,7 +17,7 @@
 import { type FanBadgeMark, type FanBadges, type FbuddyState } from '../fan-badges';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type Msg } from './i18n';
-import { type OtherPageSpendVM } from './other-pages';
+import { type OtherPageVM } from './other-pages';
 import { type TargetHandle } from './selectors';
 import { type DataStamp, type VmView } from './view';
 import { type OutreachMediaVM, type OutreachSendVM, type OutreachWarningVM } from './outreach';
@@ -120,7 +120,7 @@ export interface OnlineRowVM {
   readonly avatarUrl?: string | null;
   readonly lifetime: MoneyMills | null;
   /** The fan's money on other pages, the biggest first; absent — none. */
-  readonly otherPages?: readonly OtherPageSpendVM[];
+  readonly otherPages?: readonly OtherPageVM[];
   /** The fan's last activity. */
   readonly seenAt: IsoTimestamp | null;
   /** Online now by OnlyFansAPI's state, since this moment (OnlyFans): «зашёл N мин назад». */

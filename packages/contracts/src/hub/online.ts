@@ -12,7 +12,7 @@
 import * as z from 'zod/mini';
 
 import { NativeIdSchema } from '../primitives';
-import { OtherPageSpendSchema, PageLabelSchema } from './wire';
+import { OtherPageSchema, PageLabelSchema } from './wire';
 
 /** Why to write now, the most urgent first (hub CLIENT_ONLINE_REASONS); open on the wire. */
 export const ONLINE_REASONS = ['waiting', 'new_unattended', 'expiring', 'silent', 'quiet', 'never_wrote', 'none'] as const;
@@ -83,7 +83,7 @@ export const OnlineItemSchema = z.object({
     autoRenew: z.nullable(z.boolean()),
   }),
   /** The fan's money on other pages of the platform; absent or empty — none. */
-  otherPagesSpend: z.optional(z.array(OtherPageSpendSchema)),
+  otherPages: z.optional(z.array(OtherPageSchema)),
 });
 export type OnlineItem = z.infer<typeof OnlineItemSchema>;
 

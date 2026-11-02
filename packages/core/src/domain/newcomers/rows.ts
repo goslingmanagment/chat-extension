@@ -10,7 +10,7 @@
 
 import { type AudienceNewItem, type ClaimState, type ClaimSummary } from '@cg/contracts/hub';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
-import { type GreetingFilter, type GreetingStatusVM, type NewcomerKind, type NewcomersTab, type OtherPageSpendVM } from '@cg/contracts/vm';
+import { type GreetingFilter, type GreetingStatusVM, type NewcomerKind, type NewcomersTab, type OtherPageVM } from '@cg/contracts/vm';
 
 import { otherPagesOf } from '../fans/other-pages';
 
@@ -35,7 +35,7 @@ export interface NewcomerRow {
   readonly personalSendAt: IsoTimestamp | null;
   readonly claim: ClaimSummary;
   /** The fan's money on other pages, the biggest first; absent — none. */
-  readonly otherPages?: readonly OtherPageSpendVM[];
+  readonly otherPages?: readonly OtherPageVM[];
   readonly haystack: string;
 }
 
@@ -81,7 +81,7 @@ export function newcomerRow(item: AudienceNewItem): NewcomerRow {
           },
     personalSendAt: item.lastPersonalSendAt ?? null,
     claim: item.claim,
-    ...otherPagesOf(item.otherPagesSpend),
+    ...otherPagesOf(item.otherPages),
     haystack: [item.displayName, item.username, item.fanRef]
       .filter((part) => part !== null)
       .join('\n')

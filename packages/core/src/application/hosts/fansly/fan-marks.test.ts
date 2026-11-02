@@ -37,10 +37,12 @@ describe('[host:fansly] the fan marks of an answer', () => {
     });
   });
 
-  it('the money on other pages alone is a mark; a sum of zero or a page with no name is none', () => {
-    const otherPages = [{ pageLabel: 'mia-vip', grossMills: 1_653_000 }, { pageLabel: 'ella-moon', grossMills: 0 }, { pageLabel: ' ', grossMills: 5_000 }];
-    expect(fanMarksView({ lists: [], blocklist: [], otherPages }, null)).toEqual({ lists: null, posts: [], otherPages: [{ pageLabel: 'mia-vip', grossMills: 1_653_000 }] });
-    expect(fanMarksView({ lists: [], blocklist: [], otherPages: [{ pageLabel: 'ella-moon', grossMills: 0 }] }, null)).toBe(FAN_MARKS_NONE);
+  it('being on another page alone is a mark, money or none; a page with no name is none', () => {
+    const paid = { pageLabel: 'mia-vip', grossMills: 1_653_000, lastFanMessageAt: null, relation: 'subscriber' as const };
+    const talks = { pageLabel: 'ella-moon', grossMills: 0, lastFanMessageAt: '2026-10-20T10:00:00.000Z', relation: null };
+    const otherPages = [paid, talks, { pageLabel: ' ', grossMills: 5_000, lastFanMessageAt: null, relation: null }];
+    expect(fanMarksView({ lists: [], blocklist: [], otherPages }, null)).toEqual({ lists: null, posts: [], otherPages: [paid, talks] });
+    expect(fanMarksView({ lists: [], blocklist: [], otherPages: [{ ...talks, pageLabel: ' ' }] }, null)).toBe(FAN_MARKS_NONE);
   });
 
   it('a list named with the team note after a dash is the short name, one group with the same list elsewhere', () => {

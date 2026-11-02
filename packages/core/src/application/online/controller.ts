@@ -718,7 +718,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       name: entry.name,
       username: item.username,
       lifetime: item.lifetimeGrossMills > 0 ? item.lifetimeGrossMills : null,
-      ...otherPagesOf(item.otherPagesSpend),
+      ...otherPagesOf(item.otherPages),
       seenAt: item.seenAt,
       onlineSince: item.onlineSince,
       live: live.has(entry.fanRef),

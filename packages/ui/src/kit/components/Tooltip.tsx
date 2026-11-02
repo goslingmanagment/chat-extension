@@ -127,6 +127,6 @@ export const TOOLTIP_CSS = `
   font-family: inherit; font-size: var(--cg-text-sm); line-height: 17px; font-weight: 500;
   white-space: pre-line; overflow-wrap: anywhere; pointer-events: none; overflow: visible;
 }
-.cg-tip--hint { color: var(--cg-ink-2); }
+.cg-tip--hint { max-width: 340px; color: var(--cg-ink-2); }
 .cg-tip--hint::first-line { font-weight: 700; color: var(--cg-ink-strong); }
 `;

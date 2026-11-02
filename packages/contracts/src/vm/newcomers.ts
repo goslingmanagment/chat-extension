@@ -11,7 +11,7 @@ import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type BatchRowVM, type BatchVM } from './batch';
 import { type GreetingFilter, type NewcomerCheckFilter, type NewcomersTab } from './actions';
 import { type Msg } from './i18n';
-import { type OtherPageSpendVM } from './other-pages';
+import { type OtherPageVM } from './other-pages';
 import { type TargetHandle } from './selectors';
 import { type ActionButtonVM, type DataStamp, type VmView } from './view';
 
@@ -65,7 +65,7 @@ export interface NewcomerRowVM {
   readonly name: string;
   readonly username: string | null;
   /** The fan's money on other pages, the biggest first; absent — none (a pass's rows have no hub answer to carry it). */
-  readonly otherPages?: readonly OtherPageSpendVM[];
+  readonly otherPages?: readonly OtherPageVM[];
   readonly kind: NewcomerKind;
   readonly subscribedAt: IsoTimestamp;
   readonly greeting: GreetingStatusVM;

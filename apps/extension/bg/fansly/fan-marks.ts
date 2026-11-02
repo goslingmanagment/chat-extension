@@ -66,10 +66,10 @@ export function boundFanMarks(marks: FanMarks, pageLabel: string): FanslyFanMark
     if (blocklist.length === FANSLY_TAB_LIMITS.fanMarkPostsMax) break;
   }
   const otherPages: NonNullable<FanslyFanMarks['otherPages']> = [];
-  for (const spend of marks.otherPagesSpend ?? []) {
-    const pageLabel = cut(spend.pageLabel.trim(), 120);
-    if (pageLabel === '' || !(spend.grossMills > 0)) continue;
-    otherPages.push({ pageLabel, grossMills: spend.grossMills });
+  for (const page of marks.otherPages ?? []) {
+    const pageLabel = cut(page.pageLabel.trim(), 120);
+    if (pageLabel === '') continue;
+    otherPages.push({ pageLabel, grossMills: Math.max(0, page.grossMills), lastFanMessageAt: page.lastFanMessageAt, relation: page.relation });
     if (otherPages.length === FANSLY_TAB_LIMITS.fanMarkOtherPagesMax) break;
   }
   return { lists, blocklist, ...(otherPages.length === 0 ? {} : { otherPages }) };

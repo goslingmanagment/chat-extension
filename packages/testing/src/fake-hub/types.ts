@@ -3,7 +3,7 @@
 // in-process and over the loopback control endpoint) and the request journal.
 // Everything here is JSON-serialisable: the loopback control API carries it.
 
-import type { ClientFeatureFlag, HubAiFeature, HubErrorBody, HubFrame, HubRouteKey, OnlineAttemptRequest, OtherPageSpend } from '@cg/contracts';
+import type { ClientFeatureFlag, HubAiFeature, HubErrorBody, HubFrame, HubRouteKey, OnlineAttemptRequest, OtherPage } from '@cg/contracts';
 import type { FakeFeedRecord, FakeFeedTransaction } from './onlyfans-feed';
 
 import type { HttpExchange, HttpScenario, SseScenario, SseStep } from '../scenarios/hub/types';
@@ -247,8 +247,8 @@ export type FakeHubCommand =
       /** The fan's handle and name as the platform shows them (default: a synthetic handle, no name). */
       readonly username?: string;
       readonly displayName?: string;
-      /** What the fan paid on other pages (hub `otherPagesSpend`). */
-      readonly otherPagesSpend?: readonly OtherPageSpend[];
+      /** The other pages where the fan paid or lately wrote (hub `otherPages`). */
+      readonly otherPages?: readonly OtherPage[];
     }
   /**
    * The first rows of every page's Spenders board are these fans, in this order — fans the e2e's stand has, so

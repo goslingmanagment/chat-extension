@@ -1,6 +1,6 @@
 // A fan of «Онлайн» in the list — «Новые»'s row: the picture with the presence dot (green: active within ten
 // minutes or the site's own «в сети», amber: within half an hour, grey: longer), the name with the fan's badges on
-// Fansly (FBuddy's gem, Fansly's blue card; the kit's FanBadge) and the coin of his money on other pages, «@handle · $560», why to
+// Fansly (FBuddy's gem, Fansly's blue card; the kit's FanBadge) and the mark of his being on other pages, «@handle · $560», why to
 // write now in words, how fresh the presence is at the end, and under it the text that would go: two lines of the
 // draft look while it waits, one muted line once it went.
 
