@@ -47,7 +47,7 @@ import {
 import { type SendAttributionsRequest, type SendAttributionsResult } from './attribution';
 import { type FanNoteAttributions, type FanNoteAttributionsQuery, type NoteAttributionsRequest, type NoteAttributionsResult } from './note-attribution';
 import { type ActivityBeatRequest, type ActivityBeatResult, type InConversationQuery, type InConversationResult } from './conversation';
-import { type Handoff, type HandoffQuery, type WinBackAttemptRequest, type WinBackAttemptResult, type WinBackList, type WinBackQuery } from './queue';
+import { type Handoff, type HandoffQuery } from './queue';
 import { type OnlineAttemptRequest, type OnlineAttemptResult, type OnlineList, type OnlinePresenceRequest, type OnlinePresenceResult, type OnlineProbeRequest, type OnlineProbeResult, type OnlineQuery } from './online';
 import { type OnlyfansFeedRequest, type OnlyfansFeedResult, type OnlyfansPollRequest, type OnlyfansPollResult } from './onlyfans-feed';
 import { type ServerTabStateRequest, type ServerTabStateResult } from './server-tab';
@@ -217,10 +217,6 @@ export interface HubFacade {
   fanCustomCreate(request: FanCustomCreateRequest): Promise<FanFactChangeResult>;
   /** A custom marked paid, delivered, cancelled or edited, by the card's suggestions; never repeated by itself. */
   fanCustomChange(request: FanCustomChangeRequest): Promise<FanFactChangeResult>;
-  /** Chat Memory week 3: the win-back list of a page; refused without `win-back-v1`. */
-  winBack(query: WinBackQuery): Promise<WinBackList>;
-  /** A chatter's approach pick for a fan of the list; never repeated by itself. */
-  winBackAttempt(request: WinBackAttemptRequest): Promise<WinBackAttemptResult>;
   /** Chat Memory week 3: the shift handoff of a page; refused without `handoff-v1`. */
   handoff(query: HandoffQuery): Promise<Handoff>;
   /** «Онлайн»: the page's fans seen online within `minutes`, why to write now and with what; refused without `online-v1`. */

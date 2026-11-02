@@ -263,7 +263,7 @@ export type FakeHubCommand =
    * Chat Memory week 3, «Очередь» of a page: «Ждут» rows in place of the seeded ones (with aliases and chats), the
    * «Вернуть» list and the «Передача» as the hub answers them. Each one left out stays as it was.
    */
-  | { readonly op: 'queue'; readonly pageLabel: string; readonly waiting?: readonly Record<string, unknown>[]; readonly winBack?: Record<string, unknown>; readonly handoff?: Record<string, unknown> }
+  | { readonly op: 'queue'; readonly pageLabel: string; readonly waiting?: readonly Record<string, unknown>[]; readonly handoff?: Record<string, unknown> }
   | { readonly op: 'talking'; readonly pageLabel: string; readonly fanRef: string; readonly conversationRef?: string; readonly name: string; readonly agoMs?: number }
   /**
    * «Онлайн» of a page as the hub answers it (`clientOnline`): `items` — the fans online, each a fan id and any field of

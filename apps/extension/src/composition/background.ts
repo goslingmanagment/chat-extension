@@ -1781,8 +1781,6 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   rpc.handle('fan.memory.link', data['fan.memory.link']);
   rpc.handle('fan.memory.fact', data['fan.memory.fact']);
   rpc.handle('fan.memory.custom', data['fan.memory.custom']);
-  rpc.handle('queue.winback', data['queue.winback']);
-  rpc.handle('queue.winback.pick', data['queue.winback.pick']);
   rpc.handle('queue.handoff', data['queue.handoff']);
   rpc.handle('online.list', data['online.list']);
   rpc.handle('online.presence', data['online.presence']);

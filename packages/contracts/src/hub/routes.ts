@@ -79,9 +79,7 @@ export const HUB_ROUTES = {
   clientFanFactChange: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-card-v1'], narrowToken: true },
   /** The fan's warning marks: the agency's «💩 Бомж» lists on any of its Fansly pages, FANSLY BLOCKLIST's posts. No owner switch. */
   clientFanMarks: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-marks-v1'], narrowToken: true },
-  /** Chat Memory week 3: «Очередь» — the win-back list, a chatter's approach pick, the shift handoff. No owner switch. */
-  clientWinBack: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['win-back-v1'], narrowToken: true },
-  clientWinBackAttempt: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['win-back-v1'], narrowToken: true },
+  /** Chat Memory week 3: «Очередь» — the shift handoff. No owner switch. */
   /** «Онлайн»: the page's fans seen online, why to write now and with what (hub #879). */
   clientOnline: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
   /** A tab's report of the fans it saw online (Fansly's followers active lately, ChatSpace's online fans): their presence on the hub. */

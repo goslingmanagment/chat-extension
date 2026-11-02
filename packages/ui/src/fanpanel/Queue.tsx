@@ -1,8 +1,6 @@
 // «Очередь» of the fan panel (Chat Memory week 3): the page of the open tab, whatever chat is open, one component for
 // both sites.
 // - «Ждут»: the name (the team's alias with its 💵 / ❌), how long the fan waits, what he spent, «в разговоре: Никита».
-// - «Вернуть»: why the fan is listed, the owner's approaches as chips — a tap records the pick and the fan leaves the
-//   list with «Подход выбран» and his chat to open. The chatter writes himself: nothing is sent from here.
 // - «Передача»: whom the team wrote to in 12 hours (who, how many, who is still «в разговоре»), who waits, the open
 //   promises — none known is «не знаю» — and the page's open customs (Chat Memory week 4).
 // A row opens the fan's chat; the panel stays where it is.
@@ -12,9 +10,9 @@ import { type ComponentChildren, type JSX } from 'preact';
 import { type I18nKey } from '@cg/contracts/errors';
 import { type QueueFanVM, type QueueTab as QueueTabId, type QueueVM } from '@cg/contracts/vm';
 
-import { chatClick, Button, ErrorCard, Money, Segmented, TalkingMark, ViewState, useDispatch, useI18n, useMinuteClock } from '../kit';
+import { chatClick, Button, Money, Segmented, TalkingMark, ViewState, useDispatch, useI18n, useMinuteClock } from '../kit';
 
-const TAB_KEYS: Readonly<Record<QueueTabId, I18nKey>> = { waiting: 'queue.tab.waiting', winback: 'queue.tab.winback', handoff: 'queue.tab.handoff' };
+const TAB_KEYS: Readonly<Record<QueueTabId, I18nKey>> = { waiting: 'queue.tab.waiting', handoff: 'queue.tab.handoff' };
 
 /** A fan of the queue: a press opens his chat. `meta` — the line under the name; `talking` — the E2 mark by his chat. */
 function FanRow({ fan, meta, talking = true, children }: { readonly fan: QueueFanVM; readonly meta: ComponentChildren; readonly talking?: boolean; readonly children?: ComponentChildren }): JSX.Element {
@@ -48,40 +46,6 @@ function Waiting({ queue }: { readonly queue: QueueVM }): JSX.Element | null {
         <FanRow key={row.key} fan={row} meta={i18n.t('queue.waiting.since', { age: i18n.formatAge(row.since) })} />
       ))}
     </div>
-  );
-}
-
-function WinBack({ queue }: { readonly queue: QueueVM }): JSX.Element | null {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  const winBack = queue.winBack;
-  if (winBack === null) return null;
-  const picked = winBack.picked;
-  return (
-    <>
-      {picked === null ? null : (
-        <div class="cg-fp__sec cg-q__picked" role="status" data-cg-queue-picked="1">
-          <span>{i18n.t('queue.winback.picked', { approach: picked.approach, name: picked.name })}</span>
-          {picked.open === null ? null : <Button label={i18n.t('common.openChat')} variant="line" size="sm" onClick={(event) => void dispatch(chatClick(picked.open!, event))} />}
-        </div>
-      )}
-      {winBack.rows.length === 0 ? (
-        <div class="cg-fp__sec cg-fp__none">{i18n.t('queue.winback.none')}</div>
-      ) : (
-        <div class="cg-fp__sec">
-          <div class="cg-fp__cap">{i18n.t('queue.winback.caption')}</div>
-          {winBack.rows.map((row) => (
-            <FanRow key={row.key} fan={row} meta={row.reason === null ? null : i18n.text(row.reason)}>
-              <div class="cg-q__chips" aria-busy={row.busy ? 'true' : 'false'}>
-                {row.approaches.map((approach) => (
-                  <Button key={approach.id} label={approach.label} variant="line" size="sm" reason={row.busy ? i18n.t('common.loading') : null} onClick={() => void dispatch(approach.pick)} />
-                ))}
-              </div>
-            </FanRow>
-          ))}
-        </div>
-      )}
-    </>
   );
 }
 
@@ -164,19 +128,12 @@ export function QueueTab({ queue }: { readonly queue: QueueVM }): JSX.Element {
           <Segmented<QueueTabId> label={i18n.t('fanPanel.tab.queue')} value={queue.tab} options={queue.tabs.map((tab) => ({ value: tab, label: i18n.t(TAB_KEYS[tab]) }))} onChange={(tab) => void dispatch({ type: 'SetQueueTab', tab })} />
         </div>
       )}
-      {queue.error === null ? null : (
-        <div class="cg-fp__sec">
-          <ErrorCard error={queue.error} tone="failure" />
-        </div>
-      )}
       {!ready ? (
         <div class="cg-fp__sec">
           <ViewState view={queue.view} />
         </div>
       ) : queue.tab === 'waiting' ? (
         <Waiting queue={queue} />
-      ) : queue.tab === 'winback' ? (
-        <WinBack queue={queue} />
       ) : (
         <Handoff queue={queue} />
       )}
@@ -199,9 +156,6 @@ export const QUEUE_CSS = `
 .cg-q__money { margin-left: auto; font-weight: 500; color: var(--cg-ink); white-space: nowrap; }
 .cg-q__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); }
 .cg-q__talk { font-size: var(--cg-text-sm); color: var(--cg-ink-2); }
-.cg-q__chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.cg-q__chips[aria-busy="true"] { opacity: 0.6; }
-.cg-q__picked { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--cg-ink); }
 .cg-q__promise { padding: 6px 0; }
 .cg-q__promise + .cg-q__promise { border-top: 1px dashed var(--cg-rule); }
 .cg-q__promise .cg-q__meta { column-gap: 14px; }

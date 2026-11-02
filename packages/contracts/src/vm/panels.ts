@@ -161,15 +161,6 @@ export interface QueueWaitingVM extends QueueFanVM {
   readonly since: IsoTimestamp;
 }
 
-/** «Вернуть»: why the fan is listed, and the owner's approaches as chips of one tap. */
-export interface QueueWinBackVM extends QueueFanVM {
-  /** «подписка кончается через 2 дн», «новый, никто не написал», «молчит 16 дн»; null — a reason this build does not know. */
-  readonly reason: Msg | null;
-  readonly approaches: readonly { readonly id: number; readonly label: string; readonly pick: UiAction }[];
-  /** A pick is on its way: the chips rest. */
-  readonly busy: boolean;
-}
-
 /** «Передача»: a fan the team wrote to in the last hours — how many messages, by whom, who is still «в разговоре». */
 export interface QueueRecentVM extends QueueFanVM {
   readonly lastSentAt: IsoTimestamp;
@@ -202,16 +193,11 @@ export interface QueueCustomVM {
 
 export interface QueueVM {
   readonly tab: QueueTab;
-  /** The tabs the hub serves, in order: «Ждут» always, «Вернуть» with `win-back-v1`, «Передача» with `handoff-v1`. */
+  /** The tabs the hub serves, in order: «Ждут» always, «Передача» with `handoff-v1`. */
   readonly tabs: readonly QueueTab[];
   /** The shown tab's state; `empty` — nobody there. */
   readonly view: VmView;
   readonly waiting: { readonly total: number; readonly rows: readonly QueueWaitingVM[] } | null;
-  readonly winBack: {
-    readonly rows: readonly QueueWinBackVM[];
-    /** The last pick of this panel: «Подход выбран» with the fan's chat to open. */
-    readonly picked: { readonly name: string; readonly approach: string; readonly open: UiAction | null } | null;
-  } | null;
   readonly handoff: {
     readonly recent: readonly QueueRecentVM[];
     readonly waitingTotal: number;
@@ -221,8 +207,6 @@ export interface QueueVM {
     /** Chat Memory week 4: the page's open customs; absent — the hub does not serve them. */
     readonly customs?: readonly QueueCustomVM[];
   } | null;
-  /** The last pick failed: said once, the list stays as it was. */
-  readonly error: CgErrorView | null;
 }
 
 export interface FanPanelVM {

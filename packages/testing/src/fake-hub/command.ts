@@ -130,7 +130,7 @@ const FIELDS: Readonly<Record<FakeHubCommand['op'], Readonly<Record<string, Fiel
   talking: { ...PAGE_FAN, conversationRef: isNativeId, name: isString, agoMs: isNumber },
   fanCard: { ...PAGE_FAN, card: isObject },
   noteWrite: { ...PAGE_FAN, noteRef: (value) => typeof value === 'string' && value !== '', action: (value) => value === 'created' || value === 'edited' || value === 'deleted', login: (value) => typeof value === 'string' && value !== '', at: (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)) },
-  queue: { pageLabel: isString, waiting: isArray, winBack: isObject, handoff: isObject },
+  queue: { pageLabel: isString, waiting: isArray, handoff: isObject },
   online: { pageLabel: isString, items: isOnlineSeeds, templates: isOnlineTemplates },
   fanQueues: { pageLabel: isString, set: oneOf('stand', null), userId: isNumber },
   outreachSeed: { pageLabel: isString, outreach: isObject },

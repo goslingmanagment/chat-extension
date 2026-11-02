@@ -88,10 +88,6 @@ import {
   type FanCustomCreateRequest,
   type Handoff,
   type HandoffQuery,
-  type WinBackAttemptRequest,
-  type WinBackAttemptResult,
-  type WinBackList,
-  type WinBackQuery,
   type OnlineAttemptRequest,
   type OnlineAttemptResult,
   type OnlineList,
@@ -1057,16 +1053,6 @@ export class ChatExtensionHub implements HubFacade {
   /** A custom marked paid, delivered, cancelled or edited. Never repeated here. */
   async fanCustomChange(request: FanCustomChangeRequest): Promise<FanFactChangeResult> {
     return (await this.client('clientFanCustomChange', request, request.pageLabel)) as FanFactChangeResult;
-  }
-
-  /** Chat Memory week 3: the win-back list of a page granted by this bootstrap; refused without `win-back-v1`. */
-  async winBack(query: WinBackQuery): Promise<WinBackList> {
-    return (await this.client('clientWinBack', query, query.pageLabel)) as WinBackList;
-  }
-
-  /** A chatter's approach pick. Never repeated here: a lost answer is the person's to ask again. */
-  async winBackAttempt(request: WinBackAttemptRequest): Promise<WinBackAttemptResult> {
-    return (await this.client('clientWinBackAttempt', request, request.pageLabel)) as WinBackAttemptResult;
   }
 
   /** Chat Memory week 3: the shift handoff of a page granted by this bootstrap; refused without `handoff-v1`. */

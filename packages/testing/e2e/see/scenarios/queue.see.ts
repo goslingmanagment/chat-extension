@@ -1,5 +1,5 @@
-// «Очередь» of the fan panel (Chat Memory week 3) on sample data: «Ждут» with the team's aliases and «в разговоре» (a
-// row opens its chat, the panel stays), «Вернуть» with reasons and the owner's approaches (one pick: the fan leaves, «Подход выбран»), «Передача» with who
+// «Дела» of the fan panel (Chat Memory week 3) on sample data: «Ждут» with the team's aliases and «в разговоре» (a
+// row opens its chat, the panel stays), «Передача»: who
 // wrote, who waits and the promises. ChatSpace by default; `--site fansly` — «Ждут» of the Fansly page, a row opening
 // the other chat of the stand.
 
@@ -8,7 +8,7 @@ import { STAND_IDS } from '../../support/stand';
 import { STAND_PAGE, scenario } from '../kit';
 
 const ago = (minutes: number): string => new Date(Date.now() - minutes * 60_000).toISOString();
-const { a1, a2, a3, a4, a5, a6 } = STAND_IDS.fans;
+const { a1, a2, a3, a4, a5 } = STAND_IDS.fans;
 const waits = (fanRef: string, alias: string | null, username: string, mills: number, minutes: number) => ({
   fanRef,
   conversationRef: fanRef,
@@ -21,8 +21,6 @@ const waits = (fanRef: string, alias: string | null, username: string, mills: nu
   unreadCount: 1,
   readState: 'unread',
 });
-const lost = (fanRef: string, alias: string | null, username: string, mills: number, reason: string, reasonAt: string) => ({ fanRef, conversationRef: fanRef, username, displayName: null, alias, lifetimeGrossMills: mills, reason, reasonAt });
-
 scenario(
   'queue',
   async (s) => {
@@ -30,8 +28,8 @@ scenario(
     if (s.site === 'fansly') await s.browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
     else await s.leaveField();
     await s.keys(']');
-    await s.see('panel', 'Очередь');
-    await s.press(/^Очередь/, 'panel');
+    await s.see('panel', 'Дела');
+    await s.press(/^Дела/, 'panel');
     if (s.site === 'fansly') {
       await s.see('panel', 'Ждут ответа: 2', 30_000);
       await s.shot('queue-fansly');
@@ -42,17 +40,11 @@ scenario(
     }
     await s.see('panel', 'в разговоре: Nikita', 30_000);
     await s.shot('queue-waiting');
-    // A row opens the fan's chat; the panel stays on «Очередь».
+    // A row opens the fan's chat; the panel stays on «Дела».
     await s.press(/Brook/, 'panel', '.cg-q__open');
     await s.see('panel', 'Fan Birch', 20_000);
     await s.see('panel', 'Ждут ответа: 4');
     await s.shot('queue-opened');
-    await s.press(/^Вернуть/, 'panel');
-    await s.see('panel', 'подписка кончается через 2 дн', 20_000);
-    await s.shot('queue-winback');
-    await s.press(/^Скучала/, 'panel');
-    await s.see('panel', 'Подход выбран', 20_000);
-    await s.shot('queue-picked');
     await s.press(/^Передача/, 'panel');
     await s.see('panel', 'Обещания', 20_000);
     await s.shot('queue-handoff');
@@ -76,20 +68,6 @@ scenario(
           waits(a4, '❌ПОКА НЕТ ДЕНЕГ❌ ray', 'stand_fan_1_4', 0, 12),
           waits(a5, null, 'stand_fan_1_5', 0, 3),
         ],
-        winBack: {
-          pageLabel: STAND_PAGE,
-          approaches: [
-            { id: 1, label: 'Скучала' },
-            { id: 2, label: 'Новое видео' },
-            { id: 3, label: 'Спросить про день' },
-          ],
-          items: [
-            lost(a6, '💵Cole/Ohio', 'stand_fan_1_6', 1_480_000, 'expiring', new Date(Date.now() + 30 * 3_600_000).toISOString()),
-            lost(a3, null, 'stand_fan_1_3', 212_000, 'silent', ago(16.5 * 24 * 60)),
-            lost(a5, null, 'stand_fan_1_5', 0, 'new_unattended', ago(26 * 60)),
-          ],
-          serverNow: new Date().toISOString(),
-        },
         handoff: {
           pageLabel: STAND_PAGE,
           recent: [
@@ -98,6 +76,7 @@ scenario(
           ],
           waiting: { total: 4, head: [{ fanRef: a3, conversationRef: a3, username: 'stand_fan_1_3', alias: null, lifetimeGrossMills: 212_000, lastFanMessageAt: ago(26) }] },
           promises: [{ fanRef: a1, conversationRef: a1, text: 'Видео в красном белье к пятнице', messageRef: '9003', messageAt: ago(300) }],
+          customs: [],
           serverNow: new Date().toISOString(),
         },
       });

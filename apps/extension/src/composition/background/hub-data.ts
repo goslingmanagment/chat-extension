@@ -51,8 +51,6 @@ type DataRequest =
   | 'fan.memory.link'
   | 'fan.memory.fact'
   | 'fan.memory.custom'
-  | 'queue.winback'
-  | 'queue.winback.pick'
   | 'queue.handoff'
   | 'online.list'
   | 'online.presence'
@@ -154,9 +152,6 @@ export function hubDataHandlers(deps: HubDataDeps): HubDataHandlers {
         return deps.hub().fanCustomChange({ ...change, pageLabel: page.pageLabel });
       }),
     // Chat Memory week 3, «Очередь»: the win-back list, a chatter's approach pick (one call, never repeated; nothing is sent to the fan), the handoff.
-    'queue.winback': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().winBack({ pageLabel: page.pageLabel })),
-    'queue.winback.pick': (request, sender) =>
-      onPage(request.pageId, sender, (page) => deps.hub().winBackAttempt({ pageLabel: page.pageLabel, fanRef: request.fanRef, approachId: request.approachId })),
     'queue.handoff': (request, sender) => onPage(request.pageId, sender, (page) => deps.hub().handoff({ pageLabel: page.pageLabel })),
     // «Онлайн» (hub `online-v1`): the page's fans seen online within the window; what a chatter did there — one call,
     // never repeated (a message sent, «Не предлагать», its undo). Nothing is sent to a fan here.
