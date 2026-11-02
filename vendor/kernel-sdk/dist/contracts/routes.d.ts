@@ -34414,9 +34414,14 @@ declare const baseRouteSchemas: {
                         endsAt: z.ZodNullable<z.ZodString>;
                         autoRenew: z.ZodNullable<z.ZodBoolean>;
                     }, z.core.$strip>;
-                    otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
                         pageLabel: z.ZodString;
                         grossMills: z.ZodNumber;
+                        lastFanMessageAt: z.ZodNullable<z.ZodString>;
+                        relation: z.ZodNullable<z.ZodEnum<{
+                            subscriber: "subscriber";
+                            follower: "follower";
+                        }>>;
                     }, z.core.$strip>>>;
                     itemId: z.ZodNumber;
                     queueId: z.ZodNumber;

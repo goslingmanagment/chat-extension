@@ -1131,9 +1131,14 @@ export declare const fanQueueRouteSchemas: {
                         endsAt: import("zod").ZodNullable<import("zod").ZodString>;
                         autoRenew: import("zod").ZodNullable<import("zod").ZodBoolean>;
                     }, import("zod/v4/core").$strip>;
-                    otherPagesSpend: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
+                    otherPages: import("zod").ZodOptional<import("zod").ZodArray<import("zod").ZodObject<{
                         pageLabel: import("zod").ZodString;
                         grossMills: import("zod").ZodNumber;
+                        lastFanMessageAt: import("zod").ZodNullable<import("zod").ZodString>;
+                        relation: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            subscriber: "subscriber";
+                            follower: "follower";
+                        }>>;
                     }, import("zod/v4/core").$strip>>>;
                     itemId: import("zod").ZodNumber;
                     queueId: import("zod").ZodNumber;

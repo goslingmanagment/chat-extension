@@ -1272,12 +1272,18 @@ export declare const clientClaimSummarySchema: z.ZodObject<{
     }>>;
 }, z.core.$strip>;
 /**
- * What a fan paid on one other page of the asked page's platform, any model: the mark on a fan in a chatter's lists.
- * The page and the sum only, also for a page the caller does not work; never a message or a fact of that page.
+ * A fan on one other page of the asked page's platform, any model, where he paid or wrote himself within 90 days: the
+ * mark on a fan in a chatter's lists. The page, the sum, when he wrote and whether he subscribes or follows, also for a
+ * page the caller does not work; never a message or a fact of that page.
  */
-export declare const clientOtherPageSpendSchema: z.ZodObject<{
+export declare const clientOtherPageSchema: z.ZodObject<{
     pageLabel: z.ZodString;
     grossMills: z.ZodNumber;
+    lastFanMessageAt: z.ZodNullable<z.ZodString>;
+    relation: z.ZodNullable<z.ZodEnum<{
+        subscriber: "subscriber";
+        follower: "follower";
+    }>>;
 }, z.core.$strip>;
 export declare const clientAudienceNewItemSchema: z.ZodObject<{
     eventRef: z.ZodString;
@@ -1329,9 +1335,14 @@ export declare const clientAudienceNewItemSchema: z.ZodObject<{
             "resolved-not-sent": "resolved-not-sent";
         }>>;
     }, z.core.$strip>;
-    otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+    otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
         pageLabel: z.ZodString;
         grossMills: z.ZodNumber;
+        lastFanMessageAt: z.ZodNullable<z.ZodString>;
+        relation: z.ZodNullable<z.ZodEnum<{
+            subscriber: "subscriber";
+            follower: "follower";
+        }>>;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
 export declare const clientAudienceNewResponseSchema: z.ZodObject<{
@@ -1408,9 +1419,14 @@ export declare const clientAudienceNewResponseSchema: z.ZodObject<{
                 "resolved-not-sent": "resolved-not-sent";
             }>>;
         }, z.core.$strip>;
-        otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
             pageLabel: z.ZodString;
             grossMills: z.ZodNumber;
+            lastFanMessageAt: z.ZodNullable<z.ZodString>;
+            relation: z.ZodNullable<z.ZodEnum<{
+                subscriber: "subscriber";
+                follower: "follower";
+            }>>;
         }, z.core.$strip>>>;
     }, z.core.$strip>>;
     nextCursor: z.ZodNullable<z.ZodString>;
@@ -2672,9 +2688,14 @@ export declare const clientFanMarksResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     listsReadAt: z.ZodNullable<z.ZodString>;
     blocklistReadAt: z.ZodNullable<z.ZodString>;
-    otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+    otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
         pageLabel: z.ZodString;
         grossMills: z.ZodNumber;
+        lastFanMessageAt: z.ZodNullable<z.ZodString>;
+        relation: z.ZodNullable<z.ZodEnum<{
+            subscriber: "subscriber";
+            follower: "follower";
+        }>>;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
 export declare const CLIENT_WIN_BACK_REASONS: readonly ["expiring", "new_unattended", "silent"];
@@ -2812,9 +2833,14 @@ export declare const clientOnlineItemSchema: z.ZodObject<{
         endsAt: z.ZodNullable<z.ZodString>;
         autoRenew: z.ZodNullable<z.ZodBoolean>;
     }, z.core.$strip>;
-    otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+    otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
         pageLabel: z.ZodString;
         grossMills: z.ZodNumber;
+        lastFanMessageAt: z.ZodNullable<z.ZodString>;
+        relation: z.ZodNullable<z.ZodEnum<{
+            subscriber: "subscriber";
+            follower: "follower";
+        }>>;
     }, z.core.$strip>>>;
 }, z.core.$strip>;
 /** A text of the team's reactivation guide, word for word; `love` is the place of the fan's name. */
@@ -2853,9 +2879,14 @@ export declare const clientOnlineResponseSchema: z.ZodObject<{
             endsAt: z.ZodNullable<z.ZodString>;
             autoRenew: z.ZodNullable<z.ZodBoolean>;
         }, z.core.$strip>;
-        otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
             pageLabel: z.ZodString;
             grossMills: z.ZodNumber;
+            lastFanMessageAt: z.ZodNullable<z.ZodString>;
+            relation: z.ZodNullable<z.ZodEnum<{
+                subscriber: "subscriber";
+                follower: "follower";
+            }>>;
         }, z.core.$strip>>>;
     }, z.core.$strip>>;
     templates: z.ZodArray<z.ZodObject<{
@@ -5373,9 +5404,14 @@ export declare const clientRouteSchemas: {
                 }, z.core.$strip>>;
                 listsReadAt: z.ZodNullable<z.ZodString>;
                 blocklistReadAt: z.ZodNullable<z.ZodString>;
-                otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
                     pageLabel: z.ZodString;
                     grossMills: z.ZodNumber;
+                    lastFanMessageAt: z.ZodNullable<z.ZodString>;
+                    relation: z.ZodNullable<z.ZodEnum<{
+                        subscriber: "subscriber";
+                        follower: "follower";
+                    }>>;
                 }, z.core.$strip>>>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -5913,9 +5949,14 @@ export declare const clientRouteSchemas: {
                         endsAt: z.ZodNullable<z.ZodString>;
                         autoRenew: z.ZodNullable<z.ZodBoolean>;
                     }, z.core.$strip>;
-                    otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
                         pageLabel: z.ZodString;
                         grossMills: z.ZodNumber;
+                        lastFanMessageAt: z.ZodNullable<z.ZodString>;
+                        relation: z.ZodNullable<z.ZodEnum<{
+                            subscriber: "subscriber";
+                            follower: "follower";
+                        }>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 templates: z.ZodArray<z.ZodObject<{
@@ -7476,9 +7517,14 @@ export declare const clientRouteSchemas: {
                             "resolved-not-sent": "resolved-not-sent";
                         }>>;
                     }, z.core.$strip>;
-                    otherPagesSpend: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    otherPages: z.ZodOptional<z.ZodArray<z.ZodObject<{
                         pageLabel: z.ZodString;
                         grossMills: z.ZodNumber;
+                        lastFanMessageAt: z.ZodNullable<z.ZodString>;
+                        relation: z.ZodNullable<z.ZodEnum<{
+                            subscriber: "subscriber";
+                            follower: "follower";
+                        }>>;
                     }, z.core.$strip>>>;
                 }, z.core.$strip>>;
                 nextCursor: z.ZodNullable<z.ZodString>;
