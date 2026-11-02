@@ -257,6 +257,8 @@ export type FakeHubCommand =
    * to the synthetic board.
    */
   | { readonly op: 'spenderFans'; readonly fans: readonly SpenderSeed[] }
+  /** What `clientOtherPages` answers, by fan: a list the hub does not make (Fansly's «Новые»). */
+  | { readonly op: 'otherPages'; readonly fans: Readonly<Record<string, readonly OtherPage[]>> }
   /**
    * Chat Memory week 1: another chatter (`name`, a userId of nobody signed in here) wrote to the fan `agoMs` before now
    * (default 3 minutes): «в разговоре» answers it for the next 15 minutes.

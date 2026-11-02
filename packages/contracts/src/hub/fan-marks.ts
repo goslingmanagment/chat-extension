@@ -61,3 +61,20 @@ export const FanMarksQuerySchema = z.strictObject({
   username: z.optional(z.string().check(z.minLength(1), z.maxLength(FAN_MARKS_LIMITS.usernameMaxChars))),
 });
 export type FanMarksQuery = z.infer<typeof FanMarksQuerySchema>;
+
+/** The fans one read names at most (hub `CLIENT_OTHER_PAGES_MAX_FANS`). */
+export const OTHER_PAGES_READ_MAX = 100;
+
+/** Fans of a list the client made itself, by their Fansly account ids (hub `clientOtherPages`, `other-pages-v1`). */
+export const OtherPagesRequestSchema = z.strictObject({
+  pageLabel: PageLabelSchema,
+  fanRefs: z.array(NativeIdSchema).check(z.minLength(1), z.maxLength(OTHER_PAGES_READ_MAX)),
+});
+export type OtherPagesRequest = z.infer<typeof OtherPagesRequestSchema>;
+
+/** Only the fans with another page, in no particular order. */
+export const OtherPagesAnswerSchema = z.object({
+  pageLabel: z.string(),
+  fans: z.array(z.object({ fanRef: z.string(), otherPages: z.array(OtherPageSchema) })),
+});
+export type OtherPagesAnswer = z.infer<typeof OtherPagesAnswerSchema>;

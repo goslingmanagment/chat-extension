@@ -275,10 +275,11 @@ function RowView({ row, index, count, active, parts, onPick }: RowProps): JSX.El
         <span class="cg-fbname">
           <span class="cg-nw__name">
             {row.name}
-            <FanBadge badges={row.badges} inline />
             {custom === null ? null : <span class="cg-nw__custom"> ({custom})</span>}
             {tag === null ? null : <span class="cg-nw__tag">{tag}</span>}
           </span>
+          {/* Beside the name, not in it: the name's box fits its text, and the ellipsis would eat a badge whose corner sticks out. */}
+          <FanBadge badges={row.badges} />
           <OtherPagesMark pages={row.otherPages} />
         </span>
         <span class="cg-nw__mline">

@@ -6,6 +6,7 @@
 
 import { type FanBadgeMark, type FanBadges, type FbuddyState } from '@cg/contracts/fan-badges';
 
+import { createFanRounds } from './fan-rounds';
 import { type BoardsClock } from './ports';
 
 /** The site's read of the fans' badges (the background's); null — not read. */
@@ -52,28 +53,8 @@ export interface FanBadgeStore {
 }
 
 export function createFanBadgeStore(deps: { readonly read: FanBadgesRead | null; readonly clock: BoardsClock; readonly onChange: () => void }): FanBadgeStore {
-  const { read, clock } = deps;
   let known = new Map<string, FanBadges>();
   let fbuddy: FbuddyState | null = null;
-  /** When each fan was last asked for (or is being asked now). */
-  let asked = new Map<string, number>();
-  /** The page and account the store is about: another one forgets everything. */
-  let scope: string | null = null;
-  let target: { readonly pageId: number; readonly hostAccountId: string } | null = null;
-  let pending: string[] = [];
-  let timer: number | null = null;
-  let generation = 0;
-  let disposed = false;
-
-  const forget = (): void => {
-    known = new Map();
-    fbuddy = null;
-    asked = new Map();
-    pending = [];
-    generation += 1;
-    if (timer !== null) clock.clearTimer(timer);
-    timer = null;
-  };
 
   /** What a read could not say keeps the last word: a card not read, a tier of a FBuddy that did not answer. */
   function merge(fans: ReadonlyMap<string, FanBadges>, state: FbuddyState): void {
@@ -86,51 +67,19 @@ export function createFanBadgeStore(deps: { readonly read: FanBadgesRead | null;
     fbuddy = state;
   }
 
-  async function round(): Promise<void> {
-    timer = null;
-    const at = target;
-    const fans = pending.slice(0, FAN_BADGES.round);
-    pending = [];
-    if (read === null || at === null || fans.length === 0) return;
-    const run = generation;
-    for (let offset = 0; offset < fans.length; offset += FAN_BADGES.batch) {
-      const answer = await read(at.pageId, at.hostAccountId, fans.slice(offset, offset + FAN_BADGES.batch)).catch(() => null);
-      if (disposed || run !== generation) return;
-      if (answer === null) continue;
+  const rounds = createFanRounds<{ readonly fans: ReadonlyMap<string, FanBadges>; readonly fbuddy: FbuddyState }>({
+    read: deps.read,
+    clock: deps.clock,
+    limits: FAN_BADGES,
+    answered(answer) {
       merge(answer.fans, answer.fbuddy);
       deps.onChange();
-    }
-  }
+    },
+    forgotten() {
+      known = new Map();
+      fbuddy = null;
+    },
+  });
 
-  return {
-    get: (fanRef) => known.get(fanRef) ?? null,
-    fbuddy: () => fbuddy,
-    want(pageId, hostAccountId, fanRefs) {
-      if (read === null || disposed) return;
-      const key = `${pageId}:${hostAccountId}`;
-      if (key !== scope) {
-        forget();
-        scope = key;
-      }
-      target = { pageId, hostAccountId };
-      const now = clock.now();
-      for (const fanRef of fanRefs) {
-        if (pending.length >= FAN_BADGES.round) break;
-        const last = asked.get(fanRef);
-        if (last !== undefined && now - last < FAN_BADGES.freshMs) continue;
-        asked.set(fanRef, now);
-        pending.push(fanRef);
-      }
-      if (pending.length > 0 && timer === null) timer = clock.setTimer(FAN_BADGES.settleMs, () => void round());
-    },
-    reset() {
-      forget();
-      scope = null;
-      target = null;
-    },
-    dispose() {
-      disposed = true;
-      forget();
-    },
-  };
+  return { get: (fanRef) => known.get(fanRef) ?? null, fbuddy: () => fbuddy, want: rounds.want, reset: rounds.reset, dispose: rounds.dispose };
 }

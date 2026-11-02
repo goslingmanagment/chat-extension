@@ -603,6 +603,7 @@ export declare const subscriberListQuerySchema: z.ZodObject<{
     expiringWithinDays: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     startedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
     autoRenew: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+    paid: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
 }, z.core.$strip>;
 export declare const followerListQuerySchema: z.ZodObject<{
     limit: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
@@ -3045,6 +3046,14 @@ export declare const overviewResponseSchema: z.ZodObject<{
             available: z.ZodBoolean;
         }, z.core.$strip>;
         followerCount: z.ZodObject<{
+            value: z.ZodNullable<z.ZodNumber>;
+            available: z.ZodBoolean;
+        }, z.core.$strip>;
+        paidSubscriberCount: z.ZodObject<{
+            value: z.ZodNullable<z.ZodNumber>;
+            available: z.ZodBoolean;
+        }, z.core.$strip>;
+        freeAudienceCount: z.ZodObject<{
             value: z.ZodNullable<z.ZodNumber>;
             available: z.ZodBoolean;
         }, z.core.$strip>;
@@ -25946,6 +25955,7 @@ declare const baseRouteSchemas: {
             expiringWithinDays: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
             startedWithinHours: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
             autoRenew: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
+            paid: z.ZodOptional<z.ZodPreprocess<z.ZodBoolean, unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -28428,6 +28438,14 @@ declare const baseRouteSchemas: {
                         available: z.ZodBoolean;
                     }, z.core.$strip>;
                     followerCount: z.ZodObject<{
+                        value: z.ZodNullable<z.ZodNumber>;
+                        available: z.ZodBoolean;
+                    }, z.core.$strip>;
+                    paidSubscriberCount: z.ZodObject<{
+                        value: z.ZodNullable<z.ZodNumber>;
+                        available: z.ZodBoolean;
+                    }, z.core.$strip>;
+                    freeAudienceCount: z.ZodObject<{
                         value: z.ZodNullable<z.ZodNumber>;
                         available: z.ZodBoolean;
                     }, z.core.$strip>;

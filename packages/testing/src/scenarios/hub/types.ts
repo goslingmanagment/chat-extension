@@ -53,6 +53,7 @@ export const HUB_ROUTE_PATHS = {
   clientFanLinkDecide: '/api/v1/client/pages/:pageLabel/fans/:fanRef/links',
   clientFanFactChange: '/api/v1/client/pages/:pageLabel/fans/:fanRef/facts/:factId',
   clientFanMarks: '/api/v1/client/pages/:pageLabel/fans/:fanRef/marks',
+  clientOtherPages: '/api/v1/client/pages/:pageLabel/other-pages',
   clientHandoff: '/api/v1/client/pages/:pageLabel/handoff',
   // «Онлайн» (hub #879): the list, a tab's presence report, the page's probe (hub #952), what a chatter did in the window.
   clientOnline: '/api/v1/client/pages/:pageLabel/online',

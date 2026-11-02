@@ -19,6 +19,7 @@ import {
   type AiUsageReport,
   type AudienceNewItem,
   type OtherPage,
+  type OtherPagesAnswer,
   type AudienceNewPage,
   type AudienceNewQuery,
   type AutoLists,
@@ -407,6 +408,20 @@ export class DataModel {
   /** The first rows of the board become these fans (the stand's own, in e2e); `[]` — the synthetic board again. */
   useSpenderFans(seeds: readonly SpenderSeed[]): void {
     this.seeds = seeds.map((seed) => ({ ...seed }));
+  }
+
+  /** `clientOtherPages`: the fans a scenario named. */
+  private otherPagesByFan: Readonly<Record<string, readonly OtherPage[]>> = {};
+
+  useOtherPages(fans: Readonly<Record<string, readonly OtherPage[]>>): void {
+    this.otherPagesByFan = fans;
+  }
+
+  otherPagesOf(page: FakePage, fanRefs: readonly string[]): OtherPagesAnswer {
+    return { pageLabel: page.pageLabel, fans: fanRefs.flatMap((fanRef) => {
+      const otherPages = this.otherPagesByFan[fanRef];
+      return otherPages === undefined ? [] : [{ fanRef, otherPages: [...otherPages] }];
+    }) };
   }
 
   private seedOf(fanRef: string): SpenderSeed | null {
