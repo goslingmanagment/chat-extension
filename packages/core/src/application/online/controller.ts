@@ -22,6 +22,7 @@
 // «Пропустить» is this pass's only; «Не предлагать» is the team's (the hub keeps it, `online.attempt`).
 
 import { type CgErrorWire } from '@cg/contracts/errors';
+import { FAN_BADGE_MARKS, type FanBadgeMark } from '@cg/contracts/fan-badges';
 import { ONLINE_SENT_ACTS, type OnlineItem, type OnlineList, type OnlineSentAct, type OnlineTemplate, type SendAttributionComposedWith } from '@cg/contracts/hub';
 import { CHAT_IS_FAN, ONLINE_CAPABILITY } from '@cg/contracts/ids';
 import { type IsoTimestamp } from '@cg/contracts/primitives';
@@ -55,7 +56,7 @@ import {
 } from '@cg/contracts/vm';
 
 import { normalizeSearch } from '../../domain/spenders/rows';
-import { createFanBadgeStore, type FanBadgesRead } from '../boards/badges';
+import { createFanBadgeStore, fanBadgeMarks, fanBadgeRank, type FanBadgesRead } from '../boards/badges';
 import { createBatch, type BatchPreviewPort, type OutreachCardRow } from '../boards/batch';
 import { type PageContextPort, type PageContextState, flagFailure, pageFlag } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
@@ -283,6 +284,8 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   // ── the person's choices ──
   let minutes: OnlinePeriod = ONLINE_DEFAULT_MINUTES;
   let tab: OnlineTab = 'todo';
+  /** «Значки»: whom the list shows; nothing ticked — everyone, several — anyone with any of them. */
+  let ticked: ReadonlySet<FanBadgeMark> = new Set();
   let typed = '';
   let applied = '';
   let searchTimer: number | null = null;
@@ -662,10 +665,11 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       const facts = factsOf(item.fanRef, item);
       entries.push({ fanRef: item.fanRef, item, fan, facts, reason, aside, group: groupOf(reason, aside), done: doneOf(item, fan, facts), fresh: fresh(item, live), name: nameOf(item) });
     }
-    // The groups in their order; in each, who was active within ten minutes first, then who spent most, then the newest.
+    // The groups in their order; in each, with ticks on the highest badge first, then who was active within ten minutes, then who spent most, then the newest.
     return entries.sort(
       (a, b) =>
         ONLINE_GROUPS.indexOf(a.group) - ONLINE_GROUPS.indexOf(b.group) ||
+        (ticked.size > 0 ? fanBadgeRank(badges.get(b.fanRef)) - fanBadgeRank(badges.get(a.fanRef)) : 0) ||
         Number(b.fresh) - Number(a.fresh) ||
         b.item.lifetimeGrossMills - a.item.lifetimeGrossMills ||
         (activeAt(b.item) ?? 0) - (activeAt(a.item) ?? 0),
@@ -674,7 +678,10 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
 
   const todoOf = (entry: Entry): boolean => TODO_GROUPS.includes(entry.group) && !entry.done;
 
+  const ticksOf = (entry: Entry): boolean => ticked.size === 0 || fanBadgeMarks(badges.get(entry.fanRef)).some((mark) => ticked.has(mark));
+
   const matches = (entry: Entry): boolean => {
+    if (!ticksOf(entry)) return false;
     const needle = normalizeSearch(applied).replace(/^@/, '');
     if (needle === '') return true;
     return [entry.item.alias, entry.item.displayName, entry.item.username, entry.fanRef].some((value) => value !== null && normalizeSearch(value).includes(needle));
@@ -815,13 +822,17 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       groups.push({ id, left: rows.filter((entry) => !entry.done).length, rows: rows.map((entry) => rowOf(entry, open, live)) });
     }
     const todo = entries.filter(todoOf);
+    // What the ticks leave: the tabs' counts, the end of the pass and «Ещё онлайн» speak of these; the bar's counts of everyone.
+    const chosen = entries.filter(ticksOf);
+    const chosenTodo = chosen.filter(todoOf);
+    const inTab = tab === 'all' ? entries : todo;
     const sentFans = entries.filter((entry) => entry.fan?.sent !== null && entry.fan?.sent !== undefined);
     const repliedFans = entries.filter((entry) => entry.fan?.replied !== null && entry.fan?.replied !== undefined);
     const skipped = entries.filter((entry) => entry.fan?.skipped === true).length;
     const openEntry = open === null ? null : (entries.find((entry) => entry.fanRef === open) ?? null);
     const card = openEntry === null ? null : cardOf(openEntry, entries, live);
     const end: OnlineEndVM | null =
-      card === null && todo.length === 0 && sentFans.length + skipped > 0
+      card === null && chosenTodo.length === 0 && sentFans.length + skipped > 0
         ? {
             sent: sentFans.map((entry) => ({ handle: handleOf(entry.fanRef), name: entry.name })),
             skipped,
@@ -830,7 +841,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
         : null;
     const elsewhere =
       tab === 'todo' && applied.trim() === '' && list !== null
-        ? { done: entries.filter((entry) => entry.done && entry.fanRef !== open).length, other: entries.filter((entry) => !TODO_GROUPS.includes(entry.group) && !entry.done).length }
+        ? { done: chosen.filter((entry) => entry.done && entry.fanRef !== open).length, other: chosen.filter((entry) => !TODO_GROUPS.includes(entry.group) && !entry.done).length }
         : null;
     return {
       view: viewOf(ctx),
@@ -844,7 +855,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       minutes,
       periods: ONLINE_PERIODS.map((period) => ({ minutes: period, count: list === null ? 0 : list.items.filter((item) => inPeriod(item, period, live)).length })),
       tab,
-      tabs: { todo: todo.length, all: entries.length },
+      tabs: { todo: chosenTodo.length, all: chosen.length },
       query: typed,
       groups,
       elsewhere: elsewhere === null || elsewhere.done + elsewhere.other === 0 ? null : elsewhere,
@@ -852,6 +863,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
       card,
       end,
       fbuddy: own?.badges === undefined ? null : badges.fbuddy(),
+      badgeFilter: own?.badges === undefined ? null : FAN_BADGE_MARKS.map((mark) => ({ mark, on: ticked.has(mark), count: inTab.filter((entry) => fanBadgeMarks(badges.get(entry.fanRef)).includes(mark)).length })),
     };
   }
 
@@ -1143,7 +1155,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (!startPending || disposed || list === null || !surfaces.current().online || openFan() !== null || pending !== null) return;
     startPending = false;
     const entries = entriesOf(minutes, liveNow());
-    const back = lastCard !== null && entries.some((entry) => entry.fanRef === lastCard && todoOf(entry)) ? lastCard : null;
+    const back = lastCard !== null && entries.some((entry) => entry.fanRef === lastCard && todoOf(entry) && ticksOf(entry)) ? lastCard : null;
     const start = back ?? nextTodo(null, entries);
     if (start !== null) void openCard(start);
   }
@@ -1412,8 +1424,25 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     if (action.tab !== undefined) tab = action.tab;
     if (action.minutes !== undefined) minutes = action.minutes;
     if (action.refresh === true) void read();
+    if (action.badges !== undefined) {
+      ticked = new Set(action.badges);
+      followTicks();
+    }
     changed();
     return done(action.type);
+  }
+
+  /** The open card's fan the ticks no longer show gives way to the first one they do: the card never stands apart from the list. */
+  function followTicks(): void {
+    const here = openFan();
+    const entries = entriesOf(minutes, liveNow());
+    if (here !== null) {
+      if (!entries.some((entry) => entry.fanRef === here && !ticksOf(entry))) return;
+      advance(here);
+      return;
+    }
+    const first = nextTodo(null, entries);
+    if (first !== null && pending === null) void openCard(first);
   }
 
   function search(query: string, now: boolean): ActionReceipt {
@@ -1491,6 +1520,7 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
     applied = '';
     tab = 'todo';
     minutes = ONLINE_DEFAULT_MINUTES;
+    ticked = new Set();
     for (const timer of [settleTimer, advanceTimer, searchTimer, manualTimer]) if (timer !== null) clock.clearTimer(timer);
     settleTimer = null;
     advanceTimer = null;

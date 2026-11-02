@@ -14,7 +14,7 @@
 // Who is online and why is the hub's (`clientOnline`): OnlyFansAPI's presence on OnlyFans, the creator's followers
 // list read from the tab on Fansly. The card is the fan's preview (`preview` from `online`).
 
-import { type FanBadges, type FbuddyState } from '../fan-badges';
+import { type FanBadgeMark, type FanBadges, type FbuddyState } from '../fan-badges';
 import { type IsoTimestamp, type MoneyMills } from '../primitives';
 import { type Msg } from './i18n';
 import { type TargetHandle } from './selectors';
@@ -283,4 +283,9 @@ export interface OnlineWindowVM {
    * FBuddy in the settings, `signed-out`: sign in to FBuddy in this browser); absent or null — not a question here.
    */
   readonly fbuddy?: FbuddyState | null;
+  /**
+   * Fansly: «Значки», the ticks of whom the list shows: each mark, whether it is ticked, how many fans of the tab carry
+   * it. Nothing ticked — everyone; several — anyone with any of them. Absent or null — the site has no badges.
+   */
+  readonly badgeFilter?: readonly { readonly mark: FanBadgeMark; readonly on: boolean; readonly count: number }[] | null;
 }

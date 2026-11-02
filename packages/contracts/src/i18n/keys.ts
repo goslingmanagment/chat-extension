@@ -243,6 +243,7 @@ export const UI_TEXT_KEYS = [
   'online.empty.todo', 'online.empty.search', 'online.foot.sent', 'online.foot.skipped', 'online.foot.replied', 'online.foot.keys',
   'online.badge.tier.basic', 'online.badge.tier.bronze', 'online.badge.tier.silver', 'online.badge.tier.gold', 'online.badge.tier.platinum', 'online.badge.recent',
   'online.fbuddy.off', 'online.fbuddy.enable', 'online.fbuddy.signedOut',
+  'online.filter.label', 'online.filter.on', 'online.filter.all', 'online.filter.reset', 'online.filter.platinum', 'online.filter.gold', 'online.filter.silver', 'online.filter.bronze', 'online.filter.card', 'online.filter.basic', 'online.filter.none', 'online.empty.filter',
   'online.pane.pick', 'online.pane.nobody', 'online.end.title', 'online.end.sent', 'online.end.skipped', 'online.end.replied',
   'online.end.noReplies', 'online.end.note', 'online.end.showAll', 'online.reason.openCard', 'online.reason.making', 'online.reason.retry', 'online.reason.empty',
   // 2026-10-29: «Очереди», the window of the page's fan queues.

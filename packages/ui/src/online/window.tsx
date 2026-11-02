@@ -1,6 +1,6 @@
 // The window of «Онлайн» (2026-10-26, the owner's demo; view `online`): the twin of «Новые» and «Рассылка». In the head
 // the live dot, the creator and the page; under it «Зашли за [30 мин ▾]», how many are online and worth a message,
-// the search and «Обновить», and one line of what the window does and where «who is online» comes from. On the left
+// «Значки» on Fansly (ticks of whom to show: FBuddy's gems, the blue card), the search and «Обновить», and one line of what the window does and where «who is online» comes from. On the left
 // «К разбору» (the fans to write to, by why: who waits for an answer first) and «Все онлайн» (everyone, the set aside
 // and the reasonless too); on the right the chosen fan's card, or what the pass did once nobody is left.
 //
@@ -9,11 +9,12 @@
 // never a key.
 
 import { type JSX, type TargetedKeyboardEvent } from 'preact';
-import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
+import { type FanBadgeMark, type FanBadges } from '@cg/contracts/fan-badges';
 import { type OnlineGroupId, type OnlineRowVM, type OnlineWindowVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, Icon, SearchBox, ViewState, isComposing, useDispatch, useI18n, useMinuteClock, useView } from '../kit';
+import { Button, FanBadge, Icon, Menu, MenuAnchor, SearchBox, ViewState, isComposing, menuTriggerKeys, useDispatch, useI18n, useMinuteClock, useView, type MenuItem } from '../kit';
 import { NewcomersFrame } from '../newcomers/frame';
 import { ChoiceMenu, isPlainKey, isTextEntry } from '../spenders/window';
 import { OnlineCard } from './card';
@@ -36,6 +37,78 @@ const GROUP_KEYS: Readonly<Record<OnlineGroupId, 'online.group.waiting' | 'onlin
 /** «10 мин», «30 мин», «2 часа». */
 function periodWords(i18n: ReturnType<typeof useI18n>, minutes: number): string {
   return minutes >= 60 ? i18n.t('online.period.hours', { n: minutes / 60 }) : i18n.t('online.period.minutes', { n: minutes });
+}
+
+const MARK_KEYS: Readonly<Record<FanBadgeMark, 'online.filter.platinum' | 'online.filter.gold' | 'online.filter.silver' | 'online.filter.bronze' | 'online.filter.card' | 'online.filter.basic' | 'online.filter.none'>> = {
+  platinum: 'online.filter.platinum',
+  gold: 'online.filter.gold',
+  silver: 'online.filter.silver',
+  bronze: 'online.filter.bronze',
+  card: 'online.filter.card',
+  basic: 'online.filter.basic',
+  none: 'online.filter.none',
+};
+
+/** The badge a mark's item shows, as a fan's row draws it. */
+const MARK_BADGES: Readonly<Record<FanBadgeMark, FanBadges | null>> = {
+  platinum: { tier: 'platinum', recentSpender: false },
+  gold: { tier: 'gold', recentSpender: false },
+  silver: { tier: 'silver', recentSpender: false },
+  bronze: { tier: 'bronze', recentSpender: false },
+  card: { tier: null, recentSpender: true },
+  basic: { tier: 'basic', recentSpender: false },
+  none: null,
+};
+
+const ALL_FANS = 'all';
+
+/** «Значки ▾»: ticks of whom the list shows. Nothing ticked — everyone; several — anyone with any of them. */
+function BadgeFilter({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element | null {
+  const i18n = useI18n();
+  const dispatch = useDispatch();
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const returnFocus = useCallback(() => buttonRef.current, []);
+  const choices = vm.badgeFilter ?? null;
+  if (choices === null) return null;
+  const ticked = choices.filter((choice) => choice.on).map((choice) => choice.mark);
+  const items: MenuItem[] = [
+    { id: ALL_FANS, label: i18n.t('online.filter.all'), checked: ticked.length === 0 },
+    ...choices.map((choice) => ({
+      id: choice.mark,
+      label: i18n.t(MARK_KEYS[choice.mark]),
+      checked: choice.on,
+      hint: String(choice.count),
+      lead: (
+        <span class="ol-flt__badge">
+          <FanBadge badges={MARK_BADGES[choice.mark]} />
+        </span>
+      ),
+    })),
+  ];
+  const press = (id: string): void => {
+    const next = id === ALL_FANS ? [] : ticked.includes(id as FanBadgeMark) ? ticked.filter((mark) => mark !== id) : [...ticked, id as FanBadgeMark];
+    void dispatch({ type: 'SetOnline', badges: next });
+  };
+  return (
+    <MenuAnchor>
+      <Button
+        label={ticked.length === 0 ? i18n.t('online.filter.label') : i18n.t('online.filter.on', { n: ticked.length })}
+        variant="quiet"
+        haspopup="menu"
+        expanded={open}
+        buttonRef={buttonRef}
+        class={`cg-choice cg-nw__period${ticked.length === 0 ? '' : ' is-on'}`}
+        trailing={<Icon name="chevronDown" size={14} />}
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (!open) menuTriggerKeys(event, () => setOpen(true));
+        }}
+      />
+      <Menu open={open} kind="check" label={i18n.t('online.filter.label')} items={items} align="start" placement="bottom" onClose={close} returnFocusTo={returnFocus} onSelect={press} />
+    </MenuAnchor>
+  );
 }
 
 /** Under the title: the creator, the page. */
@@ -119,6 +192,17 @@ function Tabs({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element {
 /** The list empty: nobody found, nobody left to write to, nobody online. */
 function Empty({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element {
   const i18n = useI18n();
+  const dispatch = useDispatch();
+  if (vm.query.trim() === '' && vm.badgeFilter?.some((choice) => choice.on) === true) {
+    return (
+      <div class="ol-empty">
+        {i18n.t('online.empty.filter')}{' '}
+        <button type="button" class="cg-ow__link" onClick={() => void dispatch({ type: 'SetOnline', badges: [] })}>
+          {i18n.t('online.filter.reset')}
+        </button>
+      </div>
+    );
+  }
   const key = vm.query.trim() !== '' ? 'online.empty.search' : vm.tab === 'todo' && vm.tabs.all > 0 ? 'online.empty.todo' : 'online.empty.period';
   return <div class="ol-empty">{i18n.t(key)}</div>;
 }
@@ -190,7 +274,7 @@ function EndPane({ vm }: { readonly vm: OnlineWindowVM }): JSX.Element {
     return (
       <section class="cg-nc cg-ow__card">
         <div class="ol-end">
-          <p>{i18n.t(vm.tabs.todo > 0 ? 'online.pane.pick' : 'online.pane.nobody')}</p>
+          <p>{i18n.t(vm.tabs.todo > 0 ? 'online.pane.pick' : vm.badgeFilter?.some((choice) => choice.on) === true ? 'online.empty.filter' : 'online.pane.nobody')}</p>
         </div>
       </section>
     );
@@ -341,6 +425,7 @@ export function OnlineWindow(): JSX.Element {
             }}
           />
         </span>
+        <BadgeFilter vm={vm} />
         {stage === null ? null : <span class="cg-nw__stage cg-num">{stage}</span>}
         <span class="cg-nw__grow" />
         <SearchBox
