@@ -155,7 +155,7 @@ const QUEUE_SUMMARY = {
 };
 const QUEUES = { pageLabel: 'model-two-fansly', queues: [QUEUE_SUMMARY], answered: [], templates: ONLINE_LIST.templates, serverNow: '2026-10-29T10:00:00.000Z' };
 const QUEUE_ITEM = { ...ONLINE_ITEM, reason: 'never_wrote', act: 'template_b', itemId: 77, queueId: 4, why: 'подписан 12 мар · ни разу не писал', leaseUntil: '2026-10-29T10:30:00.000Z', templateId: 'B3', followedAt: '2026-03-12T10:00:00.000Z', massLast90d: { count: 4, lastAt: '2026-10-28T10:00:00.000Z' } };
-const QUEUE_TAKE = { queueId: 4, items: [QUEUE_ITEM], stopped: null, today: { mine: 12, page: 61 }, pending: 1938, dropped: 1, serverNow: '2026-10-29T10:00:00.000Z' };
+const QUEUE_TAKE = { queueId: 4, items: [QUEUE_ITEM], stopped: null, today: { mine: 12, page: 61 }, pending: 1938, dropped: 1, left: [{ itemId: 78, fanRef: '700000000000000002', reason: 'fan_wrote' }], results: { sent: 3, answered: 1, spentMills: 45_000 }, serverNow: '2026-10-29T10:00:00.000Z' };
 
 /** Chat Memory week 4: a paid custom with a delivery Hub suggests. */
 const CUSTOM = { id: 3, pageLabel: 'model-two-fansly', granted: true, description: 'A 5-minute video in red', priceMills: 120_000, state: 'paid', paymentMills: 120_000, paidAt: '2026-10-22T10:00:00.000Z', deliveredMessageRef: null, deliveredAt: null, createdBy: 'Nikita', createdAt: '2026-10-22T10:05:00.000Z', deliveryCandidates: [{ messageRef: '930000000000000078', at: '2026-10-23T10:00:00.000Z', mediaCount: 1, priceMills: null }] };
@@ -502,7 +502,7 @@ export const TAB_REQUEST_FIXTURES: { readonly [T in TabRequestType]: RequestFixt
     },
   },
   'queues.take': {
-    req: { valid: [{ pageId: 13, queueId: 4, count: 10, more: false }], invalid: [{ pageId: 13, queueId: 4, count: 11, more: false }, { pageId: 13, queueId: 0, count: 10, more: false }, { pageId: 13, queueId: 4 }] },
+    req: { valid: [{ pageId: 13, queueId: 4, count: 10, more: false }, { pageId: 13, queueId: 4, count: 0, more: true }], invalid: [{ pageId: 13, queueId: 4, count: 11, more: false }, { pageId: 13, queueId: 0, count: 10, more: false }, { pageId: 13, queueId: 4 }] },
     res: { valid: [QUEUE_TAKE, { ...QUEUE_TAKE, items: [], stopped: 'portion_done' }], invalid: [{ ...QUEUE_TAKE, items: [{ itemId: 77 }] }, { queueId: 4 }] },
   },
   'queues.done': {
