@@ -279,8 +279,8 @@ export const FANSLY_BRIDGE_REQUEST_FIXTURES: { readonly [T in ToMainFanslyType]:
   'fx.order': {
     payload: { valid: [{ groupId: group }], invalid: [{ groupId: Number(group) }, {}] },
     data: {
-      valid: [{ ids: ['100', '101'], bits: [1, 16], hashes: [0, 2_166_136_261] }, { ids: [], bits: [], hashes: [] }, null],
-      invalid: [{ ids: ['100'], bits: [], hashes: [0] }, { ids: ['100'], bits: [256], hashes: [0] }],
+      valid: [{ ids: ['100', '101'], bits: [1, 16], hashes: [0, 2_166_136_261], times: [1_762_000_000, 1_762_000_001] }, { ids: [], bits: [], hashes: [], times: [] }, null],
+      invalid: [{ ids: ['100'], bits: [], hashes: [0], times: [0] }, { ids: ['100'], bits: [256], hashes: [0], times: [0] }, { ids: ['100'], bits: [16], hashes: [0], times: [] }, { ids: ['100'], bits: [16], hashes: [0] }],
     },
   },
   'fx.ack': {

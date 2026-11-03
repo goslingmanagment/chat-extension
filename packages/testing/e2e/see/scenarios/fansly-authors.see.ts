@@ -2,7 +2,8 @@
 // in the showcase world, Fansly's dark theme. Two colleagues answered Jamie from their own browsers (the hub recorded
 // who: anna with Reply and by hand, max with Fix and a change before the send), one more message went from a phone (no
 // sender), and the chatter answers from the composer herself: before the time under each run of the model's messages
-// stands who wrote it and how.
+// stands who wrote it and how. A click on the time shows Fansly's read receipts, the name stays on the «Sent» line; another
+// chat takes the labels away, and they come back with this one.
 
 import { browser } from '@wdio/globals';
 
@@ -66,6 +67,39 @@ scenario(
     await shootChat(s, 'authors');
     const label = await s.rect('page', LABEL);
     if (label !== null) await s.shot('label-1to1', { clip: around([label], 40) });
+
+    // A click on the time shows Fansly's read receipts: the name goes with them, in their «Sent» line, no line of its own.
+    const clickTime = (): Promise<void> =>
+      browser.execute((selector: string) => {
+        const stamp = [...document.querySelectorAll<HTMLElement>(`${selector} .timestamp.my-message`)].at(-1);
+        stamp?.click();
+      }, FANSLY_MAIN.list);
+    const parentOfLast = (): Promise<string> =>
+      browser.execute((selector: string) => {
+        const stamp = [...document.querySelectorAll(`${selector} .timestamp.my-message`)].at(-1);
+        const parent = stamp?.querySelector('[data-cg-author]')?.parentElement;
+        return parent === null || parent === undefined ? 'none' : parent === stamp ? 'line' : parent.textContent ?? '';
+      }, FANSLY_MAIN.list);
+    await clickTime();
+    await browser.waitUntil(async () => /Sent/.test(await parentOfLast()), { timeout: 5_000, timeoutMsg: `the label is not in «Sent»: ${await parentOfLast()}` });
+    await browser.execute((selector: string) => {
+      const list = document.querySelector(selector);
+      if (list !== null) list.scrollTop = list.scrollHeight;
+    }, FANSLY_MAIN.list);
+    await s.wait(300);
+    await shootChat(s, 'authors-receipts');
+    await clickTime();
+    await browser.waitUntil(async () => (await parentOfLast()) === 'line', { timeout: 5_000, timeoutMsg: `the label did not come back: ${await parentOfLast()}` });
+
+    // Another chat, whose container is made anew, and back: the labels go and come again.
+    const other = s.world.fansly.chats.b.group;
+    await callFansly('open', other);
+    await browser.waitUntil(async () => (await labels()).length === 0, { timeout: 10_000, timeoutMsg: `labels of another chat: ${JSON.stringify(await labels())}` });
+    await s.wait(1_000);
+    await s.shot('another-chat');
+    await callFansly('open', group);
+    await waitLabel(/^anna · Reply, сам · $/);
+    await waitLabel(new RegExp(`^${s.world.user.username} · сам · $`));
   },
   { sites: ['fansly'], showcase: true, viewport: { width: 1440, height: 1000 }, timeout: 180_000 },
 );

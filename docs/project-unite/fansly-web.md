@@ -115,6 +115,12 @@ div.content-wrapper
   - `scrollTop = 0` грузит старую историю (`main:59212-59218`).
 - **Сообщения в DOM без id и времени** (`app-group-message`, класс `my-message`); цитаты рисуются теми же
   компонентами — по DOM нельзя ни посчитать сообщения, ни связать их с id (`live/dom-skeleton.json`).
+- **Группа сообщений** `app-group-message-collection` (`main:58966-59086`): `div.message-content-list >
+  div.message-collection-wrapper > app-group-message-collection > div.flex-row > div.flex-col` (тело), в теле
+  `div.flex-col > app-group-message` на сообщение и `div.timestamp` последним. Строк времени две, каждая под своим `ngIf`:
+  `span.margin-right-text` со временем, а после клика новая `div.timestamp` с блоками Sent, Delivered и Read. В
+  `addMessage` новое сообщение встаёт перед сообщениями с тем же `createdAt`, поэтому порядок внутри секунды не совпадает
+  с порядком id.
 - **Мини-чат** `app-messaging-overlay-group` — плавающее окно со своим composer (`main:59914`, `:60358`).
 - **Модалки** — `div.modal-wrapper`, `position: fixed`, `z-index: 998` (`main:61745`); пока открыта любая
   модалка, у `body` стоит класс `modal-opened` (`main:54064-54074`).

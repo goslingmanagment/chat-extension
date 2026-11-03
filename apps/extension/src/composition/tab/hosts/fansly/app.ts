@@ -38,7 +38,6 @@ import type * as RegistrationChunk from '../../../../../lazy/fansly/registration
 import type * as VaultChunk from '../../../../../lazy/fansly/vault';
 import { FANSLY_FEATURE_SLICE } from '../../../features/fansly';
 import type { HostAppAdapter, HostThemeSource, SiteAppEnv } from '../../adapter';
-import { startFanslyMessageAuthors } from './message-authors';
 
 /** The page our content script runs in: read only when a surface mounts or the page's theme switches. */
 const page = (): Document => document;
@@ -126,10 +125,10 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   const sync = (): void => {
     if (env.life.aborted) return;
     if (registration === null && /^\/messages(?:\/[1-9]\d*)?$/.test(env.win.location.pathname)) {
-      // The header's chunk: «Регистрация» and, after it, the fan's warning marks.
+      // The open chat's chunk: «Регистрация» and, after it, the fan's warning marks; «кто написал» in the list.
       registration = env.lazy<typeof RegistrationChunk>('registration').then((chunk) => {
         if (env.life.aborted) return null;
-        const stops = [chunk.startFanslyRegistration(env), chunk.startFanslyFanMarks(env)];
+        const stops = [chunk.startFanslyRegistration(env), chunk.startFanslyFanMarks(env), chunk.startFanslyMessageAuthors(env)];
         return () => { for (const stop of stops) stop(); };
       }, () => {
         registration = null;
@@ -168,9 +167,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
   const offScheme = env.host.launcher.follow(env.deps.scheme);
   const offInboxMark = startFanslyInboxMark(env);
   const offTabLabel = startFanslyTabLabel(env);
-  const offAuthors = startFanslyMessageAuthors(env);
   return () => {
-    offAuthors();
     offTabLabel();
     offInboxMark();
     offOps();

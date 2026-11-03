@@ -308,7 +308,7 @@ export interface FanslyMessageAuthorsView {
   readonly byId: ReadonlyMap<string, FanslyMessageAuthor>;
   /** The words for `count` messages of a run whose sender is not known («+1 без автора»). */
   readonly unknown: (count: number) => string;
-  /** Messages of the model seen live in this chat, lined up with a bubble, with no sender here yet: the hub may know them by now. */
+  /** A person's messages of the model that came while this chat was open, with no sender here yet (each told once): the hub may know them by now. */
   readonly onUnknownLive?: (ids: readonly string[]) => void;
 }
 

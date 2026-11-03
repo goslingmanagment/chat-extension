@@ -24,6 +24,8 @@ const TYPING_SWEEP_MS = 2000;
 
 interface CollectionView extends View {
   readonly body: HTMLElement;
+  /** `showReadReceiptsInfo`: a click on the time line swaps it for the read receipts' and back. */
+  receipts: boolean;
 }
 
 interface Run {
@@ -147,7 +149,7 @@ export class MessageContainer implements View {
     const element = el(s, 'app-group-message-collection', { class: 'message-collection', attrs: { apptheme: '' } }, [
       el(s, 'div', { class: 'flex-row width-100', attrs: { appmutation: '' } }, [run.mine ? null : picture(el(s, 'app-account-avatar', { class: 'avatar', attrs: { title: partner?.username ?? '' } }), partner), body]),
     ]);
-    const view: CollectionView = { nodes: [element], body };
+    const view: CollectionView = { nodes: [element], body, receipts: false };
     this.fillCollection(view, run);
     return view;
   }
@@ -167,17 +169,39 @@ export class MessageContainer implements View {
       view.body.append(el(s, 'div', { class: 'flex-col width-100' }, [bubble]));
     }
     let stamp = view.body.querySelector<HTMLElement>(':scope > .timestamp');
-    stamp ??= el(s, 'div', { class: run.mine ? 'timestamp my-message' : 'timestamp' }, [el(s, 'span', { class: 'margin-right-text' })]);
+    stamp ??= this.createStamp(view, run.mine);
     // The time line closes the collection: moved only when messages were added after it.
     if (view.body.lastElementChild !== stamp) view.body.append(stamp);
     const last = run.messages.at(-1);
-    // Its own time span, as Angular's binding holds its text node: never another node put into the line.
-    const span = stamp.querySelector(':scope > span.margin-right-text');
-    if (span !== null && last !== undefined) setText(span, clock(last.createdAt));
+    // Its own spans, as Angular's bindings hold their text nodes: never another node put into the line.
+    if (last !== undefined) for (const span of stamp.querySelectorAll('[data-time]')) setText(span, `${span.getAttribute('data-time') ?? ''}${clock(last.createdAt)}`);
     for (const [index, message] of run.messages.entries()) {
       const bubble = view.body.querySelectorAll(':scope > .flex-col > app-group-message')[index];
       if (bubble !== undefined) setClass(bubble, 'queued', message.queued);
     }
+  }
+
+  /**
+   * The time line under a collection, one of two `*ngIf`s (main:58966-59000): the time in its own span, or, once clicked,
+   * the read receipts: a block for «Sent», another for «Delivered». A click takes the one and makes the other.
+   */
+  private createStamp(view: CollectionView, mine: boolean): HTMLElement {
+    const s = this.s;
+    const tick = (): HTMLElement => el(s, 'span', { class: 'margin-right-text' }, [el(s, 'i', { class: 'fa fa-check' })]);
+    const stamp = el(
+      s,
+      'div',
+      { class: mine ? 'timestamp my-message' : 'timestamp' },
+      view.receipts
+        ? [el(s, 'div', {}, [tick(), el(s, 'span', { attrs: { 'data-time': ' Sent: ' } })]), el(s, 'div', {}, [tick(), el(s, 'span', { class: 'margin-right-text', attrs: { 'data-time': ' Delivered: ' } })])]
+        : [el(s, 'span', { class: 'margin-right-text', attrs: { 'data-time': '' } })],
+    );
+    stamp.addEventListener('click', () => {
+      view.receipts = !view.receipts;
+      stamp.remove();
+      this.refreshUi();
+    });
+    return stamp;
   }
 
   refreshUi(): void {
