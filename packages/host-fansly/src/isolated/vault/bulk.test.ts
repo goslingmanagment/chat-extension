@@ -17,6 +17,8 @@ interface Behaviour {
   readonly lost?: readonly string[];
   /** The album fails to answer. */
   readonly down?: boolean;
+  /** The album reads empty once the set is laid out. */
+  readonly blankAfterLayOut?: boolean;
 }
 
 function stand(behaviour: Behaviour = {}, present: readonly string[] = []) {
@@ -45,6 +47,7 @@ function stand(behaviour: Behaviour = {}, present: readonly string[] = []) {
   const api: VaultAlbumApi = {
     album: async () => {
       if (behaviour.down === true) throw new VaultAlbumApiError('CG-FAN-NETWORK');
+      if (behaviour.blankAfterLayOut === true && asked.arranged.length > 0) return [];
       return rows();
     },
     arrange: async (_target, mediaIds) => {
@@ -130,6 +133,13 @@ describe('the upload of a set', () => {
     expect(s.asked.batches).toEqual([['SXT-003_03_pic03.jpg', 'SXT-003_01_pic01.jpg']]);
     expect(s.rows().map((row) => row.name)).toEqual(['SXT-003_01_pic01.jpg', 'SXT-003_02_pic02.jpg', 'SXT-003_03_pic03.jpg']);
     expect(snapshot.items.find((item) => item.name === 'SXT-003_02_pic02.jpg')?.status).toBe('present');
+  });
+
+  it('an album that reads empty after the lay-out is no album checked: the run stops, the set is not complete', async () => {
+    const s = stand({ blankAfterLayOut: true });
+    const snapshot = await run(set('SXT-003_01_pic01.jpg', 'SXT-003_02_pic02.jpg'), s);
+    expect(snapshot.state).toBe('stopped');
+    expect(snapshot.stop).toEqual({ kind: 'order-mismatch', expected: 'SXT-003_01_pic01.jpg', actual: null });
   });
 
   it('an album Fansly does not answer stops the run before anything is handed over', async () => {

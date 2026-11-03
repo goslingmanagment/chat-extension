@@ -226,6 +226,12 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
     }
   };
 
+  /** The name of the file the lay-out puts on top: the last one of the set the album holds. */
+  const topName = (): string => {
+    for (let index = media.length - 1; index >= 0; index -= 1) if (media[index] !== null) return (files[index] as File).name;
+    return '';
+  };
+
   /** The album laid out in the set's order (the members the album has of it), then read against the set. */
   const layOut = async (): Promise<void> => {
     const ids = media.filter((id): id is string => id !== null);
@@ -326,6 +332,8 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
         // Read through a call: `order` is set by `layOut`, which the compiler does not follow.
         const laid = laidOut();
         if (laid !== null && laid.kind === 'mismatch') return halt({ kind: 'order-mismatch', expected: laid.expected, actual: laid.actual === '' ? null : laid.actual });
+        // An album that shows no card after the lay-out is no album checked: the set is not complete, its checkpoint stays.
+        if (laid !== null && laid.kind === 'unseen') return halt({ kind: 'order-mismatch', expected: topName(), actual: null });
         state = 'complete';
         if (!(await store.clear(target, uploadId).catch(() => false))) leftBehind = true;
         emit();
