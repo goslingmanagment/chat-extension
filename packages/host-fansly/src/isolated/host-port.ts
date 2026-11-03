@@ -473,7 +473,10 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     const account = routeState.chat === null ? null : (conversation?.contact?.querySelector(FANSLY_SELECTORS.headerAccount) ?? null);
     wholeName.sync(account, chatWire?.fanCustomName ?? chatWire?.fanDisplayName ?? chatWire?.fanUsername ?? null);
     inboxMarks.place([...inboxes].find((element) => element.tagName === 'DIV') ?? null);
-    messageAuthors.place(routeState.name === 'chat' ? (conversation?.container ?? null) : null, routeState.name === 'chat' ? (now.groupId ?? null) : null);
+    // «Кто написал»: like the field above, a container still on the page when the route moved is the old chat's.
+    const chatBox = routeState.name === 'chat' ? (conversation?.container ?? null) : null;
+    if (chatBox !== null && owner !== null && !owners.has(chatBox)) owners.set(chatBox, owner);
+    messageAuthors.place(chatBox !== null && owner !== null && owners.get(chatBox) === owner ? chatBox : null, routeState.name === 'chat' ? (now.groupId ?? null) : null);
 
     if (routeMoved) emit({ type: 'route', route: routeState });
     if (seen !== composerSeen) {
@@ -583,7 +586,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // Chat Memory week 1: any message the page sent from this tab — who sent it. Under the creator of its answer only.
       case 'fx.pageSent': {
         const p = event.p;
-        messageAuthors.changed(p.groupId);
+        messageAuthors.changed(p.groupId, p.msgId);
         if (creator === null || p.accountId !== creator || p.fanId === creator) return;
         emit({ type: 'pageSent', fact: { chat: { host: FANSLY_KIND, hostAccountId: creator, platformFanId: p.fanId }, conversationRef: p.groupId, platformMessageId: p.msgId, media: p.media } });
         return;
@@ -591,7 +594,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // Sound facts stay together until the end of this MAIN batch (P14a).
       case 'fx.incoming': {
         const p = event.p;
-        messageAuthors.changed(p.groupId);
+        // Neither the fan's nor a mass send or a welcome text: a person's, on a phone or another chatter's browser too.
+        messageAuthors.changed(p.groupId, p.fromFan || p.automated ? undefined : p.msgId);
         // The account at capture time survives a backed-up MAIN stream and a login switch.
         // Older facts lacking attribution are not enough to classify our own aliases.
         if (p.senderId !== undefined && creator !== null && p.accountId === creator) soundEvents.push({ kind: 'message', id: p.msgId, conversationRef: p.groupId, senderId: p.senderId, fromFan: p.fromFan, automatic: p.automated, tip: p.tip, sentAt: p.createdAt });

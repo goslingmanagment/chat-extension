@@ -742,12 +742,14 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
         const n = chat.ids.length;
         const bits: number[] = [];
         const hashes: number[] = [];
-        // The record's third word is the model's folded-text hash (observation.ts); the fan's is 0.
+        const times: number[] = [];
+        // The record's first word is the second it was made, its third the model's folded-text hash (observation.ts); the fan's is 0.
         for (let i = 0; i < n; i += 1) {
           bits.push(chat.bits[i] as number);
           hashes.push(chat.words[i * 3 + 2] as number);
+          times.push(chat.words[i * 3] as number);
         }
-        return { ids: chat.ids.slice(), bits, hashes };
+        return { ids: chat.ids.slice(), bits, hashes, times };
       }
       if (t === REQ_SNAPSHOT) {
         if (!isSnapshotRequest(payload)) return ERR_BAD_REQUEST;

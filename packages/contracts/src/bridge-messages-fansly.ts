@@ -217,16 +217,18 @@ export const FANSLY_ORDER_BITS = { fan: 1, media: 2, deleted: 4, made: 8, text: 
 
 /**
  * `fx.order` (2026-11-03, «кто написал»): the messages of a group MAIN holds, oldest first (the snowflake's order),
- * without a text — per id its FANSLY_ORDER_BITS and, for the model's, the hash of its whitespace-folded text (FNV-1a,
- * main/automation.ts `textHash`; 0 — the fan's, or no text). The isolated side lines them up with the page's bubbles.
+ * without a text — per id its FANSLY_ORDER_BITS, the second it was made (0 — not known) and, for the model's, the hash
+ * of its whitespace-folded text (FNV-1a, main/automation.ts `textHash`; 0 — the fan's, or no text). The isolated side
+ * lines them up with the page's bubbles.
  */
 export const FanslyOrderSchema = z
   .strictObject({
     ids: z.array(NativeIdSchema).check(z.maxLength(FANSLY_LIMITS.ringRecords)),
     bits: z.array(z.int().check(z.gte(0), z.lte(255))).check(z.maxLength(FANSLY_LIMITS.ringRecords)),
     hashes: z.array(z.int().check(z.gte(0), z.lte(0xffff_ffff))).check(z.maxLength(FANSLY_LIMITS.ringRecords)),
+    times: z.array(z.int().check(z.gte(0), z.lte(0xffff_ffff))).check(z.maxLength(FANSLY_LIMITS.ringRecords)),
   })
-  .check(z.refine((order) => order.bits.length === order.ids.length && order.hashes.length === order.ids.length, { message: 'one flag set and one hash an id' }));
+  .check(z.refine((order) => order.bits.length === order.ids.length && order.hashes.length === order.ids.length && order.times.length === order.ids.length, { message: 'one flag set, one hash and one time an id' }));
 export type FanslyOrder = z.infer<typeof FanslyOrderSchema>;
 
 /** `fx.generationSnapshot` (§5.8): `window` is the function's messageCount; MAIN takes the last min(60, window). */
