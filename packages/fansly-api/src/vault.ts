@@ -9,6 +9,8 @@
 // - A member added again (`POST /vault/albums/media`) loses its row and takes a new one on top, its name kept; the rows
 //   of one request are made in its order. One request of the set in its upload order lays the album out exactly, with no
 //   upload again, and asking it twice is harmless. A rename changes the member's name in this album only.
+// - Every call goes through the model's tab (`via: 'tab'`), whatever «Fansly через вкладку» says: the page uploads the
+//   files through its container's proxy, so the reads and writes of the same album leave from the same line.
 
 import type { FanslyCall, FanslyClient } from './client';
 import { FanslyApiError } from './errors';
@@ -35,14 +37,16 @@ export const vaultCalls = {
     route: 'vault.albumMedia',
     account,
     query: { albumId, mediaType: '', search: '', before, after: '0' },
+    via: 'tab',
   }),
   /** The members added (again) in this order: the last one ends on top. */
-  add: (account: string, albumId: string, mediaIds: readonly string[]): FanslyCall => ({ purpose: 'vault', route: 'vault.addMedia', account, body: { albumId, mediaIds } }),
+  add: (account: string, albumId: string, mediaIds: readonly string[]): FanslyCall => ({ purpose: 'vault', route: 'vault.addMedia', account, body: { albumId, mediaIds }, via: 'tab' }),
   rename: (account: string, albumId: string, mediaId: string, name: string): FanslyCall => ({
     purpose: 'vault',
     route: 'vault.renameMedia',
     account,
     body: { albumId, mediaId, customFilename: name },
+    via: 'tab',
   }),
 };
 
