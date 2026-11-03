@@ -68,6 +68,8 @@ record, one with a message nobody is known for, the chatter's own send named a m
 two fans answered from the composer, «Кто ждёт ответа» on the settings page, «Мы:», the light theme),
 `fansly-marks` (the open fan's warning marks after «Регистрация»: «💩 Бомж», the agency's list on this and another
 model's page, its «где» on hover, and «⛔ Блоклист» with FANSLY BLOCKLIST's posts pinned by a click),
+`fansly-deleted` («Удалил» after the marks: the fan's deleted messages the fake hub keeps, the fresh mark, its card on
+hover, the calm mark once seen, then one more written and deleted while the chat is open; both themes),
 `fansly-switch` (the switch from the old extension: «Включить Fansly» in the popup, the
 no-direct-connection hint, the old extension's notice, its personas carried over), `fansly-ppv` (Reply's
 PPV state in `hub-calls.json`), `draft-media` (a photo in the composer, then Reply: its `draftMedia` in

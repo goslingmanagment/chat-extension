@@ -44,6 +44,7 @@ import { OnlyfansFeedRequestSchema, OnlyfansFeedResultSchema, OnlyfansPollReques
 import { ServerTabStateRequestSchema, ServerTabStateResultSchema } from './server-tab';
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema, OtherPagesAnswerSchema, OtherPagesRequestSchema } from './fan-marks';
+import { DeletedMessagesQuerySchema, DeletedMessagesSchema } from './deleted';
 import { FanQueueItemDoneRequestSchema, FanQueueItemDoneSchema, FanQueueReleaseRequestSchema, FanQueueReleaseSchema, FanQueuesQuerySchema, FanQueuesSchema, FanQueueTakeRequestSchema, FanQueueTakeSchema } from './fan-queues';
 import { OutreachStoreGetQuerySchema, OutreachStoreListQuerySchema, OutreachStoreListSchema, OutreachStoreOutreachSchema, OutreachStoreSavedSchema, OutreachStoreSaveRequestSchema, OutreachStoreSendAnswerSchema, OutreachStoreSendRequestSchema, OutreachStoreTouchesSchema } from './outreach-store';
 import { AiLimitReportSchema, AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
@@ -92,6 +93,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientFanLinkDecide: { request: FanLinkDecideRequestSchema, response: FanLinkDecideResultSchema },
   clientFanFactChange: { request: FanFactChangeRequestSchema, response: FanFactChangeResultSchema },
   clientFanMarks: { request: FanMarksQuerySchema, response: FanMarksSchema },
+  clientDeletedMessages: { request: DeletedMessagesQuerySchema, response: DeletedMessagesSchema },
   clientOtherPages: { request: OtherPagesRequestSchema, response: OtherPagesAnswerSchema },
   clientHandoff: { request: HandoffQuerySchema, response: HandoffSchema },
   clientOnline: { request: OnlineQuerySchema, response: OnlineListSchema },

@@ -335,4 +335,6 @@ export interface FanslyPagePort {
   setTabLabel(label: string | null): void;
   /** 2026-11-03: who wrote each of the model's messages of the open chat, beside their time; null — nothing of ours there. */
   setMessageAuthors(view: FanslyMessageAuthorsView | null): void;
+  /** 2026-11-03: a message of the open chat was deleted (the fan's or the model's), by the chat's group id: «Фан удалил» asks again. */
+  onDeleted(cb: (groupId: string) => void): Unsubscribe;
 }

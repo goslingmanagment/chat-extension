@@ -277,6 +277,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * and the posts of FANSLY BLOCKLIST about the fan's username. A hub without it is never asked, and no mark shows.
    */
   'fan-marks-v1',
+  /**
+   * 2026-11-03: the fan's deleted messages of a page, with the text the hub kept (`clientDeletedMessages`): «Фан удалил»
+   * in the Fansly chat header. A hub without it is never asked, and no mark shows.
+   */
+  'deleted-messages-v1',
   'other-pages-v1',
   /**
    * Telegram as the third site (docs/specs/2026-10-27-telegram-site.md §5.7): pages of platform `telegram`, whose Reply,

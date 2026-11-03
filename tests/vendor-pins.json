@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "b6d2333a6321aa35b07898edefaac2844d858cc6f68d6eefc5712168e8f19e6a",
-    "sourceCommit": "ae11c4aea052fdd3b977b61978888d8dfbfd6e9c",
-    "note": "Vendored on 2026-11-03 from hub main ae11c4ae (#986, deployed) with scripts/vendor-sdk.mjs: clientMessageAuthors (message-authors-v1)."
+    "contractHash": "5e9397ba0a3181a13469a9fee883b3334b50d362ebd82b07577149d780fb63b4",
+    "sourceCommit": "d975465813a664f55c922b32c228116edcab7503",
+    "note": "Vendored on 2026-11-03 from hub main d9754658 (#993 over #992, deployed) with scripts/vendor-sdk.mjs: clientDeletedMessages (deleted-messages-v1)."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

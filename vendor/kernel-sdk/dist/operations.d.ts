@@ -1,4 +1,8 @@
 export declare const kernelOperations: {
+    readonly accountChatterStats: {
+        readonly method: "GET";
+        readonly path: "/api/v1/account/stats";
+    };
     readonly accountShiftReport: {
         readonly method: "GET";
         readonly path: "/api/v1/account/shift-report";
@@ -774,6 +778,10 @@ export declare const kernelOperations: {
     readonly clientConversationRecaps: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/conversations/:fanRef/recaps";
+    };
+    readonly clientDeletedMessages: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/deleted-messages";
     };
     readonly clientFanCard: {
         readonly method: "GET";
@@ -1598,6 +1606,10 @@ export declare const kernelOperations: {
     readonly teamChatterNumbers: {
         readonly method: "GET";
         readonly path: "/api/v1/team/chatter-numbers";
+    };
+    readonly teamChatterStats: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/chatter-stats";
     };
     readonly teamCustoms: {
         readonly method: "GET";

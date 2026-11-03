@@ -300,6 +300,8 @@ export type FakeHubCommand =
   /** 2026-11-03: a send recorded before the run (a colleague's), as `clientSendAttributions` would have it; the person by
    * their login, how its text was written as the hub stores it (`reply`, `hand`, …). */
   | { readonly op: 'messageAuthor'; readonly pageLabel: string; readonly fanRef: string; readonly messageId: string; readonly login: string; readonly at: string; readonly how?: string; readonly edited?: boolean }
+  /** 2026-11-03: a message of the fan the page's socket saw deleted, as `clientDeletedMessages` answers it (`text` null — none kept). */
+  | { readonly op: 'deletedMessage'; readonly pageLabel: string; readonly fanRef: string; readonly messageId: string; readonly text: string | null; readonly deletedAt: string; readonly sentAt?: string; readonly attachments?: number; readonly groupId?: string }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
 

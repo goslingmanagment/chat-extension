@@ -32806,6 +32806,402 @@ declare const baseRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly accountChatterStats: {
+        readonly auth: {
+            readonly kind: "any-session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The caller's own statistics: the money of their shifts, how they write and sell, their records";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                user: z.ZodObject<{
+                    userId: z.ZodNumber;
+                    username: z.ZodString;
+                }, z.core.$strip>;
+                days: z.ZodNumber;
+                from: z.ZodString;
+                to: z.ZodString;
+                activitySince: z.ZodNullable<z.ZodString>;
+                totals: z.ZodObject<{
+                    shifts: z.ZodNumber;
+                    workedMinutes: z.ZodNumber;
+                    salesNetMills: z.ZodNumber;
+                    sales: z.ZodNumber;
+                    perHourMills: z.ZodNullable<z.ZodNumber>;
+                    overlapNetMills: z.ZodNumber;
+                    byKind: z.ZodObject<{
+                        ppv: z.ZodNumber;
+                        tip: z.ZodNumber;
+                        subscription: z.ZodNumber;
+                        post: z.ZodNumber;
+                    }, z.core.$strip>;
+                    confirmedNetMills: z.ZodNumber;
+                    unconfirmedShifts: z.ZodNumber;
+                    messages: z.ZodNumber;
+                    fansWritten: z.ZodNumber;
+                    fansPaid: z.ZodNumber;
+                }, z.core.$strip>;
+                previous: z.ZodNullable<z.ZodObject<{
+                    shifts: z.ZodNumber;
+                    workedMinutes: z.ZodNumber;
+                    salesNetMills: z.ZodNumber;
+                    sales: z.ZodNumber;
+                    perHourMills: z.ZodNullable<z.ZodNumber>;
+                }, z.core.$strip>>;
+                daily: z.ZodArray<z.ZodObject<{
+                    date: z.ZodString;
+                    salesNetMills: z.ZodNumber;
+                    byKind: z.ZodObject<{
+                        ppv: z.ZodNumber;
+                        tip: z.ZodNumber;
+                        subscription: z.ZodNumber;
+                        post: z.ZodNumber;
+                    }, z.core.$strip>;
+                    shifts: z.ZodNumber;
+                    workedMinutes: z.ZodNumber;
+                }, z.core.$strip>>;
+                shifts: z.ZodArray<z.ZodObject<{
+                    date: z.ZodString;
+                    startedAt: z.ZodString;
+                    endedAt: z.ZodString;
+                    ongoing: z.ZodBoolean;
+                    workedMinutes: z.ZodNumber;
+                    pauses: z.ZodArray<z.ZodObject<{
+                        from: z.ZodString;
+                        to: z.ZodString;
+                    }, z.core.$strip>>;
+                    pages: z.ZodArray<z.ZodString>;
+                    salesNetMills: z.ZodNumber;
+                    overlapNetMills: z.ZodNumber;
+                    together: z.ZodArray<z.ZodString>;
+                    messages: z.ZodNumber;
+                    ppvSent: z.ZodNumber;
+                    fansWritten: z.ZodNumber;
+                    fansPaid: z.ZodNumber;
+                    confirmedNetMills: z.ZodNullable<z.ZodNumber>;
+                    sales: z.ZodArray<z.ZodObject<{
+                        at: z.ZodString;
+                        netMills: z.ZodNumber;
+                        kind: z.ZodEnum<{
+                            subscription: "subscription";
+                            tip: "tip";
+                            post: "post";
+                            ppv: "ppv";
+                        }>;
+                        pageLabel: z.ZodString;
+                        fanName: z.ZodNullable<z.ZodString>;
+                        overlap: z.ZodBoolean;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                visits: z.ZodArray<z.ZodObject<{
+                    date: z.ZodString;
+                    startedAt: z.ZodString;
+                    endedAt: z.ZodString;
+                    workedMinutes: z.ZodNumber;
+                    messages: z.ZodNumber;
+                    salesNetMills: z.ZodNumber;
+                    sales: z.ZodNumber;
+                }, z.core.$strip>>;
+                pages: z.ZodArray<z.ZodObject<{
+                    pageLabel: z.ZodString;
+                    platform: z.ZodString;
+                    salesNetMills: z.ZodNumber;
+                    sales: z.ZodNumber;
+                    activeMinutes: z.ZodNumber;
+                }, z.core.$strip>>;
+                ppv: z.ZodObject<{
+                    sent: z.ZodNumber;
+                    bought: z.ZodNumber;
+                    netMills: z.ZodNumber;
+                    byPrice: z.ZodArray<z.ZodObject<{
+                        bucket: z.ZodString;
+                        sent: z.ZodNumber;
+                        bought: z.ZodNumber;
+                        netMills: z.ZodNumber;
+                        teamSent: z.ZodNumber;
+                        teamBought: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                replies: z.ZodObject<{
+                    to: z.ZodString;
+                    replies: z.ZodNumber;
+                    bought: z.ZodNumber;
+                    byDelay: z.ZodArray<z.ZodObject<{
+                        bucket: z.ZodString;
+                        replies: z.ZodNumber;
+                        bought: z.ZodNumber;
+                        teamReplies: z.ZodNumber;
+                        teamBought: z.ZodNumber;
+                    }, z.core.$strip>>;
+                }, z.core.$strip>;
+                composed: z.ZodObject<{
+                    hand: z.ZodNumber;
+                    reply: z.ZodNumber;
+                    fix: z.ZodNumber;
+                    greet: z.ZodNumber;
+                    other: z.ZodNumber;
+                }, z.core.$strip>;
+                topFans: z.ZodArray<z.ZodObject<{
+                    fanName: z.ZodNullable<z.ZodString>;
+                    pageLabel: z.ZodString;
+                    netMills: z.ZodNumber;
+                    sales: z.ZodNumber;
+                }, z.core.$strip>>;
+                records: z.ZodObject<{
+                    bestShift: z.ZodNullable<z.ZodObject<{
+                        startedAt: z.ZodString;
+                        salesNetMills: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    bestDay: z.ZodNullable<z.ZodObject<{
+                        date: z.ZodString;
+                        salesNetMills: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    biggestSale: z.ZodNullable<z.ZodObject<{
+                        at: z.ZodString;
+                        pageLabel: z.ZodString;
+                        kind: z.ZodEnum<{
+                            subscription: "subscription";
+                            tip: "tip";
+                            post: "post";
+                            ppv: "ppv";
+                        }>;
+                        netMills: z.ZodNumber;
+                        fanName: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
+                    streakDays: z.ZodNumber;
+                    longestStreakDays: z.ZodNumber;
+                }, z.core.$strip>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
+    readonly teamChatterStats: {
+        readonly auth: {
+            readonly kind: "session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "A chatter's statistics, as their cabinet shows them, for the owner and team leads";
+        readonly description: string;
+        readonly querystring: z.ZodObject<{
+            days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+            userId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
+        }, z.core.$strip>;
+        readonly response: {
+            readonly 400: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 200: z.ZodObject<{
+                people: z.ZodArray<z.ZodObject<{
+                    userId: z.ZodNumber;
+                    username: z.ZodString;
+                }, z.core.$strip>>;
+                stats: z.ZodNullable<z.ZodObject<{
+                    user: z.ZodObject<{
+                        userId: z.ZodNumber;
+                        username: z.ZodString;
+                    }, z.core.$strip>;
+                    days: z.ZodNumber;
+                    from: z.ZodString;
+                    to: z.ZodString;
+                    activitySince: z.ZodNullable<z.ZodString>;
+                    totals: z.ZodObject<{
+                        shifts: z.ZodNumber;
+                        workedMinutes: z.ZodNumber;
+                        salesNetMills: z.ZodNumber;
+                        sales: z.ZodNumber;
+                        perHourMills: z.ZodNullable<z.ZodNumber>;
+                        overlapNetMills: z.ZodNumber;
+                        byKind: z.ZodObject<{
+                            ppv: z.ZodNumber;
+                            tip: z.ZodNumber;
+                            subscription: z.ZodNumber;
+                            post: z.ZodNumber;
+                        }, z.core.$strip>;
+                        confirmedNetMills: z.ZodNumber;
+                        unconfirmedShifts: z.ZodNumber;
+                        messages: z.ZodNumber;
+                        fansWritten: z.ZodNumber;
+                        fansPaid: z.ZodNumber;
+                    }, z.core.$strip>;
+                    previous: z.ZodNullable<z.ZodObject<{
+                        shifts: z.ZodNumber;
+                        workedMinutes: z.ZodNumber;
+                        salesNetMills: z.ZodNumber;
+                        sales: z.ZodNumber;
+                        perHourMills: z.ZodNullable<z.ZodNumber>;
+                    }, z.core.$strip>>;
+                    daily: z.ZodArray<z.ZodObject<{
+                        date: z.ZodString;
+                        salesNetMills: z.ZodNumber;
+                        byKind: z.ZodObject<{
+                            ppv: z.ZodNumber;
+                            tip: z.ZodNumber;
+                            subscription: z.ZodNumber;
+                            post: z.ZodNumber;
+                        }, z.core.$strip>;
+                        shifts: z.ZodNumber;
+                        workedMinutes: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    shifts: z.ZodArray<z.ZodObject<{
+                        date: z.ZodString;
+                        startedAt: z.ZodString;
+                        endedAt: z.ZodString;
+                        ongoing: z.ZodBoolean;
+                        workedMinutes: z.ZodNumber;
+                        pauses: z.ZodArray<z.ZodObject<{
+                            from: z.ZodString;
+                            to: z.ZodString;
+                        }, z.core.$strip>>;
+                        pages: z.ZodArray<z.ZodString>;
+                        salesNetMills: z.ZodNumber;
+                        overlapNetMills: z.ZodNumber;
+                        together: z.ZodArray<z.ZodString>;
+                        messages: z.ZodNumber;
+                        ppvSent: z.ZodNumber;
+                        fansWritten: z.ZodNumber;
+                        fansPaid: z.ZodNumber;
+                        confirmedNetMills: z.ZodNullable<z.ZodNumber>;
+                        sales: z.ZodArray<z.ZodObject<{
+                            at: z.ZodString;
+                            netMills: z.ZodNumber;
+                            kind: z.ZodEnum<{
+                                subscription: "subscription";
+                                tip: "tip";
+                                post: "post";
+                                ppv: "ppv";
+                            }>;
+                            pageLabel: z.ZodString;
+                            fanName: z.ZodNullable<z.ZodString>;
+                            overlap: z.ZodBoolean;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>>;
+                    visits: z.ZodArray<z.ZodObject<{
+                        date: z.ZodString;
+                        startedAt: z.ZodString;
+                        endedAt: z.ZodString;
+                        workedMinutes: z.ZodNumber;
+                        messages: z.ZodNumber;
+                        salesNetMills: z.ZodNumber;
+                        sales: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    pages: z.ZodArray<z.ZodObject<{
+                        pageLabel: z.ZodString;
+                        platform: z.ZodString;
+                        salesNetMills: z.ZodNumber;
+                        sales: z.ZodNumber;
+                        activeMinutes: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    ppv: z.ZodObject<{
+                        sent: z.ZodNumber;
+                        bought: z.ZodNumber;
+                        netMills: z.ZodNumber;
+                        byPrice: z.ZodArray<z.ZodObject<{
+                            bucket: z.ZodString;
+                            sent: z.ZodNumber;
+                            bought: z.ZodNumber;
+                            netMills: z.ZodNumber;
+                            teamSent: z.ZodNumber;
+                            teamBought: z.ZodNumber;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>;
+                    replies: z.ZodObject<{
+                        to: z.ZodString;
+                        replies: z.ZodNumber;
+                        bought: z.ZodNumber;
+                        byDelay: z.ZodArray<z.ZodObject<{
+                            bucket: z.ZodString;
+                            replies: z.ZodNumber;
+                            bought: z.ZodNumber;
+                            teamReplies: z.ZodNumber;
+                            teamBought: z.ZodNumber;
+                        }, z.core.$strip>>;
+                    }, z.core.$strip>;
+                    composed: z.ZodObject<{
+                        hand: z.ZodNumber;
+                        reply: z.ZodNumber;
+                        fix: z.ZodNumber;
+                        greet: z.ZodNumber;
+                        other: z.ZodNumber;
+                    }, z.core.$strip>;
+                    topFans: z.ZodArray<z.ZodObject<{
+                        fanName: z.ZodNullable<z.ZodString>;
+                        pageLabel: z.ZodString;
+                        netMills: z.ZodNumber;
+                        sales: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    records: z.ZodObject<{
+                        bestShift: z.ZodNullable<z.ZodObject<{
+                            startedAt: z.ZodString;
+                            salesNetMills: z.ZodNumber;
+                        }, z.core.$strip>>;
+                        bestDay: z.ZodNullable<z.ZodObject<{
+                            date: z.ZodString;
+                            salesNetMills: z.ZodNumber;
+                        }, z.core.$strip>>;
+                        biggestSale: z.ZodNullable<z.ZodObject<{
+                            at: z.ZodString;
+                            pageLabel: z.ZodString;
+                            kind: z.ZodEnum<{
+                                subscription: "subscription";
+                                tip: "tip";
+                                post: "post";
+                                ppv: "ppv";
+                            }>;
+                            netMills: z.ZodNumber;
+                            fanName: z.ZodNullable<z.ZodString>;
+                        }, z.core.$strip>>;
+                        streakDays: z.ZodNumber;
+                        longestStreakDays: z.ZodNumber;
+                    }, z.core.$strip>;
+                    serverNow: z.ZodString;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+        };
+    };
     readonly clientOutreaches: {
         readonly auth: {
             readonly kind: "apiKey";
@@ -34736,6 +35132,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -34822,6 +35219,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>;
             previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 source: z.ZodLiteral<"vault">;
@@ -34829,6 +35227,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>>;
             publishAt: z.ZodISODateTime;
             expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -34854,6 +35253,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>;
                 previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                     source: z.ZodLiteral<"vault">;
@@ -34861,6 +35261,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>>;
                 tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
                 priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -34971,6 +35372,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -35147,6 +35549,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -35280,6 +35683,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>;
             previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 source: z.ZodLiteral<"vault">;
@@ -35287,6 +35691,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>>;
             publishAt: z.ZodISODateTime;
             expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -35312,6 +35717,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>;
                 previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                     source: z.ZodLiteral<"vault">;
@@ -35319,6 +35725,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>>;
                 tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
                 priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -35429,6 +35836,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -35616,6 +36024,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -35794,6 +36203,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -35981,6 +36391,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -36110,6 +36521,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -36299,6 +36711,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -36489,6 +36902,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -36679,6 +37093,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -36857,6 +37272,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -37200,6 +37616,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>;
             previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 source: z.ZodLiteral<"vault">;
@@ -37207,6 +37624,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>>;
             publishAt: z.ZodISODateTime;
             expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -37232,6 +37650,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>;
                 previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                     source: z.ZodLiteral<"vault">;
@@ -37239,6 +37658,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>>;
                 tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
                 priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -37363,6 +37783,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -37574,6 +37995,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -37893,6 +38315,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -38085,6 +38508,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -38356,6 +38780,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -38602,6 +39027,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -38692,6 +39118,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>;
             previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 source: z.ZodLiteral<"vault">;
@@ -38699,6 +39126,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>>;
             publishAt: z.ZodISODateTime;
             expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -38724,6 +39152,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>;
                 previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                     source: z.ZodLiteral<"vault">;
@@ -38731,6 +39160,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>>;
                 tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
                 priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -38855,6 +39285,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{

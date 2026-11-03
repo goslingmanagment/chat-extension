@@ -86,6 +86,8 @@ import {
   type FanCardQuery,
   type FanMarks,
   type FanMarksQuery,
+  type DeletedMessages,
+  type DeletedMessagesQuery,
   type OtherPagesAnswer,
   type OtherPagesRequest,
   type FanCustomChangeRequest,
@@ -1042,6 +1044,11 @@ export class ChatExtensionHub implements HubFacade {
    */
   async fanMarks(query: FanMarksQuery): Promise<FanMarks> {
     return (await this.client('clientFanMarks', query, query.pageLabel)) as FanMarks;
+  }
+
+  /** 2026-11-03: the fan's deleted messages of a page granted by this bootstrap, with their text; refused without `deleted-messages-v1`. */
+  async deletedMessages(query: DeletedMessagesQuery): Promise<DeletedMessages> {
+    return (await this.client('clientDeletedMessages', query, query.pageLabel)) as DeletedMessages;
   }
 
   /** The other pages of up to a hundred fans of a list the client made itself. A read: refused without `other-pages-v1`. */
