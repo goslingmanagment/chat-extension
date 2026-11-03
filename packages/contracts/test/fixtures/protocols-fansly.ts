@@ -221,6 +221,36 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       ],
     },
   },
+  'fansly.deleted.read': {
+    req: {
+      valid: [{ pageId: 12, hostAccountId: F.creator, fanRef: F.fan }],
+      invalid: [{ pageId: 12, hostAccountId: F.creator }, { pageId: 12, hostAccountId: F.creator, fanRef: 123 }, { pageId: 12, hostAccountId: F.creator, fanRef: F.fan, pageLabel: 'p' }],
+    },
+    res: {
+      valid: [
+        {
+          ok: true,
+          deleted: {
+            total: 3,
+            messages: [
+              { id: '900000000000000001', groupId: F.group, text: 'сколько стоит кастом?', attachments: 0, sentAt: '2026-11-03T12:00:00.000Z', deletedAt: '2026-11-03T12:00:09.000Z' },
+              { id: '900000000000000002', groupId: null, text: '', attachments: 1, sentAt: null, deletedAt: '2026-11-02T08:00:00.000Z' },
+              { id: '900000000000000003', groupId: F.group, text: null, attachments: 0, sentAt: '2026-11-01T08:00:00.000Z', deletedAt: '2026-11-01T09:00:00.000Z' },
+            ],
+          },
+        },
+        { ok: true, deleted: { total: 0, messages: [] } },
+        failure,
+        sharedFailure,
+      ],
+      invalid: [
+        { ok: true, deleted: { total: -1, messages: [] } },
+        { ok: true, deleted: { total: 1, messages: [{ id: '900000000000000001', groupId: null, text: 'x', attachments: 0, sentAt: null }] } },
+        { ok: true, total: 0, messages: [] },
+        unknownFailure,
+      ],
+    },
+  },
   'fansly.registration.read': {
     req: { valid: [{ pageId: 12, hostAccountId: F.creator, groupId: F.group }], invalid: [{ pageId: 12, hostAccountId: F.creator }, { pageId: 12, hostAccountId: F.creator, groupId: 123 }] },
     res: { valid: [{ ok: true, fanId: F.fan }, failure, sharedFailure], invalid: [{ ok: true, fanId: 123 }, { ok: true, groupId: F.group }, unknownFailure] },

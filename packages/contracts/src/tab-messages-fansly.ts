@@ -126,6 +126,9 @@ export const FANSLY_TAB_LIMITS = {
   fanBadgesMax: 100,
   /** The fans of «Новые» whose other pages one call asks for (hub `CLIENT_OTHER_PAGES_MAX_FANS`). */
   otherPagesFansMax: 100,
+  /** The fan's deleted messages of one answer (hub `CLIENT_DELETED_MESSAGES_MAX`) and one text, far above a real message. */
+  deletedMessagesMax: 50,
+  deletedMessageMaxChars: 5_000,
 } as const;
 
 /**
@@ -158,6 +161,28 @@ export const FanslyFanMarksSchema = z.strictObject({
   otherPages: z.optional(FanslyOtherPagesSchema),
 });
 export type FanslyFanMarks = z.infer<typeof FanslyFanMarksSchema>;
+
+/**
+ * 2026-11-03 (the owner: «показывать удаленные сообщения фана»): the open fan's messages the page's socket saw deleted,
+ * with the text the hub kept, the latest deleted first; `total` counts all of them. `text` "" — a message without text,
+ * null — none kept.
+ */
+export const FanslyDeletedMessagesSchema = z.strictObject({
+  total: CountSchema,
+  messages: z
+    .array(
+      z.strictObject({
+        id: NativeIdSchema,
+        groupId: z.nullable(NativeIdSchema),
+        text: z.nullable(displayText(FANSLY_TAB_LIMITS.deletedMessageMaxChars)),
+        attachments: CountSchema,
+        sentAt: z.nullable(IsoTimestampSchema),
+        deletedAt: IsoTimestampSchema,
+      }),
+    )
+    .check(z.maxLength(FANSLY_TAB_LIMITS.deletedMessagesMax)),
+});
+export type FanslyDeletedMessages = z.infer<typeof FanslyDeletedMessagesSchema>;
 
 /**
  * An item of Fansly's own «Copied …» list as a message takes it (the page's MediaService, `media_service_copied_media`
@@ -711,6 +736,15 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.marks.read': {
     req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, username: z.optional(z.string().check(z.minLength(1), z.maxLength(64))) }),
     res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), marks: FanslyFanMarksSchema }), Failure]),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
+   * «Фан удалил» in the open chat's header (hub `clientDeletedMessages`): when the chat opens, and again after the page
+   * heard a deletion in it. Nothing kept by the background: a read in flight for the same page and fan is joined.
+   */
+  'fansly.deleted.read': {
+    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema }),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), deleted: FanslyDeletedMessagesSchema }), Failure]),
     from: TAB, hosts: FANSLY,
   },
   /**

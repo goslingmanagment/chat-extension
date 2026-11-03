@@ -14,6 +14,7 @@ import { pageBrowserRouteSchemas } from "./routes-page-browser";
 import { publicationRouteSchemas } from "./routes-publications";
 import { fanQueueRouteSchemas } from "./routes-fan-queues";
 import { outreachRouteSchemas } from "./routes-outreach";
+import { chatterStatsRouteSchemas } from "./routes-chatter-stats";
 import { publicationFileRouteSchemas } from "./routes-publication-files";
 import { opsLiveRouteSchemas } from "./routes-ops-live";
 import { aiAccountRouteSchemas } from "./routes-ai-accounts";
@@ -6036,6 +6037,7 @@ const baseRouteSchemas = {
     ...publicationRouteSchemas,
     ...fanQueueRouteSchemas,
     ...outreachRouteSchemas,
+    ...chatterStatsRouteSchemas,
     ...publicationFileRouteSchemas,
     health: {
         auth: { kind: "public" },

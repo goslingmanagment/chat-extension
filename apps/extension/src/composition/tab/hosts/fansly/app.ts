@@ -128,7 +128,7 @@ export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
       // The open chat's chunk: «Регистрация» and, after it, the fan's warning marks; «кто написал» in the list.
       registration = env.lazy<typeof RegistrationChunk>('registration').then((chunk) => {
         if (env.life.aborted) return null;
-        const stops = [chunk.startFanslyRegistration(env), chunk.startFanslyFanMarks(env), chunk.startFanslyMessageAuthors(env)];
+        const stops = [chunk.startFanslyRegistration(env), chunk.startFanslyFanMarks(env), chunk.startFanslyDeleted(env), chunk.startFanslyMessageAuthors(env)];
         return () => { for (const stop of stops) stop(); };
       }, () => {
         registration = null;

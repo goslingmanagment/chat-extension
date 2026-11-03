@@ -331,6 +331,8 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
   const eventListeners = new Set<(event: HostEvent) => void>();
   const contractListeners = new Set<(report: HostContractReport) => void>();
   const slotListeners = new Set<(slot: FanslyHeaderSlot) => void>();
+  /** «Фан удалил»: a message of the focused chat went (MAIN's `fx.deleted`). */
+  const deletedListeners = new Set<(groupId: string) => void>();
   const emit = (event: HostEvent): void => {
     for (const listener of [...eventListeners]) listener(event);
   };
@@ -609,6 +611,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
         return;
       case 'fx.deleted':
         messageAuthors.changed(event.p.groupId);
+        for (const listener of [...deletedListeners]) listener(event.p.groupId);
         return;
       case 'fx.coverage':
         return;
@@ -807,6 +810,12 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     setMessageAuthors: (view) => {
       if (!disposed) messageAuthors.set(view);
     },
+    onDeleted(cb): Unsubscribe {
+      deletedListeners.add(cb);
+      return () => {
+        deletedListeners.delete(cb);
+      };
+    },
   };
 
   const dispose = (): void => {
@@ -836,6 +845,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
     pendingSounds.length = 0;
     contractListeners.clear();
     slotListeners.clear();
+    deletedListeners.clear();
     vaultListeners.clear();
     vaultLosses.clear();
     vaultUpload = null;

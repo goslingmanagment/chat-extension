@@ -1,0 +1,184 @@
+// «Фан удалил» in Fansly's chat header (hub `clientDeletedMessages`; contracts deleted-fansly.ts): what the mark shows of
+// the background's answer, and when it asks. The chat a person opens is asked once; a sync while it stays open asks
+// nothing. A deletion the page heard in that chat (`heard`) asks again a moment later, and twice more if the hub had
+// not stored it yet: the hub hears the same socket and writes the mark itself. The tab keeps the last answers of this
+// document, so a chat opened again shows its mark at once. Nothing while loading, nothing on a failed read.
+//
+// Fresh: deleted within the last hour and after the card was last opened for this fan in this tab. The mark stands out
+// while a message is fresh; opening the card (`seen`) makes everything it shows seen.
+import type { DeletedMessageView, DeletedMessagesClient, DeletedMessagesView } from '@cg/contracts/deleted-fansly';
+import type { FanslyDeletedMessages } from '@cg/contracts/tab-messages-fansly';
+
+export interface DeletedMessagesTarget {
+  readonly pageId: number;
+  readonly accountId: string;
+  readonly fanId: string;
+}
+
+export type DeletedMessagesAnswer = { readonly ok: true; readonly deleted: FanslyDeletedMessages } | { readonly ok: false };
+
+export const DELETED_NONE: DeletedMessagesView = { total: 0, messages: [], fresh: 0 };
+/** How recent a deletion is fresh. */
+export const DELETED_FRESH_MS = 60 * 60_000;
+/** After the page heard a deletion: when to ask again, from the deletion on. */
+export const DELETED_AGAIN_MS = [1_500, 6_000, 20_000] as const;
+/** Answers the tab keeps for chats opened again; the oldest goes first. */
+const KEPT = 50;
+
+/** What the header shows of an answer: newest deleted first, each fresh or not; no message — DELETED_NONE. */
+export function deletedMessagesView(deleted: FanslyDeletedMessages, seenUpTo: number, now: number): DeletedMessagesView {
+  const messages: DeletedMessageView[] = [];
+  for (const message of deleted.messages) {
+    const deletedAt = Date.parse(message.deletedAt);
+    if (!Number.isFinite(deletedAt)) continue;
+    const sentAt = message.sentAt === null ? Number.NaN : Date.parse(message.sentAt);
+    messages.push({
+      id: message.id,
+      text: message.text,
+      attachments: message.attachments,
+      sentAt: Number.isFinite(sentAt) ? sentAt : null,
+      deletedAt,
+      fresh: deletedAt > seenUpTo && now - deletedAt < DELETED_FRESH_MS,
+    });
+  }
+  messages.sort((a, b) => b.deletedAt - a.deletedAt);
+  const total = Math.max(deleted.total, messages.length);
+  return total === 0 ? DELETED_NONE : { total, messages, fresh: messages.filter((message) => message.fresh).length };
+}
+
+export function createDeletedMessages(deps: {
+  /** Who is signed in where: a new one forgets every answer. */
+  session(): string | null;
+  target(): DeletedMessagesTarget | null;
+  read(target: DeletedMessagesTarget): Promise<DeletedMessagesAnswer>;
+  now(): number;
+  setTimer(ms: number, run: () => void): unknown;
+  clearTimer(handle: unknown): void;
+}): DeletedMessagesClient & { sync(): void; heard(): void; dispose(): void } {
+  let session: string | null = null;
+  /** The chat open now, by page, account and fan; null — none (a chat closed and opened again is a new visit). */
+  let visit: string | null = null;
+  let target: DeletedMessagesTarget | null = null;
+  let view: DeletedMessagesView = DELETED_NONE;
+  let disposed = false;
+  /** Each read's turn: an answer of an older turn than the visit's last shown one is dropped. */
+  let turn = 0;
+  let shownTurn = 0;
+  const kept = new Map<string, FanslyDeletedMessages>();
+  /** The newest deletion each fan's card showed when it was last opened in this tab. */
+  const seenUpTo = new Map<string, number>();
+  const timers = new Set<unknown>();
+  const listeners = new Set<(view: DeletedMessagesView) => void>();
+
+  const show = (next: DeletedMessagesView): void => {
+    if (next === view) return;
+    view = next;
+    for (const listener of [...listeners]) listener(view);
+  };
+  const keep = (key: string, value: FanslyDeletedMessages): void => {
+    kept.delete(key);
+    kept.set(key, value);
+    while (kept.size > KEPT) kept.delete(kept.keys().next().value as string);
+  };
+  const stopTimers = (): void => {
+    for (const handle of timers) deps.clearTimer(handle);
+    timers.clear();
+  };
+  const render = (key: string): void => {
+    const deleted = kept.get(key);
+    show(deleted === undefined ? DELETED_NONE : deletedMessagesView(deleted, seenUpTo.get(key) ?? Number.NEGATIVE_INFINITY, deps.now()));
+  };
+  /** Asks for the open chat; `then` — told whether the answer brought a deletion the visit had not shown. */
+  const read = (then?: (newer: boolean) => void): void => {
+    const asked = target;
+    const key = visit;
+    if (asked === null || key === null) return;
+    turn += 1;
+    const mine = turn;
+    const under = session;
+    const before = kept.get(key)?.messages[0]?.deletedAt ?? '';
+    void deps.read(asked).then(
+      (answer) => {
+        // A failed read changes nothing: no mark appears, none goes.
+        if (disposed || !answer.ok || session !== under || mine < shownTurn) return;
+        keep(key, answer.deleted);
+        if (visit === key) {
+          shownTurn = mine;
+          render(key);
+        }
+        const newest = answer.deleted.messages[0]?.deletedAt ?? '';
+        then?.(newest !== '' && Date.parse(newest) > (before === '' ? Number.NEGATIVE_INFINITY : Date.parse(before)));
+      },
+      () => undefined,
+    );
+  };
+
+  return {
+    view: () => view,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    seen() {
+      if (visit === null || view.fresh === 0) return;
+      const newest = view.messages[0]?.deletedAt;
+      if (newest === undefined) return;
+      seenUpTo.set(visit, Math.max(seenUpTo.get(visit) ?? Number.NEGATIVE_INFINITY, newest));
+      render(visit);
+    },
+    sync() {
+      if (disposed) return;
+      const now = deps.session();
+      if (now !== session) {
+        session = now;
+        visit = null;
+        kept.clear();
+        seenUpTo.clear();
+      }
+      const next = now === null ? null : deps.target();
+      const key = next === null ? null : `${String(next.pageId)}|${next.accountId}|${next.fanId}`;
+      if (key === visit) return;
+      stopTimers();
+      visit = key;
+      target = next;
+      shownTurn = turn;
+      if (key === null) {
+        show(DELETED_NONE);
+        return;
+      }
+      render(key);
+      read();
+    },
+    heard() {
+      if (disposed || visit === null) return;
+      // A second deletion while the first is awaited starts the waits over: the newest is the one to find.
+      stopTimers();
+      const key = visit;
+      const steps = [...DELETED_AGAIN_MS];
+      let at = 0;
+      const next = (): void => {
+        const wait = steps.shift();
+        if (wait === undefined) return;
+        const handle = deps.setTimer(wait - at, () => {
+          timers.delete(handle);
+          if (disposed || visit !== key) return;
+          at = wait;
+          read((newer) => {
+            if (!newer && visit === key) next();
+          });
+        });
+        timers.add(handle);
+      };
+      next();
+    },
+    dispose() {
+      disposed = true;
+      stopTimers();
+      kept.clear();
+      seenUpTo.clear();
+      listeners.clear();
+    },
+  };
+}

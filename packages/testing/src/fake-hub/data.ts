@@ -40,6 +40,7 @@ import {
   type RecapBody,
   type RecapStatus,
   type MessageAuthors,
+  type DeletedMessages,
   type SendAttributionsRequest,
   type SendAttributionsResult,
   type FanNoteAttributions,
@@ -307,6 +308,8 @@ export class DataModel {
   private readonly ingested = new Map<string, IngestBatch['events'][number]>();
   /** 1.21.0 (X48): who sent each message, by `page|message`; the first report wins (hub client_send_attributions). */
   private readonly attributions = new Map<string, FakeSendAttribution>();
+  /** The fans' messages the pages' sockets saw deleted (`deletedMessage`), by page and message id. */
+  private readonly deleted = new Map<string, FakeDeletedMessage>();
   /** Who wrote each Fansly note, by `page|event`; the first report wins (hub client_note_attributions). */
   private readonly noteWrites = new Map<string, FakeNoteAttribution>();
   /** Chat Memory week 1: every beat, in order (tests read them; ids and idle only). */
@@ -1254,6 +1257,27 @@ export class DataModel {
     return [...this.attributions.values()];
   }
 
+  /** A scenario's fan message deleted on Fansly, as the hub's live overlay would keep it (its text, when it was sent and went). */
+  seedDeletedMessage(row: FakeDeletedMessage): void {
+    this.deleted.set(`${row.pageLabel}|${row.messageId}`, row);
+  }
+
+  /** As the hub's `clientDeletedMessages` (2026-11-03): the fan's deleted messages on the page, the latest deleted first, at most 50. */
+  deletedMessages(page: FakePage, fanRef: string, now: number): DeletedMessages {
+    const rows = [...this.deleted.values()]
+      .filter((row) => row.pageLabel === page.pageLabel && row.fanRef === fanRef)
+      .sort((a, b) => Date.parse(b.deletedAt) - Date.parse(a.deletedAt) || (b.messageId > a.messageId ? 1 : -1));
+    const messages = rows.slice(0, 50).map((row) => ({
+      platformMessageId: row.messageId,
+      conversationRef: row.groupId ?? null,
+      text: row.text,
+      attachments: row.attachments ?? 0,
+      sentAt: row.sentAt ?? null,
+      deletedAt: row.deletedAt,
+    }));
+    return { pageLabel: page.pageLabel, fanRef, total: rows.length, messages, serverNow: iso(now) };
+  }
+
   /** A scenario's record of a send made before the run (another chatter's, or the person's own), as if reported then. */
   seedSendAttribution(row: FakeSendAttribution): void {
     this.attributions.set(`${row.pageLabel}|${row.platformMessageId}`, row);
@@ -1733,4 +1757,16 @@ export interface FakeSendAttribution {
   readonly edited?: boolean | undefined;
   /** A seeded colleague's login (`messageAuthor`); absent — the user's own. */
   readonly name?: string | undefined;
+}
+
+/** A fan's message the page's socket saw deleted (`deletedMessage`). */
+export interface FakeDeletedMessage {
+  readonly pageLabel: string;
+  readonly fanRef: string;
+  readonly messageId: string;
+  readonly groupId?: string | undefined;
+  readonly text: string | null;
+  readonly attachments?: number | undefined;
+  readonly sentAt?: string | undefined;
+  readonly deletedAt: string;
 }

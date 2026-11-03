@@ -48,6 +48,7 @@ import {
   type SendAttributionsRequest,
   type FanNoteAttributionsQuery,
   type MessageAuthorsQuery,
+  type DeletedMessagesQuery,
   type NoteAttributionsRequest,
   type ActivityBeatRequest,
   type FanCard,
@@ -498,6 +499,19 @@ export class FakeHub {
       case 'otherPages':
         s.data.useOtherPages(command.fans);
         return { ok: true, fans: Object.keys(command.fans).length };
+      case 'deletedMessage':
+        this.page(command.pageLabel);
+        s.data.seedDeletedMessage({
+          pageLabel: command.pageLabel,
+          fanRef: command.fanRef,
+          messageId: command.messageId,
+          text: command.text,
+          deletedAt: command.deletedAt,
+          ...(command.sentAt === undefined ? {} : { sentAt: command.sentAt }),
+          ...(command.attachments === undefined ? {} : { attachments: command.attachments }),
+          ...(command.groupId === undefined ? {} : { groupId: command.groupId }),
+        });
+        return { ok: true };
       case 'messageAuthor':
         this.page(command.pageLabel);
         s.data.seedSendAttribution({
@@ -1259,6 +1273,8 @@ export class FakeHub {
         return { kind: 'json', status: 200, body: s.data.fanCard(need(page), (request as FanCardQuery).fanRef, now) };
       case 'clientFanMarks':
         return { kind: 'json', status: 200, body: fakeFanMarks(need(page), request as FanMarksQuery, now) };
+      case 'clientDeletedMessages':
+        return { kind: 'json', status: 200, body: s.data.deletedMessages(need(page), (request as DeletedMessagesQuery).fanRef, now) };
       case 'clientOtherPages':
         return { kind: 'json', status: 200, body: s.data.otherPagesOf(need(page), (request as OtherPagesRequest).fanRefs) };
       case 'clientFanLinkDecide':

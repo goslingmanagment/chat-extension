@@ -10,6 +10,8 @@ export * from "./fan-queues";
 export * from "./routes-fan-queues";
 export * from "./outreach";
 export * from "./routes-outreach";
+export * from "./chatter-stats";
+export * from "./routes-chatter-stats";
 export * from "./publication-files";
 export * from "./routes-publication-files";
 export * from "./client-token-scopes";
