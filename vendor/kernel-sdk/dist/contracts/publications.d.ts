@@ -20,13 +20,19 @@ export declare const publicationStatusSchema: z.ZodEnum<{
     missed: "missed";
     withdrawn: "withdrawn";
 }>;
-/** A file of the page's vault (the platform's media id) or one uploaded to Hub. */
+/**
+ * A file of the page's vault (the platform's media id) or one uploaded to Hub.
+ * An uploaded file's `name` is the name this draft gives it: a vault album's
+ * card is named by it (Hub keeps the same bytes once, under the name they first
+ * came with); absent — the file's own name in Hub.
+ */
 export declare const publicationMediaInputSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     source: z.ZodLiteral<"vault">;
     mediaRef: z.ZodString;
 }, z.core.$strict>, z.ZodObject<{
     source: z.ZodLiteral<"file">;
     fileId: z.ZodNumber;
+    name: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>], "source">;
 /**
  * An extra attachment of a Fansly post, after the post's own (the contract
@@ -48,6 +54,7 @@ export declare const publicationExtraAttachmentInputSchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>;
     previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
         source: z.ZodLiteral<"vault">;
@@ -55,6 +62,7 @@ export declare const publicationExtraAttachmentInputSchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>>;
     tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
     priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -85,6 +93,7 @@ export declare const publicationContentSchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>;
     previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
         source: z.ZodLiteral<"vault">;
@@ -92,6 +101,7 @@ export declare const publicationContentSchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>>;
     publishAt: z.ZodISODateTime;
     expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -117,6 +127,7 @@ export declare const publicationContentSchema: z.ZodObject<{
         }, z.core.$strict>, z.ZodObject<{
             source: z.ZodLiteral<"file">;
             fileId: z.ZodNumber;
+            name: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>], "source">>;
         previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
             source: z.ZodLiteral<"vault">;
@@ -124,6 +135,7 @@ export declare const publicationContentSchema: z.ZodObject<{
         }, z.core.$strict>, z.ZodObject<{
             source: z.ZodLiteral<"file">;
             fileId: z.ZodNumber;
+            name: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>], "source">>>;
         tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
         priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -146,6 +158,7 @@ export declare const publicationCreateBodySchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>;
     previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
         source: z.ZodLiteral<"vault">;
@@ -153,6 +166,7 @@ export declare const publicationCreateBodySchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>>;
     publishAt: z.ZodISODateTime;
     expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -178,6 +192,7 @@ export declare const publicationCreateBodySchema: z.ZodObject<{
         }, z.core.$strict>, z.ZodObject<{
             source: z.ZodLiteral<"file">;
             fileId: z.ZodNumber;
+            name: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>], "source">>;
         previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
             source: z.ZodLiteral<"vault">;
@@ -185,6 +200,7 @@ export declare const publicationCreateBodySchema: z.ZodObject<{
         }, z.core.$strict>, z.ZodObject<{
             source: z.ZodLiteral<"file">;
             fileId: z.ZodNumber;
+            name: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>], "source">>>;
         tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
         priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -208,6 +224,7 @@ export declare const publicationUpdateBodySchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>;
     previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
         source: z.ZodLiteral<"vault">;
@@ -215,6 +232,7 @@ export declare const publicationUpdateBodySchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>>;
     publishAt: z.ZodISODateTime;
     expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -240,6 +258,7 @@ export declare const publicationUpdateBodySchema: z.ZodObject<{
         }, z.core.$strict>, z.ZodObject<{
             source: z.ZodLiteral<"file">;
             fileId: z.ZodNumber;
+            name: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>], "source">>;
         previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
             source: z.ZodLiteral<"vault">;
@@ -247,6 +266,7 @@ export declare const publicationUpdateBodySchema: z.ZodObject<{
         }, z.core.$strict>, z.ZodObject<{
             source: z.ZodLiteral<"file">;
             fileId: z.ZodNumber;
+            name: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>], "source">>>;
         tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
         priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -270,6 +290,7 @@ export declare const agentPublicationCreateBodySchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>;
     previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
         source: z.ZodLiteral<"vault">;
@@ -277,6 +298,7 @@ export declare const agentPublicationCreateBodySchema: z.ZodObject<{
     }, z.core.$strict>, z.ZodObject<{
         source: z.ZodLiteral<"file">;
         fileId: z.ZodNumber;
+        name: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>], "source">>>;
     publishAt: z.ZodISODateTime;
     expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -302,6 +324,7 @@ export declare const agentPublicationCreateBodySchema: z.ZodObject<{
         }, z.core.$strict>, z.ZodObject<{
             source: z.ZodLiteral<"file">;
             fileId: z.ZodNumber;
+            name: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>], "source">>;
         previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
             source: z.ZodLiteral<"vault">;
@@ -309,6 +332,7 @@ export declare const agentPublicationCreateBodySchema: z.ZodObject<{
         }, z.core.$strict>, z.ZodObject<{
             source: z.ZodLiteral<"file">;
             fileId: z.ZodNumber;
+            name: z.ZodOptional<z.ZodString>;
         }, z.core.$strict>], "source">>>;
         tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
         priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -364,6 +388,7 @@ export declare const publicationMediaSchema: z.ZodObject<{
     mediaRef: z.ZodNullable<z.ZodString>;
     fileId: z.ZodNullable<z.ZodNumber>;
     attachment: z.ZodNumber;
+    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
 }, z.core.$strip>;
 export declare const publicationExtraAttachmentSchema: z.ZodObject<{
     attachment: z.ZodNumber;
@@ -443,6 +468,7 @@ export declare const publicationSchema: z.ZodObject<{
         mediaRef: z.ZodNullable<z.ZodString>;
         fileId: z.ZodNullable<z.ZodNumber>;
         attachment: z.ZodNumber;
+        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>>;
     findings: z.ZodArray<z.ZodObject<{
         code: z.ZodEnum<{
@@ -612,6 +638,7 @@ export declare const publicationDetailSchema: z.ZodObject<{
         mediaRef: z.ZodNullable<z.ZodString>;
         fileId: z.ZodNullable<z.ZodNumber>;
         attachment: z.ZodNumber;
+        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     }, z.core.$strip>>;
     findings: z.ZodArray<z.ZodObject<{
         code: z.ZodEnum<{
@@ -827,6 +854,7 @@ export declare const publicationListResponseSchema: z.ZodObject<{
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
             attachment: z.ZodNumber;
+            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -970,6 +998,7 @@ export declare const agentPublicationChangesResponseSchema: z.ZodObject<{
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
             attachment: z.ZodNumber;
+            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -1118,6 +1147,7 @@ export declare const publicationApproveResponseSchema: z.ZodObject<{
                 mediaRef: z.ZodNullable<z.ZodString>;
                 fileId: z.ZodNullable<z.ZodNumber>;
                 attachment: z.ZodNumber;
+                name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
             }, z.core.$strip>>;
             findings: z.ZodArray<z.ZodObject<{
                 code: z.ZodEnum<{
@@ -1261,6 +1291,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
             attachment: z.ZodNumber;
+            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -1390,6 +1421,7 @@ export declare const publicationResolveResponseSchema: z.ZodObject<{
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
             attachment: z.ZodNumber;
+            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -1576,6 +1608,7 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
             mediaRef: z.ZodNullable<z.ZodString>;
             fileId: z.ZodNullable<z.ZodNumber>;
             attachment: z.ZodNumber;
+            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         }, z.core.$strip>>;
         findings: z.ZodArray<z.ZodObject<{
             code: z.ZodEnum<{
@@ -1719,6 +1752,7 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
                 mediaRef: z.ZodNullable<z.ZodString>;
                 fileId: z.ZodNullable<z.ZodNumber>;
                 attachment: z.ZodNumber;
+                name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
             }, z.core.$strip>>;
             findings: z.ZodArray<z.ZodObject<{
                 code: z.ZodEnum<{

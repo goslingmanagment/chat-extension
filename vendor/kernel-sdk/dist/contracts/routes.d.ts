@@ -35132,6 +35132,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -35218,6 +35219,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>;
             previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 source: z.ZodLiteral<"vault">;
@@ -35225,6 +35227,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>>;
             publishAt: z.ZodISODateTime;
             expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -35250,6 +35253,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>;
                 previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                     source: z.ZodLiteral<"vault">;
@@ -35257,6 +35261,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>>;
                 tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
                 priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -35367,6 +35372,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -35543,6 +35549,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -35676,6 +35683,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>;
             previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 source: z.ZodLiteral<"vault">;
@@ -35683,6 +35691,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>>;
             publishAt: z.ZodISODateTime;
             expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -35708,6 +35717,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>;
                 previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                     source: z.ZodLiteral<"vault">;
@@ -35715,6 +35725,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>>;
                 tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
                 priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -35825,6 +35836,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -36012,6 +36024,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -36190,6 +36203,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -36377,6 +36391,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -36506,6 +36521,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -36695,6 +36711,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -36885,6 +36902,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -37075,6 +37093,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -37253,6 +37272,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -37596,6 +37616,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>;
             previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 source: z.ZodLiteral<"vault">;
@@ -37603,6 +37624,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>>;
             publishAt: z.ZodISODateTime;
             expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -37628,6 +37650,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>;
                 previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                     source: z.ZodLiteral<"vault">;
@@ -37635,6 +37658,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>>;
                 tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
                 priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -37759,6 +37783,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -37970,6 +37995,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -38289,6 +38315,7 @@ declare const baseRouteSchemas: {
                         mediaRef: z.ZodNullable<z.ZodString>;
                         fileId: z.ZodNullable<z.ZodNumber>;
                         attachment: z.ZodNumber;
+                        name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                     }, z.core.$strip>>;
                     findings: z.ZodArray<z.ZodObject<{
                         code: z.ZodEnum<{
@@ -38481,6 +38508,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -38752,6 +38780,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{
@@ -38998,6 +39027,7 @@ declare const baseRouteSchemas: {
                             mediaRef: z.ZodNullable<z.ZodString>;
                             fileId: z.ZodNullable<z.ZodNumber>;
                             attachment: z.ZodNumber;
+                            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                         }, z.core.$strip>>;
                         findings: z.ZodArray<z.ZodObject<{
                             code: z.ZodEnum<{
@@ -39088,6 +39118,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>;
             previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                 source: z.ZodLiteral<"vault">;
@@ -39095,6 +39126,7 @@ declare const baseRouteSchemas: {
             }, z.core.$strict>, z.ZodObject<{
                 source: z.ZodLiteral<"file">;
                 fileId: z.ZodNumber;
+                name: z.ZodOptional<z.ZodString>;
             }, z.core.$strict>], "source">>>;
             publishAt: z.ZodISODateTime;
             expiresAt: z.ZodDefault<z.ZodNullable<z.ZodISODateTime>>;
@@ -39120,6 +39152,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>;
                 previews: z.ZodDefault<z.ZodArray<z.ZodDiscriminatedUnion<[z.ZodObject<{
                     source: z.ZodLiteral<"vault">;
@@ -39127,6 +39160,7 @@ declare const baseRouteSchemas: {
                 }, z.core.$strict>, z.ZodObject<{
                     source: z.ZodLiteral<"file">;
                     fileId: z.ZodNumber;
+                    name: z.ZodOptional<z.ZodString>;
                 }, z.core.$strict>], "source">>>;
                 tierRefs: z.ZodDefault<z.ZodArray<z.ZodString>>;
                 priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
@@ -39251,6 +39285,7 @@ declare const baseRouteSchemas: {
                     mediaRef: z.ZodNullable<z.ZodString>;
                     fileId: z.ZodNullable<z.ZodNumber>;
                     attachment: z.ZodNumber;
+                    name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
                 }, z.core.$strip>>;
                 findings: z.ZodArray<z.ZodObject<{
                     code: z.ZodEnum<{

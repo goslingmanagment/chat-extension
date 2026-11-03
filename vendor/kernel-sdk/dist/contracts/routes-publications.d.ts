@@ -129,6 +129,7 @@ export declare const publicationRouteSchemas: {
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                         attachment: import("zod").ZodNumber;
+                        name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -215,6 +216,7 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"file">;
                 fileId: import("zod").ZodNumber;
+                name: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strict>], "source">>;
             previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"vault">;
@@ -222,6 +224,7 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"file">;
                 fileId: import("zod").ZodNumber;
+                name: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strict>], "source">>>;
             publishAt: import("zod").ZodISODateTime;
             expiresAt: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodISODateTime>>;
@@ -247,6 +250,7 @@ export declare const publicationRouteSchemas: {
                 }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"file">;
                     fileId: import("zod").ZodNumber;
+                    name: import("zod").ZodOptional<import("zod").ZodString>;
                 }, import("zod/v4/core").$strict>], "source">>;
                 previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"vault">;
@@ -254,6 +258,7 @@ export declare const publicationRouteSchemas: {
                 }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"file">;
                     fileId: import("zod").ZodNumber;
+                    name: import("zod").ZodOptional<import("zod").ZodString>;
                 }, import("zod/v4/core").$strict>], "source">>>;
                 tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
                 priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
@@ -364,6 +369,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -540,6 +546,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -673,6 +680,7 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"file">;
                 fileId: import("zod").ZodNumber;
+                name: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strict>], "source">>;
             previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"vault">;
@@ -680,6 +688,7 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"file">;
                 fileId: import("zod").ZodNumber;
+                name: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strict>], "source">>>;
             publishAt: import("zod").ZodISODateTime;
             expiresAt: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodISODateTime>>;
@@ -705,6 +714,7 @@ export declare const publicationRouteSchemas: {
                 }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"file">;
                     fileId: import("zod").ZodNumber;
+                    name: import("zod").ZodOptional<import("zod").ZodString>;
                 }, import("zod/v4/core").$strict>], "source">>;
                 previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"vault">;
@@ -712,6 +722,7 @@ export declare const publicationRouteSchemas: {
                 }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"file">;
                     fileId: import("zod").ZodNumber;
+                    name: import("zod").ZodOptional<import("zod").ZodString>;
                 }, import("zod/v4/core").$strict>], "source">>>;
                 tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
                 priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
@@ -822,6 +833,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -1009,6 +1021,7 @@ export declare const publicationRouteSchemas: {
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                             attachment: import("zod").ZodNumber;
+                            name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -1187,6 +1200,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -1374,6 +1388,7 @@ export declare const publicationRouteSchemas: {
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                         attachment: import("zod").ZodNumber;
+                        name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -1503,6 +1518,7 @@ export declare const publicationRouteSchemas: {
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                         attachment: import("zod").ZodNumber;
+                        name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -1692,6 +1708,7 @@ export declare const publicationRouteSchemas: {
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                             attachment: import("zod").ZodNumber;
+                            name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -1882,6 +1899,7 @@ export declare const publicationRouteSchemas: {
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                             attachment: import("zod").ZodNumber;
+                            name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -2072,6 +2090,7 @@ export declare const publicationRouteSchemas: {
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                             attachment: import("zod").ZodNumber;
+                            name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -2250,6 +2269,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -2593,6 +2613,7 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"file">;
                 fileId: import("zod").ZodNumber;
+                name: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strict>], "source">>;
             previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"vault">;
@@ -2600,6 +2621,7 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"file">;
                 fileId: import("zod").ZodNumber;
+                name: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strict>], "source">>>;
             publishAt: import("zod").ZodISODateTime;
             expiresAt: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodISODateTime>>;
@@ -2625,6 +2647,7 @@ export declare const publicationRouteSchemas: {
                 }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"file">;
                     fileId: import("zod").ZodNumber;
+                    name: import("zod").ZodOptional<import("zod").ZodString>;
                 }, import("zod/v4/core").$strict>], "source">>;
                 previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"vault">;
@@ -2632,6 +2655,7 @@ export declare const publicationRouteSchemas: {
                 }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"file">;
                     fileId: import("zod").ZodNumber;
+                    name: import("zod").ZodOptional<import("zod").ZodString>;
                 }, import("zod/v4/core").$strict>], "source">>>;
                 tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
                 priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
@@ -2756,6 +2780,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -2967,6 +2992,7 @@ export declare const publicationRouteSchemas: {
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                         attachment: import("zod").ZodNumber;
+                        name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -3286,6 +3312,7 @@ export declare const publicationRouteSchemas: {
                         mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                         fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                         attachment: import("zod").ZodNumber;
+                        name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                     }, import("zod/v4/core").$strip>>;
                     findings: import("zod").ZodArray<import("zod").ZodObject<{
                         code: import("zod").ZodEnum<{
@@ -3478,6 +3505,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -3749,6 +3777,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
@@ -3995,6 +4024,7 @@ export declare const publicationRouteSchemas: {
                             mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                             fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                             attachment: import("zod").ZodNumber;
+                            name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                         }, import("zod/v4/core").$strip>>;
                         findings: import("zod").ZodArray<import("zod").ZodObject<{
                             code: import("zod").ZodEnum<{
@@ -4085,6 +4115,7 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"file">;
                 fileId: import("zod").ZodNumber;
+                name: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strict>], "source">>;
             previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"vault">;
@@ -4092,6 +4123,7 @@ export declare const publicationRouteSchemas: {
             }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                 source: import("zod").ZodLiteral<"file">;
                 fileId: import("zod").ZodNumber;
+                name: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strict>], "source">>>;
             publishAt: import("zod").ZodISODateTime;
             expiresAt: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodISODateTime>>;
@@ -4117,6 +4149,7 @@ export declare const publicationRouteSchemas: {
                 }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"file">;
                     fileId: import("zod").ZodNumber;
+                    name: import("zod").ZodOptional<import("zod").ZodString>;
                 }, import("zod/v4/core").$strict>], "source">>;
                 previews: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodDiscriminatedUnion<[import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"vault">;
@@ -4124,6 +4157,7 @@ export declare const publicationRouteSchemas: {
                 }, import("zod/v4/core").$strict>, import("zod").ZodObject<{
                     source: import("zod").ZodLiteral<"file">;
                     fileId: import("zod").ZodNumber;
+                    name: import("zod").ZodOptional<import("zod").ZodString>;
                 }, import("zod/v4/core").$strict>], "source">>>;
                 tierRefs: import("zod").ZodDefault<import("zod").ZodArray<import("zod").ZodString>>;
                 priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
@@ -4248,6 +4282,7 @@ export declare const publicationRouteSchemas: {
                     mediaRef: import("zod").ZodNullable<import("zod").ZodString>;
                     fileId: import("zod").ZodNullable<import("zod").ZodNumber>;
                     attachment: import("zod").ZodNumber;
+                    name: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodString>>;
                 }, import("zod/v4/core").$strip>>;
                 findings: import("zod").ZodArray<import("zod").ZodObject<{
                     code: import("zod").ZodEnum<{
