@@ -164,6 +164,8 @@ interface Entry {
   /** Lifetime left when the hold began. */
   left: number;
   timer: unknown;
+  /** A hold stopped its timer: letting go arms it again. A toast that stays until closed has no timer to hold. */
+  held?: boolean;
   /** 2026-10-31: the card of a handed-over «Hi»; `seen` — the fan's chat was on screen, `sent` — the fan got a message from it. */
   arrived?: { readonly page: string; readonly from: GreetFrom; seen: boolean; sent: boolean };
 }
@@ -259,6 +261,10 @@ export function createShellController(ports: ShellPorts): ShellController {
     if (check.state === 'running') {
       title = i18n.t('toast.newcomersRunning.title');
       body = check.listed ? i18n.t('toast.newcomersRunning.body', counts) : i18n.t('toast.newcomersRunning.bodyList');
+    } else if (check.state === 'done' && (check.failed > 0 || check.partial)) {
+      // A fan whose check failed, or a list Fansly gave only in part: never «проверены».
+      title = i18n.t('toast.newcomersPartial.title');
+      body = check.failed > 0 ? i18n.t('toast.newcomersPartial.body', counts) : i18n.t('toast.newcomersPartial.bodyList', counts);
     } else if (check.state === 'done') {
       title = i18n.t('toast.newcomersDone.title');
       body = check.total === 0 ? i18n.t('toast.newcomersDone.bodyEmpty') : check.todo === 0 ? i18n.t('toast.newcomersDone.bodyNone', counts) : i18n.t('toast.newcomersDone.body', counts);
@@ -477,8 +483,12 @@ export function createShellController(ports: ShellPorts): ShellController {
           entry.left = Math.max(0, entry.expiresAt - clock.now());
           stop(entry);
           entry.expiresAt = null;
+          entry.held = true;
           changed();
-        } else if (!action.hold && entry.expiresAt === null) {
+        } else if (!action.hold && entry.held === true) {
+          // 2026-11-04: only a timer the hold stopped goes on; one never started (the end of a check of «Новые», the AI
+          // limit) used to be armed here, and the toast went a second after the pointer passed over it.
+          entry.held = false;
           arm(entry, Math.max(HELD_MIN_LEFT_MS, entry.left));
           changed();
         }

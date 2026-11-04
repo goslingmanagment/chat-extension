@@ -585,9 +585,9 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
       const ids = creatorIds(kit, summary.creator);
       const page = bootstrap.pages.find((entry) => entry.platform === 'fansly' && entry.platformAccountId !== null && ids.includes(entry.platformAccountId));
       if (page === undefined || !flagUsable(bootstrap, page.pageId, 'newcomers')) return;
-      const kind = summary.state === 'running' ? 'info' : summary.state === 'done' ? 'success' : 'warning';
-      const { state, total, checked, todo, listed } = summary;
-      kit.router.events.emit(tab, 'toast', { toast: { toastId: kit.ids.uuid(), kind, scope: 'newcomers.pass', fanLabel: null, newcomers: { state, total, checked, todo, listed } } });
+      const { state, total, checked, todo, failed, partial, listed } = summary;
+      const kind = state === 'running' ? 'info' : state === 'done' && failed === 0 && !partial ? 'success' : 'warning';
+      kit.router.events.emit(tab, 'toast', { toast: { toastId: kit.ids.uuid(), kind, scope: 'newcomers.pass', fanLabel: null, newcomers: { state, total, checked, todo, failed, partial, listed } } });
     },
   });
 }

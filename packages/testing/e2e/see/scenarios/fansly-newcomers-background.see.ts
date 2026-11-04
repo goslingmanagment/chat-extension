@@ -32,6 +32,11 @@ scenario(
     await s.see('toast', 'Новые фоловеры проверены', 60_000);
     await s.shot('newcomers-done-toast');
     await s.shot('newcomers-done-toast-crop', { clip: around([await s.rect('toast', '.cg-toast')], [16, 16, 16, 4]) });
+    // It stays after the pointer passed over it (the review, 2026-11-04: it went a second later).
+    await s.h.ours('toast', '.cg-toast').moveTo();
+    await s.browser.action('pointer').move({ x: 300, y: 500 }).perform();
+    await s.wait(2500);
+    await s.see('toast', 'Новые фоловеры проверены', 1000);
     await s.press(/^Открыть$/, 'toast', '.cg-toast__acts button');
     await s.browser.waitUntil(async () => (await checked()) === FANS.length, { timeout: 30_000, timeoutMsg: 'the window did not come back checked' });
     // Opened again, the pass reads the followers since its end (#333): the picture waits for that read.

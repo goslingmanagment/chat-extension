@@ -914,3 +914,61 @@ describe('[host:fansly] «Новые» on Fansly: a batch generated for many, ea
     expect(marked.background.of('fansly.followers.send')[0]).toMatchObject({ text: 'Hey!', admission: { kind: 'ai', generationRef: GEN } });
   });
 });
+
+describe('[host:fansly] «Новые» closed while a read is under way (2026-11-04)', () => {
+it('2026-11-04: a list read under way when the window closes reads no more (it would hold the pass for the closed window)', async () => {
+  const w = greetingWorld([wireRow(1)]);
+  try {
+    await w.open();
+    const passId = w.background.last().view.passId;
+    w.background.held.add('fansly.followers.read');
+
+    // seq=1 starts a read. Its reply is delayed; its snapshot covers seq=1.
+    w.background.change(passId, [wireRow(1)], {}, 1);
+    const snapshot = w.background.last();
+    w.background.next.set('fansly.followers.read', {
+      ok: true,
+      payload: {
+        pass: snapshot.view,
+        rows: [wireRow(1)],
+        total: 1,
+        seq: 1,
+        counts: {
+          tabs: { todo: 1, all: 1 },
+          filters: {
+            any: 1,
+            ready: 1,
+            pending: 0,
+            reply: 0,
+            unchecked: 0,
+            'dm-closed': 0,
+            contacted: 0,
+          },
+        },
+      },
+    });
+    // While the read is pending, the controller queues a newer event.
+    w.background.change(passId, [wireRow(1)], {}, 2);
+    await w.controller.dispatch({
+      type: 'Navigate',
+      to: { kind: 'surface', surface: 'newcomers', open: false },
+    });
+    expect(w.background.of('fansly.followers.close').at(-1)).toEqual({
+      passId,
+      background: true,
+    });
+    const afterClose = w.background.requests.length;
+    w.background.release();
+    await settle();
+
+    // On the current head this contains a read: firstPage processes held seq=2.
+    expect(
+      w.background.requests.slice(afterClose)
+        .filter((request) => request.type === 'fansly.followers.read'),
+    ).toEqual([]);
+  } finally {
+    w.background.release();
+    w.controller.dispose();
+  }
+});
+});

@@ -177,8 +177,9 @@ export const BackgroundToastSchema = z.strictObject({
    * 2026-11-04 (the owner: «закроем окно, он же должен продолжиться и прислать alert, что скан закончился»): the check of
    * Fansly's «Новые» the person left running when they closed the window — `running` right after the close, then once
    * `done` or `stopped` (the same scope: it takes the place of the first). The counts are the window's: everyone in the
-   * period, those checked, «К обработке»; `listed` — the period's followers are read (before that the counts say nothing).
-   * Its «Открыть» opens the window on the same pass.
+   * period, those checked, «К обработке», those whose check failed; `partial` — Fansly did not let the list be read to its
+   * end; `listed` — the period's followers are read (before that the counts say nothing). Its «Открыть» opens the window
+   * on the same pass.
    */
   newcomers: z.optional(
     z.strictObject({
@@ -186,6 +187,8 @@ export const BackgroundToastSchema = z.strictObject({
       total: CountSchema,
       checked: CountSchema,
       todo: CountSchema,
+      failed: CountSchema,
+      partial: z.boolean(),
       listed: z.boolean(),
     }),
   ),

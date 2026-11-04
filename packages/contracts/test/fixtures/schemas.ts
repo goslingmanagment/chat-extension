@@ -1279,13 +1279,14 @@ export const SCHEMA_FIXTURES: readonly SchemaFixture[] = [
       toast,
       { toastId: uuid(21), kind: 'error', scope: 'hub', error: { code: 'CG-HUB-TIMEOUT' }, fanLabel: null },
       fanslyToast,
-      { toastId: uuid(23), kind: 'success', scope: 'newcomers.pass', fanLabel: null, newcomers: { state: 'done', total: 75, checked: 75, todo: 13, listed: true } },
+      { toastId: uuid(23), kind: 'success', scope: 'newcomers.pass', fanLabel: null, newcomers: { state: 'done', total: 75, checked: 75, todo: 13, failed: 0, partial: false, listed: true } },
     ],
     [
       { ...toast, kind: 'fatal' },
       { ...fanslyToast, conversationRef: 'group-3' },
       { ...fanslyToast, conversationRef: 7003 },
-      { toastId: uuid(23), kind: 'success', scope: 'newcomers.pass', fanLabel: null, newcomers: { state: 'paused', total: 75, checked: 75, todo: 13, listed: true } },
+      { toastId: uuid(23), kind: 'success', scope: 'newcomers.pass', fanLabel: null, newcomers: { state: 'paused', total: 75, checked: 75, todo: 13, failed: 0, partial: false, listed: true } },
+      { toastId: uuid(23), kind: 'success', scope: 'newcomers.pass', fanLabel: null, newcomers: { state: 'done', total: 75, checked: 75, todo: 13, listed: true } },
     ],
   ),
   fixture(

@@ -419,7 +419,8 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
 
   /** The first rows, or the rows on screen again (a gap in the changes, a port that came back): `limit` rows from the top. */
   async function firstPage(mine: number, limit: number): Promise<void> {
-    if (pass === null) return;
+    // A closed window reads nothing: a read would hold the pass for it again, and the check would not tell its end.
+    if (pass === null || !open()) return;
     const request = ++readRun;
     const wanted = query();
     reading = true;
@@ -888,7 +889,7 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
 
   /** The card shows the selected fan's conversation when the pass read it: asked once per fan and check of the fan (`checkKey`). */
   function ensureHistory(): void {
-    if (disposed) return;
+    if (disposed || !open()) return;
     const fanRef = selected;
     if (fanRef === null || histories.has(fanRef)) return;
     const row = rowOf(fanRef);
@@ -1299,8 +1300,14 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
         // Closing the window leaves the check under way running in the background, told back as a toast (2026-11-04);
         // what the window shows — the rows, the card, the batch's drafts — stays for the next open of the same pass
         // (the owner, 2026-10-23). A window that showed no pass lets everything go.
-        if (pass !== null && stage === 'live') source.close(pass.passId, true);
-        else letGo(true);
+        if (pass !== null && stage === 'live') {
+          // A read under way stops here (2026-11-04: its answer used to read on, and the check never told its end).
+          readRun += 1;
+          reading = false;
+          loadingMore = false;
+          held = [];
+          source.close(pass.passId, true);
+        } else letGo(true);
         if (searchTimer !== null) clock.clearTimer(searchTimer);
         searchTimer = null;
         applied = typed;

@@ -177,6 +177,10 @@ export interface FanslyPassSummary {
   readonly checked: number;
   /** «К обработке», as the window counts it. */
   readonly todo: number;
+  /** Rows whose check failed: «проверены» is not said over them. */
+  readonly failed: number;
+  /** Fansly did not let the period's list be read to its end (NF-025). */
+  readonly partial: boolean;
   /** The period's followers are read: before that the counts say nothing. */
   readonly listed: boolean;
 }
@@ -360,6 +364,8 @@ interface Work {
   readonly hasty?: true;
   /** «Проверить чат» on a standing queue: one fan, then the queue stands again — no check a closed window leaves running. */
   readonly lone?: true;
+  /** Another work took the pass while this one stopped: it writes nothing more of the rows. */
+  replaced?: true;
 }
 
 const workOf = (stop: AbortSwitch, done: Promise<void> = Promise.resolve()): Work => ({ stop, done, again: new Map(), spent: new Set() });
@@ -689,6 +695,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       spent: new Set(),
       ...(lone ? { lone: true as const } : {}),
     };
+    if (pass.work !== null) pass.work.replaced = true;
     pass.work = work;
     return work;
   }
@@ -723,7 +730,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   function summaryOf(pass: Pass, state: FanslyPassSummary['state']): FanslyPassSummary {
     const { counts } = viewOf(pass);
     const todo = pass.rows.filter((row) => inPassTab(checkOf(row.view), 'todo', row.view.checkedAt)).length;
-    return { creator: pass.creator, state, total: counts.total, checked: counts.checked, todo, listed: pass.followers.read };
+    const failed = pass.rows.filter((row) => row.view.status === 'failed').length;
+    return { creator: pass.creator, state, total: counts.total, checked: counts.checked, todo, failed, partial: pass.partial, listed: pass.followers.read };
   }
 
   function tell(pass: Pass, tab: string, state: FanslyPassSummary['state']): void {
@@ -1064,7 +1072,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       return 0;
     } catch (error) {
       if (error instanceof Aborted || work.stop.aborted) {
-        set(pass, row, { status: before === 'checking' ? 'pending' : before });
+        // A work replaced meanwhile leaves the row to its successor, which may have checked it already.
+        if (work.replaced !== true) set(pass, row, { status: before === 'checking' ? 'pending' : before });
         throw new Aborted();
       }
       const { kind, wire } = failureOf(error);
@@ -1628,7 +1637,11 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
   function find(passId: string, tab: string): Pass | null {
     const pass = byId_.get(passId);
     // A reminder's Hi's pass of one fan is no window's: nobody holds it, reads its rows or runs its queue.
-    if (pass !== undefined) return !soloById.has(passId) && holds(pass, tab) ? pass : null;
+    if (pass !== undefined && soloById.has(passId)) return null;
+    // 2026-11-04: a late request of a window the person closed (a read in flight, its card's history) is answered, and
+    // the tab stays the check's keeper; only the window opened again (`scan`) holds the pass for it.
+    if (pass !== undefined && pass.keepers.has(tab)) return deps.tabOn(tab, pass.creator) ? pass : null;
+    if (pass !== undefined) return holds(pass, tab) ? pass : null;
     const window = windows.get(tab);
     const current = window?.passId === passId ? passes.get(window.creator) : undefined;
     return current !== undefined && current.watchers.has(tab) && deps.tabOn(tab, current.creator) ? current : null;
@@ -1730,7 +1743,9 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     if (!watched && !kept) return { recorded: false };
     if (watched) windows.delete(tab);
     note(pass, 'pass.close', { state: pass.base, reason: 'window' });
-    if (watched && payload.background === true && running(pass) && pass.work?.lone !== true && deps.told !== undefined && deps.alive(tab) && deps.tabOn(tab, pass.creator)) {
+    // Only a check with something left: a glance at a finished one (its refresh of the followers since) owes no toasts.
+    const left = !pass.followers.read || pass.rows.some(needsCheck);
+    if (watched && payload.background === true && left && running(pass) && pass.work?.lone !== true && deps.told !== undefined && deps.alive(tab) && deps.tabOn(tab, pass.creator)) {
       pass.keepers.add(tab);
       tell(pass, tab, 'running');
     }
