@@ -8,8 +8,9 @@
 //
 // The identity guard (NF-026): another sign-in, hub, account or binding — the context's epoch — and another period end
 // everything in flight: late answers and changes of the old pass are dropped, the pass is let go. A pass of another
-// account is nobody's here. A closed window only lets the background's work stand: what it showed waits for the next
-// open, which goes on with the same pass (the owner, 2026-10-23).
+// account is nobody's here. What a closed window showed waits for the next open, which goes on with the same pass (the
+// owner, 2026-10-23); the check under way goes on in the background while the tab lives and its end comes as a toast
+// (2026-11-04, the owner: «закроем окно, он же должен продолжиться и прислать alert, что скан закончился»).
 //
 // R20 P10b1, NF-038: the queue's buttons — «Пауза», «Проверить оставшихся» (`SetNewcomersPassRunning`), «Проверить
 // следующим» / «Проверить чат» (`CheckNewcomerNext`) — ask the source; what changed comes back as the pass's changes.
@@ -1295,10 +1296,10 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
     surfaces.subscribe((state, previous) => {
       if (state.newcomers && !previous.newcomers) void start(false);
       else if (!state.newcomers && previous.newcomers) {
-        // Closing the window lets the background's work stand (FS-NEW-4); what the window shows — the rows, the card,
-        // the batch's drafts — stays for the next open of the same pass (the owner, 2026-10-23). A window that showed
-        // no pass lets everything go.
-        if (pass !== null && stage === 'live') source.close(pass.passId);
+        // Closing the window leaves the check under way running in the background, told back as a toast (2026-11-04);
+        // what the window shows — the rows, the card, the batch's drafts — stays for the next open of the same pass
+        // (the owner, 2026-10-23). A window that showed no pass lets everything go.
+        if (pass !== null && stage === 'live') source.close(pass.passId, true);
         else letGo(true);
         if (searchTimer !== null) clock.clearTimer(searchTimer);
         searchTimer = null;

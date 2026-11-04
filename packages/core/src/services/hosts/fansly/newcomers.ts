@@ -19,7 +19,11 @@
 // the last 30, as the old).
 //
 // FS-NEW-4: nothing runs unless a window opened the pass (`scan`) — never at the browser's start —, and it stops
-// when no window holds it. The person's own buttons come first (NF-038): «Пауза» stops the queue after the request
+// when no window holds it. 2026-11-04 (the owner: «закроем окно, он же должен продолжиться и прислать alert, что скан
+// закончился»): a window the person closed (`close` with `background`) leaves a check under way running while its tab
+// lives — the tab's keepalive keeps the event page up —; the tab is told at once that it goes on, and once more when it
+// is over (`told`: a toast with «Открыть»). The tab gone, on another account, or its window opened again — it is the
+// window's again. The person's own buttons come first (NF-038): «Пауза» stops the queue after the request
 // in flight, «Проверить оставшихся» checks the rest, «Проверить следующим» puts a fan first, and «Проверить чат» on a
 // standing queue checks that fan alone, now. A cooldown of the creator's lane (our own 429) is waited out by the
 // pacer; meanwhile the pass says `cooldown` with its end — the window's banner — and goes on by itself. Five failures
@@ -38,7 +42,7 @@
 // `greeted` (the card's greeting went: the row is «Уже писали»). Every walked history is told to the send
 // (`onHistory`): a receipt the echo never confirmed is confirmed by it.
 // Never: a request for another creator's session, a send of its own, a text in the log. The pass lives in the event
-// page's memory: an open window's port keeps the page awake; a pass nobody holds stands still, and the next `scan` of
+// page's memory: its tab's keepalive keeps the page awake; a pass nobody holds stands still, and the next `scan` of
 // its period takes it up again with what it found — only the welcome texts and the followers since its end are read,
 // and the new ones checked (2026-10-23).
 // Its metadata journal is a separate port (P10b3, NF-029, FS-NEW-5): IDB with rotation and only a small memory tail.
@@ -158,6 +162,23 @@ export interface FanslyNewcomersDeps {
   readonly log?: ServiceLog;
   /** R20 P10c: a history the pass walked — its group, its ids, read to its start (the send confirms receipts by it). */
   readonly onHistory?: (groupId: string, ids: readonly string[], complete: boolean) => void;
+  /**
+   * 2026-11-04: the check a tab's closed window left running — it goes on (`running`, at the close), it is over (`done`,
+   * `stopped`, once). The caller makes it the tab's toast (if «Новые» are still on for the creator's page).
+   */
+  readonly told?: (tabSessionId: string, summary: FanslyPassSummary) => void;
+}
+
+/** 2026-11-04: what the toast of a check left running in the background says (`told`): the window's counts. */
+export interface FanslyPassSummary {
+  readonly creator: string;
+  readonly state: 'running' | 'done' | 'stopped';
+  readonly total: number;
+  readonly checked: number;
+  /** «К обработке», as the window counts it. */
+  readonly todo: number;
+  /** The period's followers are read: before that the counts say nothing. */
+  readonly listed: boolean;
 }
 
 /** storage.local: `fansly.newcomers.excluded.<creator>.<fan>` → `{ at }` — the fan is out of «К обработке» (FS-NEW-2). */
@@ -337,6 +358,8 @@ interface Work {
   readonly spent: Set<string>;
   /** The person waits on it (a reminder's Hi): a refusal is its failure — no session, no cooldown is waited out. */
   readonly hasty?: true;
+  /** «Проверить чат» on a standing queue: one fan, then the queue stands again — no check a closed window leaves running. */
+  readonly lone?: true;
 }
 
 const workOf = (stop: AbortSwitch, done: Promise<void> = Promise.resolve()): Work => ({ stop, done, again: new Map(), spent: new Set() });
@@ -396,6 +419,8 @@ interface Pass {
   /** Chats the inbox named: leads the check confirms. */
   readonly leads: Map<string, PassChat>;
   readonly watchers: Set<string>;
+  /** 2026-11-04: tabs whose window the person closed on the check under way: it goes on for them, and tells them its end. */
+  readonly keepers: Set<string>;
   readonly life: AbortSwitch;
   work: Work | null;
   preferred: string | null;
@@ -538,11 +563,13 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         windows.delete(tab);
       }
     }
+    for (const tab of [...pass.keepers]) if (!deps.alive(tab) || !deps.tabOn(tab, pass.creator)) pass.keepers.delete(tab);
     if (pass.watchers.size === 0) {
       pass.dirty.clear();
       pass.passDirty = false;
-      // Nobody holds the pass any more (its tabs are gone): it stops (FS-NEW-4).
-      standStill(pass);
+      // Nobody holds the pass any more (its tabs are gone, or on another account): it stops (FS-NEW-4). A closed
+      // window's tab that lives keeps it going (2026-11-04).
+      if (pass.keepers.size === 0) standStill(pass);
       return;
     }
     const rows = [...pass.dirty].map((row) => row.view);
@@ -586,7 +613,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
         if (call.click === true || work.hasty === true) throw error;
         // 2026-10-27: a window that opens with the page (a reload) asks before the page's own first request gave the
         // creator's session; nothing left, so the pass waits for it a little instead of stopping at once.
-        if (kind === 'session' && waited < SESSION_WAIT_MS && pass.watchers.size > 0) {
+        if (kind === 'session' && waited < SESSION_WAIT_MS && (pass.watchers.size > 0 || pass.keepers.size > 0)) {
           note(pass, 'call.wait', { route: call.route, waitMs: SESSION_LOOK_MS, reason: 'session' });
           await deps.sleep(SESSION_LOOK_MS, work.stop);
           waited += SESSION_LOOK_MS;
@@ -627,7 +654,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
 
   // ── the work ──
 
-  function begin(pass: Pass, base: 'scanning' | 'queue', body: (work: Work) => Promise<void>): Work {
+  function begin(pass: Pass, base: 'scanning' | 'queue', body: (work: Work) => Promise<void>, lone = false): Work {
     const stop = new AbortSwitch();
     pass.life.addEventListener('abort', () => stop.abort());
     let running = true;
@@ -639,21 +666,28 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       stop,
       done: Promise.resolve().then(async () => {
         void watchCooling(pass, work, () => running);
+        // A work another one replaced while it stopped (a window that took a running check back) leaves the pass to it.
+        const current = (): boolean => pass.work === work;
         try {
           await body(work);
-          if (!stop.aborted) settle(pass, 'done');
+          if (!stop.aborted && current()) settle(pass, 'done');
         } catch (error) {
-          if (error instanceof Aborted || stop.aborted) settle(pass, pass.base === 'stopped' ? 'stopped' : 'paused');
+          if (!current()) note(pass, 'pass.end', { state: 'replaced' });
+          else if (error instanceof Aborted || stop.aborted) settle(pass, pass.base === 'stopped' ? 'stopped' : 'paused');
           else halt(pass, failureOf(error).wire);
         } finally {
           running = false;
-          for (const row of pass.rows) if (row.view.status === 'checking') set(pass, row, { status: 'pending' });
-          if (pass.work === work) pass.work = null;
+          if (current()) {
+            for (const row of pass.rows) if (row.view.status === 'checking') set(pass, row, { status: 'pending' });
+            pass.work = null;
+          }
           touch(pass);
+          over(pass);
         }
       }),
       again: new Map(),
       spent: new Set(),
+      ...(lone ? { lone: true as const } : {}),
     };
     pass.work = work;
     return work;
@@ -682,6 +716,33 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     note(pass, 'queue.pause', { state: pass.base });
     if (pass.base !== 'stopped') pass.base = 'paused';
     pass.work.stop.abort();
+  }
+
+  // ── a check left running by a closed window (2026-11-04) ──
+
+  function summaryOf(pass: Pass, state: FanslyPassSummary['state']): FanslyPassSummary {
+    const { counts } = viewOf(pass);
+    const todo = pass.rows.filter((row) => inPassTab(checkOf(row.view), 'todo', row.view.checkedAt)).length;
+    return { creator: pass.creator, state, total: counts.total, checked: counts.checked, todo, listed: pass.followers.read };
+  }
+
+  function tell(pass: Pass, tab: string, state: FanslyPassSummary['state']): void {
+    if (deps.told === undefined || !deps.alive(tab) || !deps.tabOn(tab, pass.creator)) return;
+    note(pass, 'pass.told', { state });
+    try {
+      deps.told(tab, summaryOf(pass, state));
+    } catch (error) {
+      log({ level: 'warn', scope: 'bg.fansly.newcomers', msg: 'the end of a check was not told', fields: { reason: error instanceof Error ? error.name : 'thrown' } });
+    }
+  }
+
+  /** The work ended: the tabs that left it running hear how, once; a pass that stands (paused) owes them nothing. */
+  function over(pass: Pass): void {
+    if (pass.work !== null || pass.keepers.size === 0 || byId_.get(pass.id) !== pass) return;
+    const tabs = [...pass.keepers];
+    pass.keepers.clear();
+    if (pass.base !== 'done' && pass.base !== 'stopped') return;
+    for (const tab of tabs) if (!pass.watchers.has(tab)) tell(pass, tab, pass.base);
   }
 
   function phase(pass: Pass, next: Phase): void {
@@ -1362,6 +1423,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     // A window that came back after a lost port reads again from its tab: it holds the pass if it is on its creator.
     if (!deps.tabOn(tab, pass.creator)) return false;
     pass.watchers.add(tab);
+    // Its window is open again: it shows the end itself.
+    pass.keepers.delete(tab);
     windows.set(tab, { passId: pass.id, creator: pass.creator });
     watch(pass);
     return true;
@@ -1492,7 +1555,11 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     // what it found; a pass that stands reads the welcome texts and the followers since its end and checks the new ones
     // (`refresh`); a «Пауза» belongs to the window that was open and goes on too. Another period is another pass.
     if (open !== undefined && open.windowHours === windowHours) {
+      // 2026-11-04: a check a closed window left running is taken back as a standing one is: it stops after the request
+      // in flight and goes on from the followers since its end, so a fan who followed meanwhile is read too.
+      const left = running(open) && open.watchers.size === 0 && open.work?.lone !== true;
       holds(open, tab);
+      if (left) standStill(open);
       if (!running(open)) {
         note(open, 'queue.resume', { state: open.base });
         if (open.followers.read) begin(open, 'scanning', (work) => refresh(open, work));
@@ -1520,6 +1587,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       byFan: new Map(),
       leads: new Map(),
       watchers,
+      keepers: new Set(),
       life: new AbortSwitch(),
       work: null,
       preferred: null,
@@ -1552,6 +1620,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     note(pass, 'pass.close', { state: pass.base, reason: 'released' });
     pass.life.abort();
     pass.watchers.clear();
+    pass.keepers.clear();
     passes.delete(pass.creator);
     byId_.delete(pass.id);
   }
@@ -1634,21 +1703,38 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     // not checked) — this fan alone, now; then it stands again.
     const was = pass.base;
     note(pass, 'queue.prioritize', { fanRef: row.view.fanRef, reason: 'now' });
-    begin(pass, 'queue', async (work) => {
-      await queue(pass, work, row.view.fanRef);
-      // Not «done» while others wait: the queue stands, «Проверить оставшихся: N».
-      if ((was === 'paused' || was === 'stopped') && pass.rows.some(needsCheck)) throw new Aborted();
-    });
+    begin(
+      pass,
+      'queue',
+      async (work) => {
+        await queue(pass, work, row.view.fanRef);
+        // Not «done» while others wait: the queue stands, «Проверить оставшихся: N».
+        if ((was === 'paused' || was === 'stopped') && pass.rows.some(needsCheck)) throw new Aborted();
+      },
+      true,
+    );
     return { recorded: true };
   }
 
+  /**
+   * The window closed. `background` — the person closed it (2026-11-04): a check under way goes on for this tab and tells
+   * it its end; without it (another period, account or sign-in) the tab lets the pass go, a running one stands with the
+   * last tab that held it.
+   */
   function close(payload: Payload<'fansly.followers.close'>, tab: string): Answer<'fansly.followers.close'> {
     const window = windows.get(tab);
     const pass = window?.passId === payload.passId ? passes.get(window.creator) : byId_.get(payload.passId);
-    if (pass === undefined || !pass.watchers.delete(tab)) return { recorded: false };
-    windows.delete(tab);
+    if (pass === undefined) return { recorded: false };
+    const watched = pass.watchers.delete(tab);
+    const kept = pass.keepers.delete(tab);
+    if (!watched && !kept) return { recorded: false };
+    if (watched) windows.delete(tab);
     note(pass, 'pass.close', { state: pass.base, reason: 'window' });
-    if (pass.watchers.size === 0) {
+    if (watched && payload.background === true && running(pass) && pass.work?.lone !== true && deps.told !== undefined && deps.alive(tab) && deps.tabOn(tab, pass.creator)) {
+      pass.keepers.add(tab);
+      tell(pass, tab, 'running');
+    }
+    if (pass.watchers.size === 0 && pass.keepers.size === 0) {
       standStill(pass);
       touch(pass);
     }
@@ -1991,6 +2077,7 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       byFan: new Map(rows.map((row) => [row.view.fanRef, row])),
       leads: new Map(),
       watchers: new Set(),
+      keepers: new Set(),
       life: new AbortSwitch(),
       work: null,
       preferred: null,

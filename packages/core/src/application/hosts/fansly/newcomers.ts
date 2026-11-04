@@ -112,9 +112,9 @@ export function createFanslyNewcomersSource(port: FanslyFollowersPort, origin: s
       const answer = await port.request('fansly.followers.exclude', { passId, fanRef, excluded });
       return answer.ok ? { ok: true, value: answer.payload.recorded } : { ok: false, failure: envelope(answer.error) };
     },
-    close(passId) {
+    close(passId, background) {
       // Nobody waits for it: the pass keeps its results either way.
-      void port.request('fansly.followers.close', { passId }).catch(() => undefined);
+      void port.request('fansly.followers.close', background === true ? { passId, background: true } : { passId }).catch(() => undefined);
     },
     onChange: (listener) => port.onChanged((change) => listener(passChangeOf(change))),
     onReconnect: (listener) => port.onReconnect(listener),

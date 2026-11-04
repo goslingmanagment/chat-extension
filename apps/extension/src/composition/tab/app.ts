@@ -509,6 +509,8 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
     },
     i18n,
     clock,
+    // 2026-11-04: the toasts of a check of «Новые» go once its window opens.
+    overlays: keys.overlays,
     chatHandle: (chat, conversationRef) => navigationChunk.chatHandle(chat, conversationRef),
     greetHere: {
       state: (handle) => boardsReady?.greetHere(handle) ?? null,

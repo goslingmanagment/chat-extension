@@ -174,6 +174,22 @@ export const BackgroundToastSchema = z.strictObject({
     }),
   ),
   /**
+   * 2026-11-04 (the owner: «закроем окно, он же должен продолжиться и прислать alert, что скан закончился»): the check of
+   * Fansly's «Новые» the person left running when they closed the window — `running` right after the close, then once
+   * `done` or `stopped` (the same scope: it takes the place of the first). The counts are the window's: everyone in the
+   * period, those checked, «К обработке»; `listed` — the period's followers are read (before that the counts say nothing).
+   * Its «Открыть» opens the window on the same pass.
+   */
+  newcomers: z.optional(
+    z.strictObject({
+      state: z.enum(['running', 'done', 'stopped']),
+      total: CountSchema,
+      checked: CountSchema,
+      todo: CountSchema,
+      listed: z.boolean(),
+    }),
+  ),
+  /**
    * The person's own daily AI limit: `low` at 80 % of it, `out` when it is spent (once a Moscow day each). The tab
    * writes «Потрачено $2.80 из $3.50» and when the AI comes back.
    */

@@ -577,6 +577,18 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
     log: kit.log.service,
     // A receipt the echo never confirmed is confirmed by a history that shows its id (§8.6).
     onHistory: (groupId, ids, complete) => send?.history(groupId, ids, complete),
+    // 2026-11-04: the check a closed window left running — it goes on, then how it ended — as that tab's toast, while
+    // Fansly is on and the creator's page has «Новые» on.
+    told(tab, summary) {
+      const bootstrap = kit.hub.bootstrap();
+      if (kit.siteActive?.() === false || bootstrap === null) return;
+      const ids = creatorIds(kit, summary.creator);
+      const page = bootstrap.pages.find((entry) => entry.platform === 'fansly' && entry.platformAccountId !== null && ids.includes(entry.platformAccountId));
+      if (page === undefined || !flagUsable(bootstrap, page.pageId, 'newcomers')) return;
+      const kind = summary.state === 'running' ? 'info' : summary.state === 'done' ? 'success' : 'warning';
+      const { state, total, checked, todo, listed } = summary;
+      kit.router.events.emit(tab, 'toast', { toast: { toastId: kit.ids.uuid(), kind, scope: 'newcomers.pass', fanLabel: null, newcomers: { state, total, checked, todo, listed } } });
+    },
   });
 }
 
