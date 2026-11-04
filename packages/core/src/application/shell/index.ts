@@ -21,6 +21,11 @@
 // chat with the text in its field, which closes the toast) — and the person
 // stays in their chat; «Отправлено» closes it a moment later.
 //
+// 2026-11-04 (the owner: «закроем окно, он же должен продолжиться и прислать alert, что скан закончился»): the check of
+// Fansly's «Новые» a closed window left running says so once, «Проверяю новых фоловеров в фоне» (it goes like any
+// toast), and then how it ended — «Новые фоловеры проверены · К обработке 13 из 75», or that it stopped —, which stays
+// until its × or its «Открыть» (the window on the same pass), or until the window opens some other way.
+//
 // 2026-10-31 (Grisha: «иногда hi в уведомлении переключает на вторую вкладку
 // … есть какой то индикатор что это произойдет? … я теряюсь»): a reminder about
 // a fan of another page (Fansly shows it in every tab on screen) wears that
@@ -133,6 +138,11 @@ export interface ShellPorts {
     fanOnScreen(): string | null;
     subscribe(listener: (sentTo: string | null) => void): () => void;
   };
+  /**
+   * 2026-11-04: our open windows — the toasts of a check of «Новые» go once its window is open (their «Открыть», the chip,
+   * a key), and none comes while it is. Absent — they stay until closed.
+   */
+  readonly overlays?: { isOpen(overlay: 'newcomers'): boolean; subscribe(listener: () => void): () => void };
 }
 
 export interface ShellController {
@@ -154,6 +164,8 @@ interface Entry {
   /** Lifetime left when the hold began. */
   left: number;
   timer: unknown;
+  /** A hold stopped its timer: letting go arms it again. A toast that stays until closed has no timer to hold. */
+  held?: boolean;
   /** 2026-10-31: the card of a handed-over «Hi»; `seen` — the fan's chat was on screen, `sent` — the fan got a message from it. */
   arrived?: { readonly page: string; readonly from: GreetFrom; seen: boolean; sent: boolean };
 }
@@ -166,6 +178,9 @@ export const GREET_SENT_SHOWN_MS = 4000;
 export const GREET_GREETED_SHOWN_MS = 8000;
 /** The card of a handed-over «Hi» keeps «Назад в lora-1» this long after the fan got a message from this chat (2026-10-31). */
 export const GREET_ARRIVED_SENT_SHOWN_MS = 15_000;
+
+/** «Открыть» of the toast of a check of «Новые» (2026-11-04): the window, on the same pass. */
+const OPEN_NEWCOMERS: UiAction = { type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: true } };
 
 /** The registry's title of a shared code; a site's own code has none here. */
 const titleOf = (code: string | null): Msg | null => (code !== null && Object.hasOwn(CG_REGISTRY, code) ? { key: CG_REGISTRY[code as keyof typeof CG_REGISTRY].title } : null);
@@ -236,6 +251,30 @@ export function createShellController(ports: ShellPorts): ShellController {
     };
   }
 
+  /** 2026-11-04: the check of «Новые» left running by a closed window — it goes on, it is done, it stopped. */
+  function newcomersView(entry: Entry, check: NonNullable<BackgroundToast['newcomers']>): ToastVM {
+    const { toast } = entry;
+    const counts = { total: check.total, checked: check.checked, todo: check.todo };
+    const open = button('toast.newcomersOpen', OPEN_NEWCOMERS);
+    let title: string;
+    let body: string;
+    if (check.state === 'running') {
+      title = i18n.t('toast.newcomersRunning.title');
+      body = check.listed ? i18n.t('toast.newcomersRunning.body', counts) : i18n.t('toast.newcomersRunning.bodyList');
+    } else if (check.state === 'done' && (check.failed > 0 || check.partial)) {
+      // A fan whose check failed, or a list Fansly gave only in part: never «проверены».
+      title = i18n.t('toast.newcomersPartial.title');
+      body = check.failed > 0 ? i18n.t('toast.newcomersPartial.body', counts) : i18n.t('toast.newcomersPartial.bodyList', counts);
+    } else if (check.state === 'done') {
+      title = i18n.t('toast.newcomersDone.title');
+      body = check.total === 0 ? i18n.t('toast.newcomersDone.bodyEmpty') : check.todo === 0 ? i18n.t('toast.newcomersDone.bodyNone', counts) : i18n.t('toast.newcomersDone.body', counts);
+    } else {
+      title = i18n.t('toast.newcomersStopped.title');
+      body = check.listed ? i18n.t('toast.newcomersStopped.body', counts) : i18n.t('toast.newcomersStopped.bodyList');
+    }
+    return { id: toast.toastId, kind: toast.kind, code: null, title, body, actions: [open], copyCode: false, expiresAt: entry.expiresAt };
+  }
+
   function viewOf(entry: Entry): ToastVM {
     const { toast } = entry;
     const error = toast.error === undefined ? null : errorView(toast.error, translatorOf(i18n));
@@ -265,6 +304,7 @@ export function createShellController(ports: ShellPorts): ShellController {
         away !== null ? { ...button('toast.greetHiAt', target), label: { key: 'toast.greetHiAt', params: { page: away } } } : button('dock.action.hi', ports.greetHere === undefined ? target : { ...target, here: true });
       return { id: toast.toastId, kind: toast.kind, code: null, title: i18n.t('toast.greetDue', { fan: name }), body: null, actions: here === null ? [hi, later] : cardActions(target, here), copyCode: false, expiresAt: entry.expiresAt, greet };
     }
+    if (toast.newcomers !== undefined) return newcomersView(entry, toast.newcomers);
     // `ai-limit-v1`: «почти закончился» / «свой лимит кончился, дальше котёл» / «кончился» with the money; it stays until closed.
     if (toast.aiLimit !== undefined) {
       const poolLeft = toast.aiLimit.poolRemainingMicroUsd ?? 0;
@@ -326,6 +366,8 @@ export function createShellController(ports: ShellPorts): ShellController {
   };
 
   function show(toast: BackgroundToast): void {
+    // The window of «Новые» shows its check itself.
+    if (toast.newcomers !== undefined && ports.overlays?.isOpen('newcomers') === true) return;
     const key = toastKey(toast.code ?? null, toast.scope);
     const same = (entry: Entry): boolean => toastKey(entry.toast.code ?? null, entry.toast.scope) === key;
     // The fan's next reminder while the card of their handed-over «Hi» is up: that card says it already.
@@ -335,7 +377,9 @@ export function createShellController(ports: ShellPorts): ShellController {
     const kept = [entry, ...entries.filter((item) => !same(item))];
     for (const extra of kept.slice(TOAST_TIMING.maxVisible)) stop(extra);
     entries = kept.slice(0, TOAST_TIMING.maxVisible);
-    if (toast.greet === undefined && toast.aiLimit === undefined) arm(entry, toastLifetimeMs(toast.kind, toast.code ?? null));
+    // A reminder, the AI limit and the end of a check of «Новые» stay until they are closed.
+    const sticky = toast.greet !== undefined || toast.aiLimit !== undefined || (toast.newcomers !== undefined && toast.newcomers.state !== 'running');
+    if (!sticky) arm(entry, toastLifetimeMs(toast.kind, toast.code ?? null));
     changed();
   }
 
@@ -359,6 +403,10 @@ export function createShellController(ports: ShellPorts): ShellController {
       changed();
     }) ?? (() => undefined),
     ports.arrival?.subscribe((sentTo) => arrivals(sentTo)) ?? (() => undefined),
+    ports.overlays?.subscribe(() => {
+      if (ports.overlays?.isOpen('newcomers') !== true) return;
+      for (const entry of entries.filter((item) => item.toast.newcomers !== undefined)) remove(entry.toast.toastId);
+    }) ?? (() => undefined),
   ];
 
   /**
@@ -435,8 +483,12 @@ export function createShellController(ports: ShellPorts): ShellController {
           entry.left = Math.max(0, entry.expiresAt - clock.now());
           stop(entry);
           entry.expiresAt = null;
+          entry.held = true;
           changed();
-        } else if (!action.hold && entry.expiresAt === null) {
+        } else if (!action.hold && entry.held === true) {
+          // 2026-11-04: only a timer the hold stopped goes on; one never started (the end of a check of «Новые», the AI
+          // limit) used to be armed here, and the toast went a second after the pointer passed over it.
+          entry.held = false;
           arm(entry, Math.max(HELD_MIN_LEFT_MS, entry.left));
           changed();
         }

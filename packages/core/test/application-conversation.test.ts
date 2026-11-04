@@ -309,3 +309,49 @@ describe('R20 F6a, Fansly: «Открыть и вставить» and a toast\'s
     expect(host.calls.navigations.map((intent) => intent.target)).toEqual([{ hostAccountId: FANSLY.creator, platformFanId: FANSLY.fan, conversationRef: FANSLY.group }]);
   });
 });
+
+describe('a toast that stays until closed (2026-11-04)', () => {
+it.each(['done', 'stopped'] as const)(
+  '2026-11-04: the %s toast of a check of «Новые» stays after the pointer passed over it',
+  async (state) => {
+    const clock = new FakeClock(NOW_MS);
+    let emit: (payload: { readonly toast: BackgroundToast }) => void = () => undefined;
+    const shell = createShellController({
+      rpc: {
+        onEvent: (_type, listener) => {
+          emit = listener;
+          return () => undefined;
+        },
+      },
+      i18n,
+      clock,
+      tab: {
+        reload: () => undefined,
+        reloadSurface: () => false,
+        openSettings: () => Promise.resolve(false),
+      },
+    });
+    const toastId = uuid(0x995);
+    try {
+      emit({
+        toast: {
+          toastId,
+          kind: state === 'done' ? 'success' : 'warning',
+          scope: 'newcomers.pass',
+          fanLabel: null,
+          newcomers: { state, total: 8, checked: 8, todo: 8, failed: 0, partial: false, listed: true },
+        },
+      });
+      expect(shell.getSnapshot({ of: 'toasts' }).toasts[0]?.expiresAt).toBeNull();
+      await shell.dispatch({ type: 'HoldToast', toastId, hold: true });
+      await shell.dispatch({ type: 'HoldToast', toastId, hold: false });
+      await clock.advance(1001);
+      // Current head: [] because mouseleave armed the timer for 1000 ms.
+      expect(shell.getSnapshot({ of: 'toasts' }).toasts.map((toast) => toast.id))
+        .toEqual([toastId]);
+    } finally {
+      shell.dispose();
+    }
+  },
+);
+});

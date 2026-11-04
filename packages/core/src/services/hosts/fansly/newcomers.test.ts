@@ -12,7 +12,21 @@ import { FANSLY_EPOCH_MS } from '../../../domain/hosts/fansly/newcomers/pass-rul
 import { createMemoryKv, type MemoryKv } from '../../test-support/memory-kv';
 import { createFanslyGreeting } from './greeting';
 import { type FanslySendStart } from './send';
-import { COOLING_LOOK_MS, KNOWN_FLUSH_MS, NEWCOMERS_KNOWN_PREFIX, READY_FRESH_MS, RECHECK_DELAY_MS, SESSION_LOOK_MS, WATCH_MS, createFanslyNewcomers, type FollowersChange, type NewcomersCall, type NewcomersRoute, type PassJournal } from './newcomers';
+import {
+  COOLING_LOOK_MS,
+  KNOWN_FLUSH_MS,
+  NEWCOMERS_KNOWN_PREFIX,
+  READY_FRESH_MS,
+  RECHECK_DELAY_MS,
+  SESSION_LOOK_MS,
+  WATCH_MS,
+  createFanslyNewcomers,
+  type FanslyPassSummary,
+  type FollowersChange,
+  type NewcomersCall,
+  type NewcomersRoute,
+  type PassJournal,
+} from './newcomers';
 
 const T0 = Date.UTC(2026, 9, 16, 12, 0, 0);
 const C = '700000000000000017';
@@ -180,7 +194,16 @@ function fansly() {
 // The fake's own `chat` for `POST /group` of a fan without one (a new empty technical chat).
 let this_: ReturnType<typeof fansly>;
 
-function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?: MemoryKv; journal?: PassJournal; onHistory?: (groupId: string, ids: readonly string[], complete: boolean) => void } = {}) {
+function setup(
+  options: {
+    tabOn?: (tab: string, creator: string) => boolean;
+    alive?: (tab: string) => boolean;
+    kv?: MemoryKv;
+    journal?: PassJournal;
+    onHistory?: (groupId: string, ids: readonly string[], complete: boolean) => void;
+    told?: (tab: string, summary: FanslyPassSummary) => void;
+  } = {},
+) {
   const world = fansly();
   this_ = world;
   const kv = options.kv ?? createMemoryKv();
@@ -202,11 +225,12 @@ function setup(options: { tabOn?: (tab: string, creator: string) => boolean; kv?
       expect(FANSLY_TAB_EVENTS['fansly.followers.changed'].payload.safeParse(change).success).toBe(true);
       heard.push({ tab, change });
     },
-    alive: () => true,
+    alive: options.alive ?? (() => true),
     tabOn: options.tabOn ?? (() => true),
     local: kv.open(),
     ...(options.journal === undefined ? {} : { journal: options.journal }),
     ...(options.onHistory === undefined ? {} : { onHistory: options.onHistory }),
+    ...(options.told === undefined ? {} : { told: options.told }),
   });
   const ask = async <T extends keyof typeof FANSLY_TAB_REQUESTS>(type: T, payload: unknown, tab = TAB): Promise<FanslyTabResponsePayload<T>> => {
     expect(FANSLY_TAB_REQUESTS[type].req.safeParse(payload).success, `${type} request`).toBe(true);
@@ -372,6 +396,118 @@ describe('[host:fansly] the pass of «Новые» in the background (R20 P10b1)
     await failing.settle();
     expect(failing.world.calls.filter((call) => call.route === 'group.create')).toHaveLength(5);
     expect((await failing.ask('fansly.followers.read', { passId: fused, offset: 0, limit: 1 })).pass).toMatchObject({ state: 'stopped', error: { code: 'CG-FAN-REQUEST' } });
+  });
+
+  it('[FS-NEW-4] 2026-11-04 (the owner: «закроем окно, он же должен продолжиться и прислать alert»): a window the person closed leaves the check running while its tab lives — told at once, and once at its end, done or stopped; a window opened again, a tab gone or a plain close owe nothing', async () => {
+    const running = (world: ReturnType<typeof setup>, n: number): Promise<{ passId: string; release: () => void }> =>
+      (async () => {
+        for (let i = 1; i <= n; i += 1) world.world.follow(i, T0 - minutes(i));
+        const release = world.world.hold('group.create');
+        const passId = await world.scan();
+        await world.until(() => world.world.calls.at(-1)?.route === 'group.create');
+        return { passId, release };
+      })();
+
+    // Closed by the person: every fan is checked with the window shut, nothing is told to it, and the end comes once.
+    const told: Array<{ tab: string; summary: FanslyPassSummary }> = [];
+    const t = setup({ told: (tab, summary) => told.push({ tab, summary }) });
+    const { passId, release } = await running(t, 3);
+    const heard = t.heard.length;
+    expect(await t.ask('fansly.followers.close', { passId, background: true })).toEqual({ recorded: true });
+    expect(told).toEqual([{ tab: TAB, summary: { creator: C, state: 'running', total: 3, checked: 0, todo: 0, failed: 0, partial: false, listed: true } }]);
+    release();
+    await t.settle();
+    expect(t.creates()).toHaveLength(3);
+    expect(t.heard.length).toBe(heard);
+    expect(told.slice(1)).toEqual([{ tab: TAB, summary: { creator: C, state: 'done', total: 3, checked: 3, todo: 3, failed: 0, partial: false, listed: true } }]);
+
+    // Opened again while it runs: taken back as a standing check is (2026-10-23), so a fan who followed meanwhile is read
+    // and checked too; the window shows the end itself.
+    const reopened: FanslyPassSummary[] = [];
+    const again = setup({ told: (_tab, summary) => reopened.push(summary) });
+    const second = await running(again, 3);
+    await again.ask('fansly.followers.close', { passId: second.passId, background: true });
+    await vi.advanceTimersByTimeAsync(minutes(2));
+    const late = again.world.follow(9, Date.now());
+    expect(await again.scan()).toBe(second.passId);
+    second.release();
+    await again.settle();
+    const after = await again.rows(second.passId);
+    expect(after.map((row) => row.fanRef)).toContain(late);
+    expect(after.map((row) => row.status)).toEqual(['ready', 'ready', 'ready', 'ready']);
+    expect(reopened.map((summary) => summary.state)).toEqual(['running']);
+
+    // The tab went away: the check stands after the request in flight, as with the last window gone.
+    let alive = true;
+    const gone: FanslyPassSummary[] = [];
+    const lost = setup({ told: (_tab, summary) => gone.push(summary), alive: () => alive });
+    const third = await running(lost, 3);
+    await lost.ask('fansly.followers.close', { passId: third.passId, background: true });
+    alive = false;
+    third.release();
+    await lost.settle();
+    expect(lost.creates()).toHaveLength(1);
+    expect(gone.map((summary) => summary.state)).toEqual(['running']);
+
+    // A plain close (another period, account or sign-in) lets it stand, and says nothing.
+    const quiet: FanslyPassSummary[] = [];
+    const plain = setup({ told: (_tab, summary) => quiet.push(summary) });
+    const fourth = await running(plain, 3);
+    await plain.ask('fansly.followers.close', { passId: fourth.passId });
+    fourth.release();
+    await plain.settle();
+    expect(plain.creates()).toHaveLength(1);
+    expect(quiet).toEqual([]);
+
+    // Fansly failing five times in a row stops it with the window shut: that is told too.
+    const ended: FanslyPassSummary[] = [];
+    const failing = setup({ told: (_tab, summary) => ended.push(summary) });
+    const fifth = await running(failing, 7);
+    await failing.ask('fansly.followers.close', { passId: fifth.passId, background: true });
+    failing.world.failures.set('group.create', new ApiError('http', 'CG-FAN-REQUEST', 503));
+    fifth.release();
+    await failing.settle();
+    expect(ended.map((summary) => [summary.state, summary.checked])).toEqual([['running', 0], ['stopped', 0]]);
+  });
+
+  it('[FS-NEW-4] 2026-11-04 review: a late request of the closed window keeps its toast; a glance at a finished check owes none; a failed fan is no «проверены»; a replaced work never undoes its successor', async () => {
+    const running = async (world: ReturnType<typeof setup>, n: number): Promise<{ passId: string; release: () => void }> => {
+      for (let i = 1; i <= n; i += 1) world.world.follow(i, T0 - minutes(i));
+      const release = world.world.hold('group.create');
+      const passId = await world.scan();
+      await world.until(() => world.world.calls.at(-1)?.route === 'group.create');
+      return { passId, release };
+    };
+
+    // A read (or the card's history) the window sent before it closed lands after the close: the tab stays told.
+    const late: FanslyPassSummary[] = [];
+    const t = setup({ told: (_tab, summary) => late.push(summary) });
+    const first = await running(t, 3);
+    await t.ask('fansly.followers.close', { passId: first.passId, background: true });
+    await t.ask('fansly.followers.read', { passId: first.passId, offset: 0, limit: 100 });
+    first.release();
+    await t.settle();
+    expect(late.map((summary) => summary.state)).toEqual(['running', 'done']);
+
+    // Opened on the finished check and closed while it reads the followers since: nothing left, nothing told.
+    await vi.advanceTimersByTimeAsync(minutes(3));
+    const welcome = t.world.hold('message.automated');
+    expect(await t.scan()).toBe(first.passId);
+    await t.ask('fansly.followers.close', { passId: first.passId, background: true });
+    welcome();
+    await t.settle();
+    expect(late.map((summary) => summary.state)).toEqual(['running', 'done']);
+
+    // One fan's check failed: the end says so (the toast is «Проверены не все»).
+    const ended: FanslyPassSummary[] = [];
+    const failing = setup({ told: (_tab, summary) => ended.push(summary) });
+    const broken = failing.world.follow(9, T0 - minutes(9));
+    failing.world.failures.set(`group.create:${broken}`, new ApiError('http', 'CG-FAN-REQUEST', 503));
+    const second = await running(failing, 2);
+    await failing.ask('fansly.followers.close', { passId: second.passId, background: true });
+    second.release();
+    await failing.settle();
+    expect(ended.at(-1)).toMatchObject({ state: 'done', total: 3, checked: 2, failed: 1, partial: false });
   });
 
   it('[FS-NEW-4] the window opened again goes on with the same pass (2026-10-23): nobody it checked is asked about again — only the welcome texts and the followers since its end; the period moves to now; a «Пауза» closed with the window goes on too', async () => {
@@ -1127,4 +1263,50 @@ describe('[host:fansly] «Hi» inside a greeting reminder: its one fan, proved a
     expect(t.world.calls.length).toBe(calls);
     greeting.dispose();
   });
+});
+
+describe('[host:fansly] «Новые» left running by a closed window (2026-11-04)', () => {
+it('[FS-NEW-4] 2026-11-04 review: a work replaced while a storage read is under way never undoes its successor’s verdict', async () => {
+  const kv = createMemoryKv();
+  const openKv = kv.open.bind(kv);
+  let held = false;
+  let release = (): void => undefined;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const spy = vi.spyOn(kv, 'open').mockImplementation(() => {
+    const port = openKv();
+    return {
+      ...port,
+      async get(keys) {
+        if (!held && keys.some((key) => key.startsWith('fansly.newcomers.excluded.'))) {
+          held = true;
+          await gate; // A storage read is not cancelled by the work's AbortSwitch.
+        }
+        return port.get(keys);
+      },
+    };
+  });
+  const t = setup({ kv, told: () => undefined });
+  const fan = t.world.follow(1, T0 - minutes(1));
+  t.world.chat(fan, [], 'no').dm = FOLLOW_FAN;
+  try {
+    const passId = await t.scan();
+    await t.until(() => held);
+    await t.ask('fansly.followers.close', { passId, background: true });
+    expect(await t.scan()).toBe(passId);
+
+    // idle waits for pass.work, which now names the successor, not the held worker.
+    await t.settle();
+    expect(await t.row(passId, fan)).toMatchObject({ status: 'dm-closed' });
+
+    release();
+    await vi.advanceTimersByTimeAsync(1);
+    await t.settle();
+    // Current head resets this to pending in the old checkOne's abort catch.
+    expect(await t.row(passId, fan)).toMatchObject({ status: 'dm-closed' });
+  } finally {
+    release();
+    t.service.dispose();
+    spy.mockRestore();
+  }
+});
 });

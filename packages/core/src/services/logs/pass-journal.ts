@@ -9,7 +9,7 @@ export interface PassJournalRun {
 }
 
 export type PassJournalEvent =
-  | 'pass.start' | 'pass.end' | 'pass.phase' | 'pass.stop' | 'pass.close'
+  | 'pass.start' | 'pass.end' | 'pass.phase' | 'pass.stop' | 'pass.close' | 'pass.told'
   | 'queue.start' | 'queue.pause' | 'queue.resume' | 'queue.prioritize'
   | 'call.start' | 'call.end' | 'call.failed' | 'call.wait'
   | 'http.start' | 'http.end' | 'http.failed'

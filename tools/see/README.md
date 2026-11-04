@@ -75,7 +75,8 @@ no-direct-connection hint, the old extension's notice, its personas carried over
 PPV state in `hub-calls.json`), `draft-media` (a photo in the composer, then Reply: its `draftMedia` in
 `hub-calls.json`; both sites, `--live` takes a photo and a video of the vault), `fansly-seen` (a Spenders preview: «не прочитано», then «прочитано в …»),
 `fansly-newcomers` («Новые фоловеры»: a fresh follower checked by the pass, the card, «Сгенерировать» — the same
-window and card as ChatSpace's `newcomers`). `launch` (the showcase world's pictures of 3.0's launch, below).
+window and card as ChatSpace's `newcomers`), `fansly-newcomers-background` (the window closed mid-check: «Проверяю новых
+фоловеров в фоне», then «Новые фоловеры проверены» and its «Открыть» back on the same pass). `launch` (the showcase world's pictures of 3.0's launch, below).
 On Telegram (`--site telegram`: the Web A stand, `http://telegram.localhost:<port>/a/#<peer id>`, Lora's account bound
 to the fake hub's page `lora-tg`; its page API is `s.h.callTelegram(…)`, `client-context.json` holds the chat each AI
 request carried): `telegram-reply`, `telegram-fix`, `telegram-keys`,

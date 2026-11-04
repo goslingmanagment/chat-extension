@@ -564,8 +564,13 @@ export const FANSLY_TAB_REQUESTS = {
     from: TAB,
     hosts: FANSLY,
   },
-  /** The window closed: the pass keeps its results and drafts; nothing new starts for this window. */
-  'fansly.followers.close': { req: z.strictObject(PassRef), res: Ack, from: TAB, hosts: FANSLY },
+  /**
+   * The window closed: the pass keeps its results and drafts. `background` (2026-11-04, the owner: «закроем окно, он же
+   * должен продолжиться и прислать alert, что скан закончился»): the person closed it — a check under way goes on while
+   * this tab lives and tells the tab once it is over (a toast). Absent — nothing goes on for this tab (another period,
+   * account or sign-in).
+   */
+  'fansly.followers.close': { req: z.strictObject({ ...PassRef, background: z.optional(z.literal(true)) }), res: Ack, from: TAB, hosts: FANSLY },
   /**
    * «Отправить» on a card (1.15.0 P4c, FS-NEW-3, FS-NEW-6): one click, one attempt of the background's HTTP send
    * with the hub's custody (send-fansly.ts); never repeated, by the window or the background. The answer is the

@@ -318,7 +318,7 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       invalid: [{ ok: true, messages: [{ messageId: '700000000000000031', fromFan: true, at: ISO, text: 'hi', attachments: 0 }], more: false }],
     },
   },
-  'fansly.followers.close': { req: { valid: [passRef], invalid: [{}] }, res: ack },
+  'fansly.followers.close': { req: { valid: [passRef, { ...passRef, background: true }], invalid: [{}, { ...passRef, background: false }] }, res: ack },
   'fansly.followers.send': {
     req: FANSLY_GREETING_REQUEST_FIXTURES,
     res: {

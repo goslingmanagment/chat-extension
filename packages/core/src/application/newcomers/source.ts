@@ -51,8 +51,12 @@ export interface NewcomersPassSource {
    * true: kept; false — the fan is not such a fan (any more), or the exclusion could not be kept.
    */
   exclude(passId: string, fanRef: string, excluded: boolean): Promise<SourceAnswer<boolean>>;
-  /** The window closed: the pass keeps what it found; nothing new starts for this window. Nobody waits for it. */
-  close(passId: string): void;
+  /**
+   * The window closed: the pass keeps what it found. `background` — the person closed it (2026-11-04): a check under way
+   * goes on while the tab lives and tells the tab when it is over; without it nothing goes on for this window. Nobody
+   * waits for it.
+   */
+  close(passId: string, background?: boolean): void;
   onChange(listener: (change: PassChange) => void): () => void;
   /** The port to the background came back after a loss: the changes meanwhile are lost, what is shown is read again. */
   onReconnect(listener: () => void): () => void;
