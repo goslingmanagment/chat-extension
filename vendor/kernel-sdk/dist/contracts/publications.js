@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PUBLICATION_ACTOR_KINDS, PUBLICATION_ATTACHMENT_ACCESS, PUBLICATION_AUTHOR_KINDS, PUBLICATION_EXTRA_ATTACHMENTS_MAX, PUBLICATION_FINDING_CODES, PUBLICATION_FINDING_SEVERITIES, PUBLICATION_KINDS, PUBLICATION_MEDIA_MAX, PUBLICATION_PREVIEWS_MAX, PUBLICATION_REPLY_LOCKS, PUBLICATION_STATUSES, PUBLICATION_TEXT_MAX_LENGTH, PUBLICATION_VAULT_ALBUM_MEDIA_MAX, } from "../shared/index";
+import { PUBLICATION_ACTOR_KINDS, PUBLICATION_APPROVE_BATCH_MAX, PUBLICATION_ATTACHMENT_ACCESS, PUBLICATION_AUTHOR_KINDS, PUBLICATION_EXTRA_ATTACHMENTS_MAX, PUBLICATION_FINDING_CODES, PUBLICATION_FINDING_SEVERITIES, PUBLICATION_KINDS, PUBLICATION_MEDIA_MAX, PUBLICATION_PREVIEWS_MAX, PUBLICATION_REPLY_LOCKS, PUBLICATION_STATUSES, PUBLICATION_TEXT_MAX_LENGTH, PUBLICATION_VAULT_ALBUM_MEDIA_MAX, } from "../shared/index";
 import { intId, isoDateTime, mills, platformEnum } from "./primitives";
 import { agentCursorString } from "./routes-agent";
 // Publications: wall posts Hub publishes on Fansly and OnlyFans
@@ -217,7 +217,7 @@ export const agentPublicationChangesResponseSchema = z.object({
 export const publicationIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });
 export const publicationApproveBodySchema = z.strictObject({
     /** One or many; each with the version the person saw. Approved in this order. */
-    items: z.array(z.strictObject({ id: intId, version: z.number().int().positive() })).min(1).max(200),
+    items: z.array(z.strictObject({ id: intId, version: z.number().int().positive() })).min(1).max(PUBLICATION_APPROVE_BATCH_MAX),
 });
 export const publicationApproveResponseSchema = z.object({
     results: z.array(z.object({

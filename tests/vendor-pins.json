@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "8e79acde650fe2c661aa4a25206468c86cdb1321180558a372536252c93caf28",
-    "sourceCommit": "171634249a48b98c9896c6579d0f35928678f64c",
-    "note": "Vendored on 2026-11-04 from hub feat/client-fansly-proxies with scripts/vendor-sdk.mjs: clientFanslyProxies (fansly-proxies-v1)."
+    "contractHash": "ec9990d968c883ce2596dd684a4e5ebbdfbb4f5aace7ccfc5e9cb17d82e3d0da",
+    "sourceCommit": "bb57243b150945aeed1921d97b42e2dd3364ecab",
+    "note": "Vendored on 2026-11-04 from hub main bb57243b (#998, deployed) with scripts/vendor-sdk.mjs: clientFanslyProxies (fansly-proxies-v1)."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

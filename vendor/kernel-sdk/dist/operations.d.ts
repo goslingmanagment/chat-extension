@@ -1431,6 +1431,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/deleted-fans";
     };
+    readonly pageFanCard: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/fans/:platformUserId/card";
+    };
     readonly pageFanDetail: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/fans/:platformUserId";

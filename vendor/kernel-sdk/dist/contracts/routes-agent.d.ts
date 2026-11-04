@@ -76,6 +76,7 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "request:hydration": "request:hydration";
     "write:publication_drafts": "write:publication_drafts";
     "approve:publications": "approve:publications";
+    "approve:vault_albums": "approve:vault_albums";
     "write:fan_queues": "write:fan_queues";
     "read:content": "read:content";
 }>;
@@ -2565,6 +2566,7 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
+        "approve:vault_albums": "approve:vault_albums";
         "write:fan_queues": "write:fan_queues";
         "read:content": "read:content";
     }>>;
@@ -2632,6 +2634,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "request:hydration": "request:hydration";
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
+                "approve:vault_albums": "approve:vault_albums";
                 "write:fan_queues": "write:fan_queues";
                 "read:content": "read:content";
             }>;
@@ -2920,6 +2923,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "request:hydration": "request:hydration";
             "write:publication_drafts": "write:publication_drafts";
             "approve:publications": "approve:publications";
+            "approve:vault_albums": "approve:vault_albums";
             "write:fan_queues": "write:fan_queues";
             "read:content": "read:content";
         }>>;
@@ -30207,6 +30211,7 @@ export declare const agentRouteSchemas: {
                             "request:hydration": "request:hydration";
                             "write:publication_drafts": "write:publication_drafts";
                             "approve:publications": "approve:publications";
+                            "approve:vault_albums": "approve:vault_albums";
                             "write:fan_queues": "write:fan_queues";
                             "read:content": "read:content";
                         }>;
@@ -30495,6 +30500,7 @@ export declare const agentRouteSchemas: {
                         "request:hydration": "request:hydration";
                         "write:publication_drafts": "write:publication_drafts";
                         "approve:publications": "approve:publications";
+                        "approve:vault_albums": "approve:vault_albums";
                         "write:fan_queues": "write:fan_queues";
                         "read:content": "read:content";
                     }>>;

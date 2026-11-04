@@ -3319,6 +3319,7 @@ export declare const chatterNumbersSchema: z.ZodObject<{
 export declare const teamChatterNumbersQuerySchema: z.ZodObject<{
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
+    userId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strip>;
 export declare const teamChatterNumbersResponseSchema: z.ZodObject<{
     from: z.ZodString;
@@ -7515,6 +7516,7 @@ export declare const clientRouteSchemas: {
         readonly querystring: z.ZodObject<{
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
+            userId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
