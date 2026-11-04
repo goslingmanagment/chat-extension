@@ -23,7 +23,9 @@
 // - Before the hub's first list, a container's tab-less request and a request with a token on the site's addresses wait
 //   for it (Firefox waits for a filter's promise); no list — the site's are refused, the rest left alone.
 // - Each row has its own connection isolation key: two rows on one proxy address with other logins never share a
-//   connection. An HTTP or HTTPS proxy's login goes in its header and, when it asks (407), through `authFor`.
+//   connection. An HTTP or HTTPS proxy's login goes in its header and, when it asks (407), through `authFor`, only for a
+//   request this router chose it for. Firefox keeps one login per HTTP proxy address, so two HTTP rows on one address
+//   with other logins are not carried at all (refused, never mixed).
 // - The proxies stay through a sign-out (the browser restarts routed, and Multi-Account Containers keeps the same
 //   logins itself); another person's sign-in drops them before anything is asked. A page that left the hub's list
 //   keeps routing its container through the proxy it had until the hub names a new one.
@@ -156,6 +158,12 @@ const CHOSEN_MAX = 500;
 
 const usable = (row: ContainerProxyRow): boolean => SCHEMES.has(row.scheme) && row.host.length > 0 && row.port > 0;
 
+/** The rows this router carries: an HTTP(S) row sharing its address with another row of another login is not one. */
+function carried(rows: readonly ContainerProxyRow[]): ContainerProxyRow[] {
+  const fit = rows.filter(usable);
+  return fit.filter((row) => row.scheme === 'socks5' || !fit.some((other) => other !== row && other.host === row.host && other.port === row.port && (other.username !== row.username || other.password !== row.password)));
+}
+
 /** Nothing listens there: the request fails at once, and the list's null keeps Firefox from going direct instead. */
 const REFUSED: ProxyAnswer = [{ type: 'socks', host: '127.0.0.1', port: 1, proxyDNS: true }, null];
 
@@ -232,7 +240,7 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     const value = kept?.ok === true ? (kept.value[STORE_KEY] as Record<string, unknown> | undefined) : undefined;
     if (value !== undefined && value !== null && value['v'] === 1) {
       owner = typeof value['owner'] === 'string' ? value['owner'] : null;
-      rows = Array.isArray(value['rows']) ? value['rows'].filter(validRow).filter(usable) : [];
+      rows = Array.isArray(value['rows']) ? carried(value['rows'].filter(validRow)) : [];
       anyProxy = value['anyProxy'] === true || rows.length > 0;
       known = value['known'] === true;
       fetchedAt = typeof value['fetchedAt'] === 'number' ? value['fetchedAt'] : 0;
@@ -318,6 +326,8 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
   function placePage(store: string, host: string, port: number | undefined): void {
     const expected = rowOfLabel(containers.get(store));
     if (expected === null) {
+      // A container a tab or a token already placed is never moved by an address.
+      if (containers.has(store)) return;
       // Only an address and port one row of the list has proves the page.
       const matching = rows.filter((row) => row.host === host && row.port === port);
       if (matching.length === 1 && matching[0] !== undefined) bind(store, matching[0].pageLabel);
@@ -352,11 +362,12 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     earlyPages.clear();
     earlyTabs.clear();
     for (const [store, page] of pages) placePage(store, page.host, page.port);
-    for (const [tabId, report] of tabs) await placeTab(tabId, report.accounts, report.began);
+    // A tab's report proves more than a navigation's address, and came after it: the replayed navigations never outrank it.
+    for (const [tabId, report] of tabs) await placeTab(tabId, report.accounts, Math.max(report.began, stamp));
   }
 
   function take(list: ContainerProxyList): void {
-    const fresh = list.rows.filter(usable);
+    const fresh = carried(list.rows);
     if (list.owner !== owner) {
       owner = list.owner;
       rows = fresh;
@@ -378,12 +389,14 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
 
   /** Before the first list: what must not leave without it waits for one attempt to ask the hub. */
   function hold(request: ProxyRequestFact): boolean {
-    if (container(request.cookieStoreId) && request.tabId === -1) return true;
-    return deps.siteAddress(request.url) && request.requestHeaders?.some((header) => header.name.toLowerCase() === 'authorization') === true;
+    const site = deps.siteAddress(request.url);
+    if (container(request.cookieStoreId) && request.tabId === -1 && (site || containers.has(request.cookieStoreId))) return true;
+    return site && request.requestHeaders?.some((header) => header.name.toLowerCase() === 'authorization') === true;
   }
 
+  /** No list after the wait: a model's container refuses as always, the site's requests too, the rest is left alone. */
   function withoutList(request: ProxyRequestFact): ProxyAnswer {
-    return deps.siteAddress(request.url) ? REFUSED : undefined;
+    return decide(request) ?? (deps.siteAddress(request.url) ? REFUSED : undefined);
   }
 
   function waitForList(request: ProxyRequestFact): Promise<ProxyAnswer> {
@@ -480,10 +493,9 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     },
     authFor(fact) {
       if (answered.has(fact.requestId)) return 'again';
-      const byRequest = chosen.get(fact.requestId);
-      const matching = rows.filter((row) => row.scheme !== 'socks5' && row.host === fact.host && row.port === fact.port);
-      const row = byRequest !== undefined && byRequest.host === fact.host && byRequest.port === fact.port ? byRequest : matching.length === 1 ? matching[0] : undefined;
-      if (row === undefined || row.username === null) return null;
+      // Only a request this router chose this very proxy for: another add-on's 407 never gets our login.
+      const row = chosen.get(fact.requestId);
+      if (row === undefined || row.host !== fact.host || row.port !== fact.port || row.username === null) return null;
       answered.add(fact.requestId);
       if (answered.size > CHOSEN_MAX) {
         const oldest = answered.values().next().value;

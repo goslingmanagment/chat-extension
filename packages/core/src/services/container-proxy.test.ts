@@ -317,16 +317,57 @@ describe('container proxy: the second review', () => {
     expect(JSON.stringify([a?.connectionIsolationKey, b?.connectionIsolationKey])).not.toMatch(/lora|ari|203\.0/);
   });
 
-  it('an HTTP proxy\'s 407 gets the login of the row chosen for the request, once', async () => {
-    const http = { ...LORA, scheme: 'http' };
-    const twin = { ...ARI, scheme: 'http', host: LORA.host, port: LORA.port };
-    const { proxy } = world({}, [http, twin]);
+  it('an HTTP proxy\'s 407 gets the login of the row chosen for that request, once, and nobody else\'s 407 does', async () => {
+    const { proxy } = world({}, [{ ...LORA, scheme: 'http' }, ARI]);
     await proxy.refresh(true);
-    await proxy.answer({ requestId: 'r1', url: API, tabId: -1, requestHeaders: bearer('890:token') });
-    expect(proxy.authFor({ requestId: 'r1', host: LORA.host, port: LORA.port })).toEqual({ username: 'ari-user', password: 'ari-pass' });
+    await proxy.answer({ requestId: 'r1', url: API, tabId: -1, requestHeaders: bearer('737:token') });
+    expect(proxy.authFor({ requestId: 'r1', host: LORA.host, port: LORA.port })).toEqual({ username: 'lora-user', password: 'lora-pass' });
     expect(proxy.authFor({ requestId: 'r1', host: LORA.host, port: LORA.port })).toBe('again');
-    // Two rows on that address and no request of ours: not ours to answer.
+    // Another add-on chose that proxy for its own request: not ours to answer, even on our address.
     expect(proxy.authFor({ requestId: 'r2', host: LORA.host, port: LORA.port })).toBeNull();
-    expect(proxy.authFor({ requestId: 'r3', host: '198.51.100.1', port: 8080 })).toBeNull();
+  });
+
+  it('two HTTP rows on one address with other logins are not carried: refused, never mixed', async () => {
+    const { proxy } = world({}, [{ ...LORA, scheme: 'http' }, { ...ARI, scheme: 'http', host: LORA.host, port: LORA.port }]);
+    await proxy.refresh(true);
+    expect(refused(await proxy.answer({ url: API, tabId: -1, originUrl: `${OWN}bg`, requestHeaders: bearer('890:token') }))).toBe(true);
+    expect(await proxy.line('890', null)).toBe('tab');
+  });
+
+  it('another person\'s sign-in, the hub down: a model\'s container refuses every tab-less request, Fansly or not', async () => {
+    const { proxy, hub } = world();
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    hub(new Error('the hub is down'));
+    await proxy.signedIn('https://hub#2');
+    expect(refused(await proxy.answer(tabless('firefox-container-6', 'https://apiv2.fbuddy.net/x')))).toBe(true);
+  });
+
+  it('before the first list a tab\'s report outranks an earlier navigation\'s address', async () => {
+    const { proxy, hub } = world();
+    hub(new Error('slow'));
+    await proxy.refresh(true);
+    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: LORA.host, port: LORA.port } });
+    await proxy.learnTab(6, ['890']);
+    hub({ owner: ME, rows: [LORA, ARI] });
+    await proxy.refresh(true);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
+  });
+
+  it('a container a tab placed is never moved by a navigation\'s address', async () => {
+    const { proxy } = world();
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    await proxy.learnTab(6, ['999']);
+    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: ARI.host, port: ARI.port } });
+    await proxy.refresh();
+    expect(refused(await proxy.answer(tabless('firefox-container-6')))).toBe(true);
+  });
+
+  it('a container of no model never waits for the list with another site', async () => {
+    let started = 0;
+    const { proxy } = world({ fetchRows: () => { started += 1; return new Promise(() => undefined); } });
+    expect(await proxy.answer(tabless('firefox-container-9', 'https://example.com/sw.js'))).toBeUndefined();
+    expect(started).toBe(0);
   });
 });
