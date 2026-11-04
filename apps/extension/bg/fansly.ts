@@ -98,6 +98,7 @@
 import { FBUDDY_ORIGIN } from '@cg/contracts/fan-badges';
 import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { FanslyGreetingClaimOpSchema } from '@cg/contracts/send-fansly';
+import { VAULT_TAB_ROUTES, type VaultTabRoute } from '@cg/contracts/vault-fansly';
 import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
 import {
   FANSLY_TAB_TYPE_PREFIX,
@@ -147,6 +148,7 @@ const settingsAnswer = (answer: SettingsExtAnswer): HostAnswer => (answer.ok ? o
  * What begins new work or asks Fansly, answered `CG-FAN-OFF` in the payload while Fansly is off or its rights are taken
  * back (FS-PERM-5); `fansly.ops.start`, whose answer has no such payload, is refused by the RPC itself with `CG-SITE-OFF`.
  */
+
 const BEGINS: ReadonlySet<string> = new Set(['fansly.followers.scan', 'fansly.followers.resume', 'fansly.followers.send', 'fansly.greet.solo', 'fansly.registration.read', 'fansly.spenders.names', 'fansly.spenders.resolve', 'fansly.spenders.copied', 'fansly.spenders.outreach', 'fansly.ppv.read', 'fansly.preview.readState', 'fansly.online.seen', 'fansly.fans.badges', 'fansly.marks.read', 'fansly.otherPages.read', 'fansly.deleted.read']);
 
 /** What the settings page asks of Fansly's module (R20 P14b1): its part of `settings.ext` and its accounts. */
@@ -341,6 +343,26 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
       } catch (error) {
         return ok({ ok: false, error: error instanceof FanslyApiError ? error.toWire() : { code: 'CG-FAN-REQUEST' } });
       }
+    }
+    // 2026-11-04 (the vault audit, item 6): the upload of a set starts only when this tab's own traffic goes through its
+    // creator's page proxy (core container-proxy.ts `tabRoute`). Only the tab's own creator: another account moves no container.
+    if (type === 'fansly.vault.route') {
+      const account = (payload as FanslyTabRequestPayload<'fansly.vault.route'>).hostAccountId;
+      if (__CG_TEST_HOSTS__) {
+        // The stand's tabs are in no container and its world has no proxy: an e2e names the answer it needs (the key is
+        // packages/testing/e2e/support/constants.ts `STAND_VAULT_ROUTE_KEY`; a release build has none of this).
+        const stand = await kit.storage.local.get(['dev.fansly.vaultRoute']);
+        const named = stand.ok ? stand.value['dev.fansly.vaultRoute'] : undefined;
+        if (VAULT_TAB_ROUTES.some((route) => route === named)) return ok({ route: named as VaultTabRoute });
+      }
+      const owns = (): boolean => {
+        const template = session?.forTab(sender.tabId) ?? null;
+        return template !== null && (template.legacyId === account || template.canonicalId === account);
+      };
+      if (!owns()) await (await clientNow())?.identify(account);
+      if (kit.containerProxy === undefined) return ok({ route: 'no-grant' });
+      // A creator the tab's session does not prove: what is missing anyway, and no container moves.
+      return ok({ route: await kit.containerProxy.tabRoute(sender.tabId, owns() ? account : null) });
     }
     // 2026-11-03, the upload of a set into the vault (host-fansly isolated/vault/bulk.ts): the album's rows, the set laid
     // out in its order, a member renamed to its file — only for the tab's own creator, over the client like every call.

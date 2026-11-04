@@ -181,6 +181,8 @@ function Panel({ client, view }: { readonly client: VaultPanelClient<File>; read
   // «Готово N из M» is never split across lines.
   const subtitle = run === null || run.state === 'idle' ? t('fansly.vault.subtitle') : [view.account, run.album, t('fansly.vault.progress', { done: run.done, total: run.total }).replace(/ /g, '\u00a0')].filter((part) => part !== null && part !== '').join(' · ');
   const notes: Array<{ readonly tone: 'problem' | 'warning' | 'info'; readonly text: string }> = [
+    // Only through the model's proxy: what to do first, before anything else the panel says.
+    ...(view.route === null || view.route === 'ok' ? [] : [{ tone: 'problem' as const, text: t(`fansly.vault.route.${view.route}`) }]),
     ...(selection?.problems ?? []).map((problem) => ({ tone: 'problem' as const, text: problemText(t, problem) })),
     ...(selection?.warnings ?? []).map((warning) => ({ tone: 'warning' as const, text: warningText(t, warning) })),
     ...(resume === null ? [] : [{ tone: 'info' as const, text: t(`fansly.vault.resume.${resume.kind}`, { done: resume.done, total: resume.total }) }]),
