@@ -142,8 +142,18 @@ export type VaultOrderCheck =
   | { readonly kind: 'mismatch'; readonly position: number; readonly expected: string; readonly actual: string }
   | { readonly kind: 'unseen' };
 
-/** Why Start is not offered now (its tooltip); null — it is. */
-export const VAULT_START_BLOCKS = ['files', 'problems', 'account', 'album', 'album-loading', 'uploader', 'uploader-busy', 'answer', 'other', 'checking', 'running', 'done', 'held'] as const;
+/**
+ * Whether the tab's own traffic goes through its model's proxy (2026-11-04, the vault audit, item 6; the background's
+ * word, core container-proxy.ts `TabRoute`): the upload of a set starts only on `ok`. Else why not: `no-grant` —
+ * Firefox's permission for the router is missing; `no-list` — ChatGoose has no proxies from the hub (no sign-in, the hub
+ * did not answer); `no-proxies` — the hub knows no proxy of this person; `no-container` — the tab is in no Firefox
+ * container; `no-page-proxy` — no proxy ChatGoose carries for this model's page.
+ */
+export const VAULT_TAB_ROUTES = ['ok', 'no-grant', 'no-list', 'no-proxies', 'no-container', 'no-page-proxy'] as const;
+export type VaultTabRoute = (typeof VAULT_TAB_ROUTES)[number];
+
+/** Why Start is not offered now (its tooltip); null — it is. `proxy` — the tab's traffic is not its model's proxy's (`VaultTabRoute`). */
+export const VAULT_START_BLOCKS = ['files', 'problems', 'account', 'album', 'album-loading', 'uploader', 'uploader-busy', 'answer', 'other', 'checking', 'running', 'done', 'held', 'proxy'] as const;
 export type VaultStartBlock = (typeof VAULT_START_BLOCKS)[number];
 
 /**
@@ -170,6 +180,8 @@ export interface VaultPanelVM {
   readonly uploader: 'ready' | 'busy' | 'missing';
   readonly order: VaultAlbumOrder;
   readonly selection: VaultSelectionVM | null;
+  /** Whether the tab's traffic goes through its model's proxy, as last read; null — not read yet. Not `ok`: the panel says what to do. */
+  readonly route: VaultTabRoute | null;
   readonly resume: VaultResumeVM | null;
   /** The file handed over and never confirmed: the person says whether it is in the album (VA-004). */
   readonly question: { readonly name: string } | null;
@@ -325,6 +337,12 @@ export const FANSLY_VAULT_TEXT_KEYS = [
   'fansly.vault.blocked.running',
   'fansly.vault.blocked.done',
   'fansly.vault.blocked.held',
+  'fansly.vault.blocked.proxy',
+  'fansly.vault.route.no-grant',
+  'fansly.vault.route.no-list',
+  'fansly.vault.route.no-proxies',
+  'fansly.vault.route.no-container',
+  'fansly.vault.route.no-page-proxy',
   'fansly.vault.errorFrom',
   'fansly.vault.footnote',
 ] as const;

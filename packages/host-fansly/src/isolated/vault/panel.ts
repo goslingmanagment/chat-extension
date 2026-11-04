@@ -22,9 +22,13 @@
 // - The panel minimizes into its strip («Загрузка в волт · Готово N из M») while a file is in flight, as the old one
 //   did; only closing waits for the pause. A complete run reads the album's first cards against the set (the old
 //   report's order line).
+// - The upload starts only through the model's proxy (2026-11-04, the vault audit, item 6; a block by the owner's word):
+//   the background says whether this tab's own traffic goes through the proxy of its creator's page (`route`). Read when
+//   the panel opens on a creator, again when the person comes back to it and right before every Start; anything but
+//   `ok` keeps Start off and the panel says what to do.
 
 import { vaultCheckpointFollows, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
-import type { VaultAlbumOrder, VaultItemState, VaultOrderCheck, VaultPanelAction, VaultPanelClient, VaultPanelNote, VaultPanelVM, VaultResumeVM, VaultRunVM, VaultStartBlock } from '@cg/contracts/vault-fansly';
+import type { VaultAlbumOrder, VaultItemState, VaultOrderCheck, VaultPanelAction, VaultPanelClient, VaultPanelNote, VaultPanelVM, VaultResumeVM, VaultRunVM, VaultStartBlock, VaultTabRoute } from '@cg/contracts/vault-fansly';
 
 import { vaultMediaKey } from './dom';
 import { createVaultBulkRun } from './bulk';
@@ -56,6 +60,11 @@ export interface VaultPanelDeps {
   readonly api?: VaultAlbumApi;
   /** Tests: the run of the set (bulk.ts) with `api`, else the run of P13a. */
   readonly createRun?: typeof createVaultRun;
+  /**
+   * Whether this tab's traffic goes through the proxy of `account`'s page (the background's `fansly.vault.route`); the
+   * upload starts only on `ok`. A read that fails is `no-list`. Absent — not asked (tests of the run alone).
+   */
+  readonly route?: (account: string) => Promise<VaultTabRoute>;
 }
 
 export interface VaultPanel extends VaultPanelClient<File> {
@@ -139,6 +148,9 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   /** The album whose checkpoint is being read, and the read's own number (a later read wins). */
   let reading: { readonly key: string; readonly serial: number } | null = null;
   let serial = 0;
+  /** The tab's route as last read, for this creator; null — not read. And the read in flight, by its own number. */
+  let routed: { readonly account: string; readonly route: VaultTabRoute } | null = null;
+  let routing: { readonly account: string; readonly serial: number } | null = null;
   let bound: Bound | null = null;
   let note: VaultPanelNote | null = null;
   let resetArmed = false;
@@ -224,9 +236,28 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
     );
   };
 
-  /** Reads the page again; another album: its checkpoint is read once the panel is open on it. */
-  const look = (): void => {
+  /** Reads whether the tab's traffic goes through `account`'s page proxy; a later read wins. */
+  const readRoute = (account: string): void => {
+    if (deps.route === undefined) return;
+    const mine = (serial += 1);
+    routing = { account, serial: mine };
+    const settle = (route: VaultTabRoute): void => {
+      if (disposed || routing?.serial !== mine) return;
+      routing = null;
+      routed = { account, route };
+      emit();
+    };
+    deps.route(account).then(settle, () => settle('no-list'));
+  };
+
+  /**
+   * Reads the page again; another album: its checkpoint is read once the panel is open on it. The tab's route: once per
+   * creator, and again on the person's return (`again`) while it is not `ok`.
+   */
+  const look = (again = false): void => {
     page = uploader.view();
+    const creator = page.hostAccountId;
+    if (mode !== 'closed' && creator !== null && routing?.account !== creator && (routed?.account !== creator || (again && routed.route !== 'ok'))) readRoute(creator);
     const next = vaultTargetOf(page);
     if (keyOf(next) !== keyOf(target)) {
       target = next;
@@ -330,6 +361,9 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
     if (page.hostAccountId === null) return 'account';
     if (page.loading) return 'album-loading';
     if (page.albumId === null || (bound !== null && bound.key !== keyOf(target))) return 'album';
+    // Only through the model's proxy: not read yet for this creator — checking; read and not `ok` — the panel says why.
+    if (deps.route !== undefined && routed?.account !== page.hostAccountId) return 'checking';
+    if (deps.route !== undefined && routed?.route !== 'ok') return 'proxy';
     if (page.uploader === 'missing') return 'uploader';
     if (page.uploader === 'busy') return 'uploader-busy';
     return null;
@@ -343,6 +377,19 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
       look();
     }
     if (startBlock() !== null || plan === null || target === null) return emit();
+    // The upload leaves only through the model's proxy (the vault audit, item 6): asked again right before it starts.
+    const creator = page.hostAccountId;
+    if (deps.route !== undefined && creator !== null) {
+      const asked = starts;
+      starting = true;
+      emit();
+      const route = await deps.route(creator).catch((): VaultTabRoute => 'no-list');
+      starting = false;
+      routed = { account: creator, route };
+      if (route !== 'ok' || disposed || !shown || asked !== starts) return emit();
+      look();
+      if (startBlock() !== null || plan === null || target === null) return emit();
+    }
     note = null;
     const mine = (starts += 1);
     /** The panel hid meanwhile (the owner switched the vault off), or went: this Start starts nothing (review of P13b). */
@@ -495,6 +542,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
         plan === null
           ? null
           : { folder: plan.folder, bytes: plan.bytes, items: plan.items.map((file) => ({ name: file.name, size: file.size, state: stateOf(file) })), problems: plan.problems, warnings: plan.warnings },
+      route: routed !== null && routed.account === page.hostAccountId ? routed.route : null,
       resume,
       question: question === null ? null : { name: question.name },
       run: runVm,
@@ -525,7 +573,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
       switch (action.type) {
         case 'open':
           mode = 'open';
-          look();
+          look(true);
           return emit();
         case 'close':
           if (active()) return;
@@ -537,7 +585,8 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
           mode = 'minimized';
           return emit();
         case 'refresh':
-          look();
+          // Back to the panel — maybe from the settings, the permission given: a route that was not `ok` is read again.
+          look(true);
           return emit();
         case 'pick':
           if (active() || starting) return;

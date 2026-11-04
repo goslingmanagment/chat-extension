@@ -311,8 +311,11 @@ export interface BackgroundKit {
    * closed. Absent — none is.
    */
   readonly hostGranted?: (origin: string) => Promise<boolean>;
-  /** 2026-11-04: the router of a model's container (core container-proxy.ts). Absent — straight, as a world without it. */
-  readonly containerProxy?: Pick<ContainerProxy, 'line' | 'lineNow' | 'needed'>;
+  /**
+   * 2026-11-04: the router of a model's container (core container-proxy.ts). Absent — straight, as a world without it;
+   * the vault's upload of a set then never starts (`tabRoute`).
+   */
+  readonly containerProxy?: Pick<ContainerProxy, 'line' | 'lineNow' | 'needed' | 'tabRoute'>;
   readonly hub: HubPort;
   readonly storage: StoragePort;
   readonly clock: Clock;

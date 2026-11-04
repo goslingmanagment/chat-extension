@@ -49,6 +49,7 @@ import { LIVE_IMAGE_LIMITS, LIVE_PPV_LIMITS, LIVE_TEXT_LIMITS, SEND_LIMITS, STOR
 import { type HostKind } from './hosts';
 import { CountSchema, EpochMsSchema, HubIntIdSchema, IsoTimestampSchema, MoneyMillsSchema, NativeIdSchema, UuidSchema, displayText } from './primitives';
 import { FANSLY_SEND_LIMITS, FanslyGreetingAdmissionSchema, FanslyGreetingRequestSchema, FanslySendViewSchema } from './send-fansly';
+import { VAULT_TAB_ROUTES } from './vault-fansly';
 import { NOTE_LIMITS } from './notes';
 import { FANSLY_INBOX_MARKS, FANSLY_NOTES_VIEWS, SettingsExtPatchSchema, SettingsExtSchema, SettingsExtStateSchema } from './settings-ext';
 import type { TabPayloadCheck } from './tab-messages';
@@ -915,6 +916,17 @@ export const FANSLY_TAB_REQUESTS = {
       }),
       Failure,
     ]),
+    from: TAB,
+    hosts: FANSLY,
+  },
+  /**
+   * 2026-11-04 (the vault audit, item 6): whether this tab's own traffic goes through the proxy of its creator's page
+   * (core container-proxy.ts `TabRoute`); the upload of a set starts only on `ok`. Only the tab's own creator: another
+   * account is `no-page-proxy`, its container never moved by the ask.
+   */
+  'fansly.vault.route': {
+    req: z.strictObject({ hostAccountId: NativeIdSchema }),
+    res: z.strictObject({ route: z.enum(VAULT_TAB_ROUTES) }),
     from: TAB,
     hosts: FANSLY,
   },

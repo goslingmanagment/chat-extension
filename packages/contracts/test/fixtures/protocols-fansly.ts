@@ -487,6 +487,11 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       ],
     },
   },
+  'fansly.vault.route': {
+    req: { valid: [{ hostAccountId: F.creator }], invalid: [{}, { hostAccountId: 'creator' }] },
+    // Every answer names why; a tab never learns the proxy itself.
+    res: { valid: [{ route: 'ok' }, { route: 'no-grant' }, { route: 'no-container' }], invalid: [{ route: 'direct' }, { route: 'ok', host: '203.0.113.1' }] },
+  },
   'fansly.vault.arrange': {
     req: {
       valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, mediaIds: ['800000000000000001', '800000000000000003'] }],

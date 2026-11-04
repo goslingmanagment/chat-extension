@@ -95,6 +95,17 @@ export type ProxyAnswer = readonly (ProxyInfoAnswer | null)[] | undefined;
  */
 export type OwnLine = 'proxied' | 'tab' | 'direct';
 
+/**
+ * Whether a model's tab is carried by its page's proxy (2026-11-04, the vault audit: the upload of a set starts only
+ * then): `ok` — the browser's grant stands, the tab is in a Firefox container and that container is the page of the
+ * tab's creator, whose proxy this router carries; else why not — `no-grant` (Firefox's grant for the router is
+ * missing), `no-list` (the hub's list is not known: no sign-in, or the hub did not answer), `no-proxies` (the hub
+ * knows no proxy of this person), `no-container` (the tab is in no container: only its token's requests would be
+ * routed), `no-page-proxy` (no proxy this router carries for the creator's page: none in the hub, or not SOCKS5).
+ */
+export const TAB_ROUTES = ['ok', 'no-grant', 'no-list', 'no-proxies', 'no-container', 'no-page-proxy'] as const;
+export type TabRoute = (typeof TAB_ROUTES)[number];
+
 export interface ContainerProxyDeps {
   readonly storage: Pick<KeyValuePort, 'get' | 'set'>;
   /** Asked with the hub's sign-in; null — no sign-in now. Rejects when the hub did not answer. */
@@ -139,6 +150,12 @@ export interface ContainerProxy {
   lineNow(legacyId: string, canonicalId: string | null): OwnLine;
   /** This person has proxies and the browser's grant is missing: the tab says so, once. */
   needed(): Promise<boolean>;
+  /**
+   * Whether the tab's own traffic goes through the proxy of `account`'s page (`TabRoute`). The tab reports `account`
+   * as its creator now: its container becomes that page's, as `learnTab` makes it. null — a creator nobody proved: what
+   * is missing anyway, else `no-page-proxy`, and no container moves.
+   */
+  tabRoute(tabId: number, account: string | null): Promise<TabRoute>;
 }
 
 function validRow(value: unknown): value is ContainerProxyRow {
@@ -465,6 +482,21 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     async needed() {
       await service.refresh(!known);
       return anyProxy && !active;
+    },
+    async tabRoute(tabId, account) {
+      await service.refresh(!known);
+      if (!active) return 'no-grant';
+      if (!known) return 'no-list';
+      if (!anyProxy) return 'no-proxies';
+      const store = await deps.containerOfTab(tabId).catch(() => null);
+      if (!container(store)) return 'no-container';
+      if (account === null) return 'no-page-proxy';
+      const row = rowOfAccount(account) ?? rowOfAccount(deps.canonicalOf(account));
+      if (row === null || !routable(row)) return 'no-page-proxy';
+      // The tab names its creator now: its container is that page's, as a tab's report makes it.
+      await service.learnTab(tabId, [account]);
+      const bound = rowOfLabel(containers.get(store));
+      return bound !== null && bound.pageLabel === row.pageLabel && routable(bound) ? 'ok' : 'no-page-proxy';
     },
   };
   return service;

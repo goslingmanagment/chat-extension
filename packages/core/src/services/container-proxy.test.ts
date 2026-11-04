@@ -409,3 +409,36 @@ describe('container proxy: the second review', () => {
     expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
   });
 });
+
+describe('container proxy: a tab carried by its page’s proxy (the vault’s upload of a set starts only then)', () => {
+  it('ok only with the grant, the hub’s list, a container and its creator’s page proxy; the container is that page’s then', async () => {
+    const { proxy } = world();
+    expect(await proxy.tabRoute(6, '737')).toBe('no-grant');
+    proxy.setActive(true);
+    expect(await proxy.tabRoute(6, '737')).toBe('ok');
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
+  });
+
+  it('says why not: no list, no proxies of this person, no container, no proxy this router carries for the page', async () => {
+    const down = world({}, null);
+    down.proxy.setActive(true);
+    expect(await down.proxy.tabRoute(6, '737')).toBe('no-list');
+    const none = world({}, []);
+    none.proxy.setActive(true);
+    expect(await none.proxy.tabRoute(6, '737')).toBe('no-proxies');
+    const plain = world({ containerOfTab: async () => 'firefox-default' });
+    plain.proxy.setActive(true);
+    expect(await plain.proxy.tabRoute(6, '737')).toBe('no-container');
+    const http = world({}, [{ ...LORA, scheme: 'http' }, ARI]);
+    http.proxy.setActive(true);
+    expect(await http.proxy.tabRoute(6, '737')).toBe('no-page-proxy');
+    expect(await http.proxy.tabRoute(7, '999')).toBe('no-page-proxy');
+  });
+
+  it('a creator nobody proved moves no container', async () => {
+    const { proxy } = world();
+    proxy.setActive(true);
+    expect(await proxy.tabRoute(6, null)).toBe('no-page-proxy');
+    expect(await proxy.answer(tabless('firefox-container-6'))).toBeUndefined();
+  });
+});

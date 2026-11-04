@@ -132,6 +132,12 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
     uploader,
     store: vaultStoreOf(rpc),
     api: vaultAlbumApiOf(rpc),
+    // The upload starts only through the model's proxy (the vault audit, item 6): the background's router says.
+    async route(account) {
+      const answer = await fanslyRequest(rpc, 'fansly.vault.route', { hostAccountId: account }, VAULT_REQUEST_TIMEOUT_MS);
+      if (!answer.ok) throw new Error(answer.error.code);
+      return answer.payload.route;
+    },
     // The Fansly account as the page's own `/account/me` names it («Имя (@handle)», the old panel's); a page that named
     // neither — the hub page bound to it gives the name the person knows.
     account() {

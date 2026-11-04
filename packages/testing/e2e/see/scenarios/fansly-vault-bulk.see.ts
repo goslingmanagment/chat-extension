@@ -1,10 +1,14 @@
-// The upload of a set: six files go to the page at once, two of them come back under the names Fansly kept for media it
+// Without the model's proxy the panel does not start (the stand's tab is in no container, its profile gave Firefox's
+// router no grant): it says what to do. Then the stand stands for a model's container with its proxy, and the upload of
+// a set: six files go to the page at once, two of them come back under the names Fansly kept for media it
 // already had (IMG_*). The run knows each file by its upload's answer, renames those two, lays the album out by one
 // request. Then a second set into the same album (2026-11-04): five files are there already — the photos by their name
 // and picture, the videos by Fansly's answer with their old medium —, one photo of the same name is another picture and
 // goes up beside its old card, one is new. The summary names them; the album, opened again, reads the set.
 import { browser } from '@wdio/globals';
 
+import { STAND_VAULT_ROUTE_KEY } from '../../support/constants';
+import { writeLocalStorage } from '../../support/extension';
 import { fakeFansly, openFanslyStand } from '../../support/fansly-stand';
 import { ours } from '../../support/ours';
 import { around, scenario } from '../kit';
@@ -68,6 +72,15 @@ scenario('fansly-vault-bulk', async (s) => {
     `${(await fakeFansly().calls('page', since)).filter((entry) => entry.route === 'media.uploadCreate').length} upload(s)`;
   const first = await fakeFansly().mark();
   await pick(FIRST);
+  await s.see('panel', 'только через прокси модели', 15_000);
+  const refused = await s.rect('panel', '.cg-vault__card');
+  await s.shot('vault-proxy-refused', refused === null ? {} : { clip: around([refused]) });
+  // The stand's tab as a model's container with its proxy; back on the panel, it reads the route again.
+  await s.toPages();
+  await writeLocalStorage({ [STAND_VAULT_ROUTE_KEY]: 'ok' });
+  await s.toChat();
+  await (await ours('panel', '.cg-vault__card')).moveTo();
+  await s.see('panel', 'Начать', 15_000);
   await s.press(/Начать$/, 'panel');
   await s.see('panel', 'Готово: все файлы в альбоме.', 60_000);
   const box = await s.rect('panel', '.cg-vault__card');

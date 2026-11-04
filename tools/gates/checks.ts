@@ -142,6 +142,7 @@ export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
     [/cg-test-egress-probe|cg-bg-probe\.invalid/, 'background egress probe'],
     [/dev\.fanslyApi\./, "Fansly's API probe of the e2e (bg/fansly/api-probe.ts)"],
     [/dev\.fanslySend\./, "Fansly's greeting-send probe of the e2e (bg/fansly/send-probe.ts)"],
+    [/dev\.fansly\.vaultRoute/, "the stand's answer to the vault's route of the e2e (bg/fansly.ts)"],
     [/data-cg-ops-command/, "Fansly's site-operation probe of the e2e"],
     [/chat-extension-test@/, 'test gecko id'],
     [/__cgBundleMarks/, 'spike timing marks'],
