@@ -6,7 +6,8 @@
 // все шло через прокси»). Multi-Account Containers does `if (requestInfo.tabId === -1) return {}`, so whatever has no tab
 // leaves from the chatter's own line, the model's token with it: Fansly's service worker (the site itself, its scripts,
 // its images), another add-on's MV2 content script (FBuddy's own socket and API calls), this extension's background.
-// Firefox still names the container on those requests (`cookieStoreId`), so this router answers them.
+// Firefox still names the container on those requests (`cookieStoreId`), so this router answers them. Firefox shows it
+// only addresses the extension may reach: Fansly's whole domain (the grant asked with `proxy`), not every site.
 //
 // - Which proxy: the hub's, by page (`clientFanslyProxies`): Firefox shows another add-on's proxy without its password.
 //   The hub is the truth: the same address its own Fansly traffic of the page leaves through. SOCKS5 only, with its
