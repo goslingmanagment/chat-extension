@@ -17,7 +17,7 @@ export const SITE_TYPE_PREFIX = 'fansly.';
 export const siteMatches = (): string[] => __CG_TEST_HOSTS__ ? [...FANSLY_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES];
 export const permissionSet = () => ({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], permissions: ['webRequest'] });
 /** What the router of a model's container needs (core container-proxy.ts): asked together, on the person's click. */
-export const proxyPermissionSet = () => ({ origins: ['<all_urls>'], permissions: ['proxy', 'webRequest'] });
+export const proxyPermissionSet = () => ({ origins: ['<all_urls>'], permissions: ['proxy', 'webRequest', 'webRequestAuthProvider'] });
 /** Any of Fansly's own addresses (a test build: the stand's too), for the router's account rule. */
 export function fanslyAddress(value: string): boolean {
   try {

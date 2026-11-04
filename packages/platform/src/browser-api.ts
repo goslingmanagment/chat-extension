@@ -189,6 +189,9 @@ export interface WebRequestDetailsApi {
   readonly cookieStoreId?: string;
   /** Firefox: the proxy the request goes through (never its password). */
   readonly proxyInfo?: { readonly host?: string; readonly port?: number } | null;
+  /** onAuthRequired: the challenge is a proxy's (407), and who asks. */
+  readonly isProxy?: boolean;
+  readonly challenger?: { readonly host: string; readonly port: number };
 }
 
 /** Firefox's filter of a request's route: what it answers replaces what the filters before it chose; undefined keeps it. */
@@ -208,6 +211,11 @@ export interface WebRequestEventApi {
 
 export interface WebRequestApi {
   readonly onBeforeRequest: WebRequestEventApi;
+  /** Asked with `blocking`, which `webRequestAuthProvider` allows. */
+  readonly onAuthRequired?: {
+    addListener(listener: (details: WebRequestDetailsApi) => unknown, filter: { urls: string[] }, extra?: string[]): void;
+    removeListener(listener: (details: WebRequestDetailsApi) => unknown): void;
+  };
   readonly onBeforeSendHeaders: WebRequestEventApi;
   readonly onCompleted: WebRequestEventApi;
   readonly onErrorOccurred: WebRequestEventApi;

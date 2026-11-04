@@ -188,9 +188,10 @@ describe('container proxy: which page a container is', () => {
     hub({ owner: ME, rows: [ARI] });
     await proxy.refresh(true);
     expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
-    // A tab of that container now on a model the hub has no proxy for: left to Multi-Account Containers.
+    // A tab of that container now on a model the hub has no proxy for: refused without a tab, never direct.
     await proxy.learnTab(6, ['999']);
-    expect(await proxy.answer(tabless('firefox-container-6'))).toBeUndefined();
+    expect(refused(await proxy.answer(tabless('firefox-container-6')))).toBe(true);
+    expect(await proxy.answer({ url: SITE, tabId: 4, cookieStoreId: 'firefox-container-6' })).toBeUndefined();
   });
 });
 
@@ -253,5 +254,79 @@ describe('container proxy: our own line', () => {
     some.proxy.setActive(true);
     expect(await some.proxy.needed()).toBe(false);
     expect(await world({}, []).proxy.needed()).toBe(false);
+  });
+});
+
+describe('container proxy: the second review', () => {
+  it('a container switched to a model with no proxy: never the old model\'s proxy once proven, never direct', async () => {
+    const { proxy } = world({ canonicalOf: (legacy) => (legacy === 'b-legacy' ? '999' : null) });
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    // A token whose proven creator is not the container's page: refused without a tab, the tab's own left to the containers add-on.
+    expect(refused(await proxy.answer({ url: SITE, tabId: -1, cookieStoreId: 'firefox-container-6', requestHeaders: bearer('b-legacy:token') }))).toBe(true);
+    expect(await proxy.answer({ url: SITE, tabId: 4, cookieStoreId: 'firefox-container-6', requestHeaders: bearer('b-legacy:token') })).toBeUndefined();
+    expect(refused(await proxy.answer(tabless('firefox-container-6')))).toBe(true);
+  });
+
+  it('a token of an unproven creator keeps the container\'s proxy rather than breaking the page', async () => {
+    const { proxy } = world();
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    expect(first(await proxy.answer({ url: SITE, tabId: -1, cookieStoreId: 'firefox-container-6', requestHeaders: bearer('unknown:token') }))?.host).toBe(LORA.host);
+  });
+
+  it('before the first list a container\'s tab-less request waits for it, then goes as the list says', async () => {
+    let open: (list: ContainerProxyList) => void = () => undefined;
+    const { proxy } = world({ fetchRows: () => new Promise((resolve) => { open = resolve; }) });
+    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: LORA.host, port: LORA.port } });
+    const pending = proxy.answer(tabless('firefox-container-6'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    open({ owner: ME, rows: [LORA, ARI] });
+    expect(first(await pending)?.host).toBe(LORA.host);
+  });
+
+  it('no list at all: the site\'s requests are refused, other sites left alone', async () => {
+    const { proxy, hub } = world();
+    hub(new Error('the hub is down'));
+    expect(refused(await proxy.answer(tabless('firefox-container-6')))).toBe(true);
+    expect(await proxy.answer(tabless('firefox-container-6', 'https://apiv2.fbuddy.net/x'))).toBeUndefined();
+    // The tab's own requests, with no token, never wait.
+    expect(await proxy.answer({ url: SITE, tabId: 4, cookieStoreId: 'firefox-container-6' })).toBeUndefined();
+  });
+
+  it('an older tab report never undoes a binding a token made meanwhile', async () => {
+    let release: () => void = () => undefined;
+    const slow = new Promise<void>((resolve) => { release = resolve; });
+    const { proxy } = world({ containerOfTab: async (tabId) => { await slow; return `firefox-container-${tabId}`; } });
+    await proxy.refresh(true);
+    const report = proxy.learnTab(6, ['737']);
+    await proxy.answer({ url: API, tabId: 4, cookieStoreId: 'firefox-container-6', requestHeaders: bearer('890:token') });
+    release();
+    await report;
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
+  });
+
+  it('two rows on one proxy address with other logins never share a connection', async () => {
+    const twin = { ...ARI, host: LORA.host, port: LORA.port };
+    const { proxy } = world({}, [LORA, twin]);
+    await proxy.refresh(true);
+    const a = first(await proxy.answer({ url: API, tabId: -1, requestHeaders: bearer('737:token') }));
+    const b = first(await proxy.answer({ url: API, tabId: -1, requestHeaders: bearer('890:token') }));
+    expect(a?.connectionIsolationKey).toBeDefined();
+    expect(a?.connectionIsolationKey).not.toBe(b?.connectionIsolationKey);
+    expect(JSON.stringify([a?.connectionIsolationKey, b?.connectionIsolationKey])).not.toMatch(/lora|ari|203\.0/);
+  });
+
+  it('an HTTP proxy\'s 407 gets the login of the row chosen for the request, once', async () => {
+    const http = { ...LORA, scheme: 'http' };
+    const twin = { ...ARI, scheme: 'http', host: LORA.host, port: LORA.port };
+    const { proxy } = world({}, [http, twin]);
+    await proxy.refresh(true);
+    await proxy.answer({ requestId: 'r1', url: API, tabId: -1, requestHeaders: bearer('890:token') });
+    expect(proxy.authFor({ requestId: 'r1', host: LORA.host, port: LORA.port })).toEqual({ username: 'ari-user', password: 'ari-pass' });
+    expect(proxy.authFor({ requestId: 'r1', host: LORA.host, port: LORA.port })).toBe('again');
+    // Two rows on that address and no request of ours: not ours to answer.
+    expect(proxy.authFor({ requestId: 'r2', host: LORA.host, port: LORA.port })).toBeNull();
+    expect(proxy.authFor({ requestId: 'r3', host: '198.51.100.1', port: 8080 })).toBeNull();
   });
 });

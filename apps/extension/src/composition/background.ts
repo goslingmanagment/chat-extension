@@ -408,9 +408,19 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     siteApi: apiAddress,
     moveToLast: () => proxyRequests?.moveToLast(),
     now: () => Date.now(),
+    setTimer: (ms, callback) => setTimeout(callback, ms),
+    clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
     log: serviceLog,
   });
-  proxyRequests = observeProxyRequests(siteMatches(), { answer: (details) => containerProxy.answer(details), page: (details) => containerProxy.learnPage(details) }, api);
+  proxyRequests = observeProxyRequests(siteMatches(), {
+    answer: (details) => containerProxy.answer(details),
+    page: (details) => containerProxy.learnPage(details),
+    auth: (details) => {
+      if (details.challenger === undefined) return undefined;
+      const login = containerProxy.authFor({ requestId: details.requestId, host: details.challenger.host, port: details.challenger.port });
+      return login === null ? undefined : login === 'again' ? { cancel: true } : { authCredentials: login };
+    },
+  }, api);
   const proxyGranted = (granted: boolean): void => {
     if (granted) proxyRequests?.attach();
     else proxyRequests?.detach();

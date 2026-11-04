@@ -18,7 +18,12 @@
 //   one address and port prove nothing). What comes before the hub's first list waits for it. Kept in storage.local, so
 //   a browser restart starts routed.
 // - A container known to be a model's never leaves direct without a tab: no proxy of its page (another person signed
-//   in, the hub has not answered) — its tab-less requests are refused; its tab's own are Multi-Account Containers'.
+//   in, the hub has not answered, its tab proved a model the hub has no proxy for, or a token proved another creator)
+//   — its tab-less requests are refused; its tab's own are Multi-Account Containers'.
+// - Before the hub's first list, a container's tab-less request and a request with a token on the site's addresses wait
+//   for it (Firefox waits for a filter's promise); no list — the site's are refused, the rest left alone.
+// - Each row has its own connection isolation key: two rows on one proxy address with other logins never share a
+//   connection. An HTTP or HTTPS proxy's login goes in its header and, when it asks (407), through `authFor`.
 // - The proxies stay through a sign-out (the browser restarts routed, and Multi-Account Containers keeps the same
 //   logins itself); another person's sign-in drops them before anything is asked. A page that left the hub's list
 //   keeps routing its container through the proxy it had until the hub names a new one.
@@ -56,6 +61,7 @@ export interface ContainerProxyList {
 }
 
 export interface ProxyRequestFact {
+  readonly requestId?: string;
   readonly url: string;
   readonly tabId: number;
   readonly cookieStoreId?: string;
@@ -69,8 +75,15 @@ export interface PageRequestFact {
 }
 
 export type ProxyInfoAnswer =
-  | { readonly type: 'socks'; readonly host: string; readonly port: number; readonly proxyDNS: true; readonly username?: string; readonly password?: string }
-  | { readonly type: 'http' | 'https'; readonly host: string; readonly port: number; readonly proxyAuthorizationHeader?: string };
+  | { readonly type: 'socks'; readonly host: string; readonly port: number; readonly proxyDNS: true; readonly username?: string; readonly password?: string; readonly connectionIsolationKey?: string }
+  | { readonly type: 'http' | 'https'; readonly host: string; readonly port: number; readonly proxyAuthorizationHeader?: string; readonly connectionIsolationKey?: string };
+
+/** A proxy's 407 as `webRequest.onAuthRequired` gives it. */
+export interface ProxyAuthFact {
+  readonly requestId: string;
+  readonly host: string;
+  readonly port: number;
+}
 
 /** A list for Firefox's filter; undefined — no opinion: what the filters before ours chose stands. */
 export type ProxyAnswer = readonly (ProxyInfoAnswer | null)[] | undefined;
@@ -101,6 +114,9 @@ export interface ContainerProxyDeps {
   readonly siteApi: (url: string) => boolean;
   readonly moveToLast: () => void;
   readonly now: () => number;
+  /** Timers (the core's clock); absent — the realm's own. */
+  readonly setTimer?: (ms: number, callback: () => void) => unknown;
+  readonly clearTimer?: (handle: unknown) => void;
   readonly log: (entry: { readonly level: 'info' | 'warn'; readonly scope: string; readonly msg: string; readonly data?: Readonly<Record<string, unknown>> }) => void;
 }
 
@@ -122,6 +138,8 @@ export interface ContainerProxy {
   lineNow(legacyId: string, canonicalId: string | null): OwnLine;
   /** This person has proxies and the browser's grant is missing: the tab says so, once. */
   needed(): Promise<boolean>;
+  /** The login for an HTTP proxy's 407; `again` — asked again for the same request (cancel it); null — not ours. */
+  authFor(fact: ProxyAuthFact): { readonly username: string; readonly password: string } | 'again' | null;
 }
 
 function validRow(value: unknown): value is ContainerProxyRow {
@@ -129,6 +147,12 @@ function validRow(value: unknown): value is ContainerProxyRow {
   const row = value as Record<string, unknown>;
   return typeof row['pageLabel'] === 'string' && typeof row['host'] === 'string' && typeof row['port'] === 'number' && typeof row['scheme'] === 'string';
 }
+
+/** How long a request waits for the hub's first list; and how often the router asks the hub while it has none. */
+const FIRST_LIST_WAIT_MS = 15_000;
+const RETRY_UNKNOWN_MS = 5_000;
+/** Chosen HTTP proxies by request, for their 407: the newest this many. */
+const CHOSEN_MAX = 500;
 
 const usable = (row: ContainerProxyRow): boolean => SCHEMES.has(row.scheme) && row.host.length > 0 && row.port > 0;
 
@@ -142,7 +166,18 @@ function basic(username: string, password: string): string {
   return `Basic ${btoa(text)}`;
 }
 
+/** FNV-1a over the row: an isolation key that names no address and no login. */
+function isolationKey(row: ContainerProxyRow): string {
+  let hash = 0x811c9dc5;
+  for (const char of `${row.pageLabel}|${row.scheme}|${row.host}|${row.port}|${row.username ?? ''}|${row.password ?? ''}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `cg-${hash.toString(16)}`;
+}
+
 function answerOf(row: ContainerProxyRow): ProxyAnswer {
+  const connectionIsolationKey = isolationKey(row);
   if (row.scheme === 'socks5') {
     return [{
       type: 'socks',
@@ -151,13 +186,16 @@ function answerOf(row: ContainerProxyRow): ProxyAnswer {
       proxyDNS: true,
       ...(row.username === null ? {} : { username: row.username }),
       ...(row.password === null ? {} : { password: row.password }),
+      connectionIsolationKey,
     }, null];
   }
   const type = row.scheme === 'https' ? 'https' : 'http';
-  return [{ type, host: row.host, port: row.port, ...(row.username === null ? {} : { proxyAuthorizationHeader: basic(row.username, row.password ?? '') }) }, null];
+  return [{ type, host: row.host, port: row.port, ...(row.username === null ? {} : { proxyAuthorizationHeader: basic(row.username, row.password ?? '') }), connectionIsolationKey }, null];
 }
 
 export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
+  const setTimer = deps.setTimer ?? ((ms: number, callback: () => void): unknown => setTimeout(callback, ms));
+  const clearTimer = deps.clearTimer ?? ((handle: unknown): void => clearTimeout(handle as ReturnType<typeof setTimeout>));
   /** Whose rows these are; null — nobody's yet. */
   let owner: string | null = null;
   let rows: readonly ContainerProxyRow[] = [];
@@ -172,8 +210,18 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
   const said = new Set<string>();
   /** Facts from before the first list: replayed once it comes. */
   const earlyPages = new Map<string, { readonly host: string; readonly port: number | undefined }>();
-  const earlyTabs = new Map<number, readonly string[]>();
+  const earlyTabs = new Map<number, { readonly accounts: readonly string[]; readonly began: number }>();
   let refreshing: Promise<void> | null = null;
+  /** When the hub was last asked while the router had no list. */
+  let askedAt = -Infinity;
+  /** Requests waiting for the first list. */
+  const waiting = new Set<() => void>();
+  /** Each binding's stamp: a tab's report that began before a newer binding never undoes it. */
+  let stamp = 0;
+  const stamps = new Map<string, number>();
+  /** HTTP proxies chosen by request (for a 407), and the requests already answered once. */
+  const chosen = new Map<string, ContainerProxyRow>();
+  const answered = new Set<string>();
 
   const persist = async (): Promise<void> => {
     await deps.storage.set({ [STORE_KEY]: { v: 1, owner, rows, anyProxy, known, fetchedAt, containers: Object.fromEntries(containers) } });
@@ -206,10 +254,29 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
   };
   const container = (store: string | null | undefined): store is string => typeof store === 'string' && store.startsWith(CONTAINER_PREFIX);
 
+  /** `label` '' — a model's container without a proxy known now: its tab-less requests are refused. */
   const bind = (store: string, label: string): void => {
+    stamps.set(store, ++stamp);
     if (containers.get(store) === label) return;
     containers.set(store, label);
     void persist();
+  };
+
+  const remember = (request: ProxyRequestFact, row: ContainerProxyRow): ProxyAnswer => {
+    if (row.scheme !== 'socks5' && request.requestId !== undefined) {
+      chosen.set(request.requestId, row);
+      if (chosen.size > CHOSEN_MAX) {
+        const oldest = chosen.keys().next().value;
+        if (oldest !== undefined) chosen.delete(oldest);
+      }
+    }
+    return answerOf(row);
+  };
+
+  /** The creators a token proves (its legacy id, and its proven creator when known). */
+  const creatorsOf = (token: string): { readonly legacy: string | null; readonly canonical: string | null } => {
+    const legacy = deps.accountOfToken(token);
+    return { legacy, canonical: legacy === null ? null : deps.canonicalOf(legacy) };
   };
 
   function decide(request: ProxyRequestFact): ProxyAnswer {
@@ -220,11 +287,19 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     if (tokenRow !== null) {
       // Another model's token in a model's container: the container is that model's now.
       if (container(store)) bind(store, tokenRow.pageLabel);
-      return answerOf(tokenRow);
+      return remember(request, tokenRow);
     }
     if (container(store)) {
       const row = rowOfLabel(containers.get(store));
-      if (row !== null) return answerOf(row);
+      if (row !== null && token !== undefined) {
+        // A token whose proven creator is not the container's page: never that page's proxy, and nothing without a tab.
+        const { legacy, canonical } = creatorsOf(token);
+        if (canonical !== null && canonical !== row.platformAccountId && legacy !== row.platformAccountId) {
+          bind(store, '');
+          return request.tabId === -1 ? REFUSED : undefined;
+        }
+      }
+      if (row !== null) return remember(request, row);
       // A model's container whose proxy is not known now: nothing of it without a tab leaves from the chatter's line.
       if (containers.has(store) && request.tabId === -1) return REFUSED;
     }
@@ -257,19 +332,18 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     deps.log({ level: 'warn', scope: 'fansly.proxy', msg: 'a navigation went through another proxy than its page\'s: our filter moved to the end', data: { page: expected.pageLabel } });
   }
 
-  async function placeTab(tabId: number, accounts: readonly string[]): Promise<void> {
+  async function placeTab(tabId: number, accounts: readonly string[], began: number): Promise<void> {
     const row = accounts.map((account) => rowOfAccount(account)).find((found) => found !== null) ?? null;
     const store = await deps.containerOfTab(tabId).catch(() => null);
     if (!container(store)) return;
+    // A newer binding (a token seen meanwhile) wins over this older report.
+    if ((stamps.get(store) ?? 0) > began) return;
     if (row !== null) {
       bind(store, row.pageLabel);
       return;
     }
-    // The container holds a model the hub has no proxy for: it is not that page's any more.
-    if (containers.has(store)) {
-      containers.delete(store);
-      await persist();
-    }
+    // A model's container now holds a model the hub has no proxy for: refused without a tab, never direct.
+    if (containers.has(store)) bind(store, '');
   }
 
   async function replay(): Promise<void> {
@@ -278,7 +352,7 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     earlyPages.clear();
     earlyTabs.clear();
     for (const [store, page] of pages) placePage(store, page.host, page.port);
-    for (const [tabId, accounts] of tabs) await placeTab(tabId, accounts);
+    for (const [tabId, report] of tabs) await placeTab(tabId, report.accounts, report.began);
   }
 
   function take(list: ContainerProxyList): void {
@@ -297,9 +371,47 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     fetchedAt = deps.now();
   }
 
+  const release = (): void => {
+    for (const done of [...waiting]) done();
+    waiting.clear();
+  };
+
+  /** Before the first list: what must not leave without it waits for one attempt to ask the hub. */
+  function hold(request: ProxyRequestFact): boolean {
+    if (container(request.cookieStoreId) && request.tabId === -1) return true;
+    return deps.siteAddress(request.url) && request.requestHeaders?.some((header) => header.name.toLowerCase() === 'authorization') === true;
+  }
+
+  function withoutList(request: ProxyRequestFact): ProxyAnswer {
+    return deps.siteAddress(request.url) ? REFUSED : undefined;
+  }
+
+  function waitForList(request: ProxyRequestFact): Promise<ProxyAnswer> {
+    return new Promise((resolve) => {
+      let timer: unknown = null;
+      let over = false;
+      const done = (): void => {
+        if (over) return;
+        over = true;
+        if (timer !== null) clearTimer(timer);
+        waiting.delete(done);
+        resolve(known ? decide(request) : withoutList(request));
+      };
+      waiting.add(done);
+      timer = setTimer(FIRST_LIST_WAIT_MS, done);
+      if (refreshing === null && deps.now() - askedAt >= RETRY_UNKNOWN_MS) void service.refresh(true);
+      else if (refreshing === null) done();
+    });
+  }
+
+  function route(request: ProxyRequestFact): ProxyAnswer | Promise<ProxyAnswer> {
+    if (known || !hold(request)) return decide(request);
+    return waitForList(request);
+  }
+
   const service: ContainerProxy = {
     answer(request) {
-      return settled ? decide(request) : ready.then(() => decide(request));
+      return settled ? route(request) : ready.then(() => route(request));
     },
     learnPage(page) {
       const store = page.cookieStoreId;
@@ -312,12 +424,14 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
       });
     },
     async learnTab(tabId, accounts) {
+      // The report is as old as this call: a binding made while it waits is newer.
+      const began = stamp;
       await ready;
       if (!known) {
-        earlyTabs.set(tabId, accounts);
+        earlyTabs.set(tabId, { accounts, began });
         return;
       }
-      await placeTab(tabId, accounts);
+      await placeTab(tabId, accounts, began);
     },
     setActive(value) {
       active = value;
@@ -326,6 +440,7 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
       await ready;
       if (!force && known && deps.now() - fetchedAt < REFRESH_EVERY_MS) return;
       refreshing ??= (async () => {
+        if (!known) askedAt = deps.now();
         try {
           const list = await deps.fetchRows();
           if (list === null) return;
@@ -336,6 +451,7 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
           deps.log({ level: 'warn', scope: 'fansly.proxy', msg: 'the hub did not answer the proxies' });
         } finally {
           refreshing = null;
+          release();
         }
       })();
       await refreshing;
@@ -361,6 +477,19 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     async needed() {
       await service.refresh(!known);
       return anyProxy && !active;
+    },
+    authFor(fact) {
+      if (answered.has(fact.requestId)) return 'again';
+      const byRequest = chosen.get(fact.requestId);
+      const matching = rows.filter((row) => row.scheme !== 'socks5' && row.host === fact.host && row.port === fact.port);
+      const row = byRequest !== undefined && byRequest.host === fact.host && byRequest.port === fact.port ? byRequest : matching.length === 1 ? matching[0] : undefined;
+      if (row === undefined || row.username === null) return null;
+      answered.add(fact.requestId);
+      if (answered.size > CHOSEN_MAX) {
+        const oldest = answered.values().next().value;
+        if (oldest !== undefined) answered.delete(oldest);
+      }
+      return { username: row.username, password: row.password ?? '' };
     },
   };
   return service;
