@@ -409,8 +409,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/ci-proof"
           printf '%s\n' "$GITHUB_RUN_ID" > "$RUNNER_TEMP/ci-proof/run-id"
 
+      # Only saves work: without the proof a later identical tree runs the suite again. A green
+      # suite is not red over it (under a billing lock GitHub refuses every new artifact).
       - name: Publish the proof
         if: needs.check.result == 'success' && needs.e2e-part.result == 'success' && needs.check.outputs.proven_by == ''
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: ci-proof-${{ needs.check.outputs.tree }}
