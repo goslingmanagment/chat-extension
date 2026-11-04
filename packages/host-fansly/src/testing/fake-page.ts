@@ -26,7 +26,7 @@ export const GROUP = '700000000000000010';
 export const OTHER_GROUP = '700000000000000011';
 export const SOCKET = 'wss://wsv3.fansly.com?v=3';
 export const API = 'https://apiv3.fansly.com/api/v1';
-export const NETWORK: FanslyNetwork = { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com'] };
+export const NETWORK: FanslyNetwork = { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com', 'https://mediav2.fansly.com'] };
 
 // ── The page: its socket and its XHR, as natives look ─────────────────────
 

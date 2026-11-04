@@ -40,12 +40,20 @@ import { prependedVaultCard, renameVaultCard, VAULT_CONFIRM_TIMEOUT_MS } from '.
 /** How long one file may take to be confirmed (the old extension's limit). */
 export const VAULT_FILE_TIMEOUT_MS = 45 * 60 * 1000;
 /**
- * A set on its way (`uploadMany`): how long the page may show nothing new — its uploads move their progress all along,
- * so a page silent this long has stopped.
+ * A set on its way (`uploadMany`): how long the page may show nothing new — its uploads move their progress all along
+ * (the album view's nodes, texts and attributes) and Fansly's answers to its polls of an upload come every few seconds
+ * while it processes one (MAIN's `fx.vaultUpload`, said again at least every 30 s), so a page silent this long has stopped.
  */
 export const VAULT_BATCH_STALL_MS = 10 * 60 * 1000;
 /** The page is done with a set when no file of it has been on its way for this long: its additions go 1 s after the last upload (main:12536). */
 export const VAULT_BATCH_QUIET_MS = 3_000;
+/**
+ * An upload Fansly's answers said on its way (no medium yet) counts as moving this long after its last word: the page
+ * polls it every 2–3 s while Fansly processes it and MAIN says it again at least every 30 s (`VAULT_UPLOAD_ALIVE_MS`).
+ */
+export const VAULT_UPLOAD_MOVING_MS = 75_000;
+/** Attribute changes alone (a progress bar's width) read the page at most this often: they say the page works, not what it did. */
+const ATTRIBUTE_CHECK_MS = 1_000;
 
 /**
  * The account and the album a run is bound to (the checkpoint's key, `fansly.vault.*`), and the album's title as the
@@ -98,17 +106,27 @@ export type VaultUploadOutcome =
   /** Handed over (or maybe), the outcome not seen: only the person says what happened to it. */
   | { readonly state: 'unknown'; readonly halt: VaultHalt; readonly path: FanslyHandoffPath | null };
 
+/**
+ * An upload of the page answered with its medium (MAIN's `fx.vaultUpload`, 2026-11-04): the file as the page sent it
+ * (its name and size) and the medium Fansly made of it — or had: the same bytes give the old medium, under its old name.
+ */
+export interface VaultUploadAnswer {
+  readonly name: string;
+  readonly size: number;
+  readonly mediaId: string;
+}
+
 /** A set of files handed to the page at once (`uploadMany`). */
 export type VaultBatchOutcome =
   /**
-   * The page took the files and is done with them: none on its way, quiet since. What landed is the album's word (its
-   * rows, read by the run), not the page's; `said` — Fansly's words on a file it gave up, if it shows any.
+   * The page took the files and is done with them: none on its way, quiet since. What landed is what Fansly answered
+   * the uploads (`uploads`), not what the page shows; `said` — Fansly's words on a file it gave up, if it shows any.
    */
-  | { readonly state: 'settled'; readonly path: FanslyHandoffPath; readonly said: string | null }
+  | { readonly state: 'settled'; readonly path: FanslyHandoffPath; readonly said: string | null; readonly uploads: readonly VaultUploadAnswer[] }
   /** Nothing was handed over. */
   | { readonly state: 'refused'; readonly halt: VaultHalt }
-  /** Handed over (or maybe), the page not seen to its end: the album tells what landed. */
-  | { readonly state: 'unknown'; readonly halt: VaultHalt; readonly path: FanslyHandoffPath | null };
+  /** Handed over (or maybe), the page not seen to its end: `uploads` — what Fansly answered meanwhile. */
+  | { readonly state: 'unknown'; readonly halt: VaultHalt; readonly path: FanslyHandoffPath | null; readonly uploads: readonly VaultUploadAnswer[] };
 
 /** What the page shows the uploader now. */
 export interface VaultView {
@@ -179,6 +197,8 @@ export interface VaultUploaderEnv {
   /** Tests: VAULT_BATCH_QUIET_MS and VAULT_BATCH_STALL_MS. */
   readonly batchQuietMs?: number;
   readonly batchStallMs?: number;
+  /** Tests: the clock of the uploads on their way (VAULT_UPLOAD_MOVING_MS). */
+  readonly now?: () => number;
 }
 
 /**
@@ -221,6 +241,7 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
   const batchQuiet = env.batchQuietMs ?? VAULT_BATCH_QUIET_MS;
   const batchStall = env.batchStallMs ?? VAULT_BATCH_STALL_MS;
   const timer: VaultTimer = env.timer ?? { set: (callback, ms) => win.setTimeout(callback, ms), clear: (handle) => win.clearTimeout(handle as number) };
+  const clock = env.now ?? (() => Date.now());
   let flight: Flight | null = null;
   let watches = 0;
   let mutations = 0;
@@ -349,6 +370,8 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
         account: target.hostAccountId,
         fact(fact) {
           if (fact.p.seq <= fence) return;
+          // One file's step is confirmed by its album card (above): an upload's answer adds nothing to it.
+          if (fact.t === 'fx.vaultUpload') return;
           if (fact.t === 'fx.vaultAdded') {
             added = Math.max(added ?? 0, fact.p.seq);
             return;
@@ -411,10 +434,26 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
       let path: FanslyHandoffPath | null = null;
       let quiet: unknown = null;
       let stall: unknown = null;
+      let checkedAt = Number.NEGATIVE_INFINITY;
       const offs: Array<() => void> = [];
+      /** Fansly's answers to the set's uploads (MAIN's `fx.vaultUpload` after the fence): done, with their media. */
+      const answers: VaultUploadAnswer[] = [];
+      /** Uploads Fansly's answers said on their way, by the file's name and size: when each was last heard. */
+      const moving = new Map<string, number>();
+      const movingNow = (): boolean => {
+        const at = clock();
+        for (const [key, heard] of moving) if (at - heard >= VAULT_UPLOAD_MOVING_MS) moving.delete(key);
+        return moving.size > 0;
+      };
       const calm = (): void => {
         if (quiet !== null) timer.clear(quiet);
         quiet = null;
+      };
+      /** A sign of life — a mutation of the album view, an attribute too, a fact — moves the stall's deadline. */
+      const alive = (): void => {
+        if (path === null) return;
+        if (stall !== null) timer.clear(stall);
+        stall = timer.set(() => unknown('timeout'), batchStall);
       };
       const settle = (outcome: VaultBatchOutcome): void => {
         if (flight !== current) return;
@@ -424,12 +463,22 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
         for (const off of offs.splice(0)) off();
         resolve(outcome);
       };
-      const unknown = (halt: VaultHalt): void => settle({ state: 'unknown', halt, path });
+      const unknown = (halt: VaultHalt): void => settle({ state: 'unknown', halt, path, uploads: [...answers] });
+      /** Done when the page shows nothing on its way and Fansly is not still processing an upload the page polls. */
+      const quietly = (): void => {
+        quiet = null;
+        const last = readVaultPage(doc);
+        if (last.uploading) return;
+        if (movingNow()) {
+          quiet = timer.set(quietly, batchQuiet);
+          return;
+        }
+        settle({ state: 'settled', path: path ?? 'data-transfer', said: last.failure, uploads: [...answers] });
+      };
       const check = (): void => {
         if (path === null) return;
-        // Every sign of life — a mutation, a fact — moves the stall's deadline: an upload moves its progress all along.
-        if (stall !== null) timer.clear(stall);
-        stall = timer.set(() => unknown('timeout'), batchStall);
+        alive();
+        checkedAt = clock();
         const after = readVaultPage(doc);
         if (!after.albumOpen) return unknown('album-closed');
         if (after.input === null) return unknown('uploader-missing');
@@ -438,11 +487,7 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
         if (guard !== null && guard !== 'album-loading') return unknown(guard);
         if (after.uploading) return calm();
         if (quiet !== null) return;
-        quiet = timer.set(() => {
-          quiet = null;
-          const last = readVaultPage(doc);
-          if (!last.uploading) settle({ state: 'settled', path: path ?? 'data-transfer', said: last.failure });
-        }, batchQuiet);
+        quiet = timer.set(quietly, batchQuiet);
       };
       const current: Flight = {
         account: target.hostAccountId,
@@ -450,7 +495,15 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
           if (fact.p.seq <= fence) return;
           // The page shows another album: its additions may have gone there.
           if (fact.t === 'fx.vaultLoaded' && fact.p.albumId !== target.albumId) return unknown('album-changed');
-          // An addition answered, or its reload: the page is still at work — the quiet starts again.
+          if (fact.t === 'fx.vaultUpload') {
+            const key = `${fact.p.name.normalize('NFC')}\u0000${String(fact.p.size)}`;
+            if (fact.p.mediaId === null) moving.set(key, clock());
+            else {
+              moving.delete(key);
+              answers.push({ name: fact.p.name, size: fact.p.size, mediaId: fact.p.mediaId });
+            }
+          }
+          // An upload moved, an addition answered, or its reload: the page is still at work — the quiet starts again.
           calm();
           check();
         },
@@ -459,11 +512,13 @@ export function createVaultUploader(env: VaultUploaderEnv): VaultUploader {
 
       flight = current;
       watches += 1;
-      const observer = new (win as Window & typeof globalThis).MutationObserver(() => {
+      const observer = new (win as Window & typeof globalThis).MutationObserver((records) => {
         mutations += 1;
-        check();
+        alive();
+        // A progress bar's attributes say the page works; what it did is read on a node or a text, or once a second.
+        if (records.some((record) => record.type !== 'attributes') || clock() - checkedAt >= ATTRIBUTE_CHECK_MS) check();
       });
-      observer.observe(host, { childList: true, subtree: true, characterData: true });
+      observer.observe(host, { childList: true, subtree: true, characterData: true, attributes: true });
       offs.push(() => observer.disconnect());
       if (signal !== undefined) {
         const onAbort = (): void => unknown('stopped');

@@ -16,7 +16,10 @@
 // own calls are checked there.
 //
 // Not Fansly's: `POST /account/media` is the stand page's stand-in for the
-// site's upload flow (multipart PUTs to signed addresses, main:38138-38161).
+// site's upload flow of a chat's attachment (multipart PUTs to signed addresses,
+// main:38138-38161). The vault's upload is Fansly's own (2026-11-04):
+// `POST /media/upload/create`, `/complete`, the poll `GET /media/upload/<id>`
+// (`mediav2` on the site, this origin on the stand), without the parts' PUTs.
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -370,6 +373,54 @@ const ROUTES: readonly Route[] = [
       if (albumId === null) return { response: { albumMedia: [], media: [] } };
       const album = world.albums.find((item) => item.id === albumId);
       return album === undefined ? missing('no album') : { response: world.wireAlbumMedia(album, params.get('before'), VAULT_PAGE_ROWS) };
+    },
+  },
+  {
+    // The vault's upload, as «Upload to Vault» begins it (`uploadFormData: null`): the stand's parts go nowhere.
+    name: 'media.uploadCreate',
+    method: 'POST',
+    path: /^\/media\/upload\/create$/,
+    run: ({ world, body }) => {
+      const asked = asRecord(body);
+      const fileName = asked?.['fileName'];
+      const fileSize = asked?.['fileSize'];
+      const mimeType = asked?.['mimeType'];
+      if (typeof fileName !== 'string' || fileName === '' || typeof fileSize !== 'number' || typeof mimeType !== 'string') return bad('fileName, fileSize, mimeType');
+      // The picture's size the stand page measured: what Fansly's processing would find in the bytes.
+      const side = (value: unknown): number | null => (typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null);
+      const upload = { id: world.nextId(), fileName, fileSize, mimeType, width: side(asked?.['standWidth']), height: side(asked?.['standHeight']), mediaId: null };
+      world.uploads.set(upload.id, upload);
+      return { response: world.wireUpload(upload, 2) };
+    },
+  },
+  {
+    name: 'media.uploadComplete',
+    method: 'POST',
+    path: /^\/media\/upload\/complete$/,
+    run: ({ world, body }) => {
+      const upload = world.uploads.get(String(asRecord(body)?.['id'] ?? ''));
+      if (upload === undefined) return missing('no upload');
+      // Fansly knows a file by its content (fansly-publish-contract.md §2): the same file again is the same medium,
+      // under the name it got the first time — the stand takes the name, the size and the type for the content.
+      const content = `${upload.fileName}:${String(upload.fileSize)}:${upload.mimeType}`;
+      let mediaId = world.uploadedContent.get(content);
+      if (mediaId === undefined) {
+        mediaId = world.nextId();
+        world.media.set(mediaId, { id: mediaId, filename: world.uploadFilenames.get(upload.fileName) ?? upload.fileName, mimetype: upload.mimeType, createdAt: Date.now(), width: upload.width, height: upload.height });
+        world.uploadedContent.set(content, mediaId);
+      }
+      upload.mediaId = mediaId;
+      return { response: world.wireUpload(upload, 3) };
+    },
+  },
+  {
+    // The page's poll of its upload: done at once on the stand.
+    name: 'media.uploadStatus',
+    method: 'GET',
+    path: /^\/media\/upload\/(\d+)$/,
+    run: ({ world, match }) => {
+      const upload = world.uploads.get(match[1] ?? '');
+      return upload === undefined ? missing('no upload') : { response: world.wireUpload(upload, upload.mediaId === null ? 2 : 6) };
     },
   },
   {

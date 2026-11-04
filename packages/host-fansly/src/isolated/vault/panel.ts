@@ -111,6 +111,11 @@ export function vaultAccountLabel(person: { readonly username: string | null; re
   return name === '' ? null : name;
 }
 const refsOf = (files: readonly File[]) => files.map((file) => ({ name: file.name, size: file.size, lastModified: file.lastModified }));
+/** `names` in the album's order top to bottom: the set's uploads (`files`) reversed. */
+const albumOrder = (files: readonly File[], names: readonly string[]): string[] => {
+  const wanted = new Set(names);
+  return [...files].reverse().flatMap((file) => (wanted.has(file.name) ? [file.name] : []));
+};
 const ACTIVE: ReadonlySet<string> = new Set(['running', 'pausing']);
 
 export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
@@ -118,6 +123,8 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   const now = deps.now ?? (() => Date.now());
   const newId = deps.newId ?? (() => crypto.randomUUID());
   const makeRun = deps.createRun ?? (deps.api === undefined ? createVaultRun : createVaultBulkRun);
+  /** The upload of a set tells a Live Photo's photo and video of one name apart; the file-by-file run cannot. */
+  const livePairs = makeRun === createVaultBulkRun;
   const listeners = new Set<(view: VaultPanelVM) => void>();
 
   let shown = false;
@@ -415,7 +422,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
 
   const repick = (files: readonly File[] | null): void => {
     picked = files;
-    plan = files === null ? null : planVaultUpload(files, order);
+    plan = files === null ? null : planVaultUpload(files, order, { livePairs });
     drop();
     resetArmed = false;
     if (note !== 'read-failed') note = null;
@@ -462,6 +469,9 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
                 ? {
                     uploaded: snapshot.items.filter((item, index) => item.status === 'verified' && index >= bound!.previous).length - bound.answered,
                     present: snapshot.items.filter((item) => item.status === 'present').length,
+                    // The files counted as in the album already, by name: the person checks what was not uploaded (2026-11-04).
+                    presentNames: albumOrder(bound.files, snapshot.items.flatMap((item) => (item.status === 'present' ? [item.name] : []))),
+                    beside: albumOrder(bound.files, snapshot.beside ?? []),
                     previous: bound.previous + bound.answered,
                     order: bound.order ?? { kind: 'unseen' },
                   }

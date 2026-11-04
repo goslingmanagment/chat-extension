@@ -195,7 +195,10 @@ export function startFanslyVault(env: SiteAppEnv<FanslyPort>): () => void {
         page();
       }
     }),
-    port.vault.onFact(page),
+    // An upload's answer changes nothing the panel reads of the page: only the run in flight hears it (upload.ts).
+    port.vault.onFact((fact) => {
+      if (fact.t !== 'fx.vaultUpload') page();
+    }),
     port.vault.onLost(page),
     port.onContract(sync),
     context.subscribe(() => {

@@ -466,9 +466,25 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
   'fansly.vault.album': {
     req: { valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId }], invalid: [{ albumId: vaultCheckpoint.albumId }] },
     res: {
-      valid: [{ ok: true, rows: [{ row: '800000000000000002', mediaId: '800000000000000001', name: 'SXT-003_01_pic01.jpeg' }, { row: '800000000000000004', mediaId: '800000000000000003', name: '' }] }, { ok: true, rows: [] }, { ok: false, error: { code: 'CG-FAN-SESSION' } }],
-      // A row without its member; a member that is no id.
-      invalid: [{ ok: true, rows: [{ row: '800000000000000002', name: 'a.jpeg' }] }, { ok: true, rows: [{ row: '800000000000000002', mediaId: 'm1', name: 'a.jpeg' }] }],
+      valid: [
+        {
+          ok: true,
+          rows: [
+            { row: '800000000000000002', mediaId: '800000000000000001', name: 'SXT-003_01_pic01.jpeg', content: { type: 1, width: 3024, height: 4032, duration: null } },
+            { row: '800000000000000006', mediaId: '800000000000000005', name: 'SXT-003_02_clip01.mp4', content: { type: 2, width: 1080, height: 1920, duration: 140.076667 } },
+            { row: '800000000000000004', mediaId: '800000000000000003', name: '', content: null },
+          ],
+        },
+        { ok: true, rows: [] },
+        { ok: false, error: { code: 'CG-FAN-SESSION' } },
+      ],
+      // A row without its member; a member that is no id; a row that does not say its content; a side that is no size.
+      invalid: [
+        { ok: true, rows: [{ row: '800000000000000002', name: 'a.jpeg', content: null }] },
+        { ok: true, rows: [{ row: '800000000000000002', mediaId: 'm1', name: 'a.jpeg', content: null }] },
+        { ok: true, rows: [{ row: '800000000000000002', mediaId: '800000000000000001', name: 'a.jpeg' }] },
+        { ok: true, rows: [{ row: '800000000000000002', mediaId: '800000000000000001', name: 'a.jpeg', content: { type: 1, width: -1, height: 4032, duration: null } }] },
+      ],
     },
   },
   'fansly.vault.arrange': {
@@ -484,7 +500,8 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       valid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, mediaId: '800000000000000001', name: 'SXT-003_11_pic09.jpg' }],
       invalid: [{ hostAccountId: F.creator, albumId: vaultCheckpoint.albumId, name: 'SXT-003_11_pic09.jpg' }],
     },
-    res: { valid: [{ ok: true, name: 'SXT-003_11_pic09.jpg' }, { ok: false, error: { code: 'CG-FAN-REQUEST' } }], invalid: [{ ok: true }] },
+    // The answer named no name: null, never the asked one.
+    res: { valid: [{ ok: true, name: 'SXT-003_11_pic09.jpg' }, { ok: true, name: null }, { ok: false, error: { code: 'CG-FAN-REQUEST' } }], invalid: [{ ok: true }] },
   },
 
   'fansly.relay.hello': {

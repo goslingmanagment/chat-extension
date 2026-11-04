@@ -54,6 +54,9 @@ export type FanslyRoute =
   | 'vault.renameMedia'
   | 'vault.albumMedia'
   | 'media.create'
+  | 'media.uploadCreate'
+  | 'media.uploadComplete'
+  | 'media.uploadStatus'
   | 'media.orderhistory'
   | 'media.bundles';
 

@@ -90,6 +90,15 @@ function stopText(t: Text, run: VaultRunVM): string | null {
   return t(`fansly.vault.stop.${stop.kind}`, { album });
 }
 
+/** The most file names a line of the summary lists; the rest are counted («и ещё N»). */
+const NAMES_SHOWN = 12;
+
+/** File names for a line of the summary: the first NAMES_SHOWN, then how many more. */
+function namesText(t: Text, names: readonly string[]): string {
+  const shown = names.slice(0, NAMES_SHOWN).join(', ');
+  return names.length > NAMES_SHOWN ? `${shown} ${t('fansly.vault.report.more', { n: names.length - NAMES_SHOWN })}` : shown;
+}
+
 function orderText(t: Text, order: VaultOrderCheck): string {
   switch (order.kind) {
     case 'ok':
@@ -312,6 +321,17 @@ function Panel({ client, view }: { readonly client: VaultPanelClient<File>; read
                   <p class="cg-vault__line">{t('fansly.vault.complete')}</p>
                   <p class="cg-vault__line">{t('fansly.vault.report.uploaded', { n: run.report.uploaded })}</p>
                   <p class="cg-vault__line">{t('fansly.vault.report.present', { n: run.report.present })}</p>
+                  {/* Which files were not uploaded because the album had them: their names, to check by eye. */}
+                  {run.report.presentNames.length === 0 ? null : (
+                    <p class="cg-vault__line cg-vault__names" data-cg-vault-present="">
+                      {namesText(t, run.report.presentNames)}
+                    </p>
+                  )}
+                  {run.report.beside.length === 0 ? null : (
+                    <p class="cg-vault__line" data-cg-vault-beside="">
+                      {t('fansly.vault.report.beside', { names: namesText(t, run.report.beside) })}
+                    </p>
+                  )}
                   <p class="cg-vault__line">{t('fansly.vault.report.previous', { n: run.report.previous })}</p>
                   <p class="cg-vault__line" data-cg-vault-order={run.report.order.kind}>
                     {orderText(t, run.report.order)}

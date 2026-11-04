@@ -36,6 +36,9 @@ export interface UploadFile {
   readonly size: number;
   /** The page's blob of the file, for the composer's tile of it (as Fansly shows the medium it made). */
   readonly url?: string;
+  /** The vault's upload: the picture's size the page measured — the stand's stand-in for Fansly's processing of the bytes. */
+  readonly width?: number | null;
+  readonly height?: number | null;
 }
 
 /** A history page: the latest 25, or the 25 before a message id (oldest first). */

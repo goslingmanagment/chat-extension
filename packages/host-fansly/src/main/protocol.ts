@@ -35,6 +35,12 @@ export const EVT_COVERAGE = 'fx.coverage';
 export const EVT_DELETED = 'fx.deleted';
 export const EVT_VAULT = 'fx.vaultAdded';
 export const EVT_VAULT_LOADED = 'fx.vaultLoaded';
+/** The page's upload of a file into the vault answered (2026-11-04): its name, size and, once done, its medium. */
+export const EVT_VAULT_UPLOAD = 'fx.vaultUpload';
+/** An upload on its way is said again at most this often while its answers do not move: a sign of life, not news. */
+export const VAULT_UPLOAD_ALIVE_MS = 30_000;
+/** Uploads MAIN remembers the last word of (its own throttle, not the page's state): the oldest goes first. */
+export const VAULT_UPLOADS_KEPT = 500;
 /** Who has the last word in a chat (2026-10-29): the mark of the list of chats. */
 export const EVT_LAST_WORD = 'fx.lastWord';
 
