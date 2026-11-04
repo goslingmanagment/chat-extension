@@ -327,6 +327,32 @@ export interface WireVaultMedia {
   readonly id: string;
   readonly filename: string | null;
   readonly mimetype: string;
+  /** 1 a photo, 2 a video. */
+  readonly type: number;
+  /** A photo's own size; a video's is in `metadata` (`originalWidth`, `originalHeight`, `duration`), as on Fansly. */
+  readonly width: number | null;
+  readonly height: number | null;
+  /** A JSON string, as Fansly sends it. */
+  readonly metadata: string;
+}
+
+/**
+ * The vault's upload (hub docs/plans/2026-10-23-wall-posts/fansly-publish-contract.md §2): `POST mediav2…/media/upload/create`,
+ * `…/complete` and the page's poll `GET …/media/upload/<id>` answer the upload with the file as sent; on `status` 6, the
+ * medium made of it (`mediaId`, `media`). The stand's parts go nowhere: its upload has none.
+ */
+export interface WireMediaUpload {
+  readonly id: string;
+  readonly type: number;
+  readonly status: number;
+  readonly fileName: string;
+  readonly fileSize: number;
+  readonly mimeType: string;
+  readonly partSize: number;
+  readonly parts: readonly unknown[];
+  readonly accountId: string;
+  readonly mediaId: string | null;
+  readonly media?: WireVaultMedia;
 }
 
 /** `GET /media/vaultnew?albumId=<id>&mediaType=…&search=…&before=…&after=…` (main:12696-12712, :30257): newest first. */

@@ -59,6 +59,9 @@ export function vaultMediaKey(name: string): string {
 
 export const isVaultPath = (path: string): boolean => path === VAULT_SELECTORS.path || path === `${VAULT_SELECTORS.path}/`;
 
+/** A video by its name's extension (the vault's own: MP4, MOV, M4V, WebM); anything else the vault takes is a photo. */
+export const isVaultVideo = (name: string): boolean => /\.(?:mp4|mov|m4v|webm)$/i.test(name.trim());
+
 /** One synchronous reading of the vault page; nothing kept. */
 export interface VaultPage {
   /** The route's album view; null — not the vault page, or not rendered yet. */

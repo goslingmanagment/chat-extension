@@ -344,3 +344,23 @@ describe('[host:fansly] the re-check of P7b: an absence never outranks a presenc
     expect(await meta(c)).toMatchObject({ kind: 'direct', fanId: FAN });
   });
 });
+
+describe('[host:fansly] the vault’s uploads, as Fansly answers them (2026-11-04)', () => {
+  const MEDIA = 'https://mediav2.fansly.com/api/v1';
+  const UPLOAD = '700000000000000501';
+  const answer = (over: Record<string, unknown>): string => ok({ id: UPLOAD, type: 1, fileName: 'SXT-003_01_pic01.jpg', fileSize: 837_409, mimeType: 'image/jpeg', ...over });
+  const said = (c: Connected): unknown[] => c.events().filter((e) => e.t === 'fx.vaultUpload').map((e) => ({ ...e.p, seq: 0 }));
+
+  it('on its way when it moves, then the medium Fansly made of it; a poll that did not move is not said again; `create` is never read', async () => {
+    const c = await connect(page());
+    request(c.win, `${MEDIA}/media/upload/create?ngsw-bypass=true`, 'POST').respond(200, answer({ status: 2, parts: [{ index: 0, uploadUrl: 'https://fansly-upload.s3.eu-central-1.amazonaws.com/x?X-Amz-Signature=s' }] }));
+    request(c.win, `${MEDIA}/media/upload/complete?ngsw-bypass=true`, 'POST').respond(200, answer({ status: 3, mediaId: null }));
+    request(c.win, `${MEDIA}/media/upload/${UPLOAD}?ngsw-bypass=true`).respond(200, answer({ status: 4, mediaId: null }));
+    request(c.win, `${MEDIA}/media/upload/${UPLOAD}?ngsw-bypass=true`).respond(200, answer({ status: 4, mediaId: null }));
+    // The same bytes as a medium Fansly had: its old id and name — the file is that medium.
+    request(c.win, `${MEDIA}/media/upload/${UPLOAD}?ngsw-bypass=true`).respond(200, answer({ status: 6, mediaId: '700000000000000502', media: { id: '700000000000000502', filename: 'IMG_0191.jpeg' } }));
+    await settle();
+    const file = { seq: 0, name: 'SXT-003_01_pic01.jpg', size: 837_409 };
+    expect(said(c)).toEqual([{ ...file, mediaId: null }, { ...file, mediaId: null }, { ...file, mediaId: '700000000000000502' }]);
+  });
+});

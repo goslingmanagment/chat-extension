@@ -126,8 +126,11 @@ export interface FanslyIsolatedHealth {
   readonly attach: VoiceAttachStats;
 }
 
-/** A fact of the vault from MAIN's stream (§7.11): an addition to an album, an album the page loaded. */
-export type FanslyVaultFact = Extract<FromMainFansly, { readonly t: 'fx.vaultAdded' | 'fx.vaultLoaded' }>;
+/**
+ * A fact of the vault from MAIN's stream (§7.11): an addition to an album, an album the page loaded, an upload of a file
+ * answered (2026-11-04: its name, size and, once done, its medium).
+ */
+export type FanslyVaultFact = Extract<FromMainFansly, { readonly t: 'fx.vaultAdded' | 'fx.vaultLoaded' | 'fx.vaultUpload' }>;
 
 /** What the uploader (isolated/vault) reads of the stream. */
 export interface FanslyVaultFacts {
@@ -579,6 +582,7 @@ export function createFanslyHostPort(options: FanslyHostPortOptions): FanslyPort
       // The vault's facts go to the uploader, if one listens (§7.11, P13a).
       case 'fx.vaultLoaded':
       case 'fx.vaultAdded':
+      case 'fx.vaultUpload':
         if (event.t === 'fx.vaultLoaded' && (vaultLoad === null || event.p.seq > vaultLoad.seq)) vaultLoad = event.p;
         for (const listener of [...vaultListeners]) listener(event);
         return;

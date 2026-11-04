@@ -91,6 +91,7 @@ ${card} {
 .cg-vault__line { margin: 0; color: var(--cg-ink); font-size: var(--cg-text-sm); line-height: 18px; overflow-wrap: anywhere; }
 .cg-vault__line.is-count { color: var(--cg-ink-strong); font-weight: 600; font-variant-numeric: tabular-nums; }
 .cg-vault__code { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); }
+.cg-vault__names { color: var(--cg-ink-muted); font-size: var(--cg-text-xs); line-height: 16px; }
 
 .cg-vault__foot { display: flex; align-items: center; gap: 6px; padding: 10px 16px 6px; border-top: 1px solid var(--cg-rule); }
 .cg-vault__start:not([aria-disabled="true"]) { background: var(--cg-clay); box-shadow: inset 0 0 0 1px var(--cg-clay); color: #fff; }

@@ -8,15 +8,16 @@
 // - The album lists the newest upload first: «first on top» uploads the LAST file first (`sequence` is the list
 //   reversed), «last on top» uploads in the list's order. `items` stay in the album's order top to bottom — what the
 //   person sees in the panel and later on the page.
-// - Two files of one card key (`cover.jpg`, `cover.mp4`) cannot be told apart in the album; more files than the
+// - Two files of one card key (`cover.jpg`, `cover.png`) cannot be told apart in the album; more files than the
 //   checkpoint holds (`vaultFilesPerUpload`, 10 000 — no real upload); none the vault takes — each is a problem, and
-//   the run is not offered. A name of
-//   other than printable ASCII may come back renamed by Fansly, so its card may never be found: a warning.
+//   the run is not offered. But a photo and a video of one key — a Live Photo's `IMG_1.JPG` and `IMG_1.MOV` — go
+//   in the upload of a set (`livePairs`, 2026-11-04: their cards differ by their content, as the hub's CLI takes them).
+//   A name of other than printable ASCII may come back renamed by Fansly, so its card may never be found: a warning.
 
 import type { VaultAlbumOrder, VaultPlanProblem, VaultPlanWarning } from '@cg/contracts/vault-fansly';
 
 import { vaultMediaKey } from './dom';
-import { VAULT_FILES_MAX } from './run';
+import { VAULT_FILES_MAX, vaultDuplicateKeys } from './run';
 
 /** What the vault takes (the old extension's list, seen live 2026-09-09); anything else is left out and counted. */
 export const VAULT_MEDIA_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'm4v', 'webm'] as const;
@@ -49,8 +50,11 @@ const natural = (a: string, b: string): number => a.localeCompare(b, 'en', { num
 const segments = (path: string | undefined): string[] => (path ?? '').split('/').filter((part) => part !== '');
 const printable = (name: string): boolean => /^[\x20-\x7e]+$/.test(name);
 
-/** The set of `files` for an album read in `order`. */
-export function planVaultUpload<F extends VaultPick>(files: readonly F[], order: VaultAlbumOrder): VaultPlan<F> {
+/**
+ * The set of `files` for an album read in `order`. `livePairs` — the run takes a photo and a video of one key (the
+ * upload of a set, bulk.ts); the file-by-file run tells its cards apart by the key alone and refuses them.
+ */
+export function planVaultUpload<F extends VaultPick>(files: readonly F[], order: VaultAlbumOrder, options: { readonly livePairs?: boolean } = {}): VaultPlan<F> {
   let nested = 0;
   let unsupported = 0;
   let nonAscii = 0;
@@ -75,12 +79,15 @@ export function planVaultUpload<F extends VaultPick>(files: readonly F[], order:
 
   const problems: VaultPlanProblem[] = [];
   if (taken.length === 0) problems.push({ kind: 'empty' });
+  // Grouped by key, as the old plan listed them: `cover.jpg, cover.png, top.jpg, top.webp`.
+  const twinNames = new Set(vaultDuplicateKeys(taken, options.livePairs === true));
   const byKey = new Map<string, string[]>();
   for (const file of taken) {
+    if (!twinNames.has(file.name)) continue;
     const key = vaultMediaKey(file.name);
     byKey.set(key, [...(byKey.get(key) ?? []), file.name]);
   }
-  const twins = [...byKey.values()].filter((names) => names.length > 1).flat();
+  const twins = [...byKey.values()].flat();
   if (twins.length > 0) problems.push({ kind: 'duplicate-keys', names: twins });
   if (taken.length > VAULT_FILES_MAX) problems.push({ kind: 'too-many', count: taken.length, max: VAULT_FILES_MAX });
 

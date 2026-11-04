@@ -17,7 +17,7 @@ import type { GroupDetail, HistoryPage, OutgoingMessage, StandBackend, UploadFil
 import type { Account, Message, MessageAttachment } from './data';
 import type { FanslyHttp } from './http';
 import type { VaultApi } from './vault';
-import type { WireAccount, WireAccountMe, WireAckBody, WireGroup, WireHistoryPage, WireInboxPage, WireMessage, WireSendBody, WireUnreadPage, WireVaultAlbum, WireVaultAlbumMediaPage, WireVaultAlbums } from './wire';
+import type { WireAccount, WireAccountMe, WireAckBody, WireGroup, WireHistoryPage, WireInboxPage, WireMediaUpload, WireMessage, WireSendBody, WireUnreadPage, WireVaultAlbum, WireVaultAlbumMediaPage, WireVaultAlbums } from './wire';
 
 const HISTORY_PAGE = 25;
 const UNREAD_CHUNK = 100;
@@ -25,6 +25,9 @@ const UNREAD_CHUNK = 100;
 const UNREAD_MAX = 500;
 const ACK_CHUNK = 25;
 const ACK_CHUNK_GAP_MS = 200;
+/** The vault's upload: the page polls it this often, at most this many times (the site: every 2–3 s). */
+const VAULT_POLL_MS = 300;
+const VAULT_POLLS = 20;
 /** 2 read, 1 delivered, 3 both, 4 unread: the order the page sends its collected marks in. */
 const ACK_ORDER = [2, 1, 3, 4] as const;
 
@@ -241,8 +244,29 @@ export class XhrBackend implements StandBackend, VaultApi {
     this.http.request<WireVaultAlbumMediaPage>('GET', `/media/vaultnew?albumId=${albumId}&mediaType=0&search=&before=0&after=0`, null, (error, response) => done(error === null ? response : null), { albumId });
   }
 
+  /**
+   * «Upload to Vault» (fansly-publish-contract.md §2): `create` with `uploadFormData: null`, the parts (none on the
+   * stand), `complete`, then the page's poll of the upload until Fansly names its medium.
+   */
   vaultUpload(file: UploadFile, done: (mediaId: string | null) => void): void {
-    this.http.request<MessageAttachment[]>('POST', '/account/media', [file], (error, response) => done(error !== null || response === null ? null : (response[0]?.contentId ?? null)), { files: 1 });
+    const measured = { ...(file.width === undefined || file.width === null ? {} : { standWidth: file.width }), ...(file.height === undefined || file.height === null ? {} : { standHeight: file.height }) };
+    const create = { fileSize: file.size, mimeType: file.type, fileName: file.name, uploadFormData: null, ...measured };
+    this.http.request<WireMediaUpload>('POST', '/media/upload/create', create, (error, made) => {
+      if (error !== null || made === null) return done(null);
+      const finish = { id: made.id, type: made.type, partSize: made.partSize, status: 0, parts: [], waitForComplete: 0 };
+      this.http.request<WireMediaUpload>('POST', '/media/upload/complete', finish, (failed) => {
+        if (failed !== null) return done(null);
+        const poll = (left: number): void => {
+          this.http.request<WireMediaUpload>('GET', `/media/upload/${made.id}`, null, (lost, upload) => {
+            if (lost !== null || upload === null) return done(null);
+            if (upload.status === 6 && upload.mediaId !== null) return done(upload.mediaId);
+            if (left <= 0) return done(null);
+            setTimeout(() => poll(left - 1), VAULT_POLL_MS);
+          });
+        };
+        poll(VAULT_POLLS);
+      });
+    }, { files: 1 });
   }
 
   vaultAdd(albumId: string, mediaIds: readonly string[], done: (ok: boolean) => void): void {

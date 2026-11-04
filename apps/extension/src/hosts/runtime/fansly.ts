@@ -40,9 +40,10 @@ export const FANSLY_RELAY_PAGE = 'fansly-relay.html';
 
 /**
  * The page's own socket and API, which Fansly's MAIN observes (§5.2, §5.4; FS-WS-1): the host name of its socket
- * (`wss://wsv3.fansly.com?v=3`) and the origin of its API (`/api/v1/…`). Its entry point hands them in.
+ * (`wss://wsv3.fansly.com?v=3`) and the origins of its API (`/api/v1/…`) — `apiv3`, and `mediav2`, whose answers to
+ * the vault's uploads MAIN reads (2026-11-04, host-fansly main/responses.ts `upload`). Its entry point hands them in.
  */
-export const FANSLY_NETWORK = { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com'] } as const;
+export const FANSLY_NETWORK = { socketHosts: ['wsv3.fansly.com'], apiOrigins: ['https://apiv3.fansly.com', 'https://mediav2.fansly.com'] } as const;
 
 /**
  * The Fansly stand's (packages/testing/src/fake-fansly): its socket and API on the loopback name `localhost`, on

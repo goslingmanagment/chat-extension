@@ -19,10 +19,11 @@
 //   checkpoint to continue from; a definite failure of Fansly's is tried again only by the person's next Start.
 
 import type { CgFanslyCode } from '@cg/contracts/errors-fansly';
-import { FANSLY_TAB_LIMITS, type VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
+import { FANSLY_TAB_LIMITS, type VaultCheckpoint, type VaultMediaContentWire } from '@cg/contracts/tab-messages-fansly';
 import type { VaultOrderCheck } from '@cg/contracts/vault-fansly';
 
-import { vaultMediaKey } from './dom';
+import type { VaultFileContent } from './content';
+import { isVaultVideo, vaultMediaKey } from './dom';
 import { vaultGuard, type VaultHalt, type VaultTarget, type VaultUploader } from './upload';
 
 /** A checkpoint older than this is a forgotten run (the old extension's TTL). */
@@ -51,11 +52,19 @@ const refOf = (file: VaultFileRef): VaultFileRef => ({ name: file.name, size: fi
 export const sameVaultFiles = (a: readonly VaultFileRef[], b: readonly VaultFileRef[]): boolean =>
   a.length === b.length && a.every((file, i) => file.name === b[i]?.name && file.size === b[i]?.size && file.lastModified === b[i]?.lastModified);
 
-/** The names of the files that share a card key with another one (dom.ts `vaultMediaKey`), in their order; empty — none. */
-export function vaultDuplicateKeys(files: readonly { readonly name: string }[]): string[] {
-  const counts = new Map<string, number>();
-  for (const file of files) counts.set(vaultMediaKey(file.name), (counts.get(vaultMediaKey(file.name)) ?? 0) + 1);
-  return files.filter((file) => (counts.get(vaultMediaKey(file.name)) ?? 0) > 1).map((file) => file.name);
+/**
+ * The names of the files that share a card key with another one (dom.ts `vaultMediaKey`), in their order; empty — none.
+ * `livePairs` (the upload of a set, 2026-11-04): a photo and a video of one key — a Live Photo's `IMG_1.JPG` and
+ * `IMG_1.MOV` — are no twins: their cards differ by their content, their media by the uploads' answers.
+ */
+export function vaultDuplicateKeys(files: readonly { readonly name: string }[], livePairs = false): string[] {
+  const byKey = new Map<string, Array<{ readonly name: string }>>();
+  for (const file of files) byKey.set(vaultMediaKey(file.name), [...(byKey.get(vaultMediaKey(file.name)) ?? []), file]);
+  const pair = (group: readonly { readonly name: string }[]): boolean => group.length === 2 && isVaultVideo(group[0]?.name ?? '') !== isVaultVideo(group[1]?.name ?? '');
+  return files.filter((file) => {
+    const group = byKey.get(vaultMediaKey(file.name)) ?? [];
+    return group.length > 1 && !(livePairs && pair(group));
+  }).map((file) => file.name);
 }
 
 /** What stands for an album when a run is about to begin. */
@@ -120,6 +129,11 @@ export interface VaultRunSnapshot {
   readonly checkpointLeftBehind: boolean;
   /** The upload of a set: the album's rows read against the set after it was laid out (Fansly's word, not the page's). */
   readonly order?: VaultOrderCheck | null;
+  /**
+   * The upload of a set (2026-11-04): files that went up although the album had a card of the same name — its content
+   * another (Fansly made a new medium of the file): the file's card stands beside the old one.
+   */
+  readonly beside?: readonly string[];
 }
 
 export interface VaultRunInit {
@@ -136,8 +150,10 @@ export interface VaultRunDeps {
   readonly newId?: () => string;
   /** The album through Fansly's API (the background's `fansly.vault.album|arrange|rename`): the upload of a set (bulk.ts). */
   readonly api?: VaultAlbumApi;
-  /** Tests: the pause between two reads of the album. */
+  /** Tests: the pause between two reads of the album, and before a file goes again. */
   readonly sleep?: (ms: number) => Promise<void>;
+  /** What a file's own bytes say of its content (content.ts `readVaultFileContent`); tests give their own. */
+  readonly readContent?: (file: File) => Promise<VaultFileContent | null>;
 }
 
 /** One row of an album, the newest first (`fansly.vault.album`). */
@@ -146,6 +162,8 @@ export interface VaultAlbumRowRef {
   readonly mediaId: string;
   /** The name the album shows; '' — none. */
   readonly name: string;
+  /** What Fansly says of the member's content (2026-11-04); null or absent — not said. */
+  readonly content?: VaultMediaContentWire | null;
 }
 
 /** The album through Fansly's API. A call Fansly did not answer rejects with VaultAlbumApiError. */
@@ -154,8 +172,8 @@ export interface VaultAlbumApi {
   album(target: VaultTarget): Promise<readonly VaultAlbumRowRef[]>;
   /** The members added again in this order: the last one ends on top. */
   arrange(target: VaultTarget, mediaIds: readonly string[]): Promise<void>;
-  /** The member's name in this album; resolves with the name Fansly kept. */
-  rename(target: VaultTarget, mediaId: string, name: string): Promise<string>;
+  /** The member's name in this album; resolves with the name Fansly's answer says it kept, null — the answer named none. */
+  rename(target: VaultTarget, mediaId: string, name: string): Promise<string | null>;
 }
 
 /** A call of VaultAlbumApi that Fansly did not answer: `code` — the background's code (CG-FAN-*). */

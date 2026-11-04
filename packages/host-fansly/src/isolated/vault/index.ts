@@ -2,18 +2,19 @@
 // §7.19, §7.21; R20 P13a, P13b): the vault page as it reads it (dom.ts), a file into the page's own input
 // (../handoff.ts, shared with the voice's attachment), one file confirmed and a set handed at once (upload.ts), a run
 // with its checkpoint (run.ts) and the run of a whole set laid out through Fansly's API (bulk.ts), the person's files as
-// a run takes them (plan.ts), the panel's controller (panel.ts) and the port's single
+// a run takes them (plan.ts), what a file's own bytes say of its content (content.ts), the panel's controller (panel.ts) and the port's single
 // file (serve.ts). Its own entry, `@cg/host-fansly/isolated/vault`: the early isolated bundle (`fansly.js`) never
 // carries it — it comes with the vault's panel, its lazy chunk (`lazy/fansly/vault.js`), over the port's vault facts
 // (`FanslyPort.vault`). Nothing here talks to the network; checkpoints go through the store it is given.
 
-export { VAULT_SELECTORS, isVaultPath, readVaultPage, vaultMediaKey, type VaultPage } from './dom';
+export { VAULT_SELECTORS, isVaultPath, isVaultVideo, readVaultPage, vaultMediaKey, type VaultPage } from './dom';
 export { HandoffIndeterminateError, handFile, handFiles, type HandoffResult } from '../handoff';
 export {
   VAULT_BATCH_QUIET_MS,
   VAULT_BATCH_STALL_MS,
   VAULT_FILE_TIMEOUT_MS,
   VAULT_HALTS,
+  VAULT_UPLOAD_MOVING_MS,
   createVaultUploader,
   vaultGuard,
   vaultTargetOf,
@@ -23,6 +24,7 @@ export {
   type VaultTarget,
   type VaultTimer,
   type VaultUploadOptions,
+  type VaultUploadAnswer,
   type VaultUploadOutcome,
   type VaultUploader,
   type VaultUploaderEnv,
@@ -51,7 +53,8 @@ export {
   type VaultRunState,
   type VaultStop,
 } from './run';
-export { VAULT_BATCH_BYTES, VAULT_BATCH_FILES, VAULT_FILE_TRIES, createVaultBulkRun, vaultBatchOf, vaultLayoutCheck } from './bulk';
+export { VAULT_BATCH_BYTES, VAULT_BATCH_FILES, VAULT_FILE_TRIES, VAULT_RETRY_PAUSES_MS, createVaultBulkRun, vaultAnswersOf, vaultBatchOf, vaultLayoutCheck } from './bulk';
 export { VAULT_MEDIA_EXTENSIONS, isVaultMedia, planVaultUpload, type VaultPick, type VaultPlan } from './plan';
+export { VAULT_DURATION_SLACK_S, readVaultFileContent, sameVaultContent, type VaultContentMatch, type VaultFileContent } from './content';
 export { checkVaultOrder, createVaultPanel, vaultAccountLabel, type VaultPanel, type VaultPanelDeps, type VaultPanelStore } from './panel';
 export { vaultUploadOf } from './serve';

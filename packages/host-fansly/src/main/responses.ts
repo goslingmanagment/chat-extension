@@ -17,6 +17,11 @@
 // | `/message/automated`                   | automated | an array — the welcome texts                     |
 // | exactly `/vault/albums/media`          | vault     | `success` alone: the page reads no more (P3a)    |
 // | `/media/vaultnew`                      | vaultLoad | not read: its address names the album (P13a)     |
+// | `/media/upload/complete`, `/media/upload/<id>` | upload | `id`, `fileName`, `fileSize` — an upload's answer (2026-11-04) |
+//
+// The uploads are `mediav2`'s (an origin of `apiOrigins` too): `complete` and the page's poll of the upload say the
+// file's name and size as the page sent them and, once done, the medium Fansly made of it (`mediaId`). Their `create`
+// is never read: its answer carries a signed address per part of the file, up to hundreds of them.
 //
 // Every answer: status 2xx, `{success: true, response}` (the page's envelope,
 // main:28316-28420) — but `vaultLoad`'s: the page loads an album's media with
@@ -48,7 +53,7 @@ import type { Guard } from '@cg/host-kit/main/guard';
 
 import { DEFERRED_MAX_CHARS, DEFERRED_MAX_ITEMS, DRAIN_CHARS_PER_MS, IDLE_RESERVE_MS, IDLE_TIMEOUT_MS } from './protocol';
 
-export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault' | 'vaultLoad';
+export type ResponseKind = 'history' | 'older' | 'receipt' | 'byIds' | 'unread' | 'group' | 'groups' | 'me' | 'accounts' | 'automated' | 'vault' | 'vaultLoad' | 'upload';
 
 /** An answer of the API by its address: of the table, or `other` — an API answer MAIN does not read. */
 export interface ApiCall {
@@ -70,6 +75,8 @@ export interface ResponseRead extends ApiCall {
 
 const API_PATH = '/api/v1/';
 const GROUP_PATH = /^group\/(\d+)\/?$/;
+/** An upload's own address: `complete`, or the page's poll of it by its id (never `create`). */
+const UPLOAD_PATH = /^media\/upload\/(?:complete|\d{1,24})$/;
 
 const param = (query: string, name: string): string | null => {
   for (const part of query.split('&')) {
@@ -125,6 +132,7 @@ export function classifyAddress(url: string, origins: readonly string[]): ApiCal
         return album !== null && albumId === null ? OTHER : { kind: 'vaultLoad', groupId: null, albumId };
       }
       default: {
+        if (UPLOAD_PATH.test(path)) return { kind: 'upload', groupId: null };
         const groupId = idOf(GROUP_PATH.exec(path)?.[1]);
         return groupId === null ? OTHER : { kind: 'group', groupId };
       }
@@ -154,6 +162,8 @@ function ofForm(call: ApiCall, response: unknown): boolean {
       return Array.isArray(response['data']);
     case 'me':
       return isPlain(response['account']) && idOf(response['account']['id']) !== null;
+    case 'upload':
+      return idOf(response['id']) !== null && typeof response['fileName'] === 'string' && typeof response['fileSize'] === 'number' && Number.isSafeInteger(response['fileSize']) && response['fileSize'] >= 0;
   }
 }
 

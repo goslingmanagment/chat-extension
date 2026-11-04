@@ -23,7 +23,7 @@ import {
 } from './bridge-fansly';
 import { FANSLY_COMPLETENESS, FANSLY_COVERAGE_REASONS, FANSLY_LIMITS, FanslySnapshotFeatureSchema, FanslySnapshotSchema, HI_FAN_ACCOUNT_LIMITS } from './fansly';
 import { ANCHOR_STATES, ConversationKindSchema, type FanScript } from './host';
-import { CountSchema, DigestSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema } from './primitives';
+import { CountSchema, DigestSchema, EpochTokenSchema, IsoTimestampSchema, NativeIdSchema, boundedText } from './primitives';
 
 const EmptySchema = z.strictObject({});
 const AnchorStateSchema = z.enum(ANCHOR_STATES);
@@ -341,6 +341,15 @@ export const FROM_MAIN_FANSLY = {
    */
   'fx.vaultLoaded': z.strictObject({ albumId: z.nullable(NativeIdSchema), seq: CountSchema }),
   /**
+   * 2026-11-04: the page's upload of a file into the vault answered (`POST mediav2…/media/upload/complete`, its poll
+   * `GET mediav2…/media/upload/<id>`): the file's name and size as the page sent them, and the medium Fansly made of it
+   * once done (`status` 6 or above, as the site's own poll takes it; the same bytes again give the old medium) — null
+   * while it is on its way. Said when the upload
+   * moves on, and again while it waits, at most every MAIN's `VAULT_UPLOAD_ALIVE_MS`. Never an address: the answer's
+   * signed ones stay in MAIN.
+   */
+  'fx.vaultUpload': z.strictObject({ seq: CountSchema, name: boundedText(255), size: CountSchema, mediaId: z.nullable(NativeIdSchema) }),
+  /**
    * Who has the last word in a chat (2026-10-29, the mark of Fansly's list of chats): `fan` — the fan wrote last and no
    * personal message of the model came after; `model` — the model answered; null — not known any more. Neither a mass
    * send nor a welcome text answers a fan. Said when it changes; after `fx.state` MAIN says every one it knows again.
@@ -367,6 +376,7 @@ export const FanslyBatchEventSchema = z.discriminatedUnion('t', [
   batchEvent('fx.deleted'),
   batchEvent('fx.vaultAdded'),
   batchEvent('fx.vaultLoaded'),
+  batchEvent('fx.vaultUpload'),
   batchEvent('fx.lastWord'),
 ]);
 

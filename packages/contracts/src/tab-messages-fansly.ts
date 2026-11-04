@@ -391,6 +391,19 @@ export type VaultCheckpoint = z.infer<typeof VaultCheckpointSchema>;
 const AlbumRef = { hostAccountId: NativeIdSchema, albumId: NativeIdSchema };
 
 /**
+ * What Fansly says of a vault medium's content (fansly-api vault.ts `VaultMediaContent`, 2026-11-04): its type (1 a
+ * photo, 2 a video), the original width and height, a video's duration in seconds; null — not said. No byte size: Fansly
+ * gives none.
+ */
+export const VaultMediaContentSchema = z.strictObject({
+  type: z.nullable(z.int()),
+  width: z.nullable(z.int().check(z.gte(1), z.lte(100_000))),
+  height: z.nullable(z.int().check(z.gte(1), z.lte(100_000))),
+  duration: z.nullable(z.number().check(z.gt(0), z.lte(10_000_000))),
+});
+export type VaultMediaContentWire = z.infer<typeof VaultMediaContentSchema>;
+
+/**
  * Whether `next` is a step a run of `row` takes from it (R20 P13b review; host-fansly isolated/vault/run.ts), as the
  * background checks every write of the same upload: never back; from a row with no file in flight — that file handed
  * over now, or one more file found in the album; from a row with one in flight — its outcome (in the album, or not),
@@ -888,14 +901,17 @@ export const FANSLY_TAB_REQUESTS = {
   'fansly.vault.clear': { req: z.strictObject({ ...AlbumRef, uploadId: UuidSchema }), res: VaultAck, from: TAB, hosts: FANSLY },
   /**
    * 2026-11-03, the upload of a set: the album's rows to its end, the newest first (`GET /media/vaultnew`, FS-NET-1
-   * `vault`) — the row's id, its member and the name the album shows ('' — none). Only the tab's own creator.
+   * `vault`) — the row's id, its member, the name the album shows ('' — none) and, 2026-11-04, what Fansly says of the
+   * member's content (`VaultMediaContentSchema`; null — no medium named). Only the tab's own creator.
    */
   'fansly.vault.album': {
     req: z.strictObject(AlbumRef),
     res: z.discriminatedUnion('ok', [
       z.strictObject({
         ok: z.literal(true),
-        rows: z.array(z.strictObject({ row: NativeIdSchema, mediaId: NativeIdSchema, name: displayText(255) })).check(z.maxLength(FANSLY_TAB_LIMITS.vaultAlbumRowsMax)),
+        rows: z
+          .array(z.strictObject({ row: NativeIdSchema, mediaId: NativeIdSchema, name: displayText(255), content: z.nullable(VaultMediaContentSchema) }))
+          .check(z.maxLength(FANSLY_TAB_LIMITS.vaultAlbumRowsMax)),
       }),
       Failure,
     ]),
@@ -912,10 +928,13 @@ export const FANSLY_TAB_REQUESTS = {
     from: TAB,
     hosts: FANSLY,
   },
-  /** 2026-11-03: one member's name in this album — its file's name, where Fansly kept another (`POST /vault/albums/media/rename`). */
+  /**
+   * 2026-11-03: one member's name in this album — its file's name, where Fansly kept another (`POST /vault/albums/media/rename`).
+   * `name` — the name Fansly's answer says it kept; null — the answer named none (2026-11-04: never taken for the asked one).
+   */
   'fansly.vault.rename': {
     req: z.strictObject({ ...AlbumRef, mediaId: NativeIdSchema, name: displayText(255) }),
-    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), name: displayText(255) }), Failure]),
+    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), name: z.nullable(displayText(255)) }), Failure]),
     from: TAB,
     hosts: FANSLY,
   },

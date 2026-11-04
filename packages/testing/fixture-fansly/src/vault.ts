@@ -8,9 +8,10 @@
 // - each uploaded medium is queued and, 1 s after the last one (`onMediaUploaded`, main:12828-12834), added to the
 //   open album by one `POST /vault/albums/media {albumId, mediaIds}`; after its success the album is loaded again
 //   (`addMediaIdsToAlbum`, main:12818-12827) and its cards show the file names, the newest first (main:12393).
-// The upload itself is the stand's stand-in for the site's (`POST /account/media` of the fake Fansly; the site
-// uploads to signed addresses of its media gateway). Over the fake Fansly only: without it the route is a
-// placeholder.
+// The upload itself is the site's (fansly-publish-contract.md §2, 2026-11-04): `create`, `complete` and the poll
+// of the upload until Fansly names its medium — without the parts (the site PUTs them to signed addresses of its
+// media gateway). The page measures a photo's size first: the stand's stand-in for Fansly's processing of the bytes.
+// Over the fake Fansly only: without it the route is a placeholder.
 
 import type { UploadFile } from './backend';
 import { handler } from './events';
@@ -36,6 +37,19 @@ export interface VaultApi {
 const ACCEPT = 'image/png, image/jpeg, image/webp, image/gif, video/*, audio/mp4, audio/m4a, audio/x-m4a, audio/mp3, audio/*';
 const ADD_DEBOUNCE_MS = 1000;
 const PROCESS_MS = 1;
+
+/** A photo's own size, as Fansly's processing finds it in the bytes; nothing for a video or a file that is no picture. */
+async function measure(file: File): Promise<{ readonly width?: number; readonly height?: number }> {
+  if (!file.type.startsWith('image/')) return {};
+  try {
+    const picture = await createImageBitmap(file);
+    const size = { width: picture.width, height: picture.height };
+    picture.close();
+    return size;
+  } catch {
+    return {};
+  }
+}
 
 export class VaultRoute {
   readonly host: HTMLElement;
@@ -199,11 +213,13 @@ export class VaultRoute {
           this.processing -= 1;
           this.uploading += 1;
           this.renderProgress();
-          this.api.vaultUpload({ name: file.name, type: file.type, size: file.size }, (mediaId) => {
-            this.uploading -= 1;
-            this.renderProgress();
-            if (mediaId !== null) this.uploaded(mediaId);
-          });
+          void measure(file).then((measured) =>
+            this.api.vaultUpload({ name: file.name, type: file.type, size: file.size, ...measured }, (mediaId) => {
+              this.uploading -= 1;
+              this.renderProgress();
+              if (mediaId !== null) this.uploaded(mediaId);
+            }),
+          );
         },
         PROCESS_MS * (index + 1),
       ),

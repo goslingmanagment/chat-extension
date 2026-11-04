@@ -29,7 +29,9 @@
 //   `fx.incoming` with its group's fan; a follow `fx.follow`; deletions of the
 //   focused group `fx.deleted`; every loss and certificate `fx.coverage`; a
 //   confirmed vault upload `fx.vaultAdded`, an album the page loaded
-//   `fx.vaultLoaded` (its address only, P13a); who has the last word in each
+//   `fx.vaultLoaded` (its address only, P13a), an upload of a file into the
+//   vault answered `fx.vaultUpload` (its name, size and medium, 2026-11-04);
+//   who has the last word in each
 //   chat — the fan or the model — `fx.lastWord` when it changes, every one
 //   again after `fx.state` (last-word.ts). The old extension and FBuddy's
 //   markers are P7g's;
@@ -75,6 +77,7 @@ import {
   EVT_SENT,
   EVT_VAULT,
   EVT_VAULT_LOADED,
+  EVT_VAULT_UPLOAD,
   FRAMES_UNREAD_SIGN,
   GAP_MEMORY,
   PARSE_BOUNDS,
@@ -94,6 +97,8 @@ import {
   TAP_OK,
   TAP_SILENT,
   TAP_WRAPPED,
+  VAULT_UPLOAD_ALIVE_MS,
+  VAULT_UPLOADS_KEPT,
   WHY_BFCACHE,
   WHY_FRAME,
   WHY_GAP,
@@ -208,6 +213,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
   let routeEpoch = 0;
   const frames = { seen: 0, parsed: 0, lost: 0 };
   const responses = { seen: 0, parsed: 0, deferred: 0, lost: 0 };
+  /** The vault's uploads said last (2026-11-04): what was said of each, and when — a word that did not move waits. */
+  const uploads = new Map<string, { readonly said: string; readonly at: number }>();
   const frameTimes = histogram(PARSE_BOUNDS);
   const xhrTimes = histogram(PARSE_BOUNDS);
   const snapshotTimes = histogram(SNAPSHOT_BOUNDS);
@@ -571,6 +578,27 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
       case 'vault':
         emitter.event(EVT_VAULT, { seq: stamp?.seq ?? seq });
         return;
+      case 'upload': {
+        // An upload's answer: the file as the page sent it and, once done, the medium Fansly made of it. Said when it
+        // moves on; while it waits, again at most every VAULT_UPLOAD_ALIVE_MS — the run's sign that the page still works.
+        const answer = r as Plain;
+        const id = idOf(answer['id']);
+        const name = answer['fileName'] as string;
+        const size = answer['fileSize'] as number;
+        if (id === null || name.trim() === '' || name.length > 255) return;
+        // Done as the site's own poll takes it (main:30584, `status >= 6` with its medium): the medium Fansly made of it.
+        const media = isPlain(answer['media']) ? answer['media'] : null;
+        const mediaId = typeof answer['status'] === 'number' && answer['status'] >= 6 ? (idOf(answer['mediaId']) ?? (media === null ? null : idOf(media['id']))) : null;
+        const said = `${String(answer['status'])}:${mediaId ?? ''}`;
+        const last = uploads.get(id);
+        const at = now();
+        if (last !== undefined && last.said === said && at - last.at < VAULT_UPLOAD_ALIVE_MS) return;
+        uploads.delete(id);
+        uploads.set(id, { said, at });
+        if (uploads.size > VAULT_UPLOADS_KEPT) uploads.delete(uploads.keys().next().value as string);
+        emitter.event(EVT_VAULT_UPLOAD, { seq: stamp?.seq ?? seq, name, size, mediaId });
+        return;
+      }
       case 'vaultLoad':
       case 'other':
         // Never read: `readResponse` takes the table's kinds only.
@@ -594,6 +622,8 @@ export function createFanslyRuntime(context: MainContext, network: FanslyNetwork
 
   const lose = (call: ApiCall): void => {
     responses.lost += 1;
+    // An upload's answer names no chat: what is lost of it is the vault run's to find out (it reads the album).
+    if (call.kind === 'upload') return;
     world().observation.lose(call.groupId === null ? null : [call.groupId], WHY_PARSE_LIMIT);
   };
 

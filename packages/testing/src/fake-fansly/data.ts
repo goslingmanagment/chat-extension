@@ -33,6 +33,8 @@ import {
   type WireVaultAlbum,
   type WireVaultAlbumMediaPage,
   type WireVaultAlbums,
+  type WireMediaUpload,
+  type WireVaultMedia,
 } from '../../fixture-fansly/src/wire';
 
 /** A page of history as Fansly serves it (`limit=25`, main:28989-28995). */
@@ -152,12 +154,26 @@ export interface FakeAlbum {
   readonly mediaIds: string[];
 }
 
-/** An account medium the page uploaded (the stand's `POST /account/media`): its file name for the vault's cards. */
+/** An account medium the page uploaded (the stand's `POST /account/media`, the vault's upload): its file name for the vault's cards. */
 export interface FakeMedia {
   readonly id: string;
   readonly filename: string | null;
   readonly mimetype: string;
   readonly createdAt: number;
+  /** What Fansly says of its content: the picture's size the page measured (the stand's stand-in for Fansly's processing). */
+  readonly width?: number | null;
+  readonly height?: number | null;
+}
+
+/** The vault's upload as the page made it (`POST /media/upload/create`): its medium once `complete` answered. */
+export interface FakeUpload {
+  readonly id: string;
+  readonly fileName: string;
+  readonly fileSize: number;
+  readonly mimeType: string;
+  readonly width: number | null;
+  readonly height: number | null;
+  mediaId: string | null;
 }
 
 /** A paid attachment the stand's `ppv` command made (X54 on Fansly): its kind and its PPV price, in mills. */
@@ -221,6 +237,8 @@ export class FanslyWorld {
   readonly albumFilenames = new Map<string, string>();
   /** The media the page uploaded, by content (`name:size:type`): the same file again is the same medium. */
   readonly uploadedContent = new Map<string, string>();
+  /** The vault's uploads by their id (`POST /media/upload/create`). */
+  readonly uploads = new Map<string, FakeUpload>();
   /** The row of a member in an album (`<album>:<media>`): a new one each time it is added. */
   readonly albumRows = new Map<string, string>();
   /** Paid attachments by content id (the `ppv` command), and the fans' orders of them. */
@@ -727,8 +745,38 @@ export class FanslyWorld {
     const page = from === 0 && before !== null && before !== '0' ? [] : rows.slice(from, from + pageSize);
     return {
       albumMedia: page.map(({ row, item }) => ({ id: row, albumId: album.id, mediaId: item.id, customFilename: this.albumFilenames.get(`${album.id}:${item.id}`) ?? null, createdAt: Math.floor(item.createdAt / 1000) })),
-      media: page.map(({ item }) => ({ id: item.id, filename: item.filename, mimetype: item.mimetype })),
+      media: page.map(({ item }) => this.wireMedia(item)),
     };
+  }
+
+  /** An upload as `mediav2` answers it (fansly-publish-contract.md §2): the file as sent; on `status` 6, its medium. */
+  wireUpload(upload: FakeUpload, status: number): WireMediaUpload {
+    const medium = upload.mediaId === null ? undefined : this.media.get(upload.mediaId);
+    const done = status === 6 && medium !== undefined;
+    return {
+      id: upload.id,
+      type: upload.mimeType.startsWith('video/') ? 2 : 1,
+      status,
+      fileName: upload.fileName,
+      fileSize: upload.fileSize,
+      mimeType: upload.mimeType,
+      partSize: 20_971_520,
+      parts: [],
+      accountId: this.creatorId,
+      mediaId: done ? upload.mediaId : null,
+      ...(done ? { media: this.wireMedia(medium) } : {}),
+    };
+  }
+
+  /** A medium as Fansly's answers carry it: a video's size and duration in its metadata, a photo's own size. */
+  wireMedia(item: FakeMedia): WireVaultMedia {
+    const video = item.mimetype.startsWith('video/');
+    const width = item.width ?? null;
+    const height = item.height ?? null;
+    if (!video) return { id: item.id, filename: item.filename, mimetype: item.mimetype, type: 1, width, height, metadata: JSON.stringify({ resolutionMode: 1 }) };
+    // The stand's video has no picture: Fansly's transcoded copy and its original are said as the page measured them.
+    const metadata = width === null || height === null ? {} : { originalWidth: width, originalHeight: height };
+    return { id: item.id, filename: item.filename, mimetype: 'video/mp4', type: 2, width, height, metadata: JSON.stringify(metadata) };
   }
 
   /**

@@ -414,6 +414,20 @@ export const FANSLY_BRIDGE_EVENT_FIXTURES: { readonly [T in FromMainFanslyType]:
     // The album id is a snowflake string; the answer's media are not read.
     invalid: [{ albumId: Number('700000000000000301'), seq: 8 }, { albumId: '700000000000000301' }, { albumId: '700000000000000301', seq: 8, mediaIds: ['700000000000000302'] }, { albumId: 'album', seq: 8 }],
   },
+  'fx.vaultUpload': {
+    // On its way; done, with the medium Fansly made of it (or had: the same bytes give the old one).
+    valid: [
+      { seq: 10, name: 'SXT-003_01_pic01.jpg', size: 837409, mediaId: null },
+      { seq: 11, name: 'IMG_0304.MOV', size: 276574182, mediaId: '700000000000000303' },
+    ],
+    // No name; a size that is no count; a medium that is no id; an address of the answer.
+    invalid: [
+      { seq: 10, name: '', size: 1, mediaId: null },
+      { seq: 10, name: 'a.jpg', size: -1, mediaId: null },
+      { seq: 10, name: 'a.jpg', size: 1, mediaId: 'medium' },
+      { seq: 10, name: 'a.jpg', size: 1, mediaId: null, uploadUrl: 'https://fansly-upload.s3.eu-central-1.amazonaws.com/x' },
+    ],
+  },
 };
 
 const batchOf = (n: number, events: readonly unknown[]): unknown => ({ n, events });

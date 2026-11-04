@@ -118,9 +118,18 @@ export interface VaultRunVM {
   readonly startedAt: number | null;
   /**
    * Once complete: uploaded now, already in the album, confirmed by an earlier run, and the album's first cards read
-   * against the set (the old extension's report).
+   * against the set (the old extension's report). 2026-11-04: `presentNames` — the files counted as already in the
+   * album (a card of the same name and content), in the album's order; `beside` — the files that went up although a card
+   * of the same name was there, its content another: their cards stand beside the old ones.
    */
-  readonly report: { readonly uploaded: number; readonly present: number; readonly previous: number; readonly order: VaultOrderCheck } | null;
+  readonly report: {
+    readonly uploaded: number;
+    readonly present: number;
+    readonly presentNames: readonly string[];
+    readonly beside: readonly string[];
+    readonly previous: number;
+    readonly order: VaultOrderCheck;
+  } | null;
 }
 
 /**
@@ -266,6 +275,8 @@ export const FANSLY_VAULT_TEXT_KEYS = [
   'fansly.vault.complete',
   'fansly.vault.report.uploaded',
   'fansly.vault.report.present',
+  'fansly.vault.report.beside',
+  'fansly.vault.report.more',
   'fansly.vault.report.previous',
   'fansly.vault.report.orderOk',
   'fansly.vault.report.orderMismatch',

@@ -2,30 +2,38 @@
 // when it has the album through Fansly's API. It replaces the file-by-file run (run.ts) — the order of the album no
 // longer depends on the order of the uploads, so nothing waits for one file before the next.
 //
-// - What Fansly does (hub docs/plans/2026-10-23-wall-posts/fansly-publish-contract.md §13, seen live 2026-10-26): an
-//   album shows its rows, the newest first; a member added again loses its old row and takes a new one on top, its name
-//   kept; one request makes its rows in its order. So the set is laid out by ONE request of all its members in the
-//   upload order, whatever order the files landed in, and asking it again is harmless.
+// - What Fansly does (hub docs/plans/2026-10-23-wall-posts/fansly-publish-contract.md §2, §13, seen live 2026-10-26):
+//   an album shows its rows, the newest first; a member added again loses its old row and takes a new one on top, its
+//   name kept; one request makes its rows in its order. So the set is laid out by ONE request of all its members in the
+//   upload order, whatever order the files landed in, and asking it again is harmless. The same bytes uploaded again
+//   give the old medium, under its old name.
 // - The page uploads: the files go to its own input in one `change` (its `multiple` input), side by side, as a
 //   person's selection; each lands in the open album by the page's own addition (upload.ts `uploadMany`).
-// - The album's rows say what landed — never the page's cards: a file is in the album when a row names it (its name
-//   without the extension, dom.ts `vaultMediaKey`). A medium Fansly already had keeps its old name (`IMG_0191.jpeg`);
-//   its row is the one new row of the set that names no file of it — then the file is that row, renamed to the file.
-//   Two such rows and two such files cannot be told apart: those files go again one at a time (the same bytes give the
-//   same medium, its row moves up — the one new row).
-// - Nothing is uncertain: a file not in the album goes again (the same bytes give the same medium, the same member
-//   keeps one row), up to FILE_TRIES; then it counts as failed, with Fansly's words when it showed any.
+// - What landed is what Fansly answered the uploads (2026-11-04, the vault audit): the page's poll of an upload names
+//   the file as the page sent it — its name and size — and the medium Fansly made of it (MAIN's `fx.vaultUpload`). A
+//   file is its upload's medium, whatever name the album shows for it; a row the set did not upload is nobody's. A
+//   file with no answer goes again, after a pause (VAULT_RETRY_PAUSES_MS), up to VAULT_FILE_TRIES; then it counts as
+//   failed, with Fansly's words when it showed any.
+// - Already in the album, before anything goes: a card of the same name AND the same content — what Fansly says of
+//   the member (its type, width×height, a video's duration: Fansly gives no size and no hash) against the file's own
+//   bytes (content.ts). A card of the same name and other content, or one that cannot be told: the file goes up; if
+//   Fansly answers with that very card's medium, it was there (`present`), else the file's card stands beside it and
+//   the summary names the file (`beside`). A Live Photo's photo and video of one name are two files of two kinds.
+// - The lay-out adds every medium of the set to the album in the set's order (one the page did not add included), then
+//   renames a member that kept another name to its file — Fansly's answer says the name it kept — and reads the album:
+//   its first rows must be the set's media, each under its file's name.
 // - The checkpoint keeps the album this tab's (one upload per album, the background's `held`) and the set's files for a
-//   «continue» after a reload; a continue reads the album again — what landed is not uploaded again.
+//   «continue» after a reload; a continue reads the album again — what is there by name and content is not uploaded
+//   again, and a file that goes again anyway gives Fansly's same medium.
 // - Stops: the page's reasons (upload.ts `VAULT_HALTS`), Fansly not answering the album (`album-api`), an album whose
-//   first rows are not the set after the lay-out (`order-mismatch`: someone uploads beside), a failed file
-//   (`uploader-error`). Every stop leaves the album laid out as far as the files are in it only on a pause; a stop says
-//   why and the next Start reads the album first.
+//   first rows are not the set after the lay-out (`order-mismatch`: someone uploads beside, a name that did not take), a
+//   failed file (`uploader-error`). Every stop says why and the next Start reads the album first.
 
 import type { VaultOrderCheck } from '@cg/contracts/vault-fansly';
 import type { VaultCheckpoint } from '@cg/contracts/tab-messages-fansly';
 
-import { vaultMediaKey } from './dom';
+import { readVaultFileContent, sameVaultContent, type VaultFileContent } from './content';
+import { isVaultVideo, vaultMediaKey } from './dom';
 import {
   VAULT_FILES_MAX,
   VaultAlbumApiError,
@@ -41,7 +49,7 @@ import {
   type VaultRunState,
   type VaultStop,
 } from './run';
-import { vaultGuard, type VaultHalt } from './upload';
+import { vaultGuard, type VaultHalt, type VaultUploadAnswer } from './upload';
 
 /** Files one handoff takes at most; the page uploads them side by side. */
 export const VAULT_BATCH_FILES = 100;
@@ -49,9 +57,10 @@ export const VAULT_BATCH_FILES = 100;
 export const VAULT_BATCH_BYTES = 8 * 1024 ** 3;
 /** Times a file goes to the page before it counts as failed. */
 export const VAULT_FILE_TRIES = 3;
-/** Reads of the album after a set while files of it are missing: the page's last addition may still be on its way. */
-const LANDING_READS = 3;
-const LANDING_GAP_MS = 2_000;
+/** The pause before a file goes again, by the times it went: what kept it out (Fansly, the line) often passes in seconds. */
+export const VAULT_RETRY_PAUSES_MS: readonly number[] = [10_000, 30_000];
+/** A pause is slept in steps of this, so a Pause or a Stop of the person's is heard at once. */
+const REST_STEP_MS = 500;
 /** How long the run waits for the page's own reload of the album (after its addition) before it calls it a stop. */
 const RELOAD_WAIT_MS = 15_000;
 const RELOAD_STEP_MS = 250;
@@ -63,7 +72,7 @@ const PAGE_STOPS: ReadonlySet<VaultHalt> = new Set(['route-left', 'album-closed'
 
 /**
  * The album's first rows against the set: `ids` — the members in the upload order, so the album top to bottom reads
- * them reversed; `names` — the files' names by member.
+ * them reversed; `names` — the files' names by member: each row must show its file's name (dom.ts `vaultMediaKey`).
  */
 export function vaultLayoutCheck(ids: readonly string[], rows: readonly VaultAlbumRowRef[], names: ReadonlyMap<string, string>): VaultOrderCheck {
   if (ids.length === 0) return { kind: 'ok', checked: 0 };
@@ -72,7 +81,10 @@ export function vaultLayoutCheck(ids: readonly string[], rows: readonly VaultAlb
   for (let index = 0; index < expected.length; index += 1) {
     const due = expected[index] as string;
     const row = rows[index];
-    if (row === undefined || row.mediaId !== due) return { kind: 'mismatch', position: index + 1, expected: names.get(due) ?? due, actual: row === undefined ? '' : row.name };
+    const name = names.get(due) ?? due;
+    if (row === undefined || row.mediaId !== due || (names.has(due) && vaultMediaKey(row.name) !== vaultMediaKey(name))) {
+      return { kind: 'mismatch', position: index + 1, expected: name, actual: row === undefined ? '' : row.name };
+    }
   }
   return { kind: 'ok', checked: expected.length };
 }
@@ -92,14 +104,41 @@ export function vaultBatchOf(waiting: readonly number[], tries: readonly number[
   return batch;
 }
 
+const sameName = (a: string, b: string): boolean => a.normalize('NFC').trim() === b.normalize('NFC').trim();
+
+/**
+ * Which upload answer is which file's (`files` — the set handed at once): its name and size as the page sent them; then,
+ * for a file left, the one answer of its size when no other file of the set has that size (a name written otherwise on
+ * the way). One answer is one file's; a file with none — undefined.
+ */
+export function vaultAnswersOf(files: readonly { readonly name: string; readonly size: number }[], answers: readonly VaultUploadAnswer[]): Array<VaultUploadAnswer | undefined> {
+  const used = new Set<VaultUploadAnswer>();
+  const found: Array<VaultUploadAnswer | undefined> = files.map((file) => {
+    // The newest answer of the file wins: the page polls an upload to its end.
+    const answer = answers.filter((item) => !used.has(item) && item.size === file.size && sameName(item.name, file.name)).at(-1);
+    if (answer !== undefined) used.add(answer);
+    return answer;
+  });
+  files.forEach((file, index) => {
+    if (found[index] !== undefined || files.filter((other) => other.size === file.size).length !== 1) return;
+    const sized = answers.filter((item) => !used.has(item) && item.size === file.size);
+    const only = sized.length === 1 ? sized[0] : undefined;
+    if (only === undefined) return;
+    used.add(only);
+    found[index] = only;
+  });
+  return found;
+}
+
 export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onChange: (snapshot: VaultRunSnapshot) => void = () => undefined): VaultRun {
   const { target, files } = init;
   const { uploader, store, api } = deps;
   if (api === undefined) throw new Error('the upload of a set needs the album through Fansly’s API');
   const now = deps.now ?? (() => Date.now());
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const readContent = deps.readContent ?? readVaultFileContent;
   if (files.length === 0 || files.length > VAULT_FILES_MAX) throw new RangeError(`a vault run takes 1–${VAULT_FILES_MAX} files`);
-  const twins = vaultDuplicateKeys(files);
+  const twins = vaultDuplicateKeys(files, true);
   if (twins.length > 0) throw new RangeError(`files of one card key in a vault run: ${twins.join(', ')}`);
   const refs = files.map((file) => ({ name: file.name, size: file.size, lastModified: file.lastModified }));
   const resumed = init.checkpoint;
@@ -108,12 +147,19 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
   }
   const uploadId = resumed?.uploadId ?? (deps.newId ?? (() => crypto.randomUUID()))();
   const keys = files.map((file) => vaultMediaKey(file.name));
-  const fileKeys = new Set(keys);
+  /** A file's kind as Fansly types its medium: 2 a video, 1 a photo. */
+  const kinds = files.map((file) => (isVaultVideo(file.name) ? 2 : 1));
   const sizes = files.map((file) => file.size);
   const statuses: VaultItemStatus[] = refs.map(() => 'pending');
-  /** The member of each file, once a row of the album names it. */
+  /** The member of each file: the card it was found as, or the medium its upload's answer named. */
   const media: Array<string | null> = refs.map(() => null);
   const tries: number[] = refs.map(() => 0);
+  /** The album's cards of each file's name and kind before it went up (their media): what its upload is told against. */
+  const namesakes: Array<readonly string[]> = refs.map(() => []);
+  /** Files that went up beside a card of their name with other content. */
+  const beside = new Set<number>();
+  /** What each file's own bytes say of its content, read once and only for a file whose name a card shows. */
+  const contents = new Map<number, Promise<VaultFileContent | null>>();
   /** The checkpoint's count from the start, kept as the row on disk has it (`vaultCheckpointFollows`). */
   const confirmedOnDisk = resumed?.confirmed ?? 0;
   let state: VaultRunState = 'idle';
@@ -140,6 +186,7 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
     code: stopped === null ? null : vaultStopCode(stopped, false),
     checkpointLeftBehind: leftBehind,
     order,
+    beside: refs.flatMap((file, index) => (beside.has(index) ? [file.name] : [])),
   });
   const emit = (): void => onChange(snapshot());
   const checkpoint = (): VaultCheckpoint => ({ hostAccountId: target.hostAccountId, albumId: target.albumId, uploadId, files: refs, confirmed: confirmedOnDisk, pending: null, updatedAt: now() });
@@ -151,69 +198,66 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
     return true;
   };
 
-  /** Rows by the name they show, the newest first: the first row of a name wins. */
-  const byName = (rows: readonly VaultAlbumRowRef[]): Map<string, VaultAlbumRowRef> => {
-    const named = new Map<string, VaultAlbumRowRef>();
-    for (const row of rows) {
-      const key = vaultMediaKey(row.name);
-      if (key !== '' && !named.has(key)) named.set(key, row);
-    }
-    return named;
-  };
   const claimed = (): Set<string> => new Set(media.filter((id): id is string => id !== null));
+  const contentOf = (index: number): Promise<VaultFileContent | null> => {
+    let read = contents.get(index);
+    if (read === undefined) {
+      read = readContent(files[index] as File).catch(() => null);
+      contents.set(index, read);
+    }
+    return read;
+  };
 
-  /** Files a row names already, before anything goes: in the album, not uploaded again. */
-  const adopt = (rows: readonly VaultAlbumRowRef[]): void => {
-    const named = byName(rows);
+  /**
+   * Before anything goes: a file whose name a card shows, with the same content, is in the album — not uploaded again.
+   * The cards of its name and kind are kept: its upload's answer tells whether it was one of them.
+   */
+  const adopt = async (rows: readonly VaultAlbumRowRef[]): Promise<void> => {
     const taken = claimed();
-    keys.forEach((key, index) => {
-      if (media[index] !== null) return;
-      const row = named.get(key);
-      if (row === undefined || taken.has(row.mediaId)) return;
-      media[index] = row.mediaId;
-      taken.add(row.mediaId);
+    for (let index = 0; index < files.length; index += 1) {
+      if (media[index] !== null || statuses[index] !== 'pending') continue;
+      const kind = kinds[index];
+      const named = rows.filter((row) => vaultMediaKey(row.name) === keys[index] && (row.content?.type ?? kind) === kind);
+      namesakes[index] = named.map((row) => row.mediaId);
+      const free = named.filter((row) => !taken.has(row.mediaId));
+      if (free.length === 0) continue;
+      const own = await contentOf(index);
+      if (stoppedNow()) return;
+      const same = free.find((row) => sameVaultContent(own, row.content) === 'same');
+      if (same === undefined) continue;
+      media[index] = same.mediaId;
+      taken.add(same.mediaId);
       statuses[index] = 'present';
+    }
+  };
+
+  /** The set's files by Fansly's answers to their uploads; a file with none goes again, or counts as failed. */
+  const take = (batch: readonly number[], uploads: readonly VaultUploadAnswer[]): void => {
+    const answers = vaultAnswersOf(
+      batch.map((index) => ({ name: (files[index] as File).name, size: sizes[index] ?? 0 })),
+      uploads,
+    );
+    batch.forEach((index, at) => {
+      const answer = answers[at];
+      if (answer === undefined) {
+        statuses[index] = (tries[index] ?? 0) >= VAULT_FILE_TRIES ? 'failed' : 'pending';
+        return;
+      }
+      // The same bytes as another file of the set: one medium, one card — the content is in the album under that file.
+      const twin = media.some((id, other) => other !== index && id === answer.mediaId);
+      media[index] = answer.mediaId;
+      if (twin || namesakes[index]?.includes(answer.mediaId) === true) {
+        statuses[index] = 'present';
+        return;
+      }
+      statuses[index] = 'verified';
+      if ((namesakes[index]?.length ?? 0) > 0) beside.add(index);
     });
   };
 
-  /** The album's rows after a set; read again a moment later while a file of it is missing and no stray row explains it. */
-  const landed = async (batch: readonly number[], before: ReadonlySet<string>): Promise<readonly VaultAlbumRowRef[]> => {
-    let rows = await api.album(target);
-    for (let read = 1; read < LANDING_READS; read += 1) {
-      const named = byName(rows);
-      const missing = batch.filter((index) => !named.has(keys[index] as string)).length;
-      const strays = rows.filter((row) => !before.has(row.row) && !fileKeys.has(vaultMediaKey(row.name))).length;
-      if (missing <= strays) return rows;
-      await sleep(LANDING_GAP_MS);
-      rows = await api.album(target);
-    }
-    return rows;
-  };
-
-  /** The set's files by the album's rows: by name, then the one stray row for the one file left; renamed to the file. */
-  const take = async (batch: readonly number[], rows: readonly VaultAlbumRowRef[], before: ReadonlySet<string>): Promise<void> => {
-    const named = byName(rows);
-    const taken = claimed();
-    const left: number[] = [];
-    for (const index of batch) {
-      const row = named.get(keys[index] as string);
-      if (row !== undefined && !taken.has(row.mediaId)) {
-        media[index] = row.mediaId;
-        taken.add(row.mediaId);
-        statuses[index] = 'verified';
-      } else left.push(index);
-    }
-    // A medium Fansly already had keeps its own name: the new row of this set that names no file of it.
-    const strays = rows.filter((row) => !before.has(row.row) && !taken.has(row.mediaId) && !fileKeys.has(vaultMediaKey(row.name)));
-    const only = left.length === 1 ? left[0] : undefined;
-    const stray = strays.length === 1 ? strays[0] : undefined;
-    if (only !== undefined && stray !== undefined) {
-      await api.rename(target, stray.mediaId, (files[only] as File).name);
-      media[only] = stray.mediaId;
-      statuses[only] = 'verified';
-      left.length = 0;
-    }
-    for (const index of left) statuses[index] = (tries[index] ?? 0) >= VAULT_FILE_TRIES ? 'failed' : 'pending';
+  /** A pause before a file goes again, slept in steps: a Pause or a Stop ends it at once. */
+  const rest = async (ms: number): Promise<void> => {
+    for (let left = ms; left > 0 && !stoppedNow() && !pauseAsked(); left -= REST_STEP_MS) await sleep(Math.min(REST_STEP_MS, left));
   };
 
   /** The page as it is once its own reload of the album (after an addition) is over; null guard — it can take files. */
@@ -232,16 +276,31 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
     return '';
   };
 
-  /** The album laid out in the set's order (the members the album has of it), then read against the set. */
+  /**
+   * The album laid out in the set's order (every medium of the set, one the page did not add included), a member that
+   * kept another name renamed to its file, then read against the set.
+   */
   const layOut = async (): Promise<void> => {
-    const ids = media.filter((id): id is string => id !== null);
-    if (ids.length === 0) return;
-    await api.arrange(target, ids);
+    const ids: string[] = [];
     const names = new Map<string, string>();
     media.forEach((id, index) => {
-      if (id !== null) names.set(id, (files[index] as File).name);
+      if (id === null || names.has(id)) return;
+      ids.push(id);
+      names.set(id, (files[index] as File).name);
     });
-    order = vaultLayoutCheck(ids, await api.album(target), names);
+    if (ids.length === 0) return;
+    await api.arrange(target, ids);
+    const rows = [...(await api.album(target))];
+    for (let index = 0; index < Math.min(ids.length, rows.length); index += 1) {
+      const row = rows[index] as VaultAlbumRowRef;
+      const name = names.get(row.mediaId);
+      // Only the set's own members: a stranger's card on top is the check's to say, never renamed.
+      if (name === undefined || vaultMediaKey(row.name) === vaultMediaKey(name)) continue;
+      const kept = await api.rename(target, row.mediaId, name);
+      // The answer's word only: one that names no name, or another, leaves the row as it was read.
+      if (kept !== null) rows[index] = { ...row, name: kept };
+    }
+    order = vaultLayoutCheck(ids, rows, names);
   };
 
   return {
@@ -267,9 +326,10 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
         if (blocked !== null) return halt({ kind: blocked });
         if (!(await store.save(checkpoint()).catch(() => false))) return halt({ kind: 'checkpoint-write-failed', afterUpload: false });
         if (stoppedNow()) return true;
-        let rows = await api.album(target);
+        const rows = await api.album(target);
         if (stoppedNow()) return true;
-        adopt(rows);
+        await adopt(rows);
+        if (stoppedNow()) return true;
         emit();
         let notTaken = 0;
         for (;;) {
@@ -284,11 +344,18 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
             emit();
             return true;
           }
+          const batch = vaultBatchOf(waiting, tries, sizes);
+          // A file that went before and did not land waits a moment first.
+          const went = Math.max(0, ...batch.map((index) => tries[index] ?? 0));
+          if (went > 0) {
+            await rest(VAULT_RETRY_PAUSES_MS[Math.min(went, VAULT_RETRY_PAUSES_MS.length) - 1] ?? 0);
+            if (stoppedNow()) return true;
+            if (pauseAsked()) continue;
+          }
           const page = await pageNow();
           if (stoppedNow()) return true;
           if (page.guard !== null) return halt({ kind: page.guard });
           if (page.missing) return halt({ kind: 'uploader-missing' });
-          const batch = vaultBatchOf(waiting, tries, sizes);
           for (const index of batch) {
             statuses[index] = 'uploading';
             tries[index] = (tries[index] ?? 0) + 1;
@@ -296,7 +363,6 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
           current = batch[0] ?? null;
           startedAt = now();
           emit();
-          const before = new Set(rows.map((row) => row.row));
           const outcome = await uploader.uploadMany(
             batch.map((index) => files[index] as File),
             target,
@@ -310,9 +376,8 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
             return halt({ kind: outcome.halt });
           }
           if (outcome.state === 'settled' && outcome.said !== null) said = outcome.said;
-          // What landed is the album's word, whatever the page showed or did not.
-          rows = await landed(batch, before);
-          await take(batch, rows, before);
+          // What landed is Fansly's answer to each upload, whatever the page showed or did not.
+          take(batch, outcome.uploads);
           current = null;
           startedAt = null;
           if (outcome.state === 'unknown' && outcome.halt === 'not-taken') {
@@ -357,7 +422,7 @@ export function createVaultBulkRun(init: VaultRunInit, deps: VaultRunDeps, onCha
       if (abort !== null && current !== null) abort.abort();
       else halt({ kind: 'stopped' });
     },
-    // Nothing is uncertain here: the album says what landed.
+    // Nothing is uncertain here: Fansly's answers and the album say what landed.
     resolve: () => Promise.resolve(false),
   };
 }
