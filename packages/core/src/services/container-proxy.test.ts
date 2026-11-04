@@ -112,18 +112,6 @@ describe('container proxy: which proxy', () => {
     expect(await proxy.line('737', null)).toBe('direct');
   });
 
-  it('carries an HTTP proxy with its login, and a scheme it cannot carry never makes the line direct', async () => {
-    const http = world({}, [{ ...LORA, scheme: 'http', username: 'ü', password: 'p:w' }]);
-    await http.proxy.refresh(true);
-    await http.proxy.learnTab(6, ['737']);
-    const answer = first(await http.proxy.answer(tabless('firefox-container-6')));
-    expect(answer).toMatchObject({ type: 'http', host: LORA.host, port: LORA.port });
-    const header = answer !== null && 'proxyAuthorizationHeader' in answer ? answer.proxyAuthorizationHeader ?? '' : '';
-    expect(new TextDecoder().decode(Uint8Array.from(atob(header.replace(/^Basic /, '')), (char) => char.charCodeAt(0)))).toBe('ü:p:w');
-    const odd = world({}, [{ ...LORA, scheme: 'socks4' }]);
-    expect(await odd.proxy.line('737', null)).toBe('tab');
-    expect(refused(await odd.proxy.answer({ url: API, tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}bg` }))).toBe(true);
-  });
 });
 
 describe('container proxy: which page a container is', () => {
@@ -317,22 +305,7 @@ describe('container proxy: the second review', () => {
     expect(JSON.stringify([a?.connectionIsolationKey, b?.connectionIsolationKey])).not.toMatch(/lora|ari|203\.0/);
   });
 
-  it('an HTTP proxy\'s 407 gets the login of the row chosen for that request, once, and nobody else\'s 407 does', async () => {
-    const { proxy } = world({}, [{ ...LORA, scheme: 'http' }, ARI]);
-    await proxy.refresh(true);
-    await proxy.answer({ requestId: 'r1', url: API, tabId: -1, requestHeaders: bearer('737:token') });
-    expect(proxy.authFor({ requestId: 'r1', host: LORA.host, port: LORA.port })).toEqual({ username: 'lora-user', password: 'lora-pass' });
-    expect(proxy.authFor({ requestId: 'r1', host: LORA.host, port: LORA.port })).toBe('again');
-    // Another add-on chose that proxy for its own request: not ours to answer, even on our address.
-    expect(proxy.authFor({ requestId: 'r2', host: LORA.host, port: LORA.port })).toBeNull();
-  });
 
-  it('two HTTP rows on one address with other logins are not carried: refused, never mixed', async () => {
-    const { proxy } = world({}, [{ ...LORA, scheme: 'http' }, { ...ARI, scheme: 'http', host: LORA.host, port: LORA.port }]);
-    await proxy.refresh(true);
-    expect(refused(await proxy.answer({ url: API, tabId: -1, originUrl: `${OWN}bg`, requestHeaders: bearer('890:token') }))).toBe(true);
-    expect(await proxy.line('890', null)).toBe('tab');
-  });
 
   it('another person\'s sign-in, the hub down: a model\'s container refuses every tab-less request, Fansly or not', async () => {
     const { proxy, hub } = world();
@@ -369,5 +342,45 @@ describe('container proxy: the second review', () => {
     const { proxy } = world({ fetchRows: () => { started += 1; return new Promise(() => undefined); } });
     expect(await proxy.answer(tabless('firefox-container-9', 'https://example.com/sw.js'))).toBeUndefined();
     expect(started).toBe(0);
+  });
+
+  it('a page whose proxy is HTTP is known by its account but never carried: refused without a tab, its login not kept', async () => {
+    const { proxy, kept } = world({}, [{ ...LORA, scheme: 'http' }, { ...ARI, scheme: 'http', host: LORA.host, port: LORA.port }]);
+    proxy.setActive(true);
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    expect(refused(await proxy.answer(tabless('firefox-container-6')))).toBe(true);
+    expect(refused(await proxy.answer({ url: API, tabId: -1, cookieStoreId: 'firefox-default', requestHeaders: bearer('890:token') }))).toBe(true);
+    expect(await proxy.answer({ url: SITE, tabId: 4, cookieStoreId: 'firefox-container-6' })).toBeUndefined();
+    expect(await proxy.line('737', null)).toBe('tab');
+    expect(JSON.stringify([...kept.values()])).not.toMatch(/lora-(user|pass)|ari-(user|pass)/);
+  });
+
+  it('a token binding made while the first list is being kept outranks an older replayed tab report', async () => {
+    const holder: { proxy?: ReturnType<typeof createContainerProxy>; armed: boolean } = { armed: false };
+    const base = world();
+    const deps: ContainerProxyDeps = {
+      ...base.deps,
+      storage: {
+        get: base.deps.storage.get,
+        set: async (items) => {
+          if (holder.armed && holder.proxy !== undefined) {
+            holder.armed = false;
+            await holder.proxy.answer({ url: API, tabId: 4, cookieStoreId: 'firefox-container-6', requestHeaders: bearer('890:token') });
+          }
+          return base.deps.storage.set(items);
+        },
+      },
+      fetchRows: async () => { throw new Error('slow'); },
+    };
+    holder.proxy = createContainerProxy(deps);
+    await holder.proxy.refresh(true);
+    await holder.proxy.learnTab(6, ['737']);
+    const late = createContainerProxy({ ...deps, fetchRows: async () => ({ owner: ME, rows: [LORA, ARI] }) });
+    holder.proxy = late;
+    await late.learnTab(6, ['737']);
+    holder.armed = true;
+    await late.refresh(true);
+    expect(first(await late.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
   });
 });

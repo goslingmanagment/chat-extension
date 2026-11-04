@@ -32,7 +32,7 @@ export interface HostScripts {
 }
 
 /** An optional API permission a site asks for together with its origins. */
-export type OptionalApi = 'webRequest' | 'proxy' | 'webRequestAuthProvider';
+export type OptionalApi = 'webRequest' | 'proxy';
 
 export interface HostPermissions {
   /** The origins the site needs (its pages and, where the extension talks to it, its API). */
