@@ -9,19 +9,27 @@
 // Firefox still names the container on those requests (`cookieStoreId`), so this router answers them.
 //
 // - Which proxy: the hub's, by page (`clientFanslyProxies`): Firefox shows another add-on's proxy without its password.
-//   The hub is the truth: the same address its own Fansly traffic of the page leaves through.
-// - Which page a container is: the account its Fansly tab reports (`learnTab`, the proof, it overrides); before that, on
-//   the very first navigation of a container, the address the tab's own request went through (`learnPage`), so a
-//   worker's first requests are already routed. Kept in storage.local, so a browser restart starts routed.
-// - A request of no container (this background's own `fetch`, another add-on's popup) goes by the account its
-//   `authorization` names, on Fansly's addresses only. This background on Fansly's API with no such proxy never leaves
-//   from the chatter's line: it gets a proxy that refuses (the proxy API cannot cancel). A relay frame has a tab, and
-//   its container answers for it.
+//   The hub is the truth: the same address its own Fansly traffic of the page leaves through. SOCKS5 with its login;
+//   HTTP and HTTPS with a Basic header.
+// - The model's token decides first: a request on Fansly's addresses that carries one goes through its page's proxy,
+//   and a container's request that carries another model's token than its page's moves the container to that page.
+// - Which page a container is, else: the account its Fansly tab reports (`learnTab`); before that, on a container's
+//   first navigation, the one row whose address and port the tab's own request went through (`learnPage`; two rows on
+//   one address and port prove nothing). What comes before the hub's first list waits for it. Kept in storage.local, so
+//   a browser restart starts routed.
+// - A container known to be a model's never leaves direct without a tab: no proxy of its page (another person signed
+//   in, the hub has not answered) — its tab-less requests are refused; its tab's own are Multi-Account Containers'.
+// - The proxies stay through a sign-out (the browser restarts routed, and Multi-Account Containers keeps the same
+//   logins itself); another person's sign-in drops them before anything is asked. A page that left the hub's list
+//   keeps routing its container through the proxy it had until the hub names a new one.
+// - A request of no container (this background's own `fetch`, another add-on's popup) without a known token is left
+//   alone, but this background on Fansly's API while this person has proxies: a proxy that refuses (the proxy API
+//   cannot cancel). A relay frame has a tab, and its container answers for it.
 // - A known proxy has no way around it: a list ending in null fails rather than falling back to Firefox's direct route
 //   (measured on Firefox 159: a dead proxy, nothing reached the server).
 // - Another add-on's different proxy for the same container wins if its filter runs after ours (last wins, measured). A
 //   navigation that went through another address moves our filter to the end, and says so in the log once.
-// - Nothing here ever logs a row or a token: no address, no login. A container of no known page is left alone.
+// - Nothing here ever logs a row or a token: no address, no login.
 
 import type { KeyValuePort } from './storage/ports';
 
@@ -29,6 +37,7 @@ const STORE_KEY = 'fansly.containerProxy';
 /** A refresh the bootstrap asks for: at most this often (a proxy changes rarely; a new list arrives with the next). */
 const REFRESH_EVERY_MS = 10 * 60 * 1000;
 const CONTAINER_PREFIX = 'firefox-container-';
+const SCHEMES: ReadonlySet<string> = new Set(['socks5', 'http', 'https']);
 
 export interface ContainerProxyRow {
   readonly pageLabel: string;
@@ -38,6 +47,12 @@ export interface ContainerProxyRow {
   readonly port: number;
   readonly username: string | null;
   readonly password: string | null;
+}
+
+/** The hub's list and whose it is (the hub's origin and the user). */
+export interface ContainerProxyList {
+  readonly owner: string;
+  readonly rows: readonly ContainerProxyRow[];
 }
 
 export interface ProxyRequestFact {
@@ -53,28 +68,23 @@ export interface PageRequestFact {
   readonly proxyInfo?: { readonly host?: string; readonly port?: number } | null;
 }
 
-export interface ProxyInfoAnswer {
-  readonly type: 'socks';
-  readonly host: string;
-  readonly port: number;
-  readonly proxyDNS: true;
-  readonly username?: string;
-  readonly password?: string;
-}
+export type ProxyInfoAnswer =
+  | { readonly type: 'socks'; readonly host: string; readonly port: number; readonly proxyDNS: true; readonly username?: string; readonly password?: string }
+  | { readonly type: 'http' | 'https'; readonly host: string; readonly port: number; readonly proxyAuthorizationHeader?: string };
 
 /** A list for Firefox's filter; undefined — no opinion: what the filters before ours chose stands. */
 export type ProxyAnswer = readonly (ProxyInfoAnswer | null)[] | undefined;
 
 /**
  * Where this background's own request to Fansly may leave: `proxied` — straight, the router carries it; `tab` — only
- * through the relay frame of the model's tab; `direct` — the person has no proxy at all, as before the router.
+ * through the relay frame of the model's tab; `direct` — the person has no proxies at all, as before the router.
  */
 export type OwnLine = 'proxied' | 'tab' | 'direct';
 
 export interface ContainerProxyDeps {
   readonly storage: Pick<KeyValuePort, 'get' | 'set'>;
   /** Asked with the hub's sign-in; null — no sign-in now. Rejects when the hub did not answer. */
-  readonly fetchRows: () => Promise<readonly ContainerProxyRow[] | null>;
+  readonly fetchRows: () => Promise<ContainerProxyList | null>;
   /** The account a session token names (`legacyAccount`). */
   readonly accountOfToken: (token: string) => string | null;
   /** The proven creator of a token's account, when known. */
@@ -105,8 +115,8 @@ export interface ContainerProxy {
   setActive(active: boolean): void;
   /** Reads the hub's list if it is older than `REFRESH_EVERY_MS`, or at once with `force`. */
   refresh(force?: boolean): Promise<void>;
-  /** A sign-out: the logins go; which page a container is stays. */
-  forget(): Promise<void>;
+  /** A sign-in (`<hub origin>#<user id>`): another person's proxies go before anything is asked, then the list is read. */
+  signedIn(owner: string): Promise<void>;
   line(legacyId: string, canonicalId: string | null): Promise<OwnLine>;
   /** `line` as it stands, for the last check right before a send. */
   lineNow(legacyId: string, canonicalId: string | null): OwnLine;
@@ -120,40 +130,62 @@ function validRow(value: unknown): value is ContainerProxyRow {
   return typeof row['pageLabel'] === 'string' && typeof row['host'] === 'string' && typeof row['port'] === 'number' && typeof row['scheme'] === 'string';
 }
 
-const usable = (row: ContainerProxyRow): boolean => row.scheme === 'socks5' && row.host.length > 0;
+const usable = (row: ContainerProxyRow): boolean => SCHEMES.has(row.scheme) && row.host.length > 0 && row.port > 0;
 
 /** Nothing listens there: the request fails at once, and the list's null keeps Firefox from going direct instead. */
 const REFUSED: ProxyAnswer = [{ type: 'socks', host: '127.0.0.1', port: 1, proxyDNS: true }, null];
 
-const answerOf = (row: ContainerProxyRow): ProxyAnswer => [{
-  type: 'socks',
-  host: row.host,
-  port: row.port,
-  proxyDNS: true,
-  ...(row.username === null ? {} : { username: row.username }),
-  ...(row.password === null ? {} : { password: row.password }),
-}, null];
+function basic(username: string, password: string): string {
+  const bytes = new TextEncoder().encode(`${username}:${password}`);
+  let text = '';
+  for (const byte of bytes) text += String.fromCharCode(byte);
+  return `Basic ${btoa(text)}`;
+}
+
+function answerOf(row: ContainerProxyRow): ProxyAnswer {
+  if (row.scheme === 'socks5') {
+    return [{
+      type: 'socks',
+      host: row.host,
+      port: row.port,
+      proxyDNS: true,
+      ...(row.username === null ? {} : { username: row.username }),
+      ...(row.password === null ? {} : { password: row.password }),
+    }, null];
+  }
+  const type = row.scheme === 'https' ? 'https' : 'http';
+  return [{ type, host: row.host, port: row.port, ...(row.username === null ? {} : { proxyAuthorizationHeader: basic(row.username, row.password ?? '') }) }, null];
+}
 
 export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
+  /** Whose rows these are; null — nobody's yet. */
+  let owner: string | null = null;
   let rows: readonly ContainerProxyRow[] = [];
-  /** The hub's list was read at least once for this sign-in. */
+  /** The hub's last list had a row, of any scheme: this person works behind proxies. */
+  let anyProxy = false;
+  /** A list was read for this owner. */
   let known = false;
   let fetchedAt = 0;
   let active = false;
   let settled = false;
   const containers = new Map<string, string>();
   const said = new Set<string>();
+  /** Facts from before the first list: replayed once it comes. */
+  const earlyPages = new Map<string, { readonly host: string; readonly port: number | undefined }>();
+  const earlyTabs = new Map<number, readonly string[]>();
   let refreshing: Promise<void> | null = null;
 
   const persist = async (): Promise<void> => {
-    await deps.storage.set({ [STORE_KEY]: { v: 1, rows, known, fetchedAt, containers: Object.fromEntries(containers) } });
+    await deps.storage.set({ [STORE_KEY]: { v: 1, owner, rows, anyProxy, known, fetchedAt, containers: Object.fromEntries(containers) } });
   };
 
   const ready: Promise<void> = (async () => {
     const kept = await deps.storage.get([STORE_KEY]).catch(() => null);
     const value = kept?.ok === true ? (kept.value[STORE_KEY] as Record<string, unknown> | undefined) : undefined;
     if (value !== undefined && value !== null && value['v'] === 1) {
+      owner = typeof value['owner'] === 'string' ? value['owner'] : null;
       rows = Array.isArray(value['rows']) ? value['rows'].filter(validRow).filter(usable) : [];
+      anyProxy = value['anyProxy'] === true || rows.length > 0;
       known = value['known'] === true;
       fetchedAt = typeof value['fetchedAt'] === 'number' ? value['fetchedAt'] : 0;
       const stored = value['containers'];
@@ -166,39 +198,104 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     settled = true;
   })();
 
-  const rowOfContainer = (store: string): ContainerProxyRow | null => {
-    const label = containers.get(store);
-    return label === undefined ? null : rows.find((row) => row.pageLabel === label) ?? null;
-  };
+  const rowOfLabel = (label: string | undefined): ContainerProxyRow | null => (label === undefined ? null : rows.find((row) => row.pageLabel === label) ?? null);
   const rowOfAccount = (id: string | null): ContainerProxyRow | null => (id === null ? null : rows.find((row) => row.platformAccountId === id) ?? null);
   const rowOfToken = (token: string): ContainerProxyRow | null => {
     const legacy = deps.accountOfToken(token);
     return legacy === null ? null : rowOfAccount(legacy) ?? rowOfAccount(deps.canonicalOf(legacy));
   };
+  const container = (store: string | null | undefined): store is string => typeof store === 'string' && store.startsWith(CONTAINER_PREFIX);
+
+  const bind = (store: string, label: string): void => {
+    if (containers.get(store) === label) return;
+    containers.set(store, label);
+    void persist();
+  };
 
   function decide(request: ProxyRequestFact): ProxyAnswer {
     const store = request.cookieStoreId;
-    if (store !== undefined && store.startsWith(CONTAINER_PREFIX)) {
-      const row = rowOfContainer(store);
-      if (row !== null) return answerOf(row);
+    const site = deps.siteAddress(request.url);
+    const token = site ? request.requestHeaders?.find((header) => header.name.toLowerCase() === 'authorization')?.value : undefined;
+    const tokenRow = token === undefined ? null : rowOfToken(token);
+    if (tokenRow !== null) {
+      // Another model's token in a model's container: the container is that model's now.
+      if (container(store)) bind(store, tokenRow.pageLabel);
+      return answerOf(tokenRow);
     }
-    if (!deps.siteAddress(request.url)) return undefined;
-    const token = request.requestHeaders?.find((header) => header.name.toLowerCase() === 'authorization')?.value;
-    if (token !== undefined) {
-      const row = rowOfToken(token);
+    if (container(store)) {
+      const row = rowOfLabel(containers.get(store));
       if (row !== null) return answerOf(row);
+      // A model's container whose proxy is not known now: nothing of it without a tab leaves from the chatter's line.
+      if (containers.has(store) && request.tabId === -1) return REFUSED;
     }
-    // Ours, without a tab, on Fansly's API, while this person has proxies: the transport chose no such route, so this is
-    // a race with a change of the list; refused rather than sent from the chatter's line.
+    // Ours, without a tab, on the site's API, while this person has proxies: the transport chose no such route, so this
+    // is a race with a change of the list; refused rather than sent from the chatter's line.
     const ours = request.tabId === -1 && request.originUrl?.startsWith(deps.ownOrigin) === true && deps.siteApi(request.url);
-    return ours && (!known || rows.length > 0) ? REFUSED : undefined;
+    return ours && (!known || anyProxy) ? REFUSED : undefined;
   }
 
   const lineNow = (legacyId: string, canonicalId: string | null): OwnLine => {
     if (!known) return 'tab';
-    if (rows.length === 0) return 'direct';
+    if (!anyProxy) return 'direct';
     return active && (rowOfAccount(legacyId) ?? rowOfAccount(canonicalId)) !== null ? 'proxied' : 'tab';
   };
+
+  function placePage(store: string, host: string, port: number | undefined): void {
+    const expected = rowOfLabel(containers.get(store));
+    if (expected === null) {
+      // Only an address and port one row of the list has proves the page.
+      const matching = rows.filter((row) => row.host === host && row.port === port);
+      if (matching.length === 1 && matching[0] !== undefined) bind(store, matching[0].pageLabel);
+      return;
+    }
+    if (expected.host === host) return;
+    // Another add-on's filter ran after ours, with another address: ours goes to the end.
+    deps.moveToLast();
+    const key = `${store}|${host}`;
+    if (said.has(key)) return;
+    said.add(key);
+    deps.log({ level: 'warn', scope: 'fansly.proxy', msg: 'a navigation went through another proxy than its page\'s: our filter moved to the end', data: { page: expected.pageLabel } });
+  }
+
+  async function placeTab(tabId: number, accounts: readonly string[]): Promise<void> {
+    const row = accounts.map((account) => rowOfAccount(account)).find((found) => found !== null) ?? null;
+    const store = await deps.containerOfTab(tabId).catch(() => null);
+    if (!container(store)) return;
+    if (row !== null) {
+      bind(store, row.pageLabel);
+      return;
+    }
+    // The container holds a model the hub has no proxy for: it is not that page's any more.
+    if (containers.has(store)) {
+      containers.delete(store);
+      await persist();
+    }
+  }
+
+  async function replay(): Promise<void> {
+    const pages = [...earlyPages];
+    const tabs = [...earlyTabs];
+    earlyPages.clear();
+    earlyTabs.clear();
+    for (const [store, page] of pages) placePage(store, page.host, page.port);
+    for (const [tabId, accounts] of tabs) await placeTab(tabId, accounts);
+  }
+
+  function take(list: ContainerProxyList): void {
+    const fresh = list.rows.filter(usable);
+    if (list.owner !== owner) {
+      owner = list.owner;
+      rows = fresh;
+    } else {
+      // A page that left the list keeps routing the container it had, through the proxy it had.
+      const labels = new Set(fresh.map((row) => row.pageLabel));
+      const bound = new Set(containers.values());
+      rows = [...fresh, ...rows.filter((row) => !labels.has(row.pageLabel) && bound.has(row.pageLabel))];
+    }
+    anyProxy = list.rows.length > 0;
+    known = true;
+    fetchedAt = deps.now();
+  }
 
   const service: ContainerProxy = {
     answer(request) {
@@ -207,33 +304,20 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     learnPage(page) {
       const store = page.cookieStoreId;
       const host = page.proxyInfo?.host;
-      if (store === undefined || !store.startsWith(CONTAINER_PREFIX) || host === undefined) return;
+      if (!container(store) || host === undefined) return;
+      const port = page.proxyInfo?.port;
       void ready.then(() => {
-        const expected = rowOfContainer(store);
-        if (expected === null) {
-          const row = rows.find((candidate) => candidate.host === host);
-          if (row === undefined) return;
-          containers.set(store, row.pageLabel);
-          void persist();
-          return;
-        }
-        if (expected.host === host) return;
-        // Another add-on's filter ran after ours, with another address: ours goes to the end.
-        deps.moveToLast();
-        const key = `${store}|${host}`;
-        if (said.has(key)) return;
-        said.add(key);
-        deps.log({ level: 'warn', scope: 'fansly.proxy', msg: 'a navigation went through another proxy than its page\'s: our filter moved to the end', data: { page: expected.pageLabel } });
+        if (!known) earlyPages.set(store, { host, port });
+        else placePage(store, host, port);
       });
     },
     async learnTab(tabId, accounts) {
       await ready;
-      const row = accounts.map((account) => rowOfAccount(account)).find((found) => found !== null);
-      if (row === undefined || row === null) return;
-      const store = await deps.containerOfTab(tabId).catch(() => null);
-      if (store === null || !store.startsWith(CONTAINER_PREFIX) || containers.get(store) === row.pageLabel) return;
-      containers.set(store, row.pageLabel);
-      await persist();
+      if (!known) {
+        earlyTabs.set(tabId, accounts);
+        return;
+      }
+      await placeTab(tabId, accounts);
     },
     setActive(value) {
       active = value;
@@ -243,12 +327,11 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
       if (!force && known && deps.now() - fetchedAt < REFRESH_EVERY_MS) return;
       refreshing ??= (async () => {
         try {
-          const fetched = await deps.fetchRows();
-          if (fetched === null) return;
-          rows = fetched.filter(usable);
-          known = true;
-          fetchedAt = deps.now();
+          const list = await deps.fetchRows();
+          if (list === null) return;
+          take(list);
           await persist();
+          await replay();
         } catch {
           deps.log({ level: 'warn', scope: 'fansly.proxy', msg: 'the hub did not answer the proxies' });
         } finally {
@@ -257,12 +340,18 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
       })();
       await refreshing;
     },
-    async forget() {
+    async signedIn(next) {
       await ready;
-      rows = [];
-      known = false;
-      fetchedAt = 0;
-      await persist();
+      if (owner !== next) {
+        // Another person's logins go before anything is asked, whatever the hub answers.
+        owner = next;
+        rows = [];
+        anyProxy = false;
+        known = false;
+        fetchedAt = 0;
+        await persist();
+      }
+      await service.refresh(true);
     },
     async line(legacyId, canonicalId) {
       await service.refresh(!known);
@@ -271,7 +360,7 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     lineNow,
     async needed() {
       await service.refresh(!known);
-      return rows.length > 0 && !active;
+      return anyProxy && !active;
     },
   };
   return service;

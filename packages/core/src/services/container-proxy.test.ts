@@ -1,16 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createContainerProxy, type ContainerProxyDeps, type ContainerProxyRow, type ProxyAnswer, type ProxyInfoAnswer } from './container-proxy';
+import { createContainerProxy, type ContainerProxyDeps, type ContainerProxyList, type ContainerProxyRow, type ProxyAnswer, type ProxyInfoAnswer } from './container-proxy';
 
 const LORA: ContainerProxyRow = { pageLabel: 'lora-1', platformAccountId: '737', scheme: 'socks5', host: '203.0.113.1', port: 12324, username: 'lora-user', password: 'lora-pass' };
 const ARI: ContainerProxyRow = { pageLabel: 'ari-1', platformAccountId: '890', scheme: 'socks5', host: '203.0.113.2', port: 12324, username: 'ari-user', password: 'ari-pass' };
 const OWN = 'moz-extension://own/';
 const API = 'https://apiv3.fansly.com/api/v1/account/me';
+const SITE = 'https://fansly.com/';
+const ME = 'https://hub#1';
 
 function world(over: Partial<ContainerProxyDeps> = {}, list: readonly ContainerProxyRow[] | null = [LORA, ARI]) {
   const kept = new Map<string, unknown>();
   const moves = vi.fn();
-  const fetchRows = vi.fn(async () => list);
+  let answer: ContainerProxyList | null | Error = list === null ? null : { owner: ME, rows: list };
   const deps: ContainerProxyDeps = {
     storage: {
       get: async (keys) => ({ ok: true, value: Object.fromEntries(keys.filter((key) => kept.has(key)).map((key) => [key, kept.get(key)])) }),
@@ -19,7 +21,10 @@ function world(over: Partial<ContainerProxyDeps> = {}, list: readonly ContainerP
         return { ok: true, value: undefined };
       },
     },
-    fetchRows,
+    fetchRows: async () => {
+      if (answer instanceof Error) throw answer;
+      return answer;
+    },
     // A token here is `<legacy account>:…`.
     accountOfToken: (token) => token.split(':')[0] ?? null,
     canonicalOf: () => null,
@@ -32,21 +37,21 @@ function world(over: Partial<ContainerProxyDeps> = {}, list: readonly ContainerP
     log: () => undefined,
     ...over,
   };
-  return { deps, kept, moves, fetchRows, proxy: createContainerProxy(deps) };
+  const hub = (next: ContainerProxyList | null | Error): void => { answer = next; };
+  return { deps, kept, moves, hub, proxy: createContainerProxy(deps) };
 }
 
 const first = (answer: ProxyAnswer): ProxyInfoAnswer | null => answer?.[0] ?? null;
+const refused = (answer: ProxyAnswer): boolean => first(answer)?.host === '127.0.0.1' && first(answer)?.port === 1;
+const tabless = (store: string, url = SITE) => ({ url, tabId: -1, cookieStoreId: store });
+const bearer = (value: string) => [{ name: 'Authorization', value }];
 
 describe('container proxy: which proxy', () => {
   it('routes everything of a known container, a request without a tab and another host too, and never falls back to direct', async () => {
     const { proxy } = world();
     await proxy.refresh(true);
     await proxy.learnTab(6, ['737']);
-    for (const request of [
-      { url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' },
-      { url: 'wss://wsv3.fansly.com/?v=3', tabId: -1, cookieStoreId: 'firefox-container-6' },
-      { url: 'https://example.com/font.woff', tabId: 12, cookieStoreId: 'firefox-container-6' },
-    ]) {
+    for (const request of [tabless('firefox-container-6'), tabless('firefox-container-6', 'wss://wsv3.fansly.com/?v=3'), { url: 'https://example.com/font.woff', tabId: 12, cookieStoreId: 'firefox-container-6' }]) {
       const answer = await proxy.answer(request);
       expect(first(answer)).toMatchObject({ type: 'socks', host: LORA.host, username: 'lora-user', password: 'lora-pass', proxyDNS: true });
       expect(answer?.at(-1)).toBeNull();
@@ -58,36 +63,43 @@ describe('container proxy: which proxy', () => {
     await proxy.refresh(true);
     await proxy.learnTab(6, ['737']);
     await proxy.learnTab(7, ['890']);
-    expect(first(await proxy.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' }))?.host).toBe(LORA.host);
-    expect(first(await proxy.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-7' }))?.host).toBe(ARI.host);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
+    expect(first(await proxy.answer(tabless('firefox-container-7')))?.host).toBe(ARI.host);
   });
 
   it('leaves alone what is not its to route', async () => {
     const { proxy } = world();
     await proxy.refresh(true);
     await proxy.learnTab(6, ['737']);
-    // Another container, the default store on another site, the hub itself from the background, a private window.
-    expect(await proxy.answer({ url: 'https://fansly.com/', tabId: 3, cookieStoreId: 'firefox-container-9' })).toBeUndefined();
+    expect(await proxy.answer({ url: SITE, tabId: 3, cookieStoreId: 'firefox-container-9' })).toBeUndefined();
+    expect(await proxy.answer(tabless('firefox-container-9'))).toBeUndefined();
     expect(await proxy.answer({ url: 'https://example.com/', tabId: 3, cookieStoreId: 'firefox-default' })).toBeUndefined();
     expect(await proxy.answer({ url: 'https://gosling-agency.ru/api/v1/client/bootstrap', tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}background.html` })).toBeUndefined();
-    expect(await proxy.answer({ url: 'https://fansly.com/', tabId: 3, cookieStoreId: 'firefox-private' })).toBeUndefined();
+    expect(await proxy.answer({ url: SITE, tabId: 3, cookieStoreId: 'firefox-private' })).toBeUndefined();
   });
 
-  it('routes a request of no container by the account its token names, on Fansly only', async () => {
+  it('routes a request by the account its token names, on Fansly only', async () => {
     const { proxy } = world({ canonicalOf: (legacy) => (legacy === 'old-id' ? '890' : null) });
     await proxy.refresh(true);
-    const headers = (value: string) => [{ name: 'Authorization', value }];
-    expect(first(await proxy.answer({ url: API, tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}bg`, requestHeaders: headers('737:token') }))?.host).toBe(LORA.host);
+    expect(first(await proxy.answer({ url: API, tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}bg`, requestHeaders: bearer('737:token') }))?.host).toBe(LORA.host);
     // The token names a legacy id, whose proven creator is the page's account.
-    expect(first(await proxy.answer({ url: API, tabId: -1, cookieStoreId: 'firefox-default', requestHeaders: headers('old-id:token') }))?.host).toBe(ARI.host);
-    expect(await proxy.answer({ url: 'https://example.com/', tabId: -1, cookieStoreId: 'firefox-default', requestHeaders: headers('737:token') })).toBeUndefined();
+    expect(first(await proxy.answer({ url: API, tabId: -1, cookieStoreId: 'firefox-default', requestHeaders: bearer('old-id:token') }))?.host).toBe(ARI.host);
+    expect(await proxy.answer({ url: 'https://example.com/', tabId: -1, cookieStoreId: 'firefox-default', requestHeaders: bearer('737:token') })).toBeUndefined();
+  });
+
+  it('another model\'s token in a container goes through its own proxy, and the container is that model\'s from then on', async () => {
+    const { proxy } = world();
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    expect(first(await proxy.answer({ url: API, tabId: 4, cookieStoreId: 'firefox-container-6', requestHeaders: bearer('890:token') }))?.host).toBe(ARI.host);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
   });
 
   it('refuses our own API request with no proxy rather than sending it from the chatter\'s line', async () => {
     const { proxy } = world();
     await proxy.refresh(true);
-    const own = { url: API, tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}bg`, requestHeaders: [{ name: 'authorization', value: 'unknown:token' }] };
-    expect(first(await proxy.answer(own))).toMatchObject({ host: '127.0.0.1', port: 1 });
+    const own = { url: API, tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}bg`, requestHeaders: bearer('unknown:token') };
+    expect(refused(await proxy.answer(own))).toBe(true);
     // A relay frame has a tab: its container answers for it, and another add-on's request is not ours to refuse.
     expect(await proxy.answer({ ...own, tabId: 5 })).toBeUndefined();
     expect(await proxy.answer({ ...own, originUrl: 'moz-extension://another/bg' })).toBeUndefined();
@@ -97,33 +109,66 @@ describe('container proxy: which proxy', () => {
     const { proxy } = world({}, []);
     await proxy.refresh(true);
     expect(await proxy.answer({ url: API, tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}bg` })).toBeUndefined();
+    expect(await proxy.line('737', null)).toBe('direct');
   });
 
-  it('drops a scheme it cannot carry a login on', async () => {
-    const { proxy } = world({}, [{ ...LORA, scheme: 'http' }]);
-    await proxy.refresh(true);
-    await proxy.learnTab(6, ['737']);
-    expect(await proxy.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' })).toBeUndefined();
+  it('carries an HTTP proxy with its login, and a scheme it cannot carry never makes the line direct', async () => {
+    const http = world({}, [{ ...LORA, scheme: 'http', username: 'ü', password: 'p:w' }]);
+    await http.proxy.refresh(true);
+    await http.proxy.learnTab(6, ['737']);
+    const answer = first(await http.proxy.answer(tabless('firefox-container-6')));
+    expect(answer).toMatchObject({ type: 'http', host: LORA.host, port: LORA.port });
+    const header = answer !== null && 'proxyAuthorizationHeader' in answer ? answer.proxyAuthorizationHeader ?? '' : '';
+    expect(new TextDecoder().decode(Uint8Array.from(atob(header.replace(/^Basic /, '')), (char) => char.charCodeAt(0)))).toBe('ü:p:w');
+    const odd = world({}, [{ ...LORA, scheme: 'socks4' }]);
+    expect(await odd.proxy.line('737', null)).toBe('tab');
+    expect(refused(await odd.proxy.answer({ url: API, tabId: -1, cookieStoreId: 'firefox-default', originUrl: `${OWN}bg` }))).toBe(true);
   });
 });
 
 describe('container proxy: which page a container is', () => {
-  it('learns from the first navigation\'s address, before the tab can report, and the account overrides it', async () => {
+  it('learns from the first navigation\'s address and port, before the tab can report, and the account overrides it', async () => {
     const { proxy } = world();
     await proxy.refresh(true);
-    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: LORA.host, port: 12323 } });
+    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: LORA.host, port: LORA.port } });
     await proxy.refresh();
-    expect(first(await proxy.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' }))?.host).toBe(LORA.host);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
     await proxy.learnTab(6, ['890']);
-    expect(first(await proxy.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' }))?.host).toBe(ARI.host);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
   });
 
-  it('keeps it across a restart of the background and of the browser', async () => {
+  it('two pages on one address: the port tells them apart, and an address and port two rows share prove nothing', async () => {
+    const B = { ...ARI, host: LORA.host, port: 12325 };
+    const { proxy } = world({}, [LORA, B]);
+    await proxy.refresh(true);
+    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: LORA.host, port: 12325 } });
+    await proxy.refresh();
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.port).toBe(12325);
+    const twin = world({}, [LORA, { ...ARI, host: LORA.host, port: LORA.port }]);
+    await twin.proxy.refresh(true);
+    twin.proxy.learnPage({ cookieStoreId: 'firefox-container-7', proxyInfo: { host: LORA.host, port: LORA.port } });
+    await twin.proxy.refresh();
+    expect(await twin.proxy.answer(tabless('firefox-container-7'))).toBeUndefined();
+  });
+
+  it('what came before the hub\'s first list is placed once it comes', async () => {
+    const { proxy, hub } = world();
+    hub(new Error('the hub is slow'));
+    await proxy.refresh(true);
+    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: LORA.host, port: LORA.port } });
+    await proxy.learnTab(7, ['890']);
+    hub({ owner: ME, rows: [LORA, ARI] });
+    await proxy.refresh(true);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
+    expect(first(await proxy.answer(tabless('firefox-container-7')))?.host).toBe(ARI.host);
+  });
+
+  it('keeps it across a restart of the background and of the browser, the hub down', async () => {
     const before = world();
     await before.proxy.refresh(true);
     await before.proxy.learnTab(6, ['737']);
     const after = createContainerProxy({ ...before.deps, fetchRows: async () => { throw new Error('the hub is down'); } });
-    expect(first(await after.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' }))?.host).toBe(LORA.host);
+    expect(first(await after.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
   });
 
   it('moves our filter to the end when a navigation went through another address, and never overwrites the account\'s proxy with it', async () => {
@@ -133,17 +178,52 @@ describe('container proxy: which page a container is', () => {
     proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: '198.51.100.9', port: 12324 } });
     await proxy.refresh();
     expect(moves).toHaveBeenCalledTimes(1);
-    expect(first(await proxy.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' }))?.host).toBe(ARI.host);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
   });
 
-  it('a page taken from the person stops being routed with the next list', async () => {
-    let list: readonly ContainerProxyRow[] = [LORA];
-    const { proxy } = world({ fetchRows: async () => list });
+  it('a page that left the list keeps routing its container through the proxy it had', async () => {
+    const { proxy, hub } = world();
     await proxy.refresh(true);
     await proxy.learnTab(6, ['737']);
-    list = [ARI];
+    hub({ owner: ME, rows: [ARI] });
     await proxy.refresh(true);
-    expect(await proxy.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' })).toBeUndefined();
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
+    // A tab of that container now on a model the hub has no proxy for: left to Multi-Account Containers.
+    await proxy.learnTab(6, ['999']);
+    expect(await proxy.answer(tabless('firefox-container-6'))).toBeUndefined();
+  });
+});
+
+describe('container proxy: sign-in', () => {
+  it('a sign-out keeps the proxies: a known container never goes direct', async () => {
+    const { proxy, hub } = world();
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    hub(null);
+    await proxy.refresh(true);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
+  });
+
+  it('another person\'s sign-in drops the proxies at once, the hub down: a known container\'s tab-less requests are refused', async () => {
+    const { proxy, hub, kept } = world();
+    proxy.setActive(true);
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    hub(new Error('the hub is down'));
+    await proxy.signedIn('https://hub#2');
+    expect(JSON.stringify([...kept.values()])).not.toMatch(/lora-(user|pass)|ari-(user|pass)/);
+    expect(refused(await proxy.answer(tabless('firefox-container-6')))).toBe(true);
+    // The tab's own requests stay Multi-Account Containers'.
+    expect(await proxy.answer({ url: SITE, tabId: 4, cookieStoreId: 'firefox-container-6' })).toBeUndefined();
+    expect(proxy.lineNow('737', null)).toBe('tab');
+  });
+
+  it('the same person signing in again keeps the proxies while the hub answers', async () => {
+    const { proxy } = world();
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['737']);
+    await proxy.signedIn(ME);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(LORA.host);
   });
 });
 
@@ -160,24 +240,11 @@ describe('container proxy: our own line', () => {
     expect(proxy.lineNow('737', null)).toBe('tab');
   });
 
-  it('through the tab while the list is unknown, direct only when it is known to be empty', async () => {
-    const down = world({ fetchRows: async () => { throw new Error('down'); } });
+  it('through the tab while the list is unknown', async () => {
+    const down = world();
+    down.hub(new Error('down'));
     expect(await down.proxy.line('737', null)).toBe('tab');
-    const signedOut = world({}, null);
-    expect(await signedOut.proxy.line('737', null)).toBe('tab');
-    const none = world({}, []);
-    expect(await none.proxy.line('737', null)).toBe('direct');
-  });
-
-  it('a sign-out takes the logins away', async () => {
-    const { proxy, kept } = world();
-    proxy.setActive(true);
-    await proxy.refresh(true);
-    await proxy.learnTab(6, ['737']);
-    await proxy.forget();
-    expect(JSON.stringify([...kept.values()])).not.toMatch(/lora-(user|pass)/);
-    expect(proxy.lineNow('737', null)).toBe('tab');
-    expect(await proxy.answer({ url: 'https://fansly.com/', tabId: -1, cookieStoreId: 'firefox-container-6' })).toBeUndefined();
+    expect(await world({}, null).proxy.line('737', null)).toBe('tab');
   });
 
   it('asks for the grant only of a person with proxies', async () => {

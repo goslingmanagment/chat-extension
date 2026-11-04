@@ -392,7 +392,12 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   let proxyRequests: ReturnType<typeof observeProxyRequests> | null = null;
   const containerProxy = createContainerProxy({
     storage: local,
-    fetchRows: async () => (await hub().fanslyProxies())?.proxies ?? null,
+    fetchRows: async () => {
+      const signedIn = hub().session();
+      if (signedIn === null) return null;
+      const answer = await hub().fanslyProxies();
+      return answer === null ? null : { owner: `${signedIn.hubOrigin}#${signedIn.userId}`, rows: answer.proxies };
+    },
     grant: () => proxyAccess.has(),
     accountOfToken: legacyAccount,
     canonicalOf: (legacyId) => networkSession.forAccount(legacyId)?.canonicalId ?? null,
@@ -1454,8 +1459,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   function wireHub(instance: ChatExtensionHub): void {
     instance.onSessionChange((change) => {
-      // A sign-out takes the proxies' logins away; a new sign-in reads its own list.
-      void (change.session === null ? containerProxy.forget() : containerProxy.refresh(true)).catch(() => undefined);
+      // A sign-in reads its own list, another person's proxies gone first; a sign-out keeps them (core container-proxy.ts).
+      if (change.session !== null) void containerProxy.signedIn(`${change.session.hubOrigin}#${change.session.userId}`).catch(() => undefined);
       void serverSignInPage(change.session !== null);
       activity.sessionChanged();
       beatLastPage.clear();
