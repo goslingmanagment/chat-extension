@@ -14,6 +14,7 @@ export function observeProxyRequests(pageMatches: readonly string[], handlers: P
   let on = false;
   const answer = (details: WebRequestDetailsApi): unknown => handlers.answer(details);
   const page = (details: WebRequestDetailsApi): void => handlers.page(details);
+  // Firefox calls it only for addresses the extension may reach (site-access.ts `proxyPermissionSet`: Fansly's domain).
   const filter = { urls: ['<all_urls>'] };
   const detach = (): void => {
     on = false;

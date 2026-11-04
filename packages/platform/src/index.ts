@@ -114,7 +114,7 @@ export { writeClipboardText, type ClipboardNavigator, type ClipboardResult } fro
 export { readServerTab } from './managed';
 export { clientOsOf, extensionVersionOf, majorVersionOf, readClientEnv, type ClientEnv, type ClientOs } from './env';
 export { downloadFile, safeFileName, DOWNLOAD_URL_TTL_MS, type DownloadDeps, type DownloadFile } from './download';
-export { createPermissionBundle } from './permissions';
+export { createPermissionBundle, giveBackPermissions } from './permissions';
 export { syncDynamicScripts, createScriptTabs, type DynamicScriptSpec } from './scripting';
 export { observeWebRequests, type WebRequestFact } from './web-request';
 export { observeProxyRequests } from './container-proxy';

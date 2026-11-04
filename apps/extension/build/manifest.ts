@@ -11,7 +11,7 @@ import type { UserManifest } from 'wxt';
 
 import {
   CUSTOM_HUB_OPTIONAL_PERMISSION,
-  ALL_SITES_OPTIONAL_PERMISSION,
+  PROXY_OPTIONAL_PERMISSIONS,
   FBUDDY_HOST_PERMISSION,
   HOSTS,
   HUB_HOST_PERMISSION,
@@ -72,7 +72,7 @@ function optionalStands(flavor: BuildFlavor, hosts: readonly HostDescriptor[]): 
  */
 export function optionalHostPermissions(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
   const sites = hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.origins);
-  return [CUSTOM_HUB_OPTIONAL_PERMISSION, ALL_SITES_OPTIONAL_PERMISSION, ...unique([...sites, ...optionalStands(flavor, hosts).flatMap((stand) => stand.origins)])];
+  return [CUSTOM_HUB_OPTIONAL_PERMISSION, ...unique([...PROXY_OPTIONAL_PERMISSIONS, ...sites, ...optionalStands(flavor, hosts).flatMap((stand) => stand.origins)])];
 }
 
 /** The optional API permissions the optional sites (and, in a test build, their stands) ask for with their origins; [] — the manifest has none. */

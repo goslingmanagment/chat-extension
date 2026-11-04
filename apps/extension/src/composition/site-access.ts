@@ -1,6 +1,6 @@
 // Optional-site configuration for the core's permission and observation services.
 // The core takes these inert data/functions; no site's chunk is imported here.
-import { FANSLY_API_MATCHES, FANSLY_MATCHES } from '../hosts/runtime/fansly';
+import { FANSLY_API_MATCHES, FANSLY_DOMAIN_MATCHES, FANSLY_MATCHES } from '../hosts/runtime/fansly';
 import { FANSLY_STAND_MATCHES, TELEGRAM_STAND_MATCHES } from '../hosts/runtime';
 import { TELEGRAM_MATCHES } from '../hosts/runtime/telegram';
 
@@ -16,8 +16,13 @@ export const RELOAD_KEY = 'fansly.waitingReload';
 export const SITE_TYPE_PREFIX = 'fansly.';
 export const siteMatches = (): string[] => __CG_TEST_HOSTS__ ? [...FANSLY_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES];
 export const permissionSet = () => ({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], permissions: ['webRequest'] });
-/** What the router of a model's container needs (core container-proxy.ts): asked together, on the person's click. */
-export const proxyPermissionSet = () => ({ origins: ['<all_urls>'], permissions: ['proxy', 'webRequest'] });
+/**
+ * What the router of a model's container needs (core container-proxy.ts): asked together, on the person's click. Fansly's
+ * domain, never every site: the router answers only for addresses the extension may reach.
+ */
+export const proxyPermissionSet = () => ({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_DOMAIN_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_DOMAIN_MATCHES], permissions: ['proxy', 'webRequest'] });
+/** What 3.22 asked for instead (`<all_urls>`): taken back at the background's start, so no install keeps every site. */
+export const RETIRED_PROXY_ORIGINS: readonly string[] = ['<all_urls>'];
 /** Any of Fansly's own addresses (a test build: the stand's too), for the router's account rule. */
 export function fanslyAddress(value: string): boolean {
   try {

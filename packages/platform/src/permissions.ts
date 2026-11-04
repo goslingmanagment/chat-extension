@@ -69,6 +69,11 @@ export function createPermissionBundle(set: PermissionsSetApi, api: BrowserApi =
   };
 }
 
+/** Gives back a grant the extension no longer asks for (an older version's wider one); true — one was given back. */
+export function giveBackPermissions(set: PermissionsSetApi, api: BrowserApi = defaultBrowser()): Promise<boolean> {
+  return quietly(async () => (await api.permissions.contains(set)) && api.permissions.remove(set));
+}
+
 export function createHostPermissions(api: BrowserApi = defaultBrowser()): HostPermissionsPort {
   const set = (origin: string): PermissionsSetApi | null => {
     const pattern = originPermission(origin);

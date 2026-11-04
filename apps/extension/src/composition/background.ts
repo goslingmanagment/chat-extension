@@ -127,6 +127,7 @@ import { ChatExtensionHub, VENDORED_CONTRACT_HASH, errorWireOf } from '@cg/hub';
 import {
   createAlarms,
   createPermissionBundle,
+  giveBackPermissions,
   createScriptTabs,
   syncDynamicScripts,
   observeProxyRequests,
@@ -177,7 +178,7 @@ import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
-import { fanslyAddress, proxyPermissionSet, OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, telegramMatches, telegramPermissionSet, telegramScriptSet } from './site-access';
+import { fanslyAddress, proxyPermissionSet, RETIRED_PROXY_ORIGINS, OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, telegramMatches, telegramPermissionSet, telegramScriptSet } from './site-access';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
@@ -421,7 +422,9 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     else proxyRequests?.detach();
     containerProxy.setActive(granted);
   };
-  void proxyAccess.has().then(proxyGranted);
+  // 3.22 asked for every site; Fansly's domain is enough. A grant of every site is given back once, then the grant is read
+  // again: Firefox's removal names `<all_urls>`, which is not in our set, so `onChange` stays silent.
+  void giveBackPermissions({ origins: [...RETIRED_PROXY_ORIGINS] }, api).then(() => proxyAccess.has()).then(proxyGranted);
   proxyAccess.onChange(() => void proxyAccess.has().then(proxyGranted));
   scriptTabs.onRemoved((tab) => { void networkSession.forget(tab).catch(accessFailed); });
 

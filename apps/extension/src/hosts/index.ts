@@ -13,6 +13,7 @@
 
 import { CHATSPACE } from './chatspace.ts';
 import { FANSLY } from './fansly.ts';
+import { FANSLY_DOMAIN_MATCHES } from './runtime/fansly.ts';
 import { CHATSPACE_STAND_MATCHES, FANSLY_STAND_MATCHES, LOOPBACK_MATCHES, TELEGRAM_STAND_MATCHES } from './runtime/index.ts';
 import { TELEGRAM } from './telegram.ts';
 import type { HostDescriptor, LazySite, ScriptSpec } from './types.ts';
@@ -53,11 +54,11 @@ export const HUB_HOST_PERMISSION = 'https://gosling-agency.ru/*';
 export const FBUDDY_HOST_PERMISSION = 'https://apiv2.fbuddy.net/*';
 
 /**
- * Everything a model's container sends goes through the page's proxy (2026-11-04, core container-proxy.ts): Firefox answers
- * a proxy filter only for the addresses the extension may reach, and a page loads from anywhere. Asked with `proxy`, on a
- * person's click, on Fansly's settings card.
+ * Everything of Fansly a model's container sends goes through the page's proxy (2026-11-04, core container-proxy.ts):
+ * Fansly's whole domain (runtime/fansly.ts `FANSLY_DOMAIN_MATCHES`). Asked with `proxy`, on a person's click, on Fansly's
+ * settings card.
  */
-export const ALL_SITES_OPTIONAL_PERMISSION = '<all_urls>';
+export const PROXY_OPTIONAL_PERMISSIONS: readonly string[] = FANSLY_DOMAIN_MATCHES;
 
 /** A non-default hub address is requested on a user gesture when saved (§3). */
 export const CUSTOM_HUB_OPTIONAL_PERMISSION = 'https://*/*';

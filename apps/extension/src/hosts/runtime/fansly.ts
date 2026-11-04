@@ -14,6 +14,15 @@ export const FANSLY_MATCHES: readonly string[] = ['https://fansly.com/*'];
 /** Fansly's API: optional permission and passive observation (§8.2–§8.3). */
 export const FANSLY_API_MATCHES: readonly string[] = ['https://apiv3.fansly.com/*'];
 
+/**
+ * Fansly's whole domain (its pages, API, socket, CDN): the addresses the router of a model's container answers for (core
+ * container-proxy.ts), asked with `proxy` on the person's click. Firefox calls a proxy filter for a request whose own
+ * address the extension may reach, whoever sends it: a tab, Fansly's service worker, FBuddy, this background
+ * (ChannelWrapper::Matches skips the sender's check in the proxy phase). Until 2026-11-05 it was `<all_urls>`; the owner
+ * asked to narrow it (a chatter balked at «all websites»).
+ */
+export const FANSLY_DOMAIN_MATCHES: readonly string[] = ['*://*.fansly.com/*'];
+
 /** Quiet mode (X3) is ChatSpace's alone: the extension talks to Fansly's API (X4). */
 export const FANSLY_QUIET_DOMAINS: readonly string[] = [];
 
