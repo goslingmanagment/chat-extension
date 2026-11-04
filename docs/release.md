@@ -195,7 +195,9 @@ there.
   reads (`docs/**/*.md`, `AGENTS.md`, `CLAUDE.md`) is green in seconds.
 - Push to `main`: `pnpm check` and the e2e smoke set in four parts (`e2e 1/4` … `4/4`, with `pnpm e2e` over them).
   This is the release gate. A change of only `docs/`, `site/`, `changes/` and `*.md` in the root does not run e2e.
-- CI runs only on GitHub-hosted runners (the repository is public); no job may name a self-hosted label.
+- `.github/workflows/ci.yml` runs where the `CI_POOL` repo variable says: `pc` — self-hosted (`self-hosted`, `ci-pc`: the
+  owner's Mac VM, `~/code/6-infra/ci-runners/mac/`); unset — GitHub-hosted. A pull request from a fork never reaches
+  self-hosted: the switch itself says so, and the repository asks for approval of every outside contributor's run.
 - `.github/workflows/perf.yml` — `pnpm perf` nightly and by hand on a GitHub-hosted runner; not part of a release.
 - e2e locally, as in CI: `tools/ci/e2e-docker-local.sh` (needs Docker; one part —
   `CG_E2E_SHARD=2/2`). The Firefox image is pinned by digest in `tools/ci/e2e-image.sh`.

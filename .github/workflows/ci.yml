@@ -46,19 +46,21 @@
 # nothing, and a PR with a required check would wait for it forever. Why not a
 # job of its own in front: that is a second wait for a runner.
 #
-# Runners: GitHub-hosted only (owner, 2026-10-21), as in hub, fansly-chat,
-# onlyfans-chat and taskindex — the repository is public, so they are free, and
-# a public repository must never reach the owner's PC: no job names a
-# self-hosted label, and none is registered to the repo. The parts run on
-# ubuntu-24.04 (4 vCPUs each), the gates «pnpm check» and «pnpm e2e» on
-# ubuntu-slim. The e2e suite (a smoke set of the core flows,
+# Runners: GitHub-hosted, unless the repository variable CI_POOL=pc sends the
+# jobs to the owner's own runners (label ci-pc): since 2026-11-04 a Linux VM on
+# his Mac with no access to the Mac's files or keys, because GitHub locked its
+# hosted runners over billing. A fork's PR never picks them here, yet it can
+# edit this file, so the real fence is the repository's setting: a PR from an
+# outside contributor runs nothing until someone approves it. Unset CI_POOL to
+# go back. The parts run on ubuntu-24.04 (4 vCPUs each), the gates «pnpm check»
+# and «pnpm e2e» on ubuntu-slim. The e2e suite (a smoke set of the core flows,
 # packages/testing/e2e/specs) runs in four parts. The ruleset of main requires
 # «pnpm check» by the job's `name:`, and the release gate reads «pnpm check»
 # and «pnpm e2e» by theirs: keep the names.
 #
-# Caches: the pnpm store by lockfile, the `tsc -b` outputs (.tsbuild,
-# incremental) for the typecheck part. The e2e image downloads in the
-# background while pnpm installs.
+# Caches: the pnpm store by lockfile (GitHub-hosted only: our own runners keep
+# one store in $HOME), the `tsc -b` outputs (.tsbuild, incremental) for the
+# typecheck part. The e2e image downloads in the background while pnpm installs.
 #
 # No secret is read here and none is needed: the jobs build, lint and test
 # against the synthetic stand and the fake hub on loopback. The runners hold no
@@ -89,7 +91,7 @@ concurrency:
 jobs:
   check-part:
     name: "pnpm check: ${{ matrix.part }}"
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.CI_POOL == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     timeout-minutes: 25
     # Reading earlier runs' proofs (tools/ci/ci-proof.ts) needs actions:read.
     permissions:
@@ -173,14 +175,15 @@ jobs:
           [ "pnpm@$running" = "$pinned" ] || { echo "::error::pnpm $running is installed but package.json pins $pinned"; exit 1; }
           echo "$prefix/bin" >> "$GITHUB_PATH"
 
-      # The pnpm store comes from the Actions cache, keyed by the lockfile.
+      # GitHub-hosted: the pnpm store comes from the Actions cache, keyed by
+      # the lockfile (our own runners share a persistent store instead).
       - name: Locate the pnpm store
         id: pnpm-store
-        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' 
+        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted'
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Restore the pnpm store
-        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' 
+        if: steps.scope.outputs.run != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
@@ -234,7 +237,7 @@ jobs:
     name: pnpm check
     needs: [check-part]
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-slim
+    runs-on: ${{ vars.CI_POOL == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-slim' }}
     timeout-minutes: 15
     outputs:
       tree: ${{ needs.check-part.outputs.tree }}
@@ -251,7 +254,7 @@ jobs:
     name: e2e ${{ matrix.shard }}
     # Not on a PR: the suite runs on main and gates the release (see the top of the file).
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.CI_POOL == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-24.04' }}
     # A part is a few minutes; slower runners get room.
     timeout-minutes: 30
     permissions:
@@ -323,11 +326,11 @@ jobs:
 
       - name: Locate the pnpm store
         id: pnpm-store
-        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == '' 
+        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted'
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Restore the pnpm store
-        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == '' 
+        if: steps.scope.outputs.e2e != 'false' && steps.proof.outputs.proven_by == '' && runner.environment == 'github-hosted'
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
@@ -383,7 +386,7 @@ jobs:
     needs: [check, e2e-part]
     if: always() && github.event_name != 'pull_request'
     # Seconds of shell on the smallest GitHub runner.
-    runs-on: ubuntu-slim
+    runs-on: ${{ vars.CI_POOL == 'pc' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","ci-pc"]') || 'ubuntu-slim' }}
     timeout-minutes: 15
 
     steps:
@@ -406,8 +409,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/ci-proof"
           printf '%s\n' "$GITHUB_RUN_ID" > "$RUNNER_TEMP/ci-proof/run-id"
 
+      # Only saves work: without the proof a later identical tree runs the suite again. A green
+      # suite is not red over it (under a billing lock GitHub refuses every new artifact).
       - name: Publish the proof
         if: needs.check.result == 'success' && needs.e2e-part.result == 'success' && needs.check.outputs.proven_by == ''
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: ci-proof-${{ needs.check.outputs.tree }}
