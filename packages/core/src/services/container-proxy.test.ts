@@ -383,4 +383,29 @@ describe('container proxy: the second review', () => {
     await late.refresh(true);
     expect(first(await late.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
   });
+
+  it('two reports of one container before the first list: the later wins, whichever tab', async () => {
+    const { proxy, hub } = world({ containerOfTab: async () => 'firefox-container-6' });
+    hub(new Error('slow'));
+    await proxy.refresh(true);
+    await proxy.learnTab(11, ['737']);
+    await proxy.learnTab(12, ['890']);
+    hub({ owner: ME, rows: [LORA, ARI] });
+    await proxy.refresh(true);
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
+  });
+
+  it('two reports of one tab answered out of order: the later still wins', async () => {
+    const gates: Array<() => void> = [];
+    const { proxy } = world({ containerOfTab: () => new Promise((resolve) => { gates.push(() => resolve('firefox-container-6')); }) });
+    await proxy.refresh(true);
+    const a = proxy.learnTab(6, ['737']);
+    const b = proxy.learnTab(6, ['890']);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    gates[1]?.();
+    await b;
+    gates[0]?.();
+    await a;
+    expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
+  });
 });

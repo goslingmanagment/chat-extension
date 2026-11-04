@@ -201,7 +201,7 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
   const said = new Set<string>();
   /** Facts from before the first list: replayed once it comes. */
   const earlyPages = new Map<string, { readonly host: string; readonly port: number | undefined }>();
-  const earlyTabs = new Map<number, { readonly accounts: readonly string[]; readonly began: number }>();
+  const earlyTabs = new Map<number, { readonly accounts: readonly string[]; readonly own: number }>();
   let refreshing: Promise<void> | null = null;
   /** When the hub was last asked while the router had no list. */
   let askedAt = -Infinity;
@@ -246,8 +246,8 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
    * `label` '' — a model's container without a proxy known now: its tab-less requests are refused. `firmly` — a token's or
    * a tab's proof; else a navigation's address, which never outranks one.
    */
-  const bind = (store: string, label: string, firmly: boolean): void => {
-    if (firmly) firm.set(store, ++stamp);
+  const bind = (store: string, label: string, firmly: boolean, at?: number): void => {
+    if (firmly) firm.set(store, at ?? ++stamp);
     if (containers.get(store) === label) return;
     containers.set(store, label);
     void persist();
@@ -315,18 +315,19 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     deps.log({ level: 'warn', scope: 'fansly.proxy', msg: 'a navigation went through another proxy than its page\'s: our filter moved to the end', data: { page: expected.pageLabel } });
   }
 
-  async function placeTab(tabId: number, accounts: readonly string[], began: number): Promise<void> {
+  /** `own` — the report's own number, taken as it came: a later report, or a token since, has a greater one. */
+  async function placeTab(tabId: number, accounts: readonly string[], own: number): Promise<void> {
     const row = accounts.map((account) => rowOfAccount(account)).find((found) => found !== null) ?? null;
     const store = await deps.containerOfTab(tabId).catch(() => null);
     if (!container(store)) return;
-    // A newer firm binding (a token seen meanwhile) wins over this older report.
-    if ((firm.get(store) ?? 0) > began) return;
+    // A newer firm binding (a later report, a token seen meanwhile) wins over this older report.
+    if ((firm.get(store) ?? 0) > own) return;
     if (row !== null) {
-      bind(store, row.pageLabel, true);
+      bind(store, row.pageLabel, true, own);
       return;
     }
     // A model's container now holds a model the hub has no proxy for: refused without a tab, never direct.
-    if (containers.has(store)) bind(store, '', true);
+    if (containers.has(store)) bind(store, '', true, own);
   }
 
   async function replay(): Promise<void> {
@@ -336,7 +337,7 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
     earlyTabs.clear();
     // Navigations bind only loosely, so a report replayed after them still counts; a token's binding since it began wins.
     for (const [store, page] of pages) placePage(store, page.host, page.port);
-    for (const [tabId, report] of tabs) await placeTab(tabId, report.accounts, report.began);
+    for (const [tabId, report] of tabs) await placeTab(tabId, report.accounts, report.own);
   }
 
   function take(list: ContainerProxyList): void {
@@ -410,14 +411,14 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
       });
     },
     async learnTab(tabId, accounts) {
-      // The report is as old as this call: a binding made while it waits is newer.
-      const began = stamp;
+      // Each report its own number as it comes: a later report and a token's binding since are newer than this one.
+      const own = ++stamp;
       await ready;
       if (!known) {
-        earlyTabs.set(tabId, { accounts, began });
+        earlyTabs.set(tabId, { accounts, own });
         return;
       }
-      await placeTab(tabId, accounts, began);
+      await placeTab(tabId, accounts, own);
     },
     setActive(value) {
       active = value;
