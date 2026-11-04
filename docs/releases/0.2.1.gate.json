@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "version": "0.2.1",
+  "commit": "1fffd9afad7d39b117d62ecab2c343fcc8cfd1f8",
+  "createdAt": "2026-10-11T15:27:43.269Z",
+  "online": true,
+  "checks": [
+    {
+      "id": "version",
+      "ok": true,
+      "detail": "0.2.1 (apps/extension/package.json)"
+    },
+    {
+      "id": "branch",
+      "ok": true,
+      "detail": "on main"
+    },
+    {
+      "id": "clean-tree",
+      "ok": true,
+      "detail": "the working tree is clean"
+    },
+    {
+      "id": "pushed",
+      "ok": true,
+      "detail": "HEAD 1fffd9afad7d is origin/main"
+    },
+    {
+      "id": "tag-free",
+      "ok": true,
+      "detail": "v0.2.1 is free locally and on origin"
+    },
+    {
+      "id": "changelog",
+      "ok": true,
+      "detail": "CHANGELOG.md has the section of 0.2.1; the announcement is 739 characters"
+    },
+    {
+      "id": "site",
+      "ok": true,
+      "detail": "the pages are whole and match the version and the changelog"
+    },
+    {
+      "id": "note",
+      "ok": true,
+      "detail": "every line of «Перед подписью» is ticked"
+    },
+    {
+      "id": "vendor",
+      "ok": true,
+      "detail": "SDK b9d4dd07b4d5… from hub 2260ef739aa0, hotkeys 953c62364868…, both as pinned"
+    },
+    {
+      "id": "hub-commit",
+      "ok": true,
+      "detail": "the SDK's source commit 2260ef739aa0 is on goslingmanagment/hub main"
+    },
+    {
+      "id": "check",
+      "ok": true,
+      "detail": "pnpm check is green"
+    },
+    {
+      "id": "versions",
+      "ok": true,
+      "detail": "package.json and the built manifest both say 0.2.1"
+    },
+    {
+      "id": "reproducible",
+      "ok": true,
+      "detail": "the sources archive rebuilds the same extension, byte for byte (62 files)"
+    },
+    {
+      "id": "feed",
+      "ok": true,
+      "detail": "the feed serves 0.2.0, 0.2.1 is higher"
+    },
+    {
+      "id": "hub-compat",
+      "ok": true,
+      "detail": "the hub lists the vendored SDK b9d4dd07b4d5… as compatible and runs the same contract"
+    }
+  ],
+  "build": {
+    "xpi": {
+      "file": "chatgoose-chatspace-0.2.1-firefox.zip",
+      "sha256": "38d7fa47c91894c9383ee93cb71498e6cff90c5b91dc794deea6c26d4b709c82",
+      "bytes": 760730
+    },
+    "sources": {
+      "file": "chatgoose-chatspace-0.2.1-sources.zip",
+      "sha256": "e0c8c2c120090c2666affa1830a576a98d5c312610d8063dcc32df166397838d",
+      "bytes": 2949321
+    }
+  },
+  "vendor": {
+    "sdkContractHash": "b9d4dd07b4d56e64a2912f86ff3730f05669b7a0aceb86ec98a2873ed42e9541",
+    "sdkSourceCommit": "2260ef739aa0d64d03313b624318d52a45460739",
+    "hotkeysSha256": "953c62364868902a508faff619515bb8b419b146e6b9b2f1a8565fc301ccb0d9"
+  }
+}
