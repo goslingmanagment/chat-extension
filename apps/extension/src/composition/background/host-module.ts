@@ -19,6 +19,7 @@
 // for that sender and the payload by the frozen schema; the answer is checked
 // by its schema again on the way out (packages/platform rpc-background).
 
+import type { ContainerProxy } from '@cg/core/services/container-proxy';
 import type { SettingsExtOwner } from '@cg/core/services';
 import type { SoundBatch } from '@cg/contracts/sound';
 import type { SoundStreamPolicy } from '@cg/core/services/sound';
@@ -310,6 +311,8 @@ export interface BackgroundKit {
    * closed. Absent — none is.
    */
   readonly hostGranted?: (origin: string) => Promise<boolean>;
+  /** 2026-11-04: the router of a model's container (core container-proxy.ts). Absent — straight, as a world without it. */
+  readonly containerProxy?: Pick<ContainerProxy, 'line' | 'lineNow' | 'needed'>;
   readonly hub: HubPort;
   readonly storage: StoragePort;
   readonly clock: Clock;

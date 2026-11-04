@@ -35,6 +35,7 @@ export declare const agentKeyCapabilityEnum: z.ZodEnum<{
     "request:hydration": "request:hydration";
     "write:publication_drafts": "write:publication_drafts";
     "approve:publications": "approve:publications";
+    "approve:vault_albums": "approve:vault_albums";
     "write:fan_queues": "write:fan_queues";
     "read:content": "read:content";
 }>;
@@ -57,6 +58,7 @@ export declare const agentKeyItemSchema: z.ZodObject<{
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
+        "approve:vault_albums": "approve:vault_albums";
         "write:fan_queues": "write:fan_queues";
         "read:content": "read:content";
     }>>;
@@ -77,6 +79,7 @@ export declare const agentKeyCreateBodySchema: z.ZodObject<{
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
+        "approve:vault_albums": "approve:vault_albums";
         "write:fan_queues": "write:fan_queues";
         "read:content": "read:content";
     }>>;
@@ -97,6 +100,7 @@ export declare const agentKeyCreateResponseSchema: z.ZodObject<{
             "request:hydration": "request:hydration";
             "write:publication_drafts": "write:publication_drafts";
             "approve:publications": "approve:publications";
+            "approve:vault_albums": "approve:vault_albums";
             "write:fan_queues": "write:fan_queues";
             "read:content": "read:content";
         }>>;
@@ -127,6 +131,7 @@ export declare const agentKeyUpdateBodySchema: z.ZodObject<{
         "request:hydration": "request:hydration";
         "write:publication_drafts": "write:publication_drafts";
         "approve:publications": "approve:publications";
+        "approve:vault_albums": "approve:vault_albums";
         "write:fan_queues": "write:fan_queues";
         "read:content": "read:content";
     }>>;
@@ -153,6 +158,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "request:hydration": "request:hydration";
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
+                "approve:vault_albums": "approve:vault_albums";
                 "write:fan_queues": "write:fan_queues";
                 "read:content": "read:content";
             }>>;
@@ -174,6 +180,7 @@ export declare const agentKeyAdminRouteSchemas: {
                         "request:hydration": "request:hydration";
                         "write:publication_drafts": "write:publication_drafts";
                         "approve:publications": "approve:publications";
+                        "approve:vault_albums": "approve:vault_albums";
                         "write:fan_queues": "write:fan_queues";
                         "read:content": "read:content";
                     }>>;
@@ -241,6 +248,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "request:hydration": "request:hydration";
                     "write:publication_drafts": "write:publication_drafts";
                     "approve:publications": "approve:publications";
+                    "approve:vault_albums": "approve:vault_albums";
                     "write:fan_queues": "write:fan_queues";
                     "read:content": "read:content";
                 }>>;
@@ -285,6 +293,7 @@ export declare const agentKeyAdminRouteSchemas: {
                 "request:hydration": "request:hydration";
                 "write:publication_drafts": "write:publication_drafts";
                 "approve:publications": "approve:publications";
+                "approve:vault_albums": "approve:vault_albums";
                 "write:fan_queues": "write:fan_queues";
                 "read:content": "read:content";
             }>>;
@@ -302,6 +311,7 @@ export declare const agentKeyAdminRouteSchemas: {
                     "request:hydration": "request:hydration";
                     "write:publication_drafts": "write:publication_drafts";
                     "approve:publications": "approve:publications";
+                    "approve:vault_albums": "approve:vault_albums";
                     "write:fan_queues": "write:fan_queues";
                     "read:content": "read:content";
                 }>>;

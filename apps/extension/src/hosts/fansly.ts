@@ -103,7 +103,7 @@ export const FANSLY: HostDescriptor = {
   },
   lazy: { root: FANSLY_LAZY_ROOT, entries: FANSLY_LAZY_ENTRIES, layers: LAZY_LAYERS, beforeTheDock: BEFORE_THE_DOCK },
   // Asked for on the person's gesture, all at once (§4 «Включить Fansly»): the pages, the API and webRequest.
-  permissions: { origins: [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], optional: true, api: ['webRequest'] },
+  permissions: { origins: [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], optional: true, api: ['webRequest', 'proxy'] },
   // The boot, the traps and the observation run in the page's own world (§5).
   mainWorldSources: ['packages/host-fansly/src/main/'],
   // Local only, never in CI: the copies of Fansly's bundles stay outside the repository (§0; docs/research/fansly.md

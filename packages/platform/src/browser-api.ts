@@ -20,6 +20,8 @@ export interface TabApi {
   readonly windowId?: number;
   /** Its place in the window's strip. */
   readonly index?: number;
+  /** The container the tab is in (`firefox-container-N`, `firefox-default`). */
+  readonly cookieStoreId?: string;
 }
 
 /** Who sent a runtime message or opened a port. */
@@ -183,14 +185,29 @@ export interface WebRequestDetailsApi {
   readonly requestHeaders?: readonly { readonly name: string; readonly value?: string }[];
   readonly responseHeaders?: readonly { readonly name: string; readonly value?: string }[];
   readonly statusCode?: number;
+  /** Firefox: the container the request belongs to, a request without a tab too. */
+  readonly cookieStoreId?: string;
+  /** Firefox: the proxy the request goes through (never its password). */
+  readonly proxyInfo?: { readonly host?: string; readonly port?: number } | null;
+}
+
+/** Firefox's filter of a request's route: what it answers replaces what the filters before it chose; undefined keeps it. */
+export interface ProxyEventApi {
+  addListener(listener: (details: WebRequestDetailsApi) => unknown, filter: { urls: string[] }, extra?: string[]): void;
+  removeListener(listener: (details: WebRequestDetailsApi) => unknown): void;
+}
+
+export interface ProxyApi {
+  readonly onRequest: ProxyEventApi;
 }
 
 export interface WebRequestEventApi {
-  addListener(listener: (details: WebRequestDetailsApi) => void, filter: { urls: string[] }, extra?: string[]): void;
+  addListener(listener: (details: WebRequestDetailsApi) => void, filter: { urls: string[]; types?: string[] }, extra?: string[]): void;
   removeListener(listener: (details: WebRequestDetailsApi) => void): void;
 }
 
 export interface WebRequestApi {
+  readonly onBeforeRequest: WebRequestEventApi;
   readonly onBeforeSendHeaders: WebRequestEventApi;
   readonly onCompleted: WebRequestEventApi;
   readonly onErrorOccurred: WebRequestEventApi;
@@ -210,6 +227,8 @@ export interface BrowserApi {
   readonly scripting: ScriptingApi;
   /** Absent until the optional permission is granted. Read it again on onAdded. */
   readonly webRequest?: WebRequestApi;
+  /** Absent until the optional permission is granted. Read it again on onAdded. */
+  readonly proxy?: ProxyApi;
 }
 
 /** The real `browser` namespace, read when a factory is called (never at import). */

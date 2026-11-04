@@ -19,7 +19,7 @@
  * travels with a migration for the `agent_keys` CHECK, an entry in the
  * per-operation requirement table, and regression coverage.
  */
-export declare const AGENT_CAPABILITIES: readonly ["read:messages", "read:money", "read:observations_envelope", "read:datasets", "request:hydration", "write:publication_drafts", "approve:publications", "write:fan_queues", "read:content"];
+export declare const AGENT_CAPABILITIES: readonly ["read:messages", "read:money", "read:observations_envelope", "read:datasets", "request:hydration", "write:publication_drafts", "approve:publications", "approve:vault_albums", "write:fan_queues", "read:content"];
 export type AgentCapability = (typeof AGENT_CAPABILITIES)[number];
 /**
  * Boundary check for an UNVALIDATED capability name (it arrives from an issuance

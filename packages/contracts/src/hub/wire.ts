@@ -282,6 +282,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
    * in the Fansly chat header. A hub without it is never asked, and no mark shows.
    */
   'deleted-messages-v1',
+  /**
+   * 2026-11-04: the proxies of the caller's Fansly pages, with their logins (`clientFanslyProxies`): the extension routes
+   * what Multi-Account Containers leaves on the chatter's own line. A hub without it is never asked.
+   */
+  'fansly-proxies-v1',
   'other-pages-v1',
   /**
    * Telegram as the third site (docs/specs/2026-10-27-telegram-site.md §5.7): pages of platform `telegram`, whose Reply,

@@ -154,6 +154,7 @@ export const WIRE_SPECS: Readonly<Record<Exclude<HubRouteKey, 'aiFeatureStream'>
   clientAudienceNew: { params: PAGE, query: true, integers: ['windowHours', 'limit'] },
   clientAiUsageDaily: { params: PAGE, query: true, integers: ['days'] },
   clientAiLimit: null,
+  clientFanslyProxies: null,
   clientSendAttributions: { params: PAGE, body: 'merge' },
   clientNoteAttributions: { params: PAGE, body: 'merge' },
   clientFanNoteAttributions: { params: PAGE_FAN },

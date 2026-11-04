@@ -119,6 +119,7 @@ import {
 import { DiagnosticsService, SpendService, advancedAccountInfo, clearDebugData, type DiagnosticsFacts } from '@cg/core/services/diagnostics';
 import { createGreetReminder, soundRequestHandlers } from '@cg/core/services/sound';
 import { createSiteAccess } from '@cg/core/services/site-access';
+import { createContainerProxy } from '@cg/core/services/container-proxy';
 import { createNetworkSession, legacyAccount } from '@cg/core/services/network-session';
 import { HEALTH_TICK_MS } from '@cg/core/services/telemetry';
 import { readVoiceOpView } from '@cg/core/services/voice';
@@ -128,6 +129,7 @@ import {
   createPermissionBundle,
   createScriptTabs,
   syncDynamicScripts,
+  observeProxyRequests,
   observeWebRequests,
   openBoundedStore,
   createAudioPlayer,
@@ -175,7 +177,7 @@ import { readNotesFillOpView } from '@cg/core/services/notes';
 import { createBackgroundVoice } from './background/voice';
 import { EGRESS_PROBE_KEY, fireEgressProbe } from './egress-probe';
 import { featuresOf as coreFeaturesOf } from './features';
-import { OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, telegramMatches, telegramPermissionSet, telegramScriptSet } from './site-access';
+import { fanslyAddress, proxyPermissionSet, OPTIONAL_HOST, SESSION_KEY, RELOAD_KEY, SITE_TYPE_PREFIX, FANSLY_RELAY_PAGE, siteMatches, permissionSet, apiMatches, scriptSet, pageAddress, apiAddress, routeFamily, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, telegramMatches, telegramPermissionSet, telegramScriptSet } from './site-access';
 
 /** id of the dynamically registered WS tap (§6.8 п. 10). */
 export const WS_TAP_SCRIPT_ID = 'cg-ws-tap';
@@ -384,6 +386,43 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     observations = observations.then(async () => { await siteAccess.idle(); await networkSession.accept(fact); }).catch(accessFailed);
   }, api);
   const scriptTabs = createScriptTabs(siteMatches(), 'fansly-notice.js', api);
+  // Everything a model's container sends goes through the page's proxy (core container-proxy.ts). The core carries only the router, the site's addresses come from site-access. The filter is registered
+  // here, synchronously, so a request wakes a sleeping event page and waits for the answer.
+  const proxyAccess = createPermissionBundle(proxyPermissionSet(), api);
+  let proxyRequests: ReturnType<typeof observeProxyRequests> | null = null;
+  const containerProxy = createContainerProxy({
+    storage: local,
+    fetchRows: async () => {
+      const signedIn = hub().session();
+      if (signedIn === null) return null;
+      const answer = await hub().fanslyProxies();
+      return answer === null ? null : { owner: `${signedIn.hubOrigin}#${signedIn.userId}`, rows: answer.proxies };
+    },
+    grant: () => proxyAccess.has(),
+    accountOfToken: legacyAccount,
+    canonicalOf: (legacyId) => networkSession.forAccount(legacyId)?.canonicalId ?? null,
+    sessionReady: networkSession.ready,
+    containerOfTab: async (tabId) => (await api.tabs.get(tabId)).cookieStoreId ?? null,
+    ownOrigin: api.runtime.getURL(''),
+    siteAddress: fanslyAddress,
+    siteApi: apiAddress,
+    moveToLast: () => proxyRequests?.moveToLast(),
+    now: () => Date.now(),
+    setTimer: (ms, callback) => setTimeout(callback, ms),
+    clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+    log: serviceLog,
+  });
+  proxyRequests = observeProxyRequests(siteMatches(), {
+    answer: (details) => containerProxy.answer(details),
+    page: (details) => containerProxy.learnPage(details),
+  }, api);
+  const proxyGranted = (granted: boolean): void => {
+    if (granted) proxyRequests?.attach();
+    else proxyRequests?.detach();
+    containerProxy.setActive(granted);
+  };
+  void proxyAccess.has().then(proxyGranted);
+  proxyAccess.onChange(() => void proxyAccess.has().then(proxyGranted));
   scriptTabs.onRemoved((tab) => { void networkSession.forget(tab).catch(accessFailed); });
 
   const barrier = createReadinessBarrier({ timers: TIMERS, log: serviceLog });
@@ -1035,6 +1074,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     siteActive: () => siteActive(host),
     // 2026-10-28: an optional address the person allowed (FBuddy's, for «Онлайн»'s gems).
     hostGranted: (origin) => hostPermissions.has(origin),
+    containerProxy,
     // 1.21.0 (X48): who sent a message the site's module proved — a preview's send the person clicked.
     // Chat Memory week 1: Fansly's sends of a person's click too («Новые», «Рассылка»), with their chat and button.
     attributions: {
@@ -1424,6 +1464,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   });
   function wireHub(instance: ChatExtensionHub): void {
     instance.onSessionChange((change) => {
+      // A sign-in reads its own list, another person's proxies gone first; a sign-out keeps them (core container-proxy.ts).
+      if (change.session !== null) void containerProxy.signedIn(`${change.session.hubOrigin}#${change.session.userId}`).catch(() => undefined);
       void serverSignInPage(change.session !== null);
       activity.sessionChanged();
       beatLastPage.clear();
@@ -1464,6 +1506,7 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       void wsTap.fromBootstrap(null);
     });
     instance.onBootstrapChange((entry) => {
+      void containerProxy.refresh().catch(() => undefined);
       const { configRevision, issuedAt, flags } = entry.bootstrap;
       rpc.emit('bootstrap.changed', { configRevision, issuedAt });
       // The top-level flags are the owner's `"*"` row; what a page may do travels with the bootstrap itself, which
@@ -1556,6 +1599,12 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     if (report.focused && before?.focused !== true) hubInstance?.notifyFocus();
     const namesBefore = fanLabelsSignature();
     const recorded = await presence.report(sender.tabSessionId, report);
+    // Which page this tab's container is: the account it reports (core container-proxy.ts).
+    if (report.accounts !== undefined && report.accounts.length > 0) {
+      const prefix = `${OPTIONAL_HOST}:`;
+      const accounts = (presence.tabs().find((tab) => tab.tabSessionId === sender.tabSessionId)?.accounts ?? []).filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
+      if (accounts.length > 0) void containerProxy.learnTab(sender.tabId, accounts).catch(() => undefined);
+    }
     // 1.20.0 (X47): an open page shows the name as soon as the tab tells it, not only when it is opened next.
     if (fanLabelsSignature() !== namesBefore) rpc.emit('fans.changed', {});
     // From here the tab's own accounts are known: a request that waited for them is answered now.

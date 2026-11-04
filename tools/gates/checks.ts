@@ -135,7 +135,9 @@ export function checkSendQueueReferences(files: readonly SourceFile[]): Violatio
 /** 6. The release bundle carries nothing test-only: no loopback hosts, no spike or egress probe. */
 export function checkReleaseBundle(files: readonly SourceFile[]): Violation[] {
   const markers: Array<[RegExp, string]> = [
-    [/127\.0\.0\.1|\blocalhost\b/, 'loopback stand / fake hub host'],
+    // Port 1 of loopback is the container router's refusal (core container-proxy.ts: nothing listens there, so a
+    // request it cannot route fails at once instead of going direct). No stand or fake hub is ever on that port.
+    [/127\.0\.0\.1(?!['"`],\s*port:\s*1\b)|\blocalhost\b/, 'loopback stand / fake hub host'],
     [/data-cg-spike|lazy\/spike\.js/, 'spike M0 probe'],
     [/cg-test-egress-probe|cg-bg-probe\.invalid/, 'background egress probe'],
     [/dev\.fanslyApi\./, "Fansly's API probe of the e2e (bg/fansly/api-probe.ts)"],

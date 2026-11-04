@@ -94,7 +94,7 @@ export type ClientCursorRefusalReason = (typeof CLIENT_CURSOR_REFUSAL_REASONS)[n
  * about a Fansly page.
  */
 export declare const CLIENT_FEATURE_FLAG_NAMES: readonly ["insertion", "freshText", "newcomers", "spenders", "stats", "preview", "previewSend", "previewSendMarkAiGenerated", "fanPanel", "navigation", "wsTap", "sound", "coach", "recap", "review", "splitAll", "drafts", "voice", "notesFill", "notes", "vault", "registration", "onlineProbe", "ofFeed", "ofPoll"];
-export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "message-authors-v1", "deleted-messages-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "other-pages-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1", "onlyfans-poll-v1", "chatspace-tab-state-v1", "chatspace-tab-state-v2", "outreach-store-v1"];
+export declare const CLIENT_HUB_CAPABILITY_NAMES: readonly ["context-v1", "live-text-v1", "split-all-v1", "shared-recaps-v1", "recap-profile-v1", "archive-feed-v1", "spenders-stats-v1", "awaiting-reply-v1", "audience-new-v1", "preview-send-custody-v1", "client-health-perf-v1", "ai-usage-v1", "manual-greeting-v1", "coverage-check-v1", "conversation-recaps-v1", "hi-start-proof-v1", "voice-notes-v1", "send-attribution-v1", "note-attribution-v1", "note-attribution-read-v1", "message-authors-v1", "deleted-messages-v1", "fansly-proxies-v1", "live-ppv-v1", "live-text-review-coach-v1", "live-text-recap-v1", "live-text-fansly-tools-v1", "live-ppv-fansly-v1", "live-images-v1", "draft-media-v1", "recap-off-v1", "outreach-fix-v1", "chatter-activity-v1", "in-conversation-v1", "fan-card-v1", "win-back-v1", "handoff-v1", "fan-customs-v1", "online-v1", "hi-fan-account-v1", "coach-depth-v1", "fan-marks-v1", "other-pages-v1", "telegram-ai-v1", "fan-queues-v1", "fan-custom-name-v1", "ai-limit-v1", "onlyfans-feed-v1", "onlyfans-poll-v1", "chatspace-tab-state-v1", "chatspace-tab-state-v2", "outreach-store-v1"];
 /**
  * Append-only. `client_outdated` (the caller's `x-client-version` is below the
  * owner's minimum, or unreadable) is answered by the server-side check of
@@ -1516,6 +1516,27 @@ export declare const clientMessageAuthorsResponseSchema: z.ZodObject<{
     }, z.core.$strip>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
+export declare const clientFanslyProxySchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    platformAccountId: z.ZodNullable<z.ZodString>;
+    scheme: z.ZodString;
+    host: z.ZodString;
+    port: z.ZodNumber;
+    username: z.ZodNullable<z.ZodString>;
+    password: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
+export declare const clientFanslyProxiesResponseSchema: z.ZodObject<{
+    proxies: z.ZodArray<z.ZodObject<{
+        pageLabel: z.ZodString;
+        platformAccountId: z.ZodNullable<z.ZodString>;
+        scheme: z.ZodString;
+        host: z.ZodString;
+        port: z.ZodNumber;
+        username: z.ZodNullable<z.ZodString>;
+        password: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
 /** The most deleted messages of one fan `clientDeletedMessages` answers, the latest deleted first. */
 export declare const CLIENT_DELETED_MESSAGES_MAX = 50;
 export declare const clientDeletedMessagesResponseSchema: z.ZodObject<{
@@ -2139,6 +2160,7 @@ export declare const teamShiftSchema: z.ZodObject<{
     pages: z.ZodArray<z.ZodObject<{
         pageLabel: z.ZodString;
         activeMinutes: z.ZodNumber;
+        messages: z.ZodNumber;
     }, z.core.$strip>>;
     authoredMessages: z.ZodNumber;
 }, z.core.$strip>;
@@ -2159,6 +2181,7 @@ export declare const teamShiftsResponseSchema: z.ZodObject<{
         pages: z.ZodArray<z.ZodObject<{
             pageLabel: z.ZodString;
             activeMinutes: z.ZodNumber;
+            messages: z.ZodNumber;
         }, z.core.$strip>>;
         authoredMessages: z.ZodNumber;
     }, z.core.$strip>>;
@@ -3296,6 +3319,7 @@ export declare const chatterNumbersSchema: z.ZodObject<{
 export declare const teamChatterNumbersQuerySchema: z.ZodObject<{
     from: z.ZodOptional<z.ZodString>;
     to: z.ZodOptional<z.ZodString>;
+    userId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
 }, z.core.$strip>;
 export declare const teamChatterNumbersResponseSchema: z.ZodObject<{
     from: z.ZodString;
@@ -4500,6 +4524,42 @@ export declare const clientRouteSchemas: {
             }, z.core.$strip>;
         };
     };
+    readonly clientFanslyProxies: {
+        readonly auth: {
+            readonly kind: "apiKey";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The proxies of the caller's Fansly pages, with their logins";
+        readonly description: string;
+        readonly response: {
+            readonly 200: z.ZodObject<{
+                proxies: z.ZodArray<z.ZodObject<{
+                    pageLabel: z.ZodString;
+                    platformAccountId: z.ZodNullable<z.ZodString>;
+                    scheme: z.ZodString;
+                    host: z.ZodString;
+                    port: z.ZodNumber;
+                    username: z.ZodNullable<z.ZodString>;
+                    password: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>;
+                serverNow: z.ZodString;
+            }, z.core.$strip>;
+            readonly 401: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+            readonly 403: z.ZodObject<{
+                error: z.ZodString;
+                message: z.ZodString;
+                statusCode: z.ZodNumber;
+                reason: z.ZodOptional<z.ZodString>;
+                statusUrl: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>;
+        };
+    };
     readonly clientDeletedMessages: {
         readonly auth: {
             readonly kind: "apiKey";
@@ -5145,6 +5205,7 @@ export declare const clientRouteSchemas: {
                     pages: z.ZodArray<z.ZodObject<{
                         pageLabel: z.ZodString;
                         activeMinutes: z.ZodNumber;
+                        messages: z.ZodNumber;
                     }, z.core.$strip>>;
                     authoredMessages: z.ZodNumber;
                 }, z.core.$strip>>;
@@ -7455,6 +7516,7 @@ export declare const clientRouteSchemas: {
         readonly querystring: z.ZodObject<{
             from: z.ZodOptional<z.ZodString>;
             to: z.ZodOptional<z.ZodString>;
+            userId: z.ZodOptional<z.ZodCoercedNumber<unknown>>;
         }, z.core.$strip>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -8162,6 +8224,7 @@ export type ClientNoteAttributionsResponse = z.infer<typeof clientNoteAttributio
 export type ClientFanNoteAttributionsResponse = z.infer<typeof clientFanNoteAttributionsResponseSchema>;
 export type ClientMessageAuthorsResponse = z.infer<typeof clientMessageAuthorsResponseSchema>;
 export type ClientDeletedMessagesResponse = z.infer<typeof clientDeletedMessagesResponseSchema>;
+export type ClientFanslyProxiesResponse = z.infer<typeof clientFanslyProxiesResponseSchema>;
 export type ClientNoteAttributionWho = z.infer<typeof clientNoteAttributionWhoSchema>;
 export type ClientAudienceNewQuery = z.infer<typeof clientAudienceNewQuerySchema>;
 export type ClientClaimSummary = z.infer<typeof clientClaimSummarySchema>;

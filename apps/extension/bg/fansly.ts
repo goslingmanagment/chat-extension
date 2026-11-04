@@ -397,6 +397,8 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
         return ok(await marks.read(payload as FanslyTabRequestPayload<'fansly.marks.read'>, sender));
       case 'fansly.otherPages.read':
         return ok(await marks.otherPages(payload as FanslyTabRequestPayload<'fansly.otherPages.read'>, sender));
+      case 'fansly.proxy.needed':
+        return ok({ needed: (await kit.containerProxy?.needed()) ?? false });
       case 'fansly.deleted.read':
         return ok(await deleted.read(payload as FanslyTabRequestPayload<'fansly.deleted.read'>, sender));
       case 'fansly.registration.read':

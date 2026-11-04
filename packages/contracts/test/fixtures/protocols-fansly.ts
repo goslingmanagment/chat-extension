@@ -221,6 +221,10 @@ export const FANSLY_TAB_REQUEST_FIXTURES: { readonly [T in FanslyTabRequestType]
       ],
     },
   },
+  'fansly.proxy.needed': {
+    req: { valid: [{}], invalid: [{ extra: 1 }] },
+    res: { valid: [{ needed: true }, { needed: false }], invalid: [{}, { needed: 'yes' }] },
+  },
   'fansly.deleted.read': {
     req: {
       valid: [{ pageId: 12, hostAccountId: F.creator, fanRef: F.fan }],

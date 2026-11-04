@@ -87,6 +87,7 @@ import {
   type FanMarks,
   type FanMarksQuery,
   type DeletedMessages,
+  type FanslyProxies,
   type DeletedMessagesQuery,
   type OtherPagesAnswer,
   type OtherPagesRequest,
@@ -1047,6 +1048,16 @@ export class ChatExtensionHub implements HubFacade {
   }
 
   /** 2026-11-03: the fan's deleted messages of a page granted by this bootstrap, with their text; refused without `deleted-messages-v1`. */
+  async fanslyProxies(): Promise<FanslyProxies | null> {
+    const connection = this.ctx.connection('clientFanslyProxies');
+    await this.ready;
+    if (!this.ctx.isCurrent(connection) || this.custody.current() === null) return null;
+    const entry = this.bootstrapService.cached() ?? (await this.bootstrapService.fresh());
+    if (!hasCapability(entry.bootstrap.capabilities, 'fansly-proxies-v1')) return { proxies: [] };
+    const answer = (await this.ctx.client('clientFanslyProxies', null, {}, connection)) as FanslyProxies;
+    return this.ctx.isCurrent(connection) ? answer : null;
+  }
+
   async deletedMessages(query: DeletedMessagesQuery): Promise<DeletedMessages> {
     return (await this.client('clientDeletedMessages', query, query.pageLabel)) as DeletedMessages;
   }

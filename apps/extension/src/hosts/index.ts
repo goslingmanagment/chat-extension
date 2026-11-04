@@ -52,6 +52,13 @@ export const HUB_HOST_PERMISSION = 'https://gosling-agency.ru/*';
  */
 export const FBUDDY_HOST_PERMISSION = 'https://apiv2.fbuddy.net/*';
 
+/**
+ * Everything a model's container sends goes through the page's proxy (2026-11-04, core container-proxy.ts): Firefox answers
+ * a proxy filter only for the addresses the extension may reach, and a page loads from anywhere. Asked with `proxy`, on a
+ * person's click, on Fansly's settings card.
+ */
+export const ALL_SITES_OPTIONAL_PERMISSION = '<all_urls>';
+
 /** A non-default hub address is requested on a user gesture when saved (§3). */
 export const CUSTOM_HUB_OPTIONAL_PERMISSION = 'https://*/*';
 

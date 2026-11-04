@@ -839,6 +839,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/fan-queues";
     };
+    readonly clientFanslyProxies: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/fansly-proxies";
+    };
     readonly clientHandoff: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/handoff";
@@ -1426,6 +1430,10 @@ export declare const kernelOperations: {
     readonly pageDeletedFans: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/deleted-fans";
+    };
+    readonly pageFanCard: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/fans/:platformUserId/card";
     };
     readonly pageFanDetail: {
         readonly method: "GET";

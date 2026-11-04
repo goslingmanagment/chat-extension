@@ -16,6 +16,15 @@ export const RELOAD_KEY = 'fansly.waitingReload';
 export const SITE_TYPE_PREFIX = 'fansly.';
 export const siteMatches = (): string[] => __CG_TEST_HOSTS__ ? [...FANSLY_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES];
 export const permissionSet = () => ({ origins: __CG_TEST_HOSTS__ ? [...FANSLY_STAND_MATCHES] : [...FANSLY_MATCHES, ...FANSLY_API_MATCHES], permissions: ['webRequest'] });
+/** What the router of a model's container needs (core container-proxy.ts): asked together, on the person's click. */
+export const proxyPermissionSet = () => ({ origins: ['<all_urls>'], permissions: ['proxy', 'webRequest'] });
+/** Any of Fansly's own addresses (a test build: the stand's too), for the router's account rule. */
+export function fanslyAddress(value: string): boolean {
+  try {
+    const { hostname, protocol } = new URL(value);
+    return hostname === 'fansly.com' || hostname.endsWith('.fansly.com') || (__CG_TEST_HOSTS__ && protocol === 'http:' && hostname === 'localhost');
+  } catch { return false; }
+}
 export const apiMatches = (): string[] => __CG_TEST_HOSTS__ ? [...FANSLY_API_MATCHES, ...FANSLY_STAND_MATCHES] : [...FANSLY_API_MATCHES];
 export const scriptSet = () => [
   { id: 'fansly-main', js: ['fansly-main.js'], world: 'MAIN' as const, matches: siteMatches() },
