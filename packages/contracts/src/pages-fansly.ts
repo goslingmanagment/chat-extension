@@ -36,6 +36,8 @@ export interface FanslyPagesView {
   readonly accounts: FanslyAccountsView | null;
   /** «Алмазики FBuddy» (2026-10-28): FBuddy's address is granted (at install, or allowed since); null — not known yet. */
   readonly fbuddy: boolean | null;
+  /** «Весь трафик через прокси модели» (2026-11-04): Firefox's grant for the router; null — not known yet. */
+  readonly proxy: boolean | null;
 }
 
 /** One of Fansly's steps of the first run (ST-012): what it is, whether it is done, the control's action for it. */
@@ -84,6 +86,8 @@ export interface FanslyPagesControl {
    * from the click handler, nothing awaited before.
    */
   allowFbuddy(): Promise<void>;
+  /** «Разрешить» of the router: the browser's prompt inside this click, nothing awaited before it. */
+  allowProxy(): Promise<void>;
 }
 
 /** Fansly's texts on the extension pages (its text pack, core domain/hosts/fansly/i18n/pages.ts). */
@@ -125,6 +129,11 @@ export const FANSLY_PAGE_TEXT_KEYS = [
   'fansly.pages.importNone',
   'fansly.pages.importBad',
   // 2026-10-28: «Алмазики FBuddy» in «Онлайн» — FBuddy's address, allowed by the person.
+  'fansly.pages.proxy',
+  'fansly.pages.proxyHint',
+  'fansly.pages.proxyOn',
+  'fansly.pages.proxyOff',
+  'fansly.pages.proxyEnable',
   'fansly.pages.fbuddy',
   'fansly.pages.fbuddyHint',
   'fansly.pages.fbuddyOn',

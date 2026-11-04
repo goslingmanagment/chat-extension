@@ -19,6 +19,7 @@ export * from './conversation';
 export * from './fan-card';
 export * from './fan-marks';
 export * from './deleted';
+export * from './page-proxies';
 export * from './queue';
 export * from './online';
 export * from './onlyfans-feed';

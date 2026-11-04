@@ -117,3 +117,4 @@ export { downloadFile, safeFileName, DOWNLOAD_URL_TTL_MS, type DownloadDeps, typ
 export { createPermissionBundle } from './permissions';
 export { syncDynamicScripts, createScriptTabs, type DynamicScriptSpec } from './scripting';
 export { observeWebRequests, type WebRequestFact } from './web-request';
+export { observeProxyRequests } from './container-proxy';

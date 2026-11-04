@@ -128,6 +128,9 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
     // The fan's deleted messages of a page, with the text the hub kept
     // (`clientDeletedMessages`).
     "deleted-messages-v1",
+    // The proxies of the caller's Fansly pages (`clientFanslyProxies`): everything
+    // a model's Firefox container sends leaves through its page's proxy.
+    "fansly-proxies-v1",
     // chat-extension X54: the AI feature stream takes `livePpvContext`.
     "live-ppv-v1",
     "live-text-review-coach-v1",
@@ -1738,6 +1741,30 @@ export const clientMessageAuthorsResponseSchema = z.object({
     })).max(CLIENT_MESSAGE_AUTHORS_MAX),
     serverNow: isoTimestamp,
 });
+// ── the proxies of the caller's Fansly pages (fansly-proxies-v1) ────────────
+//
+// Firefox Multi-Account Containers puts a container's proxy only on requests
+// that have a tab: a request without one leaves from the chatter's own line
+// (Fansly's service worker, another add-on's content script, the extension's
+// background). The extension routes those itself, by the container, so it needs
+// the page's proxy with its login (owner, 2026-11-04). The same proxy the hub's
+// own Fansly traffic of the page leaves through: one page, one address.
+export const clientFanslyProxySchema = z.object({
+    pageLabel: z.string(),
+    /** `pages.external_page_id`: the Fansly account the proxy belongs to. Null: the hub does not know it yet. */
+    platformAccountId: z.string().nullable(),
+    /** Open token; known values: `socks5`, `http`, `https`. */
+    scheme: clientOpenToken,
+    host: z.string().min(1),
+    port: z.number().int().min(1).max(65_535),
+    username: z.string().nullable(),
+    password: z.string().nullable(),
+});
+export const clientFanslyProxiesResponseSchema = z.object({
+    /** One row per active Fansly page granted to the caller that has a proxy. */
+    proxies: z.array(clientFanslyProxySchema),
+    serverNow: isoTimestamp,
+});
 // ── the fan's deleted messages of a page (deleted-messages-v1) ──────────────
 //
 // A Fansly deletion is a fact about the message, not an erasure (owner,
@@ -2228,8 +2255,12 @@ export const teamShiftSchema = z.object({
     ongoing: z.boolean(),
     workedMinutes: z.number().int().nonnegative(),
     pauses: z.array(z.object({ from: isoTimestamp, to: isoTimestamp })),
-    /** Active minutes per page. */
-    pages: z.array(z.object({ pageLabel: z.string(), activeMinutes: z.number().int().nonnegative() })),
+    /**
+     * The shift's pages, the most messages first: minutes with an action there (a
+     * minute two tabs saw counts on both, so they do not add up to the shift) and
+     * messages with this person as author (they add up to `authoredMessages`).
+     */
+    pages: z.array(z.object({ pageLabel: z.string(), activeMinutes: z.number().int().nonnegative(), messages: z.number().int().nonnegative() })),
     /** Messages with this person as author during the shift, on the pages in scope. */
     authoredMessages: z.number().int().nonnegative(),
 });
@@ -3547,6 +3578,21 @@ export const clientRouteSchemas = {
             403: errorResponseSchema,
             404: errorResponseSchema,
             409: errorResponseSchema,
+        },
+    },
+    clientFanslyProxies: {
+        auth: { kind: "apiKey" },
+        tags: ["client"],
+        summary: "The proxies of the caller's Fansly pages, with their logins",
+        description: "Read-only and database-only: no platform request, no queued work. A device token's (a cookie session "
+            + "is 403), and only the active Fansly pages granted to the caller; a page without a proxy is absent. No owner "
+            + "switch. Carries credentials: the answer is `Cache-Control: no-store`, and a client keeps it to itself. The "
+            + "chat extension routes everything a model's Firefox container sends through these proxies: Multi-Account "
+            + "Containers leaves a request without a tab on the chatter's own line (owner, 2026-11-04).",
+        response: {
+            200: clientFanslyProxiesResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
         },
     },
     clientDeletedMessages: {

@@ -63,6 +63,7 @@ export const HUB_ROUTES = {
   clientAiUsageDaily: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['ai-usage-v1'], narrowToken: true },
   /** The person's own daily AI limit (the owner's, Moscow day, all pages); no page, no owner switch. */
   clientAiLimit: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['ai-limit-v1'], narrowToken: true },
+  clientFanslyProxies: { method: 'GET', routeClass: 'account', since: 'sdk', flag: null, capabilities: ['fansly-proxies-v1'], narrowToken: true },
   /** 1.21.0 (X48): who sent each outgoing message. No owner switch: the hub takes a send that happened on the page grant alone. */
   clientSendAttributions: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['send-attribution-v1'], narrowToken: true },
   /** Who wrote each Fansly note: a confirmed write of our panel. No owner switch: the page grant alone. */

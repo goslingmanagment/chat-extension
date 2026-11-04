@@ -839,6 +839,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/fan-queues";
     };
+    readonly clientFanslyProxies: {
+        readonly method: "GET";
+        readonly path: "/api/v1/client/fansly-proxies";
+    };
     readonly clientHandoff: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/handoff";

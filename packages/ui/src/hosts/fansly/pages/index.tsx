@@ -183,6 +183,23 @@ export function FanslyCard({ control, settings }: { readonly control: FanslyPage
           ) : null}
         </Opt>
       ) : null}
+      {settings && view.on && view.proxy !== null ? (
+        <Opt label={text(i18n, 'fansly.pages.proxy')} hint={text(i18n, 'fansly.pages.proxyHint')} anchor="fansly-proxy">
+          <span class="pg-line">
+            <span class={view.proxy ? 'pg-value' : 'pg-muted'} data-pg-proxy={view.proxy ? 'on' : 'off'}>
+              {text(i18n, view.proxy ? 'fansly.pages.proxyOn' : 'fansly.pages.proxyOff')}
+            </span>
+            {view.proxy ? null : (
+              <Button
+                variant="line"
+                label={text(i18n, 'fansly.pages.proxyEnable')}
+                // The browser's prompt runs inside this very click: nothing is awaited before `allowProxy`.
+                onClick={() => void control.allowProxy()}
+              />
+            )}
+          </span>
+        </Opt>
+      ) : null}
       {settings && view.on && view.settings !== null ? (
         <Opt label={text(i18n, 'fansly.pages.viaTab')} hint={text(i18n, 'fansly.pages.viaTabHint')} anchor="fansly-via-tab">
           <Checkbox

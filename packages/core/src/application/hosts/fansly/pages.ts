@@ -44,6 +44,12 @@ export interface FanslyPagesDeps {
     request(): Promise<boolean>;
     onChange(listener: () => void): () => void;
   };
+  /** Firefox's grant for the router of a model's container (core container-proxy.ts); the same shape, the same click. */
+  readonly proxy?: {
+    has(): Promise<boolean>;
+    request(): Promise<boolean>;
+    onChange(listener: () => void): () => void;
+  };
 }
 
 export interface FanslyPages {
@@ -81,9 +87,11 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
   let writes: Promise<unknown> = Promise.resolve();
   /** FBuddy's address allowed; null — not known yet (or the page offers no gems). */
   let fbuddy: boolean | null = null;
+  /** The router's grant; null — not known yet (or the page does not offer it). */
+  let proxy: boolean | null = null;
   const listeners = new Set<() => void>();
 
-  const view = (): FanslyPagesView => ({ access: deps.access.value, on: fanslyOn(deps.access.value), settings, settingsError, save, accounts, fbuddy });
+  const view = (): FanslyPagesView => ({ access: deps.access.value, on: fanslyOn(deps.access.value), settings, settingsError, save, accounts, fbuddy, proxy });
   let value = view();
   const notify = (): void => {
     value = view();
@@ -109,6 +117,12 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
     notify();
   };
   deps.fbuddy?.onChange(() => void readFbuddy());
+  const readProxy = async (): Promise<void> => {
+    if (deps.proxy === undefined) return;
+    proxy = await deps.proxy.has().catch(() => false);
+    notify();
+  };
+  deps.proxy?.onChange(() => void readProxy());
 
   /** A newer revision only: an answer that comes late never takes back a later one. */
   const adopt = (next: SettingsExtState): void => {
@@ -171,6 +185,7 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
     },
     async refresh() {
       void readFbuddy();
+      void readProxy();
       await deps.access.refresh();
       if (fanslyOn(deps.access.value)) await readSettings();
       else {
@@ -201,6 +216,12 @@ export function createFanslyPages(deps: FanslyPagesDeps): FanslyPages {
       const granted = deps.fbuddy?.request() ?? Promise.resolve(false);
       await granted.catch(() => false);
       await readFbuddy();
+    },
+    // The browser's prompt is asked synchronously, first thing in the click.
+    async allowProxy() {
+      const granted = deps.proxy?.request() ?? Promise.resolve(false);
+      await granted.catch(() => false);
+      await readProxy();
     },
   };
 

@@ -45,6 +45,11 @@ export function createRelayService(kit: BackgroundKit, viaTab: () => boolean | n
   const hub = createRelayTransport({
     viaTab,
     ...(options.settled === undefined ? {} : { settled: options.settled }),
+    // 2026-11-04: straight only when the router carries it; else through the tab, never from the chatter's line.
+    ...(kit.containerProxy === undefined ? {} : {
+      ownLine: (legacyId: string, canonicalId: string | null) => kit.containerProxy!.line(legacyId, canonicalId),
+      ownLineNow: (legacyId: string, canonicalId: string | null) => kit.containerProxy!.lineNow(legacyId, canonicalId),
+    }),
     // The direct route: the event page's own `fetch` (packages/fansly-api's), a test's own.
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     tabs: () => kit.siteTabs?.registered() ?? [],

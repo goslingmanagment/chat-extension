@@ -130,6 +130,8 @@ export interface FakeHubConfig {
    * today and what one generation costs. Null — no limit (the hub's default). At the limit 429 `quota_denied` with
    * reason `personal_daily_limit`.
    */
+  /** `fansly-proxies-v1`: what `clientFanslyProxies` answers; null — no proxies, as a stand without them. */
+  readonly fanslyProxies: readonly { readonly pageLabel: string; readonly platformAccountId: string | null; readonly scheme: string; readonly host: string; readonly port: number; readonly username: string | null; readonly password: string | null }[] | null;
   readonly personalAiLimit: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number; readonly poolMicroUsd?: number } | null;
   readonly generationVisibleAfterMs: number;
   readonly spendersTotal: number;
@@ -170,6 +172,7 @@ const BASE = {
   clientBootstrap: true,
   quotaRequestsToday: 120,
   personalAiLimit: null,
+  fanslyProxies: null,
   generationVisibleAfterMs: 0,
   spendersTotal: 1240,
   aiChunkDelayMs: 0,
@@ -284,6 +287,7 @@ export function patchConfig(config: FakeHubConfig, patch: FakeHubConfigPatch): F
     ...(patch.narrowTokens === undefined ? {} : { narrowTokens: patch.narrowTokens }),
     ...(patch.clientBootstrap === undefined ? {} : { clientBootstrap: patch.clientBootstrap }),
     ...(patch.quotaRequestsToday === undefined ? {} : { quotaRequestsToday: patch.quotaRequestsToday }),
+    ...(patch.fanslyProxies === undefined ? {} : { fanslyProxies: patch.fanslyProxies }),
     ...(patch.personalAiLimit === undefined ? {} : { personalAiLimit: patch.personalAiLimit }),
     ...(patch.generationVisibleAfterMs === undefined ? {} : { generationVisibleAfterMs: patch.generationVisibleAfterMs }),
     ...(patch.spendersTotal === undefined ? {} : { spendersTotal: patch.spendersTotal }),

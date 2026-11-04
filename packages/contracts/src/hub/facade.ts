@@ -56,6 +56,7 @@ import { type OutreachStoreGetQuery, type OutreachStoreList, type OutreachStoreL
 import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type FanMarks, type FanMarksQuery, type OtherPagesAnswer, type OtherPagesRequest } from './fan-marks';
 import { type DeletedMessages, type DeletedMessagesQuery } from './deleted';
+import { type FanslyProxies } from './page-proxies';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
 import { type NativeId } from '../primitives';
 import { type VoiceAllowance, type VoiceAllowanceQuery, type VoiceNoteCreateRequest, type VoiceNoteRef, type VoiceNoteView } from '../voice';
@@ -218,6 +219,11 @@ export interface HubFacade {
   fanMarks(query: FanMarksQuery): Promise<FanMarks>;
   /** 2026-11-03: the fan's deleted messages of a page with their text — refused without `deleted-messages-v1` and for a page not granted. */
   deletedMessages(query: DeletedMessagesQuery): Promise<DeletedMessages>;
+  /**
+   * The proxies of the caller's Fansly pages, with their logins. Null without a sign-in; empty against a hub that does
+   * not serve them.
+   */
+  fanslyProxies(): Promise<FanslyProxies | null>;
   /** The other pages of fans of a list the client made itself: refused without `other-pages-v1` and for a page not granted. */
   otherPages(request: OtherPagesRequest): Promise<OtherPagesAnswer>;
   /** Chat Memory week 4: a custom written into the fan's card; refused without `fan-customs-v1`. Never repeated by itself. */

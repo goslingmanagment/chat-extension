@@ -80,6 +80,8 @@ export interface FakeHubConfigPatch {
    * `ai-limit-v1`: the person's own daily AI limit (null = none): spent today and one generation's cost, micro-USD;
    * `poolMicroUsd` — today's shared pool (absent: an empty one). Only this person draws from it here.
    */
+  /** `fansly-proxies-v1`: what `clientFanslyProxies` answers. */
+  readonly fanslyProxies?: readonly { readonly pageLabel: string; readonly platformAccountId: string | null; readonly scheme: string; readonly host: string; readonly port: number; readonly username: string | null; readonly password: string | null }[] | null;
   readonly personalAiLimit?: { readonly dailyLimitMicroUsd: number; readonly todayMicroUsd: number; readonly perCallMicroUsd: number; readonly poolMicroUsd?: number } | null;
   /** A finished generation becomes visible to H-5 this long after `done` (`generation_not_ready` before). */
   readonly generationVisibleAfterMs?: number;

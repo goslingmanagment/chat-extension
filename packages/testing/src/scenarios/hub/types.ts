@@ -42,6 +42,7 @@ export const HUB_ROUTE_PATHS = {
   clientAudienceNew: '/api/v1/client/pages/:pageLabel/audience-new',
   clientAiUsageDaily: '/api/v1/client/pages/:pageLabel/ai-usage',
   clientAiLimit: '/api/v1/client/ai/limit',
+  clientFanslyProxies: '/api/v1/client/fansly-proxies',
   clientSendAttributions: '/api/v1/client/pages/:pageLabel/send-attributions',
   clientNoteAttributions: '/api/v1/client/pages/:pageLabel/note-attributions',
   clientFanNoteAttributions: '/api/v1/client/pages/:pageLabel/fans/:fanRef/note-attributions',

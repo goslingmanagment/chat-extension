@@ -23,6 +23,7 @@
 //   chats (2026-10-29), as the settings page holds it; the page's hub label in front of the tab's title (2026-10-31);
 //   who wrote each of the model's messages of the open chat, before its time (2026-11-03, message-authors.ts).
 
+import { showProxyNotice } from '@cg/host-fansly/isolated/proxy-notice';
 import { FANSLY_CONTRACT } from '@cg/contracts/fansly-host';
 import type { FanslyInboxMark } from '@cg/contracts/settings-ext';
 import type { HostUiProfile, MountSurfaceKind } from '@cg/contracts/vm';
@@ -116,7 +117,17 @@ const onVault = (path: string): boolean => path === '/creator/vault' || path ===
  * Fansly's own surfaces (R20 P11a/P11b/P13b): registration and «Заметки» first on /messages, then kept for their caches and drafts; the vault's chunk the first time the tab is on `/creator/vault` (FS-PERF-3), kept
  * from then on — it says itself where its entry stands. A chunk that did not load is asked again on the next visit.
  */
+/** Firefox's grant for the router is missing (`fansly.proxy.needed`): one notice, with a way to the settings. */
+function startFanslyProxyNotice(env: SiteAppEnv<FanslyPort>): void {
+  const port = env.rpc as unknown as { request(type: string, payload: unknown, options?: { readonly timeoutMs?: number }): Promise<{ readonly ok: boolean; readonly payload?: { readonly needed?: boolean } }> };
+  void port.request('fansly.proxy.needed', {}, { timeoutMs: 20_000 }).then((answer) => {
+    if (env.life.aborted || !answer.ok || answer.payload?.needed !== true) return;
+    showProxyNotice(document, () => void env.rpc.request('settings.open', { route: { section: 'accounts' } }).catch(() => undefined));
+  }).catch(() => undefined);
+}
+
 export function startFanslySurfaces(env: SiteAppEnv<FanslyPort>): () => void {
+  startFanslyProxyNotice(env);
   let offOps: () => void = () => undefined;
   if (__CG_TEST_HOSTS__ && env.probe !== null) void import('./ops-probe').then((probe) => { if (!env.life.aborted) offOps = probe.startFanslyOpsProbe(env); }, () => undefined);
   let registration: Promise<(() => void) | null> | null = null;

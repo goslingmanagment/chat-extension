@@ -190,6 +190,7 @@ const PATCH_KEYS: ReadonlySet<string> = new Set([
   'clientBootstrap',
   'quotaRequestsToday',
   'personalAiLimit',
+  'fanslyProxies',
   'generationVisibleAfterMs',
   'spendersTotal',
   'aiChunkDelayMs',

@@ -60,7 +60,7 @@ import { mediaSchemeSignal, type KitFailure } from '@cg/ui/kit';
 import { fanslyOptionsSlots } from '@cg/ui/hosts/fansly/pages';
 import { journalOfHash, mountDebugJournal, mountDebugPrompt, mountOptions, mountPopup, type PageDeps } from '@cg/ui/pages';
 
-import { OPTIONAL_HOST, RELOAD_KEY, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, permissionSet, telegramPermissionSet } from './site-access';
+import { OPTIONAL_HOST, RELOAD_KEY, TELEGRAM_HOST, TELEGRAM_RELOAD_KEY, permissionSet, proxyPermissionSet, telegramPermissionSet } from './site-access';
 import { CHATSPACE_MATCHES, type PerHost } from '../hosts/runtime';
 import { CHATSPACE_FEATURE_SLICE } from './features/chatspace';
 import { FANSLY_FEATURE_SLICE } from './features/fansly';
@@ -251,7 +251,10 @@ export function composePage(page: PageName, container: HTMLElement | null, deps:
   // «Алмазики FBuddy» (2026-10-28): FBuddy's address, granted at install; an older install allows it on Fansly's card.
   const fbuddyAccess = createPermissionBundle({ origins: [FBUDDY_MATCH] }, api);
   const fbuddy = { has: fbuddyAccess.has, request: fbuddyAccess.request, onChange: (listener: () => void) => fbuddyAccess.onChange(() => listener()) };
-  const fansly = page === 'options' ? createFanslyPages({ access, request: fanslyRequest, preview: (tone, volume) => rpc.request('sound.preview', { tone, volume }), fbuddy }) : null;
+  // Everything a model's container sends goes through the page's proxy (2026-11-04): Firefox's grant, on the person's click.
+  const proxyAccess = createPermissionBundle(proxyPermissionSet(), api);
+  const proxy = { has: proxyAccess.has, request: proxyAccess.request, onChange: (listener: () => void) => proxyAccess.onChange(() => listener()) };
+  const fansly = page === 'options' ? createFanslyPages({ access, request: fanslyRequest, preview: (tone, volume) => rpc.request('sound.preview', { tone, volume }), fbuddy, proxy }) : null;
 
   // «Включить Telegram» (Telegram spec §6.3): only for a person whose bootstrap has a Telegram page, against a hub that
   // serves Telegram (`telegram-ai-v1`); a person without one sees no change at all.

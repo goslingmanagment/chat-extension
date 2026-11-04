@@ -45,6 +45,7 @@ import { ServerTabStateRequestSchema, ServerTabStateResultSchema } from './serve
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema, OtherPagesAnswerSchema, OtherPagesRequestSchema } from './fan-marks';
 import { DeletedMessagesQuerySchema, DeletedMessagesSchema } from './deleted';
+import { FanslyProxiesSchema } from './page-proxies';
 import { FanQueueItemDoneRequestSchema, FanQueueItemDoneSchema, FanQueueReleaseRequestSchema, FanQueueReleaseSchema, FanQueuesQuerySchema, FanQueuesSchema, FanQueueTakeRequestSchema, FanQueueTakeSchema } from './fan-queues';
 import { OutreachStoreGetQuerySchema, OutreachStoreListQuerySchema, OutreachStoreListSchema, OutreachStoreOutreachSchema, OutreachStoreSavedSchema, OutreachStoreSaveRequestSchema, OutreachStoreSendAnswerSchema, OutreachStoreSendRequestSchema, OutreachStoreTouchesSchema } from './outreach-store';
 import { AiLimitReportSchema, AiUsageQuerySchema, AiUsageReportSchema, IngestBatchSchema, IngestResultSchema } from './usage';
@@ -83,6 +84,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientAudienceNew: { request: AudienceNewQuerySchema, response: AudienceNewPageSchema },
   clientAiUsageDaily: { request: AiUsageQuerySchema, response: AiUsageReportSchema },
   clientAiLimit: { request: null, response: AiLimitReportSchema },
+  clientFanslyProxies: { request: null, response: FanslyProxiesSchema },
   clientSendAttributions: { request: SendAttributionsRequestSchema, response: SendAttributionsResultSchema },
   clientNoteAttributions: { request: NoteAttributionsRequestSchema, response: NoteAttributionsResultSchema },
   clientFanNoteAttributions: { request: FanNoteAttributionsQuerySchema, response: FanNoteAttributionsSchema },

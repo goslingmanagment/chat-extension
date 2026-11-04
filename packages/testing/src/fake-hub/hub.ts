@@ -1232,6 +1232,10 @@ export class FakeHub {
       }
       case 'clientAiUsageDaily':
         return read(s.data.aiUsage(need(page), request as AiUsageQuery, need(principal).user.userId, now, s.config.quotaRequestsToday));
+      case 'clientFanslyProxies': {
+        need(principal);
+        return { kind: 'json', status: 200, body: { proxies: s.config.fanslyProxies ?? [], serverNow: new Date(now).toISOString() } };
+      }
       case 'clientAiLimit': {
         need(principal);
         const limit = s.config.personalAiLimit;

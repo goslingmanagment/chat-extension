@@ -739,6 +739,15 @@ export const FANSLY_TAB_REQUESTS = {
     from: TAB, hosts: FANSLY,
   },
   /**
+   * 2026-11-04: this person has proxies and Firefox's grant for the router is missing: the tab says so once it starts,
+   * with a way to the settings. A warning the person can pass; nothing is blocked.
+   */
+  'fansly.proxy.needed': {
+    req: z.strictObject({}),
+    res: z.strictObject({ needed: z.boolean() }),
+    from: TAB, hosts: FANSLY,
+  },
+  /**
    * «Фан удалил» in the open chat's header (hub `clientDeletedMessages`): when the chat opens, and again after the page
    * heard a deletion in it. Nothing kept by the background: a read in flight for the same page and fan is joined.
    */

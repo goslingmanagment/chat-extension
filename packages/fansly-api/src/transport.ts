@@ -21,6 +21,12 @@
 // tab without knowing the switch, and loses one read a browser session at
 // most. No frame of the session's tab — the direct route, as before.
 //
+// 2026-11-04 (the owner: «очень важно чтобы все шло через прокси»): the direct route no longer means the chatter's line.
+// `ownLine` says where a request of this session may leave (core container-proxy.ts): `proxied` — straight, the router
+// carries it to the page's proxy, an open tab not needed; `tab` — only through the relay frame, no tab no request, the
+// direct route never stands in; `direct` — this person has no proxies at all, as before. The switch on still means the
+// frame, whatever the line.
+//
 // The route is chosen before anything is handed to the hub's custody (P9d):
 // - a tab of the request's session — the one whose own page requests the core
 //   bound to that session (P9a) — is asked to raise its frame
@@ -186,6 +192,10 @@ export interface RelayTransportPorts {
   viaTab(): boolean | null;
   /** The settings read once more, when `viaTab` does not know yet (the module's start); still unknown — no route. */
   settled?(): Promise<void>;
+  /** Where a request of this session may leave (core container-proxy.ts); absent — straight: a world without the router. */
+  ownLine?(legacyId: string, canonicalId: string | null): Promise<'proxied' | 'tab' | 'direct'>;
+  /** The same as it stands: the route's part of the last check right before a send. */
+  ownLineNow?(legacyId: string, canonicalId: string | null): 'proxied' | 'tab' | 'direct';
   /** The site's registered tab sessions, oldest first. */
   tabs(): readonly { readonly tabSessionId: string; readonly tabId: number }[];
   /** The session (its legacy id) the tab's own page requests proved (the core's binding, P9a); null — none. */
@@ -261,7 +271,7 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
   const live = new Map<string, RelayFrame>();
   const requests = new Map<string, PendingRelay>();
   const waiters = new Set<Waiter>();
-  const direct = directRoute(ports.fetch ?? ((url, init) => fetch(url, init)), () => ports.viaTab() === false);
+  const doFetch: FanslyFetch = ports.fetch ?? ((url, init) => fetch(url, init));
   /** A direct request got no answer, in this realm or an earlier one of this browser session. */
   let lost = false;
   let recalled: Promise<void> | null = null;
@@ -383,14 +393,17 @@ export function createRelayTransport(ports: RelayTransportPorts): RelayHub {
         }
         if (mode === null) throw new FanslyRouteUnavailable('settings');
         if (mode === false) {
+          const line = (await ports.ownLine?.(legacyId, canonicalId)) ?? 'direct';
+          if (line === 'tab') return viaFrame(legacyId, canonicalId, signal);
+          const straight = directRoute(doFetch, () => ports.viaTab() === false && ports.ownLineNow?.(legacyId, canonicalId) !== 'tab');
           await recall();
-          if (!lost) return direct;
+          if (!lost) return straight;
           // The direct line went unanswered: the tab's frame if one serves the session, else direct as before.
           try {
             return await viaFrame(legacyId, canonicalId, signal);
           } catch (error) {
             if (error instanceof FanslyRouteUnavailable && error.reason === 'aborted') throw error;
-            return direct;
+            return straight;
           }
         }
       }

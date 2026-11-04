@@ -11,6 +11,7 @@ import type { UserManifest } from 'wxt';
 
 import {
   CUSTOM_HUB_OPTIONAL_PERMISSION,
+  ALL_SITES_OPTIONAL_PERMISSION,
   FBUDDY_HOST_PERMISSION,
   HOSTS,
   HUB_HOST_PERMISSION,
@@ -71,7 +72,7 @@ function optionalStands(flavor: BuildFlavor, hosts: readonly HostDescriptor[]): 
  */
 export function optionalHostPermissions(flavor: BuildFlavor, hosts: readonly HostDescriptor[] = HOSTS): string[] {
   const sites = hosts.filter((host) => host.permissions.optional).flatMap((host) => host.permissions.origins);
-  return [CUSTOM_HUB_OPTIONAL_PERMISSION, ...unique([...sites, ...optionalStands(flavor, hosts).flatMap((stand) => stand.origins)])];
+  return [CUSTOM_HUB_OPTIONAL_PERMISSION, ALL_SITES_OPTIONAL_PERMISSION, ...unique([...sites, ...optionalStands(flavor, hosts).flatMap((stand) => stand.origins)])];
 }
 
 /** The optional API permissions the optional sites (and, in a test build, their stands) ask for with their origins; [] — the manifest has none. */
@@ -107,7 +108,8 @@ export function baseManifest(flavor: BuildFlavor, hosts: readonly HostDescriptor
     permissions: [...PERMISSIONS],
     host_permissions: hostPermissions(flavor, hosts),
     optional_host_permissions: optionalHostPermissions(flavor, hosts),
-    ...(optionalApi.length > 0 ? { optional_permissions: optionalApi } : {}),
+    // WXT's list of optional permissions leaves `proxy` out; Firefox takes it (its schema: `proxy` extends OptionalPermission).
+    ...(optionalApi.length > 0 ? { optional_permissions: optionalApi as unknown as NonNullable<UserManifest['optional_permissions']> } : {}),
     browser_specific_settings: {
       gecko: {
         // A test build is a different add-on: it never auto-updates from the

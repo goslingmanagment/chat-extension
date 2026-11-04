@@ -241,6 +241,61 @@ describe('[host:fansly] the client through the tab (R20 P9c, FS-NET-4, FX-001)',
   });
 });
 
+describe('[host:fansly] where our own request may leave (the router of a container, 2026-11-04)', () => {
+  const request = (signal = new AbortController().signal): FanslyWireRequest => ({ url: `${FANSLY_API_BASE}account/me`, path: 'account/me', method: 'GET', headers: {}, signal });
+
+  it('`proxied`: straight, an open tab not needed, the router carries it', async () => {
+    const { ports, state } = corePorts();
+    state.viaTab = false;
+    state.tabs = [];
+    const fetched: string[] = [];
+    const hub = createRelayTransport({
+      ...ports,
+      fetch: async (url) => { fetched.push(url); return { status: 200, headers: { get: () => null }, text: async () => '{}' }; },
+      ownLine: async () => 'proxied',
+      ownLineNow: () => 'proxied',
+    });
+    const route = await hub.route({ legacyId: CREATOR, canonicalId: null });
+    expect(route.transport).toBe('direct');
+    await route.send(request());
+    expect(fetched).toHaveLength(1);
+  });
+
+  it('`tab`: only through the frame; no tab — no request, the direct route never stands in', async () => {
+    const { ports, state } = corePorts();
+    state.viaTab = false;
+    state.tabs = [];
+    const fetched: string[] = [];
+    const hub = createRelayTransport({
+      ...ports,
+      fetch: async (url) => { fetched.push(url); return { status: 200, headers: { get: () => null }, text: async () => '{}' }; },
+      ownLine: async () => 'tab',
+      ownLineNow: () => 'tab',
+    });
+    await expect(hub.route({ legacyId: CREATOR, canonicalId: null })).rejects.toBeInstanceOf(FanslyRouteUnavailable);
+    expect(fetched).toEqual([]);
+  });
+
+  it('a grant taken back between the route and the send refuses before any request', async () => {
+    const { ports, state } = corePorts();
+    state.viaTab = false;
+    let line: 'proxied' | 'tab' = 'proxied';
+    const fetched: string[] = [];
+    const hub = createRelayTransport({
+      ...ports,
+      fetch: async (url) => { fetched.push(url); return { status: 200, headers: { get: () => null }, text: async () => '{}' }; },
+      ownLine: async () => line,
+      ownLineNow: () => line,
+    });
+    const route = await hub.route({ legacyId: CREATOR, canonicalId: null });
+    expect(route.holds()).toBe(true);
+    line = 'tab';
+    expect(route.holds()).toBe(false);
+    await expect(route.send(request())).rejects.toThrow();
+    expect(fetched).toEqual([]);
+  });
+});
+
 describe('[host:fansly] the direct line that goes unanswered (Ivan, 2026-10-30)', () => {
   /** A line that lets the request out and brings nothing back: only an abort ends it. */
   const silentLine = () => {
