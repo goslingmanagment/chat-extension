@@ -64,7 +64,7 @@ export interface BackgroundSoundDeps {
   readonly read: (pageLabel: string, windowHours: number) => Promise<AudienceNewPage>;
   readonly online: () => boolean;
   readonly events: TabEventSink;
-  /** Registered tab sessions. */
+  /** Registered ChatSpace tab sessions: the poll runs while one lives, and they hear `newcomers.changed`. */
   readonly tabs: () => readonly string[];
   /** storage.session. */
   readonly session: ThrowingStore;
