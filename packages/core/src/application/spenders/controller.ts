@@ -585,8 +585,12 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   const fresh = (loadedAt: number | null, ms: number): boolean => loadedAt !== null && clock.now() - loadedAt < ms;
 
-  /** Reads what the open board is missing or shows too old. */
-  function ensure(): void {
+  /**
+   * Reads what the open board is missing or shows too old. `reopened` — the board has just opened: only then is a kept
+   * «ждут ответа» read again for its age (a refresh of the page context while the board stays open must not cut a walk
+   * the chatter scrolled deep into back to its first page).
+   */
+  function ensure(reopened = false): void {
     if (!surfaces.current().spenders || context.current().phase !== 'ready') return;
     const periods: readonly SpendersPeriod[] = period === LIST_PERIOD ? [LIST_PERIOD] : [LIST_PERIOD, period];
     for (const forPeriod of periods) {
@@ -594,9 +598,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       if (!entry.loading && (entry.index === null ? entry.error === null : !fresh(entry.loadedAt, BOARD_FRESH_MS) && entry.error === null)) void loadBoardOf(forPeriod, false);
     }
     if (!statsEntry.loading && statsEntry.error === null && !fresh(statsEntry.loadedAt, STATS_FRESH_MS)) void loadStats(false);
-    // A filter kept pressed over the board's closes and reopens is read again once its queue is as old as the rail's
-    // count, which reads the same queue: the old rows stay until the new ones come.
-    if (filters.main === 'waiting' && !queue.loading && queue.error === null && (queue.state.total === null || !fresh(queue.loadedAt, STATS_FRESH_MS))) void loadQueue(true, false, queue.state.total !== null);
+    // A filter kept pressed over the board's closes and reopens is read again at a reopening once its queue is as old
+    // as the rail's count, which reads the same queue: the old rows stay until the new ones come.
+    if (filters.main === 'waiting' && !queue.loading && queue.error === null && (queue.state.total === null || (reopened && !fresh(queue.loadedAt, STATS_FRESH_MS)))) void loadQueue(true, false, queue.state.total !== null);
   }
 
   function reset(): void {
@@ -640,7 +644,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
         statsExpanded = false;
         changed('stats');
       }
-      ensure();
+      ensure(true);
     }
     if (!state.spenders && previous.spenders) navigationRun++;
     if (!state.spenders && previous.spenders && searchTimer !== null) {
