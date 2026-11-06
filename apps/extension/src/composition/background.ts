@@ -1004,7 +1004,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
     read: (pageLabel, windowHours) => hub().audienceNew({ pageLabel, windowHours }),
     online: () => navigator.onLine,
     events,
-    tabs: () => rpc.tabs().map((tab) => tab.tabSessionId),
+    // ChatSpace's tabs only: a Fansly or Telegram tab alone keeps neither the poll nor its sound going.
+    tabs: () => rpc.tabs().filter((tab) => tab.request.host === 'chatspace').map((tab) => tab.tabSessionId),
     session: throwingStoreOf(session),
     log: coreLog,
   });
