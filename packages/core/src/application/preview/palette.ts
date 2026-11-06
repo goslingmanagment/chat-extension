@@ -15,6 +15,7 @@ import { type CgCode } from '@cg/contracts/errors';
 import { type HostEvent, type HostPort, type NavigationItem } from '@cg/contracts/host';
 import { type ActionReceipt, type I18n, type TargetHandle } from '@cg/contracts/vm';
 
+import { HOST_CHAT_ROWS } from '../../domain/navigation';
 import { type SpenderRow } from '../../domain/spenders/rows';
 import { type PageContextPort } from '../boards/context';
 import { fanHandle, parseFanHandle } from '../boards/handles';
@@ -22,8 +23,8 @@ import { type PreviewDirectory } from '../boards/shared';
 import { refused, type SurfaceController } from '../boards/surface';
 import { localError } from '../boards/views';
 
-/** Rows of the cached chat list looked through for online fans. */
-export const ONLINE_LIST_LIMIT = 200;
+/** Rows of the cached chat list looked through for online fans: as many as the palette lists them from. */
+export const ONLINE_LIST_LIMIT = HOST_CHAT_ROWS;
 
 export interface OnlineFan {
   readonly handle: TargetHandle;

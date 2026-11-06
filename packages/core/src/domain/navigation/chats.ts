@@ -9,6 +9,12 @@ import { type NavigationItem } from '@cg/contracts/host';
 /** Alt+1–9. */
 export const QUICK_JUMP_SLOTS = 9;
 
+/**
+ * Rows of ChatSpace's cached list the palette looks through, and the preview of an online fan it lists checks: one
+ * number, or a fan the palette shows under «Онлайн» would be refused at the click.
+ */
+export const HOST_CHAT_ROWS = 500;
+
 const indexOfFan = (items: readonly NavigationItem[], fanId: string | null): number =>
   fanId === null ? -1 : items.findIndex((item) => item.chat.platformFanId === fanId);
 

@@ -561,15 +561,28 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
     void Promise.resolve().then(() => flush(pass));
   }
 
-  function flush(pass: Pass): void {
-    pass.flushing = false;
+  /** Tabs gone (or a keeper's tab on another account) no longer hold the pass; true when one was let go. */
+  function pruneGone(pass: Pass): boolean {
+    let gone = false;
     for (const tab of [...pass.watchers]) {
       if (!deps.alive(tab)) {
         pass.watchers.delete(tab);
         windows.delete(tab);
+        gone = true;
       }
     }
-    for (const tab of [...pass.keepers]) if (!deps.alive(tab) || !deps.tabOn(tab, pass.creator)) pass.keepers.delete(tab);
+    for (const tab of [...pass.keepers]) {
+      if (!deps.alive(tab) || !deps.tabOn(tab, pass.creator)) {
+        pass.keepers.delete(tab);
+        gone = true;
+      }
+    }
+    return gone;
+  }
+
+  function flush(pass: Pass): void {
+    pass.flushing = false;
+    pruneGone(pass);
     if (pass.watchers.size === 0) {
       pass.dirty.clear();
       pass.passDirty = false;
@@ -1487,6 +1500,8 @@ export function createFanslyNewcomers(deps: FanslyNewcomersDeps) {
       try {
         while (!pass.life.aborted && pass.watchers.size > 0) {
           await deps.sleep(WATCH_MS, pass.life);
+          // A tab closed or reloaded never says its window closed: it holds the pass no more, and nothing is asked for it.
+          if (pruneGone(pass) && pass.watchers.size === 0 && pass.keepers.size === 0) standStill(pass);
           if (pass.life.aborted || pass.watchers.size === 0) break;
           if (pass.base === 'scanning' || pass.base === 'paused' || pass.base === 'stopped' || deps.api.coolingUntil(pass.creator) > deps.now()) continue;
           await lookAgain(pass);

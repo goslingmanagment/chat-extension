@@ -167,12 +167,18 @@ function partList(input: PreviewResultInput, opId: string, variant: number | nul
   return texts.map((text, index) => partVM(input, opId, variant, index, text, texts.length, firstOpen));
 }
 
-function errorActions(wire: CgErrorWire, opId: string, now: number, canRegenerate: boolean): ActionButtonVM[] {
+function errorActions(wire: CgErrorWire, opId: string, now: number, regenerate: PreviewResultInput['regenerate']): ActionButtonVM[] {
   const out: ActionButtonVM[] = [];
+  // As the dock's (ui-design §4.8, `final-7a`): the day's quota counts down to the reset and offers the code (the card's
+  // own button); a «Повторить» that stays off for hours and a link to settings that cannot add quota are not offered.
+  const quota = wire.code === 'CG-QUOTA-DAILY' || wire.code === 'CG-AI-LIMIT';
   for (const action of recoveryActions(wire, now)) {
-    if (action.label === null) continue;
+    if (action.label === null || quota) continue;
     if (action.kind === 'retry' || action.kind === 'again') {
-      out.push(button(action.label, { type: 'Regenerate', operationId: opId }, { enabled: action.enabled && canRegenerate, reason: action.availableAt === null ? null : reason('send-unavailable') }));
+      // A deadline is «через N с», and the card turns the button on at it; what the controller holds stays off with its reason.
+      const waiting = !action.enabled && action.availableAt !== null;
+      const why = !regenerate.allowed ? regenerate.reason : waiting ? reason('wait-until', { n: Math.max(0, Math.ceil(((action.availableAt ?? now) - now) / 1000)) }) : null;
+      out.push(button(action.label, { type: 'Regenerate', operationId: opId }, { enabled: action.enabled && regenerate.allowed, reason: why }));
     } else if (action.kind === 'open-settings' && action.settings !== null) out.push(button(action.label, { type: 'OpenSettings', route: action.settings }));
     else if (action.kind === 'sign-in') out.push(button(action.label, { type: 'OpenSettings', route: { section: 'account' } }));
     else if (action.kind === 'reload-tab') out.push(button(action.label, { type: 'ReloadTab' }));
@@ -242,7 +248,7 @@ export function previewResult(input: PreviewResultInput): ResultVM {
     draftNotSent: mirror.state === 'done' && result !== undefined && !input.sendStarted,
     sendProgress: input.progress,
     error: errorWire === null ? null : errorOf(errorWire, i18n),
-    errorActions: errorWire === null ? [] : errorActions(errorWire, opId, input.now, input.regenerate.allowed),
+    errorActions: errorWire === null ? [] : errorActions(errorWire, opId, input.now, input.regenerate),
     stale: view?.stale === undefined ? null : { reason: view.stale.reason, at: view.stale.at },
     toneUsed: input.toneUsed,
     canRegenerate: terminal && input.regenerate.allowed,

@@ -673,7 +673,8 @@ export function createDockController(ws: AiWorkspace): DockController {
   const offQueues = ws.ports.queues?.subscribe(() => ws.bump()) ?? null;
   let onlinePage: number | null = null;
   const offOnlinePage = ws.subscribe(() => {
-    const page = ws.situation().pageId ?? null;
+    // The page the counts read, known once the chat is ready (ChatSpace names the page before it has the chat's window).
+    const page = ws.situation().ready?.target.binding.pageId ?? null;
     if (page === onlinePage) return;
     onlinePage = page;
     ws.ports.online?.touch?.();

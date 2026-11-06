@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 
 import { type I18n, type OnlineRowVM, type QueueChipVM, type QueueEndVM, type QueueHowVM, type QueuesWindowVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, Icon, Spinner, ViewState, chatClick, isComposing, useDispatch, useI18n, useMinuteClock, useTooltip, useView } from '../kit';
+import { Button, Icon, Spinner, ViewState, chatClick, isComposing, useDispatch, useI18n, useMinuteClock, useNowFn, useTooltip, useView } from '../kit';
 import { NewcomersFrame } from '../newcomers/frame';
 import { OnlineCard } from '../online/card';
 import { OnlineRow } from '../online/rows';
@@ -295,7 +295,9 @@ export function QueuesWindow(): JSX.Element {
   const vm = useView({ of: 'queues' }).value;
   const preview = useView({ of: 'preview', from: 'queue' }).value;
   const rows = useMemo(() => [...vm.answered, ...vm.portion], [vm.answered, vm.portion]);
+  // «● 3 мин» moves with the clock.
   useMinuteClock(rows.length > 0);
+  const minute = Math.floor(useNowFn()() / 60_000);
   const listRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const selected = rows.find((row) => row.selected) ?? null;
@@ -358,7 +360,7 @@ export function QueuesWindow(): JSX.Element {
           <i />
         </div>
         {vm.portion.map((row) => (
-          <OnlineRow key={row.handle} row={row} onSelect={choose} />
+          <OnlineRow key={row.handle} row={row} minute={minute} onSelect={choose} />
         ))}
       </div>
     );
@@ -392,7 +394,7 @@ export function QueuesWindow(): JSX.Element {
             <i />
           </div>
           {vm.answered.map((row) => (
-            <OnlineRow key={row.handle} row={row} onSelect={choose} />
+            <OnlineRow key={row.handle} row={row} minute={minute} onSelect={choose} />
           ))}
         </div>
       )}

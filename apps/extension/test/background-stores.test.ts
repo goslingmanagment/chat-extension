@@ -69,6 +69,23 @@ describe('sendJournalStoreOver — the coordinator journal on the send journal',
     await second.store.set(SEND_KEY, restored.filter((item) => item.attemptId !== uuid(1)).map((item) => (item.attemptId === uuid(2) ? { ...item, state: 'sentObserved' as const, platformMessageId: '4100' } : item)));
     expect(second.journal.get(uuid(2))).toMatchObject({ state: 'sentObserved', platformMessageId: '4100' });
   });
+
+  it('[NF-022] a late pair the coordinator writes without the uncertain code never fails a later write of the list', async () => {
+    const { store, journal } = world();
+    await store.get(SEND_KEY);
+    const at = Date.now();
+    const first = (over: Partial<SendJournalEntry>): SendJournalEntry => entry(1, { createdAt: at, updatedAt: at, ...over });
+    await store.set(SEND_KEY, [first({})]);
+    await store.set(SEND_KEY, [first({ state: 'nativeEnqueued', pendingId: 'p-1' })]);
+    await store.set(SEND_KEY, [first({ state: 'nativeAccepted', pendingId: 'p-1', platformMessageId: '4100' })]);
+    await store.set(SEND_KEY, [first({ state: 'uncertain', code: 'CG-SEND-UNCERTAIN', pendingId: 'p-1', platformMessageId: '4100' })]);
+    // The coordinator's sentObserved view carries no code; the journal keeps the one it had.
+    await store.set(SEND_KEY, [first({ state: 'sentObserved', pendingId: 'p-1', platformMessageId: '4100' })]);
+    expect(journal.get(uuid(1))).toMatchObject({ state: 'sentObserved', code: 'CG-SEND-UNCERTAIN' });
+    // The next click on another fan: the finished record is settled, the new attempt is journaled.
+    await expect(store.set(SEND_KEY, [first({ state: 'sentObserved', pendingId: 'p-1', platformMessageId: '4100' }), entry(2)])).resolves.toBeUndefined();
+    expect(journal.get(uuid(2))?.state).toBe('preparing');
+  });
 });
 
 describe('sendJournalStoreOver — a part the person sent themselves (§6.6)', () => {

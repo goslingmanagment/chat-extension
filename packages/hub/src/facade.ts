@@ -170,7 +170,7 @@ import { QuotaTracker } from './quota';
 import { SpendersBoardService, type BoardOptions, type BoardRequest } from './spenders-board';
 import { StreamService, type StreamNotice } from './stream';
 import { HubWire, type ClientFamilyKey } from './transport';
-import { callScope, clientVersionHeaders } from './wire';
+import { REQUEST_TIMEOUT_MS, callScope, clientVersionHeaders } from './wire';
 
 export interface HubFacadeOptions {
   readonly env: HubEnvironment;
@@ -596,7 +596,7 @@ export class ChatExtensionHub implements HubFacade {
     const stored = this.custody.storedRecord();
     const hubOrigin = stored?.hubOrigin ?? this.options.env.hubOrigin();
     const unbound: Connection = { epoch: this.custody.epoch(), token: '', hubOrigin, userId: 1, narrow: true };
-    const result = await this.wire.sdk('health', { hubOrigin, token: null, signals: [], timeoutMs: null });
+    const result = await this.wire.sdk('health', { hubOrigin, token: null, signals: [], timeoutMs: REQUEST_TIMEOUT_MS });
     const checkedAt = new Date(this.ctx.clock.now()).toISOString();
     if (!result.ok) {
       this.healthState = { ...this.healthState, reachable: false, checkedAt };

@@ -365,7 +365,13 @@ export function createPassNewcomersController(deps: PassNewcomersDeps): Newcomer
       changed();
     }
     const scanned = await source.scan(creator, chosen);
-    if (disposed || mine !== run) return;
+    if (disposed || mine !== run) {
+      // The window closed while the pass was being opened: the background holds it for this tab all the same. A window
+      // that showed no pass lets everything go (no `background`: nothing was shown to go on with); a newer open's scan
+      // holds it itself.
+      if (!disposed && scanned.ok && !open() && pass === null) source.close(scanned.value.passId);
+      return;
+    }
     if (!scanned.ok || scanned.value.hostAccountId !== creator) {
       if (kept !== null) letGo(false);
       // NF-026: a pass of another creator is nobody's here.

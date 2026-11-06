@@ -106,6 +106,21 @@ describe('the report to the hub', () => {
     expect(await w.registrar.register(view({ opId: uuid(0x11) }), { variant: 0, index: 0 }, MESSAGE)).toBe('refused');
   });
 
+  it('a token the hub did not take, the sign-in still standing: the registration stays owed and goes again with the SAME attempt id', async () => {
+    const w = world();
+    w.hub.claimScript.push({ kind: 'http', status: 401, error: 'unauthorized' });
+    expect(await w.registrar.register(view(), { variant: 0, index: 0 }, MESSAGE)).toBe('undelivered');
+    expect(w.registrar.pending).toBe(1);
+    // The person signs in again (the bootstrap arrives): the same registration goes.
+    w.hub.claimScript.push({ kind: 'ok', state: state() });
+    expect(w.registrar.resume()).toBe(1);
+    await w.clock.advance(1);
+    await w.registrar.idle();
+    expect(w.hub.claims).toHaveLength(2);
+    expect(new Set(w.hub.claims.map((op) => (op.body.action === 'registerNativeSend' ? op.body.attemptId : null))).size).toBe(1);
+    expect(w.registrar.pending).toBe(0);
+  });
+
   it('a silent hub is not asked forever in one go, and not under another sign-in: the report stays owed', async () => {
     const w = world();
     for (let i = 0; i <= REPORT_RETRY_DELAYS_MS.length; i += 1) w.hub.claimScript.push({ kind: 'transport', failure: 'timeout' });
@@ -186,6 +201,29 @@ describe('the report to the hub', () => {
     expect(before.hub.claims).toHaveLength(2);
     expect(before.hub.claims[1]?.body).toMatchObject({ action: 'registerNativeSend', attemptId, platformMessageId: MESSAGE });
     expect(owedIn(before.store)).toEqual([]);
+  });
+
+  it('a send registered by the next instance before it read its journal never writes over what the previous one owed', async () => {
+    const before = world();
+    before.hub.claimScript.push({ kind: 'hang' }, { kind: 'hang' });
+    void before.registrar.register(view(), { variant: 0, index: 0 }, MESSAGE);
+    await before.clock.advance(1);
+    const owner: { now: string | null } = { now: OWNER };
+    const after = world(owner, { store: before.store, hub: before.hub, clock: before.clock });
+    // A tab's report reaches the next instance before its restore step ran.
+    void after.registrar.register(view({ opId: uuid(0x11) }), { variant: 0, index: 0 }, '4101');
+    await after.clock.advance(1);
+    const [first, second] = before.hub.claims.map((op) => (op.body.action === 'registerNativeSend' ? op.body.attemptId : null));
+    owner.now = null;
+    expect(await after.registrar.restore()).toBe(2);
+    await after.registrar.idle();
+    expect(owedIn(before.store).map((item) => (item as { op: { body: { attemptId: string } } }).op.body.attemptId)).toEqual([first, second]);
+    // The sender signs in again: the previous instance's registration goes with its own attempt id.
+    owner.now = OWNER;
+    before.hub.claimScript.push({ kind: 'ok', state: state() });
+    expect(after.registrar.resume()).toBe(1);
+    await after.clock.advance(1);
+    expect(before.hub.claims.at(-1)?.body).toMatchObject({ action: 'registerNativeSend', attemptId: first, platformMessageId: MESSAGE });
   });
 
   it('the tab repeats a report the lost port never acknowledged: the same registration, not a second one', async () => {

@@ -17,13 +17,6 @@ import { localDayKey } from '../logging/counters';
 export type UsageFrame = Extract<HubFrame, { readonly type: 'usage' }>;
 export type UsageNumbers = UsageFrame['usage'];
 
-/** OpDebugView.usage from the frame; null when no usage frame came (unknown, never zeros — DB-028). */
-export function usageOf(frame: UsageFrame | null): OpDebugView['usage'] {
-  if (frame === null) return null;
-  const { inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, costMicroUsd } = frame.usage;
-  return { inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, costMicroUsd };
-}
-
 /** `$0.0143`: micro-USD with four decimals, the debug notation (not the money of fans). */
 export function formatMicroUsd(micro: number): string {
   return `$${(micro / 1_000_000).toFixed(4)}`;

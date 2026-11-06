@@ -169,6 +169,18 @@ describe('container proxy: which page a container is', () => {
     expect(first(await proxy.answer(tabless('firefox-container-6')))?.host).toBe(ARI.host);
   });
 
+  it('moves our filter to the end when a navigation went through the page\'s address on another port, and not on its own', async () => {
+    const { proxy, moves } = world();
+    await proxy.refresh(true);
+    await proxy.learnTab(6, ['890']);
+    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: ARI.host, port: ARI.port } });
+    await proxy.refresh();
+    expect(moves).not.toHaveBeenCalled();
+    proxy.learnPage({ cookieStoreId: 'firefox-container-6', proxyInfo: { host: ARI.host, port: 12325 } });
+    await proxy.refresh();
+    expect(moves).toHaveBeenCalledTimes(1);
+  });
+
   it('a page that left the list keeps routing its container through the proxy it had', async () => {
     const { proxy, hub } = world();
     await proxy.refresh(true);
@@ -227,6 +239,30 @@ describe('container proxy: our own line', () => {
     expect(await proxy.line('999', null)).toBe('tab');
     proxy.setActive(false);
     expect(proxy.lineNow('737', null)).toBe('tab');
+  });
+
+  it('a hub that did not answer is not asked again for each request: the kept list answers, and it is asked a while later', async () => {
+    let clock = 1_000_000;
+    let asked = 0;
+    let down = false;
+    const { proxy } = world({
+      now: () => clock,
+      fetchRows: async () => {
+        asked += 1;
+        if (down) throw new Error('the hub is down');
+        return { owner: ME, rows: [LORA, ARI] };
+      },
+    });
+    proxy.setActive(true);
+    await proxy.refresh(true);
+    clock += 10 * 60 * 1000 + 1;
+    down = true;
+    expect(await proxy.line('737', null)).toBe('proxied');
+    expect(await proxy.line('890', null)).toBe('proxied');
+    expect(asked).toBe(2);
+    clock += 60_000;
+    expect(await proxy.line('737', null)).toBe('proxied');
+    expect(asked).toBe(3);
   });
 
   it('through the tab while the list is unknown', async () => {

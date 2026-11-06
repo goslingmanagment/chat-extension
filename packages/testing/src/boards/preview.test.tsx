@@ -5,7 +5,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { type PreviewVM } from '@cg/contracts';
+import { type PreviewVM, type SpendersBoardVM } from '@cg/contracts';
 
 import { entry, type AppClientScenario } from '../scenarios/app-client';
 import { flush, mountBoardSettled, settle, type MountedBoard } from './harness';
@@ -75,5 +75,39 @@ describe('fan preview: the work zone', () => {
     await flush(() => ui?.client.goTo(0));
     expect(ui.$$('.cg-pvp')).toHaveLength(3);
     expect(ui.actions()).toEqual([]);
+  });
+});
+
+describe('fan preview: unfolded under its row', () => {
+  it('[SP-056] a neighbour step from inside the preview keeps the focus in the next fan’s preview, and closing it goes back to that fan’s row', async () => {
+    const base = boardScenario('11a');
+    const boardVm = base.views.find((view) => view.selector.of === 'spenders.board')?.vm as SpendersBoardVM;
+    const previewVm = base.views.find((view) => view.selector.of === 'preview')?.vm as PreviewVM;
+    const next = previewVm.neighbors.next;
+    if (next?.type !== 'OpenPreview') throw new Error('11a has a next fan');
+    const pick = (handle: string | null): SpendersBoardVM => ({
+      ...boardVm,
+      previewOpen: handle !== null,
+      shelves: boardVm.shelves.map((shelf) => ({ ...shelf, rows: shelf.rows.map((row) => ({ ...row, selected: row.handle === handle })) })),
+    });
+    ui = await mountBoardSettled('spenders', {
+      ...base,
+      steps: [
+        { label: 'J: the next fan', at: 100, views: [entry({ of: 'spenders.board' }, pick(next.targetHandle)), entry({ of: 'preview', from: 'spenders' }, { ...previewVm, handle: next.targetHandle })] },
+        { label: '×: the preview closed', at: 200, views: [entry({ of: 'spenders.board' }, pick(null))] },
+      ],
+    });
+    const feed = ui.$(`[data-cg-unfolded="${previewVm.handle ?? ''}"] .cg-feed`);
+    if (feed === null) throw new Error('the unfolded preview has its feed');
+    feed.focus();
+    expect(ui.root.activeElement).toBe(feed);
+    // The step unfolds the next fan's row: the focus goes on into its preview, where J / K and Esc are still ours.
+    await flush(() => ui?.client.goTo(0));
+    await settle();
+    expect(ui.root.activeElement?.closest(`[data-cg-unfolded="${next.targetHandle}"]`) ?? null).not.toBeNull();
+    // Closing it goes back to the fan just viewed, not to the first fan's row.
+    await flush(() => ui?.client.goTo(1));
+    await settle();
+    expect(ui.root.activeElement?.getAttribute('data-cg-key')).toBe(`fan:${next.targetHandle}`);
   });
 });

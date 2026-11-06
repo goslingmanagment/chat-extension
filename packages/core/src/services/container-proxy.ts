@@ -37,7 +37,8 @@
 // - A known proxy has no way around it: a list ending in null fails rather than falling back to Firefox's direct route
 //   (measured on Firefox 159: a dead proxy, nothing reached the server).
 // - Another add-on's different proxy for the same container wins if its filter runs after ours (last wins, measured). A
-//   navigation that went through another address moves our filter to the end, and says so in the log once.
+//   navigation that went through another address (or another port of a proxy this router carries) moves our filter to
+//   the end, and says so in the log once.
 // - Nothing here ever logs a row or a token: no address, no login.
 
 import type { KeyValuePort } from './storage/ports';
@@ -167,6 +168,8 @@ function validRow(value: unknown): value is ContainerProxyRow {
 /** How long a request waits for the hub's first list; and how often the router asks the hub while it has none. */
 const FIRST_LIST_WAIT_MS = 15_000;
 const RETRY_UNKNOWN_MS = 5_000;
+/** How often our own line asks again a hub that did not answer while a list is kept: its rows stand meanwhile. */
+const RETRY_KNOWN_MS = 60_000;
 
 /** A row this router sends requests through. */
 const routable = (row: ContainerProxyRow): boolean => row.scheme === 'socks5' && row.host.length > 0 && row.port > 0;
@@ -223,6 +226,8 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
   let refreshing: Promise<void> | null = null;
   /** When the hub was last asked while the router had no list. */
   let askedAt = -Infinity;
+  /** When the hub last did not answer the proxies. */
+  let failedAt = -Infinity;
   /** Requests waiting for the first list. */
   const waiting = new Set<() => void>();
   /** Each firm binding's stamp (a token's, a tab's): a tab's report that began before a newer one never undoes it. */
@@ -324,10 +329,11 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
       if (matching.length === 1 && matching[0] !== undefined) bind(store, matching[0].pageLabel, false);
       return;
     }
-    if (expected.host === host) return;
-    // Another add-on's filter ran after ours, with another address: ours goes to the end.
+    // A row this router carries answers the tab's own requests with its port too: another port is another filter's.
+    if (expected.host === host && (port === undefined || !routable(expected) || expected.port === port)) return;
+    // Another add-on's filter ran after ours, with another address or port: ours goes to the end.
     deps.moveToLast();
-    const key = `${store}|${host}`;
+    const key = `${store}|${host}|${port ?? ''}`;
     if (said.has(key)) return;
     said.add(key);
     deps.log({ level: 'warn', scope: 'fansly.proxy', msg: 'a navigation went through another proxy than its page\'s: our filter moved to the end', data: { page: expected.pageLabel } });
@@ -453,6 +459,7 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
           await persist();
           await replay();
         } catch {
+          failedAt = deps.now();
           deps.log({ level: 'warn', scope: 'fansly.proxy', msg: 'the hub did not answer the proxies' });
         } finally {
           refreshing = null;
@@ -475,7 +482,10 @@ export function createContainerProxy(deps: ContainerProxyDeps): ContainerProxy {
       await service.refresh(true);
     },
     async line(legacyId, canonicalId) {
-      await service.refresh(!known);
+      // Every Fansly request of this background asks this: a hub that did not answer a moment ago is not asked again
+      // for each (each would wait for it), what stands answers meanwhile; an ask on its way is waited for.
+      const resting = refreshing === null && deps.now() - failedAt < (known ? RETRY_KNOWN_MS : RETRY_UNKNOWN_MS);
+      if (!resting) await service.refresh(!known);
       return lineNow(legacyId, canonicalId);
     },
     lineNow,

@@ -307,8 +307,6 @@ export interface GenerationBodyVM {
     readonly savedAs: number | null;
   };
   readonly split: boolean;
-  /** «Помнить тон в чате» (1.18.0, X45); absent — on. */
-  readonly rememberTone?: boolean;
   /** 1.52.0: «Учитывать Recap» per feature — where a chat's «с Recap» of each starts; absent — all on. */
   readonly recapBy?: Readonly<Record<RecapReader, boolean>>;
   /** 2026-10-27: `window` — how many of the chat's latest messages Coach reads (absent in a store — 300). */

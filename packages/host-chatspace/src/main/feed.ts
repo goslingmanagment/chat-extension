@@ -318,11 +318,17 @@ export function createFeed(win: Window & typeof globalThis, { guard, fail }: { r
     for (const record of recordsOfRead(target.read, target.fan, JSON.parse(body), observedAt)) push(target.acc, record);
   };
 
-  /** The page's fetch the observer passes every call to; null — the observer is not in place. */
+  /**
+   * The page's fetch the observer passes every call to: set by an install, never cleared, so a copy the page bound
+   * while the observer was in place still reaches the page's fetch after the latch goes off.
+   */
   let previous: typeof win.fetch | null = null;
+  /** The observer is in place of the page's global (install/uninstall below). */
+  let installed = false;
   const observer = function (this: unknown, ...args: unknown[]): unknown {
     // ChatSpace's own call: what the previous fetch throws, or the promise it returns, is ChatSpace's, as it is. The
-    // observer is in the page's chain only while `previous` is set (install/uninstall below).
+    // page may hold a copy bound while the observer was in place past uninstall (its HTTP client binds the global when
+    // it builds a request and calls it after the token): that copy still passes every call to `previous`.
     const result: unknown = Reflect.apply(previous as typeof win.fetch, this, args);
     try {
       const target = live && latched !== false ? readOf(args[0], args[1]) : null;
@@ -343,12 +349,13 @@ export function createFeed(win: Window & typeof globalThis, { guard, fail }: { r
   };
   /** The observer goes in front of the page's fetch only while the latch is on: off, the page's fetch is its own. */
   const install = (): void => {
-    if (previous !== null || typeof win.fetch !== 'function') return;
+    if (installed || typeof win.fetch !== 'function') return;
     // eslint-disable-next-line @typescript-eslint/unbound-method -- the page's function, only ever called with its caller's own `this`
     const current = win.fetch;
     try {
       win.fetch = observer as typeof win.fetch;
       previous = current;
+      installed = true;
     } catch {
       // A page whose fetch takes no assignment shows us no answer: the socket's records still go.
       fail('feedInstall');
@@ -356,9 +363,9 @@ export function createFeed(win: Window & typeof globalThis, { guard, fail }: { r
   };
   /** Put back if the global is still ours; else the observer stays where it is and only passes calls on. */
   const uninstall = (): void => {
-    if (previous === null || win.fetch !== observer) return;
-    win.fetch = previous;
-    previous = null;
+    if (!installed || win.fetch !== observer) return;
+    win.fetch = previous as typeof win.fetch;
+    installed = false;
   };
 
   return {

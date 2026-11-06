@@ -25,7 +25,7 @@ import { type SettingsExt } from '@cg/contracts/settings-ext';
 import { type AiQuotaSnapshot, type TabRequestPayload } from '@cg/contracts/tab-messages';
 import { type DockStatus, type ReasonVM, type TargetHandle, type UiAction, type UnavailableReasonId, type UserOptions } from '@cg/contracts/vm';
 
-import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, remembersTone, toneAfterStart, toneForRegenerate, toneOnLeave, windowFor, type FanScript, type GateFacts } from '../../domain/features';
+import { admittedOn, fanScriptOf, featureGate, freshTextAdmitted, freshTextLimits, planStart, policyOf, toneForRegenerate, windowFor, type FanScript, type GateFacts } from '../../domain/features';
 import { routeChangeEntry } from '../../domain/insert';
 import { clientOutdated, flagRefusal, flagStateOf, flagUsable, isTerminalOpState, pageSwitchedOff, requestDigestOf, requestIdentityOf, starFlag, type FlagState } from '../../domain/ops';
 import { reviewCopyText } from '../../domain/output';
@@ -950,7 +950,7 @@ export class AiWorkspace {
         return { kind: 'refused', refusal: { feature, error: { code: outcome.admission.code }, running: [...outcome.admission.active, ...(outcome.admission.siteActive ?? [])].sort((a, b) => a.startedAt - b.startedAt) } };
       case 'started': {
         // The tone went with this request and is gone (Б1, X68).
-        if (rule.tone) this.ui(chat.key).tone = toneAfterStart(plan.start.tone, remembersTone(settings));
+        if (rule.tone) this.ui(chat.key).tone = null;
         const record = this.ops.get(outcome.opId);
         if (record !== null) for (const listener of [...this.startListeners]) listener(record);
         this.bump();
@@ -1316,11 +1316,9 @@ export class AiWorkspace {
     const key = route.name === 'chat' && route.chat !== null ? chatKeyOf(route.chat) : null;
     // The page tail is kept for the open chat only: a chat that was left is read again when it is opened.
     for (const other of [...this.tails.keys()]) if (other !== key) this.tails.delete(other);
-    const remember = remembersTone(this.env.settings?.settings);
     for (const [other, ui] of this.chats) {
       if (other === key) continue;
-      // A one-off tone waits for its Reply (X68); `remembersTone` is off since X45's setting was retired.
-      ui.tone = toneOnLeave(ui.tone, remember);
+      // A one-off tone waits for its Reply (X68): a chat that was left keeps it.
       // A start that failed before admission names no run that could end it: its card stays only while the
       // person stays in the chat.
       if (ui.sheet !== null && ui.sheet.kind === 'refusal' && ui.sheet.refusal.running.length === 0) ui.sheet = null;

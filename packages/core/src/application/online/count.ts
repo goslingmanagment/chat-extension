@@ -109,7 +109,12 @@ export function createOnlineCount(deps: OnlineCountDeps): OnlineCount {
     },
     touch() {
       const page = deps.page();
-      if (!disposed && page !== null && page.pageId !== of) schedule(ONLINE_COUNT_FIRST_MS);
+      if (disposed || page === null || page.pageId === of) return;
+      // The old page's read on its way is dropped: its answer would put the next read a minute away.
+      reads += 1;
+      // Another page's number never stands on this page's chat.
+      set(null);
+      schedule(ONLINE_COUNT_FIRST_MS);
     },
     dispose() {
       disposed = true;

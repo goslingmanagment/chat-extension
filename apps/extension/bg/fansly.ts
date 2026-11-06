@@ -100,6 +100,7 @@ import { FEATURES_COMMON } from '@cg/contracts/features/common';
 import { FanslyGreetingClaimOpSchema } from '@cg/contracts/send-fansly';
 import { VAULT_TAB_ROUTES, type VaultTabRoute } from '@cg/contracts/vault-fansly';
 import { FANSLY_FEATURES } from '@cg/contracts/features/fansly';
+import type { AbortSignalLike } from '@cg/contracts/hub';
 import {
   FANSLY_TAB_TYPE_PREFIX,
   fanslyEventTargets,
@@ -532,6 +533,16 @@ async function startFansly(kit: BackgroundKit): Promise<BackgroundHostHandle> {
 }
 
 /**
+ * Stops listening for `abort` once the listener's sleep or call is over (hub wire.ts `onAbort`): the pass's switches
+ * (core ports.ts `AbortSwitch`) live as long as the pass. A signal without `removeEventListener` keeps it until it fires.
+ */
+function offAbort(signal: AbortSignalLike, listener: () => void): void {
+  if ('removeEventListener' in signal && typeof signal.removeEventListener === 'function') {
+    (signal.removeEventListener as (type: 'abort', listener: () => void) => void).call(signal, 'abort', listener);
+  }
+}
+
+/**
  * «Новые» (R20 P10b1; core services/hosts/fansly/newcomers.ts): the pass over FS-NET-1's purpose `newcomers` — the
  * creator's own session and pacer, never another's — and its changes to the tabs whose window holds it. A test build
  * asks the stand's API the e2e names (`dev.fanslyApi.origin`, api-probe.ts) and nothing without it; a release build,
@@ -552,19 +563,24 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
           : createFanslyClient({ session, pacer: api.pacer, now: () => kit.clock.now(), transport });
       }
       const abort = new AbortController();
+      const cut = (): void => abort.abort();
       if (signal.aborted) abort.abort();
-      else signal.addEventListener('abort', () => abort.abort());
-      const answer = await asking.call({
-        // The check right before a send is the greeting's: refused at once during a cooldown, never waited out.
-        purpose: call.click === true ? 'greeting' : 'newcomers',
-        route: call.route,
-        account: call.account,
-        ...(call.path === undefined ? {} : { path: call.path }),
-        ...(call.query === undefined ? {} : { query: call.query }),
-        ...(call.body === undefined ? {} : { body: call.body }),
-        signal: abort.signal,
-      });
-      return answer.response;
+      else signal.addEventListener('abort', cut);
+      try {
+        const answer = await asking.call({
+          // The check right before a send is the greeting's: refused at once during a cooldown, never waited out.
+          purpose: call.click === true ? 'greeting' : 'newcomers',
+          route: call.route,
+          account: call.account,
+          ...(call.path === undefined ? {} : { path: call.path }),
+          ...(call.query === undefined ? {} : { query: call.query }),
+          ...(call.body === undefined ? {} : { body: call.body }),
+          signal: abort.signal,
+        });
+        return answer.response;
+      } finally {
+        offAbort(signal, cut);
+      }
     },
     coolingUntil(account) {
       const template = session?.forAccount(account) ?? null;
@@ -580,11 +596,16 @@ function startNewcomers(kit: BackgroundKit, session: FanslyNetworkSession | unde
     sleep: (ms, signal) =>
       new Promise<void>((resolve) => {
         if (signal.aborted) return resolve();
-        const timer = kit.clock.setTimer(Math.max(0, ms), resolve);
-        signal.addEventListener('abort', () => {
+        const wake = (): void => {
           kit.clock.clearTimer(timer);
           resolve();
+        };
+        // A sleep that ran out lets go of the signal: the pass's life and a work's stop outlive thousands of them.
+        const timer = kit.clock.setTimer(Math.max(0, ms), () => {
+          offAbort(signal, wake);
+          resolve();
         });
+        signal.addEventListener('abort', wake);
       }),
     emit: (tab, change) => kit.site?.emit('fansly.followers.changed', change, { tabSessionId: tab }),
     alive: (tab) => kit.router.tabs().includes(tab),

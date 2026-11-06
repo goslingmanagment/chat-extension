@@ -117,7 +117,6 @@ export * from './tokens';
 export { onInstalledPlan } from './install-plan';
 export * from './ws-tap';
 export * from './change-policy';
-export * from './lazy-status';
 export * from './scheduler';
 export * from './profile-saver';
 export * from './send-driver';

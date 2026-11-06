@@ -156,7 +156,8 @@ export function createBackgroundLogging(deps: BackgroundLoggingDeps): Background
         debugEnabled: deps.debugEnabled,
         counters,
       });
-      if (answer.accepted > 0) saveCounters();
+      // Only a coded record moves a counter (as the own sink above): a batch without one has nothing to save.
+      if (records.some((record) => record.code !== undefined)) saveCounters();
       return answer;
     },
   };

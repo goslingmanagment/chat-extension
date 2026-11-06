@@ -58,7 +58,8 @@ export function fanslyUi(theme: HostThemeSource, doc: () => Document = page): Ho
 
 /** The marks of the list of chats (`settings.ext`), checked here: Fansly's registry stays out of this chunk. */
 const INBOX_MARKS: readonly string[] = ['dot', 'we', 'off'] satisfies readonly FanslyInboxMark[];
-const INBOX_MARK_TIMEOUT_MS = 10_000;
+/** Above the background's wait for its site's module (10 s, platform rpc-background `DEFAULT_SITE_WAIT_MS`). */
+const INBOX_MARK_TIMEOUT_MS = 15_000;
 
 /**
  * The mark of a chat waiting for a reply in Fansly's own list of chats (2026-10-29): the choice `settings.ext` holds,
@@ -78,34 +79,46 @@ export function startFanslyInboxMark(env: Pick<SiteAppEnv<FanslyPort>, 'rpc' | '
 
 /**
  * The page's hub label in front of the tab's title (2026-10-31; Grisha: «иногда hi в уведомлении переключает на вторую
- * вкладку … я теряюсь»): «lora-2 · Fansly», asked once per account the tab works under — the page bound to it and granted
- * to the person; none — Fansly's own title.
+ * вкладку … я теряюсь»): «lora-2 · Fansly», asked for each account the tab works under — the page bound to it and granted
+ * to the person; none — Fansly's own title. A refusal is asked again on the next route (signed out, not granted yet, the
+ * bootstrap loading), and a sign-in, a sign-out or a new bootstrap asks again at once: the tab outlives the session.
  */
 export function startFanslyTabLabel(env: Pick<SiteAppEnv<FanslyPort>, 'rpc' | 'host' | 'life'>): () => void {
   let asked: string | null = null;
-  const sync = (): void => {
+  /** The newest ask: an older answer never overwrites a newer one. */
+  let generation = 0;
+  const sync = (force = false): void => {
     const { accounts, identity } = env.host.current();
     const account = accounts.find((entry) => entry.hostAccountId === identity?.hostAccountId) ?? null;
     const key = account?.hostAccountId ?? null;
-    if (env.life.aborted || key === asked) return;
+    if (env.life.aborted || (!force && key === asked)) return;
     asked = key;
+    const ask = ++generation;
     if (account === null) {
       env.host.fansly.setTabLabel(null);
       return;
     }
     void env.rpc.request('binding.resolve', { account }).then(
       (answer) => {
-        if (!env.life.aborted && asked === key) env.host.fansly.setTabLabel(answer.ok ? answer.payload.binding.pageLabel : null);
+        if (env.life.aborted || ask !== generation) return;
+        if (!answer.ok) asked = null;
+        env.host.fansly.setTabLabel(answer.ok ? answer.payload.binding.pageLabel : null);
       },
-      () => undefined,
+      () => {
+        if (ask === generation) asked = null;
+      },
     );
   };
   const off = env.host.subscribe((event) => {
     if (event.type === 'accounts' || event.type === 'route') sync();
   });
+  const offSession = env.rpc.onEvent('session.changed', () => sync(true));
+  const offBootstrap = env.rpc.onEvent('bootstrap.changed', () => sync(true));
   sync();
   return () => {
     off();
+    offSession();
+    offBootstrap();
     env.host.fansly.setTabLabel(null);
   };
 }

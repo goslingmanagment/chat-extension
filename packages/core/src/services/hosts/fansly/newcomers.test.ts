@@ -859,6 +859,21 @@ describe('[host:fansly] «Новые» after the check (2026-10-26: a fan a coll
     expect(t.world.calls.length).toBe(closed);
   });
 
+  it('[2026-11-06] a tab closed or reloaded without closing its window holds the pass no more: the inbox is not looked at for it', async () => {
+    let alive = true;
+    const t = setup({ alive: () => alive });
+    const fan = t.world.follow(1, T0 - minutes(5));
+    t.world.chat(fan, [], 'full');
+    const passId = await t.scan();
+    await t.settle();
+    expect((await t.rows(passId)).map((row) => row.status)).toEqual(['ready']);
+
+    alive = false;
+    const gone = t.world.calls.length;
+    await vi.advanceTimersByTimeAsync(WATCH_MS * 3);
+    expect(t.world.calls.slice(gone).map((call) => call.route)).toEqual([]);
+  });
+
   it('[2026-10-26] a check older than a couple of minutes is made again before the card shows the chat and before a Hi takes it; a fresh one is not', async () => {
     const t = setup();
     const carded = t.world.follow(1, T0 - minutes(5));

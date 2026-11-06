@@ -116,5 +116,9 @@ describe('[host:fansly] «Новые фоловеры» on Fansly: the batch —
     // The next draft is the next unsent one, round the list.
     const rows = vmOf('13o').rows;
     expect([nextDraft(rows, handle(2)), nextDraft(rows, handle(8)), nextDraft(rows, handle(5))]).toEqual([handle(8), handle(1), handle(8)]);
+    // The sent fan already left the list, and the one draft left is the last row: it is found all the same.
+    const alex = rows.filter((row) => row.handle === handle(8));
+    const left = [...rows.filter((row) => row.batch?.state !== 'ready'), ...alex];
+    expect([alex.length, left.at(-1)?.handle, nextDraft(left, handle(1))]).toEqual([1, handle(8), handle(8)]);
   });
 });

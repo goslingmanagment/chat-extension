@@ -88,43 +88,8 @@ export function sdkOptions(caller: SdkCaller): KernelClientOptions {
   };
 }
 
-/** A colon inside a path segment (`/api/v2/spenders:batch`) is literal, not a `:param`. */
-const LITERAL_COLON = /[^/]:[A-Za-z]/;
-
-/**
- * The SDK's own path builder reads every `:word` as a parameter, so the
- * manifest path `/api/v2/spenders:batch` throws «missing path param» there
- * (the vendored SDK cannot call `spenderBatch` at all). Such a path goes out
- * with the same manifest method, auth and headers, its `/:param` segments
- * filled and its literal colon kept.
- */
-async function sendLiteralPath(caller: SdkCaller, operation: SdkOperation, input: SdkRawInput): Promise<Response> {
-  const def = kernelOperations[operation];
-  const path = def.path.replace(/\/:([A-Za-z0-9_]+)/g, (_match, name: string) => {
-    const value = input.params?.[name];
-    if (value === undefined) throw new TypeError(`${operation}: missing path param ${name}`);
-    return `/${encodeURIComponent(String(value))}`;
-  });
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(input.query ?? {})) {
-    if (value === undefined || value === null) continue;
-    if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') throw new TypeError(`${operation}: query field ${key} is not a scalar`);
-    search.append(key, String(value));
-  }
-  const query = search.toString();
-  const headers: Record<string, string> = { ...caller.headers };
-  if (caller.token !== null) headers['authorization'] = `Bearer ${caller.token}`;
-  const init: RequestInit = { method: def.method, headers, signal: caller.signal };
-  if (input.body !== undefined) {
-    headers['content-type'] = 'application/json';
-    init.body = JSON.stringify(input.body);
-  }
-  return caller.fetch(`${caller.hubOrigin}${path}${query === '' ? '' : `?${query}`}`, init);
-}
-
 export async function sendSdkOperation(caller: SdkCaller, operation: SdkOperation, input: SdkRawInput): Promise<Response> {
   if (!SDK_ALLOWED_OPERATIONS.includes(operation)) throw new TypeError(`${operation} is not an operation of this client`);
-  if (LITERAL_COLON.test(kernelOperations[operation].path)) return sendLiteralPath(caller, operation, input);
   const client = createClient(sdkOptions(caller));
   const raw: { params?: Record<string, string | number>; query?: Record<string, unknown>; body?: unknown } = {};
   if (input.params !== undefined) raw.params = input.params;

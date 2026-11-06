@@ -60,6 +60,11 @@ export class AbortSwitch implements AbortSignalLike {
     else this.listeners.push(listener);
   }
 
+  /** A listener whose work is over lets go, so a long-lived switch (a pass's life) does not keep one per sleep or call. */
+  removeEventListener(_type: 'abort', listener: () => void): void {
+    this.listeners = this.listeners.filter((entry) => entry !== listener);
+  }
+
   abort(): void {
     if (this.flag) return;
     this.flag = true;

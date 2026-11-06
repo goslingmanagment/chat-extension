@@ -89,6 +89,8 @@ interface QueueEntry {
   loading: boolean;
   error: CgErrorWire | null;
   run: number;
+  /** When a page of it last answered: a queue kept while the filter stays pressed is read again once it is old. */
+  loadedAt: number | null;
   /** This walk already started over once because the hub no longer took its cursor: a second refusal is an error, not a loop. */
   cursorRestarted?: boolean;
 }
@@ -165,7 +167,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
   let statsOpen = false;
   let boards = new Map<SpendersPeriod, BoardEntry>();
   let statsEntry: StatsEntry = { raw: null, loading: false, error: null, loadedAt: null, since: null, run: 0 };
-  let queue: QueueEntry = { state: EMPTY_QUEUE, loading: false, error: null, run: 0 };
+  let queue: QueueEntry = { state: EMPTY_QUEUE, loading: false, error: null, run: 0, loadedAt: null };
   let epoch = context.current().epoch;
   /** The visible list, kept while what it was computed from is the same (by identity: every change replaces its object). */
   let viewCache: { readonly index: BoardIndex; readonly queue: QueueState | null; readonly applied: string; readonly filters: BoardFilters; readonly sort: SpendersSort; readonly shelf: string | null; readonly tick: number; readonly view: BoardView } | null = null;
@@ -548,15 +550,16 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
 
   /**
    * One page of «ждут ответа»: the first (a new walk) or the one behind the cursor. `afterCursorRefusal` — the walk
-   * starts over because the hub refused its cursor: that happens once per walk.
+   * starts over because the hub refused its cursor: that happens once per walk. `keep` — a new walk of an old queue:
+   * its rows stay on screen until the first page answers.
    */
-  async function loadQueue(restart: boolean, afterCursorRefusal = false): Promise<void> {
+  async function loadQueue(restart: boolean, afterCursorRefusal = false, keep = false): Promise<void> {
     const id = pageId();
     if (id === null || !usable('stats')) return;
     if (queue.loading && !restart) return;
     // A walk that starts over after a failed read keeps saying so until this read answers: the list on screen is
     // still the local fallback, and its notice must not blink away for the time of the request.
-    if (restart) queue = { state: EMPTY_QUEUE, loading: false, error: queue.error, run: queue.run, cursorRestarted: afterCursorRefusal };
+    if (restart) queue = { state: keep ? queue.state : EMPTY_QUEUE, loading: false, error: queue.error, run: queue.run, loadedAt: queue.loadedAt, cursorRestarted: afterCursorRefusal };
     const cursor = restart ? null : queue.state.nextCursor;
     if (!restart && cursor === null) return;
     const atEpoch = epoch;
@@ -568,8 +571,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     queue.loading = false;
     if (answer.ok) {
       const page: QueuePage = answer.payload;
-      queue.state = appendQueuePage(queue.state, cursor, page);
+      queue.state = appendQueuePage(restart ? EMPTY_QUEUE : queue.state, cursor, page);
       queue.error = null;
+      queue.loadedAt = clock.now();
     } else if (cursor !== null && answer.error.code === 'CG-HUB-REQUEST' && queue.cursorRestarted !== true) {
       // The hub no longer takes the cursor (400 `bad_request` · `cursor_invalid`: the queue was rebuilt under the walk).
       // Nothing is wrong with the list itself: the walk starts over from the first page — once. A second refusal
@@ -590,7 +594,9 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
       if (!entry.loading && (entry.index === null ? entry.error === null : !fresh(entry.loadedAt, BOARD_FRESH_MS) && entry.error === null)) void loadBoardOf(forPeriod, false);
     }
     if (!statsEntry.loading && statsEntry.error === null && !fresh(statsEntry.loadedAt, STATS_FRESH_MS)) void loadStats(false);
-    if (filters.main === 'waiting' && queue.state.total === null && !queue.loading && queue.error === null) void loadQueue(true);
+    // A filter kept pressed over the board's closes and reopens is read again once its queue is as old as the rail's
+    // count, which reads the same queue: the old rows stay until the new ones come.
+    if (filters.main === 'waiting' && !queue.loading && queue.error === null && (queue.state.total === null || !fresh(queue.loadedAt, STATS_FRESH_MS))) void loadQueue(true, false, queue.state.total !== null);
   }
 
   function reset(): void {
@@ -599,7 +605,7 @@ export function createSpendersController(deps: SpendersControllerDeps): Spenders
     lookups = new Map();
     navigationRun++;
     statsEntry = { raw: null, loading: false, error: null, loadedAt: null, since: null, run: statsEntry.run + 1 };
-    queue = { state: EMPTY_QUEUE, loading: false, error: null, run: queue.run + 1 };
+    queue = { state: EMPTY_QUEUE, loading: false, error: null, run: queue.run + 1, loadedAt: null };
     filters = NO_FILTERS;
     sort = 'sum';
     typed = '';

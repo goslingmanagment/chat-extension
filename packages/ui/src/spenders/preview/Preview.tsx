@@ -15,34 +15,18 @@
 import { type ComponentChildren, type JSX, type TargetedKeyboardEvent } from 'preact';
 
 import { type IsoTimestamp } from '@cg/contracts/primitives';
-import { type ClaimVM, type I18n, type Msg, type PreviewActionId, type PreviewSource, type PreviewVM } from '@cg/contracts/vm';
+import { type ClaimVM, type I18n, type Msg, type PreviewSource, type PreviewVM } from '@cg/contracts/vm';
 
 import { ActionButton, Button, Dot, ErrorCard, FanBadge, Icon, isComposing, Money, TextField, useCountdown, useDispatch, useI18n, useMinuteClock, useNowFn, useTooltip, useView, ViewState, type StyleSource } from '../../kit';
 import { useOwnEchoes } from '../ownEchoes';
 import { coverageWord, isPlainKey, isTextEntry, timeOrUnknown } from '../window';
 import { Feed, FEED_CSS, SeenMark } from './Feed';
-import { MINI_STRIP_CSS, MiniStrip, generateAction } from './MiniStrip';
+import { MINI_STRIP_CSS, MiniStrip } from './MiniStrip';
 import { PreviewResult, RESULT_CSS } from './Result';
 import { MEDIA_PICKER_CSS, MediaAttachedContext, MediaPicker } from './MediaPicker';
 import { SEND_ROW_CSS } from './SendRow';
 
 const KIND_KEYS = { new: 'newcomers.kind.new', renewed: 'newcomers.kind.renewed', returning: 'newcomers.kind.returning' } as const;
-
-/** Whether a key event is the combination an `aria-keyshortcuts` value names («Meta+E», «Control+Alt+B»); letters by the physical key. */
-export function matchesHotkey(event: KeyboardEvent, aria: string): boolean {
-  return aria.split(' ').some((combination) => {
-    const keys = combination.split('+');
-    const letter = keys.pop();
-    if (letter === undefined || !/^[A-Za-z]$/.test(letter)) return false;
-    return (
-      event.metaKey === keys.includes('Meta') &&
-      event.ctrlKey === keys.includes('Control') &&
-      event.altKey === keys.includes('Alt') &&
-      event.shiftKey === keys.includes('Shift') &&
-      event.code === `Key${letter.toUpperCase()}`
-    );
-  });
-}
 
 export function metaLine(i18n: I18n, header: NonNullable<PreviewVM['header']>): string | null {
   if (header.newcomer !== null) return i18n.t('newcomers.cardMeta', { kind: i18n.t(KIND_KEYS[header.newcomer.kind]), age: { age: header.newcomer.subscribedAt } });
@@ -200,22 +184,14 @@ export function hasBody(vm: PreviewVM): boolean {
 }
 
 /**
- * The keys of a preview with focus inside it: ⌘E / ⌘I / ⌘G / ⌘P start THIS fan's generation (HK-042); ← → and
- * J / K outside our fields go to the neighbouring fan (SP-056).
+ * The keys of a preview with focus inside it: ← → and J / K outside our fields go to the neighbouring fan (SP-056).
+ * ⌘E / ⌘I / ⌘G / ⌘P start THIS fan's generation (HK-042) through the early dispatcher's runner, never here.
  */
 export function usePreviewKeys(vm: PreviewVM): (event: TargetedKeyboardEvent<HTMLElement>) => void {
   const dispatch = useDispatch();
   return (event) => {
-    if (event.defaultPrevented || isComposing(event)) return;
     // The early dispatcher gets a global key first; what it took comes here already prevented.
-    for (const id of Object.keys(vm.bar.actions) as PreviewActionId[]) {
-      const action = vm.bar.actions[id];
-      if (action === undefined || action.hotkey === null || !matchesHotkey(event, action.hotkey.aria)) continue;
-      event.preventDefault();
-      const start = action.enabled ? generateAction(vm, id) : null;
-      if (start !== null) void dispatch(start);
-      return;
-    }
+    if (event.defaultPrevented || isComposing(event)) return;
     if (isTextEntry(event.target) || !isPlainKey(event) || event.shiftKey) return;
     // Arrows inside an open menu are the menu's.
     if (event.target instanceof Element && event.target.closest('[role="menu"]') !== null) return;

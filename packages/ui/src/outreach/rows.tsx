@@ -246,6 +246,8 @@ interface RowProps {
   readonly active: boolean;
   readonly locked: boolean;
   readonly media: OutreachMediaVM | null;
+  /** The minute of the clock: «Ждёт ответа 7 мин» is redrawn once a minute. */
+  readonly minute: number;
   readonly onPick: (handle: string) => void;
 }
 
@@ -295,9 +297,9 @@ function RowView({ item, index, active, locked, media, onPick }: RowProps): JSX.
   );
 }
 
-/** A row is drawn again only when what it shows changed: typing the common text re-renders the window, not the rows. */
+/** A row is drawn again only when what it shows changed, or the minute turned (the ages): typing the common text re-renders the window, not the rows. */
 function sameRow(a: RowProps, b: RowProps): boolean {
-  if (a.index !== b.index || a.active !== b.active || a.locked !== b.locked || a.onPick !== b.onPick || a.item.kind !== b.item.kind) return false;
+  if (a.index !== b.index || a.active !== b.active || a.locked !== b.locked || a.minute !== b.minute || a.onPick !== b.onPick || a.item.kind !== b.item.kind) return false;
   if (a.item.row === b.item.row && a.media === b.media) return true;
   return JSON.stringify(a.item.row) === JSON.stringify(b.item.row) && JSON.stringify(a.media) === JSON.stringify(b.media);
 }

@@ -6,7 +6,7 @@
 // started it today («Начать →», «Не сегодня»).
 
 import { type JSX } from 'preact';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { CG_REGISTRY } from '@cg/contracts/errors/registry';
 import { type I18n, type QueueGoneVM, type QueueNudgeVM, type QueueStripVM, type QueueWalkVM, type UiAction } from '@cg/contracts/vm';
@@ -14,17 +14,28 @@ import { type I18n, type QueueGoneVM, type QueueNudgeVM, type QueueStripVM, type
 import { Button, Icon, chatClick, useDispatch, useI18n } from '../kit';
 import { QueueSkip } from '../queues/skip';
 
-/** A refusal in the strip's own words: the page's message of its code. */
-function useRun(): { readonly error: string | null; readonly run: (action: UiAction) => void } {
+/**
+ * A refusal in the strip's own words: the page's message of its code. It belongs to the strip's `subject` at the
+ * click (the chat's state and fan): the strip stays mounted as the chat moves on, and a refusal of a step the chatter
+ * has since passed gives the line back to what the strip says now. The refusal is dropped, not only hidden: one
+ * subject comes back (every other chat is `elsewhere|`), and a refusal of an earlier visit must not return with it.
+ */
+function useRun(subject: string): { readonly error: string | null; readonly run: (action: UiAction) => void } {
   const i18n = useI18n();
   const dispatch = useDispatch();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ readonly of: string; readonly text: string } | null>(null);
+  const subjectRef = useRef(subject);
+  subjectRef.current = subject;
+  useEffect(() => {
+    setError((was) => (was !== null && was.of !== subject ? null : was));
+  }, [subject]);
   return {
-    error,
+    error: error !== null && error.of === subject ? error.text : null,
     run(action) {
       setError(null);
       void dispatch(action).then((receipt) => {
-        if (receipt !== null && !receipt.ok) setError(i18n.t(CG_REGISTRY[receipt.code].title));
+        // A receipt that lands after the strip moved on belongs to a step that is no longer on screen.
+        if (receipt !== null && !receipt.ok && subjectRef.current === subject) setError({ of: subject, text: i18n.t(CG_REGISTRY[receipt.code].title) });
       });
     },
   };
@@ -34,7 +45,7 @@ const goneWhy = (i18n: I18n, gone: QueueGoneVM): string => i18n.t(`queues.left.$
 
 function Nudge({ vm }: { readonly vm: QueueNudgeVM }): JSX.Element {
   const i18n = useI18n();
-  const { error, run } = useRun();
+  const { error, run } = useRun(String(vm.queueId));
   return (
     <div class="cg-qs is-nudge" data-cg-queue-strip="nudge">
       <span class="cg-qs__ic"><Icon name="queues" size={14} /></span>
@@ -52,12 +63,12 @@ function Nudge({ vm }: { readonly vm: QueueNudgeVM }): JSX.Element {
 
 function Walk({ vm }: { readonly vm: QueueWalkVM }): JSX.Element {
   const i18n = useI18n();
-  const { error, run } = useRun();
   const here = vm.here;
+  const stateKey = vm.end !== null ? 'end' : here === null ? 'elsewhere' : here.state;
+  const { error, run } = useRun(`${stateKey}|${here?.handle ?? ''}`);
   const went = here?.state === 'written';
   const nextLabel = vm.next === null ? '' : vm.next.answered ? i18n.t('queues.strip.answeredName', { name: vm.next.name }) : went || here === null ? i18n.t('queues.strip.nextName', { name: vm.next.name }) : i18n.t('queues.strip.next');
   const counts = `${i18n.t('queues.strip.left', { n: vm.left })} · ${i18n.t('queues.strip.today', { n: vm.today })}`;
-  const stateKey = vm.end !== null ? 'end' : here === null ? 'elsewhere' : here.state;
 
   let top: JSX.Element;
   let sub: string | null;

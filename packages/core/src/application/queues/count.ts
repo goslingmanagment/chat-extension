@@ -164,7 +164,12 @@ export function createQueuesCount(deps: QueuesCountDeps): QueuesCount {
     },
     touch() {
       const page = deps.page();
-      if (!disposed && page !== null && page.pageId !== of) schedule(QUEUES_COUNT_FIRST_MS);
+      if (disposed || page === null || page.pageId === of) return;
+      // The old page's read on its way is dropped: its answer would put the next read a minute away.
+      reads += 1;
+      // Another page's number (and its list and reminder) never stands on this page's chat.
+      set(null);
+      schedule(QUEUES_COUNT_FIRST_MS);
     },
     strip() {
       if (walk !== null) return walk;
