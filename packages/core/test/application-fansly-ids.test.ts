@@ -178,6 +178,57 @@ describe('[host:fansly] R20 P8a: the Spenders board names the chat of a Fansly f
   });
 });
 
+describe('Spenders «ждут ответа»: a kept queue is read again only when the board reopens', () => {
+  it('a page-context refresh while the board stays open does not restart an old walk; a reopening does', async () => {
+    const page = (n: number): QueuePage => ({
+      items: [{ fanRef: `${STRANGER}${n}`, username: `fan_${n}`, displayName: `Fan ${n}`, lifetimeGrossMills: 50_000, lastFanMessageAt: '2026-10-03T09:00:00.000Z', lastModelMessageAt: null, unreadCount: 1, readState: 'unread' }],
+      total: 2,
+      loaded: 1,
+      unknown: 0,
+      nextCursor: n === 1 ? 'cursor-2' : null,
+      asOf: '2026-10-03T10:00:00.000Z',
+    });
+    const cursors: (string | null)[] = [];
+    const hub = spendersHub([rowOf(0, FANSLY.fan, 'fansly', FANSLY.group)]);
+    const call = (route: HubRouteKey, request: unknown) => {
+      if (route !== 'clientSpenderAwaitingReply') return hub(route);
+      const cursor = (request as { readonly cursor?: string | null } | undefined)?.cursor ?? null;
+      cursors.push(cursor);
+      return Promise.resolve({ status: 200, body: page(cursor === null ? 1 : 2) });
+    };
+    const base = fanslyContext.current();
+    const listeners = new Set<(state: PageContextState) => void>();
+    const context: PageContextPort = { current: () => base, subscribe: (listener) => (listeners.add(listener), () => listeners.delete(listener)), refresh: () => Promise.resolve(), dispose: () => undefined };
+    const clock = new FakeClock(NOW_MS);
+    const bg = new BoardsBackground({ clock, call, session, bootstrap: BOOTSTRAP, settings: SETTINGS, catalog: CATALOG, tab: TAB, instanceId: WORLD.instanceId, features: featuresOfBoth });
+    const spenders = createSpendersController({ rpc: bg.rpc, i18n, clock, context, surfaces: new Surfaces(), navigator: recordingNavigator(), timeZone: 'Europe/Moscow' });
+    spenders.subscribe({ of: 'spenders.board' }, () => undefined);
+    const open = (yes: boolean) => spenders.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'spenders', open: yes } });
+    const fans = (): string[] => spenders.getSnapshot({ of: 'spenders.board' }).shelves.flatMap((shelf) => shelf.rows).map((row) => row.handle).filter((handle) => handle.includes(STRANGER)).sort();
+    await open(true);
+    await settle(20);
+    await spenders.dispatch({ type: 'SetSpendersFilter', filter: 'waiting' });
+    await settle(20);
+    await spenders.dispatch({ type: 'LoadMore', list: 'spenders' });
+    await settle(20);
+    expect(cursors).toEqual([null, 'cursor-2']);
+    expect(fans()).toHaveLength(2);
+
+    await clock.advance(61_000);
+    for (const listener of listeners) listener(base);
+    await settle(20);
+    expect(cursors).toEqual([null, 'cursor-2']);
+    expect(fans()).toHaveLength(2);
+
+    await open(false);
+    await settle(5);
+    await open(true);
+    await settle(20);
+    expect(cursors).toEqual([null, 'cursor-2', null]);
+    spenders.dispose();
+  });
+});
+
 describe('[host:fansly] R20 P8a: a preview of a Fansly fan whose chat its list does not know asks nothing of that chat', () => {
   const infoOf = (conversationRef: string | null): PreviewTargetInfo => ({
     handle: fanHandle('spenders', FANSLY_PAGE, FANSLY.fan),
