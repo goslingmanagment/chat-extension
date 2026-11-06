@@ -48,8 +48,6 @@ export const PREFERENCE_VALUE_SCHEMAS = {
   // 1.26.0 (X55): stored as optional (absent — normal), set as one of the two sizes.
   'ui.textSize': z.enum(UI_TEXT_SIZES),
   'generation.split': generation.split,
-  // 1.18.0 (X45): stored as optional (absent — on), set as a plain boolean.
-  'generation.rememberTone': z.boolean(),
   // 1.52.0: «Учитывать Recap» per feature, stored as optional (absent — the shared `generation.recap`, then on).
   'generation.recapBy.reply': z.boolean(),
   'generation.recapBy.fix': z.boolean(),

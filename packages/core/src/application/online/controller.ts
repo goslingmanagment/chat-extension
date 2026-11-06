@@ -1142,12 +1142,17 @@ export function createOnlineController(deps: OnlineControllerDeps): OnlineContro
   // ── actions ──
 
   function open(type: UiActionType): ActionReceipt {
+    const closed = !surfaces.current().online;
     surfaces.setList('online', true);
     schedulePoll();
     startPending = true;
     const stale = loadedAt === null || clock.now() - loadedAt > ONLINE_POLL_MS / 3;
-    if (stale) void read();
-    else tryStart();
+    if (stale) {
+      // The read from before a close is no baseline: who came online while the window was closed did not come while
+      // it was open. This read only fills it, as the first opening's does (and drops a read still on its way).
+      if (closed) present = null;
+      void read();
+    } else tryStart();
     changed();
     return done(type, 'opened');
   }

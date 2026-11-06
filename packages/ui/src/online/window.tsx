@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { type FanBadgeMark, type FanBadges } from '@cg/contracts/fan-badges';
 import { type OnlineGroupId, type OnlineRowVM, type OnlineWindowVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, FanBadge, Icon, Menu, MenuAnchor, SearchBox, ViewState, isComposing, menuTriggerKeys, useDispatch, useI18n, useMinuteClock, useView, type MenuItem } from '../kit';
+import { Button, FanBadge, Icon, Menu, MenuAnchor, SearchBox, ViewState, isComposing, menuTriggerKeys, useDispatch, useI18n, useMinuteClock, useNowFn, useView, type MenuItem } from '../kit';
 import { NewcomersFrame } from '../newcomers/frame';
 import { ChoiceMenu, isPlainKey, isTextEntry } from '../spenders/window';
 import { OnlineCard } from './card';
@@ -312,7 +312,9 @@ export function OnlineWindow(): JSX.Element {
   const dispatch = useDispatch();
   const vm = useView({ of: 'online' }).value;
   const preview = useView({ of: 'preview', from: 'online' }).value;
+  // «Ждёт ответа 7 мин», «● 3 мин» move with the clock.
   useMinuteClock(vm.groups.length > 0);
+  const minute = Math.floor(useNowFn()() / 60_000);
   const rows = useMemo(() => vm.groups.flatMap((group) => group.rows), [vm.groups]);
   const listRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -390,7 +392,7 @@ export function OnlineWindow(): JSX.Element {
               <i />
             </div>
             {group.rows.map((row) => (
-              <OnlineRow key={row.handle} row={row} onSelect={choose} />
+              <OnlineRow key={row.handle} row={row} minute={minute} onSelect={choose} />
             ))}
           </div>
         ))}

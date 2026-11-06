@@ -14,7 +14,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 
 import { type OutreachRowVM, type OutreachWindowVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, SearchBox, Spinner, VirtualList, ViewState, isComposing, useDispatch, useI18n, useKit, useMinuteClock, useView } from '../kit';
+import { Button, SearchBox, Spinner, VirtualList, ViewState, isComposing, useDispatch, useI18n, useKit, useMinuteClock, useNowFn, useView } from '../kit';
 import { NewcomersFrame, useNewcomerRows, useTextSize } from '../newcomers/frame';
 import { rowKeyOf, useCardFollow } from '../spenders/rowFocus';
 import { isPlainKey, isTextEntry } from '../spenders/window';
@@ -128,7 +128,9 @@ export function OutreachWindow(): JSX.Element {
   const { root } = useKit();
   const vm = useView({ of: 'outreach' }).value;
   const preview = useView({ of: 'preview', from: 'outreach' }).value;
+  // «Ждёт ответа 7 мин», «Мы писали 2 ч назад» move with the clock.
   useMinuteClock(vm.rows.length > 0);
+  const minute = Math.floor(useNowFn()() / 60_000);
   const large = useTextSize() === 'large';
   const items = useMemo(() => listItems(vm), [vm.rows, vm.aside]);
   const rows = useMemo(() => fanRows(items), [items]);
@@ -140,12 +142,29 @@ export function OutreachWindow(): JSX.Element {
   const cardFollow = useCardFollow((handle) => void dispatch(openCard(handle)));
   const indexOf = useCallback((handle: string): number => items.findIndex((item) => item.kind !== 'group' && item.row.handle === handle), [items]);
 
-  // After the card's own «Отправить →»: the next version that waits, a second later; none — what the outreach did.
+  // After the card's own «Отправить →»: the next version that waits, a second after «Отправлено» (the claim, the
+  // site's queue and its confirmation take their time); none — what the outreach did.
   const latest = useRef(vm);
   latest.current = vm;
   const [sentFrom, setSentFrom] = useState<string | null>(null);
+  const sentState = vm.card !== null && vm.card.handle === sentFrom ? vm.card.state : null;
+  // This click's send was seen on its way: «Отправить ещё раз →» is pressed on a `failed` card, which still reads
+  // `failed` through the hub's claim, so only a `failed` after `sending`/«Принято» ends the wait.
+  const moved = useRef(false);
+  const onSent = useCallback((handle: string) => {
+    moved.current = false;
+    setSentFrom(handle);
+  }, []);
   useEffect(() => {
     if (sentFrom === null) return undefined;
+    if (sentState === 'sending' || sentState === 'accepted') moved.current = true;
+    // Another fan's card is open, or the send ended without going (no card sends from `uncertain`): nothing opens by itself.
+    if (sentState === null || sentState === 'uncertain' || (sentState === 'failed' && moved.current)) {
+      setSentFrom(null);
+      return undefined;
+    }
+    // Still on its way (the claim — the card may still read `ready` or `failed` —, the queue, «Принято»): the second starts at «Отправлено».
+    if (sentState !== 'sent') return undefined;
     const timer = setTimeout(() => {
       setSentFrom(null);
       const now = latest.current;
@@ -159,7 +178,7 @@ export function OutreachWindow(): JSX.Element {
       } else void dispatch({ type: 'SetOutreach', pane: 'summary' });
     }, NEXT_CARD_MS);
     return () => clearTimeout(timer);
-  }, [sentFrom]);
+  }, [sentFrom, sentState]);
 
   // The first version this window can send opens its card, as «Новые» opens on its first draft — once, while no card
   // is open (a version held — the open chat, a fan who takes no messages — waits in the list with why).
@@ -261,7 +280,7 @@ export function OutreachWindow(): JSX.Element {
                 <i />
               </div>
             ) : (
-              <OutreachRow item={item} index={index} active={item.row.handle === currentHandle} locked={vm.audience.locked} media={vm.media} onPick={setActiveHandle} />
+              <OutreachRow item={item} index={index} active={item.row.handle === currentHandle} locked={vm.audience.locked} media={vm.media} minute={minute} onPick={setActiveHandle} />
             )
           }
         />
@@ -270,7 +289,7 @@ export function OutreachWindow(): JSX.Element {
   }
 
   let pane: JSX.Element;
-  if (vm.card !== null) pane = <OutreachCard vm={vm} card={vm.card} preview={preview} onSent={setSentFrom} />;
+  if (vm.card !== null) pane = <OutreachCard vm={vm} card={vm.card} preview={preview} onSent={onSent} />;
   else if (vm.pane === 'summary' && vm.summary !== null) pane = <Summary vm={vm} summary={vm.summary} />;
   else pane = <Offer vm={vm} />;
 

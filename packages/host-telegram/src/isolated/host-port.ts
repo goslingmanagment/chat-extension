@@ -204,10 +204,13 @@ export function createTelegramHostPort(options: TelegramPortOptions): TelegramPo
     if (newest === null) return;
     const key = `${chat.hostAccountId}:${chat.platformFanId}`;
     const known = fanHeads.get(key);
+    // Web A keeps only a window of the chat: scrolled far up or on a quoted old message, the newest rows are gone.
+    // The head never moves back, or coming down again would report an old message as new.
+    const newer = known === undefined || newest.length > known.length || (newest.length === known.length && newest > known);
     fanHeads.delete(key);
-    fanHeads.set(key, newest);
+    fanHeads.set(key, known === undefined || newer ? newest : known);
     if (fanHeads.size > CHATS_KEPT) fanHeads.delete(fanHeads.keys().next().value as string);
-    if (known === undefined || known === newest || known.length > newest.length || (known.length === newest.length && known > newest)) return;
+    if (known === undefined || !newer) return;
     fanSequence += 1;
     counts.incoming += 1;
     const fact: IncomingFact = {

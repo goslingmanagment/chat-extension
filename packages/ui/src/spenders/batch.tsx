@@ -47,26 +47,6 @@ export function BatchCheck({ list, handle, row, name }: { readonly list: BatchLi
   );
 }
 
-/** «Отметить всех в списке»: ticks the rows shown (the list keeps at most `max`), or unticks them. */
-export function BatchCheckAll({ list, handles, batch }: { readonly list: BatchList; readonly handles: readonly string[]; readonly batch: BatchVM }): JSX.Element | null {
-  const i18n = useI18n();
-  const dispatch = useDispatch();
-  if (handles.length === 0) return null;
-  const on = batch.picked > 0;
-  return (
-    <button
-      type="button"
-      class="cg-bt__check"
-      role="checkbox"
-      aria-checked={on ? 'true' : 'false'}
-      aria-label={i18n.t('batch.pickAll')}
-      onClick={() => void dispatch({ type: 'SetBatchPick', list, targetHandles: handles.slice(0, 1000), picked: !on })}
-    >
-      <CheckGlyph on={on} />
-    </button>
-  );
-}
-
 /** The bar over the list while someone is ticked or a batch has rows; nothing — when neither. */
 export function BatchBar({ list, batch, hint }: { readonly list: BatchList; readonly batch: BatchVM; readonly hint?: string }): JSX.Element | null {
   const i18n = useI18n();

@@ -96,6 +96,8 @@ export function draftKind(row: OnlineRowVM): 'draft' | 'line' | 'writing' | null
 
 interface RowProps {
   readonly row: OnlineRowVM;
+  /** The minute of the clock: «Ждёт ответа 7 мин», «● 3 мин» are redrawn once a minute. */
+  readonly minute: number;
   readonly onSelect: (handle: string) => void;
 }
 
@@ -138,9 +140,9 @@ function RowView({ row, onSelect }: RowProps): JSX.Element {
   );
 }
 
-/** A row is drawn again only when what it shows changed. */
+/** A row is drawn again only when what it shows changed, or the minute turned (the ages). */
 function sameRow(a: RowProps, b: RowProps): boolean {
-  if (a.onSelect !== b.onSelect) return false;
+  if (a.onSelect !== b.onSelect || a.minute !== b.minute) return false;
   return a.row === b.row || JSON.stringify(a.row) === JSON.stringify(b.row);
 }
 

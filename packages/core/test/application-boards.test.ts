@@ -898,6 +898,18 @@ describe('[SP-054] «Отправить» of the draft field: the person’s own
     // Every refusal above is on the card's row: no toast on top of it.
     expect(h.notes).toEqual([]);
   });
+
+  it('a double click sends once: the second click makes no result, and the sent text never comes back to the field', async () => {
+    const { h, handle } = await withDraft();
+    await h.dispatch({ type: 'SetPreviewDraft', targetHandle: handle, text: 'my own words' });
+    // Both clicks land before either is answered: they meet at the first read of the fan's sends.
+    const [first, second] = await Promise.all([h.dispatch({ type: 'SendDraft', targetHandle: handle }), h.dispatch({ type: 'SendDraft', targetHandle: handle })]);
+    expect(first).toMatchObject({ ok: true });
+    expect(second).toMatchObject({ ok: false, code: 'CG-SEND-BUSY' });
+    expect(h.host.calls.commits.map((commit) => commit.request.plainText)).toEqual(['my own words']);
+    expect(draftOf(h)).toBe('');
+    expect(partsOf(h, 'spenders')[0]?.send?.s).not.toBe('available');
+  });
 });
 
 describe('[SP-054] [NF-022] what holds a send holds the fan — on every card of the fan, and after a tab reload (§6.7.8, §6.7.9)', () => {
@@ -1306,6 +1318,26 @@ describe('2026-10-29 review: the «Ждёт приветствия» toast sends
     expect(h.clicks).toHaveLength(1);
     expect(h.clicks[0]?.media).toBeUndefined();
     expect(card().media).toMatchObject({ picks: 1, attached: { count: 1, priceCents: 2500 } });
+  });
+
+  it.each(['batch', 'toast'] as const)('the toast\'s Hi and «Новые»\' batch on one fan both hear the end of the one greeting (the %s first)', async (first) => {
+    const h = await harness({ config: X8, checkpointFan: '2010' });
+    await h.dispatch(open('newcomers'));
+    const handle = newcomer('2010');
+    h.script(0, 'hi-greeting', 'Hi there!');
+    const batch = async (): Promise<void> => {
+      await h.dispatch({ type: 'SetBatchPick', list: 'newcomers', targetHandles: [handle], picked: true });
+      await h.dispatch({ type: 'GenerateBatch', list: 'newcomers' });
+    };
+    if (first === 'batch') await batch();
+    const writing = h.boards.newcomers.greetHere?.(handle, false, () => undefined);
+    await h.flush();
+    if (first === 'toast') await batch();
+    await h.advance(500);
+    expect(count(h, 'op.start')).toBe(1);
+    expect(h.boards.newcomers.getSnapshot(NEWCOMERS).rows.find((row) => row.handle === handle)).toMatchObject({ batch: { state: 'ready' } });
+    expect(h.boards.newcomers.greetHereState?.(handle)).toMatchObject({ s: 'ready', text: 'Hi there!' });
+    expect(await writing).toMatchObject({ ok: true });
   });
 });
 
@@ -1776,8 +1808,9 @@ describe('«Рассылка» on ChatSpace: one click — one message; what wen
   const fan = (fanRef: string): string => fanHandle('outreach', PAGE.pageId, fanRef);
 
   /** Two fans of the chosen tiers, the common text, one click for both versions (MAIN's checkpoint is the first fan's). */
-  async function written(commit: NonNullable<HostAnswers['commit']>) {
+  async function written(commit: NonNullable<HostAnswers['commit']>, before?: (h: Harness) => Promise<void>) {
     const h = await harness({ config: X8, answers: { commit } });
+    await before?.(h);
     expect(await h.dispatch({ type: 'SetOutreach', open: true })).toMatchObject({ ok: true, outcome: 'opened' });
     const vm = () => h.boards.outreach.getSnapshot(OUTREACH);
     const row = (fanRef: string) => vm().rows.find((entry) => entry.handle === fan(fanRef)) ?? vm().aside.find((entry) => entry.handle === fan(fanRef));
@@ -1834,6 +1867,21 @@ describe('«Рассылка» on ChatSpace: one click — one message; what wen
     expect((await h.dispatch({ type: 'SendOutreach', targetHandle: fan('5000') })).ok).toBe(false);
     expect(await h.dispatch({ type: 'GenerateBatch', list: 'outreach' })).toMatchObject({ ok: true, outcome: 'noop' });
     expect(h.host.calls.commits).toHaveLength(1);
+  });
+
+  it('a version sent leaves the person\'s own Spenders draft of the fan as it is: the outreach rewrote the common text, not that draft', async () => {
+    const { h, row } = await written([{ state: 'nativeEnqueued', pendingId: 'pending-1' }], async (tab) => {
+      await tab.dispatch(open('spenders'));
+      await tab.dispatch({ type: 'RevealShelf', shelfId: 'shelf-600-plus' });
+      await tab.dispatch({ type: 'OpenPreview', targetHandle: spender('5000') });
+      await tab.dispatch({ type: 'SetPreviewDraft', targetHandle: spender('5000'), text: 'my own words for later' });
+    });
+    expect(await h.dispatch({ type: 'SendOutreach', targetHandle: fan('5000') })).toMatchObject({ ok: true });
+    h.sendState({ attemptId: uuid(0x500), state: 'nativeAccepted', platformMessageId: '4100' });
+    h.sendState({ attemptId: uuid(0x500), state: 'sentObserved', platformMessageId: '4100' });
+    await h.advance(SEND_PACE_MS);
+    expect(row('5000')?.state).toBe('sent');
+    expect(h.boards.preview.draftOf('spenders', PAGE.pageId, '5000')?.text).toBe('my own words for later');
   });
 });
 

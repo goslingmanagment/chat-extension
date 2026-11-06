@@ -7,6 +7,8 @@
 
 import { signal, type ReadonlySignal } from '@preact/signals';
 
+import { VOICE_LIMITS } from '@cg/contracts/voice';
+
 /** Bars of a take's waveform. */
 export const WAVE_BARS = 56;
 
@@ -29,6 +31,12 @@ type AudioWindow = Window & { readonly AudioContext?: typeof AudioContext; reado
 
 let context: AudioContext | null = null;
 let source: AudioBufferSourceNode | null = null;
+/**
+ * Takes kept decoded, the least recently asked first: one studio's worth, as many as the desk keeps MP3s of.
+ * A shown row holds its own; this only spares a re-decode when a row comes back, so the PCM (about ten times the
+ * MP3) of takes nobody shows any more is let go instead of staying for the tab's whole life.
+ */
+const DECODED_KEPT = VOICE_LIMITS.takesPerSession;
 const decoded = new Map<string, Promise<DecodedTake>>();
 const playing = signal<NowPlaying | null>(null);
 /** Where a paused take stopped, by its sha256: its next ▶ goes on from there. */
@@ -83,7 +91,12 @@ function peaksOf(buffer: AudioBuffer): number[] {
 /** A take decoded once per sha256: the same file, the same buffer, whichever row asks. */
 export function decodeTake(win: Window, sha256: string, bytes: ArrayBuffer): Promise<DecodedTake> {
   const known = decoded.get(sha256);
-  if (known !== undefined) return known;
+  if (known !== undefined) {
+    // Asked again: it goes last, the latest to be dropped.
+    decoded.delete(sha256);
+    decoded.set(sha256, known);
+    return known;
+  }
   const run = (async (): Promise<DecodedTake> => {
     const ctx = decoderOf(win);
     // decodeAudioData takes the buffer over: the view's bytes stay whole for the handover and «Скачать».
@@ -91,7 +104,14 @@ export function decodeTake(win: Window, sha256: string, bytes: ArrayBuffer): Pro
     return { duration: buffer.duration, peaks: peaksOf(buffer), buffer };
   })();
   decoded.set(sha256, run);
-  run.catch(() => decoded.delete(sha256));
+  // A failed decode drops only its own entry: an evicted run that fails late leaves a newer one alone.
+  run.catch(() => {
+    if (decoded.get(sha256) === run) decoded.delete(sha256);
+  });
+  for (const key of decoded.keys()) {
+    if (decoded.size <= DECODED_KEPT) break;
+    decoded.delete(key);
+  }
   return run;
 }
 

@@ -39,27 +39,6 @@ export function toggleTone(current: Tone | null, picked: Tone | null): Tone | nu
   return picked === current ? null : picked;
 }
 
-/**
- * AI-003: the tone left in the chat after a Reply was admitted with `used` — the same one while the person keeps
- * tones in the chat (X45), none when a tone is one-off (Б1).
- */
-export function toneAfterStart(used: Tone | null, remember: boolean): Tone | null {
-  return remember ? used : null;
-}
-
-/** X68: tones are one-off whatever a store from before says (X45's «Помнить тон в чате» is retired). */
-export function remembersTone(_settings?: { readonly generation: { readonly rememberTone?: boolean | undefined } } | null): boolean {
-  return false;
-}
-
-/**
- * AI-003: what a chat the person left keeps of its tone — nothing while tones are kept in the chat (the desktop's
- * «until the chat switches», X45); the unused one-off tone otherwise, as before.
- */
-export function toneOnLeave(tone: Tone | null, remember: boolean): Tone | null {
-  return remember ? null : tone;
-}
-
 /** AI-007: «Ещё раз» without a new choice repeats the original's tone. */
 export function toneForRegenerate(original: Pick<OpView, 'toneUsed' | 'feature'>): Tone | null {
   return original.feature === 'reply' ? original.toneUsed : null;

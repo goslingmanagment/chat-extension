@@ -862,8 +862,6 @@ export function createPagesClient(env: PageEnv, ports: PagePorts): PagesClient {
         return { ui: { textSize: action.value } };
       case 'generation.split':
         return { generation: { split: action.value } };
-      case 'generation.rememberTone':
-        return { generation: { rememberTone: action.value } };
       case 'generation.recapBy.reply':
         return { generation: { recapBy: { reply: action.value } } };
       case 'generation.recapBy.fix':

@@ -349,6 +349,40 @@ describe('[host:fansly] «Очереди»: what goes, to whom, and what the hub
     count.dispose();
   });
 
+  it("a chat of another page opened while the minute's read of the old one is on its way: the old number and list go at once, the new page is read seconds later", async () => {
+    const clock = new FakeClock(NOW_MS);
+    let page = PAGE_ID;
+    const asked: number[] = [];
+    let answer: (list: FanQueues) => void = () => undefined;
+    const count = createQueuesCount({
+      clock,
+      visible: () => true,
+      page: () => ({ pageId: page }),
+      read: (of) => {
+        asked.push(of.pageId);
+        return asked.length === 2
+          ? new Promise<FanQueues>((resolve) => {
+              answer = resolve;
+            })
+          : Promise.resolve(LIST);
+      },
+    });
+    await clock.advance(3_000);
+    expect(count.count()).not.toBeNull();
+    await clock.advance(60_000);
+    expect(asked).toEqual([PAGE_ID, PAGE_ID]);
+    page = PAGE_ID + 1;
+    count.touch();
+    expect(count.count()).toBeNull();
+    expect(count.list()).toBeNull();
+    // The old page's answer lands late: it puts nothing on the new page's chat and does not push its read away.
+    answer(LIST);
+    await clock.advance(3_000);
+    expect(asked).toEqual([PAGE_ID, PAGE_ID, PAGE_ID + 1]);
+    expect(count.count()).not.toBeNull();
+    count.dispose();
+  });
+
   it("a queue's own message: every {name} the fan's name, the guide's first «love»; no name — {name} goes cleanly, «love» stays", () => {
     expect(fillQueueText('hey {name}, a whole month together 🥰', 'Mike')).toBe('hey Mike, a whole month together 🥰');
     expect(fillQueueText('hey {name}, a whole month together 🥰', null)).toBe('hey, a whole month together 🥰');

@@ -346,14 +346,20 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   const greetHereListeners = new Set<() => void>();
   /** 2026-10-31: the card of a handed-over «Hi» follows how it goes here; the boards tell once they started. */
   const greetRunListeners = new Set<(sentTo: string | null) => void>();
+  /**
+   * The boards are the Spenders family's chunk: a site whose slice has no Spenders (Telegram) has no boards in its lazy
+   * build, so nothing asks for them there (a board's action falls to the router's refusal, not to «Сбой интерфейса»).
+   */
+  const hasBoards = site.features['spenders'] !== undefined;
   const needsBoards = (action: UiAction): boolean =>
-    action.type === 'OpenPreview' ||
-    action.type === 'GreetNewcomer' ||
-    // «Онлайн» opens by its own action (the bar's chip).
-    (action.type === 'SetOnline' && action.open === true) ||
-    // «Очереди» too (the bar's chip, ⌘K, the strip's reminder).
-    (action.type === 'SetQueues' && (action.open === true || action.walk === 'start')) ||
-    (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface));
+    hasBoards &&
+    (action.type === 'OpenPreview' ||
+      action.type === 'GreetNewcomer' ||
+      // «Онлайн» opens by its own action (the bar's chip).
+      (action.type === 'SetOnline' && action.open === true) ||
+      // «Очереди» too (the bar's chip, ⌘K, the strip's reminder).
+      (action.type === 'SetQueues' && (action.open === true || action.walk === 'start')) ||
+      (action.type === 'Navigate' && action.to.kind === 'surface' && action.to.open && BOARD_SURFACES.includes(action.to.surface)));
   /** What a board could not say itself (it has closed, or its row keeps nothing of it): a toast with the code. */
   const say = (code: CgCode, scope: string, title: I18nKey | null): void => {
     const entry = CG_REGISTRY[code];
@@ -817,8 +823,9 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
   );
 
   // «Рассылки» (2026-11-01): an outreach open or folded when the page last went comes back as its chip — the boards start
-  // for it now, not at the first board the person opens (one read of the key; nothing else is asked).
-  if (env.outreachSaved !== undefined && env.outreachSaved !== null) {
+  // for it now, not at the first board the person opens (one read of the key; nothing else is asked). The key is shared
+  // by every site's tab: one with no boards (Telegram) never starts them for another site's outreach.
+  if (hasBoards && env.outreachSaved !== undefined && env.outreachSaved !== null) {
     void env.outreachSaved.load().then(
       (raw) => {
         if (!disposed && foldedRecently(raw, Date.now(), OUTREACH_CHIP_BACK_MS)) void ensureBoards().catch(() => undefined);
@@ -934,6 +941,11 @@ export async function startTabApp<P extends HostPort, C>(env: TabAppEnv<P>, site
             }),
           );
           return ready;
+        }).catch((error: unknown) => {
+          // The chunks loaded but the boards did not start: said once in the log, and the promise stays rejected for
+          // the tab's life (a second start over a half-registered router would only fail again and leak listeners).
+          logger.error('tab.app', 'a part of the application did not start', { code: 'CG-UI-FAILED', fields: { part: 'boards-start', name: error instanceof Error ? error.name : typeof error } });
+          throw error;
         }),
       (error: unknown) => {
         boards = null;

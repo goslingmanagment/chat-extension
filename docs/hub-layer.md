@@ -72,10 +72,6 @@ Fansly — группа), и только хабу с `conversation-recaps-v1`. 
 выложили 2026-10-08 (`apps/extension/test/wiring-background.test.ts`, «a hub older than
 the vendored SDK»).
 
-Особенность вендоренного SDK: путь `spenderBatch` — `/api/v2/spenders:batch`,
-а сборщик путей SDK читает `:batch` как параметр и падает. Такой путь слой
-отправляет сам, с тем же методом, авторизацией и заголовками (`sdk-transport.ts`).
-
 На каждом запросе — `x-client-version: chat-extension/<версия>`. Никогда не
 вызываются: `/ofapi/*`, поток событий, полные персоны, сырой шлюз AI,
 маршрут Fansly `followerOutreachAttempt`, `pageTopSpenders`, маршруты кабинета для

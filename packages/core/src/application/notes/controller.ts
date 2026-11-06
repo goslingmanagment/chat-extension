@@ -412,6 +412,10 @@ export function createNotesController(port: NotesPort): NotesController {
   const moves = new Map<string, Move>();
   /** Who created and last changed each note, by fan (the hub's record, then the person's own writes as they land). */
   const authors = new Map<string, Map<string, NoteAuthorship>>();
+  /** The fan's «Анкета» create, by fan: on its way (it answers with its failure, null — it landed), or one that failed
+   * and may have landed (its error) until a fresh read. A field and a ✓ both create it: one waits for the other's, never
+   * a second questionnaire beside it (FS-NOTE-4). */
+  const formCreates = new Map<string, Promise<NotesErrorWire | null> | NotesErrorWire>();
   let view: NotesView = 'drawer';
   /** The person wants the panel (for «Всегда справа»: unless closed). */
   let wanted = false;
@@ -460,6 +464,7 @@ export function createNotesController(port: NotesPort): NotesController {
       clip = null;
       moves.clear();
       authors.clear();
+      formCreates.clear();
       confirm = null;
       deleting = null;
       deleteError = null;
@@ -820,6 +825,8 @@ export function createNotesController(port: NotesPort): NotesController {
       move.blocked = false;
       move.problem = null;
     }
+    // A failed «Анкета» create is answered now; one still on its way is not.
+    if (!(formCreates.get(fanId) instanceof Promise)) formCreates.delete(fanId);
     if (nameStates.get(fanId)?.status === 'unconfirmed') nameStates.delete(fanId);
     const typed = nameDrafts.get(fanId);
     if (typed !== undefined && nameStates.get(fanId)?.status !== 'saving' && !sameName(typed.current, customName)) nameChanged(fanId, typed.value, customName);
@@ -1035,11 +1042,23 @@ export function createNotesController(port: NotesPort): NotesController {
    * press writes into it.
    */
   async function writeForm(data: Data, to: NotesWho, onto: NoteData | null, text: string, how: NoteWriteHow): Promise<{ readonly ok: true } | { readonly ok: false; readonly problem: NotesProblem; readonly blocked: boolean }> {
+    const before = onto === null ? formCreates.get(data.fanRef) : undefined;
+    if (before !== undefined) {
+      // Another create of it is on its way, or failed and may have landed: this write goes into the one made, never
+      // beside it (`changed`: the field's next Enter or the ✓ by itself writes into it), or waits for a fresh read.
+      const failed = before instanceof Promise ? await before : before;
+      const made = failed === null ? formNote(dataOf(data.fanRef) ?? data) : null;
+      if (made !== null) return { ok: false, problem: { kind: 'changed', latest: { title: made.title, text: made.text } }, blocked: false };
+      return { ok: false, problem: { kind: 'failed', error: failed ?? { code: 'CG-NOTE-UNCERTAIN' }, created: true }, blocked: true };
+    }
+    const landed = onto === null ? holdCreate(data.fanRef) : null;
     const answer = await (onto === null ? port.create(to, NOTE_TEMPLATE_TITLE, text, how) : port.edit(to, onto.noteId, onto.title, text, { title: onto.title, text: onto.text }, how)).catch(toFailure);
     if (answer.ok) {
       saved(data.fanRef, answer.note);
+      landed?.(null);
       return { ok: true };
     }
+    landed?.(answer.error);
     if (onto !== null && isChanged(answer.error)) {
       const latest = latestOf<NoteData>(answer);
       if (latest !== undefined) {
@@ -1051,6 +1070,23 @@ export function createNotesController(port: NotesPort): NotesController {
     }
     // A create may have landed: another one now could make a second questionnaire.
     return { ok: false, problem: { kind: 'failed', error: answer.error, created: onto === null }, blocked: onto === null };
+  }
+
+  /** A «Анкета» create of the fan going out: what its answer says (null — it landed) settles it for every path. */
+  function holdCreate(fanId: string): (failed: NotesErrorWire | null) => void {
+    let answered: (failed: NotesErrorWire | null) => void = () => undefined;
+    const pending = new Promise<NotesErrorWire | null>((resolve) => {
+      answered = resolve;
+    });
+    formCreates.set(fanId, pending);
+    return (failed) => {
+      // Another account of the tab meanwhile: the entry is no longer this create's.
+      if (formCreates.get(fanId) === pending) {
+        if (failed === null) formCreates.delete(fanId);
+        else formCreates.set(fanId, failed);
+      }
+      answered(failed);
+    };
   }
 
   function openField(label: string): void {
@@ -1718,6 +1754,7 @@ export function createNotesController(port: NotesPort): NotesController {
       quicks.clear();
       fills.clear();
       moves.clear();
+      formCreates.clear();
       clip = null;
     },
   };

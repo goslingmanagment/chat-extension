@@ -37,7 +37,7 @@ import { type SendJournalEntry } from '@cg/contracts/send';
 import { STORAGE_KEYS } from '@cg/contracts/settings';
 import { isNativeSendEntry } from '@cg/core/domain/send';
 import { type KeyValueStore as ThrowingStore } from '@cg/core/services';
-import { type SendJournal, type SendJournalUpdate } from '@cg/core/services/custody';
+import { isOpenSendState, type SendJournal, type SendJournalUpdate } from '@cg/core/services/custody';
 
 const KEY = STORAGE_KEYS.sendJournal;
 
@@ -97,7 +97,9 @@ export function sendJournalStoreOver(journal: SendJournal): ThrowingStore {
           if (entry.state === 'preparing') continue;
         } else {
           seen.add(entry.attemptId);
-          if (sameFacts(existing, entry)) continue;
+          // A finished record is final: the journal refuses any rewrite of it, and a refusal here would fail every
+          // later write of the list (a late pair's sentObserved comes without the uncertain code the journal keeps).
+          if (sameFacts(existing, entry) || (existing.state === entry.state && !isOpenSendState(existing.state))) continue;
         }
         const moved = await journal.advance(entry.attemptId, updateOf(entry));
         if (!moved.ok) throw storageError(moved.code === 'CG-STORAGE-VERSION' ? moved.code : 'CG-STORAGE-WRITE', `${KEY} ${entry.attemptId}`);

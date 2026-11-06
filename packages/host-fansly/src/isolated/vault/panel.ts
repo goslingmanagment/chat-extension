@@ -1,6 +1,6 @@
 // The vault panel's controller (docs/project-unite/architecture.md §7.11, §7.21; FS-VLT-1; VA-001…VA-006; R20 P13b):
-// what the person sees and asks on `/creator/vault`, over the uploader and the run of P13a. The old extension's panel
-// (fansly-chat `src/content/vault/vault-panel.ts`) without its DOM: the model is `VaultPanelVM`
+// what the person sees and asks on `/creator/vault`, over the uploader and the set's run (bulk.ts). The old extension's
+// panel (fansly-chat `src/content/vault/vault-panel.ts`) without its DOM: the model is `VaultPanelVM`
 // (contracts vault-fansly.ts), the panel's UI draws it (ui/hosts/fansly/vault) and asks by `VaultPanelAction`.
 //
 // - The page's facts — the creator, the open album, «Upload to Vault» — are read when something says they moved: the
@@ -33,7 +33,7 @@ import type { VaultAlbumOrder, VaultItemState, VaultOrderCheck, VaultPanelAction
 import { vaultMediaKey } from './dom';
 import { createVaultBulkRun } from './bulk';
 import { planVaultUpload, type VaultPlan } from './plan';
-import { VAULT_CHECKPOINT_TTL_MS, createVaultRun, findVaultCheckpoint, sameVaultFiles, type VaultAlbumApi, type VaultCheckpointStore, type VaultRun, type VaultRunSnapshot } from './run';
+import { VAULT_CHECKPOINT_TTL_MS, findVaultCheckpoint, sameVaultFiles, type VaultAlbumApi, type VaultCheckpointStore, type VaultRun, type VaultRunSnapshot } from './run';
 import { vaultTargetOf, type VaultTarget, type VaultUploader, type VaultView } from './upload';
 
 /**
@@ -54,12 +54,12 @@ export interface VaultPanelDeps {
   readonly now?: () => number;
   readonly newId?: () => string;
   /**
-   * The album through Fansly's API (2026-11-03): with it a run takes the whole set at once and lays the album out by one
-   * request (bulk.ts); without it, file by file (run.ts).
+   * The album through Fansly's API (2026-11-03): the set's run (bulk.ts) takes the whole set at once and lays the album
+   * out by one request. Required: the file-by-file run (run.ts) decides «in the album» by the name alone.
    */
-  readonly api?: VaultAlbumApi;
-  /** Tests: the run of the set (bulk.ts) with `api`, else the run of P13a. */
-  readonly createRun?: typeof createVaultRun;
+  readonly api: VaultAlbumApi;
+  /** Tests: another run in place of the set's. */
+  readonly createRun?: typeof createVaultBulkRun;
   /**
    * Whether this tab's traffic goes through the proxy of `account`'s page (the background's `fansly.vault.route`); the
    * upload starts only on `ok`. A read that fails is `no-list`. Absent — not asked (tests of the run alone).
@@ -131,7 +131,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   const { uploader, store } = deps;
   const now = deps.now ?? (() => Date.now());
   const newId = deps.newId ?? (() => crypto.randomUUID());
-  const makeRun = deps.createRun ?? (deps.api === undefined ? createVaultRun : createVaultBulkRun);
+  const makeRun = deps.createRun ?? createVaultBulkRun;
   /** The upload of a set tells a Live Photo's photo and video of one name apart; the file-by-file run cannot. */
   const livePairs = makeRun === createVaultBulkRun;
   const listeners = new Set<(view: VaultPanelVM) => void>();
@@ -177,7 +177,7 @@ export function createVaultPanel(deps: VaultPanelDeps): VaultPanel {
   const bind = (at: VaultTarget, files: readonly File[], checkpoint: VaultCheckpoint | null): Bound => {
     const uploadId = checkpoint?.uploadId ?? newId();
     let made: Bound | null = null;
-    const run = makeRun({ target: at, files, checkpoint }, { uploader, store, now, newId: () => uploadId, ...(deps.api === undefined ? {} : { api: deps.api }) }, (snapshot) => {
+    const run = makeRun({ target: at, files, checkpoint }, { uploader, store, now, newId: () => uploadId, api: deps.api }, (snapshot) => {
       if (made === null || bound !== made) return;
       made.snapshot = snapshot;
       if (snapshot.state === 'complete') {

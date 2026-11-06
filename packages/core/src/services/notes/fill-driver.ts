@@ -1,9 +1,10 @@
 // «Заполнить из чата» (`notes-fill`) as the shared scheduler runs it for a site with no driver of its own (2026-10-28:
 // ChatSpace, whose notes are OnlyMonster's fan notes). Admitted like Reply — one per chat, three per tab, its
-// timeouts, cancel and kept result — and streamed from the hub's `fan-notes-fill`. The same request as Fansly's own
-// driver (services/hosts/fansly/operations.ts): the deep window (never fewer than 3000 messages, the owner's deeper
-// setting above it), the questionnaire's labels and values in the body and nowhere else (FS-NOTE-5), the open chat's
-// fresh text where the page lets it in. The target says the platform and its ids (on OnlyFans the chat is the fan).
+// timeouts, cancel and kept result — and streamed from the hub's `fan-notes-fill`. Fansly's own driver
+// (services/hosts/fansly/operations.ts) is this one, its start held to a Fansly chat at `prepare`: the deep window
+// (never fewer than 3000 messages, the owner's deeper setting above it), the questionnaire's labels and values in the
+// body and nowhere else (FS-NOTE-5), the open chat's fresh text where the page lets it in. The target says the platform
+// and its ids (on OnlyFans the chat is the fan).
 
 import { HubStreamRequestSchema, hasCapability, type HubStreamRequest } from '@cg/contracts/hub';
 import { NOTES_FILL_OP_DRIVER, NOTES_FILL_OP_LIMITS, NotesFillOpViewSchema, NotesFillStartSchema, type NotesFillOpView } from '@cg/contracts/notes-fill';

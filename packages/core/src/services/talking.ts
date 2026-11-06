@@ -75,8 +75,10 @@ export class TalkingMarksService {
 
   /** The tabs changed: a page that appears is asked at once; none left — the polling stops and the marks go. */
   tabsChanged(): void {
+    // The capability first: the pages are a pass over every tab's accounts, asked at every presence report.
+    if (!this.deps.enabled()) return this.stop();
     const pages = this.deps.pages();
-    if (pages.length === 0 || !this.deps.enabled()) return this.stop();
+    if (pages.length === 0) return this.stop();
     if (pages.some((page) => !this.byPage.has(page.pageLabel))) void this.poll();
     else this.schedule();
   }

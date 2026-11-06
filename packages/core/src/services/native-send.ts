@@ -44,7 +44,7 @@ export type NativeSendOutcome =
   | 'registered'
   /** The hub answered and did not take it (the part is already counted, the route is not there). */
   | 'refused'
-  /** The hub gave no answer for as long as it was asked, or the person is not signed in: it stays owed. */
+  /** The hub gave no answer for as long as it was asked, did not take the token, or the person is not signed in: it stays owed. */
   | 'undelivered';
 
 export interface NativeSendDeps {
@@ -116,6 +116,9 @@ function isOwed(value: unknown): value is Owed {
   return typeof group === 'object' && group !== null && isText(group.generationRef) && isCount(group.variant) && isCount(group.partCount);
 }
 
+/** The previous instance's journal as it was read: `none` — nothing kept; else what of it was dropped. */
+type Journal = 'unreadable' | 'none' | { readonly dropped: number; readonly over: boolean };
+
 export class NativeSendRegistrar {
   /** What the hub has not answered yet, by registration key; journaled. */
   private readonly owed = new Map<string, Owed>();
@@ -124,6 +127,8 @@ export class NativeSendRegistrar {
   /** What the hub already answered, while this event page lives: a late repeat of the same report asks nothing again. */
   private readonly answered = new Map<string, NativeSendOutcome>();
   private readonly writes = new WriteQueue();
+  /** The previous instance's journal, read once (`load`): every write of this one waits for it. */
+  private loaded: Promise<Journal> | null = null;
   private readonly log: LogSink;
 
   constructor(private readonly deps: NativeSendDeps) {
@@ -132,27 +137,61 @@ export class NativeSendRegistrar {
 
   /** After the event page woke up: what the previous instance still owed is delivered under the sender's sign-in. */
   async restore(): Promise<number> {
+    if (this.deps.store === undefined) return 0;
+    const journal = await this.load();
+    if (journal === 'unreadable') {
+      this.log.write({ level: 'warn', scope: 'bg.send', msg: 'owed native sends unreadable, starting empty', code: 'CG-STORAGE-READ' });
+      return 0;
+    }
+    if (journal === 'none') return 0;
+    if (journal.dropped > 0 || journal.over) this.save();
+    if (this.owed.size > 0) this.log.write({ level: 'info', scope: 'bg.send', msg: 'owed native sends restored', fields: { owed: this.owed.size, dropped: journal.dropped } });
+    this.resume();
+    return this.owed.size;
+  }
+
+  /**
+   * The previous instance's journal, read once and merged under what this one registered before it (that wins on its
+   * key, its delivery may be on its way with its attempt id, and goes after it): a registration made before `restore`
+   * never writes over what the previous instance owed. Never rejects.
+   */
+  private load(): Promise<Journal> {
+    this.loaded ??= this.read();
+    return this.loaded;
+  }
+
+  private async read(): Promise<Journal> {
     const store = this.deps.store;
-    if (store === undefined) return 0;
+    if (store === undefined) return 'none';
     let raw: unknown;
     try {
       raw = await store.get(NATIVE_SENDS_KEY);
     } catch {
-      this.log.write({ level: 'warn', scope: 'bg.send', msg: 'owed native sends unreadable, starting empty', code: 'CG-STORAGE-READ' });
-      return 0;
+      return 'unreadable';
     }
     const stored = typeof raw === 'object' && raw !== null && (raw as { v?: unknown }).v === 1 ? (raw as { owed?: unknown }).owed : undefined;
-    if (!Array.isArray(stored)) return 0;
+    if (!Array.isArray(stored)) return 'none';
     const now = this.deps.clock.now();
     let dropped = 0;
+    const registered = [...this.owed];
+    this.owed.clear();
     for (const item of stored.slice(-NATIVE_SENDS_MAX)) {
       if (!isOwed(item) || now - item.at > NATIVE_SEND_KEEP_MS) dropped += 1;
-      else if (!this.owed.has(item.key)) this.owed.set(item.key, item);
+      else if (!this.answered.has(item.key)) this.owed.set(item.key, item);
     }
-    if (dropped > 0 || stored.length > NATIVE_SENDS_MAX) this.save();
-    if (this.owed.size > 0) this.log.write({ level: 'info', scope: 'bg.send', msg: 'owed native sends restored', fields: { owed: this.owed.size, dropped } });
-    this.resume();
-    return this.owed.size;
+    // Oldest first: what this instance registered goes after what the previous one owed.
+    for (const [key, owed] of registered) {
+      this.owed.delete(key);
+      this.owed.set(key, owed);
+    }
+    let over = stored.length > NATIVE_SENDS_MAX;
+    while (this.owed.size > NATIVE_SENDS_MAX) {
+      const oldest = this.owed.keys().next().value;
+      if (oldest === undefined) break;
+      this.owed.delete(oldest);
+      over = true;
+    }
+    return { dropped, over };
   }
 
   /** `op.reportSent` of a tab: `view` is the operation the sent draft descends from. */
@@ -246,6 +285,8 @@ export class NativeSendRegistrar {
         const failure = failureOf(error);
         // The sign-in ended under the call: nothing was refused, the registration waits for the person.
         if (this.deps.owner() !== owed.owner) return done('undelivered', i + 1);
+        // A token the hub did not take: the person signs in again and the registration goes then (as owed-report.ts).
+        if (failure !== null && failure.kind === 'http' && failure.status === 401) return done('undelivered', i + 1);
         // A refusal of the hub layer itself (no such route on this hub) or an answer of the hub: final.
         if (failure === null || !reportRetryable(failure)) return done('refused', i + 1);
         const delay = REPORT_RETRY_DELAYS_MS[i];
@@ -259,7 +300,11 @@ export class NativeSendRegistrar {
     const store = this.deps.store;
     if (store === undefined) return;
     void this.writes
-      .run(() => store.set(NATIVE_SENDS_KEY, { v: 1, owed: [...this.owed.values()] }))
+      .run(async () => {
+        // Never over the previous instance's journal unread: what it owed is merged in first.
+        await this.load();
+        await store.set(NATIVE_SENDS_KEY, { v: 1, owed: [...this.owed.values()] });
+      })
       .catch(() => this.log.write({ level: 'warn', scope: 'bg.send', msg: 'owed native sends not saved', code: 'CG-STORAGE-WRITE' }));
   }
 }

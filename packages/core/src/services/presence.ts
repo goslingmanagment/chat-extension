@@ -117,6 +117,8 @@ export interface PresenceService {
   tabsShowing(chatKey: ChatKey): readonly string[];
   /** `accounts.seen`, newest first. */
   seenAccounts(): readonly SeenAccountView[];
+  /** One seen account (the newest of the key), without counting the tabs: a lookup of every presence report. */
+  seenAccount(host: HostAccount['host'], hostAccountId: string): HostAccount | null;
   /** «Очистить локальные данные». */
   clearSeen(): Promise<boolean>;
   onChange(listener: () => void): () => void;
@@ -285,6 +287,10 @@ export function createPresence(deps: PresenceDeps): PresenceService {
         }
         return { account: { ...item.account }, lastSeenAt: item.lastSeenAt, openTabs, routeTabs };
       });
+    },
+    seenAccount(host, hostAccountId) {
+      const item = seen.find((entry) => entry.account.host === host && entry.account.hostAccountId === hostAccountId);
+      return item === undefined ? null : { ...item.account };
     },
     clearSeen() {
       return chain(async () => {

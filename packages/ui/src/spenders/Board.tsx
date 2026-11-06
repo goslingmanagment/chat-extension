@@ -19,7 +19,7 @@ import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type BatchVM, type I18n, type ShelfVM, type SpenderRowVM, type SpendersBoardVM, type SpendersFilter, type SpendersPeriod, type SpendersSort, type UiAction } from '@cg/contracts/vm';
 
-import { chatClick, ActionButton, activeIn, CheckGlyph, FanBadge, isComposing, Spinner, TalkingMark, useAnnounce, useDispatch, useI18n, useMinuteClock, useSpokenMoney, useTooltip, ViewState, VirtualList } from '../kit';
+import { chatClick, ActionButton, activeIn, CheckGlyph, FanBadge, focusQuietly, isComposing, Spinner, tabbables, TalkingMark, useAnnounce, useDispatch, useI18n, useKit, useMinuteClock, useSpokenMoney, useTooltip, ViewState, VirtualList } from '../kit';
 import { BatchBar, BatchCheck, BatchLine, inBatch } from './batch';
 import { rowKeyOf, useRowFocus } from './rowFocus';
 import { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, initialStop, inlinePreviewHeight, isStop, nextStop, shelfLabel, shelfTier, type BoardItem } from './rows';
@@ -505,11 +505,19 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
   useEffect(() => {
     if (currentKey !== activeKey) setActiveKey(currentKey);
   }, [currentKey, activeKey]);
+  // The keyboard's row follows the picked fan (a neighbour step from the preview, SP-056): closing the preview goes
+  // back to the fan just viewed (ui-design §6.3). Only a new pick moves it, so J / K over the rows still go their own way.
+  const selectedKey = useMemo(() => items.find((item) => item.kind === 'fan' && item.row.selected)?.key ?? null, [items]);
+  useEffect(() => {
+    if (selectedKey !== null) setActiveKey(selectedKey);
+  }, [selectedKey]);
   const { wrapRef, listRef, focusRow, settle } = useRowFocus(currentKey);
 
+  const hasRows = items.length > 0;
+  const showList = hasRows && board.view.s !== 'error' && board.view.s !== 'forbidden' && board.view.s !== 'empty';
   // X66: the unfolded preview takes the room the list has under its row; the list's height is measured, not guessed.
+  // The list comes and goes with the view (an error card stands in its place while the rows stay): each one is measured.
   const [listHeight, setListHeight] = useState(0);
-  const showsRows = items.length > 0;
   useLayoutEffect(() => {
     const node = wrapRef.current;
     if (node === null) return undefined;
@@ -520,7 +528,7 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
     const observer = new view.ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [wrapRef, showsRows]);
+  }, [wrapRef, showList]);
   const previewHeight = inlinePreviewHeight(listHeight);
   const rowHeight = useCallback((item: BoardItem): number => boardItemHeight(item, previewHeight), [previewHeight]);
   // A preview that unfolds (a click, Space, the neighbouring fan) brings its row and itself into view together, and
@@ -555,6 +563,19 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
     const timer = setTimeout(reveal, wait);
     return () => clearTimeout(timer);
   }, [unfoldedKey, unfoldedAt, previewHeight, listRef]);
+  // A neighbour step (J / K, ← →, the preview's ↑ ↓) unfolds another row: the preview that had the focus is gone with
+  // its row, and the focus would fall out of the window, where no key of ours is heard. It goes into the new preview.
+  // A click on another fan's row keeps the focus on that row.
+  const { root } = useKit();
+  const unfoldedBefore = useRef(unfoldedKey);
+  useLayoutEffect(() => {
+    const before = unfoldedBefore.current;
+    unfoldedBefore.current = unfoldedKey;
+    if (before === null || unfoldedKey === null || before === unfoldedKey || activeIn(root) !== null) return;
+    const box = wrapRef.current?.querySelector<HTMLElement>('[data-cg-unfolded]') ?? null;
+    // An error or a refused preview has no feed: its first control then.
+    if (box !== null) focusQuietly(box.querySelector<HTMLElement>('.cg-feed') ?? tabbables(box)[0]);
+  }, [unfoldedKey, root, wrapRef]);
 
   const move = (from: number, to: number): void => {
     const item = items[to];
@@ -666,9 +687,7 @@ export function Board({ board, boardRef, unfolded = null, narrow = false }: Boar
   // A cut list says it once: «Показаны первые 1000 из 1240…» stands in for «1000 из 1240 фанов» (the header has the count).
   const cutText = cut === null ? null : cut.total === null ? i18n.t('spenders.truncatedNoTotal', { shown: cut.shown }) : i18n.t('spenders.truncated', { shown: cut.shown, total: cut.total });
   const footerText = cutText === null ? `${loaded}${shownText}` : shownText === '' ? cutText : `${cutText} ${shownText.replace(/^[\s.]+/, '')}`;
-  const hasRows = items.length > 0;
   const fallback = board.waitingFallback ?? null;
-  const showList = hasRows && board.view.s !== 'error' && board.view.s !== 'forbidden' && board.view.s !== 'empty';
   // A batch's progress stands over the list once nobody is ticked (the ticked have the bar row of the window).
   const progress = board.batch !== undefined && board.batch.picked === 0;
   return (

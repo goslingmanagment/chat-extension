@@ -1,16 +1,16 @@
 // What the two list windows share (ui-design §3.5, §3.6, §4.14, §4.17): the
-// 52 px header — title, page name, tabs, search, an × for «Закрыть Esc» (X65) —, «Обновить» and «данные на 09:18» when the data are old, and small
+// look of the 52 px header (each window draws its own, X65), «Обновить», and small
 // helpers of every board surface: the coverage word, the unknown mark of the
 // I18n port, «is the person typing in one of our fields».
 
-import { type ComponentChildren, type JSX } from 'preact';
+import { type JSX } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 
 import { type I18nKey } from '@cg/contracts/errors';
 import { type DataStamp, type I18n } from '@cg/contracts/vm';
 
 import { BATCH_CSS } from './batch';
-import { Button, Icon, Menu, MenuAnchor, menuTriggerKeys, useDispatch, useI18n, useMinuteClock, useNowFn, type MenuItem, type StyleSource } from '../kit';
+import { Button, Icon, Menu, MenuAnchor, menuTriggerKeys, useDispatch, useI18n, type MenuItem, type StyleSource } from '../kit';
 
 const COVERAGE_KEYS: Readonly<Record<DataStamp['coverage'], I18nKey>> = {
   complete: 'common.coverage.complete',
@@ -28,11 +28,6 @@ export function unknownMark(i18n: I18n): string {
   return i18n.formatMoneyMills(null);
 }
 
-/** «3 ч», «19 д»; unknown — `—`. */
-export function ageOrUnknown(i18n: I18n, at: string | number | null): string {
-  return at === null ? unknownMark(i18n) : i18n.formatAge(at);
-}
-
 /** «09:18»; unknown — `—`. */
 export function timeOrUnknown(i18n: I18n, at: string | number | null): string {
   return at === null ? unknownMark(i18n) : i18n.formatTime(at);
@@ -48,27 +43,6 @@ export function isTextEntry(target: EventTarget | null): boolean {
 /** A plain key press: no Ctrl, Alt or ⌘ (Shift is allowed for `/` on some layouts). */
 export function isPlainKey(event: KeyboardEvent): boolean {
   return !event.ctrlKey && !event.altKey && !event.metaKey;
-}
-
-export interface WindowHeaderProps {
-  readonly title: string;
-  readonly pageName: string | null;
-  readonly onClose: () => void;
-  /** Tabs, a `.cg-sp__grow` spacer, search, notes: between the page name and «Закрыть». */
-  readonly children?: ComponentChildren;
-}
-
-/** The 52 px header of Spenders; «Закрыть» is an × with «Закрыть  Esc» in its tooltip (X65). */
-export function WindowHeader({ title, pageName, onClose, children }: WindowHeaderProps): JSX.Element {
-  const i18n = useI18n();
-  return (
-    <header class="cg-sp__top">
-      <h2 class="cg-sp__title">{title}</h2>
-      {pageName === null ? null : <span class="cg-sp__page">{pageName}</span>}
-      {children}
-      <Button label={i18n.t('common.close')} icon="x" iconOnly variant="quiet" tooltip={i18n.t('spenders.closeTooltip')} class="cg-sp__close" onClick={onClose} />
-    </header>
-  );
 }
 
 /** A filter of a list with its count: «Ждут ответа 12» (`aria-pressed`, one pressed per group). */
@@ -185,20 +159,6 @@ export function RefreshButton({ views, stamp }: { readonly views: readonly Refre
   );
 }
 
-/** Data older than this say their time aloud in the header; fresher ones keep it in the tooltip of «Обновить». */
-export const STALE_AFTER_MS = 15 * 60_000;
-
-/** «данные на 09:18» in the window's header — only when the data are old enough to matter (X65; ui-design §1 п. 7). */
-export function StaleStamp({ stamp }: { readonly stamp: DataStamp }): JSX.Element | null {
-  const i18n = useI18n();
-  const now = useNowFn();
-  useMinuteClock(stamp.asOf !== null);
-  if (stamp.asOf === null) return null;
-  const at = Date.parse(stamp.asOf);
-  if (!Number.isFinite(at) || now() - at < STALE_AFTER_MS) return null;
-  return <span class="cg-sp__asof">{i18n.t('common.dataAsOf', { time: { time: stamp.asOf } })}</span>;
-}
-
 export const WINDOW_CSS = `
 .cg-sp { font-size: var(--cg-text-base); line-height: 18px; color: var(--cg-ink); }
 .cg-sp__frame { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -215,7 +175,6 @@ export const WINDOW_CSS = `
 .cg-sp__filters { flex: none; display: flex; align-items: center; gap: 2px; margin-left: 8px; min-width: 0; }
 .cg-sp__filters > .cg-spin { margin-left: 8px; }
 .cg-sp__filters .cg-menu { z-index: 6; }
-.cg-sp__asof { flex: none; font-size: var(--cg-text-sm); color: var(--cg-ink-muted); white-space: nowrap; }
 .cg-sp__top > .cg-sp__refresh { margin: 0; }
 .cg-flt { height: 28px; padding: 0 8px; border-radius: var(--cg-r-md); color: var(--cg-ink-muted); white-space: nowrap; flex: none; }
 .cg-flt:hover { background: var(--cg-hover); color: var(--cg-ink); }

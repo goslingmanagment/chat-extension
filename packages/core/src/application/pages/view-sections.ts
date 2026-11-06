@@ -274,8 +274,6 @@ export function generationBody(model: PagesModel): GenerationBodyVM | null {
     section: 'generation',
     windows: { ...settings.generation.windows, deepMax: valueOf(model.bootstrap)?.limits.deepMax ?? null, savedAs: model.deepSavedAs },
     split: settings.generation.split,
-    // «Помнить тон в чате» (X45): absent in a store from before 1.18.0 — on.
-    rememberTone: settings.generation.rememberTone !== false,
     // «Учитывать Recap» per feature (1.52.0): absent — the shared one of 1.50.0, then on.
     recapBy: { reply: recapByDefault(settings, 'reply'), fix: recapByDefault(settings, 'fix'), ping: recapByDefault(settings, 'ping'), coach: recapByDefault(settings, 'coach') },
     // 2026-10-27: Coach's own depth — absent in a store from before it: 300.

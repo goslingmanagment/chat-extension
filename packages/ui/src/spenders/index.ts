@@ -14,13 +14,13 @@ export { Board, BoardFilters, PERIOD_KEYS, periodName, type BoardHandle, type Bo
 export { StatsColumn, StatsExpanded, StatsRail, d7Change, formatPct, statsDayName, zoneLabel, type StatsProps, type StatsShow } from './Stats';
 export { useRowFocus, type RowFocus } from './rowFocus';
 export { BOARD_HEIGHTS, boardItemHeight, boardItems, edgeStop, fanCount, initialStop, isStop, nextStop, shelfLabel, shelfTier, statsShelfLabel, type BoardItem } from './rows';
-export { PREVIEW_STYLES, Preview, matchesHotkey, type PreviewProps } from './preview/Preview';
+export { PREVIEW_STYLES, Preview, type PreviewProps } from './preview/Preview';
 export { PANEL_STYLES, PanelPreview, type PreviewFallback } from './preview/PanelPreview';
 export { PreviewResult, type PreviewResultProps } from './preview/Result';
 export { SendRow, codeLineParts, sendStateWords, type SendRowProps } from './preview/SendRow';
 export { MiniStrip, generateAction, pingHint, type MiniStripProps } from './preview/MiniStrip';
 export { Feed, type FeedProps } from './preview/Feed';
-export { FilterChip, RefreshButton, StaleStamp, WINDOW_STYLES, WindowHeader, ageOrUnknown, coverageWord, isPlainKey, isTextEntry, timeOrUnknown, unknownMark, type RefreshableView, type WindowHeaderProps } from './window';
+export { FilterChip, RefreshButton, WINDOW_STYLES, coverageWord, isPlainKey, isTextEntry, timeOrUnknown, unknownMark, type RefreshableView } from './window';
 
 export const SPENDERS_STYLES: StyleSource = { id: 'cg-spenders', css: SPENDERS_CSS };
 

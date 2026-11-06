@@ -455,7 +455,12 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       if (chat.platformFanId === OUTREACH_PICKER_FAN) syncOutreach();
       else if (outreachOn) for (const listener of [...batchListeners]) listener();
     },
-    shown: (chat) => (chat.platformFanId === OUTREACH_PICKER_FAN ? outreachOn : [...targets.values()].some((target) => target.fanRef === chat.platformFanId && chatOf(target)?.hostAccountId === chat.hostAccountId)),
+    // A fan holding the live outreach's media is kept aside too: its card closed at once, yet its release forms were read for
+    // the click (past KEPT_MAX fans the first ones' would go, and other chats' kept picks with them).
+    shown: (chat) =>
+      chat.platformFanId === OUTREACH_PICKER_FAN
+        ? outreachOn
+        : (outreachOn && outreachMedia.picks.length > 0 && adopted.get(chatKeyOf(chat)) === outreachMedia) || [...targets.values()].some((target) => target.fanRef === chat.platformFanId && chatOf(target)?.hostAccountId === chat.hostAccountId),
   });
 
   /** The outreach's own media window picks in this «chat»: the page's account, no fan. */
@@ -1560,8 +1565,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     // NF-012, decision X47: a draft lives until it is sent or cleared. The greeting draft has done its work once a
     // part is confirmed; the draft a Fix was made from — once every part of that Fix is (earlier, the parts still to go
     // would lose the revision they answer).
-    // A draft the person changed after the Fix is their new text: it stays.
-    if (view.state === 'sentObserved' && (track.source === 'newcomers' || (track.feature === 'fix' && draftRevision(track) === track.previewRevision && fixSent(track, view.attemptId)))) {
+    // A draft the person changed after the Fix is their new text: it stays. «Рассылка»'s Fix rewrites the common text,
+    // never the fan's Spenders draft its card keys by: that draft stays too.
+    if (view.state === 'sentObserved' && (track.source === 'newcomers' || (track.feature === 'fix' && track.source !== 'outreach' && draftRevision(track) === track.previewRevision && fixSent(track, view.attemptId)))) {
       const key = ownerKey(track.source, track.pageId, track.fanRef);
       if (key !== null && findDraft(drafts, key, clock.now()) !== null) {
         drafts = removeDraft(drafts, key, clock.now());
@@ -2226,7 +2232,9 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     if (track === undefined) return { s: 'failed', code: 'CG-OP-INTERRUPTED' };
     batched.set(handle, '');
     return new Promise<BatchOutcome>((resolve) => {
-      batchWaiters.set(track.opId, resolve);
+      // A second caller that joined the same running result (a reminder's Hi during «Новые»' batch): both hear its end.
+      const earlier = batchWaiters.get(track.opId);
+      batchWaiters.set(track.opId, earlier === undefined ? resolve : (outcome) => { earlier(outcome); resolve(outcome); });
       // The same request may have reopened a result that already ended.
       if (track.mirror.done !== null) settleBatch(track);
     });
@@ -2611,6 +2619,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
     }
     const checkpoint = await host.checkpoint(chat).catch(() => null);
     if (disposed || atEpoch !== epoch || targets.get(state.handle) !== state) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
+    // A click that raced another «Отправить» (a double click): the first one took the text or set the pause; this one makes no result.
+    if (paced() || draftText(state).trim() === '') return refused(type, localError('CG-SEND-BUSY', i18n));
     const now = clock.now();
     const opId = ids.uuid();
     const view: OpView = {

@@ -4,7 +4,7 @@
 // window; the hub not answering is a warning the person passes, and the send is told to the hub when it answers. The
 // hub is the stand's own model (@cg/testing/fake-hub OutreachModel), shared by two people; the site is a double.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { type ActionReceipt, type OutreachWindowVM, type SettingsV1 } from '@cg/contracts';
 import { Surfaces, fanHandle, type PageContextPort, type PageContextState, type TabRpc } from '@cg/core/application/boards';
@@ -69,30 +69,34 @@ function memoryStore(): OutreachStorePort {
 
 /**
  * The hub as one person's tab reaches it: the shared model; `offline` — no answer; `loseClaims` — a claim the hub takes
- * whose answer never comes back; `staleGet` — a read that answers with the copy it saw before a later save.
+ * whose answer never comes back; `offClaims` — a claim answered that the hub keeps no outreaches here (the page's switch
+ * turned off); `staleGet` — a read that answers with the copy it saw before a later save.
  */
-function hubOf(model: OutreachModel, me: { readonly id: number; readonly name: string }, clock: FakeClock): OutreachHub & { offline: boolean; loseClaims: boolean; staleGet: unknown } {
+function hubOf(model: OutreachModel, me: { readonly id: number; readonly name: string }, clock: FakeClock): OutreachHub & { offline: boolean; loseClaims: boolean; offClaims: boolean; staleGet: unknown } {
   const wrap = <T>(read: { readonly ok: true; readonly body: T } | { readonly ok: false; readonly refusal: unknown }) => (read.ok ? { ok: true as const, value: read.body } : { ok: false as const, kind: 'refused' as const, code: 'CG-HUB-REQUEST', status: 409 });
   const down = { ok: false as const, kind: 'offline' as const, code: 'CG-NETWORK', status: null };
   const port = {
     offline: false,
     loseClaims: false,
+    offClaims: false,
     staleGet: null as unknown,
     list: () => Promise.resolve(port.offline ? down : wrap(model.list(PAGE, me.id, clock.now()))),
     get: (_page: number, id: string) => Promise.resolve(port.offline ? down : port.staleGet !== null ? { ok: true as const, value: port.staleGet } : wrap(model.get(PAGE, me.id, id, clock.now()))),
     save: (_page: number, id: string, body: Parameters<OutreachModel['save']>[3]) => Promise.resolve(port.offline ? down : wrap(model.save(PAGE, me, id, body, clock.now()))),
     send: (_page: number, id: string, body: Parameters<OutreachModel['send']>[3]) => {
       if (port.offline) return Promise.resolve(down);
+      if (port.offClaims && body.action === 'claim') return Promise.resolve({ ok: false as const, kind: 'off' as const, code: 'CG-FEATURE-DISABLED', status: 403 });
       const answer = wrap(model.send(PAGE, me, id, body, clock.now()));
       return Promise.resolve(port.loseClaims && body.action === 'claim' ? down : answer);
     },
     touches: () => Promise.resolve(port.offline ? down : wrap(model.touched(PAGE, me.id, clock.now()))),
   };
-  return port as unknown as OutreachHub & { offline: boolean; loseClaims: boolean; staleGet: unknown };
+  return port as unknown as OutreachHub & { offline: boolean; loseClaims: boolean; offClaims: boolean; staleGet: unknown };
 }
 
-function tab(model: OutreachModel, me: { readonly id: number; readonly name: string }, options: { readonly store?: OutreachStorePort; readonly start?: number; readonly answer?: (request: OutreachRequest) => OutreachAnswer | Promise<OutreachAnswer> } = {}) {
-  const clock = new FakeClock(options.start ?? NOW_MS);
+/** One person's tab of the page; `clock` — one shared with another tab (two windows that read the hub in turn). */
+function tab(model: OutreachModel, me: { readonly id: number; readonly name: string }, options: { readonly store?: OutreachStorePort; readonly start?: number; readonly clock?: FakeClock; readonly answer?: (request: OutreachRequest) => OutreachAnswer | Promise<OutreachAnswer> } = {}) {
+  const clock = options.clock ?? new FakeClock(options.start ?? NOW_MS);
   const sent: OutreachRequest[] = [];
   const rpc = {
     request: (type: string) => Promise.resolve(type === 'token.issue' ? { ok: true, payload: { actionToken: 'token-of-the-click-0001', expiresAt: NOW_MS + 10_000 } } : { ok: false, error: { code: 'CG-UNKNOWN' } }),
@@ -386,5 +390,129 @@ describe('[host:fansly] «Рассылки» on the hub: one send per fan, whoev
     expect(me.row(TOP)).toMatchObject({ state: 'ready', version: 'Daniel, leg day pics are up' });
     expect(await me.send(TOP)).toMatchObject({ ok: true });
     expect(me.sent.map((request) => [request.fanRef, request.text])).toEqual([[TOP, 'Daniel, leg day pics are up']]);
+  });
+
+  it("two windows of one outreach take the hub's text as it is: before the versions neither saves its own marks of it again and again", async () => {
+    const model = new OutreachModel();
+    const saves = vi.spyOn(model, 'save');
+    const me = tab(model, ME);
+    await me.act({ type: 'SetOutreach', open: true });
+    await me.act({ type: 'SetOutreach', text: 'the sunset set is up' });
+    await me.later();
+    const id = idOf(model);
+    // Grisha opens the same outreach on his computer; the two windows read the hub in turn.
+    const grisha = tab(model, GRISHA, { clock: me.clock });
+    await grisha.act({ type: 'SetOutreach', open: true });
+    expect(await grisha.act({ type: 'SetOutreach', resume: id })).toMatchObject({ ok: true });
+    await me.act({ type: 'SetOutreach', text: 'the sunset set is up, with a bonus' });
+    await me.later(40_000);
+    expect(grisha.vm().text).toBe('the sunset set is up, with a bonus');
+    const settled = saves.mock.calls.length;
+    await me.later(60_000);
+    expect(saves.mock.calls.length).toBe(settled);
+    expect(grisha.vm().textChangedAt).toBeNull();
+  });
+
+  it("a save the hub took before the window went to another outreach is never sent again over a colleague's newer text", async () => {
+    const model = new OutreachModel();
+    const me = tab(model, ME);
+    await me.written();
+    const first = idOf(model);
+    expect(await me.act({ type: 'SetOutreach', fresh: true })).toMatchObject({ ok: true });
+    await me.act({ type: 'SetOutreach', text: 'the gym set is up' });
+    await me.later();
+    const list = model.list(PAGE, ME.id, me.clock.now());
+    const second = list.ok ? (list.body.outreaches.find((item) => item.outreachId !== first)?.outreachId ?? '') : '';
+    expect(second).not.toBe('');
+    expect(await me.act({ type: 'SetOutreach', resume: first })).toMatchObject({ ok: true });
+    await me.act({ type: 'SetOutreach', text: 'the sunset set is up, with a bonus' });
+    // The other outreach opens before the change's own save to the hub: the change goes there first.
+    expect(await me.act({ type: 'SetOutreach', resume: second })).toMatchObject({ ok: true });
+    // Grisha rewrites the first one's text on his computer.
+    model.save(PAGE, GRISHA, first, { text: 'the sunset set is up, part two' }, me.clock.now());
+    const textAtHub = (): string | null => {
+      const kept = model.get(PAGE, ME.id, first, me.clock.now());
+      return kept.ok ? kept.body.text : null;
+    };
+    // The window stays open past the quiet minutes after which this computer gives the hub what it has not taken.
+    await me.later(7 * 60_000);
+    expect(textAtHub()).toBe('the sunset set is up, part two');
+    // Back in it, the colleague's text is the window's.
+    expect(await me.act({ type: 'SetOutreach', resume: first })).toMatchObject({ ok: true });
+    await me.later();
+    expect(me.vm().text).toBe('the sunset set is up, part two');
+    expect(textAtHub()).toBe('the sunset set is up, part two');
+  });
+
+  it("«Новая рассылка» right after a change: the change the hub took is never sent again over a colleague's newer text", async () => {
+    const model = new OutreachModel();
+    const me = tab(model, ME);
+    await me.written();
+    const id = idOf(model);
+    await me.act({ type: 'SetOutreach', text: 'the sunset set is up, with a bonus' });
+    // A new outreach starts before the change's own save to the hub: the change goes there now.
+    expect(await me.act({ type: 'SetOutreach', fresh: true })).toMatchObject({ ok: true });
+    model.save(PAGE, GRISHA, id, { text: 'the sunset set is up, part two' }, me.clock.now());
+    await me.later(7 * 60_000);
+    const kept = model.get(PAGE, ME.id, id, me.clock.now());
+    expect(kept.ok && kept.body.text).toBe('the sunset set is up, part two');
+  });
+
+  it("«Новая рассылка» once the hub answers again: the change it took then, kept while it did not answer, is never sent again over a colleague's newer text", async () => {
+    const model = new OutreachModel();
+    const me = tab(model, ME);
+    await me.written();
+    const id = idOf(model);
+    me.hub.offline = true;
+    await me.act({ type: 'SetOutreach', text: 'the sunset set is up, with a bonus' });
+    await me.later();
+    // The hub answers again before the change's next try: a new outreach starts, and the kept change goes there now.
+    me.hub.offline = false;
+    expect(await me.act({ type: 'SetOutreach', fresh: true })).toMatchObject({ ok: true });
+    model.save(PAGE, GRISHA, id, { text: 'the sunset set is up, part two' }, me.clock.now());
+    await me.later(7 * 60_000);
+    const kept = model.get(PAGE, ME.id, id, me.clock.now());
+    expect(kept.ok && kept.body.text).toBe('the sunset set is up, part two');
+  });
+
+  it('a claim whose answer was lost is let go at the hub when the window starts another outreach: the fan never stays «may have gone» there', async () => {
+    const model = new OutreachModel();
+    const me = tab(model, ME);
+    await me.written();
+    const id = idOf(model);
+    me.hub.loseClaims = true;
+    expect(await me.send(WHALE)).toMatchObject({ ok: false, code: 'CG-HUB-UNAVAILABLE' });
+    expect(me.sent).toEqual([]);
+    me.hub.loseClaims = false;
+    expect(await me.act({ type: 'SetOutreach', fresh: true })).toMatchObject({ ok: true });
+    const kept = model.get(PAGE, ME.id, id, me.clock.now());
+    expect(kept.ok && kept.body.fans.find((fan) => fan.fanRef === WHALE)?.send?.state).toBe('failed');
+    // Back in it, the fan's version goes by its click, once.
+    expect(await me.act({ type: 'SetOutreach', resume: id })).toMatchObject({ ok: true });
+    await me.clock.advance(OUTREACH_PACE_MS);
+    expect(await me.send(WHALE)).toMatchObject({ ok: true });
+    expect(me.sent.map((request) => request.fanRef)).toEqual([WHALE]);
+  });
+
+  it("a send another tab made while the hub kept no outreaches stands here too: the row never hangs on its way, and the other fans' «Отправить» stay", async () => {
+    const model = new OutreachModel();
+    const store = memoryStore();
+    const first = tab(model, ME, { store });
+    await first.written();
+    // The second tab opens the same outreach before the first one sends anything.
+    const second = tab(model, ME, { store, start: NOW_MS + 1_000 });
+    await second.later();
+    expect(second.row(WHALE)?.state).toBe('ready');
+    // The page's outreaches are switched off on the hub: its claims answer so, and the first tab sends on its own word.
+    first.hub.offClaims = true;
+    second.hub.offClaims = true;
+    expect(await first.send(WHALE)).toMatchObject({ ok: true });
+    await first.clock.advance(OUTREACH_SAVE_MS);
+    await settle(12);
+    expect(await second.send(WHALE)).toMatchObject({ ok: false, code: 'CG-SEND-BUSY' });
+    expect(second.row(WHALE)?.state).toBe('sent');
+    expect(second.sent).toEqual([]);
+    await second.clock.advance(OUTREACH_PACE_MS);
+    expect(second.row(TOP)?.send).toMatchObject({ can: true });
   });
 });

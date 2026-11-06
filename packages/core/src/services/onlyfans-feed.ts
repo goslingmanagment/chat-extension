@@ -9,8 +9,9 @@
 //   for the page its account is bound to, under the person signed in when it
 //   was taken. A record already sent or waiting, with nothing changed (its
 //   OnlyFans id and its content, apart from when and how it was seen), is not
-//   taken again; the memory of that is bounded (SEEN_MAX) and lives as long as
-//   the event page.
+//   taken again; the memory of that (the id and a fingerprint of the content,
+//   never the content itself) is bounded (SEEN_MAX) and lives as long as the
+//   event page.
 // - How: records of one page gather for BATCH_MS and go together, at most
 //   ONLYFANS_FEED_MAX_RECORDS and ONLYFANS_FEED_REPORT_BYTES a request, one
 //   request of a page at a time.
@@ -31,6 +32,7 @@
 
 import { ONLYFANS_FEED_MAX_RECORDS, ONLYFANS_FEED_REPORT_BYTES, OnlyfansFeedRecordSchema, onlyfansFeedRecordKey, type HubFacade, type HubFailure, type OnlyfansFeedRecord } from '@cg/contracts/hub';
 
+import { stableDigest } from '../domain/ops/digest';
 import { reportRetryable } from '../domain/send';
 import { NO_LOG, type Clock, type LogSink, type TimerHandle } from './ports';
 
@@ -77,23 +79,12 @@ function failureOf(error: unknown): HubFailure | null {
   return (error as { readonly name?: unknown }).name === 'HubCallError' && typeof failure === 'object' && failure !== null ? (failure as HubFailure) : null;
 }
 
-const canonical = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (typeof value === 'object' && value !== null) {
-    return Object.fromEntries(
-      Object.keys(value)
-        .sort()
-        .map((key) => [key, canonical((value as Record<string, unknown>)[key])]),
-    );
-  }
-  return value;
-};
-
 /** What a record says apart from when and how the page got it: two tabs that saw the same thing say the same. Pure. */
 export function onlyfansFeedSeenKey(record: OnlyfansFeedRecord): string {
   const { observedAt: _observedAt, ...rest } = record;
   const content = rest.kind === 'message' ? { ...rest, via: null } : rest;
-  return `${onlyfansFeedRecordKey(record)}|${JSON.stringify(canonical(content))}`;
+  // A fingerprint, not the JSON: up to SEEN_MAX keys live as long as the event page, and a message's text with them.
+  return `${onlyfansFeedRecordKey(record)}|${stableDigest(content)}`;
 }
 
 export class OnlyfansFeedUploader {

@@ -49,7 +49,7 @@ import {
   type VmView,
 } from '@cg/contracts/vm';
 
-import { onlineChats, searchRows, normalizeQuery, type SearchRow } from '../../domain/navigation';
+import { HOST_CHAT_ROWS, onlineChats, searchRows, normalizeQuery, type SearchRow } from '../../domain/navigation';
 import { LIST_SETTLE_MS, accountHandle, chatHandle, parseChatHandle } from './navigation-controller';
 import { type OverlayState } from './overlays';
 import { createEmitter, type SurfaceController, type TabClock, type TabRpc } from './ports';
@@ -80,7 +80,7 @@ export interface PaletteHubPort {
 
 export const PALETTE_LIMITS = {
   /** Rows of ChatSpace's cached list the search looks through. */
-  hostChats: 500,
+  hostChats: HOST_CHAT_ROWS,
   chats: 20,
   waiting: 8,
   running: 10,

@@ -233,4 +233,26 @@ describe('what is owed', () => {
     expect(hub.calls.flatMap((call) => call.facts.map((fact) => fact.platformMessageId))).toEqual([stored[0]!.platformMessageId]);
     expect(owedIn(first.store)).toEqual([]);
   });
+
+  it('a send the next instance takes before it read its journal never writes over what the previous one owed', async () => {
+    const first = world();
+    const old = send();
+    first.reporter.report(old);
+    await settle();
+    const owner: { now: string | null } = { now: OWNER };
+    const second = world(owner, { store: first.store, hub: first.hub, clock: first.clock });
+    // A tab's report reaches the next instance before its restore step ran.
+    const fresh = send();
+    expect(second.reporter.report(fresh)).toBe('queued');
+    await settle();
+    owner.now = null;
+    expect(await second.reporter.restore()).toBe(2);
+    await second.reporter.idle();
+    expect(owedIn(first.store).map((owed) => owed.platformMessageId)).toEqual([old.platformMessageId, fresh.platformMessageId]);
+    // The sender signs in again: both go, the older first.
+    owner.now = OWNER;
+    expect(second.reporter.resume()).toBe(1);
+    await second.reporter.idle();
+    expect(first.hub.calls.flatMap((call) => call.facts.map((fact) => fact.platformMessageId))).toEqual([old.platformMessageId, fresh.platformMessageId]);
+  });
 });

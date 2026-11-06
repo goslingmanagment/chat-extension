@@ -106,6 +106,9 @@ function failureOf(error: unknown): HubFailure | null {
   return (error as { readonly name?: unknown }).name === 'HubCallError' && typeof failure === 'object' && failure !== null ? (failure as HubFailure) : null;
 }
 
+/** The previous instance's journal as it was read: `none` — nothing kept; else what of it was dropped. */
+type Journal = 'unreadable' | 'none' | { readonly dropped: number; readonly over: boolean };
+
 export class OwedReports<F extends OwedFact, H extends { readonly observedAt: string }> {
   /** What the hub has not answered yet, by `owner|page|id`, oldest first; journaled. */
   private readonly owed = new Map<string, Owed<F>>();
@@ -119,6 +122,8 @@ export class OwedReports<F extends OwedFact, H extends { readonly observedAt: st
   /** The hub's clock less this browser's, as the last answer said; 0 — not known, or within `skewMs`. */
   private skewMs = 0;
   private readonly writes = new WriteQueue();
+  /** The previous instance's journal, read once (`load`): every write of this one waits for it. */
+  private loaded: Promise<Journal> | null = null;
   private readonly log: LogSink;
 
   constructor(private readonly spec: OwedReportSpec<F, H>, private readonly deps: OwedReportDeps) {
@@ -152,28 +157,62 @@ export class OwedReports<F extends OwedFact, H extends { readonly observedAt: st
   /** After the event page woke up: what the previous instance still owed goes under its person's sign-in. */
   async restore(): Promise<number> {
     const { spec } = this;
+    if (this.deps.store === undefined) return 0;
+    const journal = await this.load();
+    if (journal === 'unreadable') {
+      this.log.write({ level: 'warn', scope: spec.scope, msg: `owed ${spec.noun}s unreadable, starting empty`, code: 'CG-STORAGE-READ' });
+      return 0;
+    }
+    if (journal === 'none') return 0;
+    if (journal.dropped > 0 || journal.over) this.save();
+    if (this.owed.size > 0) this.log.write({ level: 'info', scope: spec.scope, msg: `owed ${spec.noun}s restored`, fields: { owed: this.owed.size, dropped: journal.dropped } });
+    this.resume();
+    this.scheduleHold();
+    return this.owed.size;
+  }
+
+  /**
+   * The previous instance's journal, read once and merged under what this one took before it (that wins on its key and
+   * goes after it): a fact taken before `restore` never writes over what the previous instance owed. Never rejects.
+   */
+  private load(): Promise<Journal> {
+    this.loaded ??= this.read();
+    return this.loaded;
+  }
+
+  private async read(): Promise<Journal> {
+    const { spec } = this;
     const store = this.deps.store;
-    if (store === undefined) return 0;
+    if (store === undefined) return 'none';
     let raw: unknown;
     try {
       raw = await store.get(spec.storageKey);
     } catch {
-      this.log.write({ level: 'warn', scope: spec.scope, msg: `owed ${spec.noun}s unreadable, starting empty`, code: 'CG-STORAGE-READ' });
-      return 0;
+      return 'unreadable';
     }
     const stored = typeof raw === 'object' && raw !== null && (raw as { v?: unknown }).v === 1 ? (raw as { owed?: unknown }).owed : undefined;
-    if (!Array.isArray(stored)) return 0;
+    if (!Array.isArray(stored)) return 'none';
     const now = this.deps.clock.now();
     let dropped = 0;
+    const taken = [...this.owed];
+    this.owed.clear();
     for (const item of stored.slice(-spec.max)) {
       if (!this.isOwed(item) || now - item.at > spec.keepMs) dropped += 1;
-      else if (!this.owed.has(this.keyOf(item.owner, item))) this.owed.set(this.keyOf(item.owner, item), item);
+      else if (!this.answered.has(this.keyOf(item.owner, item))) this.owed.set(this.keyOf(item.owner, item), item);
     }
-    if (dropped > 0 || stored.length > spec.max) this.save();
-    if (this.owed.size > 0) this.log.write({ level: 'info', scope: spec.scope, msg: `owed ${spec.noun}s restored`, fields: { owed: this.owed.size, dropped } });
-    this.resume();
-    this.scheduleHold();
-    return this.owed.size;
+    // Oldest first: what this instance took goes after what the previous one owed.
+    for (const [key, owed] of taken) {
+      this.owed.delete(key);
+      this.owed.set(key, owed);
+    }
+    let over = stored.length > spec.max;
+    while (this.owed.size > spec.max) {
+      const oldest = this.owed.keys().next().value;
+      if (oldest === undefined) break;
+      this.owed.delete(oldest);
+      over = true;
+    }
+    return { dropped, over };
   }
 
   /** A fact of `owner`, checked by the caller: owed now, or `known` — the same id of the same page is owed or answered already. */
@@ -356,7 +395,11 @@ export class OwedReports<F extends OwedFact, H extends { readonly observedAt: st
     if (store === undefined) return;
     const { storageKey, scope, noun } = this.spec;
     void this.writes
-      .run(() => store.set(storageKey, { v: 1, owed: [...this.owed.values()] }))
+      .run(async () => {
+        // Never over the previous instance's journal unread: what it owed is merged in first.
+        await this.load();
+        await store.set(storageKey, { v: 1, owed: [...this.owed.values()] });
+      })
       .catch(() => this.log.write({ level: 'warn', scope, msg: `owed ${noun}s not saved`, code: 'CG-STORAGE-WRITE' }));
   }
 }

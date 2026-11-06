@@ -113,6 +113,72 @@ describe('[host:fansly] «Заметки»: the controller', () => {
     expect(w.port.create).toHaveBeenCalledExactlyOnceWith({ accountId: '7', fanId: '92' }, NOTE_TEMPLATE_TITLE, NOTE_TEMPLATE_TEXT.replace('Имя: ', 'Имя: Маркус'), expect.objectContaining({ origin: 'field' }));
   });
 
+  it('[FS-NOTE-4] a «Анкета» create that may have landed blocks every other create of it until a fresh read: the field opened again, a ✓', async () => {
+    const w = world();
+    w.go(B);
+    w.notes.toggle();
+    await w.settle();
+    w.port.create.mockResolvedValueOnce({ ok: false, error: { code: 'CG-NOTE-UNCERTAIN' } } as never);
+    const typeName = () => {
+      w.notes.dispatch({ type: 'field-open', label: 'Имя' });
+      w.notes.dispatch({ type: 'field-input', value: 'Маркус' });
+      w.notes.dispatch({ type: 'field-save' });
+    };
+    typeName();
+    await w.settle();
+    expect(w.notes.panel().form?.field).toMatchObject({ blocked: true });
+    // Esc drops the field with its own block; the create's stays.
+    w.notes.dispatch({ type: 'field-cancel' });
+    typeName();
+    await w.settle();
+    expect(w.notes.panel().form?.field).toMatchObject({ blocked: true, problem: { kind: 'failed', error: { code: 'CG-NOTE-UNCERTAIN' }, created: true } });
+    w.notes.dispatch({ type: 'field-cancel' });
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    w.notes.fillDone(w.answer('op1', { Работа: 'врач' }));
+    w.notes.dispatch({ type: 'suggestion-accept', index: 0 });
+    await w.settle();
+    expect(w.port.create).toHaveBeenCalledTimes(1);
+    expect(w.notes.panel().form?.fill).toMatchObject({ blocked: true, pending: 1 });
+    // «Обновить»: the read says it did not land, the ✓ creates it.
+    w.notes.dispatch({ type: 'refresh' });
+    await w.settle();
+    w.notes.dispatch({ type: 'suggestion-accept', index: 0 });
+    await w.settle();
+    expect(w.port.create).toHaveBeenCalledTimes(2);
+    expect(w.port.create).toHaveBeenLastCalledWith(expect.anything(), NOTE_TEMPLATE_TITLE, NOTE_TEMPLATE_TEXT.replace('Работа: ', 'Работа: врач'), expect.objectContaining({ origin: 'fill' }));
+  });
+
+  it('[FS-NOTE-4] a field and a ✓ at once make one «Анкета»: the ✓ goes into the one the field created', async () => {
+    const w = world();
+    w.go(B);
+    w.notes.toggle();
+    await w.settle();
+    w.notes.dispatch({ type: 'fill' });
+    await w.settle();
+    w.notes.fillDone(w.answer('op1', { Работа: 'врач' }));
+    let land: (answer: { ok: true; note: NoteData }) => void = () => undefined;
+    w.port.create.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          land = resolve;
+        }),
+    );
+    w.notes.dispatch({ type: 'field-open', label: 'Имя' });
+    w.notes.dispatch({ type: 'field-input', value: 'Маркус' });
+    w.notes.dispatch({ type: 'field-save' });
+    w.notes.dispatch({ type: 'suggestion-accept', index: 0 });
+    await w.settle();
+    expect(w.port.create).toHaveBeenCalledTimes(1);
+    const created = NOTE_TEMPLATE_TEXT.replace('Имя: ', 'Имя: Маркус');
+    land({ ok: true, note: note('9', NOTE_TEMPLATE_TITLE, created) });
+    await w.settle();
+    await w.settle();
+    expect(w.port.create).toHaveBeenCalledTimes(1);
+    expect(w.port.edit).toHaveBeenCalledExactlyOnceWith(expect.anything(), '9', NOTE_TEMPLATE_TITLE, created.replace('Работа: ', 'Работа: врач'), { title: NOTE_TEMPLATE_TITLE, text: created }, expect.objectContaining({ origin: 'fill' }));
+    expect(w.notes.panel().form?.fill).toMatchObject({ written: 1, blocked: false });
+  });
+
   it('[FS-NOTE-4] a quick note is one line and Enter, written once; a note is edited as text; a delete asks first; FBuddy’s note is never touched', async () => {
     const w = await opened();
     w.notes.dispatch({ type: 'quick-input', text: '  обещал фото  ' });

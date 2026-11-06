@@ -12,7 +12,7 @@ import { type I18nKey } from '@cg/contracts/errors';
 import { SEND_LIMITS } from '@cg/contracts/limits';
 import { type I18n, type Msg, type PartVM, type PreviewSendView, type ResultVM, type UiAction } from '@cg/contracts/vm';
 
-import { Button, Caret, ErrorCard, Spinner, StageLine, TextField, focusQuietly, isComposing, useAnnounce, useDispatch, useHints, useI18n, useKit, useTooltip } from '../../kit';
+import { Button, Caret, ErrorCard, Spinner, StageLine, TextField, focusQuietly, isComposing, isHeldKey, useAnnounce, useDispatch, useHints, useI18n, useKit, useTooltip } from '../../kit';
 import { useOwnEchoes } from '../ownEchoes';
 import { SendRow, SentLine, offersOpenInsert, openAndInsert, sendStateWords } from './SendRow';
 
@@ -117,6 +117,8 @@ function PreviewPart({ result, part, tabStop, onStep }: PreviewPartProps): JSX.E
       // Enter and ⌘↵ / Ctrl+↵: «Открыть и вставить» this part — never a send (ui-design §6.4, HK-042) —, and
       // only what the row's own button offers: nothing on a part that is uncertain, held or waiting (§6.7.8).
       event.preventDefault();
+      // A held Enter is one press: its repeats insert nothing more.
+      if (isHeldKey(event)) return;
       const open = part.openInsert;
       if (collapsed || open === undefined || !offersOpenInsert(part)) return;
       if (open.s === 'available') void dispatch(openAndInsert(result.opId, part));

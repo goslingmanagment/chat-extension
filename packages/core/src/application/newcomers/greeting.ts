@@ -49,6 +49,9 @@ const MAX_CHARS = SEND_LIMITS.previewDraftMaxChars;
 const INSERTS_KEPT = 16;
 /** A generation whose end the tab never heard (its port went meanwhile) stops waiting after this. */
 export const GREETING_GENERATION_WAIT_MS = 180_000;
+/** Hi ends no wait took (one can come before op.start answers; every tab hears every tab's), the newest: an older one
+ * is read by `op.list`. */
+const ENDED_KEPT = 64;
 /** A result that came before the history read again waits this long for it (2026-10-25); then it goes into the field. */
 export const GREETING_RECHECK_WAIT_MS = 6_000;
 
@@ -369,11 +372,20 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
 
   offs.push(
     rpc.onEvent('op.done', ({ view }) => {
-      if (view.surface === 'newcomers' && view.feature === 'hi') ended.set(view.opId, view);
       const resolve = waiting.get(view.opId);
-      if (resolve === undefined) return;
-      waiting.delete(view.opId);
-      resolve(view);
+      if (resolve !== undefined) {
+        waiting.delete(view.opId);
+        resolve(view);
+        return;
+      }
+      // An end that came before its wait began (op.start not answered yet); every tab hears every Hi's end, so only the
+      // newest are kept.
+      if (view.surface !== 'newcomers' || view.feature !== 'hi') return;
+      ended.set(view.opId, view);
+      for (const old of ended.keys()) {
+        if (ended.size <= ENDED_KEPT) break;
+        ended.delete(old);
+      }
     }),
   );
 
@@ -505,6 +517,7 @@ export function createCardGreeting(deps: CardGreetingDeps): CardGreeting {
         settle(null);
       };
       const known = ended.get(opId);
+      ended.delete(opId);
       if (known !== undefined) finish(known);
       else {
         // A cached/reopened operation emits no new op.done. Install the listener BEFORE this read, closing both races.

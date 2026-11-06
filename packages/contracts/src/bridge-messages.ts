@@ -443,6 +443,7 @@ export const BridgeRequestSchema = z.discriminatedUnion('t', [
   requestFrame('deleteFanNote'),
   requestFrame('onlineSeen'),
   requestFrame('onlineProbe'),
+  requestFrame('feedPoll'),
 ]);
 export type BridgeRequest = z.infer<typeof BridgeRequestSchema>;
 
@@ -477,6 +478,7 @@ export const BridgeEventSchema = z.discriminatedUnion('t', [
   eventFrame('previewSendFuse'),
   eventFrame('fault'),
   eventFrame('fanNotesChanged'),
+  eventFrame('ofFeed'),
 ]);
 export type BridgeEvent = z.infer<typeof BridgeEventSchema>;
 

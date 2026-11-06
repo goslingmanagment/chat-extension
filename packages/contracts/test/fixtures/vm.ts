@@ -255,9 +255,6 @@ export const VM_SCHEMA_FIXTURES: readonly VmSchemaFixture[] = [
       { type: 'SetPreference', key: 'ui.theme', value: 'neon' },
       { type: 'SetPreference', key: 'sound.volume', value: 7 },
       { type: 'SetPreference', key: 'auth.token', value: 'x' },
-      // 1.18.0: «Помнить тон в чате» is a switch, set as a boolean — absent means on only in the stored settings.
-      { type: 'SetPreference', key: 'generation.rememberTone', value: 'on' },
-      { type: 'SetPreference', key: 'generation.rememberTone', value: null },
       // 1.26.0 (X55): «Размер текста» is one of its two sizes, never a number of pixels or absent.
       { type: 'SetPreference', key: 'ui.textSize', value: 'huge' },
       { type: 'SetPreference', key: 'ui.textSize', value: 15 },

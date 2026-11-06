@@ -517,7 +517,9 @@ export function createMainRuntime(context: MainContext): MainRuntime {
       }
       if (!read.fan || (key[1] !== undefined && key[1] !== read.acc)) return;
       const fan = read.fan;
-      if (COMPOSER_KEYS.includes(head)) composerSoon();
+      // Another fan's history cannot mount, unmount or hide the open chat's composer: only the open chat's key (or a
+      // prefix that covers it) is a reason for a new search.
+      if (COMPOSER_KEYS.includes(head) && (head !== KEY_MESSAGES || key[2] === undefined || key[2] === fan)) composerSoon();
       // The open chat's history, its fan, its row of the list: the isolated side re-reads what it shows. Whether the
       // history itself moved rides along until the signal goes (the latest of a throttled run wins, so it is kept here).
       if (head === KEY_MESSAGES && key[2] === fan) historyMoved = true;

@@ -99,4 +99,25 @@ describe('the page’s own fetch, observed', () => {
       vi.useRealTimers();
     }
   });
+
+  it('a copy the page bound while the latch was on still reaches the page’s fetch after it goes off, and is not read', async () => {
+    vi.useFakeTimers();
+    try {
+      const { win, feed, posted, calls } = world();
+      feed.latch(true);
+      // ChatSpace's client binds the global when it builds a request and calls it only after the token.
+      const bound = win.fetch.bind(globalThis);
+      const boundPastOff = win.fetch.bind(globalThis);
+      feed.latch(false);
+      const url = 'https://onlymonster.ai/api/v0/accounts/1001/chats/2003/messages?limit=10';
+      expect(await (await bound(url)).json()).toMatchObject({ items: [{ id: '9003' }] });
+      feed.off();
+      expect(await (await boundPastOff(url)).json()).toMatchObject({ items: [{ id: '9003' }] });
+      expect(calls).toEqual([[url], [url]]);
+      await vi.advanceTimersByTimeAsync(FEED_FLUSH_MS);
+      expect(posted).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

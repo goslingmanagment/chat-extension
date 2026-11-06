@@ -186,12 +186,13 @@ function feedEmpty(card: OnlineCardVM): Msg {
 }
 
 /** «Из архива на 19:12 · чат не открыт, останется непрочитанным»: the archive is the card's only source. */
-function ArchivePill({ preview }: { readonly preview: PreviewVM }): JSX.Element {
+function ArchivePill({ preview, open }: { readonly preview: PreviewVM; readonly open: boolean }): JSX.Element {
   const i18n = useI18n();
   const dispatch = useDispatch();
   const asOf = preview.archive.stamp.asOf;
   const time = asOf === null ? i18n.t('common.unknown') : i18n.formatTime(asOf);
-  const key = preview.unread === 'kept' ? 'outreach.card.archiveKept' : preview.unread === 'read-by-check' ? 'outreach.card.archiveByCheck' : 'outreach.card.archiveAfterSend';
+  // The fan's chat open in the site (the text goes into its field), as in «Рассылка»: «чат не открыт» would not be true.
+  const key = open ? 'outreach.card.archiveOpen' : preview.unread === 'kept' ? 'outreach.card.archiveKept' : preview.unread === 'read-by-check' ? 'outreach.card.archiveByCheck' : 'outreach.card.archiveAfterSend';
   const tip = useTooltip(i18n.t('outreach.card.archiveTooltip'));
   return (
     <div class="cg-ow__pill" data-cg-unread={preview.unread}>
@@ -744,7 +745,7 @@ export function OnlineCard({ card, preview }: { readonly card: OnlineCardVM; rea
       <Head card={card} preview={preview} />
       <Why card={card} massBelow={ours && preview.view.s !== 'loading' && preview.feed.items.length === 0 && tail === undefined} />
       <div class="cg-ow__conv">
-        {ours && preview.archive.stamp.asOf !== null ? <ArchivePill preview={preview} /> : null}
+        {ours && preview.archive.stamp.asOf !== null ? <ArchivePill preview={preview} open={card.send?.reason?.key === 'send.reason.activeChat'} /> : null}
         <Feed handle={ours ? preview.handle : null} feed={ours ? preview.feed : { items: [], hasOlder: false, loadingOlder: false, olderError: null }} empty={!ours || preview.view.s === 'loading' ? null : feedEmpty(card)} loading={!ours || preview.view.s === 'loading'} seen={ours ? preview.seen : null} {...(tail === undefined ? {} : { tail })} />
       </div>
       <Zone card={card} preview={preview} />

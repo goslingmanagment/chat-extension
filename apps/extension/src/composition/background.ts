@@ -79,7 +79,7 @@ import type { FeatureSlice } from '@cg/contracts/features/types';
 import { HOST_PLATFORM, type HostKind } from '@cg/contracts/hosts';
 import { hashOfRoute } from '@cg/core/application/pages';
 import { LOCAL_KEYS, SESSION_KEYS, SYSTEM_LOCALE_REWRITE, resolveHubError, rewritesSystemLocale, storageBudgetOf } from '@cg/core/domain';
-import { AI_FEATURE_DRIVERS } from '@cg/core/domain/features';
+import { AI_FEATURE_DRIVERS, featurePresent } from '@cg/core/domain/features';
 import { resolveLocale } from '@cg/core/domain/i18n/live';
 import { logEvent, logStart } from '@cg/core/domain/logging';
 import { currentPersona, flagsOnSomePage, followedPersonas, type OpsEnvironment, type PersonaChoice } from '@cg/core/domain/ops';
@@ -721,11 +721,15 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
       return page.ok && noteWritten(host, { pageId, noteKind: 'note', ...fact }) === 'queued';
     },
   });
-  /** The notes' view as last told, so a change of another setting tells nothing. */
+  /**
+   * The notes' view as last told, so a change of another setting tells nothing. The owner broadcasts nothing at its
+   * start, so the first broadcast of a background is told too: it may be the first change of the view, and a tab
+   * ignores a view it already has.
+   */
   let notesView: string | null = null;
   extSettings.onChange((state) => {
     const view = state.ext.hosts[OPTIONAL_HOST].notesView;
-    if (notesView !== null && view !== notesView) rpc.emit('notes.viewChanged', { view });
+    if (view !== notesView) rpc.emit('notes.viewChanged', { view });
     notesView = view;
   });
 
@@ -837,8 +841,8 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   };
   /** The page a host account of this browser is bound to now; null — it cannot be told. */
   const boundPageOf = (host: HostKind, hostAccountId: string): number | null => {
-    const seen = presence.seenAccounts().find((entry) => entry.account.host === host && entry.account.hostAccountId === hostAccountId);
-    const resolution = seen === undefined ? null : (hubInstance?.resolveBinding(seen.account) ?? null);
+    const account = presence.seenAccount(host, hostAccountId);
+    const resolution = account === null ? null : (hubInstance?.resolveBinding(account) ?? null);
     return resolution?.state === 'bound' ? resolution.binding.pageId : null;
   };
   // Chat Memory week 1: the beat of the hub's shift (core/services/activity-beat.ts) — every bound page of the open tabs
@@ -2013,7 +2017,14 @@ export function composeBackground(deps: BackgroundDeps = {}): void {
   // a click on an extension page that acts in ChatSpace (§9.9; PU-017, ST-076)
   const tabFocus = createTabFocus(api);
   rpc.handle('tab.command', async ({ command }) => {
-    const target = pickCommandTab(command, rpc.tabs(), presence.tabs());
+    // A board goes only to a tab whose site has it (Telegram has neither Spenders nor «Новые»); a tab whose site's
+    // slice is not known yet (its module still starting) stays a candidate, so a Fansly tab is never passed over.
+    const board = command.kind === 'surface' && command.surface !== 'cheatsheet' ? command.surface : null;
+    const able = board === null ? rpc.tabs() : rpc.tabs().filter((tab) => {
+      const slice = featuresOf(tab.request.host);
+      return slice === null || featurePresent(slice, board);
+    });
+    const target = pickCommandTab(command, able, presence.tabs());
     // The tab comes to the front first: the command is the person's click, seen where it acts.
     if (target === null || !(await tabFocus.focus(target.tabId))) return ok({ delivered: false });
     const delivered = rpc.emit('tab.command', { command }, { tabSessionId: target.tabSessionId }) > 0;

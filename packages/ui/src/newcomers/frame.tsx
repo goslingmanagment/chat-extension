@@ -316,6 +316,9 @@ function sameRow(a: RowProps, b: RowProps): boolean {
     x.draftStale === y.draftStale &&
     x.avatarUrl === y.avatarUrl &&
     JSON.stringify(x.otherPages) === JSON.stringify(y.otherPages) &&
+    // The badges come after the rows (FBuddy, Fansly), each answer in new objects: their fields, not the object.
+    (x.badges?.tier ?? null) === (y.badges?.tier ?? null) &&
+    (x.badges?.recentSpender ?? null) === (y.badges?.recentSpender ?? null) &&
     greeting(x) === greeting(y) &&
     x.check?.status === y.check?.status &&
     x.check?.customName === y.check?.customName &&

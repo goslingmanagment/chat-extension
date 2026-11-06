@@ -75,7 +75,9 @@ function openCard(handle: string): UiAction {
 /** The next row after `handle` whose batch draft waits to be read and sent (round the list); null — none. */
 export function nextDraft(rows: readonly NewcomerRowVM[], handle: string): string | null {
   const at = rows.findIndex((row) => row.handle === handle);
-  for (let step = 1; step < rows.length; step += 1) {
+  // The sent fan already left the list (greeted, out of the filter): every row is looked at, the last one too.
+  const span = at < 0 ? rows.length : rows.length - 1;
+  for (let step = 1; step <= span; step += 1) {
     const row = rows[(at + step) % rows.length];
     if (row !== undefined && row.batch?.state === 'ready' && row.greeting.s === 'none') return row.handle;
   }

@@ -21,6 +21,8 @@ export class TooltipManager {
   private readonly current: Signal<TooltipState | null> = signal(null);
   private pending: ReturnType<typeof setTimeout> | null = null;
   private pendingAnchor: HTMLElement | null = null;
+  /** What the pending tooltip opens with: its trigger's latest text, not the one it was hovered with. */
+  private pendingText = '';
   private lastClosedAt = Number.NEGATIVE_INFINITY;
   private detach: (() => void) | null = null;
 
@@ -47,6 +49,12 @@ export class TooltipManager {
 
   /** The text of the open (or pending) tooltip of `anchor` changed: follow it. */
   update(anchor: HTMLElement, text: string): void {
+    // Pending and shown never share an anchor: hover() closes what is shown before it schedules.
+    if (this.pendingAnchor === anchor) {
+      if (text === '') this.cancel();
+      else this.pendingText = text;
+      return;
+    }
     const shown = this.current.value;
     if (shown?.anchor === anchor && shown.text !== text) {
       if (text === '') this.close();
@@ -77,10 +85,13 @@ export class TooltipManager {
   private schedule(anchor: HTMLElement, text: string, delay: number): void {
     this.cancel();
     this.pendingAnchor = anchor;
+    this.pendingText = text;
     this.pending = setTimeout(() => {
+      const latest = this.pendingText;
       this.pending = null;
       this.pendingAnchor = null;
-      if (anchor.isConnected) this.open(anchor, text);
+      this.pendingText = '';
+      if (anchor.isConnected) this.open(anchor, latest);
     }, delay);
   }
 
@@ -88,6 +99,7 @@ export class TooltipManager {
     if (this.pending !== null) clearTimeout(this.pending);
     this.pending = null;
     this.pendingAnchor = null;
+    this.pendingText = '';
   }
 
   private open(anchor: HTMLElement, text: string): void {

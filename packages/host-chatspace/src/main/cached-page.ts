@@ -58,11 +58,11 @@ const message = (raw: unknown, withPhotos: boolean): Plain | null => {
 };
 
 /** Newest first: by the time, then a longer (later) numeric id first. */
-const newer = (a: Plain, b: Plain): number => {
-  const at = (a['sentAt'] as string).localeCompare(b['sentAt'] as string);
+const newer = (a: { readonly id: string; readonly at: string }, b: { readonly id: string; readonly at: string }): number => {
+  const at = a.at.localeCompare(b.at);
   if (at !== 0) return -at;
-  const x = a['platformMessageId'] as string;
-  const y = b['platformMessageId'] as string;
+  const x = a.id;
+  const y = b.id;
   return y.length - x.length || (x < y ? 1 : x > y ? -1 : 0);
 };
 
@@ -74,22 +74,27 @@ export function cachedOpenPage(value: unknown, limit: number, now: () => Date = 
   const pages = isPlain(value) ? list(value['pages']) : [];
   if (pages.length === 0) return null;
   const seen = new Set<string>();
-  const rows: { readonly raw: unknown; readonly item: Plain }[] = [];
+  // Here only the checks `message` makes: a cached chat can hold thousands of messages, and a text (an HTML parse each)
+  // is read only for the rows kept.
+  const rows: { readonly raw: Plain; readonly id: string; readonly at: string }[] = [];
   for (const page of pages) {
     for (const raw of isPlain(page) ? list(page['items']) : []) {
-      const item = message(raw, false);
-      if (item === null || seen.has(item['platformMessageId'] as string)) continue;
-      seen.add(item['platformMessageId'] as string);
-      rows.push({ raw, item });
+      if (!isPlain(raw)) continue;
+      const id = idOf(raw['id']);
+      const at = iso(raw['createdAt']);
+      if (id === null || at === null || typeof raw['isOutgoing'] !== 'boolean' || seen.has(id)) continue;
+      seen.add(id);
+      rows.push({ raw, id, at });
     }
   }
-  rows.sort((a, b) => newer(a.item, b.item));
+  rows.sort(newer);
   const items: Plain[] = [];
   let bytes = 0;
   let cut = false;
   for (const row of rows) {
     // Only the newest messages name their photos: what a start sends of them is the fan's latest turn.
-    const item = items.length < LIVE_IMAGE_WINDOW ? (message(row.raw, true) ?? row.item) : row.item;
+    const item = message(row.raw, items.length < LIVE_IMAGE_WINDOW);
+    if (item === null) continue;
     bytes += utf8Bytes(JSON.stringify(item));
     if ((cut = bytes > FRAME_DATA_BUDGET || items.length >= limit)) break;
     items.push(item);

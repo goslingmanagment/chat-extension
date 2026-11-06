@@ -971,4 +971,32 @@ it('2026-11-04: a list read under way when the window closes reads no more (it w
     w.controller.dispose();
   }
 });
+
+it('a window closed while its pass is being opened lets the pass go once the background answers (it holds it for the tab); opened again meanwhile, it keeps it', async () => {
+  const w = greetingWorld([wireRow(1)]);
+  const shut = () => w.controller.dispatch({ type: 'Navigate', to: { kind: 'surface', surface: 'newcomers', open: false } });
+  try {
+    w.background.held.add('fansly.followers.scan');
+    await w.open();
+    await shut();
+    w.background.release();
+    await settle();
+    // A plain close: the window showed nothing to go on with in the background, and nothing more is read.
+    expect(w.background.of('fansly.followers.close')).toEqual([{ passId: w.background.last().view.passId }]);
+    expect(w.background.of('fansly.followers.read')).toEqual([]);
+
+    const closes = w.background.of('fansly.followers.close').length;
+    w.background.held.add('fansly.followers.scan');
+    await w.open();
+    await shut();
+    await w.open();
+    w.background.release();
+    await settle();
+    expect(w.background.of('fansly.followers.close')).toHaveLength(closes);
+    expect(w.vm().pass).not.toBeNull();
+  } finally {
+    w.background.release();
+    w.controller.dispose();
+  }
+});
 });

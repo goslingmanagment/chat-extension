@@ -634,7 +634,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     const port = batchPort;
     const index = listIndex();
     const ids = paidIds(offerMedia());
-    if (port?.outreachStates === undefined || own !== null || index === null || ids.length === 0 || source === null || !conditions.notBought.on || locked !== null) return;
+    // A failed read makes «Не купил» unknown until the context changes (reset()): no answer is used after it, none is asked.
+    if (port?.outreachStates === undefined || own !== null || index === null || ids.length === 0 || source === null || !conditions.notBought.on || locked !== null || statesFailed) return;
     const pool = poolOf({ fans: fansOf(index), tiers: tiersOf(index), source });
     const missing = pool.filter((fanRef) => ids.some((id) => !bought.has(`${fanRef}|${id}`)) && !asking.has(fanRef));
     if (missing.length === 0) return;
@@ -643,7 +644,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     changed();
     let next = 0;
     const worker = async (): Promise<void> => {
-      while (next < missing.length) {
+      while (next < missing.length && !statesFailed) {
         const fanRef = missing[next++] as string;
         const answer = await port.outreachStates?.([fanRef], ids).catch(() => null);
         if (disposed || atEpoch !== epoch) return;
@@ -1563,8 +1564,15 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       if (body === null) break;
       const key = JSON.stringify(body);
       if (key === refusedSave) break;
+      // Made of the window's outreach as it is now, not of a save kept from before (that one may be an older whole save).
+      const ofNow = pending === null;
       const answer = await hub.save(page, outreachId, body);
-      if (disposed || atEpoch !== epoch || currentId !== outreachId) return;
+      if (disposed || atEpoch !== epoch) return;
+      if (currentId !== outreachId) {
+        // The window went to another outreach meanwhile («Новая рассылка»): the copy kept here waits no longer for it.
+        if (answer.ok) keptTaken(outreachId, body, ofNow);
+        return;
+      }
       if (!answer.ok) {
         if (answer.kind === 'off') hubOff = true;
         else if (answer.kind === 'offline') {
@@ -1587,6 +1595,31 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     await flushReports(page, outreachId, atEpoch);
     // The hub answers again after a reload it did not answer: its copy comes in now, not only when the window opens.
     if (needPull && hubOn() && currentId === outreachId) void Promise.resolve().then(() => pull());
+  }
+
+  /**
+   * A save the hub took of an outreach the window let go meanwhile: the copy kept here, when what waits in it is that
+   * save (or the save, made of the window as it was, went whole to a hub that never had it), is kept as the hub has it,
+   * so the list never sends it again over a colleague's newer edits. A copy changed since (another tab's) stays as it is.
+   */
+  function keptTaken(outreachId: string, body: OutreachStoreSaveBody, ofNow: boolean): void {
+    if (store === null) return;
+    const { createdAt: _createdAt, ...took } = body;
+    writing = writing
+      .then(async () => {
+        const raw = await store.load().catch(() => undefined);
+        const now = clock.now();
+        const current = readOutreachStore(raw, now);
+        const kept = current.outreaches.find((item) => item.id === outreachId);
+        if (kept === undefined) return;
+        const whole = ofNow && body.createdAt !== undefined && !kept.synced && kept.pending === null && kept.text === body.text;
+        if (!whole && (kept.pending === null || JSON.stringify(kept.pending) !== JSON.stringify(took))) return;
+        const done: SavedOutreach = { ...kept, synced: true, pending: null };
+        const next = mergeOutreachStores(current, { ...current, outreaches: current.outreaches.map((item) => (item.id === outreachId ? done : item)) }, now);
+        await store.save(next);
+        if (!disposed) stored = next;
+      })
+      .catch(() => undefined);
   }
 
   /** Every send the hub is to be told of: its report, or the record of one made without a claim. */
@@ -1678,6 +1711,12 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       return;
     }
     applyPlan(plan);
+    // The text the hub holds carries the hub's marks of it: a window whose own marks differ (an older build, two windows
+    // that drifted apart) would save them back and forth on every read.
+    if (remote.text === text) {
+      textRevision = remote.textRevision;
+      textChangedAt = remote.textChangedAt;
+    }
     base = remote;
     baseHubAt = remote.updatedAt;
     inFlight = inFlightOf(value, clock.now());
@@ -1687,9 +1726,11 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
 
   function applyPlan(plan: AdoptPlan): void {
     if (plan.text !== null && plan.text.text !== text) {
+      // The author's marks come with the text (the author's window moved them itself): marks of its own here would differ
+      // from the hub's, and every read would save them again.
       text = plan.text.text;
-      textRevision += 1;
-      textChangedAt = plan.text.changedAt ?? clock.now();
+      textRevision = plan.text.revision;
+      textChangedAt = plan.text.changedAt;
     }
     if (plan.audience !== null && locked === null) {
       const next = plan.audience;
@@ -2091,6 +2132,15 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     void hub.send(page, outreachId, { action: 'failed', fanRef, attemptId, code: 'CG-CONTEXT-CHANGED' });
   }
 
+  /**
+   * The window lets its outreach go: a claim whose answer never came (the site never asked under it) is told the hub
+   * as failed, or the fan would read «may have gone» there for good and count as written to.
+   */
+  function letLostGo(): void {
+    if (currentId !== null && hubOn()) for (const [fanRef, attemptId] of lostClaims) reportLost(currentId, fanRef, attemptId);
+    lostClaims.clear();
+  }
+
   /** The hub refused the claim: who sent (or sends) the fan stands in the window; nothing goes. */
   function claimRefused(type: UiAction['type'], fanRef: string, claim: { readonly kind: string; readonly fan?: OutreachStoreFan }): ActionReceipt {
     if (claim.fan !== undefined) takeFan(fanRef, claim.fan);
@@ -2112,7 +2162,11 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if ((locked ?? []).some((fanRef) => MOVING.includes(factsOf(fanRef).state)) || claiming.size > 0) return refused(type, localError('CG-SEND-BUSY', i18n));
     await flush();
     // What the window's outreach has not saved at the hub goes there first.
-    if (pending !== null || (pushTimer !== null && hubOn())) await push();
+    if (pending !== null || (pushTimer !== null && hubOn())) {
+      await push();
+      // What the hub took no longer waits for it in the copy kept here: never sent again over a colleague's newer edits.
+      await flush();
+    }
     await readStored();
     if (disposed) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     const page = pageId();
@@ -2125,6 +2179,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       if (answer.ok && remote !== null) {
         // A send this computer made of it that the hub has not heard of (it went while the hub did not answer) stands,
         // and is told to the hub: the fan is never sendable again from here.
+        letLostGo();
         restoreFrom(withLocalSends(remote, local ?? null));
         base = remote;
         baseHubAt = remote.updatedAt;
@@ -2140,6 +2195,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       if (!answer.ok && answer.kind === 'off') hubOff = true;
     }
     if (local === undefined) return refused(type, localError('CG-DATA-NOT-READY', i18n));
+    letLostGo();
     restoreFrom(local);
     void pull();
     surfaces.setPreview('outreach', null);
@@ -2485,6 +2541,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         if (claim.kind === 'ok') hubDown.delete(fanRef);
       }
     }
+    // The site is asked now: an older claim whose answer never came is no longer one the hub may hear failed.
+    lostClaims.delete(fanRef);
     const receipt = await port.outreachSend(type, handle, cardPasses);
     const claim = cardClaims.get(fanRef);
     if (claim !== undefined) {
@@ -2599,7 +2657,12 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
         // The hub keeps no outreaches here after all: this computer's word, as before.
         const elsewhere = await sentElsewhere(fanRef);
         if (elsewhere !== null) {
-          if (mine()) adoptSend(fanRef, elsewhere);
+          // The click's own send on its way gives way to it (adoptSend leaves a send on its way alone), as below.
+          if (mine()) {
+            owned.delete(fanRef);
+            adoptSend(fanRef, elsewhere);
+            changed();
+          }
           return refused(type, localError('CG-SEND-BUSY', i18n));
         }
       }
@@ -2618,6 +2681,8 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
     if (!mine()) return refused(type, localError('CG-CONTEXT-CHANGED', i18n));
     const groupId = await board.group(fanRef).catch(() => null);
     if (groupId === null) return end('failed', 'CG-HOST-CHAT-NOT-FOUND');
+    // The site is asked now: an older claim whose answer never came is no longer one the hub may hear failed.
+    lostClaims.delete(fanRef);
     const answer = await channel
       .send({ hostAccountId: binding.platformAccountId, fanRef, groupId, text: body, attachments, cause: cause.cause, composedWith: facts.edited ? 'hand' : 'fix' })
       .catch((): OutreachAnswer => ({ ok: false, code: 'CG-SEND-UNCERTAIN' }));
@@ -2686,6 +2751,7 @@ export function createOutreachController(deps: OutreachControllerDeps): Outreach
       pushTimer = null;
       void push();
     }
+    letLostGo();
     currentId = null;
     createdAt = null;
     lastSaved = '';

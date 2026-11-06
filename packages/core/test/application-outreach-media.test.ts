@@ -187,3 +187,24 @@ describe('outreach media belong to the current page and signed-in user', () => {
     }
   });
 });
+
+describe('the media of an outreach past the 50 chats a closed card keeps', () => {
+  it('its first fans keep the outreach\'s media and their release forms: the first «Отправить» goes, with no new read', async () => {
+    const w = await world();
+    try {
+      await w.pick();
+      const handles: string[] = [];
+      for (let n = 0; n < 52; n += 1) handles.push(await w.generate(String(3000 + n)));
+      await w.clock.advance(500);
+      await settle(12);
+      const tags = (): number => w.host.calls.media.filter((request) => request.of === 'tags').length;
+      const read = tags();
+      expect(await w.controller.outreachSend('SendOutreach', handles[0] ?? '', true)).toMatchObject({ ok: true });
+      expect(w.send).toHaveBeenCalledTimes(1);
+      expect(w.send.mock.calls[0]?.[0].media).toMatchObject({ items: [{ id: '502', free: true }, { id: '501', free: false }], priceCents: 2500 });
+      expect(tags()).toBe(read);
+    } finally {
+      w.dispose();
+    }
+  });
+});
