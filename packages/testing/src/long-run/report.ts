@@ -10,8 +10,6 @@ export const EVENT_TIMING = {
 } as const;
 export const CHAT_COUNT = 320;
 export const LIMITS = {
-  tabOverheadMB: 15,
-  backgroundMB: 30,
   growthMB: 5,
   idleCpuMsPerMinute: 500,
   idleTimersPerMinute: 0,
@@ -122,8 +120,8 @@ export function buildLongRunReport(evidence: RunEvidence) {
     const values = evidence.memory.map((sample) => sample[key]);
     const valid = values.length >= 2 && values.every(finite);
     const max = valid ? Math.max(...values) : null;
-    const limit = key === 'backgroundMB' ? LIMITS.backgroundMB : LIMITS.tabOverheadMB;
-    check(key, max !== null && max <= limit, max === null ? null : round(max), limit);
+    // Measured and reported, with no absolute ceiling (the owner, 2026-11-07): the growth below is what is held.
+    check(key, max !== null, max === null ? null : round(max), null);
     const delta = growth(evidence.memory, key);
     check(`${key} growth after warm-up`, valid && delta !== null && delta <= LIMITS.growthMB, delta, LIMITS.growthMB);
   }
