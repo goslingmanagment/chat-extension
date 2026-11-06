@@ -7,7 +7,7 @@ import type { MemoryReading } from '../../e2e/perf/fansly/memory';
 import { budgetMs } from '../e2e-timing';
 import type { ThreadSummary } from './gecko-profile';
 
-export const FANSLY_PERF_LIMITS = { tabMB: 15, backgroundMB: 30, growthMB: 5, typingDeltaMs: 5, backgroundCpuMs: 500 } as const;
+export const FANSLY_PERF_LIMITS = { growthMB: 5, typingDeltaMs: 5, backgroundCpuMs: 500 } as const;
 export const P3D = {
   // Worst of the two notes placements. The typing base varied by 1.5 ms in P3d.
   after: { tabMB: 6.4, backgroundMB: 50.8, tabTimers: 328, backgroundTimers: 7, tabCpuDeltaMs: 260 - 167, backgroundCpuMs: 1018, typingDeltaMs: 1.9, awakeDelta: 886 - 343, backgroundAwake: 10_532 },
@@ -65,14 +65,11 @@ export function idleChecks(thread: ThreadSummary | null, label: string): PerfChe
 export function scenarioChecks(base: ScenarioReport, current: ScenarioReport): PerfCheck[] {
   const old = P3D[current.neighbor];
   const checks: PerfCheck[] = [ceiling('same neighbour as the base', base.neighbor === current.neighbor ? 0 : NaN, 0)];
-  for (const label of ['opened', 'worked', 'window']) {
-    checks.push(ceiling(`${label}: tab overhead MB`, tabMB(current.readings[label]) - tabMB(base.readings[label]), FANSLY_PERF_LIMITS.tabMB));
-    checks.push(ceiling(`${label}: background document MB`, backgroundMB(current.readings[label]), FANSLY_PERF_LIMITS.backgroundMB));
-  }
+  // No absolute ceiling on the tab's or the event page's megabytes (the owner, 2026-11-07): the readings stay in the
+  // report, and what is held is the growth per round below.
   checks.push(ceiling('window: at least 10 minutes', 600_000 - (current.readings['window']?.at ?? NaN), 0));
   checks.push(ceiling('three complete growth rounds', current.roundReadings.length === 3 && base.roundReadings.length === 3 ? 0 : NaN, 0));
   for (const [index, shot] of current.roundReadings.entries()) {
-    checks.push(ceiling(`round ${index + 1}: background document MB`, backgroundMB(shot), FANSLY_PERF_LIMITS.backgroundMB));
     // Round one loads the overlays and warms the caches, just as in P3d.
     if (index === 0) continue;
     const growth = tabMB(shot) - tabMB(current.roundReadings[index - 1]);

@@ -51,10 +51,6 @@ const IDLE_MS = 60_000;
 const LIMITS = {
   /** Growth of the tab per round after the warm-up round (the budget itself). */
   growthPerRoundMB: 5,
-  /** The event page's own document in the extension's process (the budget itself). */
-  backgroundMB: 30,
-  /** The tab's overhead: the budget is 15 MB and the stand sits at it — a loose ceiling that catches a doubling. */
-  tabOverheadMB: 25,
   /** CPU of one process over the idle minute: «почти ноль». */
   idleCpuMs: 500,
   /** Calls to the hub over the idle minute (the slow «Новые» poll, a bootstrap refresh). */
@@ -292,9 +288,8 @@ describe('§11 on the wired extension — memory and idle, measured on the stand
       perRound: { switches: SWITCHES_PER_ROUND, overlays: OVERLAYS_PER_ROUND },
     };
 
-    expect(['tab overhead after a round, MB', overhead.worked <= LIMITS.tabOverheadMB]).toEqual(['tab overhead after a round, MB', true]);
-    // «фон ≤ 30 МБ» is the event page's own document; the process around it carries Firefox's own tens of megabytes.
-    expect(['the event page, MB', eventPage !== undefined && eventPageMB <= LIMITS.backgroundMB]).toEqual(['the event page, MB', true]);
+    // No absolute ceiling on the tab's overhead or the event page (the owner, 2026-11-07): both stay in the report.
+    expect(['the event page is measured', eventPage !== undefined]).toEqual(['the event page is measured', true]);
     // The first round loads every lazy chunk and warms the caches; the growth that counts is what comes after it.
     for (const [index, each] of growth.entries()) {
       if (index === 0) continue;

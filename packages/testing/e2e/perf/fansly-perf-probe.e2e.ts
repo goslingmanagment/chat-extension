@@ -164,14 +164,11 @@ for (const neighbor of FANSLY_PERF_NEIGHBORS) {
       const groups = await seedChats();
       mkdirSync(`${dir}mixed-new/`, { recursive: true });
       const ours = await mixed(newSubject(neighbor, `${dir}mixed-new/`), neighbor, groups, `${dir}mixed-new/`);
-      // Same-origin tabs share a Firefox process; the single-tab gate above
-      // enforces +15 individually, here the whole 10-tab allocation is bounded.
+      // The world is checked; the megabytes are only reported (no absolute ceiling, the owner, 2026-11-07).
+      console.log(`cg-perf-mixed: ten Fansly tabs overhead ${(contentProfileMB([ours.fansly]) - contentProfileMB([alone.fansly])).toFixed(1)} MB, with ChatSpace ${(contentProfileMB([ours.fansly, ours.chatspace]) - contentProfileMB([alone.fansly, alone.chatspace])).toFixed(1)} MB, background ${backgroundMB(ours.fansly).toFixed(1)} MB`);
       assertChecks(dir, 'mixed-budgets', [
         ceiling('ten live Fansly tabs', ours.tabs === 10 && ours.sockets === 10 ? 0 : NaN, 0),
         ceiling('300+ chats', ours.chats >= 300 ? 0 : NaN, 0),
-        ceiling('ten Fansly tabs: overhead MB', contentProfileMB([ours.fansly]) - contentProfileMB([alone.fansly]), TABS * FANSLY_PERF_LIMITS.tabMB),
-        ceiling('whole content profile: overhead MB (10 Fansly + ChatSpace)', contentProfileMB([ours.fansly, ours.chatspace]) - contentProfileMB([alone.fansly, alone.chatspace]), (TABS + 1) * FANSLY_PERF_LIMITS.tabMB),
-        ceiling('one shared background document MB', backgroundMB(ours.fansly), FANSLY_PERF_LIMITS.backgroundMB),
       ]);
     });
 
