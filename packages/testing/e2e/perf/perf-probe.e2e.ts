@@ -53,8 +53,11 @@ const LIMITS = {
   growthPerRoundMB: 5,
   /** CPU of one process over the idle minute: «почти ноль». */
   idleCpuMs: 500,
-  /** Calls to the hub over the idle minute (the slow «Новые» poll, a bootstrap refresh). */
-  idleHubCalls: 3,
+  /**
+   * Calls to the hub over the idle minute: what runs once a minute by design (2026-11-07: «в разговоре» twice, the
+   * slow «Новые» poll, the activity mark, the «Онлайн N» and «Очереди N» chips). A new poll on top of them fails.
+   */
+  idleHubCalls: 6,
 } as const;
 
 interface ProcessNumbers {
