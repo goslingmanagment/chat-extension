@@ -1940,6 +1940,8 @@ export function createPreviewController(deps: PreviewControllerDeps): PreviewCon
       cause: issued.cause,
       tone,
       split,
+      // …and every part the model wrote is in that one message: its question often sits in the second (2026-11-08).
+      ...(windowed ? { whole: true as const } : {}),
       window: options.window ?? messageWindowFor(feature, settings.generation.windows, bootstrap.limits.deepMax),
       ...(feature === 'fix' ? { draft: { text: source, revision: draftRevision(state), digest: digestHex(source) } } : {}),
       ...(feature === 'fix' && outreach !== null ? { draftPurpose: 'outreach' as const } : {}),

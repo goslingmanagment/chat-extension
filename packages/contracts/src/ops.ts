@@ -302,6 +302,11 @@ export const StartOpSchema = z
     tone: z.nullable(ToneSchema),
     /** Б7: snapshot of the setting at start. */
     split: z.boolean(),
+    /**
+     * A window's text («Онлайн», «Очереди», «Рассылка»): one message, so the answer's `[NEXT]` parts are joined by a
+     * line break instead of the window keeping the first one (2026-11-08: Ping's question sat in its second part).
+     */
+    whole: z.optional(z.literal(true)),
     /** Б5 / R20 P4b2: wire messageCount ≤ 5000; the planner and background cap it by bootstrap `limits.deepMax`. */
     window: z.int().check(z.gte(AI_REQUEST_LIMITS.messageCountMin), z.lte(AI_REQUEST_LIMITS.messageCountMax)),
     draft: z.optional(OpDraftSchema),

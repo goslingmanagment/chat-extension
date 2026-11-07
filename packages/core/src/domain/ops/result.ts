@@ -16,6 +16,8 @@ import { OpResultSchema, type OpResult } from '@cg/contracts/ops';
 export interface ParseContext {
   /** Split was asked for at the start (Б7); one part then reads «получилась одна часть» (AI-011). */
   readonly splitRequested: boolean;
+  /** A window's text (`StartOp.whole`): the answer's parts are one message. */
+  readonly whole?: boolean;
   /** `meta.requestId`; recaps are shared by it (H-13). */
   readonly generationRef: string | null;
 }

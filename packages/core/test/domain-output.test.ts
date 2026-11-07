@@ -242,6 +242,17 @@ describe('[AI-011] [AI-132] [UI-032] draft results', () => {
     const fine = parseOutput('reply', 'a [NEXT] b', ctx());
     expect(fine.ok && isUnparsedResult(fine.result)).toBe(false);
   });
+
+  it('a window\'s text keeps every part in one message: the Ping\'s question sat in its second (2026-11-08)', () => {
+    const ping = 'hey Hugo, I bought some french cheese today haha\n[NEXT]\nare you going to the alps again this winter?';
+    expect(parseOutput('ping', ping, { ...ctx(), whole: true })).toEqual({
+      ok: true,
+      result: { kind: 'parts', parts: ['hey Hugo, I bought some french cheese today haha\nare you going to the alps again this winter?'], splitRequested: false },
+    });
+    expect(parseOutput('hi', 'heyy [NEXT] how was your day?', { ...ctx(), whole: true })).toEqual({ ok: true, result: { kind: 'variants', variants: [['heyy\nhow was your day?']] } });
+    // The chat keeps its parts: each is its own message there.
+    expect(parseOutput('ping', ping, ctx())).toMatchObject({ ok: true, result: { parts: ['hey Hugo, I bought some french cheese today haha', 'are you going to the alps again this winter?'] } });
+  });
 });
 
 const fence = (body: string): string => ['```draft', body, '```'].join('\n');

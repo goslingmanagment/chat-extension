@@ -832,6 +832,7 @@ export class OpScheduler {
     const text = run.stream.text;
     const parsed = this.parse(run, text, {
       splitRequested: run.split,
+      whole: run.start?.whole === true,
       generationRef: run.stream.generationRef,
     });
     if (!parsed.ok) {

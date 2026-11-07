@@ -29,7 +29,7 @@ export function parseOutput(feature: FeatureId, text: string, ctx: ParseContext)
     case 'fix':
     case 'ping':
     case 'hi': {
-      const parsed = parseDraft(feature, text, ctx.splitRequested);
+      const parsed = parseDraft(feature, text, ctx.splitRequested, ctx.whole === true);
       return parsed.ok ? checked(parsed.result) : parsed;
     }
     case 'review': {

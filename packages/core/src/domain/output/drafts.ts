@@ -13,6 +13,11 @@
 //
 // Split asked for and one part back is a normal result with a notice
 // («Получилась одна часть», AI-011): `splitRequested` travels with it.
+//
+// A window's text (`whole`: «Онлайн», «Очереди», «Рассылка») is one message:
+// its parts are joined by a line break, never cut to the first one. The hub
+// lets the model split a Ping «if natural», and its question often sits in
+// the second part (Nikita, 2026-11-08: the window's Ping had none).
 
 import { type CgCode } from '@cg/contracts/errors';
 import { PART_LIMITS } from '@cg/contracts/limits';
@@ -52,16 +57,21 @@ function rawPart(text: string): string | null {
   return raw.length > 0 && fits(raw) ? raw : null;
 }
 
-export function parseDraft(feature: DraftFeature, text: string, splitRequested: boolean): DraftParse {
+/** One message of every part, in order, a line break between them. */
+function joined(parts: string[]): string[] {
+  return parts.length > 1 ? [parts.join('\n')] : parts;
+}
+
+export function parseDraft(feature: DraftFeature, text: string, splitRequested: boolean, whole = false): DraftParse {
   if (feature === 'hi') {
-    const variants = parseVariants(text);
+    const variants = whole ? parseVariants(text).map(joined) : parseVariants(text);
     if (variants.length === 0) return UNUSABLE;
     const holds = variants.length <= PART_LIMITS.maxVariants && variants.every((parts) => parts.length <= PART_LIMITS.maxParts && parts.every(fits));
     if (holds) return { ok: true, result: { kind: 'variants', variants }, unparsed: false };
     const raw = rawPart(text);
     return raw === null ? UNUSABLE : { ok: true, result: { kind: 'variants', variants: [[raw]] }, unparsed: true };
   }
-  const parts = parseParts(text);
+  const parts = whole ? joined(parseParts(text)) : parseParts(text);
   if (parts.length === 0) return UNUSABLE;
   if (parts.length <= PART_LIMITS.maxParts && parts.every(fits)) return { ok: true, result: { kind: 'parts', parts, splitRequested }, unparsed: false };
   const raw = rawPart(text);
