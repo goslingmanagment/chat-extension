@@ -262,7 +262,9 @@ for (const neighbor of FANSLY_PERF_NEIGHBORS) {
           ceiling('frames exercised', resumed.perf.frameParseMs.count > 3000 ? 0 : NaN, 0),
           ceiling('frame parse mean ms', resumed.perf.frameParseMs.sum / resumed.perf.frameParseMs.count, budgetMs(0.1)),
           ceiling('frame parse max task ms', resumed.perf.frameParseMs.max, budgetMs(2)),
-          ceiling('XHR parse max task ms', after.perf.xhrParseMs.max, budgetMs(2)),
+          // The slowest of four 115 KiB answers: usually 1-3 ms, but a collection landing inside one reached 4.5-5 ms
+          // in October and 6.5 ms in November on a shared runner, with the parse code unchanged; 4 × slack stays under a frame.
+          ceiling('XHR parse max task ms', after.perf.xhrParseMs.max, budgetMs(4)),
           ceiling('snapshot MAIN max task ms', after.perf.snapshotMs.count > 0 ? after.perf.snapshotMs.max : NaN, budgetMs(5)),
           ceiling('snapshot round trip ms (separate from MAIN)', snap.roundTripMs, budgetMs(100)),
         ]);
