@@ -6,7 +6,8 @@
 // inserted part keeps its whole text, a step dimmer, with «✓ Вставлено ·
 // Вставить ещё раз» beside it (the old card); a sent one is one collapsed line.
 // The whole row is the target (UI-018, X26): a click anywhere on it but its
-// own controls does what the row's main button does — «Вставить» THIS part,
+// own controls (and the few pixels around the copy icon, which copy) does
+// what the row's main button does — «Вставить» THIS part,
 // «Вставить ещё раз» on an inserted one, «Копировать» where nothing can be
 // inserted; a click that ends a text selection is the selection's, and a sent
 // part has nothing to click. Enter on the focused part inserts THIS part
@@ -54,6 +55,24 @@ export interface PartRowProps {
 
 /** What a click inside the row belongs to instead of the row: a control, the error card, the surface's own rows. */
 const ROW_OWN = 'button, a, input, textarea, select, [role="button"], .cg-part__card, .cg-part__extra';
+
+/**
+ * How far around the quiet copy button a click that missed it still copies (2026-11-07, a chatter: «кнопка копии
+ * порой не работает а просто вставляет»): in a narrow dock and on a kept part it is a 28 px icon, and the row all
+ * around it inserts. A miss copies, the harmless of the two; a click on the text or anywhere else on the row does the
+ * row's own action as before.
+ */
+export const COPY_SLOP_PX = 8;
+
+/** The click landed within COPY_SLOP_PX of the row's copy icon (its own clicks never reach the row). */
+function nearCopyIcon(row: HTMLElement, event: MouseEvent): boolean {
+  const actions = [...row.children].find((child) => child.classList.contains('cg-part__a'));
+  const icon = actions?.querySelector<HTMLElement>('.cg-part__copy') ?? null;
+  if (icon === null) return false;
+  const box = icon.getBoundingClientRect();
+  if (box.width === 0 && box.height === 0) return false;
+  return event.clientX >= box.left - COPY_SLOP_PX && event.clientX <= box.right + COPY_SLOP_PX && event.clientY >= box.top - COPY_SLOP_PX && event.clientY <= box.bottom + COPY_SLOP_PX;
+}
 
 function hasSelectionInside(root: ShadowRoot | Document, element: HTMLElement): boolean {
   const selection = 'getSelection' in root && typeof root.getSelection === 'function' ? root.getSelection() : element.ownerDocument.getSelection();
@@ -120,6 +139,13 @@ export function PartRow(props: PartRowProps): JSX.Element {
     if (event.target instanceof Element && event.target.closest(ROW_OWN) !== null) return;
     // The click that ends a drag over the text selected it; it asks for nothing more.
     if (hasSelectionInside(root, event.currentTarget)) return;
+    // A row that does something on a click: just beside the copy icon it copies, as the icon would. A click on the
+    // text itself is always the row's (in the narrow dock the icon stands 4 px from the text column).
+    const onText = event.target instanceof Element && event.target.closest('.cg-part__t') !== null;
+    if ((!collapsed || canAgain) && !onText && nearCopyIcon(event.currentTarget, event)) {
+      copy();
+      return;
+    }
     if (!collapsed) act();
     else if (canAgain && part.insert !== 'pending') props.onInsertAgain?.(part);
   };

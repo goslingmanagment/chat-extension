@@ -45,6 +45,33 @@ describe('parts', () => {
     expect(kit.client.dispatched.some((action) => action.type === 'SendPart')).toBe(false);
   });
 
+  it('a click just beside a part’s copy icon copies it, as the icon does; the rest of the row still inserts', async () => {
+    kit = mountDock(withResult(reply()));
+    const row = partRows()[1] as HTMLElement;
+    const icon = row.querySelector('.cg-part__copy') as HTMLElement;
+    const box = { left: 500, right: 528, top: 100, bottom: 126, width: 28, height: 26, x: 500, y: 100 };
+    vi.spyOn(icon, 'getBoundingClientRect').mockReturnValue({ ...box, toJSON: () => box } as DOMRect);
+    const clickAt = (x: number, y: number): void => {
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, button: 0, clientX: x, clientY: y }));
+    };
+    const copyHandle = (kit.client.getSnapshot({ of: 'dock' }).result?.parts?.[1] as PartVM).copyHandle;
+    // 3 px left of the icon and 5 px under it: a miss of the icon copies, never inserts.
+    await flush(() => clickAt(497, 113));
+    await flush(() => clickAt(514, 131));
+    expect(kit.client.dispatched).toEqual([
+      { type: 'Copy', artifactHandle: copyHandle },
+      { type: 'Copy', artifactHandle: copyHandle },
+    ]);
+    // Farther away, on the row: the row inserts its part, as before.
+    await flush(() => clickAt(300, 113));
+    expect(kit.client.dispatched.at(-1)).toEqual({ type: 'InsertPart', operationId: OP, part: 1 });
+    // On the text itself, even right beside the icon (the narrow dock): the row's own action.
+    const textNode = row.querySelector('.cg-part__t') as HTMLElement;
+    await flush(() => textNode.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, button: 0, clientX: 496, clientY: 110 })));
+    expect(kit.client.dispatched.at(-1)).toEqual({ type: 'InsertPart', operationId: OP, part: 1 });
+    expect(kit.client.dispatched).toHaveLength(4);
+  });
+
   it('[UI-023] Enter on a focused part inserts THAT part, not the next one; ↑ ↓ move between parts', async () => {
     kit = mountDock(withResult(reply()));
     const rows = partRows();
