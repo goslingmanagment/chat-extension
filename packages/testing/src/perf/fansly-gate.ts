@@ -40,7 +40,9 @@ export function backgroundMB(shot: MemoryReading | undefined): number {
   return documents.length === 0 ? NaN : documents.reduce((sum, [, bytes]) => sum + bytes, 0) / 1024 ** 2;
 }
 
-/** Only the shared 10 s keepalive, its 200 ms presence coalescer and 60 s health report.
+/** Only the shared 10 s keepalive, its 200 ms presence coalescer and 60 s health report; the dock's «Онлайн N» and
+ * «Очереди N» chips (the AI chunk's 60 s reads, one a minute each); the debug journal's 600 ms settle of a settings
+ * change (tab-app, a single shot).
  * Require both the file and interval: a new 500 ms DOM poll in tab-app must fail.
  * Firefox prints intervals as e.g. 9999 ms, one below the requested value. A setInterval's next delay is
  * also shortened by however late its last call ran: on the busy PC the keepalive printed 9895 and 9899 ms
@@ -53,7 +55,9 @@ export function unexpectedTabTimers(thread: ThreadSummary | null): Readonly<Reco
     const near = (ms: number): boolean => interval >= ms - slack && interval <= ms + 10;
     const runtime = /(?:fansly\.js|lazy\/fansly\/tab-app\.js):/.test(handler);
     const health = /lazy\/fansly\/tab-health\.js:/.test(handler);
-    return !((runtime && (near(10_000) || near(200))) || (health && near(60_000)));
+    const counts = handler.startsWith('setTimeout ') && /lazy\/fansly\/chunks\/ai-[\w-]+\.js:/.test(handler);
+    const settle = handler.startsWith('setTimeout ') && /lazy\/fansly\/tab-app\.js:/.test(handler);
+    return !((runtime && (near(10_000) || near(200))) || (health && near(60_000)) || (counts && near(60_000)) || (settle && near(600)));
   }));
 }
 
