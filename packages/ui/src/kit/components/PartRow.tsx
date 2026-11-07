@@ -57,9 +57,10 @@ export interface PartRowProps {
 const ROW_OWN = 'button, a, input, textarea, select, [role="button"], .cg-part__card, .cg-part__extra';
 
 /**
- * How far around the quiet copy icon a click that missed it still copies (2026-11-07, a chatter: «кнопка копии порой
- * не работает а просто вставляет»): the icon is 28 px, and the row all around it inserts. A miss copies, the harmless
- * of the two; a click on the text or anywhere else on the row does the row's own action as before.
+ * How far around the quiet copy button a click that missed it still copies (2026-11-07, a chatter: «кнопка копии
+ * порой не работает а просто вставляет»): in a narrow dock and on a kept part it is a 28 px icon, and the row all
+ * around it inserts. A miss copies, the harmless of the two; a click on the text or anywhere else on the row does the
+ * row's own action as before.
  */
 export const COPY_SLOP_PX = 8;
 
@@ -138,8 +139,10 @@ export function PartRow(props: PartRowProps): JSX.Element {
     if (event.target instanceof Element && event.target.closest(ROW_OWN) !== null) return;
     // The click that ends a drag over the text selected it; it asks for nothing more.
     if (hasSelectionInside(root, event.currentTarget)) return;
-    // A row that does something on a click: just beside the copy icon it copies, as the icon would.
-    if ((!collapsed || canAgain) && nearCopyIcon(event.currentTarget, event)) {
+    // A row that does something on a click: just beside the copy icon it copies, as the icon would. A click on the
+    // text itself is always the row's (in the narrow dock the icon stands 4 px from the text column).
+    const onText = event.target instanceof Element && event.target.closest('.cg-part__t') !== null;
+    if ((!collapsed || canAgain) && !onText && nearCopyIcon(event.currentTarget, event)) {
       copy();
       return;
     }

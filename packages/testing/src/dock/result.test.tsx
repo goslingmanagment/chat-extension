@@ -65,7 +65,11 @@ describe('parts', () => {
     // Farther away, on the row: the row inserts its part, as before.
     await flush(() => clickAt(300, 113));
     expect(kit.client.dispatched.at(-1)).toEqual({ type: 'InsertPart', operationId: OP, part: 1 });
-    expect(kit.client.dispatched).toHaveLength(3);
+    // On the text itself, even right beside the icon (the narrow dock): the row's own action.
+    const textNode = row.querySelector('.cg-part__t') as HTMLElement;
+    await flush(() => textNode.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, button: 0, clientX: 496, clientY: 110 })));
+    expect(kit.client.dispatched.at(-1)).toEqual({ type: 'InsertPart', operationId: OP, part: 1 });
+    expect(kit.client.dispatched).toHaveLength(4);
   });
 
   it('[UI-023] Enter on a focused part inserts THAT part, not the next one; ↑ ↓ move between parts', async () => {
