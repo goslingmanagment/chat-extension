@@ -340,8 +340,9 @@ export const clientBootstrapResponseSchema = z.object({
 export const CLIENT_RECAP_TRANSCRIPT_COVERAGES = ["full-history", "window"];
 export const clientConversationRecapsQuerySchema = z.object({
     /** The persona's opaque catalog identity (`aiPersonaCatalog.definitionId`).
-     *  With it, only that persona's recaps are selected; without it, the freshest
-     *  of any persona, as `aiRecapStatus` does. */
+     *  With it, a recap written before 2026-10-16 13:41 UTC is selected only for
+     *  that persona (a later one reads no persona and is selected under any);
+     *  without it, the freshest of any persona, as `aiRecapStatus` does. */
     personaDefinitionId: z.string().min(16).max(100).optional(),
     /**
      * R20 HF-10 (`conversation-recaps-v1`): the conversation, apart from the fan
@@ -1774,6 +1775,28 @@ export const clientFanslyProxiesResponseSchema = z.object({
 // conversation feed and the AI read a deleted message as an empty row.
 /** The most deleted messages of one fan `clientDeletedMessages` answers, the latest deleted first. */
 export const CLIENT_DELETED_MESSAGES_MAX = 50;
+export const clientDeletedMessagesQuerySchema = z.object({
+    /**
+     * The open chat (Fansly's group id): the answer then carries the chat's
+     * length (`chat`). One read when a chat opens, so the length costs no request
+     * of its own (owner, 2026-11-08: «без лишних запросов и точно»).
+     */
+    conversationRef: clientConversationRefSchema.optional(),
+}).strict();
+/**
+ * The length of the fan's chat with the page, for the chat header: how many
+ * messages it ever had and since when. Exact or nothing: both stay null until
+ * Hub holds the chat from its very first message (the sync's chain proved
+ * `complete`); then `messages` is the proven chain and what the page's socket
+ * brought after its head, both sides, deleted ones included.
+ */
+export const clientChatLengthSchema = z.object({
+    conversationRef: clientConversationRefSchema,
+    /** Every message of the chat, both sides; null while its history is not proven complete. */
+    messages: z.number().int().nonnegative().nullable(),
+    /** When its first message was sent; null while its history is not proven complete. */
+    firstMessageAt: isoTimestamp.nullable(),
+});
 export const clientDeletedMessagesResponseSchema = z.object({
     pageLabel: z.string(),
     fanRef: clientFanRefSchema,
@@ -1793,6 +1816,11 @@ export const clientDeletedMessagesResponseSchema = z.object({
         /** When the page's socket said it was deleted. */
         deletedAt: isoTimestamp,
     })).max(CLIENT_DELETED_MESSAGES_MAX),
+    /**
+     * Only when the request named `conversationRef`: the chat's length; null
+     * when the page holds no thread of that group with this fan.
+     */
+    chat: clientChatLengthSchema.nullable().optional(),
     serverNow: isoTimestamp,
 });
 // ── the OnlyFans feed from ChatSpace (onlyfans-feed-v1) ─────────────────────
@@ -2131,7 +2159,7 @@ export const clientFanNoteAttributionsResponseSchema = z.object({
 //
 // - One stretch of work runs from the first active minute until
 //   CHATTER_SHIFT_END_IDLE_MINUTES with no activity. The extension closing or a
-//   browser restarting ends nothing. Idle up to
+//   browser restarting ends nothing, while it goes on or afterwards. Idle up to
 //   CHATTER_SHIFT_IDLE_PAUSE_MINUTES is work, the rest of a gap is a pause.
 // - A stretch with CHATTER_SHIFT_MIN_WORKED_MINUTES of work and
 //   CHATTER_SHIFT_MIN_MESSAGES messages is a SHIFT; anything less is a VISIT, a
@@ -2252,9 +2280,18 @@ export const teamShiftSchema = z.object({
     startedAt: isoTimestamp,
     /** Still going: the end is the hub's now. */
     endedAt: isoTimestamp,
+    /**
+     * Under CHATTER_SHIFT_END_IDLE_MINUTES since its last action, the extension open or not: a break is no end. A shift that
+     * truly ended is still «going» for that hour; `lastInputAt` says how long nothing has happened.
+     */
     ongoing: z.boolean(),
     workedMinutes: z.number().int().nonnegative(),
+    /** A break going on now is one too, up to the hub's now. */
     pauses: z.array(z.object({ from: isoTimestamp, to: isoTimestamp })),
+    /** The start of the shift's last minute with an action. */
+    lastInputAt: isoTimestamp,
+    /** The start of its last minute the extension beat in: older than CLIENT_ACTIVITY_LOST_MINUTES — closed or offline. */
+    lastBeatAt: isoTimestamp,
     /**
      * The shift's pages, the most messages first: minutes with an action there (a
      * minute two tabs saw counts on both, so they do not add up to the shift) and
@@ -3261,7 +3298,8 @@ export const clientRouteSchemas = {
             + "freshest usable full and short `fan-summary` recap of the fan (`fanRef` is the OnlyFans fan id, "
             + "which is the chat id), the same two rows `aiRecapStatus` describes, to every chatter granted the "
             + "page, whoever generated them. A recap generated from context only its caller saw is never "
-            + "selected. `personaDefinitionId` narrows both slots to one persona. `fullSavedToProfile` tells "
+            + "selected. `personaDefinitionId` narrows both slots to one persona for recaps written before "
+            + "2026-10-16 13:41 UTC; a later recap reads no persona and is selected under any. `fullSavedToProfile` tells "
             + "whether the fan's latest dossier on this page has exactly the full recap's text. With "
             + "`conversation-recaps-v1`, `conversationRef` names the conversation apart from the fan (on Fansly "
             + "the group id): the pair is checked before anything is read (409 `conversation_fan_mismatch` for "
@@ -3610,8 +3648,12 @@ export const clientRouteSchemas = {
             + "deleted message as an empty row, this read serves its text: a Fansly deletion is a fact about the message, "
             + "not an erasure (owner, 2026-09-28), and the chat extension shows the fan's deleted messages to the chatters "
             + "of the page (owner, 2026-11-03). Fansly only: on another platform's page the list is empty. `fanRef` is "
-            + "the fan's account id on Fansly.",
+            + "the fan's account id on Fansly. With `conversationRef` (the open chat's group id) the answer also carries "
+            + "`chat`: how many messages that chat ever had (both sides, deleted ones included) and when its first was "
+            + "sent, both null until Hub holds the chat from its first message; null for a group that is not this fan's "
+            + "chat with the page.",
         params: clientPageFanParamsSchema,
+        querystring: clientDeletedMessagesQuerySchema,
         response: {
             200: clientDeletedMessagesResponseSchema,
             400: errorResponseSchema,

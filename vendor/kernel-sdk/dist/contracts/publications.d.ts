@@ -141,6 +141,7 @@ export declare const publicationContentSchema: z.ZodObject<{
         priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         subscribersOnly: z.ZodDefault<z.ZodBoolean>;
     }, z.core.$strict>>>;
+    vaultAlbumRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
 }, z.core.$strict>;
 export type PublicationContentBody = z.infer<typeof publicationContentSchema>;
 export declare const publicationCreateBodySchema: z.ZodObject<{
@@ -206,6 +207,7 @@ export declare const publicationCreateBodySchema: z.ZodObject<{
         priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         subscribersOnly: z.ZodDefault<z.ZodBoolean>;
     }, z.core.$strict>>>;
+    vaultAlbumRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     pageLabel: z.ZodString;
 }, z.core.$strict>;
 export type PublicationCreateBody = z.infer<typeof publicationCreateBodySchema>;
@@ -272,6 +274,7 @@ export declare const publicationUpdateBodySchema: z.ZodObject<{
         priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         subscribersOnly: z.ZodDefault<z.ZodBoolean>;
     }, z.core.$strict>>>;
+    vaultAlbumRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     version: z.ZodNumber;
 }, z.core.$strict>;
 export type PublicationUpdateBody = z.infer<typeof publicationUpdateBodySchema>;
@@ -338,6 +341,7 @@ export declare const agentPublicationCreateBodySchema: z.ZodObject<{
         priceMills: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
         subscribersOnly: z.ZodDefault<z.ZodBoolean>;
     }, z.core.$strict>>>;
+    vaultAlbumRef: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     idempotencyKey: z.ZodString;
 }, z.core.$strict>;
 export type AgentPublicationCreateBody = z.infer<typeof agentPublicationCreateBodySchema>;

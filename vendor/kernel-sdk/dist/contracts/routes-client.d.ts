@@ -1539,6 +1539,21 @@ export declare const clientFanslyProxiesResponseSchema: z.ZodObject<{
 }, z.core.$strip>;
 /** The most deleted messages of one fan `clientDeletedMessages` answers, the latest deleted first. */
 export declare const CLIENT_DELETED_MESSAGES_MAX = 50;
+export declare const clientDeletedMessagesQuerySchema: z.ZodObject<{
+    conversationRef: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+/**
+ * The length of the fan's chat with the page, for the chat header: how many
+ * messages it ever had and since when. Exact or nothing: both stay null until
+ * Hub holds the chat from its very first message (the sync's chain proved
+ * `complete`); then `messages` is the proven chain and what the page's socket
+ * brought after its head, both sides, deleted ones included.
+ */
+export declare const clientChatLengthSchema: z.ZodObject<{
+    conversationRef: z.ZodString;
+    messages: z.ZodNullable<z.ZodNumber>;
+    firstMessageAt: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
 export declare const clientDeletedMessagesResponseSchema: z.ZodObject<{
     pageLabel: z.ZodString;
     fanRef: z.ZodString;
@@ -1551,6 +1566,11 @@ export declare const clientDeletedMessagesResponseSchema: z.ZodObject<{
         sentAt: z.ZodNullable<z.ZodString>;
         deletedAt: z.ZodString;
     }, z.core.$strip>>;
+    chat: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        conversationRef: z.ZodString;
+        messages: z.ZodNullable<z.ZodNumber>;
+        firstMessageAt: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
 /** Records in one report. */
@@ -2157,6 +2177,8 @@ export declare const teamShiftSchema: z.ZodObject<{
         from: z.ZodString;
         to: z.ZodString;
     }, z.core.$strip>>;
+    lastInputAt: z.ZodString;
+    lastBeatAt: z.ZodString;
     pages: z.ZodArray<z.ZodObject<{
         pageLabel: z.ZodString;
         activeMinutes: z.ZodNumber;
@@ -2178,6 +2200,8 @@ export declare const teamShiftsResponseSchema: z.ZodObject<{
             from: z.ZodString;
             to: z.ZodString;
         }, z.core.$strip>>;
+        lastInputAt: z.ZodString;
+        lastBeatAt: z.ZodString;
         pages: z.ZodArray<z.ZodObject<{
             pageLabel: z.ZodString;
             activeMinutes: z.ZodNumber;
@@ -4572,6 +4596,9 @@ export declare const clientRouteSchemas: {
             pageLabel: z.ZodString;
             fanRef: z.ZodString;
         }, z.core.$strip>;
+        readonly querystring: z.ZodObject<{
+            conversationRef: z.ZodOptional<z.ZodString>;
+        }, z.core.$strict>;
         readonly response: {
             readonly 200: z.ZodObject<{
                 pageLabel: z.ZodString;
@@ -4585,6 +4612,11 @@ export declare const clientRouteSchemas: {
                     sentAt: z.ZodNullable<z.ZodString>;
                     deletedAt: z.ZodString;
                 }, z.core.$strip>>;
+                chat: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+                    conversationRef: z.ZodString;
+                    messages: z.ZodNullable<z.ZodNumber>;
+                    firstMessageAt: z.ZodNullable<z.ZodString>;
+                }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
@@ -5202,6 +5234,8 @@ export declare const clientRouteSchemas: {
                         from: z.ZodString;
                         to: z.ZodString;
                     }, z.core.$strip>>;
+                    lastInputAt: z.ZodString;
+                    lastBeatAt: z.ZodString;
                     pages: z.ZodArray<z.ZodObject<{
                         pageLabel: z.ZodString;
                         activeMinutes: z.ZodNumber;
@@ -8224,6 +8258,8 @@ export type ClientNoteAttributionsResponse = z.infer<typeof clientNoteAttributio
 export type ClientFanNoteAttributionsResponse = z.infer<typeof clientFanNoteAttributionsResponseSchema>;
 export type ClientMessageAuthorsResponse = z.infer<typeof clientMessageAuthorsResponseSchema>;
 export type ClientDeletedMessagesResponse = z.infer<typeof clientDeletedMessagesResponseSchema>;
+export type ClientDeletedMessagesQuery = z.infer<typeof clientDeletedMessagesQuerySchema>;
+export type ClientChatLength = z.infer<typeof clientChatLengthSchema>;
 export type ClientFanslyProxiesResponse = z.infer<typeof clientFanslyProxiesResponseSchema>;
 export type ClientNoteAttributionWho = z.infer<typeof clientNoteAttributionWhoSchema>;
 export type ClientAudienceNewQuery = z.infer<typeof clientAudienceNewQuerySchema>;

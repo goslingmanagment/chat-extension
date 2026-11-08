@@ -395,4 +395,120 @@ export declare const chatterStatsRouteSchemas: {
             }, import("zod/v4/core").$strip>;
         };
     };
+    readonly teamShiftSales: {
+        readonly auth: {
+            readonly kind: "session";
+        };
+        readonly tags: readonly ["client"];
+        readonly summary: "The team's shifts of the window with their money: by day, by chatter, against the window before";
+        readonly description: string;
+        readonly querystring: import("zod").ZodObject<{
+            days: import("zod").ZodDefault<import("zod").ZodCoercedNumber<unknown>>;
+            until: import("zod").ZodOptional<import("zod").ZodString>;
+            pageLabel: import("zod").ZodOptional<import("zod").ZodString>;
+        }, import("zod/v4/core").$strip>;
+        readonly response: {
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                from: import("zod").ZodString;
+                to: import("zod").ZodString;
+                knownSince: import("zod").ZodNullable<import("zod").ZodString>;
+                team: import("zod").ZodObject<{
+                    shifts: import("zod").ZodNumber;
+                    workedMinutes: import("zod").ZodNumber;
+                    salesNetMills: import("zod").ZodNumber;
+                    sales: import("zod").ZodNumber;
+                    perHourMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    daily: import("zod").ZodArray<import("zod").ZodObject<{
+                        date: import("zod").ZodString;
+                        salesNetMills: import("zod").ZodNumber;
+                        shifts: import("zod").ZodNumber;
+                        workedMinutes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>;
+                previous: import("zod").ZodNullable<import("zod").ZodObject<{
+                    shifts: import("zod").ZodNumber;
+                    workedMinutes: import("zod").ZodNumber;
+                    salesNetMills: import("zod").ZodNumber;
+                    sales: import("zod").ZodNumber;
+                    perHourMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                }, import("zod/v4/core").$strip>>;
+                chatters: import("zod").ZodArray<import("zod").ZodObject<{
+                    shifts: import("zod").ZodNumber;
+                    workedMinutes: import("zod").ZodNumber;
+                    salesNetMills: import("zod").ZodNumber;
+                    sales: import("zod").ZodNumber;
+                    perHourMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    userId: import("zod").ZodNumber;
+                    username: import("zod").ZodString;
+                    overlapNetMills: import("zod").ZodNumber;
+                    previous: import("zod").ZodNullable<import("zod").ZodObject<{
+                        shifts: import("zod").ZodNumber;
+                        workedMinutes: import("zod").ZodNumber;
+                        salesNetMills: import("zod").ZodNumber;
+                        sales: import("zod").ZodNumber;
+                        perHourMills: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    }, import("zod/v4/core").$strip>>;
+                    daily: import("zod").ZodArray<import("zod").ZodObject<{
+                        date: import("zod").ZodString;
+                        salesNetMills: import("zod").ZodNumber;
+                        shifts: import("zod").ZodNumber;
+                        workedMinutes: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+                shifts: import("zod").ZodArray<import("zod").ZodObject<{
+                    userId: import("zod").ZodNumber;
+                    username: import("zod").ZodString;
+                    startedAt: import("zod").ZodString;
+                    endedAt: import("zod").ZodString;
+                    ongoing: import("zod").ZodBoolean;
+                    workedMinutes: import("zod").ZodNumber;
+                    pauses: import("zod").ZodArray<import("zod").ZodObject<{
+                        from: import("zod").ZodString;
+                        to: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>;
+                    lastInputAt: import("zod").ZodString;
+                    lastBeatAt: import("zod").ZodString;
+                    pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        activeMinutes: import("zod").ZodNumber;
+                        messages: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    authoredMessages: import("zod").ZodNumber;
+                    date: import("zod").ZodString;
+                    salesNetMills: import("zod").ZodNumber;
+                    overlapNetMills: import("zod").ZodNumber;
+                    sales: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+                serverNow: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
 };

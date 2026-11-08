@@ -6,8 +6,9 @@
  *
  * Money is micro-USD (1 000 000 = $1) — Hub's own price of every call it
  * made; Anthropic's own bill is the reconciliation below. Anthropic has no API for an account's
- * remaining credit, so the balance is estimated: the owner's reading minus
- * Hub's spend through the account since.
+ * remaining credit, so the balance is Hub's count: the owner's last reading,
+ * or $0 at Anthropic's last refusal for credit, plus the money that came in
+ * since (the monthly credit, the owner's purchases), minus Hub's spend since.
  */
 import { z } from "zod";
 export declare const adminAiAccountSchema: z.ZodObject<{
@@ -35,9 +36,33 @@ export declare const adminAiAccountSchema: z.ZodObject<{
         last24h: z.ZodNumber;
         last30d: z.ZodNumber;
     }, z.core.$strip>;
+    monthlyCredit: z.ZodNullable<z.ZodObject<{
+        day: z.ZodNumber;
+        microUsd: z.ZodNumber;
+        nextExpectedAt: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
     balance: z.ZodNullable<z.ZodObject<{
         readMicroUsd: z.ZodNumber;
         readAt: z.ZodString;
+        readSource: z.ZodEnum<{
+            reading: "reading";
+            credit_refusal: "credit_refusal";
+        }>;
+        creditedSinceMicroUsd: z.ZodNumber;
+        credits: z.ZodArray<z.ZodObject<{
+            kind: z.ZodEnum<{
+                monthly: "monthly";
+                topup: "topup";
+            }>;
+            microUsd: z.ZodNumber;
+            at: z.ZodString;
+            source: z.ZodEnum<{
+                dashboard: "dashboard";
+                revived: "revived";
+                schedule: "schedule";
+            }>;
+        }, z.core.$strip>>;
+        unknownTopUp: z.ZodBoolean;
         spentSinceMicroUsd: z.ZodNumber;
         estimatedMicroUsd: z.ZodNumber;
         daysLeft: z.ZodNullable<z.ZodNumber>;
@@ -78,9 +103,33 @@ export declare const adminAiAccountsResponseSchema: z.ZodObject<{
             last24h: z.ZodNumber;
             last30d: z.ZodNumber;
         }, z.core.$strip>;
+        monthlyCredit: z.ZodNullable<z.ZodObject<{
+            day: z.ZodNumber;
+            microUsd: z.ZodNumber;
+            nextExpectedAt: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
         balance: z.ZodNullable<z.ZodObject<{
             readMicroUsd: z.ZodNumber;
             readAt: z.ZodString;
+            readSource: z.ZodEnum<{
+                reading: "reading";
+                credit_refusal: "credit_refusal";
+            }>;
+            creditedSinceMicroUsd: z.ZodNumber;
+            credits: z.ZodArray<z.ZodObject<{
+                kind: z.ZodEnum<{
+                    monthly: "monthly";
+                    topup: "topup";
+                }>;
+                microUsd: z.ZodNumber;
+                at: z.ZodString;
+                source: z.ZodEnum<{
+                    dashboard: "dashboard";
+                    revived: "revived";
+                    schedule: "schedule";
+                }>;
+            }, z.core.$strip>>;
+            unknownTopUp: z.ZodBoolean;
             spentSinceMicroUsd: z.ZodNumber;
             estimatedMicroUsd: z.ZodNumber;
             daysLeft: z.ZodNullable<z.ZodNumber>;
@@ -97,6 +146,22 @@ export declare const adminAiAccountsResponseSchema: z.ZodObject<{
     dailyBurnMicroUsd: z.ZodNumber;
     unattributed30dMicroUsd: z.ZodNumber;
     balanceWarnDays: z.ZodNumber;
+    forecast: z.ZodObject<{
+        leftMicroUsd: z.ZodNumber;
+        missing: z.ZodArray<z.ZodString>;
+        runsOutAt: z.ZodNullable<z.ZodString>;
+        nextCredit: z.ZodNullable<z.ZodObject<{
+            label: z.ZodString;
+            microUsd: z.ZodNumber;
+            expectedAt: z.ZodString;
+        }, z.core.$strip>>;
+        gap: z.ZodNullable<z.ZodObject<{
+            label: z.ZodString;
+            untilAt: z.ZodString;
+            shortfallMicroUsd: z.ZodNumber;
+        }, z.core.$strip>>;
+        low: z.ZodBoolean;
+    }, z.core.$strip>;
 }, z.core.$strip>;
 /**
  * Hub's ledger against Anthropic's bill, per account and UTC day. Anthropic's
@@ -325,6 +390,7 @@ export declare const adminAiAccountUpdateBodySchema: z.ZodObject<{
         down: "down";
     }>>;
     balanceMicroUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    topUpMicroUsd: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 /**
  * The ElevenLabs account behind voice notes, as Hub's account check last saw
@@ -402,9 +468,33 @@ export declare const aiAccountRouteSchemas: {
                         last24h: z.ZodNumber;
                         last30d: z.ZodNumber;
                     }, z.core.$strip>;
+                    monthlyCredit: z.ZodNullable<z.ZodObject<{
+                        day: z.ZodNumber;
+                        microUsd: z.ZodNumber;
+                        nextExpectedAt: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
                     balance: z.ZodNullable<z.ZodObject<{
                         readMicroUsd: z.ZodNumber;
                         readAt: z.ZodString;
+                        readSource: z.ZodEnum<{
+                            reading: "reading";
+                            credit_refusal: "credit_refusal";
+                        }>;
+                        creditedSinceMicroUsd: z.ZodNumber;
+                        credits: z.ZodArray<z.ZodObject<{
+                            kind: z.ZodEnum<{
+                                monthly: "monthly";
+                                topup: "topup";
+                            }>;
+                            microUsd: z.ZodNumber;
+                            at: z.ZodString;
+                            source: z.ZodEnum<{
+                                dashboard: "dashboard";
+                                revived: "revived";
+                                schedule: "schedule";
+                            }>;
+                        }, z.core.$strip>>;
+                        unknownTopUp: z.ZodBoolean;
                         spentSinceMicroUsd: z.ZodNumber;
                         estimatedMicroUsd: z.ZodNumber;
                         daysLeft: z.ZodNullable<z.ZodNumber>;
@@ -421,6 +511,22 @@ export declare const aiAccountRouteSchemas: {
                 dailyBurnMicroUsd: z.ZodNumber;
                 unattributed30dMicroUsd: z.ZodNumber;
                 balanceWarnDays: z.ZodNumber;
+                forecast: z.ZodObject<{
+                    leftMicroUsd: z.ZodNumber;
+                    missing: z.ZodArray<z.ZodString>;
+                    runsOutAt: z.ZodNullable<z.ZodString>;
+                    nextCredit: z.ZodNullable<z.ZodObject<{
+                        label: z.ZodString;
+                        microUsd: z.ZodNumber;
+                        expectedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                    gap: z.ZodNullable<z.ZodObject<{
+                        label: z.ZodString;
+                        untilAt: z.ZodString;
+                        shortfallMicroUsd: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    low: z.ZodBoolean;
+                }, z.core.$strip>;
             }, z.core.$strip>;
             readonly 401: z.ZodObject<{
                 error: z.ZodString;
@@ -454,6 +560,7 @@ export declare const aiAccountRouteSchemas: {
                 down: "down";
             }>>;
             balanceMicroUsd: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+            topUpMicroUsd: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>;
         readonly response: {
             readonly 200: z.ZodObject<{
@@ -483,9 +590,33 @@ export declare const aiAccountRouteSchemas: {
                         last24h: z.ZodNumber;
                         last30d: z.ZodNumber;
                     }, z.core.$strip>;
+                    monthlyCredit: z.ZodNullable<z.ZodObject<{
+                        day: z.ZodNumber;
+                        microUsd: z.ZodNumber;
+                        nextExpectedAt: z.ZodNullable<z.ZodString>;
+                    }, z.core.$strip>>;
                     balance: z.ZodNullable<z.ZodObject<{
                         readMicroUsd: z.ZodNumber;
                         readAt: z.ZodString;
+                        readSource: z.ZodEnum<{
+                            reading: "reading";
+                            credit_refusal: "credit_refusal";
+                        }>;
+                        creditedSinceMicroUsd: z.ZodNumber;
+                        credits: z.ZodArray<z.ZodObject<{
+                            kind: z.ZodEnum<{
+                                monthly: "monthly";
+                                topup: "topup";
+                            }>;
+                            microUsd: z.ZodNumber;
+                            at: z.ZodString;
+                            source: z.ZodEnum<{
+                                dashboard: "dashboard";
+                                revived: "revived";
+                                schedule: "schedule";
+                            }>;
+                        }, z.core.$strip>>;
+                        unknownTopUp: z.ZodBoolean;
                         spentSinceMicroUsd: z.ZodNumber;
                         estimatedMicroUsd: z.ZodNumber;
                         daysLeft: z.ZodNullable<z.ZodNumber>;
@@ -502,6 +633,22 @@ export declare const aiAccountRouteSchemas: {
                 dailyBurnMicroUsd: z.ZodNumber;
                 unattributed30dMicroUsd: z.ZodNumber;
                 balanceWarnDays: z.ZodNumber;
+                forecast: z.ZodObject<{
+                    leftMicroUsd: z.ZodNumber;
+                    missing: z.ZodArray<z.ZodString>;
+                    runsOutAt: z.ZodNullable<z.ZodString>;
+                    nextCredit: z.ZodNullable<z.ZodObject<{
+                        label: z.ZodString;
+                        microUsd: z.ZodNumber;
+                        expectedAt: z.ZodString;
+                    }, z.core.$strip>>;
+                    gap: z.ZodNullable<z.ZodObject<{
+                        label: z.ZodString;
+                        untilAt: z.ZodString;
+                        shortfallMicroUsd: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    low: z.ZodBoolean;
+                }, z.core.$strip>;
             }, z.core.$strip>;
             readonly 400: z.ZodObject<{
                 error: z.ZodString;

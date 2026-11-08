@@ -7,12 +7,15 @@
 //   chat deleted: the hub stores the deletion from its own socket a moment later. Never a read per row of a list.
 // - The slot is in the header only while the fan has a deleted message: no node of ours there otherwise, nothing while
 //   the read runs or after it failed.
+// - The same read, with the open chat's group, says how long the chat is (2026-11-08): a badge of its own after
+//   «Регистрация» (order 25), «428 · 3 мес», once the read answered; no read of its own.
 import type { MountSurfaceKind } from '@cg/contracts/vm';
 import { createPageContext } from '@cg/core/application/boards';
 import { createDeletedMessages } from '@cg/core/application/hosts/fansly/deleted';
 import { admittedOn } from '@cg/core/domain/features';
-import { DELETED_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
+import { CHAT_LENGTH_TEXTS, DELETED_TEXTS } from '@cg/core/domain/hosts/fansly/i18n';
 import type { FanslyPort } from '@cg/host-fansly/isolated';
+import { chatLengthSurface } from '@cg/ui/hosts/fansly/chat-length';
 import { deletedMessagesSurface } from '@cg/ui/hosts/fansly/deleted';
 import { mountKitSurface, type KitMount } from '@cg/ui/kit';
 
@@ -21,6 +24,8 @@ import { fanslyRequest } from './requests';
 
 /** The header's order of the mark: after «Заметки» (10), «Регистрация» (20) and the fan's marks (30). */
 const DELETED_ORDER = 40;
+/** The chat's length: right after «Регистрация» (20), the fan's two dates side by side; before the warnings. */
+const CHAT_LENGTH_ORDER = 25;
 /** Above the background's own wait for the hub. */
 const DELETED_TIMEOUT_MS = 30_000;
 
@@ -43,11 +48,11 @@ export function startFanslyDeleted(env: SiteAppEnv<FanslyPort>): () => void {
       const fanId = route.chat?.platformFanId ?? null;
       // The address is read again: the port's route may lag a switch the person just made.
       if (!allowed() || pageId === undefined || !host.header.available() || identity === null || route.name !== 'chat' || route.conversationRef === undefined || route.conversationKind === 'group' || win.location.pathname !== `/messages/${route.conversationRef}` || fanId === null) return null;
-      return { pageId, accountId: identity.hostAccountId, fanId };
+      return { pageId, accountId: identity.hostAccountId, fanId, groupId: route.conversationRef };
     },
     async read(target) {
-      const answer = await fanslyRequest(rpc, 'fansly.deleted.read', { pageId: target.pageId, hostAccountId: target.accountId, fanRef: target.fanId }, DELETED_TIMEOUT_MS);
-      return answer.ok && answer.payload.ok ? { ok: true, deleted: answer.payload.deleted } : { ok: false };
+      const answer = await fanslyRequest(rpc, 'fansly.deleted.read', { pageId: target.pageId, hostAccountId: target.accountId, fanRef: target.fanId, groupId: target.groupId }, DELETED_TIMEOUT_MS);
+      return answer.ok && answer.payload.ok ? { ok: true, deleted: answer.payload.deleted, chat: answer.payload.chat } : { ok: false };
     },
     now: () => Date.now(),
     setTimer: (ms, run) => win.setTimeout(run, ms),
@@ -55,11 +60,15 @@ export function startFanslyDeleted(env: SiteAppEnv<FanslyPort>): () => void {
   });
   let slot: ReturnType<FanslyPort['header']['mount']> | null = null;
   let mount: KitMount | null = null;
+  let chatSlot: ReturnType<FanslyPort['header']['mount']> | null = null;
+  let chatMount: KitMount | null = null;
   const report = (): void => {
     // Test builds: what the e2e and `pnpm see` read — counts only, never a text.
     if (env.probe === null) return;
     const view = client.view();
     env.probe.set('deleted', { total: view.total, shown: view.messages.length, fresh: view.fresh });
+    const chat = client.chat.view();
+    env.probe.set('chatLength', chat === null ? null : { messages: chat.messages, since: new Date(chat.since).toISOString() });
   };
   const place = (): void => {
     if (env.life.aborted) return;
@@ -73,6 +82,16 @@ export function startFanslyDeleted(env: SiteAppEnv<FanslyPort>): () => void {
       mount = null;
       slot.remove();
       slot = null;
+    }
+    const chatOn = allowed() && client.chat.view() !== null;
+    if (chatOn && chatSlot === null) {
+      chatSlot = host.header.mount(CHAT_LENGTH_ORDER);
+      chatMount = mountKitSurface('header-slot' as MountSurfaceKind, chatSlot.root, env.deps, chatLengthSurface(client.chat, CHAT_LENGTH_TEXTS), { report: env.report });
+    } else if (!chatOn && chatSlot !== null) {
+      chatMount?.unmount();
+      chatMount = null;
+      chatSlot.remove();
+      chatSlot = null;
     }
   };
   const sync = (): void => {
@@ -88,6 +107,7 @@ export function startFanslyDeleted(env: SiteAppEnv<FanslyPort>): () => void {
     host.header.onChange(sync),
     context.subscribe(sync),
     client.subscribe(place),
+    client.chat.subscribe(place),
     // A message of the open chat went: the fan's, maybe. The hub's answer says.
     host.fansly.onDeleted((groupId) => {
       if (host.current().route.conversationRef === groupId) client.heard();
@@ -102,5 +122,9 @@ export function startFanslyDeleted(env: SiteAppEnv<FanslyPort>): () => void {
     slot?.remove();
     mount = null;
     slot = null;
+    chatMount?.unmount();
+    chatSlot?.remove();
+    chatMount = null;
+    chatSlot = null;
   };
 }

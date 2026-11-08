@@ -232,6 +232,81 @@ export declare const publicationFileRouteSchemas: {
             }, import("zod/v4/core").$strip>;
         };
     };
+    readonly agentPublicationFileLookup: {
+        readonly auth: {
+            readonly kind: "agentKey";
+            readonly scope: "page";
+        };
+        readonly tags: readonly ["agent"];
+        readonly summary: string;
+        readonly params: import("zod").ZodObject<{
+            pageLabel: import("zod").ZodString;
+        }, import("zod/v4/core").$strip>;
+        readonly body: import("zod").ZodObject<{
+            files: import("zod").ZodArray<import("zod").ZodObject<{
+                sha256: import("zod").ZodString;
+                byteSize: import("zod").ZodNumber;
+            }, import("zod/v4/core").$strict>>;
+            keep: import("zod").ZodDefault<import("zod").ZodBoolean>;
+        }, import("zod/v4/core").$strict>;
+        readonly response: {
+            readonly 429: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 503: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 400: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 401: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 403: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 404: import("zod").ZodObject<{
+                error: import("zod").ZodString;
+                message: import("zod").ZodString;
+                statusCode: import("zod").ZodNumber;
+                reason: import("zod").ZodOptional<import("zod").ZodString>;
+                statusUrl: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            readonly 200: import("zod").ZodObject<{
+                files: import("zod").ZodArray<import("zod").ZodObject<{
+                    sha256: import("zod").ZodString;
+                    byteSize: import("zod").ZodNumber;
+                    file: import("zod").ZodNullable<import("zod").ZodObject<{
+                        id: import("zod").ZodNumber;
+                        sha256: import("zod").ZodString;
+                        byteSize: import("zod").ZodNumber;
+                        mimeType: import("zod").ZodString;
+                        originalName: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>;
+        };
+    };
     readonly adminPublicationFileList: {
         readonly auth: {
             readonly kind: "owner-session";

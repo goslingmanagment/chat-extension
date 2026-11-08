@@ -26,4 +26,5 @@ export { REGISTRATION_TEXTS, REGISTRATION_I18N } from './registration';
 export { NOTES_TEXTS } from './notes';
 export { FAN_MARKS_TEXTS } from './fan-marks';
 export { DELETED_TEXTS } from './deleted';
+export { CHAT_LENGTH_TEXTS } from './chat-length';
 export { MESSAGE_AUTHOR_TEXTS } from './message-authors';

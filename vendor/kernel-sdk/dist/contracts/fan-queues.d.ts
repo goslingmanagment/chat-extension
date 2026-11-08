@@ -946,8 +946,8 @@ export declare const clientFanQueueTakeResponseSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const clientFanQueueItemDoneBodySchema: z.ZodObject<{
     outcome: z.ZodEnum<{
-        skipped: "skipped";
         sent: "sent";
+        skipped: "skipped";
     }>;
     act: z.ZodOptional<z.ZodEnum<{
         ping: "ping";

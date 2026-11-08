@@ -186,6 +186,17 @@ export const FanslyDeletedMessagesSchema = z.strictObject({
 export type FanslyDeletedMessages = z.infer<typeof FanslyDeletedMessagesSchema>;
 
 /**
+ * The open chat's length (2026-11-08, the owner: how many messages with the fan and since when, «без лишних запросов и
+ * точно»), carried by the same read: `messages` and `firstMessageAt` only when the hub holds the chat from its first
+ * message, else null; the whole object null when the hub has no such chat of this fan.
+ */
+export const FanslyChatLengthSchema = z.strictObject({
+  messages: z.nullable(CountSchema),
+  firstMessageAt: z.nullable(IsoTimestampSchema),
+});
+export type FanslyChatLength = z.infer<typeof FanslyChatLengthSchema>;
+
+/**
  * An item of Fansly's own «Copied …» list as a message takes it (the page's MediaService, `media_service_copied_media`
  * in its localStorage; main:55851-55861 of the 2026-10-12 bundle): «Copied Bundle» — `contentType` 2, the bundle's id;
  * «Copied Media» — 1, the account media's id. The price and the free preview are the bundle's own, set with its post.
@@ -769,10 +780,15 @@ export const FANSLY_TAB_REQUESTS = {
   /**
    * «Фан удалил» in the open chat's header (hub `clientDeletedMessages`): when the chat opens, and again after the page
    * heard a deletion in it. Nothing kept by the background: a read in flight for the same page and fan is joined.
+   * `groupId` — the open chat: the same answer then also says how long the chat is (the header's badge, no read of its own).
    */
   'fansly.deleted.read': {
-    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema }),
-    res: z.discriminatedUnion('ok', [z.strictObject({ ok: z.literal(true), deleted: FanslyDeletedMessagesSchema }), Failure]),
+    req: z.strictObject({ pageId: HubIntIdSchema, hostAccountId: NativeIdSchema, fanRef: NativeIdSchema, groupId: z.optional(NativeIdSchema) }),
+    res: z.discriminatedUnion('ok', [
+      // `chat` — only for a request with `groupId`, from a hub that answers it (absent from an older one).
+      z.strictObject({ ok: z.literal(true), deleted: FanslyDeletedMessagesSchema, chat: z.optional(z.nullable(FanslyChatLengthSchema)) }),
+      Failure,
+    ]),
     from: TAB, hosts: FANSLY,
   },
   /**

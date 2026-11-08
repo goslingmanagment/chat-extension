@@ -304,6 +304,8 @@ export type FakeHubCommand =
   | { readonly op: 'messageAuthor'; readonly pageLabel: string; readonly fanRef: string; readonly messageId: string; readonly login: string; readonly at: string; readonly how?: string; readonly edited?: boolean }
   /** 2026-11-03: a message of the fan the page's socket saw deleted, as `clientDeletedMessages` answers it (`text` null — none kept). */
   | { readonly op: 'deletedMessage'; readonly pageLabel: string; readonly fanRef: string; readonly messageId: string; readonly text: string | null; readonly deletedAt: string; readonly sentAt?: string; readonly attachments?: number; readonly groupId?: string }
+  /** 2026-11-08: a chat's length as the hub's sync chain knows it (`messages`/`firstMessageAt` null — not proven from its first message). */
+  | { readonly op: 'chatLength'; readonly pageLabel: string; readonly fanRef: string; readonly groupId: string; readonly messages: number | null; readonly firstMessageAt: string | null }
   /** Read-only snapshot for assertions (no secrets: token ids, never tokens). */
   | { readonly op: 'status' };
 

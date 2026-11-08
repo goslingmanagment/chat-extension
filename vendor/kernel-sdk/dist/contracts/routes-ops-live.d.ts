@@ -75,10 +75,10 @@ export declare const opsLivePageSchema: z.ZodObject<{
 /** A sent request's class: the engine's work classes, and `site` — the page's
  *  own site requests and login operations (Project Browser), which serve no work. */
 export declare const opsLiveAttemptClassEnum: z.ZodEnum<{
+    site: "site";
     requests: "requests";
     planned: "planned";
     urgent: "urgent";
-    site: "site";
 }>;
 export declare const opsLiveAttemptSchema: z.ZodObject<{
     id: z.ZodString;
@@ -86,10 +86,10 @@ export declare const opsLiveAttemptSchema: z.ZodObject<{
     resource: z.ZodString;
     operation: z.ZodString;
     class: z.ZodNullable<z.ZodEnum<{
+        site: "site";
         requests: "requests";
         planned: "planned";
         urgent: "urgent";
-        site: "site";
     }>>;
     sentAt: z.ZodString;
     completedAt: z.ZodNullable<z.ZodString>;
@@ -171,10 +171,10 @@ export declare const opsLiveResponseSchema: z.ZodObject<{
         resource: z.ZodString;
         operation: z.ZodString;
         class: z.ZodNullable<z.ZodEnum<{
+            site: "site";
             requests: "requests";
             planned: "planned";
             urgent: "urgent";
-            site: "site";
         }>>;
         sentAt: z.ZodString;
         completedAt: z.ZodNullable<z.ZodString>;
@@ -273,10 +273,10 @@ export declare const opsLiveRouteSchemas: {
                     resource: z.ZodString;
                     operation: z.ZodString;
                     class: z.ZodNullable<z.ZodEnum<{
+                        site: "site";
                         requests: "requests";
                         planned: "planned";
                         urgent: "urgent";
-                        site: "site";
                     }>>;
                     sentAt: z.ZodString;
                     completedAt: z.ZodNullable<z.ZodString>;
