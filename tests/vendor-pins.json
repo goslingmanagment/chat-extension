@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "ec9990d968c883ce2596dd684a4e5ebbdfbb4f5aace7ccfc5e9cb17d82e3d0da",
-    "sourceCommit": "bb57243b150945aeed1921d97b42e2dd3364ecab",
-    "note": "Vendored on 2026-11-04 from hub main bb57243b (#998, deployed) with scripts/vendor-sdk.mjs: clientFanslyProxies (fansly-proxies-v1)."
+    "contractHash": "ca6729ff8a4a86ae5dfc3f730174fa2da88cda0fd24b3ad47a674531830c0c8a",
+    "sourceCommit": "ba3616d8a3eb8e86d7f8b6c3a5052d9512a3eab2",
+    "note": "Vendored on 2026-11-08 from hub main ba3616d8 (#1068, deployed) with scripts/vendor-sdk.mjs: clientDeletedMessages answers the open chat's length (`conversationRef` → `chat`)."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

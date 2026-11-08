@@ -63,8 +63,8 @@ export declare const ofLinksRouteSchemas: {
                                 complete: "complete";
                                 failed: "failed";
                                 partial: "partial";
-                                truncated: "truncated";
                                 skipped: "skipped";
+                                truncated: "truncated";
                             }>;
                             reason: z.ZodNullable<z.ZodString>;
                             usable: z.ZodBoolean;
@@ -260,8 +260,8 @@ export declare const ofLinksRouteSchemas: {
                         complete: "complete";
                         failed: "failed";
                         partial: "partial";
-                        truncated: "truncated";
                         skipped: "skipped";
+                        truncated: "truncated";
                     }>;
                     runReason: z.ZodNullable<z.ZodString>;
                     clicks: z.ZodNumber;
@@ -288,8 +288,8 @@ export declare const ofLinksRouteSchemas: {
                         complete: "complete";
                         failed: "failed";
                         partial: "partial";
-                        truncated: "truncated";
                         skipped: "skipped";
+                        truncated: "truncated";
                     }>;
                     reason: z.ZodNullable<z.ZodString>;
                     usable: z.ZodBoolean;

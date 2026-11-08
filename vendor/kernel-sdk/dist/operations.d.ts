@@ -175,6 +175,14 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/logs";
     };
+    readonly adminModelApplication: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/model-applications/:ref";
+    };
+    readonly adminModelApplications: {
+        readonly method: "GET";
+        readonly path: "/api/v1/admin/model-applications";
+    };
     readonly adminModels: {
         readonly method: "GET";
         readonly path: "/api/v1/admin/models";
@@ -595,6 +603,10 @@ export declare const kernelOperations: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/publications";
     };
+    readonly agentPublicationFileLookup: {
+        readonly method: "POST";
+        readonly path: "/api/v1/agent/pages/:pageLabel/publication-files/lookup";
+    };
     readonly agentPublicationFileUpload: {
         readonly method: "POST";
         readonly path: "/api/v1/agent/pages/:pageLabel/publication-files";
@@ -682,10 +694,6 @@ export declare const kernelOperations: {
     readonly aiRestrictedGenerations: {
         readonly method: "GET";
         readonly path: "/api/v1/ai/restricted/generations";
-    };
-    readonly aiUsageBatch: {
-        readonly method: "POST";
-        readonly path: "/api/v1/ai-usage/batch";
     };
     readonly archiveConversationMessages: {
         readonly method: "GET";
@@ -1034,6 +1042,14 @@ export declare const kernelOperations: {
     readonly me: {
         readonly method: "GET";
         readonly path: "/api/v1/auth/me";
+    };
+    readonly modelApplicationProgress: {
+        readonly method: "POST";
+        readonly path: "/api/v1/model-applications/progress";
+    };
+    readonly modelApplicationSubmit: {
+        readonly method: "POST";
+        readonly path: "/api/v1/model-applications";
     };
     readonly modelRevenue: {
         readonly method: "GET";
@@ -1551,6 +1567,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/stats/coverage";
     };
+    readonly statsHoldings: {
+        readonly method: "GET";
+        readonly path: "/api/v1/pages/:pageLabel/stats/holdings";
+    };
     readonly statsMedia: {
         readonly method: "GET";
         readonly path: "/api/v1/pages/:pageLabel/stats/media";
@@ -1650,6 +1670,14 @@ export declare const kernelOperations: {
     readonly teamShiftResolve: {
         readonly method: "POST";
         readonly path: "/api/v1/team/shift-reports/disputes/:saleRef";
+    };
+    readonly teamShiftReview: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/shift-review";
+    };
+    readonly teamShiftSales: {
+        readonly method: "GET";
+        readonly path: "/api/v1/team/shift-sales";
     };
     readonly teamShifts: {
         readonly method: "GET";

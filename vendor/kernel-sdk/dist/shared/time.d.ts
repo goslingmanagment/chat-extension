@@ -33,7 +33,12 @@ export declare function addUtcDays(date: Date, days: number): Date;
 export declare function toBusinessDate(date: Date, timeZone?: string): string;
 export declare function isValidBusinessDateString(value: string): boolean;
 export declare function parseBusinessDate(value: string): Pick<DateParts, "day" | "month" | "year">;
-export declare function resolveBusinessTimeZone(platform: Platform): string;
+/** The agency's day: Moscow midnight to midnight, the same day the shifts and the
+ *  payout sheet use. Every money-by-day number in Hub (the revenue and spender
+ *  rollups, their periods, the Telegram report) is cut on it. Platforms' own
+ *  per-day statistics (Fansly's creator stats) stay in the platform's UTC days. */
+export declare const BUSINESS_TIME_ZONE = "Europe/Moscow";
+export declare function resolveBusinessTimeZone(_platform: Platform): string;
 export declare function businessDateToUtcStart(value: string, timeZone?: string): Date;
 export declare function resolvePeriodBounds(period: Period, now?: Date, custom?: {
     from: string;

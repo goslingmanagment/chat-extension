@@ -4,14 +4,15 @@
 // page where the manifest admits `deleted-messages` (a hub with `deleted-messages-v1`; no owner switch).
 //
 // The tab asks when a chat opens and again after the page heard a deletion in it, so nothing is kept here: the second
-// read sees the new message. A read in flight for the same person, page and fan is joined. The answer is bounded to
-// what a tab shows.
+// read sees the new message. A read in flight for the same person, page, fan and chat is joined. The answer is bounded
+// to what a tab shows. With the open chat (`groupId`) the same read says how long that chat is (2026-11-08): the
+// header's badge, no read of its own.
 
 import type { CgAnyErrorWire } from '@cg/contracts/errors-fansly';
 import type { FeatureSlice } from '@cg/contracts/features/types';
 import type { DeletedMessages } from '@cg/contracts/hub';
 import { NATIVE_ID_PATTERN } from '@cg/contracts/primitives';
-import { FANSLY_TAB_LIMITS, type FanslyDeletedMessages, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
+import { FANSLY_TAB_LIMITS, type FanslyChatLength, type FanslyDeletedMessages, type FanslyTabRequestPayload, type FanslyTabResponsePayload } from '@cg/contracts/tab-messages-fansly';
 import { admittedOn } from '@cg/core/domain/features';
 import { flagRefusal } from '@cg/core/domain/ops';
 
@@ -54,6 +55,16 @@ export function boundDeletedMessages(answer: DeletedMessages): FanslyDeletedMess
   return { total: Math.max(count(answer.total), messages.length), messages };
 }
 
+/** The chat's length as a tab may take it: a count that reads, a time that reads; undefined — the hub did not say. */
+export function boundChatLength(chat: DeletedMessages['chat']): FanslyChatLength | null | undefined {
+  if (chat === undefined || chat === null) return chat;
+  const messages = chat.messages;
+  return {
+    messages: messages !== null && Number.isSafeInteger(messages) && messages >= 0 ? messages : null,
+    firstMessageAt: isoOf(chat.firstMessageAt),
+  };
+}
+
 export interface DeletedMessagesReader {
   read(request: Request, sender: HostSiteSender): Promise<Answer>;
   /** Forgets the reads in flight (another person signed in). */
@@ -79,9 +90,11 @@ export function createDeletedMessagesReader(kit: Pick<BackgroundKit, 'hub' | 'ne
     return { ok: true, pageLabel: grant.page.pageLabel };
   }
 
-  async function ask(pageLabel: string, fanRef: string): Promise<Answer> {
+  async function ask(pageLabel: string, fanRef: string, groupId: string | undefined): Promise<Answer> {
     try {
-      return { ok: true, deleted: boundDeletedMessages(await kit.hub.facade.deletedMessages({ pageLabel, fanRef })) };
+      const answer = await kit.hub.facade.deletedMessages({ pageLabel, fanRef, ...(groupId === undefined ? {} : { conversationRef: groupId }) });
+      const chat = groupId === undefined ? undefined : boundChatLength(answer.chat);
+      return { ok: true, deleted: boundDeletedMessages(answer), ...(chat === undefined ? {} : { chat }) };
     } catch (error) {
       const wire = kit.hub.errorWire(error);
       kit.log.service({ level: 'warn', scope: 'fansly.deleted', msg: 'deleted messages not read', fields: { code: wire.code } });
@@ -95,10 +108,10 @@ export function createDeletedMessagesReader(kit: Pick<BackgroundKit, 'hub' | 'ne
       if (!admitted.ok) return admitted;
       const who = kit.hub.session();
       if (who === null) return fail({ code: 'CG-CONTEXT-CHANGED' });
-      const key = [who.hubOrigin, String(who.userId), admitted.pageLabel, request.fanRef].join('|');
+      const key = [who.hubOrigin, String(who.userId), admitted.pageLabel, request.fanRef, request.groupId ?? ''].join('|');
       const joined = flying.get(key);
       if (joined !== undefined) return joined;
-      const next = ask(admitted.pageLabel, request.fanRef).finally(() => {
+      const next = ask(admitted.pageLabel, request.fanRef, request.groupId).finally(() => {
         if (flying.get(key) === next) flying.delete(key);
       });
       flying.set(key, next);

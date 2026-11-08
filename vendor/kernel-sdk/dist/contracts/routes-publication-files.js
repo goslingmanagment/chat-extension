@@ -1,6 +1,6 @@
 import { errorResponseSchema } from "./primitives";
 import { publicationPageParamsSchema } from "./publications";
-import { agentPublicationFileUploadQuerySchema, publicationFileIdParamsSchema, publicationFileListQuerySchema, publicationFileListResponseSchema, publicationFileSchema, publicationFileUploadQuerySchema, publicationFileUploadResponseSchema, } from "./publication-files";
+import { agentPublicationFileLookupBodySchema, agentPublicationFileLookupResponseSchema, agentPublicationFileUploadQuerySchema, publicationFileIdParamsSchema, publicationFileListQuerySchema, publicationFileListResponseSchema, publicationFileSchema, publicationFileUploadQuerySchema, publicationFileUploadResponseSchema, } from "./publication-files";
 // Files of publications (docs/plans/2026-10-23-wall-posts, plan PR 3): the
 // owner uploads a photo or video for a model and reads what Hub keeps; an
 // agent key with write:publication_drafts uploads one for a granted page's model. Bytes
@@ -45,6 +45,15 @@ export const publicationFileRouteSchemas = {
             503: errorResponseSchema,
             507: errorResponseSchema,
         },
+    },
+    agentPublicationFileLookup: {
+        auth: { kind: "agentKey", scope: "page" }, tags: ["agent"],
+        summary: "Which files the granted page's model holds already, by the SHA-256 and size of their bytes (needs"
+            + " write:publication_drafts): ask before an upload, and name a held file in a draft without sending it again."
+            + " keep: true keeps each held file as an upload of the same bytes would (its 7 days start again)",
+        params: publicationPageParamsSchema,
+        body: agentPublicationFileLookupBodySchema,
+        response: { 200: agentPublicationFileLookupResponseSchema, ...errors, 429: errorResponseSchema, 503: errorResponseSchema },
     },
     adminPublicationFileList: {
         auth: owner, tags: ["admin"],

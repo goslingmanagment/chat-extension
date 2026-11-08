@@ -104,6 +104,41 @@ export declare const publicationFileUploadResponseSchema: z.ZodObject<{
     }, z.core.$strip>;
     created: z.ZodBoolean;
 }, z.core.$strip>;
+/** Files in one lookup: a vault album's most. */
+export declare const PUBLICATION_FILE_LOOKUP_MAX = 300;
+/**
+ * An agent asks before it uploads (write:publication_drafts): which of these
+ * bytes the granted page's model holds already, so a file Hub has is named in
+ * a draft without being sent again. Only the page's model's files answer.
+ */
+export declare const agentPublicationFileLookupBodySchema: z.ZodObject<{
+    files: z.ZodArray<z.ZodObject<{
+        sha256: z.ZodString;
+        byteSize: z.ZodNumber;
+    }, z.core.$strict>>;
+    keep: z.ZodDefault<z.ZodBoolean>;
+}, z.core.$strict>;
+/** A file Hub holds, as a draft names it: no uses, no uploader. */
+export declare const publicationFileHeldSchema: z.ZodObject<{
+    id: z.ZodNumber;
+    sha256: z.ZodString;
+    byteSize: z.ZodNumber;
+    mimeType: z.ZodString;
+    originalName: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
+export declare const agentPublicationFileLookupResponseSchema: z.ZodObject<{
+    files: z.ZodArray<z.ZodObject<{
+        sha256: z.ZodString;
+        byteSize: z.ZodNumber;
+        file: z.ZodNullable<z.ZodObject<{
+            id: z.ZodNumber;
+            sha256: z.ZodString;
+            byteSize: z.ZodNumber;
+            mimeType: z.ZodString;
+            originalName: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
 export declare const publicationFileListQuerySchema: z.ZodObject<{
     modelSlug: z.ZodOptional<z.ZodString>;
     includeDeleted: z.ZodPipe<z.ZodDefault<z.ZodEnum<{

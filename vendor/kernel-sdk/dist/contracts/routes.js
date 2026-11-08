@@ -3,6 +3,7 @@ import { ofapiMediaImageRouteSchemas } from "./routes-ofapi-media-images";
 import { ofapiMarketingRouteSchemas } from "./routes-ofapi-marketing";
 import { ofapiActionRouteSchemas } from "./routes-ofapi-actions";
 import { ofapiBannedWordRouteSchemas } from "./routes-ofapi-banned-words";
+import { modelApplicationRouteSchemas } from "./routes-model-applications";
 import { OFAPI_EXTENDED_COMMAND_KINDS } from "../shared/index";
 import { ofapiExtendedCommandOptions } from "./ofapi-extended-commands";
 import { ofapiVendorRouteSchemas } from "./routes-ofapi-vendor";
@@ -20,6 +21,7 @@ import { opsLiveRouteSchemas } from "./routes-ops-live";
 import { aiAccountRouteSchemas } from "./routes-ai-accounts";
 import { aiSpendRouteSchemas } from "./routes-ai-spend";
 import { aiOpenerRouteSchemas } from "./routes-ai-openers";
+import { shiftReviewRouteSchemas } from "./routes-shift-review";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
 // Agent Read Plane operations #1-#10. Declared in their own module (one coherent
@@ -439,6 +441,25 @@ export const revenueQuerySchema = z.union([
     standardRevenueQuerySchema,
     customRevenueQuerySchema,
 ]);
+/** Hub counts its days in Moscow. `utcDays` counts a page's custom window in UTC
+ *  days instead — Fansly's own days, to set Hub's money beside Fansly's
+ *  statistics (the stats screen's reconciliation). Read from the transactions;
+ *  the answer has no comparison. */
+const utcDaysQueryField = queryBooleanSchema.optional().describe("Count the days in UTC (Fansly's days) instead of Hub's Moscow days.");
+const customPageRevenueQuerySchema = z.object({
+    period: z.literal("custom"),
+    windowAt: revenueInstantSchema.optional(),
+    from: businessDate,
+    to: businessDate,
+    utcDays: utcDaysQueryField,
+}).refine((value) => value.from <= value.to, {
+    message: "`from` must be on or before `to`",
+    path: ["to"],
+});
+export const pageRevenueQuerySchema = z.union([
+    standardRevenueQuerySchema,
+    customPageRevenueQuerySchema,
+]);
 export const transactionListQuerySchema = paginationQuerySchema.extend({
     type: transactionTypeEnum.optional(),
     state: transactionStateEnum.optional(),
@@ -714,12 +735,9 @@ export const revenueBreakdownItemSchema = z.object({
     bucket: transactionReportingBucketEnum,
     netAmountMills: mills,
 });
-// Audit B2: OnlyFans trailing windows deliberately run one calendar day longer
-// than other platforms (7d spans 8 days, 30d spans 31 — see
-// ONLYFANS_REVENUE_TRAILING_PERIOD_OFFSETS in packages/shared/src/time.ts), so
-// mixed-platform totals and their comparisons combine different per-platform
-// widths. These entries disclose the exact window each platform contributed;
-// the top-level from/to stays the union.
+// The exact window each platform contributed to a report. Every platform now
+// counts the same Moscow days, so the entries agree; the top-level from/to is
+// their union.
 export const platformRevenueWindowSchema = z.object({
     platform: platformEnum,
     from: isoTimestamp.nullable(),
@@ -1448,6 +1466,9 @@ export const revenueDailyQuerySchema = z.object({
     to: businessDate.optional(),
     groupByType: queryBooleanSchema.default(false),
 });
+export const pageRevenueDailyQuerySchema = revenueDailyQuerySchema.extend({
+    utcDays: utcDaysQueryField,
+});
 export const revenueDailyItemSchema = z.object({
     businessDate: businessDate,
     netAmountMills: mills,
@@ -1587,31 +1608,6 @@ export const setFanFlagsBodySchema = z.object({
 });
 export const fanFlagsResponseSchema = z.object({
     flags: z.array(fanFlagSchema),
-});
-export const aiUsageEventInputSchema = z.object({
-    clientEventId: z.string().min(1).max(255),
-    feature: aiUsageFeatureEnum,
-    model: z.string().min(1).max(100),
-    inputTokens: z.number().int().nonnegative().max(100_000_000),
-    outputTokens: z.number().int().nonnegative().max(100_000_000),
-    cacheWriteTokens: z.number().int().nonnegative().max(100_000_000),
-    cacheReadTokens: z.number().int().nonnegative().max(100_000_000),
-    conversationId: z.string().min(1).max(255).nullable().optional(),
-    durationMs: z.number().int().nonnegative().nullable().optional(),
-    isCacheHit: z.boolean(),
-    isRegeneration: z.boolean(),
-    completedAt: z.string().min(1),
-});
-export const aiUsageBatchBodySchema = z.object({
-    events: z.array(aiUsageEventInputSchema).min(1).max(100),
-});
-export const aiUsageBatchResponseSchema = z.object({
-    receivedCount: z.number().int().nonnegative(),
-    insertedCount: z.number().int().nonnegative(),
-    // Events dropped for an unparseable or >5min-future completedAt; the rest of
-    // the batch is still ingested instead of failing wholesale.
-    invalidCount: z.number().int().nonnegative(),
-    dedupedCount: z.number().int().nonnegative(),
 });
 // Client-capture lane. The desktop uploads spool-backed batches of
 // device-held facts; each event becomes one observation (source
@@ -5811,6 +5807,12 @@ export const statsCoverageResponseSchema = z.object({
         ownerRunning: z.boolean(),
         streams: z.array(insightsEngineStreamSchema),
     }).nullable(),
+});
+/** Its own route, not a field of the coverage: counting every projection's rows
+ *  of a page reads hundreds of MB of tables (seconds), and the panel that shows
+ *  it opens on demand, while the coverage's summary line is always on screen. */
+export const statsHoldingsResponseSchema = z.object({
+    page: insightsPageSchema,
     /** What we actually hold, per projection: row count and the range it spans.
      *  A zero count next to an open floor is a real answer; a zero count with no
      *  coverage row is "never started" and reads that way. */
@@ -6065,6 +6067,7 @@ const baseRouteSchemas = {
     ...outreachRouteSchemas,
     ...chatterStatsRouteSchemas,
     ...publicationFileRouteSchemas,
+    ...modelApplicationRouteSchemas,
     health: {
         auth: { kind: "public" },
         tags: ["system"],
@@ -6123,23 +6126,6 @@ const baseRouteSchemas = {
         response: {
             200: authStateSchema,
             401: errorResponseSchema,
-        },
-    },
-    aiUsageBatch: {
-        auth: { kind: "apiKey" },
-        tags: ["usage"],
-        // The gateway ledger is authoritative — this client-reported lane is
-        // deprecated; successor = the gateway's own finalize write
-        // (POST /api/v1/ai/gateway/stream). Removal only after the fleet cutover
-        // is confirmed. It keeps serving until then.
-        deprecated: true,
-        summary: "Ingest a batch of chatter AI usage events (deprecated: gateway ledger is authoritative)",
-        body: aiUsageBatchBodySchema,
-        response: {
-            200: aiUsageBatchResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
         },
     },
     ingestObservations: {
@@ -6957,7 +6943,7 @@ const baseRouteSchemas = {
         tags: ["revenue"],
         summary: "Get revenue for one page",
         params: pageParamsSchema,
-        querystring: revenueQuerySchema,
+        querystring: pageRevenueQuerySchema,
         response: {
             200: pageRevenueResponseSchema,
             401: errorResponseSchema,
@@ -7443,7 +7429,7 @@ const baseRouteSchemas = {
         tags: ["dashboard"],
         summary: "Get daily revenue series for one page",
         params: pageParamsSchema,
-        querystring: revenueDailyQuerySchema,
+        querystring: pageRevenueDailyQuerySchema,
         response: {
             200: revenueDailyResponseSchema,
             401: errorResponseSchema,
@@ -7616,6 +7602,7 @@ const baseRouteSchemas = {
     ...aiAccountRouteSchemas,
     ...aiSpendRouteSchemas,
     ...aiOpenerRouteSchemas,
+    ...shiftReviewRouteSchemas,
     adminAiPersonasList: {
         auth: { kind: "owner-session" },
         tags: ["admin"],
@@ -8757,6 +8744,18 @@ const baseRouteSchemas = {
         params: pageParamsSchema,
         response: {
             200: statsCoverageResponseSchema,
+            401: errorResponseSchema,
+            403: errorResponseSchema,
+            404: errorResponseSchema,
+        },
+    },
+    statsHoldings: {
+        auth: { kind: "owner-session", scope: "page" },
+        tags: ["insights"],
+        summary: "What Hub holds of one page, per projection: row count and the range it spans",
+        params: pageParamsSchema,
+        response: {
+            200: statsHoldingsResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
             404: errorResponseSchema,

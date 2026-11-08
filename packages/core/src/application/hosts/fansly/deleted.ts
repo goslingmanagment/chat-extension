@@ -6,16 +6,38 @@
 //
 // Fresh: deleted within the last hour and after the card was last opened for this fan in this tab. The mark stands out
 // while a message is fresh; opening the card (`seen`) makes everything it shows seen.
-import type { DeletedMessageView, DeletedMessagesClient, DeletedMessagesView } from '@cg/contracts/deleted-fansly';
-import type { FanslyDeletedMessages } from '@cg/contracts/tab-messages-fansly';
+//
+// The same answer says how long the open chat is (2026-11-08, `chat`): the header's second badge reads it here, so it
+// costs no read of its own. Shown once the read answered, never before (no date that a count then pushes aside).
+import type { ChatLengthClient, ChatLengthView, DeletedMessageView, DeletedMessagesClient, DeletedMessagesView } from '@cg/contracts/deleted-fansly';
+import type { FanslyChatLength, FanslyDeletedMessages } from '@cg/contracts/tab-messages-fansly';
+
+import { fanslyIdTimestampMs } from '../../../domain/hosts/fansly/snowflake';
 
 export interface DeletedMessagesTarget {
   readonly pageId: number;
   readonly accountId: string;
   readonly fanId: string;
+  /** The open chat, Fansly's group id. */
+  readonly groupId: string;
 }
 
-export type DeletedMessagesAnswer = { readonly ok: true; readonly deleted: FanslyDeletedMessages } | { readonly ok: false };
+export type DeletedMessagesAnswer =
+  | { readonly ok: true; readonly deleted: FanslyDeletedMessages; readonly chat?: FanslyChatLength | null | undefined }
+  | { readonly ok: false };
+
+/**
+ * What the badge shows of an answer: the hub's count and first message when it has them; otherwise no count and the
+ * moment Fansly made the chat, which its id carries (a snowflake, like an account's: on prod the first message follows
+ * within a day in 99% of chats). null — neither reads.
+ */
+export function chatLengthView(chat: FanslyChatLength | null | undefined, groupId: string, now: number): ChatLengthView | null {
+  const firstAt = chat?.firstMessageAt ?? null;
+  const first = firstAt === null ? Number.NaN : Date.parse(firstAt);
+  const since = Number.isFinite(first) ? first : fanslyIdTimestampMs(groupId, now);
+  if (since === null) return null;
+  return { messages: chat?.messages ?? null, since };
+}
 
 export const DELETED_NONE: DeletedMessagesView = { total: 0, messages: [], fresh: 0 };
 /** How recent a deletion is fresh. */
@@ -54,28 +76,35 @@ export function createDeletedMessages(deps: {
   now(): number;
   setTimer(ms: number, run: () => void): unknown;
   clearTimer(handle: unknown): void;
-}): DeletedMessagesClient & { sync(): void; heard(): void; dispose(): void } {
+}): DeletedMessagesClient & { readonly chat: ChatLengthClient; sync(): void; heard(): void; dispose(): void } {
   let session: string | null = null;
   /** The chat open now, by page, account and fan; null — none (a chat closed and opened again is a new visit). */
   let visit: string | null = null;
   let target: DeletedMessagesTarget | null = null;
   let view: DeletedMessagesView = DELETED_NONE;
+  let chatView: ChatLengthView | null = null;
   let disposed = false;
   /** Each read's turn: an answer of an older turn than the visit's last shown one is dropped. */
   let turn = 0;
   let shownTurn = 0;
-  const kept = new Map<string, FanslyDeletedMessages>();
+  const kept = new Map<string, { readonly deleted: FanslyDeletedMessages; readonly chat: FanslyChatLength | null | undefined }>();
   /** The newest deletion each fan's card showed when it was last opened in this tab. */
   const seenUpTo = new Map<string, number>();
   const timers = new Set<unknown>();
   const listeners = new Set<(view: DeletedMessagesView) => void>();
+  const chatListeners = new Set<(view: ChatLengthView | null) => void>();
 
   const show = (next: DeletedMessagesView): void => {
     if (next === view) return;
     view = next;
     for (const listener of [...listeners]) listener(view);
   };
-  const keep = (key: string, value: FanslyDeletedMessages): void => {
+  const showChat = (next: ChatLengthView | null): void => {
+    if (next === chatView || (next !== null && chatView !== null && next.messages === chatView.messages && next.since === chatView.since)) return;
+    chatView = next;
+    for (const listener of [...chatListeners]) listener(chatView);
+  };
+  const keep = (key: string, value: { readonly deleted: FanslyDeletedMessages; readonly chat: FanslyChatLength | null | undefined }): void => {
     kept.delete(key);
     kept.set(key, value);
     while (kept.size > KEPT) kept.delete(kept.keys().next().value as string);
@@ -85,8 +114,10 @@ export function createDeletedMessages(deps: {
     timers.clear();
   };
   const render = (key: string): void => {
-    const deleted = kept.get(key);
-    show(deleted === undefined ? DELETED_NONE : deletedMessagesView(deleted, seenUpTo.get(key) ?? Number.NEGATIVE_INFINITY, deps.now()));
+    const answer = kept.get(key);
+    const now = deps.now();
+    show(answer === undefined ? DELETED_NONE : deletedMessagesView(answer.deleted, seenUpTo.get(key) ?? Number.NEGATIVE_INFINITY, now));
+    showChat(answer === undefined || target === null ? null : chatLengthView(answer.chat, target.groupId, now));
   };
   /** Asks for the open chat; `then` — told whether the answer brought a deletion the visit had not shown. */
   const read = (then?: (newer: boolean) => void): void => {
@@ -96,12 +127,12 @@ export function createDeletedMessages(deps: {
     turn += 1;
     const mine = turn;
     const under = session;
-    const before = kept.get(key)?.messages[0]?.deletedAt ?? '';
+    const before = kept.get(key)?.deleted.messages[0]?.deletedAt ?? '';
     void deps.read(asked).then(
       (answer) => {
         // A failed read changes nothing: no mark appears, none goes.
         if (disposed || !answer.ok || session !== under || mine < shownTurn) return;
-        keep(key, answer.deleted);
+        keep(key, { deleted: answer.deleted, chat: answer.chat });
         if (visit === key) {
           shownTurn = mine;
           render(key);
@@ -113,7 +144,18 @@ export function createDeletedMessages(deps: {
     );
   };
 
+  const chat: ChatLengthClient = {
+    view: () => chatView,
+    subscribe(listener) {
+      chatListeners.add(listener);
+      return () => {
+        chatListeners.delete(listener);
+      };
+    },
+  };
+
   return {
+    chat,
     view: () => view,
     subscribe(listener) {
       listeners.add(listener);
@@ -146,6 +188,7 @@ export function createDeletedMessages(deps: {
       shownTurn = turn;
       if (key === null) {
         show(DELETED_NONE);
+        showChat(null);
         return;
       }
       render(key);
@@ -179,6 +222,7 @@ export function createDeletedMessages(deps: {
       kept.clear();
       seenUpTo.clear();
       listeners.clear();
+      chatListeners.clear();
     },
   };
 }

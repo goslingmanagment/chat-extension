@@ -345,3 +345,83 @@ export type AccountChatterStatsQuery = z.infer<typeof accountChatterStatsQuerySc
 export type TeamChatterStatsQuery = z.infer<typeof teamChatterStatsQuerySchema>;
 export type ChatterStats = z.infer<typeof chatterStatsSchema>;
 export type TeamChatterStatsResponse = z.infer<typeof teamChatterStatsResponseSchema>;
+export declare const teamShiftSalesQuerySchema: z.ZodObject<{
+    days: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
+    until: z.ZodOptional<z.ZodString>;
+    pageLabel: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+export declare const teamShiftSalesResponseSchema: z.ZodObject<{
+    from: z.ZodString;
+    to: z.ZodString;
+    knownSince: z.ZodNullable<z.ZodString>;
+    team: z.ZodObject<{
+        shifts: z.ZodNumber;
+        workedMinutes: z.ZodNumber;
+        salesNetMills: z.ZodNumber;
+        sales: z.ZodNumber;
+        perHourMills: z.ZodNullable<z.ZodNumber>;
+        daily: z.ZodArray<z.ZodObject<{
+            date: z.ZodString;
+            salesNetMills: z.ZodNumber;
+            shifts: z.ZodNumber;
+            workedMinutes: z.ZodNumber;
+        }, z.core.$strip>>;
+    }, z.core.$strip>;
+    previous: z.ZodNullable<z.ZodObject<{
+        shifts: z.ZodNumber;
+        workedMinutes: z.ZodNumber;
+        salesNetMills: z.ZodNumber;
+        sales: z.ZodNumber;
+        perHourMills: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+    chatters: z.ZodArray<z.ZodObject<{
+        shifts: z.ZodNumber;
+        workedMinutes: z.ZodNumber;
+        salesNetMills: z.ZodNumber;
+        sales: z.ZodNumber;
+        perHourMills: z.ZodNullable<z.ZodNumber>;
+        userId: z.ZodNumber;
+        username: z.ZodString;
+        overlapNetMills: z.ZodNumber;
+        previous: z.ZodNullable<z.ZodObject<{
+            shifts: z.ZodNumber;
+            workedMinutes: z.ZodNumber;
+            salesNetMills: z.ZodNumber;
+            sales: z.ZodNumber;
+            perHourMills: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>>;
+        daily: z.ZodArray<z.ZodObject<{
+            date: z.ZodString;
+            salesNetMills: z.ZodNumber;
+            shifts: z.ZodNumber;
+            workedMinutes: z.ZodNumber;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    shifts: z.ZodArray<z.ZodObject<{
+        userId: z.ZodNumber;
+        username: z.ZodString;
+        startedAt: z.ZodString;
+        endedAt: z.ZodString;
+        ongoing: z.ZodBoolean;
+        workedMinutes: z.ZodNumber;
+        pauses: z.ZodArray<z.ZodObject<{
+            from: z.ZodString;
+            to: z.ZodString;
+        }, z.core.$strip>>;
+        lastInputAt: z.ZodString;
+        lastBeatAt: z.ZodString;
+        pages: z.ZodArray<z.ZodObject<{
+            pageLabel: z.ZodString;
+            activeMinutes: z.ZodNumber;
+            messages: z.ZodNumber;
+        }, z.core.$strip>>;
+        authoredMessages: z.ZodNumber;
+        date: z.ZodString;
+        salesNetMills: z.ZodNumber;
+        overlapNetMills: z.ZodNumber;
+        sales: z.ZodNumber;
+    }, z.core.$strip>>;
+    serverNow: z.ZodString;
+}, z.core.$strip>;
+export type TeamShiftSalesQuery = z.infer<typeof teamShiftSalesQuerySchema>;
+export type TeamShiftSalesResponse = z.infer<typeof teamShiftSalesResponseSchema>;

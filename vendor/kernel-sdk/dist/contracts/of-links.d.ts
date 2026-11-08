@@ -25,8 +25,8 @@ export declare const ofLinkRunStatusSchema: z.ZodEnum<{
     complete: "complete";
     failed: "failed";
     partial: "partial";
-    truncated: "truncated";
     skipped: "skipped";
+    truncated: "truncated";
 }>;
 export declare const ofLinkValidFromBasisSchema: z.ZodEnum<{
     confirmed: "confirmed";
@@ -341,8 +341,8 @@ export declare const ofLinkAttemptSchema: z.ZodObject<{
         complete: "complete";
         failed: "failed";
         partial: "partial";
-        truncated: "truncated";
         skipped: "skipped";
+        truncated: "truncated";
     }>;
     reason: z.ZodNullable<z.ZodString>;
     usable: z.ZodBoolean;
@@ -366,8 +366,8 @@ export declare const ofLinksPageKindSchema: z.ZodObject<{
             complete: "complete";
             failed: "failed";
             partial: "partial";
-            truncated: "truncated";
             skipped: "skipped";
+            truncated: "truncated";
         }>;
         reason: z.ZodNullable<z.ZodString>;
         usable: z.ZodBoolean;
@@ -398,8 +398,8 @@ export declare const ofLinksPageSchema: z.ZodObject<{
                 complete: "complete";
                 failed: "failed";
                 partial: "partial";
-                truncated: "truncated";
                 skipped: "skipped";
+                truncated: "truncated";
             }>;
             reason: z.ZodNullable<z.ZodString>;
             usable: z.ZodBoolean;
@@ -433,8 +433,8 @@ export declare const ofLinksResponseSchema: z.ZodObject<{
                     complete: "complete";
                     failed: "failed";
                     partial: "partial";
-                    truncated: "truncated";
                     skipped: "skipped";
+                    truncated: "truncated";
                 }>;
                 reason: z.ZodNullable<z.ZodString>;
                 usable: z.ZodBoolean;
@@ -570,8 +570,8 @@ export declare const ofLinkSnapshotSchema: z.ZodObject<{
         complete: "complete";
         failed: "failed";
         partial: "partial";
-        truncated: "truncated";
         skipped: "skipped";
+        truncated: "truncated";
     }>;
     runReason: z.ZodNullable<z.ZodString>;
     clicks: z.ZodNumber;
@@ -651,8 +651,8 @@ export declare const ofLinkHistoryResponseSchema: z.ZodObject<{
             complete: "complete";
             failed: "failed";
             partial: "partial";
-            truncated: "truncated";
             skipped: "skipped";
+            truncated: "truncated";
         }>;
         runReason: z.ZodNullable<z.ZodString>;
         clicks: z.ZodNumber;
@@ -679,8 +679,8 @@ export declare const ofLinkHistoryResponseSchema: z.ZodObject<{
             complete: "complete";
             failed: "failed";
             partial: "partial";
-            truncated: "truncated";
             skipped: "skipped";
+            truncated: "truncated";
         }>;
         reason: z.ZodNullable<z.ZodString>;
         usable: z.ZodBoolean;

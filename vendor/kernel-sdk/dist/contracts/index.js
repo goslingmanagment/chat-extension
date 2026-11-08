@@ -58,8 +58,11 @@ export * from "./routes-ops-live";
 export * from "./routes-ai-accounts";
 export * from "./routes-ai-spend";
 export * from "./routes-ai-openers";
+// Команда → «Разбор смены» (`GET /api/v1/team/shift-review`), spread by routes.ts.
+export * from "./routes-shift-review";
 export * from "./ofapi-extended-commands";
 export * from "./routes-ofapi-banned-words";
+export * from "./routes-model-applications";
 export * from "./routes-ofapi-read-collections";
 export * from "./ofapi-smart-links";
 export * from "./routes-ofapi-exports";

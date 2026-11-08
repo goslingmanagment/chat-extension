@@ -310,6 +310,7 @@ export class DataModel {
   private readonly attributions = new Map<string, FakeSendAttribution>();
   /** The fans' messages the pages' sockets saw deleted (`deletedMessage`), by page and message id. */
   private readonly deleted = new Map<string, FakeDeletedMessage>();
+  private readonly chatLengths = new Map<string, FakeChatLength>();
   /** Who wrote each Fansly note, by `page|event`; the first report wins (hub client_note_attributions). */
   private readonly noteWrites = new Map<string, FakeNoteAttribution>();
   /** Chat Memory week 1: every beat, in order (tests read them; ids and idle only). */
@@ -1262,8 +1263,16 @@ export class DataModel {
     this.deleted.set(`${row.pageLabel}|${row.messageId}`, row);
   }
 
-  /** As the hub's `clientDeletedMessages` (2026-11-03): the fan's deleted messages on the page, the latest deleted first, at most 50. */
-  deletedMessages(page: FakePage, fanRef: string, now: number): DeletedMessages {
+  /** A scenario's chat as the hub's sync chain knows it (2026-11-08): `messages`/`firstMessageAt` null — not proven complete. */
+  seedChatLength(row: FakeChatLength): void {
+    this.chatLengths.set(`${row.pageLabel}|${row.groupId}`, row);
+  }
+
+  /**
+   * As the hub's `clientDeletedMessages` (2026-11-03): the fan's deleted messages on the page, the latest deleted first,
+   * at most 50; with `conversationRef` (2026-11-08) also `chat`, the seeded length of that chat of this fan, else null.
+   */
+  deletedMessages(page: FakePage, fanRef: string, now: number, conversationRef?: string): DeletedMessages {
     const rows = [...this.deleted.values()]
       .filter((row) => row.pageLabel === page.pageLabel && row.fanRef === fanRef)
       .sort((a, b) => Date.parse(b.deletedAt) - Date.parse(a.deletedAt) || (b.messageId > a.messageId ? 1 : -1));
@@ -1275,7 +1284,9 @@ export class DataModel {
       sentAt: row.sentAt ?? null,
       deletedAt: row.deletedAt,
     }));
-    return { pageLabel: page.pageLabel, fanRef, total: rows.length, messages, serverNow: iso(now) };
+    const length = conversationRef === undefined ? undefined : this.chatLengths.get(`${page.pageLabel}|${conversationRef}`);
+    const chat = conversationRef === undefined ? {} : { chat: length === undefined || length.fanRef !== fanRef ? null : { conversationRef, messages: length.messages, firstMessageAt: length.firstMessageAt } };
+    return { pageLabel: page.pageLabel, fanRef, total: rows.length, messages, ...chat, serverNow: iso(now) };
   }
 
   /** A scenario's record of a send made before the run (another chatter's, or the person's own), as if reported then. */
@@ -1760,6 +1771,14 @@ export interface FakeSendAttribution {
 }
 
 /** A fan's message the page's socket saw deleted (`deletedMessage`). */
+export interface FakeChatLength {
+  readonly pageLabel: string;
+  readonly fanRef: string;
+  readonly groupId: string;
+  readonly messages: number | null;
+  readonly firstMessageAt: string | null;
+}
+
 export interface FakeDeletedMessage {
   readonly pageLabel: string;
   readonly fanRef: string;

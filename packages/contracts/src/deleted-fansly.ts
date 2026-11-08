@@ -52,3 +52,31 @@ export interface DeletedMessagesCopy {
   /** Under the list when the hub answered fewer than all: «Ещё 233 удалённых раньше здесь нет». */
   more(count: number): string;
 }
+
+// ── the chat's length (2026-11-08) ────────────────────────────────────────────
+// The owner: «хочу еще видеть сколько было месаг с челом… чтобы чаттеры видели как давно общение», «без лишних запросов и
+// точно». A badge in the same header, from the same read as «Удалил» (hub `clientDeletedMessages` with the group).
+
+/** The open chat's length as the header's badge shows it. */
+export interface ChatLengthView {
+  /** Every message of the chat, both sides, deleted ones included; null — the hub cannot say exactly, so no count. */
+  readonly messages: number | null;
+  /** When the chat began, epoch ms: its first message, or the moment Fansly made the chat when the hub cannot say. */
+  readonly since: number;
+}
+
+export interface ChatLengthClient {
+  /** null — no badge: no one-to-one chat open, or its read has not answered. */
+  view(): ChatLengthView | null;
+  subscribe(listener: (view: ChatLengthView | null) => void): () => void;
+}
+
+/** The badge's words by the tab's language (core domain/hosts/fansly/i18n/chat-length.ts). */
+export interface ChatLengthCopy {
+  /** How long ago it began, short: «сегодня», «5 дн», «3 нед», «4 мес», «1 г 3 мес». */
+  age(since: number, now: number): string;
+  /** The count as the badge shows it: «38 888». */
+  count(messages: number): string;
+  /** The badge's title and what a screen reader hears: «428 сообщений с 12 августа 2025». */
+  title(messages: number | null, since: number): string;
+}

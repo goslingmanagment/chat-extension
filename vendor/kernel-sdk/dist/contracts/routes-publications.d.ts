@@ -264,6 +264,7 @@ export declare const publicationRouteSchemas: {
                 priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
                 subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
             }, import("zod/v4/core").$strict>>>;
+            vaultAlbumRef: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
             pageLabel: import("zod").ZodString;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -728,6 +729,7 @@ export declare const publicationRouteSchemas: {
                 priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
                 subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
             }, import("zod/v4/core").$strict>>>;
+            vaultAlbumRef: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
             version: import("zod").ZodNumber;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -2661,6 +2663,7 @@ export declare const publicationRouteSchemas: {
                 priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
                 subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
             }, import("zod/v4/core").$strict>>>;
+            vaultAlbumRef: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
             idempotencyKey: import("zod").ZodString;
         }, import("zod/v4/core").$strict>;
         readonly response: {
@@ -4163,6 +4166,7 @@ export declare const publicationRouteSchemas: {
                 priceMills: import("zod").ZodDefault<import("zod").ZodNullable<import("zod").ZodNumber>>;
                 subscribersOnly: import("zod").ZodDefault<import("zod").ZodBoolean>;
             }, import("zod/v4/core").$strict>>>;
+            vaultAlbumRef: import("zod").ZodOptional<import("zod").ZodNullable<import("zod").ZodString>>;
             version: import("zod").ZodNumber;
         }, import("zod/v4/core").$strict>;
         readonly response: {

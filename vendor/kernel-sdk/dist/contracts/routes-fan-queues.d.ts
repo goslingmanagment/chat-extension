@@ -1186,8 +1186,8 @@ export declare const fanQueueRouteSchemas: {
         }, import("zod/v4/core").$strip>;
         readonly body: import("zod").ZodObject<{
             outcome: import("zod").ZodEnum<{
-                skipped: "skipped";
                 sent: "sent";
+                skipped: "skipped";
             }>;
             act: import("zod").ZodOptional<import("zod").ZodEnum<{
                 ping: "ping";

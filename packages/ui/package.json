@@ -8,6 +8,7 @@
     "./hosts/fansly/registration": "./src/hosts/fansly/Registration.tsx",
     "./hosts/fansly/fan-marks": "./src/hosts/fansly/FanMarks.tsx",
     "./hosts/fansly/deleted": "./src/hosts/fansly/DeletedMessages.tsx",
+    "./hosts/fansly/chat-length": "./src/hosts/fansly/ChatLength.tsx",
     ".": "./src/index.ts",
     "./kit": "./src/kit/index.ts",
     "./kit/tokens": "./src/kit/tokens.ts",
