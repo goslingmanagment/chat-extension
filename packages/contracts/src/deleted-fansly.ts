@@ -73,10 +73,18 @@ export interface ChatLengthClient {
 
 /** The badge's words by the tab's language (core domain/hosts/fansly/i18n/chat-length.ts). */
 export interface ChatLengthCopy {
-  /** How long ago it began, short: «сегодня», «5 дн», «3 нед», «4 мес», «1 г 3 мес». */
+  /** The badge with no count: how long ago it began, short: «сегодня», «5 дн», «3 нед», «4 мес», «1 г 3 мес». */
   age(since: number, now: number): string;
   /** The count as the badge shows it: «38 888». */
   count(messages: number): string;
-  /** The badge's title and what a screen reader hears: «428 сообщений с 12 августа 2025». */
+  /** What a screen reader hears of the badge: «428 сообщений с 12 августа 2025». */
   title(messages: number | null, since: number): string;
+  /** The card's head: «428 сообщений»; no count: «Переписка». */
+  heading(messages: number | null): string;
+  /** The card: when it began and how long that is: «с 3 августа 2026 · 3 месяца». */
+  since(since: number, now: number): string;
+  /** The card: how often, on average: «в среднем 4 сообщения в день»; null: too young to say. */
+  pace(messages: number, since: number, now: number): string | null;
+  /** The card with no count: why there is none. */
+  readonly unknown: string;
 }
