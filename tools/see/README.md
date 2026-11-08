@@ -70,8 +70,8 @@ two fans answered from the composer, «Кто ждёт ответа» on the set
 model's page, its «где» on hover, and «⛔ Блоклист» with FANSLY BLOCKLIST's posts pinned by a click),
 `fansly-deleted` («Удалил» after the marks: the fan's deleted messages the fake hub keeps, the fresh mark, its card on
 hover, the calm mark once seen, then one more written and deleted while the chat is open; both themes),
-`fansly-chat-length` (the chat's length after «Регистрация»: «428 · 3 мес» from the fake hub, the age alone for a chat
-the hub has not proven from its start, a long one «38 888 · 1 г 3 мес»; both themes),
+`fansly-chat-length` (the chat's length after «Регистрация»: «428» from the fake hub and its card on hover, the age
+alone for a chat the hub has not proven from its start, a long one «38 888»; both themes),
 `fansly-switch` (the switch from the old extension: «Включить Fansly» in the popup, the
 no-direct-connection hint, the old extension's notice, its personas carried over), `fansly-ppv` (Reply's
 PPV state in `hub-calls.json`), `draft-media` (a photo in the composer, then Reply: its `draftMedia` in
