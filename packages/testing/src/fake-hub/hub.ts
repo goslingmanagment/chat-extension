@@ -71,6 +71,7 @@ import {
   type FanCardQuery,
   type FanMarksQuery,
   type OtherPagesRequest,
+  type FanBadgesReport,
   type FanFactChangeRequest,
   type FanLinkDecideRequest,
   type PersonaCatalogItem,
@@ -1309,6 +1310,9 @@ export class FakeHub {
         return read(s.data.online(need(page), request as OnlineQuery, need(principal).user.userId, (userId) => s.auth.userById(userId)?.username ?? `user-${String(userId)}`, now, s.config.spendersTotal, s.config.onlineStand));
       case 'clientOnlinePresence':
         return read(s.data.onlinePresence(need(page), need(principal).user.userId, request as OnlinePresenceRequest, now, s.config.spendersTotal));
+      case 'clientFanBadges':
+        // The fans' badges a Fansly tab's background read: taken as new, kept nowhere (the journal holds the request).
+        return { kind: 'json', status: 200, body: { changed: (request as FanBadgesReport).fans.length, unchanged: 0, skipped: 0, serverNow: iso(now) } };
       case 'clientOnlyfansPoll':
         return read(s.data.onlyfansPoll(need(page), now, (request as OnlyfansPollRequest).passed));
       case 'clientOnlyfansFeed':

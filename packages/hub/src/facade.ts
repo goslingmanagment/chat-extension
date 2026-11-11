@@ -91,6 +91,8 @@ import {
   type DeletedMessagesQuery,
   type OtherPagesAnswer,
   type OtherPagesRequest,
+  type FanBadgesReport,
+  type FanBadgesReportResult,
   type FanCustomChangeRequest,
   type FanCustomCreateRequest,
   type Handoff,
@@ -1106,6 +1108,14 @@ export class ChatExtensionHub implements HubFacade {
    */
   async onlinePresence(request: OnlinePresenceRequest): Promise<OnlinePresenceResult> {
     return (await this.client('clientOnlinePresence', request, request.pageLabel)) as OnlinePresenceResult;
+  }
+
+  /**
+   * The fans' badges a Fansly tab's background read for the boards (FBuddy's tier, Fansly's blue card), kept by the hub.
+   * Refused without `fan-badges-v1`; never repeated here: a lost report is just lost, a later read reports again.
+   */
+  async fanBadges(request: FanBadgesReport): Promise<FanBadgesReportResult> {
+    return (await this.client('clientFanBadges', request, request.pageLabel)) as FanBadgesReportResult;
   }
 
   /**

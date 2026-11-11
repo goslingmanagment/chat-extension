@@ -313,6 +313,11 @@ export const CLIENT_HUB_CAPABILITY_NAMES = [
   'chatspace-tab-state-v1',
   /** 2026-11-01: the report takes `socket` (the socket's own state) and each account's `subscribed`. */
   'chatspace-tab-state-v2',
+  /**
+   * 2026-11-12: the fans' badges a Fansly tab's background read for the boards — FBuddy's tier, Fansly's blue card —
+   * passed on to the hub (`clientFanBadges`). A hub without it is never told.
+   */
+  'fan-badges-v1',
 ] as const;
 export type ClientHubCapability = (typeof CLIENT_HUB_CAPABILITY_NAMES)[number];
 

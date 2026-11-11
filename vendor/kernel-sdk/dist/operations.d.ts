@@ -795,6 +795,10 @@ export declare const kernelOperations: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/deleted-messages";
     };
+    readonly clientFanBadges: {
+        readonly method: "POST";
+        readonly path: "/api/v1/client/pages/:pageLabel/fan-badges";
+    };
     readonly clientFanCard: {
         readonly method: "GET";
         readonly path: "/api/v1/client/pages/:pageLabel/fans/:fanRef/card";

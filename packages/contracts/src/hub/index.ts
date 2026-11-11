@@ -18,6 +18,7 @@ export * from './note-attribution';
 export * from './conversation';
 export * from './fan-card';
 export * from './fan-marks';
+export * from './fan-badges';
 export * from './deleted';
 export * from './page-proxies';
 export * from './queue';

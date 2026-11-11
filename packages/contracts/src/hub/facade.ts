@@ -55,6 +55,7 @@ import { type FanQueueItemDone, type FanQueueItemDoneRequest, type FanQueueRelea
 import { type OutreachStoreGetQuery, type OutreachStoreList, type OutreachStoreListQuery, type OutreachStoreOutreach, type OutreachStoreSaved, type OutreachStoreSaveRequest, type OutreachStoreSendAnswer, type OutreachStoreSendRequest, type OutreachStoreTouches } from './outreach-store';
 import { type FanCard, type FanCardQuery, type FanCustomChangeRequest, type FanCustomCreateRequest, type FanFactChangeRequest, type FanFactChangeResult, type FanLinkDecideRequest, type FanLinkDecideResult } from './fan-card';
 import { type FanMarks, type FanMarksQuery, type OtherPagesAnswer, type OtherPagesRequest } from './fan-marks';
+import { type FanBadgesReport, type FanBadgesReportResult } from './fan-badges';
 import { type DeletedMessages, type DeletedMessagesQuery } from './deleted';
 import { type FanslyProxies } from './page-proxies';
 import { type AiUsageQuery, type AiUsageReport, type IngestResult } from './usage';
@@ -236,6 +237,8 @@ export interface HubFacade {
   online(query: OnlineQuery): Promise<OnlineList>;
   /** A tab's report of the fans it saw online (Fansly's followers, ChatSpace's online fans); never repeated by itself. */
   onlinePresence(request: OnlinePresenceRequest): Promise<OnlinePresenceResult>;
+  /** The fans' badges a Fansly tab's background read (FBuddy's tier, Fansly's blue card); refused without `fan-badges-v1`, never repeated by itself. */
+  fanBadges(request: FanBadgesReport): Promise<FanBadgesReportResult>;
   /** The page's probe lent to this tab, or when it may be (OnlyFans, the owner's `onlineProbe`); never repeated here. */
   onlineProbe(request: OnlineProbeRequest): Promise<OnlineProbeResult>;
   /** What the page's ChatSpace already received, passed on (hub #953, the page's `ofFeed`); the hub dedups a repeat. */

@@ -61,6 +61,8 @@ export const HUB_ROUTE_PATHS = {
   // «Онлайн» (hub #879): the list, a tab's presence report, the page's probe (hub #952), what a chatter did in the window.
   clientOnline: '/api/v1/client/pages/:pageLabel/online',
   clientOnlinePresence: '/api/v1/client/pages/:pageLabel/online/presence',
+  // The fans' badges a Fansly tab's background read (FBuddy's tier, Fansly's blue card).
+  clientFanBadges: '/api/v1/client/pages/:pageLabel/fan-badges',
   clientOnlyfansFeed: '/api/v1/client/pages/:pageLabel/onlyfans-feed',
   clientOnlyfansPoll: '/api/v1/client/pages/:pageLabel/onlyfans-feed/poll',
   clientOnlineProbe: '/api/v1/client/pages/:pageLabel/online/probe',

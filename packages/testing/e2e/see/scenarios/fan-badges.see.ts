@@ -56,8 +56,9 @@ scenario(
     // The stand's followers are all checked by now: «Все» lists them.
     await s.press(/^Все/, 'modal', '.cg-fnw .cg-nw__tab');
     await s.browser.waitUntil(() => s.has('modal', '.cg-fnw .cg-nw__row'), { timeout: 30_000, timeoutMsg: 'no row of the pass' });
-    await gems(s, '.cg-fnw .cg-nw__name', '«Новые»\' rows');
-    await s.h.ours('modal', `.cg-fnw .cg-nw__row:has(.cg-nw__name :is(${GEM}))`).click();
+    // The gem stands beside the name (in the name's line), not inside the name's own box.
+    await gems(s, '.cg-fnw .cg-fbname', '«Новые»\' rows');
+    await s.h.ours('modal', `.cg-fnw .cg-nw__row:has(.cg-fbname :is(${GEM}))`).click();
     await s.browser.pause(1_500);
     await shot(s, 'badges-newcomers');
     // The note's picture: «Новые»' list alone, the followers with their badges.

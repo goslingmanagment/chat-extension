@@ -91,6 +91,8 @@ export const HUB_ROUTES = {
   clientOnline: { method: 'GET', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
   /** A tab's report of the fans it saw online (Fansly's followers active lately, ChatSpace's online fans): their presence on the hub. */
   clientOnlinePresence: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['online-v1'], narrowToken: true },
+  /** 2026-11-12: the fans' badges a Fansly tab's background read (FBuddy's tier, Fansly's blue card), kept by the hub. No owner switch. */
+  clientFanBadges: { method: 'POST', routeClass: 'page', since: 'sdk', flag: null, capabilities: ['fan-badges-v1'], narrowToken: true },
   /** The page's probe of who of its known spenders is online, lent to one tab of the team at a time (OnlyFans; hub #952). */
   clientOnlineProbe: { method: 'POST', routeClass: 'page', since: 'sdk', flag: 'onlineProbe', capabilities: ['online-v1'], narrowToken: true },
   /**

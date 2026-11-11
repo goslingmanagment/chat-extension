@@ -44,6 +44,7 @@ import { OnlyfansFeedRequestSchema, OnlyfansFeedResultSchema, OnlyfansPollReques
 import { ServerTabStateRequestSchema, ServerTabStateResultSchema } from './server-tab';
 import { FanCardQuerySchema, FanCardSchema, FanCustomChangeRequestSchema, FanCustomCreateRequestSchema, FanFactChangeRequestSchema, FanFactChangeResultSchema, FanLinkDecideRequestSchema, FanLinkDecideResultSchema } from './fan-card';
 import { FanMarksQuerySchema, FanMarksSchema, OtherPagesAnswerSchema, OtherPagesRequestSchema } from './fan-marks';
+import { FanBadgesReportResultSchema, FanBadgesReportSchema } from './fan-badges';
 import { DeletedMessagesQuerySchema, DeletedMessagesSchema } from './deleted';
 import { FanslyProxiesSchema } from './page-proxies';
 import { FanQueueItemDoneRequestSchema, FanQueueItemDoneSchema, FanQueueReleaseRequestSchema, FanQueueReleaseSchema, FanQueuesQuerySchema, FanQueuesSchema, FanQueueTakeRequestSchema, FanQueueTakeSchema } from './fan-queues';
@@ -100,6 +101,7 @@ export const HUB_ROUTE_SCHEMAS = {
   clientHandoff: { request: HandoffQuerySchema, response: HandoffSchema },
   clientOnline: { request: OnlineQuerySchema, response: OnlineListSchema },
   clientOnlinePresence: { request: OnlinePresenceRequestSchema, response: OnlinePresenceResultSchema },
+  clientFanBadges: { request: FanBadgesReportSchema, response: FanBadgesReportResultSchema },
   clientOnlineProbe: { request: OnlineProbeRequestSchema, response: OnlineProbeResultSchema },
   clientOnlyfansFeed: { request: OnlyfansFeedRequestSchema, response: OnlyfansFeedResultSchema },
   clientOnlyfansPoll: { request: OnlyfansPollRequestSchema, response: OnlyfansPollResultSchema },
