@@ -75,8 +75,6 @@ export declare function millsPercentOf(value: MillsLike, percent: number): Mills
 /** An amount rounded half away from zero to whole cents or whole dollars (a payout-sheet cell). */
 export declare function millsRoundedTo(value: MillsLike, unit: "cent" | "dollar"): Mills;
 export declare function sumMills(values: Iterable<MillsLike>): Mills;
-/** The sum of micro-USD amounts (the AI plane), for display: whole numbers stay whole. */
-export declare function sumMicroUsd(values: Iterable<number>): MicroUsd;
 /**
  * Legacy name for the dollars constructor — same function, kept because the
  * name is honest (its ~80 call sites predate the codec). New code should

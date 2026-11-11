@@ -9,8 +9,11 @@
  *
  * The shift is services/chatter-shifts.ts's; the author of a message is
  * `client_send_attributions`; a mass message is the one of `teamChatterNumbers`
- * (a Fansly mass message, or one text with its price and files sent to
- * MASS_SEND_MIN_CHATS chats of a page or more in a clock hour). A wait runs from
+ * (a Fansly mass message, one text with its price and files sent to
+ * MASS_SEND_MIN_CHATS chats of a page or more in a clock hour, or a broadcast
+ * with names: one file set at one price from one sender to MASS_SEND_MIN_CHATS
+ * chats within an hour, whatever the texts, but for a message with
+ * SHIFT_REVIEW_BROADCAST_OWN_WORDS words of its own). A wait runs from
  * the fan's first message after the page's last personal one to the next
  * personal one, any author's, as in the «Обучалка» shift audit.
  */
@@ -21,19 +24,43 @@ export declare const SHIFT_REVIEW_AI_SHARE = 0.7;
 export declare const SHIFT_REVIEW_AI_LOOKBACK_MINUTES = 90;
 /** Messages shown before the shift's start in each chat, for context. */
 export declare const SHIFT_REVIEW_CONTEXT_MESSAGES = 8;
-/** A fan's message older than this before a reply is not waited on (as `teamChatterNumbers`). */
+/** A PPV of the shift bought this long after it still shows with the shift (`laterSales`). */
+export declare const SHIFT_REVIEW_LATER_SALES_DAYS = 14;
+/**
+ * A fan's message older than this before a reply — or, for a wait still open at the end, before the shift's start (the
+ * window the review reads) — is not waited on (as `teamChatterNumbers`).
+ */
 export declare const SHIFT_REVIEW_WAIT_HORIZON_HOURS = 72;
 /** The person's previous and next shift are looked for this far from the shift. */
 export declare const SHIFT_REVIEW_NEIGHBOUR_DAYS = 14;
+/**
+ * A broadcast with names (owner, 2026-11-08): its message stays personal — a live answer — with this many words of its
+ * own or more, words no other message of the broadcast within an hour of it has. A name is one.
+ */
+export declare const SHIFT_REVIEW_BROADCAST_OWN_WORDS = 4;
+/**
+ * A message deleted sooner than this after it was sent the other side most likely never saw (owner, 2026-11-08): a fan's
+ * starts no wait, a page's answers none, and the chatter's is not counted. One deleted later counts as sent.
+ */
+export declare const SHIFT_REVIEW_DELETED_UNSEEN_SECONDS = 60;
+/**
+ * A colleague's shift that held a page for less than this of the shift (the seam of two shifts, one ending as the other
+ * begins) did not keep the page then (owner, 2026-11-08): a page with fewer of the person's messages still shows all its
+ * fans (`allFans`).
+ */
+export declare const SHIFT_REVIEW_SEAM_MINUTES = 10;
 export declare const SHIFT_REVIEW_ORIGINS: readonly ["ai", "fix", "own"];
 export declare const SHIFT_REVIEW_MARKS: readonly ["dash", "cyrillic", "leak"];
 export declare const SHIFT_REVIEW_AUTHORS: readonly ["me", "other", "none", "auto"];
+export declare const SHIFT_REVIEW_SALE_VERDICTS: readonly ["mine", "both", "theirs", "none"];
+export declare const SHIFT_REVIEW_SALE_ORIGINS: readonly ["own", "colleague_ppv", "no_author_ppv", "other_wrote", "nobody_wrote_48h", "post_tip", "campaign"];
 export declare const teamShiftReviewQuerySchema: z.ZodObject<{
     userId: z.ZodCoercedNumber<unknown>;
     at: z.ZodISODateTime;
 }, z.core.$strip>;
 declare const shiftReviewMineSchema: z.ZodObject<{
     composedWith: z.ZodNullable<z.ZodString>;
+    part: z.ZodOptional<z.ZodNumber>;
     edited: z.ZodNullable<z.ZodBoolean>;
     origin: z.ZodNullable<z.ZodEnum<{
         fix: "fix";
@@ -44,6 +71,7 @@ declare const shiftReviewMineSchema: z.ZodObject<{
     aiFeature: z.ZodNullable<z.ZodString>;
     aiText: z.ZodNullable<z.ZodString>;
     draft: z.ZodNullable<z.ZodString>;
+    fixExpanded: z.ZodOptional<z.ZodBoolean>;
     replySeconds: z.ZodNullable<z.ZodNumber>;
     repeats: z.ZodNumber;
     marks: z.ZodArray<z.ZodEnum<{
@@ -72,9 +100,12 @@ declare const shiftReviewMessageSchema: z.ZodObject<{
         me: "me";
     }>>;
     mass: z.ZodBoolean;
+    unarchived: z.ZodOptional<z.ZodBoolean>;
+    deletedAt: z.ZodOptional<z.ZodString>;
     byName: z.ZodNullable<z.ZodString>;
     mine: z.ZodNullable<z.ZodObject<{
         composedWith: z.ZodNullable<z.ZodString>;
+        part: z.ZodOptional<z.ZodNumber>;
         edited: z.ZodNullable<z.ZodBoolean>;
         origin: z.ZodNullable<z.ZodEnum<{
             fix: "fix";
@@ -85,6 +116,7 @@ declare const shiftReviewMessageSchema: z.ZodObject<{
         aiFeature: z.ZodNullable<z.ZodString>;
         aiText: z.ZodNullable<z.ZodString>;
         draft: z.ZodNullable<z.ZodString>;
+        fixExpanded: z.ZodOptional<z.ZodBoolean>;
         replySeconds: z.ZodNullable<z.ZodNumber>;
         repeats: z.ZodNumber;
         marks: z.ZodArray<z.ZodEnum<{
@@ -125,9 +157,12 @@ declare const shiftReviewChatSchema: z.ZodObject<{
             me: "me";
         }>>;
         mass: z.ZodBoolean;
+        unarchived: z.ZodOptional<z.ZodBoolean>;
+        deletedAt: z.ZodOptional<z.ZodString>;
         byName: z.ZodNullable<z.ZodString>;
         mine: z.ZodNullable<z.ZodObject<{
             composedWith: z.ZodNullable<z.ZodString>;
+            part: z.ZodOptional<z.ZodNumber>;
             edited: z.ZodNullable<z.ZodBoolean>;
             origin: z.ZodNullable<z.ZodEnum<{
                 fix: "fix";
@@ -138,6 +173,7 @@ declare const shiftReviewChatSchema: z.ZodObject<{
             aiFeature: z.ZodNullable<z.ZodString>;
             aiText: z.ZodNullable<z.ZodString>;
             draft: z.ZodNullable<z.ZodString>;
+            fixExpanded: z.ZodOptional<z.ZodBoolean>;
             replySeconds: z.ZodNullable<z.ZodNumber>;
             repeats: z.ZodNumber;
             marks: z.ZodArray<z.ZodEnum<{
@@ -147,6 +183,44 @@ declare const shiftReviewChatSchema: z.ZodObject<{
             }>>;
         }, z.core.$strip>>;
     }, z.core.$strip>>;
+}, z.core.$strip>;
+declare const shiftReviewSaleSchema: z.ZodObject<{
+    saleRef: z.ZodString;
+    at: z.ZodString;
+    pageLabel: z.ZodString;
+    fanRef: z.ZodNullable<z.ZodString>;
+    fanName: z.ZodNullable<z.ZodString>;
+    chatKey: z.ZodNullable<z.ZodString>;
+    kind: z.ZodEnum<{
+        subscription: "subscription";
+        tip: "tip";
+        post: "post";
+        ppv: "ppv";
+    }>;
+    netMills: z.ZodNumber;
+    verdict: z.ZodEnum<{
+        none: "none";
+        mine: "mine";
+        both: "both";
+        theirs: "theirs";
+    }>;
+    holderName: z.ZodNullable<z.ZodString>;
+    ppvSender: z.ZodNullable<z.ZodString>;
+    ppvSentAt: z.ZodNullable<z.ZodString>;
+    lastWriter: z.ZodNullable<z.ZodString>;
+    writers: z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        messages: z.ZodNumber;
+    }, z.core.$strip>>;
+    origin: z.ZodEnum<{
+        campaign: "campaign";
+        own: "own";
+        colleague_ppv: "colleague_ppv";
+        no_author_ppv: "no_author_ppv";
+        other_wrote: "other_wrote";
+        nobody_wrote_48h: "nobody_wrote_48h";
+        post_tip: "post_tip";
+    }>;
 }, z.core.$strip>;
 export declare const teamShiftReviewResponseSchema: z.ZodObject<{
     shift: z.ZodObject<{
@@ -171,6 +245,7 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             platform: z.ZodString;
             messages: z.ZodNumber;
             worked: z.ZodBoolean;
+            allFans: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>>;
         salesNetMills: z.ZodNumber;
     }, z.core.$strip>;
@@ -211,9 +286,12 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
                 me: "me";
             }>>;
             mass: z.ZodBoolean;
+            unarchived: z.ZodOptional<z.ZodBoolean>;
+            deletedAt: z.ZodOptional<z.ZodString>;
             byName: z.ZodNullable<z.ZodString>;
             mine: z.ZodNullable<z.ZodObject<{
                 composedWith: z.ZodNullable<z.ZodString>;
+                part: z.ZodOptional<z.ZodNumber>;
                 edited: z.ZodNullable<z.ZodBoolean>;
                 origin: z.ZodNullable<z.ZodEnum<{
                     fix: "fix";
@@ -224,6 +302,7 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
                 aiFeature: z.ZodNullable<z.ZodString>;
                 aiText: z.ZodNullable<z.ZodString>;
                 draft: z.ZodNullable<z.ZodString>;
+                fixExpanded: z.ZodOptional<z.ZodBoolean>;
                 replySeconds: z.ZodNullable<z.ZodNumber>;
                 repeats: z.ZodNumber;
                 marks: z.ZodArray<z.ZodEnum<{
@@ -233,6 +312,120 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
                 }>>;
             }, z.core.$strip>>;
         }, z.core.$strip>>;
+    }, z.core.$strip>>;
+    sales: z.ZodArray<z.ZodObject<{
+        saleRef: z.ZodString;
+        at: z.ZodString;
+        pageLabel: z.ZodString;
+        fanRef: z.ZodNullable<z.ZodString>;
+        fanName: z.ZodNullable<z.ZodString>;
+        chatKey: z.ZodNullable<z.ZodString>;
+        kind: z.ZodEnum<{
+            subscription: "subscription";
+            tip: "tip";
+            post: "post";
+            ppv: "ppv";
+        }>;
+        netMills: z.ZodNumber;
+        verdict: z.ZodEnum<{
+            none: "none";
+            mine: "mine";
+            both: "both";
+            theirs: "theirs";
+        }>;
+        holderName: z.ZodNullable<z.ZodString>;
+        ppvSender: z.ZodNullable<z.ZodString>;
+        ppvSentAt: z.ZodNullable<z.ZodString>;
+        lastWriter: z.ZodNullable<z.ZodString>;
+        writers: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            messages: z.ZodNumber;
+        }, z.core.$strip>>;
+        origin: z.ZodEnum<{
+            campaign: "campaign";
+            own: "own";
+            colleague_ppv: "colleague_ppv";
+            no_author_ppv: "no_author_ppv";
+            other_wrote: "other_wrote";
+            nobody_wrote_48h: "nobody_wrote_48h";
+            post_tip: "post_tip";
+        }>;
+    }, z.core.$strip>>;
+    beforeSales: z.ZodArray<z.ZodObject<{
+        saleRef: z.ZodString;
+        at: z.ZodString;
+        pageLabel: z.ZodString;
+        fanRef: z.ZodNullable<z.ZodString>;
+        fanName: z.ZodNullable<z.ZodString>;
+        chatKey: z.ZodNullable<z.ZodString>;
+        kind: z.ZodEnum<{
+            subscription: "subscription";
+            tip: "tip";
+            post: "post";
+            ppv: "ppv";
+        }>;
+        netMills: z.ZodNumber;
+        verdict: z.ZodEnum<{
+            none: "none";
+            mine: "mine";
+            both: "both";
+            theirs: "theirs";
+        }>;
+        holderName: z.ZodNullable<z.ZodString>;
+        ppvSender: z.ZodNullable<z.ZodString>;
+        ppvSentAt: z.ZodNullable<z.ZodString>;
+        lastWriter: z.ZodNullable<z.ZodString>;
+        writers: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            messages: z.ZodNumber;
+        }, z.core.$strip>>;
+        origin: z.ZodEnum<{
+            campaign: "campaign";
+            own: "own";
+            colleague_ppv: "colleague_ppv";
+            no_author_ppv: "no_author_ppv";
+            other_wrote: "other_wrote";
+            nobody_wrote_48h: "nobody_wrote_48h";
+            post_tip: "post_tip";
+        }>;
+    }, z.core.$strip>>;
+    laterSales: z.ZodArray<z.ZodObject<{
+        saleRef: z.ZodString;
+        at: z.ZodString;
+        pageLabel: z.ZodString;
+        fanRef: z.ZodNullable<z.ZodString>;
+        fanName: z.ZodNullable<z.ZodString>;
+        chatKey: z.ZodNullable<z.ZodString>;
+        kind: z.ZodEnum<{
+            subscription: "subscription";
+            tip: "tip";
+            post: "post";
+            ppv: "ppv";
+        }>;
+        netMills: z.ZodNumber;
+        verdict: z.ZodEnum<{
+            none: "none";
+            mine: "mine";
+            both: "both";
+            theirs: "theirs";
+        }>;
+        holderName: z.ZodNullable<z.ZodString>;
+        ppvSender: z.ZodNullable<z.ZodString>;
+        ppvSentAt: z.ZodNullable<z.ZodString>;
+        lastWriter: z.ZodNullable<z.ZodString>;
+        writers: z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            messages: z.ZodNumber;
+        }, z.core.$strip>>;
+        origin: z.ZodEnum<{
+            campaign: "campaign";
+            own: "own";
+            colleague_ppv: "colleague_ppv";
+            no_author_ppv: "no_author_ppv";
+            other_wrote: "other_wrote";
+            nobody_wrote_48h: "nobody_wrote_48h";
+            post_tip: "post_tip";
+        }>;
     }, z.core.$strip>>;
     waits: z.ZodArray<z.ZodObject<{
         chat: z.ZodString;
@@ -244,6 +437,7 @@ export declare const teamShiftReviewResponseSchema: z.ZodObject<{
             none: "none";
             me: "me";
         }>>;
+        pending: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
     unarchived: z.ZodNumber;
     deleted: z.ZodNumber;
@@ -254,6 +448,8 @@ export type TeamShiftReviewResponse = z.infer<typeof teamShiftReviewResponseSche
 export type ShiftReviewChat = z.infer<typeof shiftReviewChatSchema>;
 export type ShiftReviewMessage = z.infer<typeof shiftReviewMessageSchema>;
 export type ShiftReviewMine = z.infer<typeof shiftReviewMineSchema>;
+export type ShiftReviewSale = z.infer<typeof shiftReviewSaleSchema>;
+export type ShiftReviewSaleOrigin = (typeof SHIFT_REVIEW_SALE_ORIGINS)[number];
 export declare const shiftReviewRouteSchemas: {
     readonly teamShiftReview: {
         readonly auth: {
@@ -290,6 +486,7 @@ export declare const shiftReviewRouteSchemas: {
                         platform: z.ZodString;
                         messages: z.ZodNumber;
                         worked: z.ZodBoolean;
+                        allFans: z.ZodOptional<z.ZodBoolean>;
                     }, z.core.$strip>>;
                     salesNetMills: z.ZodNumber;
                 }, z.core.$strip>;
@@ -330,9 +527,12 @@ export declare const shiftReviewRouteSchemas: {
                             me: "me";
                         }>>;
                         mass: z.ZodBoolean;
+                        unarchived: z.ZodOptional<z.ZodBoolean>;
+                        deletedAt: z.ZodOptional<z.ZodString>;
                         byName: z.ZodNullable<z.ZodString>;
                         mine: z.ZodNullable<z.ZodObject<{
                             composedWith: z.ZodNullable<z.ZodString>;
+                            part: z.ZodOptional<z.ZodNumber>;
                             edited: z.ZodNullable<z.ZodBoolean>;
                             origin: z.ZodNullable<z.ZodEnum<{
                                 fix: "fix";
@@ -343,6 +543,7 @@ export declare const shiftReviewRouteSchemas: {
                             aiFeature: z.ZodNullable<z.ZodString>;
                             aiText: z.ZodNullable<z.ZodString>;
                             draft: z.ZodNullable<z.ZodString>;
+                            fixExpanded: z.ZodOptional<z.ZodBoolean>;
                             replySeconds: z.ZodNullable<z.ZodNumber>;
                             repeats: z.ZodNumber;
                             marks: z.ZodArray<z.ZodEnum<{
@@ -352,6 +553,120 @@ export declare const shiftReviewRouteSchemas: {
                             }>>;
                         }, z.core.$strip>>;
                     }, z.core.$strip>>;
+                }, z.core.$strip>>;
+                sales: z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        campaign: "campaign";
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                    }>;
+                }, z.core.$strip>>;
+                beforeSales: z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        campaign: "campaign";
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                    }>;
+                }, z.core.$strip>>;
+                laterSales: z.ZodArray<z.ZodObject<{
+                    saleRef: z.ZodString;
+                    at: z.ZodString;
+                    pageLabel: z.ZodString;
+                    fanRef: z.ZodNullable<z.ZodString>;
+                    fanName: z.ZodNullable<z.ZodString>;
+                    chatKey: z.ZodNullable<z.ZodString>;
+                    kind: z.ZodEnum<{
+                        subscription: "subscription";
+                        tip: "tip";
+                        post: "post";
+                        ppv: "ppv";
+                    }>;
+                    netMills: z.ZodNumber;
+                    verdict: z.ZodEnum<{
+                        none: "none";
+                        mine: "mine";
+                        both: "both";
+                        theirs: "theirs";
+                    }>;
+                    holderName: z.ZodNullable<z.ZodString>;
+                    ppvSender: z.ZodNullable<z.ZodString>;
+                    ppvSentAt: z.ZodNullable<z.ZodString>;
+                    lastWriter: z.ZodNullable<z.ZodString>;
+                    writers: z.ZodArray<z.ZodObject<{
+                        name: z.ZodString;
+                        messages: z.ZodNumber;
+                    }, z.core.$strip>>;
+                    origin: z.ZodEnum<{
+                        campaign: "campaign";
+                        own: "own";
+                        colleague_ppv: "colleague_ppv";
+                        no_author_ppv: "no_author_ppv";
+                        other_wrote: "other_wrote";
+                        nobody_wrote_48h: "nobody_wrote_48h";
+                        post_tip: "post_tip";
+                    }>;
                 }, z.core.$strip>>;
                 waits: z.ZodArray<z.ZodObject<{
                     chat: z.ZodString;
@@ -363,6 +678,7 @@ export declare const shiftReviewRouteSchemas: {
                         none: "none";
                         me: "me";
                     }>>;
+                    pending: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>;
                 unarchived: z.ZodNumber;
                 deleted: z.ZodNumber;

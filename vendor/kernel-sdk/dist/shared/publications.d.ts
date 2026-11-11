@@ -41,8 +41,6 @@ export type PublicationActorKind = (typeof PUBLICATION_ACTOR_KINDS)[number];
  */
 export declare const PUBLICATION_TRANSITIONS: Readonly<Record<PublicationStatus, Readonly<Partial<Record<PublicationStatus, readonly PublicationActorKind[]>>>>>;
 export declare function canTransitionPublication(from: PublicationStatus, to: PublicationStatus, actor: PublicationActorKind): boolean;
-/** Statuses whose content may still change (an edit of an approved one returns it to draft). */
-export declare const PUBLICATION_EDITABLE_STATUSES: readonly PublicationStatus[];
 /**
  * Statuses in which a publication occupies its media and its day on the page:
  * approved and on the way, on the platform, or possibly on it (unknown).
@@ -51,9 +49,7 @@ export declare const PUBLICATION_EDITABLE_STATUSES: readonly PublicationStatus[]
 export declare const PUBLICATION_ACTIVE_STATUSES: readonly PublicationStatus[];
 /** The codes of the draft checks (spec §8.1). Severity is decided per finding. */
 export declare const PUBLICATION_FINDING_CODES: readonly ["publish_time_past", "file_of_another_model", "file_deleted", "media_not_on_page", "repost_within_threshold", "posted_before", "price_range_not_set", "price_out_of_range", "paid_post_off_on_onlyfans", "volume_high", "daily_limit_exceeded", "wall_not_on_page", "wall_default_unknown", "tier_not_on_page", "onlyfans_file_upload_unsupported", "onlyfans_file_too_large", "fansly_file_upload_unsupported", "fansly_several_tiers_unsupported", "platform_schedule_incomplete"];
-export type PublicationFindingCode = (typeof PUBLICATION_FINDING_CODES)[number];
 export declare const PUBLICATION_FINDING_SEVERITIES: readonly ["blocking", "warning", "info"];
-export type PublicationFindingSeverity = (typeof PUBLICATION_FINDING_SEVERITIES)[number];
 /** Defaults of a page's publishing settings (a page without a settings row has these). */
 export declare const PUBLICATION_DEFAULT_REPOST_THRESHOLD_DAYS = 30;
 /** The volume warning's floor: a page's "usual" day is never fewer posts than this. */
@@ -133,6 +129,14 @@ export declare const PUBLICATION_SEARCH_DAYS = 7;
  * already went out.
  */
 export declare const PUBLICATION_WITHDRAW_MIN_LEAD_MINUTES = 15;
+/**
+ * A post taken off the schedule by the platform's id (owner 2026-11-11) must be
+ * one Hub's own read of the page's schedule shows waiting, taken this long ago
+ * at most: an older read is no ground to name a post by its id — the caller
+ * refreshes the schedule first. (The send still waits for a fresher read: the
+ * engine's after the command, OnlyFans' right before it.)
+ */
+export declare const POST_WITHDRAW_SCHEDULE_MAX_AGE_MINUTES = 60;
 /** One approval takes at most this many publications (the batch body's cap). */
 export declare const PUBLICATION_APPROVE_BATCH_MAX = 200;
 /** The platform's schedule is read this many days ahead (Hub schedules 7 days ahead, spec §3.4). */

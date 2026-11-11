@@ -1,11 +1,8 @@
 import { ofapiMediaRouteSchemas } from "./routes-ofapi-media";
-import { ofapiMediaImageRouteSchemas } from "./routes-ofapi-media-images";
 import { ofapiMarketingRouteSchemas } from "./routes-ofapi-marketing";
 import { ofapiActionRouteSchemas } from "./routes-ofapi-actions";
 import { ofapiBannedWordRouteSchemas } from "./routes-ofapi-banned-words";
 import { modelApplicationRouteSchemas } from "./routes-model-applications";
-import { OFAPI_EXTENDED_COMMAND_KINDS } from "../shared/index";
-import { ofapiExtendedCommandOptions } from "./ofapi-extended-commands";
 import { ofapiVendorRouteSchemas } from "./routes-ofapi-vendor";
 import { ofapiReadCollectionsRouteSchemas } from "./routes-ofapi-read-collections";
 import { ofapiExportRouteSchemas } from "./routes-ofapi-exports";
@@ -13,6 +10,8 @@ import { ofapiCollectionRouteSchemas } from "./routes-ofapi-collection";
 import { ofLinksRouteSchemas } from "./routes-of-links";
 import { pageBrowserRouteSchemas } from "./routes-page-browser";
 import { publicationRouteSchemas } from "./routes-publications";
+import { mediaLookRouteSchemas } from "./routes-media-looks";
+import { agentTeamRouteSchemas } from "./agent-team";
 import { fanQueueRouteSchemas } from "./routes-fan-queues";
 import { outreachRouteSchemas } from "./routes-outreach";
 import { chatterStatsRouteSchemas } from "./routes-chatter-stats";
@@ -22,6 +21,8 @@ import { aiAccountRouteSchemas } from "./routes-ai-accounts";
 import { aiSpendRouteSchemas } from "./routes-ai-spend";
 import { aiOpenerRouteSchemas } from "./routes-ai-openers";
 import { shiftReviewRouteSchemas } from "./routes-shift-review";
+import { teamLedgerRouteSchemas } from "./routes-team-ledger";
+import { accountReportsRouteSchemas } from "./routes-account-reports";
 import { PERIOD_OPTIONS, SPENDER_PERIOD_OPTIONS, SPENDER_RETENTION_STATUSES, SPENDER_SERIES_GRANULARITIES, aiUsageFeatures, fanFlagTypes, ofapiCaptureJobStates, transactionReportingBuckets, userRoles, } from "../shared/index";
 import { z } from "zod";
 // Agent Read Plane operations #1-#10. Declared in their own module (one coherent
@@ -104,18 +105,6 @@ export const issuedDeviceTokenResponseSchema = z.object({
     keyPrefix: z.string(),
     expiresAt: isoTimestamp,
 });
-export const reservedDeviceTokenResponseSchema = z.object({
-    // Distinct-prefix raw reservation bearer, returned exactly once.  It cannot
-    // authenticate ordinary routes until the activation move commits.
-    token: z.string(),
-    reservationId: intId,
-    label: z.string(),
-    keyPrefix: z.string(),
-    reservationExpiresAt: isoTimestamp,
-});
-export const activatedDeviceTokenResponseSchema = issuedDeviceTokenResponseSchema.omit({
-    token: true,
-});
 export const deviceTokenItemSchema = z.object({
     id: intId,
     label: z.string(),
@@ -130,34 +119,6 @@ export const deviceTokenItemSchema = z.object({
     createdAt: isoTimestamp,
     revokedAt: isoTimestamp.nullable(),
     revokedReason: z.string().nullable(),
-});
-export const deviceTokenHarvestCapabilityBodySchema = z.object({
-    // null explicitly removes the capability; a UUID binds the token to that
-    // one preserved Desktop database identity.
-    machineId: z.string().uuid().nullable(),
-});
-// D116(c) fleet-gate foundation (desktop D19): per active chatter, device-token
-// freshness. Read-only reporting surface. (The API-key columns were retired
-// with the lane itself.)
-// Deliberately NO aggregate go/no-go boolean: chatter-role automation
-// accounts (probes/scripts) are indistinguishable from humans until the
-// service-account split lands, so any all-chatters flag would be
-// permanently false — the summary counts let the phase-2 CI (or the owner)
-// apply policy over the rows once accounts are classified.
-export const deviceTokenAdoptionRowSchema = z.object({
-    username: z.string(),
-    hasFreshDeviceToken: z.boolean(),
-    deviceTokenLastUsedAt: isoTimestamp.nullable(),
-    deviceTokenExpiresAt: isoTimestamp.nullable(),
-});
-export const deviceTokenAdoptionReportSchema = z.object({
-    generatedAt: isoTimestamp,
-    freshWindowDays: z.number().int().positive(),
-    chatters: z.array(deviceTokenAdoptionRowSchema),
-    summary: z.object({
-        activeChatters: z.number().int().nonnegative(),
-        onFreshTokens: z.number().int().nonnegative(),
-    }),
 });
 export const registrationStateEnum = z.enum(["invited", "active"]);
 export const adminUserSchema = authUserSchema.extend({
@@ -240,34 +201,25 @@ export const authRedeemAccountLinkBodySchema = z.object({
 export const authRedeemAccountLinkResponseSchema = z.object({
     username: z.string(),
 });
-export const deviceTokenIssueModeEnum = z.enum(["active", "pending"]);
+export const deviceTokenIssueModeEnum = z.enum(["active"]);
 export const authIssueDeviceTokenWithPasswordBodySchema = z.object({
     username: z.string().trim().min(1).max(100),
     password: z.string().min(1).max(1024),
     label: z.string().min(1).max(120),
-    // active  → a live device token (the extension: one atomic storage write);
-    // pending → a 10-minute reservation, activated through authActivateDeviceToken
-    //           after the client has durably staged custody (the desktop).
+    // active → a live device token (the only mode left; the field stays required).
     mode: deviceTokenIssueModeEnum,
     // chat-extension H-3: a narrow token bound to this client's route allowlist
-    // (client-token-scopes.ts), stored immutably on the token. Active only. A hub
+    // (client-token-scopes.ts), stored immutably on the token. A hub
     // without H-3 drops the key and issues a full token, so the client requires
     // the echo below (and the bootstrap's identity.tokenClient) before using it.
     client: z.enum(["chat-extension"]).optional(),
-}).superRefine((value, ctx) => {
-    if (value.client !== undefined && value.mode !== "active") {
-        ctx.addIssue({ code: "custom", path: ["client"], message: "client requires mode active" });
-    }
 });
-export const authIssueDeviceTokenWithPasswordResponseSchema = z.discriminatedUnion("mode", [
-    issuedDeviceTokenResponseSchema.extend({
-        mode: z.literal("active"),
-        // The profile the token was issued with: null for a full token. Open on
-        // the wire, absent from a hub without H-3.
-        client: z.string().min(1).max(64).nullable().optional(),
-    }),
-    reservedDeviceTokenResponseSchema.extend({ mode: z.literal("pending") }),
-]);
+export const authIssueDeviceTokenWithPasswordResponseSchema = issuedDeviceTokenResponseSchema.extend({
+    mode: z.literal("active"),
+    // The profile the token was issued with: null for a full token. Open on
+    // the wire, absent from a hub without H-3.
+    client: z.string().min(1).max(64).nullable().optional(),
+});
 export const ownDeviceItemSchema = z.object({
     id: intId,
     label: z.string(),
@@ -1484,25 +1436,6 @@ export const revenueDailyResponseSchema = z.object({
     series: z.array(revenueDailyItemSchema.extend({
         canonicalType: transactionTypeEnum.optional(),
     })),
-});
-// Per-model earnings + trends: every visible model's period total and daily
-// series in one call (the dashboard's "By model" comparison view).
-export const revenueByModelQuerySchema = z.object({
-    period: periodEnum.default("30d"),
-    windowAt: revenueInstantSchema.optional(),
-    from: businessDate.optional(),
-    to: businessDate.optional(),
-});
-export const revenueByModelItemSchema = z.object({
-    modelSlug: z.string(),
-    modelName: z.string(),
-    pageCount: z.number().int(),
-    totalNetAmountMills: mills,
-    transactionCount: z.number().int(),
-    series: z.array(revenueDailyItemSchema),
-});
-export const revenueByModelResponseSchema = z.object({
-    models: z.array(revenueByModelItemSchema),
 });
 export const crossPageTransactionItemSchema = z.object({
     transactionId: z.string(),
@@ -2749,58 +2682,6 @@ export const syncRunDetailResponseSchema = z.object({
         finishedAt: isoTimestamp.nullable(),
     })),
 });
-const syncMonitorStatusEnum = z.enum([
-    "idle",
-    "pending",
-    "running",
-    "retrying",
-    "blocked",
-    "paused",
-]);
-const syncMonitorRateHealthEnum = z.enum(["healthy", "warning", "limited"]);
-export const syncMonitorProgressSchema = z.object({
-    label: z.string(),
-    current: z.number().int(),
-    total: z.number().int().nullable(),
-    unit: z.string(),
-    percent: z.number().nullable(),
-});
-export const syncMonitorRateHealthSchema = z.object({
-    state: syncMonitorRateHealthEnum,
-    last429At: isoTimestamp.nullable(),
-    nextAvailableAt: isoTimestamp.nullable(),
-});
-export const syncMonitorRecentRunsSchema = z.object({
-    running: z.number().int(),
-    success: z.number().int(),
-    partial: z.number().int(),
-    failed: z.number().int(),
-    skipped: z.number().int(),
-});
-export const syncMonitorRecentErrorsSchema = z.object({
-    total429s: z.number().int(),
-    total5xxs: z.number().int(),
-    failedRuns: z.number().int(),
-    failedAttempts: z.number().int(),
-    retryAttempts: z.number().int(),
-    last429At: isoTimestamp.nullable(),
-    last5xxAt: isoTimestamp.nullable(),
-});
-export const syncMonitorLastCompletionSchema = z.object({
-    runId: z.number().int(),
-    trigger: z.string(),
-    status: z.enum(["success", "partial", "failed", "skipped"]),
-    startedAt: isoTimestamp,
-    finishedAt: isoTimestamp,
-    durationMs: z.number().int().nullable(),
-    errorSummary: z.string().nullable(),
-});
-export const syncMonitorActiveRunSchema = z.object({
-    runId: z.number().int(),
-    trigger: z.string(),
-    startedAt: isoTimestamp,
-    lastActivityAt: isoTimestamp,
-});
 const extendedSyncStreamEnum = z.enum([
     "light",
     "fan_identities",
@@ -2828,100 +2709,6 @@ const extendedSyncStreamEnum = z.enum([
     // WP-F4.
     "media_stats",
 ]);
-export const syncMonitorStreamItemSchema = z.object({
-    stream: extendedSyncStreamEnum,
-    status: syncMonitorStatusEnum,
-    stalled: z.boolean(),
-    pending: z.boolean(),
-    retryAt: isoTimestamp.nullable(),
-    progress: syncMonitorProgressSchema.nullable(),
-    recentRuns: syncMonitorRecentRunsSchema,
-    recentErrors: syncMonitorRecentErrorsSchema,
-    rateHealth: syncMonitorRateHealthSchema,
-    activeRun: syncMonitorActiveRunSchema.nullable(),
-    lastCompletion: syncMonitorLastCompletionSchema.nullable(),
-    succeededAt: isoTimestamp.nullable(),
-    failedAt: isoTimestamp.nullable(),
-    lastErrorSummary: z.string().nullable(),
-    consecutiveFailures: z.number().int(),
-    syncUx: syncUxSummarySchema,
-});
-export const syncMonitorPageCountsSchema = z.object({
-    fans: z.number().int(),
-    followers: z.number().int(),
-    subscribers: z.number().int(),
-    transactions: z.number().int(),
-    conversations: z.number().int(),
-    messages: z.number().int(),
-});
-export const syncMonitorPageSummarySchema = z.object({
-    runningStreams: z.number().int(),
-    blockedStreams: z.number().int(),
-    stalledStreams: z.number().int(),
-    pendingStreams: z.number().int(),
-    retryingStreams: z.number().int(),
-});
-export const syncMonitorPageItemSchema = z.object({
-    pageId: z.number().int(),
-    pageLabel: z.string(),
-    platform: platformEnum,
-    modelSlug: z.string(),
-    modelName: z.string(),
-    username: z.string().nullable(),
-    displayName: z.string().nullable(),
-    counts: syncMonitorPageCountsSchema,
-    summary: syncMonitorPageSummarySchema,
-    streams: z.array(syncMonitorStreamItemSchema),
-    syncUx: syncUxSummarySchema,
-});
-export const syncMonitorProviderSummarySchema = z.object({
-    platform: platformEnum,
-    rateHealth: syncMonitorRateHealthSchema,
-    recent429s: z.number().int(),
-    recent5xxs: z.number().int(),
-});
-export const syncMonitorOverallSchema = z.object({
-    pages: z.number().int(),
-    streams: z.number().int(),
-    runningStreams: z.number().int(),
-    blockedStreams: z.number().int(),
-    stalledStreams: z.number().int(),
-    pendingStreams: z.number().int(),
-    retryingStreams: z.number().int(),
-    counts: syncMonitorPageCountsSchema,
-    recentRuns: syncMonitorRecentRunsSchema,
-    recentErrors: syncMonitorRecentErrorsSchema,
-    providers: z.array(syncMonitorProviderSummarySchema),
-    syncUx: syncUxSummarySchema,
-});
-export const syncMonitorRecentEventSchema = z.object({
-    id: z.number().int(),
-    runId: z.number().int(),
-    pageId: z.number().int(),
-    pageLabel: z.string(),
-    platform: platformEnum,
-    stream: extendedSyncStreamEnum,
-    eventType: z.string(),
-    severity: z.enum(["info", "warn", "error"]),
-    message: z.string(),
-    details: z.record(z.string(), z.unknown()),
-    emittedAt: isoTimestamp,
-});
-export const syncStatusQuerySchema = z.object({
-    pageLabel: z.string().min(1).optional(),
-    windowHours: z.coerce.number().int().min(1).max(24 * 14).default(24),
-    eventLimit: z.coerce.number().int().min(1).max(200).default(50),
-});
-export const syncStatusResponseSchema = z.object({
-    generatedAt: isoTimestamp,
-    window: z.object({
-        hours: z.number().int(),
-        startedAt: isoTimestamp,
-    }),
-    overall: syncMonitorOverallSchema,
-    pages: z.array(syncMonitorPageItemSchema),
-    recentEvents: z.array(syncMonitorRecentEventSchema),
-});
 export const syncRequestsQuerySchema = z.object({
     since: z.string().optional(),
     limit: z.coerce.number().int().min(1).default(100),
@@ -3529,16 +3316,6 @@ export const createPageBodySchema = z.union([
         label: z.string().min(1),
     }),
 ]);
-export const testProxyBodySchema = z.object({
-    proxy: z.object({
-        url: z.string().min(1),
-        username: z.string().nullable().optional(),
-        password: z.string().nullable().optional(),
-    }),
-});
-export const testProxyResponseSchema = z.object({
-    ip: z.string(),
-});
 export const createModelBodySchema = z.object({
     slug: z.string().min(1).max(100),
     name: z.string().min(1).max(200),
@@ -3699,219 +3476,6 @@ export const syncEventSchema = z.discriminatedUnion("type", [
     typingEventSchema,
     accountAuthChangedEventSchema,
 ]);
-export const syncSnapshotRequiredResponseSchema = z.object({
-    error: z.literal("sync_snapshot_required"),
-    message: z.string(),
-    statusCode: z.literal(409),
-    version: z.literal(1),
-    requestedSeq: z.number().int().nonnegative(),
-    oldestAvailableSeq: z.number().int().nonnegative().nullable(),
-    currentSeq: z.number().int().nonnegative(),
-    snapshotPath: z.literal("/api/v1/events/snapshot"),
-});
-/** A sticky snapshotCursor/stateCursor became older than cleanup's durable
- * replay floor while a paged recovery was in progress. Clients must discard
- * only that matching progress record and restart the snapshot without either
- * cursor; retrying the same continuation can never succeed. */
-export const syncSnapshotRestartRequiredResponseSchema = z.object({
-    error: z.literal("sync_snapshot_restart_required"),
-    message: z.string(),
-    statusCode: z.literal(409),
-    replayFloor: z.number().int().nonnegative(),
-    snapshotPath: z.literal("/api/v1/events/snapshot"),
-});
-// --- Event stream v2: domain_events, per-account ordering ---
-/** H3: what Core knows about how a durable frame's fact reached the ledger.
- * `redelivery` — its source OFAPI webhook receipt carries the provider's
- * redelivery header (`x-ofapi-redelivery-of`); `repair` — a superseding
- * correction (`data.supersedesEventId`); `live` — neither is KNOWN. `live` is
- * NOT "fresh": old facts are labelled `live` on every replay before
- * `replay_completed`, after re-canonicalization of old observations by a new
- * parser version (e.g. formerly quarantined PPVs), on Fansly history pulls
- * (no webhook lane, never looked up), on OFAPI's own automatic retries (no
- * redelivery header) and on receipts past retention. A missing
- * `provenance` means unknown (the lookup failed): treat it as not live.
- * Business identity (refs, dedup) is the same in all three.
- * Clients deciding on attention (toasts, sounds) must combine `live` with
- * the stream's `replay_completed` boundary AND an age check on `occurredAt`
- * — and even that is not proof: when the upstream payload has no timestamp
- * of its own, `occurredAt` falls back to the receipt time. Never toast from
- * `GET /api/v1/events/v2/facts` (catch-up of history, not news). */
-export const domainEventProvenanceEnum = z.enum(["live", "redelivery", "repair"]);
-/** H3: the money facts `GET /api/v1/events/v2/facts` serves. */
-export const domainEventFactTypes = [
-    "message.ppv_unlocked",
-    "tip.received",
-    "transaction.posted",
-];
-export const domainEventFrameSchema = z.object({
-    accountId: z.number().int().positive(),
-    accountSeq: z.number().int().positive(),
-    // Canonical vocabulary (target §3.2). Deliberately open: clients MUST
-    // tolerate unknown types (the v1 union's forward-compat rule, now explicit).
-    type: z.string().min(1),
-    occurredAt: isoTimestamp,
-    data: z.unknown(),
-    // Serve-time additions (all optional — older frames and the
-    // smoke consumer's persisted expectations stay valid):
-    // the ledger's platform-native refs, surfaced so clients can route events
-    // without re-deriving them from `data`...
-    fanRef: z.string().nullable().optional(),
-    conversationRef: z.string().nullable().optional(),
-    messageRef: z.string().nullable().optional(),
-    // ...the page's OFAPI account ref (null for unmapped/Fansly pages), so
-    // OFAPI-keyed clients (the desktop) filter without numeric-id translation...
-    accountRef: z.string().nullable().optional(),
-    // ...and, on message.received/message.sent frames whose source observation
-    // is an OFAPI webhook message, the same normalized message payload the v1
-    // fanout serves — projection-grade ingest without a read-gateway round
-    // trip. Shape-tolerant clients validate it themselves (it is
-    // upstream-derived, not a kernel contract).
-    payload: z.unknown().optional(),
-    // H3 serve-time additions (optional; older consumers strip unknown keys):
-    // the ledger's transaction ref (transaction.posted), so money consumers
-    // apply one change per transaction...
-    transactionRef: z.string().nullable().optional(),
-    // ...what Core knows about how the fact reached the ledger — NOT a
-    // freshness signal (see domainEventProvenanceEnum). Absent = unknown,
-    // treat it as not live...
-    provenance: domainEventProvenanceEnum.optional(),
-    // ...and, on money-fact frames (domainEventFactTypes) whose conversationRef
-    // names a known DM thread, its fan labels for display without a chat read.
-    thread: z.object({
-        fanName: z.string().nullable(),
-        username: z.string().nullable(),
-    }).optional(),
-});
-// The v2 stream may interleave `event: ephemeral` frames (no id line — they
-// never advance the cursor): serve-time-only events that are deliberately
-// NOT ledgered (typing indicators). data = a v1 SyncEvent JSON object.
-// The v2 stream also carries an `event: control` lane: connection-scoped
-// signals that are not domain events and never enter DomainEventFrame
-// validation. Today's only member is `{"type":"replay_completed"}` — written
-// once per connection when replay (cursor resume and/or post-snapshot
-// catch-up) has fully flushed; every frame after it is live delivery. Its
-// `id` line repeats the already-delivered watermark cursor (safe to resume
-// from, unlike ephemeral's deliberate no-id). Clients that don't recognize a
-// control type MUST skip the frame (the same forward-compat rule that makes
-// unknown event names safe for SDK subscribers, which consume only
-// `event: domain`). Consumers: the desktop's notification gate treats it as
-// the replay/live attention boundary (its decisions.md D23).
-export const domainEventsSnapshotRequiredAccountSchema = z.object({
-    accountId: z.number().int().positive(),
-    requestedSeq: z.number().int().nonnegative(),
-    oldestAvailableSeq: z.number().int().positive().nullable(),
-    currentSeq: z.number().int().nonnegative(),
-});
-export const domainEventsSnapshotRequiredResponseSchema = z.object({
-    error: z.literal("sync_snapshot_required"),
-    message: z.string(),
-    statusCode: z.literal(409),
-    version: z.literal(2),
-    accounts: z.array(domainEventsSnapshotRequiredAccountSchema),
-    snapshotPath: z.literal("/api/v1/events/v2/snapshot"),
-});
-export const domainEventsSnapshotResponseSchema = z.object({
-    // Opaque replay cursor over the requested accounts. It ordinarily points at
-    // current high-waters, but may remain before a retained OFAPI event that is
-    // not yet represented by the durable state snapshot. accounts.currentSeq
-    // remains the raw committed high-water for diagnostics.
-    cursor: z.string(),
-    accounts: z.array(z.object({
-        accountId: z.number().int().positive(),
-        // Platform-native OFAPI id used by Desktop's durable state endpoint. Null
-        // for pages that are not backed by OFAPI.
-        accountRef: z.string().min(1).nullable(),
-        currentSeq: z.number().int().nonnegative(),
-    })),
-});
-/** H3: one page of an account's money facts, in account_seq order. */
-export const domainEventFactsResponseSchema = z.object({
-    accountId: z.number().int().positive(),
-    // The account's committed high-water when this page was read. Every fact
-    // at or below it is either in this page, in a later page, or superseded.
-    throughSeq: z.number().int().nonnegative(),
-    facts: z.array(domainEventFrameSchema),
-    // Pass back as afterSeq. The last fact's accountSeq while hasMore, else
-    // throughSeq (the next call then returns only newer facts).
-    nextAfterSeq: z.number().int().nonnegative(),
-    hasMore: z.boolean(),
-});
-export const syncSnapshotQuerySchema = z.object({
-    accountId: syncEventIdSchema,
-    afterSeq: z.coerce.number().int().nonnegative(),
-    snapshotCursor: z.coerce.number().int().nonnegative().optional(),
-    pageCursor: z.coerce.number().int().nonnegative().default(0),
-    limit: z.coerce.number().int().min(1).max(50).default(25),
-    // Additive bounded-v1 protocol. Old servers strip these unknown query
-    // fields and return the legacy page shape; upgraded clients detect the
-    // absent nextStateCursor and continue with legacy thread pagination.
-    pageMode: z.literal("bounded_v1").optional(),
-    stateCursor: z.string().min(1).max(2_048).regex(/^[A-Za-z0-9_-]+$/).optional(),
-    messageLimit: z.coerce.number().int().min(1).max(200).default(100),
-});
-export const syncSnapshotMessageSchema = z.object({
-    chatId: syncEventIdSchema,
-    messageId: syncEventIdSchema,
-    message: normalizedSyncMessageSchema.nullable(),
-    deletedAt: isoTimestamp.nullable(),
-    sourceUpdatedAt: isoTimestamp,
-    sourceFanoutSeq: z.number().int().nonnegative().nullable(),
-});
-export const syncSnapshotThreadSchema = z.object({
-    chatId: syncEventIdSchema,
-    fanName: z.string(),
-    unreadCount: z.number().int().nonnegative(),
-    hasUnreadTips: z.boolean(),
-    lastMessageId: syncEventIdSchema.nullable(),
-    lastMessageAt: isoTimestamp.nullable(),
-    lastMessageIsSentByMe: z.boolean(),
-    lastMessagePreview: z.string(),
-    visible: z.boolean(),
-    sourceUpdatedAt: isoTimestamp,
-    messages: z.array(syncSnapshotMessageSchema),
-});
-export const syncSnapshotUnresolvedTombstoneSchema = z.object({
-    messageId: syncEventIdSchema,
-    deletedAt: isoTimestamp,
-    sourceUpdatedAt: isoTimestamp,
-    sourceFanoutSeq: z.number().int().nonnegative(),
-});
-export const syncSnapshotResponseSchema = z.object({
-    version: z.literal(1),
-    requestedAfterSeq: z.number().int().nonnegative(),
-    snapshotCursor: z.number().int().nonnegative(),
-    stateAt: isoTimestamp,
-    resumeAllowed: z.boolean(),
-    page: z.object({
-        pageId: intId,
-        label: z.string(),
-        accountId: syncEventIdSchema,
-        username: z.string().nullable(),
-        authStatus: z.string().nullable(),
-        authenticated: z.boolean().nullable(),
-        authChangedAt: isoTimestamp.nullable(),
-    }),
-    coverage: z.object({
-        durableDomains: z.array(z.enum([
-            "chat_heads",
-            "hot_messages",
-            "message_tombstones",
-            "account_auth",
-        ])),
-        omittedDomains: z.array(z.object({
-            domain: z.string(),
-            reason: z.string(),
-        })),
-        messageWindow: z.literal("hot_projection_plus_archive_delta"),
-    }),
-    threads: z.array(syncSnapshotThreadSchema),
-    unresolvedTombstones: z.array(syncSnapshotUnresolvedTombstoneSchema),
-    nextPageCursor: z.number().int().nonnegative().nullable(),
-    // Present (including terminal null) only for bounded_v1 responses. Its
-    // absence is the backwards-compatible old-Core/legacy-mode signal.
-    nextStateCursor: z.string().min(1).max(2_048).nullable().optional(),
-});
 export const ofapiWebhookAckResponseSchema = z.object({
     received: z.literal(true),
     duplicate: z.boolean(),
@@ -4587,164 +4151,6 @@ export const ofapiCreditsSummaryResponseSchema = z.object({
         microUsdPerCredit: z.number().int().min(0),
     }).optional(),
 });
-const ofapiCreditsChatterWindowSchema = z.object({
-    from: isoTimestamp,
-    to: isoTimestamp,
-    // Compatibility estimates for installed SDKs: REST is floored at zero and
-    // the legacy total remains REST plus the estimated webhook component.
-    restCredits: z.number().int().min(0),
-    webhook: z.object({
-        eventCount: z.number().int().min(0),
-        estimatedCredits: z.number().int().min(0),
-    }),
-    totalEstimatedCredits: z.number().int().min(0),
-    // Exact signed net for upgraded clients. Optional for compatibility with
-    // older Hub versions; a correction can make a bounded window net-negative.
-    netRestCredits: z.number().int().optional(),
-    netTotalEstimatedCredits: z.number().int().optional(),
-});
-export const ofapiCreditsChatterSummaryResponseSchema = z.object({
-    enabled: z.boolean(),
-    scope: z.object({
-        pageIds: z.array(intId),
-        pageCount: z.number().int().min(0),
-    }),
-    today: z.object({
-        day: businessDate,
-    }).merge(ofapiCreditsChatterWindowSchema),
-    last7d: ofapiCreditsChatterWindowSchema,
-    limitations: z.array(z.string()),
-});
-const ofapiReadGatewayParamsSchema = z.object({
-    "*": z.string().min(1).max(1000),
-});
-export const ofapiCommandStateSchema = z.enum([
-    "queued",
-    "in_flight",
-    "confirmed",
-    "failed_retryable",
-    "failed_terminal",
-    "indeterminate",
-    "cancelled",
-]);
-export const ofapiCommandKindSchema = z.enum([
-    ...OFAPI_EXTENDED_COMMAND_KINDS,
-    "send_text_message_v1",
-    "send_media_message_v1",
-    "typing_active_v1",
-    "unsend_message_v1",
-    "mark_chat_read_v1",
-]);
-const ofapiCommandBaseFields = {
-    clientCommandId: z.string().uuid(),
-    accountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
-    conversationId: z.string().regex(/^[0-9]{1,30}$/),
-};
-const ofapiCommandMediaIdSchema = z.string().regex(/^(?:[0-9]{1,30}|ofapi_media_[A-Za-z0-9_-]{1,128})$/);
-const ofapiCommandPriceSchema = z.number().int().min(0).max(200).refine((price) => price === 0 || price >= 3, { message: "Price must be 0 or an integer from 3 to 200" });
-const sendMediaMessagePayloadSchema = z.strictObject({
-    text: z.string().max(10_000),
-    price: ofapiCommandPriceSchema,
-    mediaFiles: z.array(ofapiCommandMediaIdSchema).min(1).max(50),
-    previews: z.array(ofapiCommandMediaIdSchema).max(50),
-}).superRefine((payload, ctx) => {
-    const attached = new Set();
-    for (const id of payload.mediaFiles) {
-        if (attached.has(id)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["mediaFiles"],
-                message: "mediaFiles must not contain duplicates",
-            });
-            break;
-        }
-        attached.add(id);
-    }
-    const previews = new Set();
-    for (const id of payload.previews) {
-        if (previews.has(id)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["previews"],
-                message: "previews must not contain duplicates",
-            });
-            break;
-        }
-        previews.add(id);
-        if (!attached.has(id)) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["previews"],
-                message: "previews must be a subset of mediaFiles",
-            });
-            break;
-        }
-    }
-});
-export const createOfapiCommandBodySchema = z.discriminatedUnion("kind", [
-    ...ofapiExtendedCommandOptions,
-    z.strictObject({
-        ...ofapiCommandBaseFields,
-        kind: z.literal("send_text_message_v1"),
-        outreachPurpose: z.literal("new-follower").optional(),
-        payload: z.strictObject({
-            text: z.string().min(1).max(10_000).refine((text) => text.trim().length > 0, {
-                message: "Message text must not be blank",
-            }),
-        }),
-        retryOfCommandId: z.string().uuid().nullable().optional(),
-    }),
-    z.strictObject({
-        ...ofapiCommandBaseFields,
-        kind: z.literal("send_media_message_v1"),
-        payload: sendMediaMessagePayloadSchema,
-        retryOfCommandId: z.string().uuid().nullable().optional(),
-    }),
-    z.strictObject({
-        ...ofapiCommandBaseFields,
-        kind: z.literal("typing_active_v1"),
-        payload: z.strictObject({}),
-        retryOfCommandId: z.null().optional(),
-    }),
-    z.strictObject({
-        ...ofapiCommandBaseFields,
-        kind: z.literal("unsend_message_v1"),
-        payload: z.strictObject({
-            messageId: z.string().regex(/^[0-9]{1,30}$/),
-        }),
-        retryOfCommandId: z.null().optional(),
-    }),
-    z.strictObject({
-        ...ofapiCommandBaseFields,
-        kind: z.literal("mark_chat_read_v1"),
-        payload: z.strictObject({}),
-        retryOfCommandId: z.null().optional(),
-    }),
-]);
-export const ofapiCommandParamsSchema = z.object({
-    commandId: z.string().uuid(),
-});
-export const ofapiCommandResponseSchema = z.object({
-    commandId: z.string().uuid(),
-    clientCommandId: z.string().uuid(),
-    kind: ofapiCommandKindSchema,
-    outreachPurpose: z.literal("new-follower").nullable().optional(),
-    accountId: z.string(),
-    conversationId: z.string(),
-    state: ofapiCommandStateSchema,
-    payloadHash: z.string().regex(/^[0-9a-f]{64}$/),
-    retryOfCommandId: z.string().uuid().nullable(),
-    attemptCount: z.number().int().min(0),
-    lastErrorCode: z.string().nullable(),
-    lastErrorClass: z.string().nullable(),
-    verifierResult: z.record(z.string(), z.unknown()).nullable(),
-    platformMessageId: z.string().nullable(),
-    attemptStartedAt: isoTimestamp.nullable(),
-    attemptFinishedAt: isoTimestamp.nullable(),
-    createdAt: isoTimestamp,
-    updatedAt: isoTimestamp,
-    deduplicated: z.boolean(),
-});
 export const adminOfapiCreditsDailyQuerySchema = z.object({
     days: z.coerce.number().int().min(1).max(90).default(30),
 });
@@ -4926,7 +4332,7 @@ export const ofapiDmColdArchiveStatusResponseSchema = z.object({
 // admits an agent: it names human roles.
 export const routeAuthPolicySchema = z
     .object({
-    kind: z.enum(["public", "hmac", "monitoring", "session", "any-session", "owner-session", "apiKey", "device-token", "pending-device-token", "agentKey", "any"]),
+    kind: z.enum(["public", "hmac", "monitoring", "session", "any-session", "owner-session", "apiKey", "device-token", "agentKey", "any"]),
     roles: z.array(userRoleEnum).nonempty().optional(),
     scope: z.enum(["page", "none"]).optional(),
 })
@@ -4949,7 +4355,6 @@ export function routeSecurityFromAuth(auth) {
             return [{ cookieAuth: [] }];
         case "apiKey":
         case "device-token":
-        case "pending-device-token":
             return [{ bearerAuth: [] }];
         // An agent key travels in the same Authorization: Bearer header as the other
         // bearers, but it gets its OWN scheme: folding it into bearerAuth would make
@@ -5106,12 +4511,6 @@ export const opsMetricsResponseSchema = z.object({
         sampledAt: isoTimestamp,
     })),
     thresholdsMs: z.record(z.string(), z.number().int()),
-    smoke: z.object({
-        framesSeen: z.number().int(),
-        gapCount: z.number().int(),
-        duplicateCount: z.number().int(),
-        updatedAt: isoTimestamp.nullable(),
-    }).nullable(),
 });
 // ── WP-S1: the endpoints-cover SERVING surface (Fansly only, A28-2) ──────────
 //
@@ -5143,12 +4542,6 @@ const insightsLimitSchema = z.coerce.number().int().min(1).max(500);
 /** Opaque keyset position, minted by the previous response. It carries only a
  *  sort position inside the SAME page's SAME query — never a scope. */
 const insightsCursorSchema = z.string().min(1).max(512);
-const insightsSubjectKindEnum = z.enum([
-    "account_profile",
-    "account_media",
-    "media_offer",
-    "post",
-]);
 const insightsPageSchema = z.object({
     label: z.string(),
     platform: platformEnum,
@@ -5607,28 +5000,6 @@ export const creatorStatsAudienceResponseSchema = z.object({
     }).nullable(),
     mediaShown: z.array(z.object({ hour: isoTimestamp, source: z.number().int(), mediaShown: creatorStatsCount })),
 });
-export const statsTrafficQuerySchema = z.object({
-    from: insightsInstant,
-    to: insightsInstant,
-    periodMs: z.coerce.number().int().min(1).default(86_400_000),
-    subjectKind: insightsSubjectKindEnum.default("account_profile"),
-    subjectRef: z.string().max(64).optional(),
-    limit: insightsLimitSchema.default(500),
-    cursor: insightsCursorSchema.optional(),
-});
-export const statsTrafficResponseSchema = z.object({
-    page: insightsPageSchema,
-    window: z.object({
-        from: isoTimestamp,
-        to: isoTimestamp,
-        periodMs: z.number().int(),
-        subjectKind: z.string(),
-        subjectRef: z.string().nullable(),
-    }),
-    rows: z.array(insightsTrafficRowSchema),
-    coverage: z.array(insightsCoverageRowSchema),
-    nextCursor: z.string().nullable(),
-});
 const insightsMediaRowSchema = z.object({
     mediaOfferRef: z.string(),
     mediaRef: z.string().nullable(),
@@ -5823,88 +5194,6 @@ export const statsHoldingsResponseSchema = z.object({
         newestAt: isoTimestamp.nullable(),
     })),
 });
-export const contentMediaQuerySchema = z.object({
-    limit: insightsLimitSchema.default(100),
-    cursor: insightsCursorSchema.optional(),
-});
-export const contentMediaResponseSchema = z.object({
-    page: insightsPageSchema,
-    generatedAt: isoTimestamp,
-    /** Catalog heads. IDs ONLY — `mediaRef`/`previewRef` are platform ids, and no
-     *  delivery or CDN address exists anywhere in this response by construction. */
-    media: z.array(insightsMediaRowSchema.omit({
-        buckets: true,
-        windowViews: true,
-        windowPreviewViews: true,
-        daily: true,
-    })),
-    vaultAlbums: z.array(z.object({
-        vaultKind: z.string(),
-        albumRef: z.string(),
-        title: z.string().nullable(),
-        albumType: z.number().int().nullable(),
-        status: z.number().int().nullable(),
-        pos: z.number().int().nullable(),
-        /** AS SERVED, and NON-UNIQUE across albums: the system albums are views
-         *  over the same media. M is `count(distinct media_offer_ref)`. */
-        itemCount: z.number().int().nullable(),
-        missingSince: isoTimestamp.nullable(),
-        lastObservedAt: isoTimestamp,
-    })),
-    tiers: z.array(z.object({
-        tierRef: z.string(),
-        name: z.string().nullable(),
-        color: z.string().nullable(),
-        pos: z.number().int().nullable(),
-        /** `tier.price` — a BASE, never the price a subscriber pays. The price
-         *  truth is the plan rows below. */
-        basePriceMills: mills.nullable(),
-        maxSubscribers: z.number().int().nullable(),
-        missingSince: isoTimestamp.nullable(),
-        plans: z.array(z.object({
-            planRef: z.string(),
-            status: z.number().int().nullable(),
-            durationDays: z.number().int().nullable(),
-            priceMills: mills.nullable(),
-            useAmounts: z.number().int().nullable(),
-            promoCount: z.number().int(),
-            missingSince: isoTimestamp.nullable(),
-        })),
-    })),
-    walls: z.array(z.object({
-        wallRef: z.string(),
-        name: z.string().nullable(),
-        description: z.string().nullable(),
-        pos: z.number().int().nullable(),
-        mainWall: z.boolean().nullable(),
-        defaultWall: z.boolean().nullable(),
-        private: z.number().int().nullable(),
-        missingSince: isoTimestamp.nullable(),
-    })),
-    automations: z.array(z.object({
-        automationRef: z.string(),
-        /** RAW platform code (3 and 15 observed live). Never a label. */
-        triggerType: z.number().int().nullable(),
-        delaySeconds: z.number().int().nullable(),
-        cooldownSeconds: z.number().int().nullable(),
-        templateType: z.number().int().nullable(),
-        senderRef: z.string().nullable(),
-        messageText: z.string().nullable(),
-        attachmentCount: z.number().int(),
-        /** FALSE when the served template did not parse. An unparsed template and
-         *  an automation with no text must never look alike. */
-        parseOk: z.boolean(),
-        missingSince: isoTimestamp.nullable(),
-    })),
-    /** M and the numbers M is not. */
-    inventory: z.object({
-        uniqueMediaCount: z.number().int(),
-        vaultMemberUniqueCount: z.number().int(),
-        albumMembershipSum: insightsDerived(z.number().int()),
-    }),
-    coverage: z.array(insightsCoverageRowSchema),
-    nextCursor: z.string().nullable(),
-});
 export const contentCommentsQuerySchema = z.object({
     from: insightsInstant,
     to: insightsInstant,
@@ -6058,12 +5347,13 @@ const baseRouteSchemas = {
     ...ofapiReadCollectionsRouteSchemas,
     ...ofapiExportRouteSchemas,
     ...ofapiMediaRouteSchemas,
-    ...ofapiMediaImageRouteSchemas,
     ...ofapiCollectionRouteSchemas,
     ...ofLinksRouteSchemas,
     ...pageBrowserRouteSchemas,
     ...publicationRouteSchemas,
+    ...mediaLookRouteSchemas,
     ...fanQueueRouteSchemas,
+    ...agentTeamRouteSchemas,
     ...outreachRouteSchemas,
     ...chatterStatsRouteSchemas,
     ...publicationFileRouteSchemas,
@@ -6177,133 +5467,6 @@ const baseRouteSchemas = {
             400: errorResponseSchema,
             401: errorResponseSchema,
             503: errorResponseSchema,
-        },
-    },
-    eventsStream: {
-        auth: { kind: "apiKey" },
-        tags: ["events"],
-        summary: "SSE stream of sync events for the chatter's assigned pages",
-        description: "`text/event-stream` of SyncEvent frames (`event: sync`, `data` = "
-            + "JSON SyncEvent, `id` = journal event id). Chatter device-token auth only; events "
-            + "are filtered to the chatter's assigned pages. Supports `Last-Event-ID` "
-            + "header (or `lastEventId` query parameter) replay from the ~7-day journal.",
-        querystring: z.object({
-            lastEventId: z.coerce.number().int().nonnegative().optional(),
-        }),
-        response: {
-            // The handler hijacks the reply and writes text/event-stream directly;
-            // this entry documents the success shape for OpenAPI consumers only.
-            200: z.string().describe("text/event-stream — `event: sync` frames whose `data` is a JSON SyncEvent "
-                + "(see syncEventSchema) and whose `id` is the journal fanout sequence."),
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            409: syncSnapshotRequiredResponseSchema,
-        },
-    },
-    eventsSnapshot: {
-        auth: { kind: "apiKey" },
-        tags: ["events"],
-        summary: "Current durable sync state for replay-gap recovery",
-        description: "Chatter-key scoped snapshot for one assigned OFAPI account. The legacy "
-            + "pageCursor mode paginates threads. Additive pageMode=bounded_v1 uses an opaque, "
-            + "scope-bound stateCursor to page unresolved tombstones and per-thread messages "
-            + "with messageLimit<=200; clients apply every page idempotently and persist "
-            + "snapshotCursor only after nextStateCursor=null. No message is truncated and no "
-            + "OFAPI request or historical DM backfill is performed.",
-        querystring: syncSnapshotQuerySchema,
-        response: {
-            200: syncSnapshotResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-            409: syncSnapshotRestartRequiredResponseSchema,
-        },
-    },
-    eventsV2Stream: {
-        auth: { kind: "any" },
-        tags: ["events"],
-        summary: "SSE stream of canonical domain events (v2) for granted accounts",
-        description: "`text/event-stream` of DomainEventFrame rows (`event: domain`, `data` = "
-            + "JSON frame, `id` = the OPAQUE resume cursor — pass it back verbatim via "
-            + "`Last-Event-ID` or `cursor`). Per-account gapless ordering; all platforms. "
-            + "A cursor below an account's retained floor (or ahead of its head) answers "
-            + "409 sync_snapshot_required with the per-account detail. The stream may "
-            + "interleave `event: ephemeral` frames (serve-time-only, no id) and "
-            + "`event: control` frames (connection signals — `{\"type\":"
-            + "\"replay_completed\"}` marks the end of replay; frames after it are live "
-            + "delivery). Skip control types you don't recognize. Optional `platform` "
-            + "narrows the account universe to granted accounts on that platform (typing "
-            + "and grant revalidation too); cursors it emits are bound to it and must be "
-            + "resumed with the same `platform` (400 otherwise). A cursor minted without "
-            + "`platform` is narrowed once, never widened.",
-        querystring: z.object({
-            cursor: z.string().optional(),
-            platform: platformEnum.optional(),
-        }),
-        response: {
-            200: z.string().describe("text/event-stream — `event: domain` frames (see domainEventFrameSchema); "
-                + "`id` is the opaque v2 cursor. Interleaved lanes: `event: ephemeral` "
-                + "(serve-time-only) and `event: control` (`replay_completed` = end of "
-                + "replay)."),
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            409: domainEventsSnapshotRequiredResponseSchema,
-        },
-    },
-    eventsV2Snapshot: {
-        auth: { kind: "any" },
-        tags: ["events"],
-        summary: "Fresh v2 cursor (and per-account heads) for cold start or gap recovery",
-        description: "Returns the current per-account high-water cursor for the requested "
-            + "accounts (comma-separated ids; omitted = every granted account), including "
-            + "the platform-native accountRef needed for each durable OFAPI state walk. An "
-            + "omitted-accounts cursor is bound to that exact grant keyset: reconnect returns "
-            + "409 rather than widening a stale cursor at a newly granted account's head. "
-            + "Gap-recovery callers pass the rejected opaque sourceCursor so already-applied "
-            + "history is not replayed again; Core also advances past erased sequence holes. "
-            + "State payloads ride the consumer stages (24/33) additively — v2's snapshot "
-            + "role here is the cursor-reset handshake. Optional `platform` limits the "
-            + "accounts to that platform (an explicit account on another platform is 400) "
-            + "and binds the cursor to it; a sourceCursor bound to a different platform is 400.",
-        querystring: z.object({
-            accounts: z.string().regex(/^\d+(,\d+)*$/).optional(),
-            // Rejected resume cursor whose already-applied watermarks bound replay
-            // after the caller completes the durable per-account state walk.
-            sourceCursor: z.string().min(1).optional(),
-            platform: platformEnum.optional(),
-        }),
-        response: {
-            200: domainEventsSnapshotResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-        },
-    },
-    eventsV2Facts: {
-        auth: { kind: "any" },
-        tags: ["events"],
-        summary: "Money facts (PPV unlocks, tips, posted transactions) of one granted account",
-        description: "Pages one account's `message.ppv_unlocked`, `tip.received` and "
-            + "`transaction.posted` ledger events by account_seq (`afterSeq` exclusive), as "
-            + "DomainEventFrame rows without message payloads. Superseded events are "
-            + "excluded; their superseding repair is served with provenance `repair`. A "
-            + "read of existing ledger rows: no new sequence, cursor or OFAPI request. "
-            + "Same grants as the v2 stream (403 outside them). `afterSeq` above the "
-            + "account's head is 409.",
-        querystring: z.object({
-            accountId: z.coerce.number().int().positive(),
-            afterSeq: z.coerce.number().int().nonnegative().default(0),
-            limit: z.coerce.number().int().min(1).max(1000).default(500),
-        }),
-        response: {
-            200: domainEventFactsResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            409: errorResponseSchema,
         },
     },
     adminOfapiWebhookStatus: {
@@ -6612,96 +5775,6 @@ const baseRouteSchemas = {
             409: errorResponseSchema,
         },
     },
-    ofapiCreditsChatterSummary: {
-        auth: { kind: "apiKey" },
-        tags: ["ofapi"],
-        summary: "Get page-scoped OFAPI credit spend visible to the authenticated chatter",
-        description: "Bearer chatter-key endpoint for desktop clients. It reports REST spend "
-            + "attributed to the chatter's assigned pages and a webhook credit estimate derived "
-            + "from journaled events for those pages. It intentionally omits owner-only global "
-            + "balance, refills, external drift, and adjustments.",
-        response: {
-            200: ofapiCreditsChatterSummaryResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-        },
-    },
-    ofapiReadGateway: {
-        auth: { kind: "apiKey" },
-        tags: ["ofapi"],
-        summary: "Read an allowlisted OFAPI resource through the core custody boundary",
-        description: "Chatter-key-only, page-scoped compatibility gateway mounted at "
-            + "`/api/v1/ofapi/read`. It preserves the desktop OFAPI GET paths and JSON "
-            + "shapes, but accepts only the documented desktop read allowlist. `/accounts` "
-            + "is synthesized from assigned core page mappings and `/whoami` is sanitized. "
-            + "The optional `x-agency-hub-read-intent: deep-history-v1` header identifies "
-            + "backward user scrollback that may be served from certified DB history. "
-            + "No POST, DELETE, send, mark-read, typing, or upload operation is exposed.",
-        params: ofapiReadGatewayParamsSchema,
-        response: {
-            200: z.unknown(),
-            400: z.unknown(),
-            401: z.unknown(),
-            402: z.unknown(),
-            403: z.unknown(),
-            404: z.unknown(),
-            429: z.unknown(),
-            422: z.unknown(),
-            500: z.unknown(),
-            502: z.unknown(),
-            503: z.unknown(),
-            504: z.unknown(),
-        },
-    },
-    createOfapiCommand: {
-        auth: { kind: "apiKey" },
-        tags: ["ofapi"],
-        summary: "Create or deduplicate a desktop OFAPI command",
-        description: "Chatter-key-only C6b command intake. The command boundary accepts "
-            + "narrow versioned desktop writes and persists them as queued outbox rows. Exact "
-            + "client-id replays return the existing row; payload mismatches return 409.",
-        body: createOfapiCommandBodySchema,
-        response: {
-            200: ofapiCommandResponseSchema,
-            202: ofapiCommandResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-            409: errorResponseSchema,
-            503: errorResponseSchema,
-        },
-    },
-    getOfapiCommand: {
-        auth: { kind: "apiKey" },
-        tags: ["ofapi"],
-        summary: "Get one owned desktop OFAPI command",
-        description: "Returns command state and audit metadata without echoing message text.",
-        params: ofapiCommandParamsSchema,
-        response: {
-            200: ofapiCommandResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-            503: errorResponseSchema,
-        },
-    },
-    cancelOfapiCommand: {
-        auth: { kind: "apiKey" },
-        tags: ["ofapi"],
-        summary: "Cancel one queued desktop OFAPI command",
-        description: "Transitions only queued commands to cancelled. Repeating cancel on an "
-            + "already-cancelled command is idempotent; no vendor call is made.",
-        params: ofapiCommandParamsSchema,
-        response: {
-            200: ofapiCommandResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-            409: errorResponseSchema,
-            503: errorResponseSchema,
-        },
-    },
     adminOfapiCreditsSummary: {
         auth: { kind: "owner-session" },
         tags: ["admin"],
@@ -6925,19 +5998,6 @@ const baseRouteSchemas = {
             403: errorResponseSchema,
         },
     },
-    modelRevenue: {
-        auth: { kind: "session" },
-        tags: ["revenue"],
-        summary: "Get revenue for one model",
-        params: modelParamsSchema,
-        querystring: revenueQuerySchema,
-        response: {
-            200: modelRevenueResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
     pageRevenue: {
         auth: { kind: "session", scope: "page" },
         tags: ["revenue"],
@@ -7029,59 +6089,6 @@ const baseRouteSchemas = {
             404: errorResponseSchema,
         },
     },
-    pageTopSpenders: {
-        auth: { kind: "any", scope: "page" },
-        tags: ["fans"],
-        summary: "Top spenders for one page from the fan-earnings projection",
-        params: pageParamsSchema,
-        querystring: z.object({
-            // 'lifetime' or a month window ('2026-06') — the projection's window values.
-            window: z.string().regex(/^(lifetime|\d{4}-\d{2})$/).default("lifetime"),
-            limit: z.coerce.number().int().min(1).max(1000).default(150),
-        }),
-        response: {
-            200: z.object({
-                window: z.string(),
-                /** Freshest observed_at in the window (null = projection empty for this page). */
-                builtAt: z.string().nullable(),
-                /** Spenders with gross > 0 in this window (entries may be a bounded subset). */
-                fanCount: z.number().int().nonnegative(),
-                /** W8.1 (A12/A20): why the projection is (or is not) being fed — a
-                 * `builtAt: null` response is no longer ambiguous between "no
-                 * spenders" and "nobody reads this page's fan earnings". Additive. */
-                source: z.object({
-                    /** `ramped`: the Fansly Sync Engine reads the page's fan earnings;
-                     *  `flag_off`: it does not (the owner paused it, or the engine does
-                     *  not own the page). `not_allowlisted` was the legacy executor's
-                     *  page allowlist and is no longer served. */
-                    streamState: z.enum(["ramped", "flag_off", "not_allowlisted", "unsupported_platform"]),
-                    /** When the engine last applied a fan-earnings read for this page. */
-                    lastSyncedAt: z.string().nullable(),
-                    /** The largest failure count among its active fan-earnings work;
-                     *  null = the engine does not own the page. */
-                    consecutiveFailures: z.number().int().nullable(),
-                }),
-                entries: z.array(z.object({
-                    platformUserId: z.string(),
-                    username: z.string().nullable(),
-                    displayName: z.string().nullable(),
-                    grossMills: z.number().int().nonnegative(),
-                    netMills: z.number().int().nullable(),
-                    currency: z.string(),
-                    observedAt: z.string(),
-                    /** First time hydration failed to find this account on the platform
-                     * (fans.deleted_detected_at); null = the fan is alive. Cleared server
-                     * side as soon as any sync sees a name again (fans.ts:116-136).
-                     * Optional so a client vendored against an older kernel still
-                     * validates the response. */
-                    deletedAt: z.string().nullable().optional(),
-                })),
-            }),
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
     pageDeletedFans: {
         auth: { kind: "any", scope: "page" },
         tags: ["fans"],
@@ -7168,19 +6175,6 @@ const baseRouteSchemas = {
         params: pageConversationProfileParamsSchema,
         response: {
             200: fanProfileResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
-    upsertFanProfile: {
-        auth: { kind: "any", scope: "page" },
-        tags: ["fans"],
-        summary: "Append a new intelligence profile version for one fan on one page",
-        params: pageFanParamsSchema,
-        body: upsertFanProfileBodySchema,
-        response: {
-            200: fanProfileDocumentSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
             404: errorResponseSchema,
@@ -7317,22 +6311,6 @@ const baseRouteSchemas = {
             404: errorResponseSchema,
         },
     },
-    followerOutreachAttempt: {
-        auth: { kind: "any", scope: "page" },
-        tags: ["conversations"],
-        summary: "Reserve and record one human-triggered follower greeting send",
-        params: pageParamsSchema,
-        body: z.object({
-            fanRef: z.string().regex(/^\d{1,24}$/),
-            attemptId: z.string().uuid(),
-            action: z.enum(["reserve", "dispatch", "sent"]),
-            messageRef: z.string().regex(/^\d{1,24}$/).optional(),
-        }).strict(),
-        response: {
-            200: z.object({ owned: z.boolean(), state: z.enum(["reserved", "dispatching", "sent", "expired"]), expiresAt: isoTimestamp.nullable() }).strict(),
-            400: errorResponseSchema, 401: errorResponseSchema, 403: errorResponseSchema, 404: errorResponseSchema,
-        },
-    },
     // --- Phase 4: Dashboard routes ---
     overview: {
         auth: { kind: "session" },
@@ -7342,18 +6320,6 @@ const baseRouteSchemas = {
             200: overviewResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
-        },
-    },
-    syncStatus: {
-        auth: { kind: "session" },
-        tags: ["dashboard"],
-        summary: "Get aggregated sync monitor data for visible pages",
-        querystring: syncStatusQuerySchema,
-        response: {
-            200: syncStatusResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
         },
     },
     syncRequests: {
@@ -7409,17 +6375,6 @@ const baseRouteSchemas = {
         querystring: revenueDailyQuerySchema,
         response: {
             200: revenueDailyResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-        },
-    },
-    overviewRevenueByModel: {
-        auth: { kind: "session" },
-        tags: ["dashboard"],
-        summary: "Get per-model revenue totals and daily series",
-        querystring: revenueByModelQuerySchema,
-        response: {
-            200: revenueByModelResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
         },
@@ -7603,6 +6558,8 @@ const baseRouteSchemas = {
     ...aiSpendRouteSchemas,
     ...aiOpenerRouteSchemas,
     ...shiftReviewRouteSchemas,
+    ...teamLedgerRouteSchemas,
+    ...accountReportsRouteSchemas,
     adminAiPersonasList: {
         auth: { kind: "owner-session" },
         tags: ["admin"],
@@ -7811,19 +6768,6 @@ const baseRouteSchemas = {
             403: errorResponseSchema,
         },
     },
-    authActivateDeviceToken: {
-        auth: { kind: "pending-device-token" },
-        tags: ["auth"],
-        summary: "Activate a durably staged pending device token",
-        description: "Accepts only the distinct pending-device-token bearer. Atomically "
-            + "moves its digest into active device_tokens and deletes the reservation. "
-            + "Retrying after a lost success response is idempotent.",
-        response: {
-            200: activatedDeviceTokenResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-        },
-    },
     authRevokeCurrentDeviceToken: {
         auth: { kind: "device-token" },
         tags: ["auth"],
@@ -7848,25 +6792,6 @@ const baseRouteSchemas = {
             404: errorResponseSchema,
         },
     },
-    adminSetDeviceTokenHarvestCapability: {
-        auth: { kind: "owner-session" },
-        tags: ["admin"],
-        summary: "Bind or remove a device token's Desktop harvest capability",
-        description: "Owner-only machine binding. Rebinding one machine atomically "
-            + "transfers its harvest authority from the previous device token.",
-        params: z.object({
-            userId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-            tokenId: z.coerce.number().int().positive(),
-        }),
-        body: deviceTokenHarvestCapabilityBodySchema,
-        response: {
-            200: deviceTokenItemSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
     adminRevokeDeviceTokens: {
         auth: { kind: "owner-session" },
         tags: ["admin"],
@@ -7877,19 +6802,6 @@ const baseRouteSchemas = {
             401: errorResponseSchema,
             403: errorResponseSchema,
             404: errorResponseSchema,
-        },
-    },
-    adminDeviceTokenAdoption: {
-        auth: { kind: "owner-session" },
-        tags: ["admin"],
-        summary: "Device-token adoption across active chatters (D116(c) gate report)",
-        description: "Read-only: per active chatter, whether a live device token "
-            + "was used within the freshness window, and which client version it last "
-            + "spoke. The fleet gate for retiring a client lane reads these rows.",
-        response: {
-            200: deviceTokenAdoptionReportSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
         },
     },
     // --- Unified chatter account (PR-1A) ---
@@ -8387,18 +7299,6 @@ const baseRouteSchemas = {
             403: errorResponseSchema,
         },
     },
-    adminTestProxy: {
-        auth: { kind: "owner-session" },
-        tags: ["admin"],
-        summary: "Test a proxy connection and return the exit IP",
-        body: testProxyBodySchema,
-        response: {
-            200: testProxyResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-        },
-    },
     adminVerifyPage: {
         auth: { kind: "owner-session" },
         tags: ["admin"],
@@ -8605,20 +7505,6 @@ const baseRouteSchemas = {
     // `read:money` capability exists on the AGENT plane, whose datasets carry the
     // same data behind it). `tests/contracts-auth-declarations.test.ts` pins both
     // halves so a later widening cannot happen quietly.
-    statsTraffic: {
-        auth: { kind: "owner-session", scope: "page" },
-        tags: ["insights"],
-        summary: "Profile/media traffic buckets by RAW source code for one page",
-        params: pageParamsSchema,
-        querystring: statsTrafficQuerySchema,
-        response: {
-            200: statsTrafficResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
     statsMedia: {
         auth: { kind: "owner-session", scope: "page" },
         tags: ["insights"],
@@ -8756,20 +7642,6 @@ const baseRouteSchemas = {
         params: pageParamsSchema,
         response: {
             200: statsHoldingsResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-        },
-    },
-    contentMedia: {
-        auth: { kind: "owner-session", scope: "page" },
-        tags: ["insights"],
-        summary: "Content catalog: media, vault albums, tiers/plans, walls, automations",
-        params: pageParamsSchema,
-        querystring: contentMediaQuerySchema,
-        response: {
-            200: contentMediaResponseSchema,
-            400: errorResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
             404: errorResponseSchema,

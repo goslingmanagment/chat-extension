@@ -13,8 +13,12 @@ export * from "./routes-client";
 // Publications: wall posts through Hub (owner + agent drafts), spread by routes.ts.
 export * from "./publications";
 export * from "./routes-publications";
+// Media looks: frames of a page's own media for an agent key (look:media), spread by routes.ts.
+export * from "./media-looks";
+export * from "./routes-media-looks";
 export * from "./fan-queues";
 export * from "./routes-fan-queues";
+export * from "./agent-team";
 // «Рассылки» kept by Hub (outreach-store-v1), spread by routes.ts.
 export * from "./outreach";
 export * from "./routes-outreach";
@@ -26,7 +30,6 @@ export * from "./routes-publication-files";
 // Narrow device-token profiles (the chat extension's route allowlist, H-3).
 export * from "./client-token-scopes";
 export * from "./authorization-policy";
-export * from "./domain-event-cursor";
 export * from "./sdk-runtime";
 export * from "./contract-hash";
 // Agent Read Plane vocabulary. Declared once and derived, so a drift between
@@ -60,14 +63,18 @@ export * from "./routes-ai-spend";
 export * from "./routes-ai-openers";
 // Команда → «Разбор смены» (`GET /api/v1/team/shift-review`), spread by routes.ts.
 export * from "./routes-shift-review";
-export * from "./ofapi-extended-commands";
+// Выплаты from the agency ledger (`GET /api/v1/team/ledger-payouts`), spread by routes.ts.
+export * from "./routes-team-ledger";
+// The chatter's own shift reports from the agency ledger (`GET /api/v1/account/reports`), spread by routes.ts.
+export * from "./routes-account-reports";
+// Its quality numbers, one definition for the review's screen and «Смены» (`teamChatterNumbers`).
+export * from "./shift-review-rules";
 export * from "./routes-ofapi-banned-words";
 export * from "./routes-model-applications";
 export * from "./routes-ofapi-read-collections";
 export * from "./ofapi-smart-links";
 export * from "./routes-ofapi-exports";
 export * from "./routes-ofapi-media";
-export * from "./routes-ofapi-media-images";
 export * from "./ofapi-actions";
 export * from "./ofapi-actions-collections";
 export * from "./ofapi-actions-publishing";

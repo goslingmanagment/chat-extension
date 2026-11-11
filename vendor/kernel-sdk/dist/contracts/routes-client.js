@@ -1790,12 +1790,43 @@ export const clientDeletedMessagesQuerySchema = z.object({
  * `complete`); then `messages` is the proven chain and what the page's socket
  * brought after its head, both sides, deleted ones included.
  */
+/** The most chatters `chat.authors` names, the most messages first. */
+export const CLIENT_CHAT_LENGTH_CHATTERS_MAX = 50;
+/**
+ * Who wrote the chat's messages (owner, 2026-11-11: «кто из чатеров сколько
+ * сообщений оставил», in the same card).
+ *
+ * `chatters`: the page's messages of this chat by the person who sent them
+ * (send-attribution-v1: recorded from 2026-10-24, only for a send made through
+ * the chat extension), the most messages first. Exact whatever the history's
+ * state.
+ *
+ * `fan` and `unattributed` split the rest and need the whole chat: both null
+ * while `messages` is null. `unattributed` is the page's messages with no
+ * known author: a mass message, a send from outside the extension, anything
+ * before authors were recorded. When they are not null, `fan`, `unattributed`
+ * and the chatters' counts add up to `messages`.
+ */
+export const clientChatAuthorsSchema = z.object({
+    chatters: z.array(z.object({
+        userId: intId,
+        /** The author's login, as the dashboard shows it. */
+        name: z.string(),
+        /** The caller themself. */
+        isMe: z.boolean(),
+        messages: z.number().int().positive(),
+    })).max(CLIENT_CHAT_LENGTH_CHATTERS_MAX),
+    fan: z.number().int().nonnegative().nullable(),
+    unattributed: z.number().int().nonnegative().nullable(),
+});
 export const clientChatLengthSchema = z.object({
     conversationRef: clientConversationRefSchema,
     /** Every message of the chat, both sides; null while its history is not proven complete. */
     messages: z.number().int().nonnegative().nullable(),
     /** When its first message was sent; null while its history is not proven complete. */
     firstMessageAt: isoTimestamp.nullable(),
+    /** Who wrote them. Absent only in the answer of a hub older than 2026-11-11. */
+    authors: clientChatAuthorsSchema.optional(),
 });
 export const clientDeletedMessagesResponseSchema = z.object({
     pageLabel: z.string(),
@@ -2160,14 +2191,24 @@ export const clientFanNoteAttributionsResponseSchema = z.object({
 // - One stretch of work runs from the first active minute until
 //   CHATTER_SHIFT_END_IDLE_MINUTES with no activity. The extension closing or a
 //   browser restarting ends nothing, while it goes on or afterwards. Idle up to
-//   CHATTER_SHIFT_IDLE_PAUSE_MINUTES is work, the rest of a gap is a pause.
+//   CHATTER_SHIFT_IDLE_PAUSE_MINUTES is work, the rest of a gap is a pause; but
+//   with the extension then silent CHATTER_SHIFT_CLOSED_SILENT_MINUTES or more
+//   (closed, the computer asleep), the work ends at its last open minute plus
+//   CHATTER_SHIFT_CLOSED_GRACE_MINUTES.
 // - A stretch with CHATTER_SHIFT_MIN_WORKED_MINUTES of work and
 //   CHATTER_SHIFT_MIN_MESSAGES messages is a SHIFT; anything less is a VISIT, a
 //   look-in that is not counted as a shift. A stretch still going is a shift
 //   once it has CHATTER_SHIFT_PIECE_MIN_MESSAGES messages.
-// - The pieces of work (between two pauses) at a shift's start or end with
-//   under CHATTER_SHIFT_PIECE_MIN_MESSAGES messages each are not the shift: a
-//   look-in before it, answers after it — visits.
+// - A shift's edges. The piece of work (between two pauses) next to it at its
+//   start or end, under CHATTER_SHIFT_EDGE_NEAR_MINUTES from it, is the shift
+//   with one of the person's messages at least. The pieces beyond, in blocks
+//   CHATTER_SHIFT_EDGE_BLOCK_GAP_MINUTES apart at most, are cut from the
+//   outside in while a block has under CHATTER_SHIFT_PIECE_MIN_MESSAGES: sparse
+//   answers after it are a visit.
+// - A look-in BEFORE a shift with CHATTER_SHIFT_PIECE_MIN_MESSAGES messages that
+//   ended at most CHATTER_SHIFT_LOOK_IN_JOIN_MINUTES before it began is its
+//   start, the gap a pause: a morning before a break is the day's shift. A
+//   look-in after a shift stays one.
 // - A shift belongs to the Moscow day holding most of it: a night entered at
 //   23:54 is the next day's, as the payout sheet dates it.
 // - Its sales are those on the pages it worked (CHATTER_SHIFT_PAGE_MIN_MESSAGES
@@ -2184,6 +2225,10 @@ export const CLIENT_ACTIVITY_MAX_IDLE_MS = 24 * 60 * 60_000;
 export const CLIENT_ACTIVITY_LOST_MINUTES = 3;
 /** Idle minutes that still count as work; from this one on it is a pause. */
 export const CHATTER_SHIFT_IDLE_PAUSE_MINUTES = 10;
+/** The extension silent this long after an action was closed (or the computer asleep): the idle after its last beat is no work. */
+export const CHATTER_SHIFT_CLOSED_SILENT_MINUTES = 10;
+/** The work before such a silence ends this long after the extension's last open minute (a beat comes once a minute). */
+export const CHATTER_SHIFT_CLOSED_GRACE_MINUTES = 2;
 /** Minutes without activity that end a stretch of work, the extension open or not. */
 export const CHATTER_SHIFT_END_IDLE_MINUTES = 60;
 /** Less work than this is a visit, not a shift. */
@@ -2192,6 +2237,12 @@ export const CHATTER_SHIFT_MIN_WORKED_MINUTES = 120;
 export const CHATTER_SHIFT_MIN_MESSAGES = 50;
 /** A piece of work (between two pauses) with fewer messages is a look-in: at a shift's start or end it is not the shift. */
 export const CHATTER_SHIFT_PIECE_MIN_MESSAGES = 5;
+/** The piece of work next to a shift's start or end, closer than this to it, is the shift with one of the person's messages at least. */
+export const CHATTER_SHIFT_EDGE_NEAR_MINUTES = 30;
+/** Pieces at a shift's edge at most this far apart are one block: the block is the shift with CHATTER_SHIFT_PIECE_MIN_MESSAGES. */
+export const CHATTER_SHIFT_EDGE_BLOCK_GAP_MINUTES = 20;
+/** A look-in with CHATTER_SHIFT_PIECE_MIN_MESSAGES that ended at most this long before a shift began is its start. */
+export const CHATTER_SHIFT_LOOK_IN_JOIN_MINUTES = 90;
 /** Messages on a page in a shift that make it a page the shift worked: its sales count. */
 export const CHATTER_SHIFT_PAGE_MIN_MESSAGES = 10;
 /** The longest window `teamShifts` reads. */
@@ -2977,171 +3028,12 @@ export const teamCustomsResponseSchema = z.object({
     })),
     serverNow: isoTimestamp,
 });
-/** Chat Memory week 4: a chatter's mark on a sale of the draft shift report. */
-export const SHIFT_REPORT_MARKS = ["mine", "share", "not_mine"];
-/** How far back the cabinet's shift report reaches. */
-export const SHIFT_REPORT_MAX_DAYS = 14;
-/** The longest owner's window (disputes, export). */
-export const SHIFT_REPORT_EXPORT_MAX_DAYS = 31;
-export const shiftReportSaleSchema = z.object({
-    saleRef: clientNumericIdSchema,
-    pageLabel: z.string(),
-    platform: clientOpenToken,
-    /** Open token: subscription, tip, message_purchase, post_purchase, stream_tip. */
-    kind: clientOpenToken,
-    fanRef: clientFanRefSchema.nullable(),
-    fanName: z.string().nullable(),
-    /** The creator's net, as the payout sheet counts it. */
-    netMills: mills,
-    occurredAt: isoTimestamp,
-    /** Who sent the PPV the fan bought, when Hub tied the purchase to a message with an author. */
-    ppvSender: z.string().nullable(),
-    /** The PPV message was found, but it has no author (a phone, another browser, an old client). */
-    ppvWithoutAuthor: z.boolean(),
-    /** Who wrote to the fan on the page in the 48 hours before the sale, most messages first. */
-    writers: z.array(z.object({ username: z.string(), messages: count })),
-    /** Personal messages to the fan in those 48 hours with no author. */
-    withoutAuthor: count,
-    /** The caller's confirmed report holds the sale: its mark is final. */
-    confirmed: z.boolean(),
-    myMark: z.object({
-        /** Open token; known values: SHIFT_REPORT_MARKS. */
-        mark: clientOpenToken,
-        shareWithUserId: intId.nullable(),
-        shareWith: z.string().nullable(),
-        /** The chatter's own net for a «моё» sale, never above Hub's; null — Hub's. */
-        amountMills: mills.nullable(),
-        note: z.string().nullable(),
-    }).nullable(),
-    /** The other chatters' marks on the sale. */
-    otherMarks: z.array(z.object({ username: z.string(), mark: clientOpenToken, shareWith: z.string().nullable() })),
-});
-export const accountShiftReportQuerySchema = z.object({
-    days: z.coerce.number().int().min(1).max(SHIFT_REPORT_MAX_DAYS).default(7),
-});
-export const accountShiftReportResponseSchema = z.object({
-    /**
-     * The caller's actual shifts (week 1) on the pages they work, the newest first, each with the sales on the pages they
-     * were active on, and their visits with a sale: a sale in a look-in stays markable. «Делим» is half each.
-     */
-    shifts: z.array(z.object({
-        /** A visit, not a shift (`CHATTER_SHIFT_MIN_WORKED_MINUTES`, `CHATTER_SHIFT_MIN_MESSAGES`). */
-        visit: z.boolean(),
-        startedAt: isoTimestamp,
-        endedAt: isoTimestamp,
-        ongoing: z.boolean(),
-        pages: z.array(z.string()),
-        sales: z.array(shiftReportSaleSchema),
-        /** What the marks claim for the caller now; after confirmation — what the confirmed report's lines claim. */
-        creditedMills: mills,
-        /** Sales the caller must mark before confirming (after a confirmation — among `pending`). */
-        unmarked: count,
-        /** After a confirmation: sales that came later (a late transaction) and wait to be marked and confirmed too. */
-        pending: count,
-        confirmedAt: isoTimestamp.nullable(),
-    })),
-    /** Sales outside the caller's shifts that someone marked «делим» with the caller: agree or dispute. */
-    sharedWithMe: z.array(shiftReportSaleSchema),
-    /** Who worked the caller's pages lately: whom a sale can be shared with. */
-    teammates: z.array(z.object({ userId: intId, username: z.string() })),
-    serverNow: isoTimestamp,
-});
-export const accountShiftReportMarkBodySchema = z.object({
-    saleRef: clientNumericIdSchema,
-    mark: z.enum(SHIFT_REPORT_MARKS),
-    /** Required for `share`: one of `teammates`. */
-    shareWithUserId: intId.optional(),
-    /** `mine` only: the chatter's own net for the sale, at most Hub's (else 400 `amount_above_net`). */
-    amountMills: mills.nonnegative().nullable().optional(),
-    note: z.string().trim().max(300).nullable().optional(),
-}).strict();
-export const accountShiftReportConfirmBodySchema = z.object({
-    /** The `startedAt` of the shift, as the report gave it. */
-    startedAt: isoTimestamp,
-}).strict();
-export const accountShiftReportChangeResponseSchema = z.object({
-    changed: z.boolean(),
-    serverNow: isoTimestamp,
-});
-export const teamShiftDisputesQuerySchema = z.object({
-    days: z.coerce.number().int().min(1).max(SHIFT_REPORT_EXPORT_MAX_DAYS).default(14),
-});
-export const teamShiftDisputesResponseSchema = z.object({
-    /** Sales whose marks do not agree, the unresolved first. */
-    disputes: z.array(z.object({
-        saleRef: clientNumericIdSchema,
-        pageLabel: z.string(),
-        platform: clientOpenToken,
-        fanRef: clientFanRefSchema.nullable(),
-        occurredAt: isoTimestamp,
-        netMills: mills,
-        /** Open token: `two_mine` (two «моё»), `share_not_agreed` («делим» not answered by the same «делим»), `conflicting` (any other mix of claims). */
-        reason: clientOpenToken,
-        marks: z.array(z.object({
-            userId: intId,
-            username: z.string(),
-            mark: clientOpenToken,
-            shareWithUserId: intId.nullable(),
-            shareWith: z.string().nullable(),
-            amountMills: mills.nullable(),
-        })),
-        /** Who the sale can be split between: the chatters who marked it and those it is shared with. */
-        people: z.array(z.object({ userId: intId, username: z.string() })),
-        /** The owner's split, percent of the net per chatter; null — not decided yet. */
-        resolution: z.array(z.object({ userId: intId, username: z.string(), percent: z.number().int() })).nullable(),
-    })),
-    serverNow: isoTimestamp,
-});
-export const teamShiftResolveParamsSchema = z.object({ saleRef: clientNumericIdSchema });
-export const teamShiftResolveBodySchema = z.object({
-    /** Who gets what percent of the sale's net; the percents sum to 100. */
-    shares: z.array(z.object({ userId: intId, percent: z.number().int().min(1).max(100) })).min(1).max(5),
-}).strict();
-export const teamShiftExportQuerySchema = z.object({
-    /** Moscow dates, both included: the days the shifts started on. */
-    from: businessDate,
-    to: businessDate,
-});
-export const teamShiftExportResponseSchema = z.object({
-    from: businessDate,
-    to: businessDate,
-    /** Confirmed reports only: chatter × page × the sale's day (the Moscow day the earliest shift holding it started — anyone's, by the extension's activity — else the sale's own day; it never moves, a sale is in one export only) → net credited (Fansly to the cent, OnlyFans whole dollars). */
-    rows: z.array(z.object({
-        username: z.string(),
-        pageLabel: z.string(),
-        platform: clientOpenToken,
-        shiftDate: businessDate,
-        creditedMills: mills,
-    })),
-    /** Disputed sales without the owner's decision: left out of `rows`. */
-    disputedOpen: count,
-    /** «Моё» sales a chatter credited with their own amount below Hub's net: in `rows` with that amount. */
-    ownAmounts: z.array(z.object({
-        username: z.string(),
-        pageLabel: z.string(),
-        saleRef: clientNumericIdSchema,
-        occurredAt: isoTimestamp,
-        netMills: mills,
-        amountMills: mills,
-    })),
-    /** Shifts that began on the window's days and are not confirmed yet (`ongoing` — still going): their credits are not in `rows` yet. */
-    unconfirmed: z.array(z.object({ username: z.string(), startedAt: isoTimestamp, endedAt: isoTimestamp, ongoing: z.boolean() })),
-    /** Credits of the window's days written (`added`) or superseded by the owner's split (`removed`) more than a day after their day ended: a day exported before has changed by them. */
-    lateChanges: z.array(z.object({
-        username: z.string(),
-        pageLabel: z.string(),
-        saleRef: clientNumericIdSchema,
-        occurredAt: isoTimestamp,
-        payDay: businessDate,
-        creditedMills: mills,
-        change: z.enum(["added", "removed"]),
-        at: isoTimestamp,
-    })),
-    serverNow: isoTimestamp,
-});
 /** Chat Memory week 5: the longest window of the chatter numbers. */
 export const CHATTER_NUMBERS_MAX_DAYS = 31;
-/** The eight numbers of a shift or a week (week-5.md §1); only messages with the chatter as their author count. */
+/**
+ * The eight numbers of a shift or a week (week-5.md §1); only messages with the chatter as their author count. The
+ * messages, replies, their median and the fans left without an answer are «Разбор смены»'s (shift-review-rules.ts).
+ */
 export const chatterNumbersSchema = z.object({
     workedMinutes: count,
     /** Credited by confirmed shift reports; null — not confirmed (a week: the confirmed shifts only). */
@@ -3151,19 +3043,30 @@ export const chatterNumbersSchema = z.object({
     fansWritten: count,
     /** Of `fansWritten`: paid on the page after the chatter's first message to them in the shift, before its end. */
     fansPaid: count,
+    /** The chatter's personal messages the fans could see; mass ones are not among them. */
     messages: count,
     ppvSent: count,
     ppvBought: count,
     ppvAveragePriceMills: mills.nullable(),
-    /** `ppvSent / messages`; null without messages. */
+    /** `ppvSent` of all the chatter's messages, mass ones too; null without messages. */
     ppvShare: z.number().nullable(),
     /** The chatter's messages that answered a fan who was waiting. */
     replies: count,
     replyMedianSeconds: count.nullable(),
     repliesWithinHour: count,
-    /** Fans whose last message at the shift's end was theirs (a week: the average per shift). */
+    /**
+     * «Без ответа к концу смены»: the chatter's fans who wrote in the shift (or began waiting in it) and got no answer
+     * before its end — not a colleague's, not one waiting silently since a past shift (a week: the average per shift).
+     */
     waitingAtEnd: count,
+    /** How the chatter's messages, mass ones too, were written: the extension's word on each. */
     composed: z.object({ hand: count, reply: count, fix: count, other: count }),
+    /**
+     * «ИИ без правки», as «Разбор смены» counts it (shift-review-rules.ts `shiftReviewAiCounts`): of the chatter's personal
+     * messages, the texts with words (Hi greetings left out), and of them the AI's sent as they were. A week: the sums.
+     */
+    textMessages: count,
+    aiUnedited: count,
 });
 export const teamChatterNumbersQuerySchema = z.object({
     from: isoTimestamp.optional(),
@@ -4250,97 +4153,6 @@ export const clientRouteSchemas = {
             + "the oldest payment first, up to 200.",
         response: {
             200: teamCustomsResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-        },
-    },
-    accountShiftReport: {
-        auth: { kind: "any-session" },
-        tags: ["client"],
-        summary: "The caller's draft shift reports: their shifts, the sales on their pages and the facts of each",
-        description: "The chatter's cabinet; read-only. Shifts are week 1's actual shifts of the caller in the last `days`; "
-            + "a shift's sales are the money fans paid on the pages the caller was active on during it. Hub credits no "
-            + "sale: the marks are the people's.",
-        querystring: accountShiftReportQuerySchema,
-        response: {
-            200: accountShiftReportResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-        },
-    },
-    accountShiftReportMark: {
-        auth: { kind: "any-session" },
-        tags: ["client"],
-        summary: "The caller marks a sale of their shift «моё», «делим с …» or «не моё», maybe with their own amount",
-        description: "The sale must be of one of the caller's shifts in the last 14 days, or shared with the caller (else 404). "
-            + "A sale of a confirmed shift keeps its mark (409 `confirmed`). `share` needs `shareWithUserId` of `teammates`.",
-        body: accountShiftReportMarkBodySchema,
-        response: {
-            200: accountShiftReportChangeResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-            409: errorResponseSchema,
-        },
-    },
-    accountShiftReportConfirm: {
-        auth: { kind: "any-session" },
-        tags: ["client"],
-        summary: "The caller confirms the report of an ended shift: its lines go to the payout export as they stand",
-        description: "Every sale must be marked (409 `unmarked`); a going shift cannot be confirmed (409 `ongoing`). "
-            + "Confirming twice answers `changed: false`.",
-        body: accountShiftReportConfirmBodySchema,
-        response: {
-            200: accountShiftReportChangeResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-            409: errorResponseSchema,
-        },
-    },
-    teamShiftDisputes: {
-        auth: { kind: "session" },
-        tags: ["client"],
-        summary: "Sales of the last days whose marks do not agree, with the owner's decision when made",
-        description: "The owner and team leads, for the pages they reach. Two «моё», or «делим с X» that X did not answer with «делим» back.",
-        querystring: teamShiftDisputesQuerySchema,
-        response: {
-            200: teamShiftDisputesResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-        },
-    },
-    teamShiftResolve: {
-        auth: { kind: "owner-session" },
-        tags: ["client"],
-        summary: "The owner splits a disputed sale between chatters",
-        description: "Owner only. The sale must be disputed (else 409 `not_disputed`); every chatter named must have marked it "
-            + "or be named in a «делим» (else 400). Deciding again replaces the decision. The export takes the split instead of the chatters' lines.",
-        params: teamShiftResolveParamsSchema,
-        body: teamShiftResolveBodySchema,
-        response: {
-            200: accountShiftReportChangeResponseSchema,
-            400: errorResponseSchema,
-            401: errorResponseSchema,
-            403: errorResponseSchema,
-            404: errorResponseSchema,
-            409: errorResponseSchema,
-        },
-    },
-    teamShiftExport: {
-        auth: { kind: "session" },
-        tags: ["client"],
-        summary: "The payout export: confirmed shift reports as chatter × page × day → net",
-        description: "The owner and team leads, for the pages they reach; read-only. The days are Moscow days the shifts "
-            + "started on, at most 31. Disputed sales count only once the owner decided them.",
-        querystring: teamShiftExportQuerySchema,
-        response: {
-            200: teamShiftExportResponseSchema,
-            400: errorResponseSchema,
             401: errorResponseSchema,
             403: errorResponseSchema,
         },

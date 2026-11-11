@@ -1541,8 +1541,8 @@ export declare const publicationWithdrawResultSchema: z.ZodObject<{
         rejected: "rejected";
         withdrawn: "withdrawn";
         refused: "refused";
-        accepted: "accepted";
         not_sent: "not_sent";
+        accepted: "accepted";
     }>;
     reason: z.ZodNullable<z.ZodString>;
     publication: z.ZodNullable<z.ZodObject<{
@@ -1685,8 +1685,8 @@ export declare const publicationWithdrawResponseSchema: z.ZodObject<{
             rejected: "rejected";
             withdrawn: "withdrawn";
             refused: "refused";
-            accepted: "accepted";
             not_sent: "not_sent";
+            accepted: "accepted";
         }>;
         reason: z.ZodNullable<z.ZodString>;
         publication: z.ZodNullable<z.ZodObject<{
@@ -1891,6 +1891,188 @@ export declare const publicationQueueRefreshBodySchema: z.ZodObject<{
 export declare const publicationQueueRefreshResponseSchema: z.ZodObject<{
     requestedAt: z.ZodString;
 }, z.core.$strip>;
+/** A platform's post id as its schedule and its posts name it: digits. */
+export declare const AGENT_POST_REF_PATTERN: RegExp;
+export declare const agentPostParamsSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    postRef: z.ZodString;
+}, z.core.$strip>;
+export declare const agentPostDeleteBodySchema: z.ZodObject<{
+    reason: z.ZodString;
+}, z.core.$strict>;
+/** The command Hub holds for the post (one per post and action, whichever route asked). */
+export declare const agentPostCommandStateSchema: z.ZodObject<{
+    state: z.ZodString;
+    stateReason: z.ZodNullable<z.ZodString>;
+    createdAt: z.ZodString;
+    settledAt: z.ZodNullable<z.ZodString>;
+}, z.core.$strip>;
+export declare const agentPostCommandResponseSchema: z.ZodObject<{
+    pageLabel: z.ZodString;
+    platform: z.ZodEnum<{
+        fansly: "fansly";
+        onlyfans: "onlyfans";
+    }>;
+    postRef: z.ZodString;
+    action: z.ZodEnum<{
+        withdraw: "withdraw";
+        delete: "delete";
+    }>;
+    outcome: z.ZodEnum<{
+        unknown: "unknown";
+        rejected: "rejected";
+        withdrawn: "withdrawn";
+        refused: "refused";
+        deleted: "deleted";
+        not_sent: "not_sent";
+        accepted: "accepted";
+    }>;
+    reason: z.ZodNullable<z.ZodString>;
+    repeat: z.ZodBoolean;
+    publicationId: z.ZodNullable<z.ZodNumber>;
+    publication: z.ZodNullable<z.ZodObject<{
+        id: z.ZodNumber;
+        pageLabel: z.ZodString;
+        platform: z.ZodEnum<{
+            fansly: "fansly";
+            onlyfans: "onlyfans";
+            telegram: "telegram";
+        }>;
+        kind: z.ZodEnum<{
+            story: "story";
+            fyp_post: "fyp_post";
+            subscriber_post: "subscriber_post";
+            paid_post: "paid_post";
+            vault_album: "vault_album";
+        }>;
+        status: z.ZodEnum<{
+            unknown: "unknown";
+            cancelled: "cancelled";
+            scheduled: "scheduled";
+            draft: "draft";
+            approved: "approved";
+            submitting: "submitting";
+            processing: "processing";
+            published: "published";
+            not_published: "not_published";
+            rejected: "rejected";
+            missed: "missed";
+            withdrawn: "withdrawn";
+        }>;
+        version: z.ZodNumber;
+        text: z.ZodString;
+        publishAt: z.ZodString;
+        expiresAt: z.ZodNullable<z.ZodString>;
+        wallRefs: z.ZodArray<z.ZodString>;
+        tierRefs: z.ZodArray<z.ZodString>;
+        priceMills: z.ZodNullable<z.ZodNumber>;
+        repost: z.ZodBoolean;
+        pinWallRefs: z.ZodArray<z.ZodString>;
+        replyLock: z.ZodArray<z.ZodEnum<{
+            subscribers: "subscribers";
+            followers: "followers";
+        }>>;
+        subscribersOnly: z.ZodBoolean;
+        extraAttachments: z.ZodArray<z.ZodObject<{
+            attachment: z.ZodNumber;
+            access: z.ZodEnum<{
+                subscribers: "subscribers";
+                everyone: "everyone";
+                paid: "paid";
+            }>;
+            tierRefs: z.ZodArray<z.ZodString>;
+            priceMills: z.ZodNullable<z.ZodNumber>;
+            subscribersOnly: z.ZodBoolean;
+        }, z.core.$strip>>;
+        media: z.ZodArray<z.ZodObject<{
+            role: z.ZodEnum<{
+                media: "media";
+                preview: "preview";
+            }>;
+            position: z.ZodNumber;
+            source: z.ZodEnum<{
+                file: "file";
+                vault: "vault";
+            }>;
+            mediaRef: z.ZodNullable<z.ZodString>;
+            fileId: z.ZodNullable<z.ZodNumber>;
+            attachment: z.ZodNumber;
+            name: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+        }, z.core.$strip>>;
+        findings: z.ZodArray<z.ZodObject<{
+            code: z.ZodEnum<{
+                publish_time_past: "publish_time_past";
+                file_of_another_model: "file_of_another_model";
+                file_deleted: "file_deleted";
+                media_not_on_page: "media_not_on_page";
+                repost_within_threshold: "repost_within_threshold";
+                posted_before: "posted_before";
+                price_range_not_set: "price_range_not_set";
+                price_out_of_range: "price_out_of_range";
+                paid_post_off_on_onlyfans: "paid_post_off_on_onlyfans";
+                volume_high: "volume_high";
+                daily_limit_exceeded: "daily_limit_exceeded";
+                wall_not_on_page: "wall_not_on_page";
+                wall_default_unknown: "wall_default_unknown";
+                tier_not_on_page: "tier_not_on_page";
+                onlyfans_file_upload_unsupported: "onlyfans_file_upload_unsupported";
+                onlyfans_file_too_large: "onlyfans_file_too_large";
+                fansly_file_upload_unsupported: "fansly_file_upload_unsupported";
+                fansly_several_tiers_unsupported: "fansly_several_tiers_unsupported";
+                platform_schedule_incomplete: "platform_schedule_incomplete";
+            }>;
+            severity: z.ZodEnum<{
+                info: "info";
+                blocking: "blocking";
+                warning: "warning";
+            }>;
+            mediaKey: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            at: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            postRef: z.ZodDefault<z.ZodNullable<z.ZodString>>;
+            publicationId: z.ZodDefault<z.ZodNullable<z.ZodNumber>>;
+            detail: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodNull]>>>;
+        }, z.core.$strip>>;
+        blocked: z.ZodBoolean;
+        author: z.ZodObject<{
+            kind: z.ZodEnum<{
+                human: "human";
+                agent: "agent";
+            }>;
+            userId: z.ZodNullable<z.ZodNumber>;
+            agentKeyId: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        approvedRevisionId: z.ZodNullable<z.ZodNumber>;
+        platformPostRef: z.ZodNullable<z.ZodString>;
+        vaultAlbumRef: z.ZodNullable<z.ZodString>;
+        statusReason: z.ZodNullable<z.ZodString>;
+        previousPublicationId: z.ZodNullable<z.ZodNumber>;
+        withdrawal: z.ZodNullable<z.ZodObject<{
+            state: z.ZodString;
+            errorCode: z.ZodNullable<z.ZodString>;
+            at: z.ZodString;
+        }, z.core.$strip>>;
+        deletion: z.ZodNullable<z.ZodObject<{
+            state: z.ZodString;
+            errorCode: z.ZodNullable<z.ZodString>;
+            at: z.ZodString;
+        }, z.core.$strip>>;
+        createdAt: z.ZodString;
+        updatedAt: z.ZodString;
+        statusChangedAt: z.ZodString;
+    }, z.core.$strip>>;
+    command: z.ZodNullable<z.ZodObject<{
+        state: z.ZodString;
+        stateReason: z.ZodNullable<z.ZodString>;
+        createdAt: z.ZodString;
+        settledAt: z.ZodNullable<z.ZodString>;
+    }, z.core.$strip>>;
+    check: z.ZodNullable<z.ZodString>;
+    dailyLimit: z.ZodNullable<z.ZodObject<{
+        limit: z.ZodNumber;
+        used: z.ZodNumber;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export type AgentPostCommandResponse = z.infer<typeof agentPostCommandResponseSchema>;
 /** What a file is, as far as Hub knows. */
 export declare const publicationMediaTypeSchema: z.ZodEnum<{
     image: "image";

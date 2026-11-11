@@ -79,6 +79,10 @@ export declare const agentCapabilityEnum: z.ZodEnum<{
     "approve:vault_albums": "approve:vault_albums";
     "write:fan_queues": "write:fan_queues";
     "read:content": "read:content";
+    "read:team": "read:team";
+    "withdraw:publications": "withdraw:publications";
+    "delete:posts": "delete:posts";
+    "look:media": "look:media";
 }>;
 export declare const agentPlaneNameEnum: z.ZodEnum<{
     post_comments: "post_comments";
@@ -435,12 +439,6 @@ export declare const agentDeliverySchema: z.ZodObject<{
         no_frozen_snapshot: "no_frozen_snapshot";
     }>>;
 }, z.core.$strict>;
-export declare const agentPlaneStateEnum: z.ZodEnum<{
-    not_applicable: "not_applicable";
-    read: "read";
-    not_read: "not_read";
-    not_indexed: "not_indexed";
-}>;
 export declare const agentPlaneReasonEnum: z.ZodEnum<{
     not_a_source_for_this_claim: "not_a_source_for_this_claim";
     not_queried_by_this_operation: "not_queried_by_this_operation";
@@ -2158,8 +2156,8 @@ export declare const agentPredicateSchema: z.ZodObject<{
     applied: z.ZodBoolean;
     reason: z.ZodEnum<{
         applied: "applied";
-        not_indexed: "not_indexed";
         capability_not_granted: "capability_not_granted";
+        not_indexed: "not_indexed";
         not_requested: "not_requested";
         unsupported_for_plane: "unsupported_for_plane";
         source_failed: "source_failed";
@@ -2569,6 +2567,10 @@ export declare const agentDatasetCatalogEntrySchema: z.ZodObject<{
         "approve:vault_albums": "approve:vault_albums";
         "write:fan_queues": "write:fan_queues";
         "read:content": "read:content";
+        "read:team": "read:team";
+        "withdraw:publications": "withdraw:publications";
+        "delete:posts": "delete:posts";
+        "look:media": "look:media";
     }>>;
     ownContent: z.ZodBoolean;
     captureState: z.ZodEnum<{
@@ -2601,8 +2603,8 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         contractHash: z.ZodString;
         planeMode: z.ZodEnum<{
             off: "off";
-            full: "full";
             read_only: "read_only";
+            full: "full";
         }>;
         searchBackend: z.ZodEnum<{
             off: "off";
@@ -2637,6 +2639,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 "approve:vault_albums": "approve:vault_albums";
                 "write:fan_queues": "write:fan_queues";
                 "read:content": "read:content";
+                "read:team": "read:team";
+                "withdraw:publications": "withdraw:publications";
+                "delete:posts": "delete:posts";
+                "look:media": "look:media";
             }>;
             granted: z.ZodBoolean;
         }, z.core.$strict>>;
@@ -2926,6 +2932,10 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             "approve:vault_albums": "approve:vault_albums";
             "write:fan_queues": "write:fan_queues";
             "read:content": "read:content";
+            "read:team": "read:team";
+            "withdraw:publications": "withdraw:publications";
+            "delete:posts": "delete:posts";
+            "look:media": "look:media";
         }>>;
         ownContent: z.ZodBoolean;
         captureState: z.ZodEnum<{
@@ -7820,8 +7830,8 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
         applied: z.ZodBoolean;
         reason: z.ZodEnum<{
             applied: "applied";
-            not_indexed: "not_indexed";
             capability_not_granted: "capability_not_granted";
+            not_indexed: "not_indexed";
             not_requested: "not_requested";
             unsupported_for_plane: "unsupported_for_plane";
             source_failed: "source_failed";
@@ -9413,8 +9423,8 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
         applied: z.ZodBoolean;
         reason: z.ZodEnum<{
             applied: "applied";
-            not_indexed: "not_indexed";
             capability_not_granted: "capability_not_granted";
+            not_indexed: "not_indexed";
             not_requested: "not_requested";
             unsupported_for_plane: "unsupported_for_plane";
             source_failed: "source_failed";
@@ -11101,8 +11111,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
         applied: z.ZodBoolean;
         reason: z.ZodEnum<{
             applied: "applied";
-            not_indexed: "not_indexed";
             capability_not_granted: "capability_not_granted";
+            not_indexed: "not_indexed";
             not_requested: "not_requested";
             unsupported_for_plane: "unsupported_for_plane";
             source_failed: "source_failed";
@@ -13333,8 +13343,8 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
         applied: z.ZodBoolean;
         reason: z.ZodEnum<{
             applied: "applied";
-            not_indexed: "not_indexed";
             capability_not_granted: "capability_not_granted";
+            not_indexed: "not_indexed";
             not_requested: "not_requested";
             unsupported_for_plane: "unsupported_for_plane";
             source_failed: "source_failed";
@@ -18732,8 +18742,8 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
         applied: z.ZodBoolean;
         reason: z.ZodEnum<{
             applied: "applied";
-            not_indexed: "not_indexed";
             capability_not_granted: "capability_not_granted";
+            not_indexed: "not_indexed";
             not_requested: "not_requested";
             unsupported_for_plane: "unsupported_for_plane";
             source_failed: "source_failed";
@@ -26923,8 +26933,8 @@ export declare const agentSyncWorkClassEnum: z.ZodEnum<{
     urgent: "urgent";
 }>;
 export declare const agentSyncWorkKindEnum: z.ZodEnum<{
-    trigger: "trigger";
     poll: "poll";
+    trigger: "trigger";
     goal: "goal";
     repair: "repair";
 }>;
@@ -26999,6 +27009,8 @@ export declare const agentSyncResourceKeyEnum: z.ZodEnum<{
     "stats.hourly": "stats.hourly";
     "stats.backfill": "stats.backfill";
     "media-download.fetch": "media-download.fetch";
+    "media-look.fetch": "media-look.fetch";
+    "media-look.resolve": "media-look.resolve";
     "repair.ws-gap": "repair.ws-gap";
     "probe.manual": "probe.manual";
     "probe.excluded-chat": "probe.excluded-chat";
@@ -27420,8 +27432,8 @@ export declare const agentSyncWorkSchema: z.ZodObject<{
     subject: z.ZodString;
     shadow: z.ZodBoolean;
     kind: z.ZodEnum<{
-        trigger: "trigger";
         poll: "poll";
+        trigger: "trigger";
         goal: "goal";
         repair: "repair";
     }>;
@@ -28523,6 +28535,8 @@ export declare const agentSyncWhyQuerySchema: z.ZodObject<{
         "stats.hourly": "stats.hourly";
         "stats.backfill": "stats.backfill";
         "media-download.fetch": "media-download.fetch";
+        "media-look.fetch": "media-look.fetch";
+        "media-look.resolve": "media-look.resolve";
         "repair.ws-gap": "repair.ws-gap";
         "probe.manual": "probe.manual";
         "probe.excluded-chat": "probe.excluded-chat";
@@ -28536,8 +28550,8 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
         subject: z.ZodString;
         shadow: z.ZodBoolean;
         kind: z.ZodEnum<{
-            trigger: "trigger";
             poll: "poll";
+            trigger: "trigger";
             goal: "goal";
             repair: "repair";
         }>;
@@ -30152,19 +30166,6 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
         }>>;
     }, z.core.$strict>;
 }, z.core.$strict>;
-/**
- * POST-as-read: the explicit, reviewed allowlist (§4). These three are idempotent
- * and local; search is POST so the query text never reaches an access log. Every
- * other agentKey route is a GET, and a test pins exactly that.
- */
-export declare const AGENT_POST_READ_OPERATIONS: readonly ["agentResolve", "agentSearchMessages", "agentDatasetQuery"];
-/**
- * The plane's MUTATIONS — POSTs that are not reads and are not covered by the
- * allowlist above (§17.15.4 names the hydration two; the Sync Engine's history
- * requests add create and cancel). Enumerated so the method guard stays a
- * closed statement rather than "anything with a body".
- */
-export declare const AGENT_POST_MUTATION_OPERATIONS: readonly ["agentHydrationRequestCreate", "agentHydrationRequestDecide", "agentHistoryRequestCreate", "agentHistoryRequestCancel"];
 export declare const agentRouteSchemas: {
     readonly agentCapabilities: {
         readonly auth: {
@@ -30178,8 +30179,8 @@ export declare const agentRouteSchemas: {
                     contractHash: z.ZodString;
                     planeMode: z.ZodEnum<{
                         off: "off";
-                        full: "full";
                         read_only: "read_only";
+                        full: "full";
                     }>;
                     searchBackend: z.ZodEnum<{
                         off: "off";
@@ -30214,6 +30215,10 @@ export declare const agentRouteSchemas: {
                             "approve:vault_albums": "approve:vault_albums";
                             "write:fan_queues": "write:fan_queues";
                             "read:content": "read:content";
+                            "read:team": "read:team";
+                            "withdraw:publications": "withdraw:publications";
+                            "delete:posts": "delete:posts";
+                            "look:media": "look:media";
                         }>;
                         granted: z.ZodBoolean;
                     }, z.core.$strict>>;
@@ -30503,6 +30508,10 @@ export declare const agentRouteSchemas: {
                         "approve:vault_albums": "approve:vault_albums";
                         "write:fan_queues": "write:fan_queues";
                         "read:content": "read:content";
+                        "read:team": "read:team";
+                        "withdraw:publications": "withdraw:publications";
+                        "delete:posts": "delete:posts";
+                        "look:media": "look:media";
                     }>>;
                     ownContent: z.ZodBoolean;
                     captureState: z.ZodEnum<{
@@ -34933,8 +34942,8 @@ export declare const agentRouteSchemas: {
                     applied: z.ZodBoolean;
                     reason: z.ZodEnum<{
                         applied: "applied";
-                        not_indexed: "not_indexed";
                         capability_not_granted: "capability_not_granted";
+                        not_indexed: "not_indexed";
                         not_requested: "not_requested";
                         unsupported_for_plane: "unsupported_for_plane";
                         source_failed: "source_failed";
@@ -36219,8 +36228,8 @@ export declare const agentRouteSchemas: {
                     applied: z.ZodBoolean;
                     reason: z.ZodEnum<{
                         applied: "applied";
-                        not_indexed: "not_indexed";
                         capability_not_granted: "capability_not_granted";
+                        not_indexed: "not_indexed";
                         not_requested: "not_requested";
                         unsupported_for_plane: "unsupported_for_plane";
                         source_failed: "source_failed";
@@ -37567,8 +37576,8 @@ export declare const agentRouteSchemas: {
                     applied: z.ZodBoolean;
                     reason: z.ZodEnum<{
                         applied: "applied";
-                        not_indexed: "not_indexed";
                         capability_not_granted: "capability_not_granted";
+                        not_indexed: "not_indexed";
                         not_requested: "not_requested";
                         unsupported_for_plane: "unsupported_for_plane";
                         source_failed: "source_failed";
@@ -39598,8 +39607,8 @@ export declare const agentRouteSchemas: {
                     applied: z.ZodBoolean;
                     reason: z.ZodEnum<{
                         applied: "applied";
-                        not_indexed: "not_indexed";
                         capability_not_granted: "capability_not_granted";
+                        not_indexed: "not_indexed";
                         not_requested: "not_requested";
                         unsupported_for_plane: "unsupported_for_plane";
                         source_failed: "source_failed";
@@ -44198,8 +44207,8 @@ export declare const agentRouteSchemas: {
                     applied: z.ZodBoolean;
                     reason: z.ZodEnum<{
                         applied: "applied";
-                        not_indexed: "not_indexed";
                         capability_not_granted: "capability_not_granted";
+                        not_indexed: "not_indexed";
                         not_requested: "not_requested";
                         unsupported_for_plane: "unsupported_for_plane";
                         source_failed: "source_failed";
@@ -53530,6 +53539,8 @@ export declare const agentRouteSchemas: {
                 "stats.hourly": "stats.hourly";
                 "stats.backfill": "stats.backfill";
                 "media-download.fetch": "media-download.fetch";
+                "media-look.fetch": "media-look.fetch";
+                "media-look.resolve": "media-look.resolve";
                 "repair.ws-gap": "repair.ws-gap";
                 "probe.manual": "probe.manual";
                 "probe.excluded-chat": "probe.excluded-chat";
@@ -53544,8 +53555,8 @@ export declare const agentRouteSchemas: {
                     subject: z.ZodString;
                     shadow: z.ZodBoolean;
                     kind: z.ZodEnum<{
-                        trigger: "trigger";
                         poll: "poll";
+                        trigger: "trigger";
                         goal: "goal";
                         repair: "repair";
                     }>;

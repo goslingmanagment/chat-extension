@@ -54,6 +54,39 @@ export const AGENT_CAPABILITIES = [
      * money. The ContentOps key's narrow right (owner 2026-10-29).
      */
     "read:content",
+    /**
+     * The team's work and the facts of every sale on the key's pages: who held
+     * the page, the bought PPV's sender, post tips and Campaign, the last
+     * writer, the chatters' marks and the owner's split (`agentTeamSales`).
+     * The agency ledger's right (ledger release 2, owner 2026-11-09): whose a
+     * sale is and what anyone is paid is the ledger's. Needs read:money too.
+     */
+    "read:team",
+    /**
+     * Taking a Hub post off the platform's schedule on the key's pages, any Hub
+     * post there, not only this key's drafts (owner 2026-11-11: an agent may take
+     * a post off the schedule at any time without asking): the owner's own
+     * withdrawal, refusals and all, and the page's schedule read to see it.
+     * Never a published post's deletion, never a whole page at once. With it a
+     * key also takes off a post put in the schedule by hand, by the platform's
+     * post id, once Hub's own fresh read of the page's schedule shows it.
+     */
+    "withdraw:publications",
+    /**
+     * Deleting a published post of the key's pages (owner 2026-11-11: only on the
+     * owner's «да» for that post — the agent's rules hold that word, Hub does not
+     * check it): a post Hub has among the page's own synced posts, never one still
+     * in the schedule. A daily ceiling per key, one command per post, the agent's
+     * reason in the owner's audit.
+     */
+    "delete:posts",
+    /**
+     * Looking at the page's own media: frames (≤ 512 px) of a file of a post in
+     * the platform's schedule, pulled through the page's session at its pace —
+     * never the file, never a link (owner 2026-11-11). Fansly only; a daily cap
+     * per page; a fan's media is refused.
+     */
+    "look:media",
 ];
 const AGENT_CAPABILITY_SET = new Set(AGENT_CAPABILITIES);
 /**

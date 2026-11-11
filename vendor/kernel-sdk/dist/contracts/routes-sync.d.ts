@@ -583,6 +583,7 @@ export declare const syncResourceFileEnum: z.ZodEnum<{
     "post-replies": "post-replies";
     "media-stats": "media-stats";
     "media-download": "media-download";
+    "media-look": "media-look";
 }>;
 export declare const syncPagesResponseSchema: z.ZodObject<{
     pages: z.ZodArray<z.ZodObject<{
@@ -897,6 +898,8 @@ export declare const syncPageWorkQuerySchema: z.ZodObject<{
         "stats.hourly": "stats.hourly";
         "stats.backfill": "stats.backfill";
         "media-download.fetch": "media-download.fetch";
+        "media-look.fetch": "media-look.fetch";
+        "media-look.resolve": "media-look.resolve";
         "repair.ws-gap": "repair.ws-gap";
         "probe.manual": "probe.manual";
         "probe.excluded-chat": "probe.excluded-chat";
@@ -920,8 +923,8 @@ export declare const syncPageWorkResponseSchema: z.ZodObject<{
         subject: z.ZodString;
         shadow: z.ZodBoolean;
         kind: z.ZodEnum<{
-            trigger: "trigger";
             poll: "poll";
+            trigger: "trigger";
             goal: "goal";
             repair: "repair";
         }>;
@@ -991,8 +994,8 @@ export declare const syncPageWorkGetResponseSchema: z.ZodObject<{
         subject: z.ZodString;
         shadow: z.ZodBoolean;
         kind: z.ZodEnum<{
-            trigger: "trigger";
             poll: "poll";
+            trigger: "trigger";
             goal: "goal";
             repair: "repair";
         }>;
@@ -1075,6 +1078,7 @@ export declare const syncPageRefreshBodySchema: z.ZodObject<{
         "post-replies": "post-replies";
         "media-stats": "media-stats";
         "media-download": "media-download";
+        "media-look": "media-look";
     }>>>;
 }, z.core.$strict>;
 export declare const syncPageRefreshResponseSchema: z.ZodObject<{
@@ -1427,6 +1431,8 @@ export declare const syncRouteSchemas: {
                 "stats.hourly": "stats.hourly";
                 "stats.backfill": "stats.backfill";
                 "media-download.fetch": "media-download.fetch";
+                "media-look.fetch": "media-look.fetch";
+                "media-look.resolve": "media-look.resolve";
                 "repair.ws-gap": "repair.ws-gap";
                 "probe.manual": "probe.manual";
                 "probe.excluded-chat": "probe.excluded-chat";
@@ -1451,8 +1457,8 @@ export declare const syncRouteSchemas: {
                     subject: z.ZodString;
                     shadow: z.ZodBoolean;
                     kind: z.ZodEnum<{
-                        trigger: "trigger";
                         poll: "poll";
+                        trigger: "trigger";
                         goal: "goal";
                         repair: "repair";
                     }>;
@@ -1559,8 +1565,8 @@ export declare const syncRouteSchemas: {
                     subject: z.ZodString;
                     shadow: z.ZodBoolean;
                     kind: z.ZodEnum<{
-                        trigger: "trigger";
                         poll: "poll";
+                        trigger: "trigger";
                         goal: "goal";
                         repair: "repair";
                     }>;
@@ -1682,6 +1688,7 @@ export declare const syncRouteSchemas: {
                 "post-replies": "post-replies";
                 "media-stats": "media-stats";
                 "media-download": "media-download";
+                "media-look": "media-look";
             }>>>;
         }, z.core.$strict>;
         readonly response: {

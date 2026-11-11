@@ -133,6 +133,5 @@ export const FANSLY_CLIENT_CHECK_ROUTES = [
     "media",
 ];
 export const syncHealthStates = ["healthy", "degraded", "suspicious", "failed"];
-export const httpRequestStates = ["started", "success", "retry", "failed"];
 export const httpRequestFailureKinds = ["timeout", "transport", "http", "provider", "policy"];
 export const syncTelemetryEventSeverities = ["info", "warn", "error"];

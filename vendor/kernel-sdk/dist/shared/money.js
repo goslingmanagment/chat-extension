@@ -200,14 +200,6 @@ export function sumMills(values) {
     }
     return total;
 }
-/** The sum of micro-USD amounts (the AI plane), for display: whole numbers stay whole. */
-export function sumMicroUsd(values) {
-    let total = 0;
-    for (const value of values) {
-        total += microUsdFromDbInt(value);
-    }
-    return total;
-}
 /**
  * Legacy name for the dollars constructor — same function, kept because the
  * name is honest (its ~80 call sites predate the codec). New code should

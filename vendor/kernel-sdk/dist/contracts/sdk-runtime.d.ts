@@ -8,13 +8,12 @@ type Schemas = typeof routeSchemas;
 export type KernelOperationKey = keyof Schemas & string;
 /**
  * Operations without a plain request/JSON-response shape. The webhook is
- * HMAC-authenticated server intake; the two streams are SSE (dedicated
- * helpers); the read gateway is a wildcard proxy (passthrough helper); the
- * ledger CSV returns text/csv; the voice-note audio route returns binary
+ * HMAC-authenticated server intake; the AI gateway stream is SSE (dedicated
+ * helper); the ledger CSV returns text/csv; the voice-note audio route returns binary
  * audio/mpeg (dedicated `fetchVoiceNoteAudio` helper). All remain reachable via
  * `client.raw(...)`.
  */
-export declare const SDK_EXCLUDED_OPERATIONS: readonly ["ofapiWebhookReceive", "eventsStream", "eventsV2Stream", "aiGatewayStream", "ofapiReadGateway", "adminOfapiCreditsLedgerCsv", "voiceNoteAudio", "pageBrowserLoginScreenshot", "pageBrowserScreen", "pageBrowserProfileLoginScreenshot", "pageBrowserProfileScreen", "chatspaceBrowserScreenOpen", "chatspaceBrowserScreen"];
+export declare const SDK_EXCLUDED_OPERATIONS: readonly ["ofapiWebhookReceive", "aiGatewayStream", "adminOfapiCreditsLedgerCsv", "voiceNoteAudio", "pageBrowserLoginScreenshot", "pageBrowserScreen", "pageBrowserProfileLoginScreenshot", "pageBrowserProfileScreen", "chatspaceBrowserScreenOpen", "chatspaceBrowserScreen"];
 export type KernelSdkExcludedKey = (typeof SDK_EXCLUDED_OPERATIONS)[number];
 export type KernelSdkMethodKey = Exclude<KernelOperationKey, KernelSdkExcludedKey>;
 type InputOf<S> = S extends z.ZodType ? z.input<S> : never;
@@ -93,29 +92,13 @@ export declare function executeKernelRequest(input: {
     headers?: Record<string, string> | undefined;
 }): Promise<Response>;
 export declare function createKernelClient(operations: Record<KernelOperationKey, KernelOperationDef>, options: KernelClientOptions): KernelClient;
-import { syncSnapshotRequiredResponseSchema, type AiFeatureStreamFrame, type AiGatewayStreamFrame, type DomainEventFrame, type DomainEventsSnapshotRequired, type SyncEvent } from "./routes";
+import { type AiFeatureStreamFrame, type AiGatewayStreamFrame } from "./routes";
 import type { z as zod } from "zod";
 export interface KernelStreamHandle {
     /** Resolves when the stream ends (server bound, snapshot-required, or close()). */
     done: Promise<void>;
     close: () => void;
 }
-export type SyncSnapshotRequired = zod.infer<typeof syncSnapshotRequiredResponseSchema>;
-/**
- * Subscribe to the v1 sync-event stream (`GET /api/v1/events/stream`).
- * Single connection, no auto-reconnect: the server bounds stream lifetime
- * (~15 min) and v1 clients own their reconnect loop, resuming via
- * `lastEventId`. A 409 becomes `onSnapshotRequired` and ends the stream.
- */
-export declare function subscribeSyncEvents(options: KernelClientOptions, input: {
-    lastEventId?: number | null;
-    onFrame: (frame: {
-        id: number;
-        event: SyncEvent;
-    }) => void;
-    onSnapshotRequired?: (details: SyncSnapshotRequired) => void;
-    signal?: AbortSignal;
-}): KernelStreamHandle;
 /**
  * What a client may advertise on the AI feature stream in the
  * `x-kernel-ai-capabilities` header. Each token is compatibility negotiation,
@@ -148,16 +131,6 @@ export declare function streamAiGateway(options: KernelClientOptions, input: {
     signal?: AbortSignal;
 }): KernelStreamHandle;
 /**
- * Thin passthrough for the wildcard read gateway (`GET /api/v1/ofapi/read/*`):
- * upstream shapes are proxied verbatim, so no validation — the caller gets the
- * raw Response.
- */
-export declare function ofapiRead(options: KernelClientOptions, input: {
-    path: string;
-    query?: Record<string, unknown> | undefined;
-    headers?: Record<string, string> | undefined;
-}): Promise<Response>;
-/**
  * Fetch a completed voice-note's audio bytes (`GET
  * /api/v1/pages/:pageLabel/voice-notes/:id/audio`, Task 6). The response is
  * binary `audio/mpeg`, so there is no JSON shape to validate — the caller gets
@@ -170,24 +143,4 @@ export declare function fetchVoiceNoteAudio(options: KernelClientOptions, input:
     pageLabel: string;
     id: number;
 }): Promise<Response>;
-/**
- * Subscribe to the v2 domain-event stream (`GET /api/v1/events/v2/stream`).
- * The cursor is OPAQUE — persist the last delivered one and hand it back on
- * reconnect. Single connection, no auto-reconnect (same contract as v1: the
- * server bounds stream lifetime; consumers own the loop).
- * A 409 becomes `onSnapshotRequired` with the per-account detail; recover via
- * `client.eventsV2Snapshot(...)` and resubscribe with the fresh cursor.
- * `platform` narrows the stream to one platform's granted accounts; pass the
- * same value to the snapshot and on every resume (its cursors are bound to it).
- */
-export declare function subscribeDomainEvents(options: KernelClientOptions, input: {
-    cursor?: string | null;
-    platform?: "onlyfans" | "fansly";
-    onFrame: (frame: {
-        cursor: string;
-        event: DomainEventFrame;
-    }) => void;
-    onSnapshotRequired?: (details: DomainEventsSnapshotRequired) => void;
-    signal?: AbortSignal;
-}): KernelStreamHandle;
 export {};

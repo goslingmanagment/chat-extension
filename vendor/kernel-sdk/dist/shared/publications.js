@@ -85,8 +85,6 @@ export const PUBLICATION_TRANSITIONS = {
 export function canTransitionPublication(from, to, actor) {
     return PUBLICATION_TRANSITIONS[from][to]?.includes(actor) === true;
 }
-/** Statuses whose content may still change (an edit of an approved one returns it to draft). */
-export const PUBLICATION_EDITABLE_STATUSES = ["draft", "approved"];
 /**
  * Statuses in which a publication occupies its media and its day on the page:
  * approved and on the way, on the platform, or possibly on it (unknown).
@@ -223,6 +221,14 @@ export const PUBLICATION_SEARCH_DAYS = 7;
  * already went out.
  */
 export const PUBLICATION_WITHDRAW_MIN_LEAD_MINUTES = 15;
+/**
+ * A post taken off the schedule by the platform's id (owner 2026-11-11) must be
+ * one Hub's own read of the page's schedule shows waiting, taken this long ago
+ * at most: an older read is no ground to name a post by its id — the caller
+ * refreshes the schedule first. (The send still waits for a fresher read: the
+ * engine's after the command, OnlyFans' right before it.)
+ */
+export const POST_WITHDRAW_SCHEDULE_MAX_AGE_MINUTES = 60;
 /** One approval takes at most this many publications (the batch body's cap). */
 export const PUBLICATION_APPROVE_BATCH_MAX = 200;
 /** The platform's schedule is read this many days ahead (Hub schedules 7 days ahead, spec §3.4). */

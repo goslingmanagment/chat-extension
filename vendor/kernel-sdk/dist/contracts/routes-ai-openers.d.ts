@@ -15,7 +15,8 @@ export declare const adminAiPersonaOpenerHoursSchema: z.ZodObject<{
     timeZone: z.ZodString;
 }, z.core.$strict>;
 /** The greetings sent with one text, and how the fans answered. A greeting
- *  counts toward an answer once 72 hours passed, toward money once 14 days. */
+ *  counts toward an answer once 72 hours passed, toward `paid` once 14 days.
+ *  The payers and their money wait for nothing: everything since the greeting. */
 export declare const adminAiPersonaOpenerOutcomeSchema: z.ZodObject<{
     sent: z.ZodNumber;
     edited: z.ZodNumber;
@@ -24,6 +25,9 @@ export declare const adminAiPersonaOpenerOutcomeSchema: z.ZodObject<{
     talked: z.ZodNumber;
     maturedPaid: z.ZodNumber;
     paid: z.ZodNumber;
+    payers: z.ZodNumber;
+    payersGrossMills: z.ZodNumber;
+    topPayerGrossMills: z.ZodNumber;
 }, z.core.$strict>;
 export declare const adminAiPersonaOpenerSchema: z.ZodObject<{
     id: z.ZodNumber;
@@ -48,6 +52,9 @@ export declare const adminAiPersonaOpenerSchema: z.ZodObject<{
             talked: z.ZodNumber;
             maturedPaid: z.ZodNumber;
             paid: z.ZodNumber;
+            payers: z.ZodNumber;
+            payersGrossMills: z.ZodNumber;
+            topPayerGrossMills: z.ZodNumber;
         }, z.core.$strict>;
         bare: z.ZodObject<{
             sent: z.ZodNumber;
@@ -57,6 +64,9 @@ export declare const adminAiPersonaOpenerSchema: z.ZodObject<{
             talked: z.ZodNumber;
             maturedPaid: z.ZodNumber;
             paid: z.ZodNumber;
+            payers: z.ZodNumber;
+            payersGrossMills: z.ZodNumber;
+            topPayerGrossMills: z.ZodNumber;
         }, z.core.$strict>;
         named: z.ZodObject<{
             sent: z.ZodNumber;
@@ -66,6 +76,9 @@ export declare const adminAiPersonaOpenerSchema: z.ZodObject<{
             talked: z.ZodNumber;
             maturedPaid: z.ZodNumber;
             paid: z.ZodNumber;
+            payers: z.ZodNumber;
+            payersGrossMills: z.ZodNumber;
+            topPayerGrossMills: z.ZodNumber;
         }, z.core.$strict>;
         other: z.ZodObject<{
             sent: z.ZodNumber;
@@ -75,6 +88,9 @@ export declare const adminAiPersonaOpenerSchema: z.ZodObject<{
             talked: z.ZodNumber;
             maturedPaid: z.ZodNumber;
             paid: z.ZodNumber;
+            payers: z.ZodNumber;
+            payersGrossMills: z.ZodNumber;
+            topPayerGrossMills: z.ZodNumber;
         }, z.core.$strict>;
     }, z.core.$strict>;
 }, z.core.$strict>;
@@ -103,6 +119,9 @@ export declare const adminAiPersonaOpenersResponseSchema: z.ZodObject<{
                 talked: z.ZodNumber;
                 maturedPaid: z.ZodNumber;
                 paid: z.ZodNumber;
+                payers: z.ZodNumber;
+                payersGrossMills: z.ZodNumber;
+                topPayerGrossMills: z.ZodNumber;
             }, z.core.$strict>;
             bare: z.ZodObject<{
                 sent: z.ZodNumber;
@@ -112,6 +131,9 @@ export declare const adminAiPersonaOpenersResponseSchema: z.ZodObject<{
                 talked: z.ZodNumber;
                 maturedPaid: z.ZodNumber;
                 paid: z.ZodNumber;
+                payers: z.ZodNumber;
+                payersGrossMills: z.ZodNumber;
+                topPayerGrossMills: z.ZodNumber;
             }, z.core.$strict>;
             named: z.ZodObject<{
                 sent: z.ZodNumber;
@@ -121,6 +143,9 @@ export declare const adminAiPersonaOpenersResponseSchema: z.ZodObject<{
                 talked: z.ZodNumber;
                 maturedPaid: z.ZodNumber;
                 paid: z.ZodNumber;
+                payers: z.ZodNumber;
+                payersGrossMills: z.ZodNumber;
+                topPayerGrossMills: z.ZodNumber;
             }, z.core.$strict>;
             other: z.ZodObject<{
                 sent: z.ZodNumber;
@@ -130,6 +155,9 @@ export declare const adminAiPersonaOpenersResponseSchema: z.ZodObject<{
                 talked: z.ZodNumber;
                 maturedPaid: z.ZodNumber;
                 paid: z.ZodNumber;
+                payers: z.ZodNumber;
+                payersGrossMills: z.ZodNumber;
+                topPayerGrossMills: z.ZodNumber;
             }, z.core.$strict>;
         }, z.core.$strict>;
     }, z.core.$strict>>;
@@ -197,6 +225,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         bare: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -206,6 +237,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         named: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -215,6 +249,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         other: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -224,6 +261,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                     }, z.core.$strict>;
                 }, z.core.$strict>>;
@@ -298,6 +338,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         bare: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -307,6 +350,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         named: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -316,6 +362,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         other: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -325,6 +374,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                     }, z.core.$strict>;
                 }, z.core.$strict>>;
@@ -398,6 +450,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         bare: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -407,6 +462,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         named: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -416,6 +474,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                         other: z.ZodObject<{
                             sent: z.ZodNumber;
@@ -425,6 +486,9 @@ export declare const aiOpenerRouteSchemas: {
                             talked: z.ZodNumber;
                             maturedPaid: z.ZodNumber;
                             paid: z.ZodNumber;
+                            payers: z.ZodNumber;
+                            payersGrossMills: z.ZodNumber;
+                            topPayerGrossMills: z.ZodNumber;
                         }, z.core.$strict>;
                     }, z.core.$strict>;
                 }, z.core.$strict>>;

@@ -8,6 +8,7 @@ export declare const chatterStatsRouteSchemas: {
         readonly description: string;
         readonly querystring: import("zod").ZodObject<{
             days: import("zod").ZodDefault<import("zod").ZodCoercedNumber<unknown>>;
+            until: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>;
         readonly response: {
             readonly 400: import("zod").ZodObject<{
@@ -202,6 +203,7 @@ export declare const chatterStatsRouteSchemas: {
         readonly description: string;
         readonly querystring: import("zod").ZodObject<{
             days: import("zod").ZodDefault<import("zod").ZodCoercedNumber<unknown>>;
+            until: import("zod").ZodOptional<import("zod").ZodString>;
             userId: import("zod").ZodOptional<import("zod").ZodCoercedNumber<unknown>>;
         }, import("zod/v4/core").$strip>;
         readonly response: {
@@ -507,6 +509,33 @@ export declare const chatterStatsRouteSchemas: {
                     overlapNetMills: import("zod").ZodNumber;
                     sales: import("zod").ZodNumber;
                 }, import("zod/v4/core").$strip>>;
+                outside: import("zod").ZodObject<{
+                    visitsNetMills: import("zod").ZodNumber;
+                    nobodyNetMills: import("zod").ZodNumber;
+                    daily: import("zod").ZodArray<import("zod").ZodObject<{
+                        date: import("zod").ZodString;
+                        visitsNetMills: import("zod").ZodNumber;
+                        nobodyNetMills: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    pages: import("zod").ZodArray<import("zod").ZodObject<{
+                        pageLabel: import("zod").ZodString;
+                        visitsNetMills: import("zod").ZodNumber;
+                        nobodyNetMills: import("zod").ZodNumber;
+                    }, import("zod/v4/core").$strip>>;
+                    sales: import("zod").ZodArray<import("zod").ZodObject<{
+                        at: import("zod").ZodString;
+                        pageLabel: import("zod").ZodString;
+                        fanName: import("zod").ZodNullable<import("zod").ZodString>;
+                        kind: import("zod").ZodEnum<{
+                            subscription: "subscription";
+                            tip: "tip";
+                            post: "post";
+                            ppv: "ppv";
+                        }>;
+                        netMills: import("zod").ZodNumber;
+                        visitBy: import("zod").ZodNullable<import("zod").ZodString>;
+                    }, import("zod/v4/core").$strip>>;
+                }, import("zod/v4/core").$strip>;
                 serverNow: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
         };
