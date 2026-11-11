@@ -1590,6 +1590,7 @@ export declare const clientChatLengthSchema: z.ZodObject<{
         fan: z.ZodNullable<z.ZodNumber>;
         unattributed: z.ZodNullable<z.ZodNumber>;
     }, z.core.$strip>>;
+    approximate: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strip>;
 export declare const clientDeletedMessagesResponseSchema: z.ZodObject<{
     pageLabel: z.ZodString;
@@ -1617,6 +1618,7 @@ export declare const clientDeletedMessagesResponseSchema: z.ZodObject<{
             fan: z.ZodNullable<z.ZodNumber>;
             unattributed: z.ZodNullable<z.ZodNumber>;
         }, z.core.$strip>>;
+        approximate: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>>;
     serverNow: z.ZodString;
 }, z.core.$strip>;
@@ -4472,6 +4474,7 @@ export declare const clientRouteSchemas: {
                         fan: z.ZodNullable<z.ZodNumber>;
                         unattributed: z.ZodNullable<z.ZodNumber>;
                     }, z.core.$strip>>;
+                    approximate: z.ZodOptional<z.ZodBoolean>;
                 }, z.core.$strip>>>;
                 serverNow: z.ZodString;
             }, z.core.$strip>;

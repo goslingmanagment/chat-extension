@@ -1777,9 +1777,10 @@ export const clientFanslyProxiesResponseSchema = z.object({
 export const CLIENT_DELETED_MESSAGES_MAX = 50;
 export const clientDeletedMessagesQuerySchema = z.object({
     /**
-     * The open chat (Fansly's group id): the answer then carries the chat's
-     * length (`chat`). One read when a chat opens, so the length costs no request
-     * of its own (owner, 2026-11-08: «без лишних запросов и точно»).
+     * The open chat (Fansly's group id; on an OnlyFans page the chat is the fan,
+     * so the fan's own id): the answer then carries the chat's length (`chat`).
+     * One read when a chat opens, so the length costs no request of its own
+     * (owner, 2026-11-08: «без лишних запросов и точно»).
      */
     conversationRef: clientConversationRefSchema.optional(),
 }).strict();
@@ -1827,6 +1828,14 @@ export const clientChatLengthSchema = z.object({
     firstMessageAt: isoTimestamp.nullable(),
     /** Who wrote them. Absent only in the answer of a hub older than 2026-11-11. */
     authors: clientChatAuthorsSchema.optional(),
+    /**
+     * True on an OnlyFans page (owner, 2026-11-11: the same card on ChatSpace):
+     * Hub has no proof of that chat's first message, so `messages`,
+     * `firstMessageAt` and the `authors` split are what its archive holds: in
+     * practice everything since Hub began to capture the page, older messages
+     * may be missing. Absent or false: exact, as described above.
+     */
+    approximate: z.boolean().optional(),
 });
 export const clientDeletedMessagesResponseSchema = z.object({
     pageLabel: z.string(),
