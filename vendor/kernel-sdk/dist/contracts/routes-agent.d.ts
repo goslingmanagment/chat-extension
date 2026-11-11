@@ -98,6 +98,7 @@ export declare const agentPlaneNameEnum: z.ZodEnum<{
     message_media_offers: "message_media_offers";
     fan_spend_daily: "fan_spend_daily";
     fan_spend_lifetime: "fan_spend_lifetime";
+    fan_badges: "fan_badges";
     revenue_mix_daily: "revenue_mix_daily";
     page_payout_requests: "page_payout_requests";
     ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -208,6 +209,8 @@ export declare const agentClaimFieldEnum: z.ZodEnum<{
     refundState: "refundState";
     fanEarning: "fanEarning";
     lifetimeSpendMills: "lifetimeSpendMills";
+    fbuddyTier: "fbuddyTier";
+    recentSpender: "recentSpender";
     revenueMixDay: "revenueMixDay";
     payoutRequest: "payoutRequest";
     ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -485,6 +488,7 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         message_media_offers: "message_media_offers";
         fan_spend_daily: "fan_spend_daily";
         fan_spend_lifetime: "fan_spend_lifetime";
+        fan_badges: "fan_badges";
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -583,6 +587,7 @@ export declare const agentPlaneSchema: z.ZodUnion<readonly [z.ZodObject<{
         message_media_offers: "message_media_offers";
         fan_spend_daily: "fan_spend_daily";
         fan_spend_lifetime: "fan_spend_lifetime";
+        fan_badges: "fan_badges";
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -776,6 +781,7 @@ export declare const agentGapSchema: z.ZodObject<{
         message_media_offers: "message_media_offers";
         fan_spend_daily: "fan_spend_daily";
         fan_spend_lifetime: "fan_spend_lifetime";
+        fan_badges: "fan_badges";
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -929,6 +935,7 @@ export declare const agentSourceErrorSchema: z.ZodObject<{
         message_media_offers: "message_media_offers";
         fan_spend_daily: "fan_spend_daily";
         fan_spend_lifetime: "fan_spend_lifetime";
+        fan_badges: "fan_badges";
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -1177,6 +1184,8 @@ export declare const agentClaimSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -1317,6 +1326,8 @@ export declare const agentClaimQuerySchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -1432,6 +1443,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -1530,6 +1542,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -1652,6 +1665,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -1805,6 +1819,7 @@ export declare const agentCaptureSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -1932,6 +1947,8 @@ export declare const agentCaptureSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -2750,6 +2767,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -3003,6 +3021,8 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -3135,6 +3155,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -3233,6 +3254,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -3355,6 +3377,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -3508,6 +3531,7 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -3635,6 +3659,8 @@ export declare const agentCapabilitiesResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -3889,6 +3915,8 @@ export declare const agentResolveBodySchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -4063,6 +4091,8 @@ export declare const agentResolveCandidateSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -4336,6 +4366,8 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 refundState: "refundState";
                 fanEarning: "fanEarning";
                 lifetimeSpendMills: "lifetimeSpendMills";
+                fbuddyTier: "fbuddyTier";
+                recentSpender: "recentSpender";
                 revenueMixDay: "revenueMixDay";
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -4565,6 +4597,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -4663,6 +4696,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -4785,6 +4819,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -4938,6 +4973,7 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -5065,6 +5101,8 @@ export declare const agentResolveResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -5291,6 +5329,8 @@ export declare const agentPersonQuerySchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -5545,6 +5585,8 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -5861,6 +5903,8 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 refundState: "refundState";
                 fanEarning: "fanEarning";
                 lifetimeSpendMills: "lifetimeSpendMills";
+                fbuddyTier: "fbuddyTier";
+                recentSpender: "recentSpender";
                 revenueMixDay: "revenueMixDay";
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -6104,6 +6148,8 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -6330,6 +6376,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -6428,6 +6475,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -6550,6 +6598,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -6703,6 +6752,7 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -6830,6 +6880,8 @@ export declare const agentPersonResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -7081,6 +7133,8 @@ export declare const agentPersonTimelineQuerySchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -7308,6 +7362,8 @@ export declare const agentTimelineItemSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -7632,6 +7688,8 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -7872,6 +7930,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -7970,6 +8029,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -8092,6 +8152,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -8245,6 +8306,7 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -8372,6 +8434,8 @@ export declare const agentPersonTimelineResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -8603,6 +8667,8 @@ export declare const agentThreadsQuerySchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -8840,6 +8906,8 @@ declare function agentThreadSummarySchema(): z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -9179,6 +9247,8 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -9465,6 +9535,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -9563,6 +9634,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -9685,6 +9757,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -9838,6 +9911,7 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -9965,6 +10039,8 @@ export declare const agentThreadsResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -10194,6 +10270,8 @@ export declare const agentThreadMessagesQuerySchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -10399,6 +10477,7 @@ export declare const agentMessageSchema: z.ZodObject<{
         message_media_offers: "message_media_offers";
         fan_spend_daily: "fan_spend_daily";
         fan_spend_lifetime: "fan_spend_lifetime";
+        fan_badges: "fan_badges";
         revenue_mix_daily: "revenue_mix_daily";
         page_payout_requests: "page_payout_requests";
         ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -10509,6 +10588,8 @@ export declare const agentMessageSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -10803,6 +10884,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -10913,6 +10995,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -11153,6 +11237,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -11251,6 +11336,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -11373,6 +11459,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -11526,6 +11613,7 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -11653,6 +11741,8 @@ export declare const agentThreadMessagesResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -11955,6 +12045,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -12053,6 +12144,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -12175,6 +12267,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -12328,6 +12421,7 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -12455,6 +12549,8 @@ export declare const agentThreadAvailabilityResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -12712,6 +12808,8 @@ export declare const agentSearchMessagesBodySchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -12880,6 +12978,8 @@ export declare const agentSearchLocatorSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -13145,6 +13245,8 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -13385,6 +13487,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -13483,6 +13586,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -13605,6 +13709,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -13758,6 +13863,7 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -13885,6 +13991,8 @@ export declare const agentSearchMessagesResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -14110,6 +14218,8 @@ export declare const agentCoverageQuerySchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -14252,6 +14362,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -14350,6 +14461,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -14472,6 +14584,7 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
             message_media_offers: "message_media_offers";
             fan_spend_daily: "fan_spend_daily";
             fan_spend_lifetime: "fan_spend_lifetime";
+            fan_badges: "fan_badges";
             revenue_mix_daily: "revenue_mix_daily";
             page_payout_requests: "page_payout_requests";
             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -14645,6 +14758,8 @@ export declare const agentCoverageItemSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -14860,6 +14975,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -14958,6 +15074,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -15080,6 +15197,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -15253,6 +15371,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -15478,6 +15598,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -15576,6 +15697,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -15698,6 +15820,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -15851,6 +15974,7 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -15978,6 +16102,8 @@ export declare const agentCoverageResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -16296,6 +16422,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -16394,6 +16521,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -16516,6 +16644,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -16669,6 +16798,7 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -16796,6 +16926,8 @@ export declare const agentObservationsResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -17060,6 +17192,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -17158,6 +17291,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -17280,6 +17414,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -17433,6 +17568,7 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -17560,6 +17696,8 @@ export declare const agentObservationPayloadResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -17907,6 +18045,8 @@ export declare const agentDatasetQueryBodySchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -18122,6 +18262,8 @@ export declare const agentDatasetRowSchema: z.ZodObject<{
         refundState: "refundState";
         fanEarning: "fanEarning";
         lifetimeSpendMills: "lifetimeSpendMills";
+        fbuddyTier: "fbuddyTier";
+        recentSpender: "recentSpender";
         revenueMixDay: "revenueMixDay";
         payoutRequest: "payoutRequest";
         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -18533,6 +18675,8 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -18784,6 +18928,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -18882,6 +19027,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -19004,6 +19150,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -19157,6 +19304,7 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -19284,6 +19432,8 @@ export declare const agentDatasetQueryResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -19563,6 +19713,8 @@ export declare const agentHydrationRequestCreateBodySchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -19891,6 +20043,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -19989,6 +20142,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -20111,6 +20265,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -20264,6 +20419,7 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -20391,6 +20547,8 @@ export declare const agentHydrationRequestResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -20710,6 +20868,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -20808,6 +20967,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -20930,6 +21090,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -21083,6 +21244,7 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -21210,6 +21372,8 @@ export declare const agentHydrationRequestGetResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -21550,6 +21714,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -21648,6 +21813,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -21770,6 +21936,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -21923,6 +22090,7 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -22050,6 +22218,8 @@ export declare const agentHydrationRequestDecideResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -22391,6 +22561,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -22489,6 +22660,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -22611,6 +22783,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -22764,6 +22937,7 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -22891,6 +23065,8 @@ export declare const agentHydrationRequestListResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -23231,6 +23407,8 @@ export declare const agentHistoryRequestCreateBodySchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -23701,6 +23879,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -23799,6 +23978,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -23921,6 +24101,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -24074,6 +24255,7 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -24201,6 +24383,8 @@ export declare const agentHistoryRequestCreateResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -24593,6 +24777,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -24691,6 +24876,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -24813,6 +24999,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -24966,6 +25153,7 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -25093,6 +25281,8 @@ export declare const agentHistoryRequestGetResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -25412,6 +25602,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -25510,6 +25701,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -25632,6 +25824,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -25785,6 +25978,7 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -25912,6 +26106,8 @@ export declare const agentHistoryRequestCancelResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -26232,6 +26428,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -26330,6 +26527,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -26452,6 +26650,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -26605,6 +26804,7 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -26732,6 +26932,8 @@ export declare const agentHistoryRequestListResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -27796,6 +27998,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -27894,6 +28097,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -28016,6 +28220,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -28169,6 +28374,7 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -28296,6 +28502,8 @@ export declare const agentSyncStatusResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -28644,6 +28852,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -28742,6 +28951,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -28864,6 +29074,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -29017,6 +29228,7 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -29144,6 +29356,8 @@ export declare const agentSyncWhyResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -29477,6 +29691,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -29575,6 +29790,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -29697,6 +29913,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -29850,6 +30067,7 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
                 message_media_offers: "message_media_offers";
                 fan_spend_daily: "fan_spend_daily";
                 fan_spend_lifetime: "fan_spend_lifetime";
+                fan_badges: "fan_badges";
                 revenue_mix_daily: "revenue_mix_daily";
                 page_payout_requests: "page_payout_requests";
                 ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -29977,6 +30195,8 @@ export declare const agentCrossSpendersResponseSchema: z.ZodObject<{
             refundState: "refundState";
             fanEarning: "fanEarning";
             lifetimeSpendMills: "lifetimeSpendMills";
+            fbuddyTier: "fbuddyTier";
+            recentSpender: "recentSpender";
             revenueMixDay: "revenueMixDay";
             payoutRequest: "payoutRequest";
             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -30326,6 +30546,7 @@ export declare const agentRouteSchemas: {
                         message_media_offers: "message_media_offers";
                         fan_spend_daily: "fan_spend_daily";
                         fan_spend_lifetime: "fan_spend_lifetime";
+                        fan_badges: "fan_badges";
                         revenue_mix_daily: "revenue_mix_daily";
                         page_payout_requests: "page_payout_requests";
                         ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -30579,6 +30800,8 @@ export declare const agentRouteSchemas: {
                     refundState: "refundState";
                     fanEarning: "fanEarning";
                     lifetimeSpendMills: "lifetimeSpendMills";
+                    fbuddyTier: "fbuddyTier";
+                    recentSpender: "recentSpender";
                     revenueMixDay: "revenueMixDay";
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -30711,6 +30934,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -30809,6 +31033,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -30931,6 +31156,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -31084,6 +31310,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -31211,6 +31438,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -31491,6 +31720,8 @@ export declare const agentRouteSchemas: {
                     refundState: "refundState";
                     fanEarning: "fanEarning";
                     lifetimeSpendMills: "lifetimeSpendMills";
+                    fbuddyTier: "fbuddyTier";
+                    recentSpender: "recentSpender";
                     revenueMixDay: "revenueMixDay";
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -31673,6 +31904,8 @@ export declare const agentRouteSchemas: {
                             refundState: "refundState";
                             fanEarning: "fanEarning";
                             lifetimeSpendMills: "lifetimeSpendMills";
+                            fbuddyTier: "fbuddyTier";
+                            recentSpender: "recentSpender";
                             revenueMixDay: "revenueMixDay";
                             payoutRequest: "payoutRequest";
                             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -31902,6 +32135,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -32000,6 +32234,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -32122,6 +32357,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -32275,6 +32511,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -32402,6 +32639,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -32679,6 +32918,8 @@ export declare const agentRouteSchemas: {
                 refundState: "refundState";
                 fanEarning: "fanEarning";
                 lifetimeSpendMills: "lifetimeSpendMills";
+                fbuddyTier: "fbuddyTier";
+                recentSpender: "recentSpender";
                 revenueMixDay: "revenueMixDay";
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -32934,6 +33175,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -33250,6 +33493,8 @@ export declare const agentRouteSchemas: {
                             refundState: "refundState";
                             fanEarning: "fanEarning";
                             lifetimeSpendMills: "lifetimeSpendMills";
+                            fbuddyTier: "fbuddyTier";
+                            recentSpender: "recentSpender";
                             revenueMixDay: "revenueMixDay";
                             payoutRequest: "payoutRequest";
                             ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -33493,6 +33738,8 @@ export declare const agentRouteSchemas: {
                     refundState: "refundState";
                     fanEarning: "fanEarning";
                     lifetimeSpendMills: "lifetimeSpendMills";
+                    fbuddyTier: "fbuddyTier";
+                    recentSpender: "recentSpender";
                     revenueMixDay: "revenueMixDay";
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -33719,6 +33966,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -33817,6 +34065,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -33939,6 +34188,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -34092,6 +34342,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -34219,6 +34470,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -34495,6 +34748,8 @@ export declare const agentRouteSchemas: {
                 refundState: "refundState";
                 fanEarning: "fanEarning";
                 lifetimeSpendMills: "lifetimeSpendMills";
+                fbuddyTier: "fbuddyTier";
+                recentSpender: "recentSpender";
                 revenueMixDay: "revenueMixDay";
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -34744,6 +34999,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -34984,6 +35241,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -35082,6 +35340,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -35204,6 +35463,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -35357,6 +35617,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -35484,6 +35745,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -35752,6 +36015,8 @@ export declare const agentRouteSchemas: {
                 refundState: "refundState";
                 fanEarning: "fanEarning";
                 lifetimeSpendMills: "lifetimeSpendMills";
+                fbuddyTier: "fbuddyTier";
+                recentSpender: "recentSpender";
                 revenueMixDay: "revenueMixDay";
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -35984,6 +36249,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -36270,6 +36537,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -36368,6 +36636,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -36490,6 +36759,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -36643,6 +36913,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -36770,6 +37041,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -37043,6 +37316,8 @@ export declare const agentRouteSchemas: {
                 refundState: "refundState";
                 fanEarning: "fanEarning";
                 lifetimeSpendMills: "lifetimeSpendMills";
+                fbuddyTier: "fbuddyTier";
+                recentSpender: "recentSpender";
                 revenueMixDay: "revenueMixDay";
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -37268,6 +37543,7 @@ export declare const agentRouteSchemas: {
                         message_media_offers: "message_media_offers";
                         fan_spend_daily: "fan_spend_daily";
                         fan_spend_lifetime: "fan_spend_lifetime";
+                        fan_badges: "fan_badges";
                         revenue_mix_daily: "revenue_mix_daily";
                         page_payout_requests: "page_payout_requests";
                         ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -37378,6 +37654,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -37618,6 +37896,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -37716,6 +37995,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -37838,6 +38118,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -37991,6 +38272,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -38118,6 +38400,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -38428,6 +38712,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -38526,6 +38811,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -38648,6 +38934,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -38801,6 +39088,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -38928,6 +39216,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -39235,6 +39525,8 @@ export declare const agentRouteSchemas: {
                     refundState: "refundState";
                     fanEarning: "fanEarning";
                     lifetimeSpendMills: "lifetimeSpendMills";
+                    fbuddyTier: "fbuddyTier";
+                    recentSpender: "recentSpender";
                     revenueMixDay: "revenueMixDay";
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -39409,6 +39701,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -39649,6 +39943,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -39747,6 +40042,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -39869,6 +40165,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -40022,6 +40319,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -40149,6 +40447,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -40417,6 +40717,8 @@ export declare const agentRouteSchemas: {
                 refundState: "refundState";
                 fanEarning: "fanEarning";
                 lifetimeSpendMills: "lifetimeSpendMills";
+                fbuddyTier: "fbuddyTier";
+                recentSpender: "recentSpender";
                 revenueMixDay: "revenueMixDay";
                 payoutRequest: "payoutRequest";
                 ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -40563,6 +40865,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -40661,6 +40964,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -40783,6 +41087,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -40956,6 +41261,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -41181,6 +41488,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -41279,6 +41587,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -41401,6 +41710,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -41554,6 +41864,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -41681,6 +41992,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -42012,6 +42325,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -42110,6 +42424,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -42232,6 +42547,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -42385,6 +42701,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -42512,6 +42829,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -42814,6 +43133,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -42912,6 +43232,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -43034,6 +43355,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -43187,6 +43509,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -43314,6 +43637,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -43696,6 +44021,8 @@ export declare const agentRouteSchemas: {
                     refundState: "refundState";
                     fanEarning: "fanEarning";
                     lifetimeSpendMills: "lifetimeSpendMills";
+                    fbuddyTier: "fbuddyTier";
+                    recentSpender: "recentSpender";
                     revenueMixDay: "revenueMixDay";
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -43998,6 +44325,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -44249,6 +44578,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -44347,6 +44677,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -44469,6 +44800,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -44622,6 +44954,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -44749,6 +45082,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -45038,6 +45373,8 @@ export declare const agentRouteSchemas: {
                     refundState: "refundState";
                     fanEarning: "fanEarning";
                     lifetimeSpendMills: "lifetimeSpendMills";
+                    fbuddyTier: "fbuddyTier";
+                    recentSpender: "recentSpender";
                     revenueMixDay: "revenueMixDay";
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -45273,6 +45610,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -45371,6 +45709,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -45493,6 +45832,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -45646,6 +45986,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -45773,6 +46114,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -46153,6 +46496,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -46251,6 +46595,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -46373,6 +46718,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -46526,6 +46872,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -46653,6 +47000,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -47047,6 +47396,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -47145,6 +47495,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -47267,6 +47618,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -47420,6 +47772,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -47547,6 +47900,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -47937,6 +48292,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -48035,6 +48391,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -48157,6 +48514,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -48310,6 +48668,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -48437,6 +48796,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -48710,6 +49071,8 @@ export declare const agentRouteSchemas: {
                     refundState: "refundState";
                     fanEarning: "fanEarning";
                     lifetimeSpendMills: "lifetimeSpendMills";
+                    fbuddyTier: "fbuddyTier";
+                    recentSpender: "recentSpender";
                     revenueMixDay: "revenueMixDay";
                     payoutRequest: "payoutRequest";
                     ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -49024,6 +49387,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -49122,6 +49486,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -49244,6 +49609,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -49397,6 +49763,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -49524,6 +49891,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -49977,6 +50346,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -50075,6 +50445,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -50197,6 +50568,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -50350,6 +50722,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -50477,6 +50850,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -50849,6 +51224,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -50947,6 +51323,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -51069,6 +51446,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -51222,6 +51600,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -51349,6 +51728,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -51720,6 +52101,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -51818,6 +52200,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -51940,6 +52323,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -52093,6 +52477,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -52220,6 +52605,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -52756,6 +53143,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -52854,6 +53242,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -52976,6 +53365,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -53129,6 +53519,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -53256,6 +53647,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -53649,6 +54042,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -53747,6 +54141,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -53869,6 +54264,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -54022,6 +54418,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -54149,6 +54546,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";
@@ -54494,6 +54893,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -54592,6 +54992,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -54714,6 +55115,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -54867,6 +55269,7 @@ export declare const agentRouteSchemas: {
                             message_media_offers: "message_media_offers";
                             fan_spend_daily: "fan_spend_daily";
                             fan_spend_lifetime: "fan_spend_lifetime";
+                            fan_badges: "fan_badges";
                             revenue_mix_daily: "revenue_mix_daily";
                             page_payout_requests: "page_payout_requests";
                             ofapi_read_snapshots: "ofapi_read_snapshots";
@@ -54994,6 +55397,8 @@ export declare const agentRouteSchemas: {
                         refundState: "refundState";
                         fanEarning: "fanEarning";
                         lifetimeSpendMills: "lifetimeSpendMills";
+                        fbuddyTier: "fbuddyTier";
+                        recentSpender: "recentSpender";
                         revenueMixDay: "revenueMixDay";
                         payoutRequest: "payoutRequest";
                         ofapiFinancialMetric: "ofapiFinancialMetric";

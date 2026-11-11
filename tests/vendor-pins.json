@@ -1,8 +1,8 @@
 {
   "kernelSdk": {
-    "contractHash": "d6e74e1b3b155d5e98cab28e37f0577a681c086fe413e512943a29066cfdd12a",
-    "sourceCommit": "85e3bfe88d42a967dba96a62a0db5610ff1e7c8c",
-    "note": "Vendored on 2026-11-11 from hub main 85e3bfe8 (#1201) with scripts/vendor-sdk.mjs: clientDeletedMessages answers an OnlyFans chat's length too, marked `chat.approximate`."
+    "contractHash": "810ea5e2c6fa158a3ee928ad97d6e303d959390c510fde7af0fb68f2333a06b9",
+    "sourceCommit": "bb4d51e81f4ea370631b06f2ae81e9c45719f7e4",
+    "note": "Vendored on 2026-11-12 from hub main bb4d51e8 (#1202) with scripts/vendor-sdk.mjs: clientFanBadges (fan-badges-v1) takes FBuddy's tier and Fansly's blue card of the fans the boards read."
   },
   "chatgooseHotkeys": {
     "sha256": "3f2c27f5e5ea9be3719265ff978103f1edbba7e4ed5160b5b2c146e663a5542e",

@@ -346,6 +346,10 @@ export declare const AGENT_DATASETS: {
             readonly accountLookupMissAt: "timestamp";
             readonly accountCheckedAt: "timestamp";
             readonly accountContactability: "string";
+            readonly fbuddyTier: "string";
+            readonly fbuddyTierCheckedAt: "timestamp";
+            readonly recentSpender: "bool";
+            readonly recentSpenderCheckedAt: "timestamp";
         };
         readonly defaultSort: {
             readonly field: "lastSeenAt";

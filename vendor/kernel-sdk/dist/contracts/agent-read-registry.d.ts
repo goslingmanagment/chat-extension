@@ -161,6 +161,12 @@ export declare const AGENT_CLAIM_CLASSES: {
             readonly lifetimeSpendMills: {
                 readonly required: readonly ["fan_spend_lifetime"];
             };
+            readonly fbuddyTier: {
+                readonly required: readonly ["fan_badges"];
+            };
+            readonly recentSpender: {
+                readonly required: readonly ["fan_badges"];
+            };
             readonly revenueMixDay: {
                 readonly required: readonly ["revenue_mix_daily"];
             };
